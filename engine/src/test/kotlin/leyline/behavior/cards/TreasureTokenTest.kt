@@ -10,19 +10,14 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GrpIdResolver
-import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allAnnotations
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
-import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import leyline.testkit.StateMapperShell as StateMapper
 
 /**
  * Treasure token grpId resolution — regression test for NPE crash.
@@ -102,28 +97,18 @@ class TreasureTokenTest :
             treasure.isToken.shouldBeTrue()
 
             // --- Regression: Treasure grpId must resolve to non-zero ---
-            val treasureGrpId = GrpIdResolver.resolve(treasure, bridge.cardRepository)
+            val treasureGrpId = treasure.grpId
             treasureGrpId shouldBeGreaterThan 0
 
             // --- Regression: buildFromSnapshot must not crash (was NPE) ---
-            val snapTreasure = GsmSnapshot.capture(game(), bridge, "test-treasure", 1)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(
-                        snapTreasure,
-                        1,
-                        "test-treasure",
-                        bridge,
-                        viewingSeatId = 1,
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    ).gsm
-            gsm.shouldNotBeNull()
-            val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }
+            val treasureObj =
+                observe()
+                    .client.objects.values
+                    .firstOrNull { it.grpId == treasureGrpId }
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game(), bridge, "test", 0), bridge)
+            val actions = observe().client.actions.shouldNotBeNull()
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

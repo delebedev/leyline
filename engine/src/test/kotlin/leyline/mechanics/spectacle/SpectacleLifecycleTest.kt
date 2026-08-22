@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -36,20 +37,20 @@ private val PUZZLE =
 class SpectacleLifecycleTest :
     SessionTest({
         session("Spawn of Mayhem casts with Spectacle after opponent lost life", puzzle = PUZZLE) {
-            val spawnGrpId = bridge.cardRepository.findGrpIdByName("Spawn of Mayhem")!!
+            val spawnGrpId = cardGrpId("Spawn of Mayhem")!!
             val spectacleAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(spawnGrpId, KeywordAbilityIds.SPECTACLE)!!
+                keywordAbilityGrpId(spawnGrpId, KeywordAbilityIds.SPECTACLE)!!
 
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
-            if (game().stackZone.size() > 0) {
+            if ((observe().stackSize ?: 0) > 0) {
                 passUntilResolved()
             }
             ai.life shouldBe 18
 
             val snap = messageSnapshot()
             castSpellByName("Spawn of Mayhem", alternativeGrpId = spectacleAbilityGrpId).shouldBeTrue()
-            if (game().stackZone.size() > 0) {
+            if ((observe().stackSize ?: 0) > 0) {
                 passUntilResolved()
             }
 

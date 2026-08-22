@@ -4,6 +4,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allActions
@@ -74,13 +75,13 @@ class ElectroduplicateTest :
 
             // 3. Select target + resolve
             selectTargets(listOf(targetIid))
-            passUntil(maxPasses = 10) { game().stack.isEmpty }
+            passUntil(maxPasses = 10) { (observe().stackSize ?: 0) == 0 }
 
             // 4. Spell not in GY/Hand/Stack after flashback resolve
             val nonExileZones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Hand, ForgeZoneType.Stack)
             val strayCards =
                 nonExileZones.flatMap { z ->
-                    human.getZone(z)?.cards?.filter { it.name == "Electroduplicate" } ?: emptyList()
+                    human.getZone(z).cards.filter { it.name == "Electroduplicate" }
                 }
             strayCards.size shouldBe 0
 

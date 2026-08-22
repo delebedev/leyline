@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
@@ -31,8 +32,8 @@ class EmergeLifecycleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
         ) {
-            val gryffGrpId = bridge.cardRepository.findGrpIdByName("Wretched Gryff")!!
-            val emergeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!
+            val gryffGrpId = cardGrpId("Wretched Gryff")!!
+            val emergeAbilityGrpId = keywordAbilityGrpId(gryffGrpId, KeywordAbilityIds.EMERGE)!!
             val corpseIid = human.battlefield.iid("Walking Corpse")
 
             val snap = messageSnapshot()

@@ -1,9 +1,7 @@
 package leyline.testkit
 
 /**
- * Session-tier probes that depend on test-only types and so cannot live on
- * [MatchFlowHarness] itself. Everything that needs only harness state belongs
- * on the harness; keep this file to the testkit boundary crossings.
+ * Session-tier probes over the semantic headless match.
  */
 
 /**
@@ -12,11 +10,12 @@ package leyline.testkit
  * line and lets typed prompt expectations replace raw `any { hasFooReq() }`
  * scans. Raw access remains via [MessageSlice.messages].
  */
-internal fun MatchFlowHarness.after(block: () -> Unit): MessageSlice {
-    val snapshot = messageSnapshot()
+internal fun leyline.tooling.headless.HeadlessMatch.after(block: () -> Unit): MessageSlice {
+    val snapshot = checkpoint()
     block()
     return MessageSlice(messagesSince(snapshot))
 }
 
 /** Assert the client accumulator's projected state is self-consistent. */
-internal fun MatchFlowHarness.assertAccumulatorConsistent(context: String) = accumulator.assertConsistent(context)
+internal fun leyline.tooling.headless.HeadlessMatch.assertAccumulatorConsistent(context: String) =
+    check(observe().client.actionInstanceIdsMissingFromObjects().isEmpty()) { "inconsistent client state: $context" }

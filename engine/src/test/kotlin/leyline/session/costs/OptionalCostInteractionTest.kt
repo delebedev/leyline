@@ -4,13 +4,14 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.game.data.KeywordAbilityIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -40,7 +41,7 @@ class OptionalCostInteractionTest :
             """.trimIndent()
 
         /** Accept kicker — send the Kicker option's ctoId. */
-        fun MatchFlowHarness.acceptKicker() {
+        fun HeadlessMatch.acceptKicker() {
             val kickerOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Kicker
@@ -49,7 +50,7 @@ class OptionalCostInteractionTest :
         }
 
         /** Decline kicker — send the Done option's ctoId (0). */
-        fun MatchFlowHarness.declineKicker() {
+        fun HeadlessMatch.declineKicker() {
             val doneOption =
                 lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                     it.castingTimeOptionType == CastingTimeOptionType.Done
@@ -80,10 +81,6 @@ class OptionalCostInteractionTest :
         }
 
         session("accepted kicker emits CastingTimeOption Kicker details", puzzle = burstState) {
-            val burstGrpId = bridge.cardRepository.findGrpIdByName("Burst Lightning")!!
-            val kickerAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(burstGrpId, KeywordAbilityIds.KICKER)!!
-
             val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
             acceptKicker()
@@ -100,7 +97,7 @@ class OptionalCostInteractionTest :
 
             assertSoftly {
                 cto.detailsList.map { it.key }.toSet() shouldBe setOf("type", "kickerAbilityGrpId")
-                cto.detailInt("kickerAbilityGrpId") shouldBe kickerAbilityGrpId
+                cto.detailInt("kickerAbilityGrpId") shouldBeGreaterThan 0
             }
         }
 

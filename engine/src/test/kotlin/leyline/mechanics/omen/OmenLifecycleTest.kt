@@ -8,8 +8,8 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.types.InstanceId
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
@@ -64,13 +64,11 @@ class OmenLifecycleTest :
                     .single { it.actionType == ActionType.CastOmen && it.instanceId == handParentIid }
 
             val lifecycleStart = messageSnapshot()
-            session.onPerformAction(
-                submitWithGsId(
-                    performAction {
-                        actionType = ActionType.CastOmen
-                        instanceId = omenAction.instanceId
-                    },
-                ),
+            submitAction(
+                performAction {
+                    actionType = ActionType.CastOmen
+                    instanceId = omenAction.instanceId
+                },
             )
             drainSink()
 
@@ -180,25 +178,8 @@ class OmenLifecycleTest :
         }
 
         session("Riling Dawnbreaker main face preserves its Omen companion through resolution", puzzle = omenPuzzle) {
-            val handParentIid = human.hand.iid("Riling Dawnbreaker")
-            val handCardId = checkNotNull(bridge.getForgeCardId(InstanceId(handParentIid)))
-            bridge.setSelectedSpellGrpId(handCardId, 95537)
-            val castAction =
-                allMessages
-                    .asReversed()
-                    .first { it.hasActionsAvailableReq() }
-                    .actionsAvailableReq.actionsList
-                    .single { it.actionType == ActionType.Cast && it.instanceId == handParentIid }
-
             val lifecycleStart = messageSnapshot()
-            session.onPerformAction(
-                submitWithGsId(
-                    performAction {
-                        actionType = ActionType.Cast
-                        instanceId = castAction.instanceId
-                    },
-                ),
-            )
+            castSpellByName("Riling Dawnbreaker", alternativeGrpId = 95537).shouldBeTrue()
             drainSink()
             val castMessages = messagesSince(lifecycleStart)
             val stackParent =

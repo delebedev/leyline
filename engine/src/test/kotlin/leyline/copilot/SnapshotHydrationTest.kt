@@ -7,7 +7,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
 import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.SessionTest
+import leyline.testkit.*
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -31,7 +31,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 @Suppress("MissingAssertSoftly")
 class SnapshotHydrationTest :
-    SessionTest({
+    BoardTest({
 
         test("pre-turn snapshot uses decision player and a valid puzzle turn") {
             val gsm =
@@ -125,32 +125,30 @@ class SnapshotHydrationTest :
             }
         }
 
-        session(
-            "hydrated game matches source on zones, flags, counters, damage, attachments, life, ids",
-            puzzle =
-                """
-                [metadata]
-                Name:Snapshot Round Trip
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=17
-                AILife=9
-
-                humanhand=Lightning Bolt
-                humanbattlefield=Mountain|Id:101|Tapped;Mountain|Id:102;Goblin Fireslinger|Id:103|SummonSick|Counters:P1P1=2;Pacifism|Id:104|AttachedTo:201
-                humangraveyard=Shock
-                aibattlefield=Grizzly Bears|Id:201|Damage:1
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
-        ) {
-            val sourceBridge = bridge
-            val sourceGame = sourceBridge.getGame().shouldNotBeNull()
+        test("hydrated game matches source on zones, flags, counters, damage, attachments, life, ids") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Snapshot Round Trip
+                    Goal:Win
+                    Turns:5
+                    Difficulty:Easy
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=17
+                    AILife=9
+                    humanhand=Lightning Bolt
+                    humanbattlefield=Mountain|Id:101|Tapped;Mountain|Id:102;Goblin Fireslinger|Id:103|SummonSick|Counters:P1P1=2;Pacifism|Id:104|AttachedTo:201
+                    humangraveyard=Shock
+                    aibattlefield=Grizzly Bears|Id:201|Damage:1
+                    humanlibrary=Mountain;Mountain;Mountain
+                    ailibrary=Mountain;Mountain;Mountain
+                    """.trimIndent(),
+                )
+            val sourceBridge = board.bridge
+            val sourceGame = board.game
             val snap = GsmSnapshot.capture(sourceGame, sourceBridge, "roundtrip", 0)
             val wireGsm =
                 StateMapper

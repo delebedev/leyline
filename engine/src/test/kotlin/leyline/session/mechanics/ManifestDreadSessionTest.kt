@@ -11,12 +11,13 @@ import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allActions
 import leyline.testkit.detailInt
 import leyline.testkit.haveManaCost
 import leyline.testkit.performAction
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -41,7 +42,7 @@ private fun manifestDreadPuzzle(library: String) =
     ailibrary=Forest;Forest;Forest;Forest
     """.trimIndent()
 
-private fun MatchFlowHarness.castUnnervingGraspUntilSelectN(): SelectNReq {
+private fun HeadlessMatch.castUnnervingGraspUntilSelectN(): SelectNReq {
     val targetIid = ai.battlefield.iid("Grizzly Bears")
     castSpellByName("Unnerving Grasp") shouldBe true
     selectTargets(listOf(targetIid))
@@ -61,7 +62,6 @@ class ManifestDreadSessionTest :
         ) {
             val req = castUnnervingGraspUntilSelectN()
             val creatureIid = findInstanceId(req.idsList, "Centaur Courser")
-            val islandIid = findInstanceId(req.idsList, "Island")
             val promptMessage = allMessages.last { it.hasSelectNReq() }
 
             assertSoftly {
@@ -88,10 +88,7 @@ class ManifestDreadSessionTest :
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = bridge.instanceId(manifested)
-            val islandForgeId =
-                bridge.getForgeCardId(leyline.bridge.types.InstanceId(islandIid))?.value
-                    ?: error("No Forge card id for unselected Island iid=$islandIid")
+            val manifestedIid = manifested.instanceId
             val faceDown =
                 allMessages
                     .flatMap { if (it.hasGameStateMessage()) it.gameStateMessage.persistentAnnotationsList else emptyList() }
@@ -104,7 +101,7 @@ class ManifestDreadSessionTest :
                     } ?: error("No active turn-up action for manifested creature")
 
             assertSoftly {
-                human.getZone(ZoneType.Graveyard).cards.map { it.id } shouldContain islandForgeId
+                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Island"
                 faceDown.detailInt(DetailKeys.REASON_UPPER) shouldBe AnnotationConstants.FACEDOWN_REASON_MANIFEST_DREAD
                 faceDown.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe KeywordAbilityIds.MANIFEST_DREAD
                 turnUp.alternativeGrpId shouldBe KeywordAbilityIds.MANIFEST_DREAD
@@ -112,18 +109,14 @@ class ManifestDreadSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            session.onPerformAction(
-                submitWithGsId(
-                    performAction(turnUp),
-                ),
-            )
-            drainSink()
+            submitAction(performAction(turnUp))
 
+            val manifestedAfter = human.battlefield.cards.single { it.instanceId == manifestedIid }
             assertSoftly {
-                manifested.isFaceDown shouldBe false
-                manifested.name shouldBe "Centaur Courser"
-                manifested.netPower shouldBe 3
-                manifested.netToughness shouldBe 3
+                manifestedAfter.isFaceDown shouldBe false
+                manifestedAfter.name shouldBe "Centaur Courser"
+                manifestedAfter.netPower shouldBe 3
+                manifestedAfter.netToughness shouldBe 3
             }
         }
 
@@ -138,7 +131,7 @@ class ManifestDreadSessionTest :
             passUntilResolved()
 
             val manifested = human.getZone(ZoneType.Battlefield).cards.single { it.isFaceDown }
-            val manifestedIid = bridge.instanceId(manifested)
+            val manifestedIid = manifested.instanceId
             val turnUp =
                 allMessages
                     .allActions()

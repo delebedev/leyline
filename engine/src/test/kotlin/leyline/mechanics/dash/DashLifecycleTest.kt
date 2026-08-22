@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
@@ -32,12 +33,12 @@ class DashLifecycleTest :
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
         ) {
-            val zurgoGrpId = bridge.cardRepository.findGrpIdByName("Zurgo Bellstriker")!!
-            val dashAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(zurgoGrpId, KeywordAbilityIds.DASH)!!
+            val zurgoGrpId = cardGrpId("Zurgo Bellstriker")!!
+            val dashAbilityGrpId = keywordAbilityGrpId(zurgoGrpId, KeywordAbilityIds.DASH)!!
 
             val snap = messageSnapshot()
             castSpellByName("Zurgo Bellstriker", alternativeGrpId = dashAbilityGrpId).shouldBeTrue()
-            passUntil(maxPasses = 20) { game().stack.isEmpty }.shouldBeTrue()
+            passUntil(maxPasses = 20) { observe().stackSize == 0 }.shouldBeTrue()
 
             val cto =
                 messagesSince(snap)

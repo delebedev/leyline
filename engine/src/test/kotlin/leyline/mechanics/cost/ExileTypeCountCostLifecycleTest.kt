@@ -5,8 +5,9 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
+import leyline.tooling.headless.HeadlessMatch
 
 /**
  * Card-type-count exile cost payment (`withTypesGE` shape) through
@@ -31,7 +32,7 @@ class ExileTypeCountCostLifecycleTest :
             ailibrary=Mountain;Mountain
             """.trimIndent()
 
-        fun MatchFlowHarness.graveyardIds(vararg names: String): List<Int> =
+        fun HeadlessMatch.graveyardIds(vararg names: String): List<Int> =
             names.map { name ->
                 human.graveyard.iid(
                     human
@@ -44,7 +45,7 @@ class ExileTypeCountCostLifecycleTest :
         session("four-type selection pays the escape exile cost", puzzle = puzzle) {
             castFromGraveyard("Nethergoyf").shouldBeTrue()
             selectTargets(graveyardIds("Duress", "Shock", "Grizzly Bears", "Portable Hole"))
-            bridge.awaitPriority()
+            passPriority()
             passUntilResolved(maxPasses = 8)
 
             assertSoftly {
@@ -56,7 +57,7 @@ class ExileTypeCountCostLifecycleTest :
         session("two-type selection is rejected even when the candidate list spans four types", puzzle = puzzle) {
             castFromGraveyard("Nethergoyf").shouldBeTrue()
             selectTargets(graveyardIds("Duress", "Shock"))
-            bridge.awaitPriority()
+            passPriority()
             passUntilResolved(maxPasses = 8)
 
             assertSoftly {

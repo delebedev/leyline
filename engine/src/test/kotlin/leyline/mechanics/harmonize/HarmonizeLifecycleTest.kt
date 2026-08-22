@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -34,8 +35,8 @@ private val PUZZLE =
 class HarmonizeLifecycleTest :
     SessionTest({
         session("Winternight Stories casts from graveyard with Harmonize", puzzle = PUZZLE) {
-            val cardGrpId = bridge.cardRepository.findGrpIdByName("Winternight Stories")!!
-            val harmonizeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.HARMONIZE)!!
+            val cardGrpId = cardGrpId("Winternight Stories")!!
+            val harmonizeAbilityGrpId = keywordAbilityGrpId(cardGrpId, KeywordAbilityIds.HARMONIZE)!!
 
             val snap = messageSnapshot()
             castSpellByName(

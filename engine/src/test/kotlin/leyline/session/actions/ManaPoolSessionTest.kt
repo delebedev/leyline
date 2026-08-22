@@ -1,16 +1,16 @@
 package leyline.session.actions
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
-import leyline.testkit.gameStateMessages
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
 import java.io.File
@@ -21,6 +21,7 @@ class ManaPoolSessionTest :
         // any puzzle parses its name, not inside a test body (too late: the
         // puzzle parser needs the card registered by the time it loads).
         beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
         }
 
@@ -42,14 +43,12 @@ class ManaPoolSessionTest :
         ) {
             val forestIid = instanceIdOf("Forest")
             val elfIid = instanceIdOf("Llanowar Elves")
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .first { it.name == "Llanowar Elves" }
-                .setSickness(false)
-
-            val forestMessages = after { activateMana("Forest").shouldBeTrue() }.messages
-            val forestPool = forestMessages.latestHumanManaPool()
+            after { activateMana("Forest").shouldBeTrue() }
+            val forestPool =
+                observe()
+                    .client.players[SessionTest.HUMAN_SEAT]
+                    ?.manaPoolList
+                    .orEmpty()
             assertSoftly {
                 forestPool.size shouldBe 1
                 withClue("forestPool=$forestPool forestIid=$forestIid") {
@@ -57,10 +56,12 @@ class ManaPoolSessionTest :
                 }
             }
 
+            after { activateMana("Llanowar Elves").shouldBeTrue() }
             val elfPool =
-                after { activateMana("Llanowar Elves").shouldBeTrue() }
-                    .messages
-                    .latestHumanManaPool()
+                observe()
+                    .client.players[SessionTest.HUMAN_SEAT]
+                    ?.manaPoolList
+                    .orEmpty()
             assertSoftly {
                 elfPool.size shouldBe 2
                 elfPool.hasGreenFrom(forestIid).shouldBeTrue()
@@ -73,10 +74,12 @@ class ManaPoolSessionTest :
             puzzle = racersRingPuzzle,
         ) {
             val landIid = instanceIdOf("Racers' Ring")
-            val messages =
-                after { activateMana("Racers' Ring", selectedColor = ManaColor.Green_afc9).shouldBeTrue() }
-                    .messages
-            val pool = messages.latestHumanManaPool()
+            after { activateMana("Racers' Ring", selectedColor = ManaColor.Green_afc9).shouldBeTrue() }
+            val pool =
+                observe()
+                    .client.players[SessionTest.HUMAN_SEAT]
+                    ?.manaPoolList
+                    .orEmpty()
 
             assertSoftly {
                 pool.size shouldBe 1
@@ -88,26 +91,13 @@ class ManaPoolSessionTest :
             "unsupported mana color leaves projection state unchanged",
             puzzle = racersRingPuzzle,
         ) {
-            val before = bridge.projectionStateSnapshot()
+            val before = checkpoint()
 
             activateMana("Racers' Ring", selectedColor = ManaColor.Blue_afc9).shouldBeFalse()
 
-            bridge.projectionStateSnapshot() shouldBe before
+            messagesSince(before).filter { it.hasGameStateMessage() }.shouldBeEmpty()
         }
     })
-
-private fun List<GREToClientMessage>.latestHumanManaPool(): List<ManaInfo> =
-    gameStateMessages()
-        .flatMap { it.playersList }
-        .lastOrNull { it.systemSeatNumber == SessionTest.HUMAN_SEAT }
-        ?.manaPoolList
-        ?: error(
-            "No human PlayerInfo in slice; player seats=${
-                gameStateMessages().map { gsm ->
-                    gsm.playersList.map { it.systemSeatNumber }
-                }
-            }",
-        )
 
 private fun List<ManaInfo>.hasGreenFrom(instanceId: Int): Boolean =
     any { mana ->

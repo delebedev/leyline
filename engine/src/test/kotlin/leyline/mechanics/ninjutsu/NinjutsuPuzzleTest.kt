@@ -10,10 +10,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.allGameObjects
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
 
@@ -28,7 +29,7 @@ class NinjutsuPuzzleTest :
             TestCardRegistry.ensureCardRegistered("Ninja of the Deep Hours")
         }
 
-        fun MatchFlowHarness.hasNinjutsuOffer(): Boolean =
+        fun HeadlessMatch.hasNinjutsuOffer(): Boolean =
             allMessages
                 .asReversed()
                 .firstOrNull { it.hasActionsAvailableReq() }
@@ -37,7 +38,7 @@ class NinjutsuPuzzleTest :
                 ?.filter { it.actionType == ActionType.Activate_add3 }
                 ?.any { it.abilityGrpId == NINJUTSU_GRP_ID } == true
 
-        fun MatchFlowHarness.zoneSummary(): String =
+        fun HeadlessMatch.zoneSummary(): String =
             "hand=${human.getZone(ZoneType.Hand).cards.map { it.name }} " +
                 "battlefield=${human.getZone(ZoneType.Battlefield).cards.map { it.name }} " +
                 "graveyard=${human.getZone(ZoneType.Graveyard).cards.map { it.name }} " +

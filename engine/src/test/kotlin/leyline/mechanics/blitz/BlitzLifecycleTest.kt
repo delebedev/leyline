@@ -6,7 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
@@ -14,6 +14,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.hasCard
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
@@ -34,12 +35,12 @@ class BlitzLifecycleTest :
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
         ) {
-            val patrolGrpId = bridge.cardRepository.findGrpIdByName("Mayhem Patrol")!!
-            val blitzAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!
+            val patrolGrpId = cardGrpId("Mayhem Patrol")!!
+            val blitzAbilityGrpId = keywordAbilityGrpId(patrolGrpId, KeywordAbilityIds.BLITZ)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mayhem Patrol", alternativeGrpId = blitzAbilityGrpId).shouldBeTrue()
-            passUntil(maxPasses = 20) { game().stack.isEmpty }.shouldBeTrue()
+            passUntil(maxPasses = 20) { observe().stackSize == 0 }.shouldBeTrue()
 
             val cto =
                 messagesSince(snap)
@@ -50,7 +51,7 @@ class BlitzLifecycleTest :
                 cto.detailInt("castAbilityGrpId") shouldBe blitzAbilityGrpId
             }
 
-            val returnedAndDrew: MatchFlowHarness.() -> Boolean = {
+            val returnedAndDrew: HeadlessMatch.() -> Boolean = {
                 human.hasCard("Mayhem Patrol", ZoneType.Graveyard) && human.hasCard("Mountain", ZoneType.Hand)
             }
             assertSoftly {

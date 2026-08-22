@@ -10,9 +10,10 @@ import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
@@ -32,7 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 class AdventurePuzzleTest :
     SessionTest({
 
-        fun MatchFlowHarness.adventureCompanionIn(zoneId: Int): GameObjectInfo =
+        fun HeadlessMatch.adventureCompanionIn(zoneId: Int): GameObjectInfo =
             accumulator.objects.values.single { obj ->
                 obj.type == GameObjectType.Adventure_a4aa && obj.zoneId == zoneId
             }
@@ -96,8 +97,7 @@ class AdventurePuzzleTest :
                     grpId = adventureAction.grpId
                 }
             val beforeCast = messageSnapshot()
-            session.onPerformAction(submitWithGsId(castMsg))
-            drainSink()
+            submitAction(castMsg)
             val castFlow = messagesSince(beforeCast)
             val stackMessageIndex =
                 castFlow.indexOfFirst { message ->

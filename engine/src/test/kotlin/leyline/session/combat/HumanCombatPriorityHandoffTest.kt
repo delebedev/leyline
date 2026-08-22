@@ -2,6 +2,7 @@ package leyline.session.combat
 
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import kotlin.time.Duration.Companion.seconds
 

@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList

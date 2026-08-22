@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
@@ -49,7 +50,7 @@ private val PUZZLE =
  *
  * Discover coverage is intentionally absent. Discover's ETB-if-cast trigger
  * lifecycle is shorter than the harness's drain-and-pass cycle: Forge fires
- * the trigger, runs the DiscoverEffect, and `MatchFlowHarness.drainSink`
+ * the trigger, runs the DiscoverEffect, and `HeadlessMatch.drainSink`
  * auto-accepts the resulting OptionalActionMessage all within one engine
  * tick. The snapshot-after-pass window never sees the trigger on the stack.
  * Tracked separately for a unit-test layer (mockk SA + cardData) that can
@@ -68,7 +69,7 @@ class CascadeDiscoverProjectionTest :
             val cast = castSpellByName("Bloodbraid Elf")
             cast shouldBe true
 
-            val bbeGrpId = bridge.cardRepository.findGrpIdByName("Bloodbraid Elf")!!
+            val bbeGrpId = cardGrpId("Bloodbraid Elf")!!
             val projectedStates = messagesSince(before).gameStateMessages()
             val cascadeEntry =
                 projectedStates

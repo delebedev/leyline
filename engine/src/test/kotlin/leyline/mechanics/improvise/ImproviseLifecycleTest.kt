@@ -8,7 +8,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
@@ -16,6 +16,7 @@ import leyline.testkit.hasDetail
 import leyline.testkit.haveManaCost
 import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -93,26 +94,15 @@ class ImproviseLifecycleTest :
         }
     })
 
-private fun MatchFlowHarness.respondToMakePayment(instanceId: Int) {
-    session.onPerformAction(
-        submitWithGsId(
-            performAction {
-                actionType = ActionType.MakePayment
-                this.instanceId = instanceId
-            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
-        ),
+private fun HeadlessMatch.respondToMakePayment(instanceId: Int) {
+    submitAction(
+        performAction {
+            actionType = ActionType.MakePayment
+            this.instanceId = instanceId
+        },
     )
-    drainSink()
 }
 
-private fun MatchFlowHarness.respondToPaymentDone() {
-    session.onPerformAction(
-        submitWithGsId(
-            performAction { actionType = ActionType.Pass }
-                .toBuilder()
-                .setGameStateId(latestPromptGsId())
-                .build(),
-        ),
-    )
-    drainSink()
+private fun HeadlessMatch.respondToPaymentDone() {
+    submitAction(performAction { actionType = ActionType.Pass })
 }

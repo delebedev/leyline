@@ -6,9 +6,10 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AbilityInfo
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -43,7 +44,7 @@ class PendingTriggerVisualsTest :
             }
         }
 
-        fun MatchFlowHarness.holderFor(candidate: Candidate): GameObjectInfo? =
+        fun HeadlessMatch.holderFor(candidate: Candidate): GameObjectInfo? =
             allMessages
                 .filter { it.hasGameStateMessage() }
                 .flatMap { it.gameStateMessage.gameObjectsList }
@@ -52,7 +53,7 @@ class PendingTriggerVisualsTest :
                         it.objectSourceGrpId == candidate.sourceAbilityGrpId
                 }
 
-        fun MatchFlowHarness.assertVisuals(
+        fun HeadlessMatch.assertVisuals(
             candidate: Candidate,
             affectedIid: Int,
             displaysAffectedCard: Boolean,

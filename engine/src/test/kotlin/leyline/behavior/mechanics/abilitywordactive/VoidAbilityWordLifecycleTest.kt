@@ -36,7 +36,6 @@ class VoidAbilityWordLifecycleTest :
             turns = 3,
         ) {
             val sourceIid = instanceIdOf("Insatiable Skittermaw")
-            val source = human.battlefield.card("Insatiable Skittermaw")
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val activeMessages =
@@ -101,7 +100,7 @@ class VoidAbilityWordLifecycleTest :
                 }
 
             assertSoftly {
-                source.getCounters(CounterEnumType.P1P1) shouldBe 1
+                human.battlefield.card("Insatiable Skittermaw").getCounters(CounterEnumType.P1P1) shouldBe 1
                 counterAdded.affectorId shouldBe abilityIid
                 counterAdded.affectedIdsList shouldBe listOf(sourceIid)
                 counterAdded.detailInt("transaction_amount") shouldBe 1

@@ -10,8 +10,8 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
-import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.gsm
@@ -25,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 /**
  * Stock Up's hidden-library Dig choice binds CardSelect, publishes its five
  * chooser-private candidates with the SelectN request, then enters a separate
- * Order horizon for the unchosen tail. [ValidatingMessageSink] enforces that
+ * Order horizon for the unchosen tail. The client projection enforces that
  * every request ID names an object in the same committed projection.
  */
 class StockUpTest :

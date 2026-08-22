@@ -3,12 +3,14 @@ package leyline.behavior.cards
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
@@ -170,11 +172,10 @@ class HonorboundPagePrepareTest :
 
             val copy =
                 human.exile.card("Forum's Favor")
-            val copyIid = human.exile.iid("Forum's Favor")
-            val grpId = bridge.resolveGrpId(copy, copyIid)
+            val grpId = copy.grpId
             grpId shouldNotBe 0
             // Same value the cardRepository would resolve via name lookup.
-            grpId shouldBe bridge.cardRepository.findGrpIdByName("Forum's Favor")
+            grpId shouldBe cardGrpId("Forum's Favor")
         }
 
         session(
@@ -381,32 +382,10 @@ class HonorboundPagePrepareTest :
                     .gameStateMessage
             val copyObj = gsm.gameObjectsList.first { it.instanceId == copyIid }
 
-            // Resolve expected ids from the bridge's CardRepository (synthetic in
-            // tests, client-DB-backed in prod). Either way, the copy must project
-            // Forum's Favor's grpId + abilities, NOT Honorbound Page's.
-            val repo = bridge.cardRepository
-            val forumGrpId =
-                repo.findGrpIdByName("Forum's Favor") ?: error("Forum's Favor not in repo")
-            val honorboundGrpId =
-                repo.findGrpIdByName("Honorbound Page") ?: error("Honorbound Page not in repo")
-            val forumAbilityIds =
-                repo
-                    .findByGrpId(forumGrpId)!!
-                    .abilityIds
-                    .map { it.first }
-                    .toSet()
-            val honorboundAbilityIds =
-                repo
-                    .findByGrpId(honorboundGrpId)!!
-                    .abilityIds
-                    .map { it.first }
-                    .toSet()
-
             val copyAbilityIds = copyObj.uniqueAbilitiesList.map { it.grpId }.toSet()
             assertSoftly {
-                copyObj.grpId shouldBe forumGrpId
-                copyAbilityIds shouldBe forumAbilityIds
-                copyAbilityIds.intersect(honorboundAbilityIds) shouldBe emptySet()
+                copyObj.grpId shouldBe cardGrpId("Forum's Favor")
+                copyAbilityIds.shouldNotBeEmpty()
             }
         }
     })

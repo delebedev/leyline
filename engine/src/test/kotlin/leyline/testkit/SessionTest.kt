@@ -4,16 +4,19 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
 import leyline.game.bundle.InvariantSelection
+import leyline.testkit.*
+import leyline.tooling.headless.HeadlessMatch
+import leyline.tooling.headless.HeadlessMatchFactory
+import leyline.tooling.headless.MatchSpec
 import leyline.tooling.headless.ScriptedAction
-import leyline.tooling.headless.MatchFlowHarness
-import leyline.tooling.headless.dumpDiagnostics
+import leyline.tooling.headless.diagnostics
 import kotlin.time.Duration
 
 /**
  * Base class for session-tier interaction tests.
  *
  * Parallel to [BoardTest] (board/bridge tier). Never mix in one file.
- * Auto-wires IntegrationTag; each [session] owns one [MatchFlowHarness] for
+ * Auto-wires IntegrationTag; each [session] owns one headless session for
  * the length of one test and dumps diagnostics if that test fails.
  *
  * ```
@@ -33,10 +36,10 @@ import kotlin.time.Duration
  * })
  * ```
  *
- * The block's receiver is the harness, so every game action, prompt response
+ * The block's receiver is the headless session, so every game action, prompt response
  * and state query resolves directly against it — this base owns lifecycle and
  * naming, not behavior. A helper shared by several tests in one spec takes the
- * harness as its receiver too (`fun MatchFlowHarness.castAndResolve()`); a
+ * match as its receiver too (`fun HeadlessMatch.castAndResolve()`); a
  * helper declared without that receiver has no game to act on.
  */
 // `abstract` keeps Kotest's auto-discovery from trying to instantiate the base
@@ -62,7 +65,7 @@ abstract class SessionTest(
     }
 
     /**
-     * Declare one session-tier test backed by a fresh [MatchFlowHarness].
+     * Declare one session-tier test backed by a fresh headless session.
      *
      * Give at most one game source:
      * - [puzzle] — puzzle text. A `[state]` body gets `[metadata]` synthesized
@@ -87,11 +90,12 @@ abstract class SessionTest(
         deckList: String? = null,
         turns: Int = 1,
         seed: Long = 42L,
+        promptTimeoutMs: Long? = null,
         validating: Boolean = true,
-        validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
+        validation: InvariantSelection = leyline.tooling.headless.defaultHeadlessValidation(validating),
         aiScript: List<ScriptedAction>? = null,
         timeout: Duration? = null,
-        block: suspend MatchFlowHarness.() -> Unit,
+        block: suspend HeadlessMatch.() -> Unit,
     ) {
         require(puzzle == null || puzzleFile == null) {
             "session('$name'): give at most one of puzzle or puzzleFile"
@@ -101,21 +105,28 @@ abstract class SessionTest(
         }
         val puzzleText = puzzle?.let { puzzleTextFor(it, name, turns) }
         val run: suspend TestScope.() -> Unit = {
-            val harness =
-                MatchFlowHarness(
-                    seed = seed,
-                    deckList = deckList,
-                    validating = validating,
-                    validation = validation,
+            val match =
+                HeadlessMatchFactory.create(
+                    MatchSpec(
+                        seed = seed,
+                        promptTimeoutMs = promptTimeoutMs,
+                        deckList = deckList,
+                        puzzleText = puzzleText,
+                        puzzleResource = puzzleFile,
+                        aiScript = aiScript,
+                        validating = validating,
+                        validation = validation,
+                    ),
                 )
+            val harness = match
             try {
-                harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)
+                match.start()
                 harness.block()
             } catch (failure: Throwable) {
-                harness.dumpDiagnostics(name)
+                match.diagnostics(name)
                 throw failure
             } finally {
-                harness.shutdown()
+                match.close()
             }
         }
         if (timeout == null) test(name, run) else test(name).config(timeout = timeout, test = run)

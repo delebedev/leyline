@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -35,9 +36,9 @@ private val PUZZLE =
 class CleaveLifecycleTest :
     SessionTest({
         session("cleaved Path of Peril uses alt-cost rail and applies full board wipe", puzzle = PUZZLE) {
-            val pathGrpId = bridge.cardRepository.findGrpIdByName("Path of Peril")!!
+            val pathGrpId = cardGrpId("Path of Peril")!!
             val cleaveAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(pathGrpId, KeywordAbilityIds.CLEAVE)!!
+                keywordAbilityGrpId(pathGrpId, KeywordAbilityIds.CLEAVE)!!
 
             val snap = messageSnapshot()
             castSpellByName("Path of Peril", alternativeGrpId = cleaveAbilityGrpId).shouldBeTrue()

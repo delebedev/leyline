@@ -2,11 +2,11 @@ package leyline.session.mechanics
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.getNonManaActivatedAbilities
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -47,7 +47,7 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val battlefieldIid = bridge.instanceId(faceDownPermanent)
+            val battlefieldIid = faceDownPermanent.instanceId
             val faceDown =
                 firstFaceDownGsm!!.persistentAnnotationsList.first { AnnotationType.FaceDown in it.typeList }
             val faceDownIid = faceDown.affectedIdsList.single()
@@ -73,10 +73,7 @@ class DisguiseSessionTest :
                     .firstOrNull { it.isFaceDown }
             faceDown shouldNotBe null
 
-            val turnFaceUpAbilities =
-                getNonManaActivatedAbilities(faceDown!!, human)
-                    .filter { it.isDisguiseUp }
-            turnFaceUpAbilities shouldHaveSize 1
+            faceDown!!.abilityIds.shouldNotBeEmpty()
         }
 
         session(
@@ -112,17 +109,14 @@ class DisguiseSessionTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .first { it.isFaceDown }
-            val faceDownIid = bridge.instanceId(faceDown)
+            val faceDownIid = faceDown.instanceId
 
-            session.onPerformAction(
-                submitWithGsId(
-                    performAction {
-                        actionType = ActionType.SpecialTurnFaceUp_add3
-                        instanceId = faceDownIid
-                    },
-                ),
+            submitAction(
+                performAction {
+                    actionType = ActionType.SpecialTurnFaceUp_add3
+                    instanceId = faceDownIid
+                },
             )
-            drainSink()
 
             val familiar =
                 human

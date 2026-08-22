@@ -4,8 +4,9 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
@@ -53,7 +54,7 @@ class ExileAggregateCostLifecycleTest :
                     .take(14)
                     .map { human.graveyard.iid(it) }
             selectTargets(fourteen)
-            bridge.awaitPriority()
+            passPriority()
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards shouldHaveSize 16
@@ -76,7 +77,7 @@ class ExileAggregateCostLifecycleTest :
                     .take(15)
                     .map { human.graveyard.iid(it) }
             selectTargets(fifteen)
-            bridge.awaitPriority()
+            passPriority()
 
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards shouldHaveSize 1
@@ -85,7 +86,7 @@ class ExileAggregateCostLifecycleTest :
         }
     })
 
-private fun MatchFlowHarness.boastOfferAvailable(iid: Int): Boolean {
+private fun HeadlessMatch.boastOfferAvailable(iid: Int): Boolean {
     val actions =
         allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList ?: return false
     return actions.any { it.actionType == ActionType.Activate_add3 && it.instanceId == iid }

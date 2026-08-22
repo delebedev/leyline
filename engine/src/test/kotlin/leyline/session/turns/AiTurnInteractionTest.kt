@@ -12,6 +12,7 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.session.combat.COMBAT_DECK
+import leyline.testkit.*
 import leyline.testkit.AI_FIRST_SEED
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
@@ -262,8 +263,12 @@ class AiTurnInteractionTest :
                 ScriptedAction.PassPriority,
             )
 
-        session("AI land play precedes CastSpell in one completed-step frame", deckList = COMBAT_DECK, seed = 42L) {
-            installScriptedAi(scriptedLandThenGoblin)
+        session(
+            "AI land play precedes CastSpell in one completed-step frame",
+            deckList = COMBAT_DECK,
+            seed = 42L,
+            aiScript = scriptedLandThenGoblin,
+        ) {
             passUntilTurn(3)
 
             val gsMessages = allMessages.filter { it.hasGameStateMessage() }

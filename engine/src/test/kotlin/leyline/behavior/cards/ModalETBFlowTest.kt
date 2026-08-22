@@ -10,6 +10,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -306,7 +307,7 @@ class ModalETBFlowTest :
                 displayCardUnderCard.affectedIdsList shouldContain exiledIid
             }
 
-            bridge.phaseStopProfile?.setEnabled(human.id, forge.game.phase.PhaseType.END_OF_TURN, true)
+            sendSettings()
             passUntil(maxPasses = 30) {
                 allMessages
                     .filter { it.hasGameStateMessage() }

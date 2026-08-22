@@ -1,18 +1,14 @@
 package leyline.mechanics.warp
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.data.KeywordAbilityIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
-import leyline.testkit.beInExileOf
-import leyline.testkit.beMissingFrom
-import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.hasCard
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 private val WARP_PUZZLE =
@@ -82,10 +78,10 @@ class WarpLifecycleTest :
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
+            check(passUntil(maxPasses = 20) { observe().stackSize == 0 })
 
             assertSoftly {
-                "Germinating Wurm" should beMissingFrom(ZoneType.Hand, human)
+                human.hand.hasCard("Germinating Wurm") shouldBe false
                 human.hasCardAnywhereExceptHand("Germinating Wurm") shouldBe true
             }
         }
@@ -94,7 +90,7 @@ class WarpLifecycleTest :
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
+            check(passUntil(maxPasses = 20) { observe().stackSize == 0 })
 
             val cto =
                 allMessages
@@ -112,35 +108,26 @@ class WarpLifecycleTest :
 
         session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE) {
             check(castSpellByName("Germinating Wurm"))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-            "Germinating Wurm" should beOnBattlefieldOf(human)
+            check(passUntil(maxPasses = 20) { observe().stackSize == 0 })
+            human.battlefield.hasCard("Germinating Wurm") shouldBe true
 
             passUntilTurn(2, maxPasses = 30)
 
             // One copy in the puzzle, so battlefield membership excludes the rest.
-            "Germinating Wurm" should beOnBattlefieldOf(human)
+            human.battlefield.hasCard("Germinating Wurm") shouldBe true
         }
 
         session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
+            check(passUntil(maxPasses = 20) { observe().stackSize == 0 })
             passUntilTurn(2, maxPasses = 30)
 
             assertSoftly {
-                "Germinating Wurm" should beInExileOf(human)
+                human.exile.hasCard("Germinating Wurm") shouldBe true
             }
         }
     })
 
-private fun MatchFlowHarness.warpAbilityGrpId(): Int {
-    val repo = bridge.cardRepository
-    val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
-    return repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
-}
-
-private fun forge.game.player.Player.hasCardAnywhereExceptHand(name: String): Boolean =
-    hasCard(name, ZoneType.Battlefield) ||
-        hasCard(name, ZoneType.Exile) ||
-        hasCard(name, ZoneType.Graveyard)
+private fun HeadlessMatch.warpAbilityGrpId(): Int = keywordAbilityGrpId("Germinating Wurm", KeywordAbilityIds.WARP)!!

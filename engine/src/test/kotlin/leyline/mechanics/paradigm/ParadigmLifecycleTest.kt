@@ -6,10 +6,11 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -260,7 +261,7 @@ class ParadigmLifecycleTest :
 private fun List<GREToClientMessage>.gsms(): List<GameStateMessage> =
     mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
 
-private fun MatchFlowHarness.gsms(): List<GameStateMessage> = allMessages.gsms()
+private fun HeadlessMatch.gsms(): List<GameStateMessage> = allMessages.gsms()
 
 private fun AnnotationInfo.isStackToExileParadigmTransfer(): Boolean =
     typeList.contains(AnnotationType.ZoneTransfer_af5a) &&

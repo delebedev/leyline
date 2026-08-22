@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -29,8 +30,8 @@ class EvokeLifecycleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
         ) {
-            val mulldrifterGrpId = bridge.cardRepository.findGrpIdByName("Mulldrifter")!!
-            val evokeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(mulldrifterGrpId, KeywordAbilityIds.EVOKE)!!
+            val mulldrifterGrpId = cardGrpId("Mulldrifter")!!
+            val evokeAbilityGrpId = keywordAbilityGrpId(mulldrifterGrpId, KeywordAbilityIds.EVOKE)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mulldrifter", alternativeGrpId = evokeAbilityGrpId).shouldBeTrue()

@@ -7,6 +7,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotation
@@ -74,20 +75,11 @@ class LibraryOrderInteractionTest :
 
         session("grouping prompt rejects SelectTargetsResp without consuming the pending route", puzzle = surveil1State) {
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
-            val promptBefore =
-                bridge
-                    .cutCoordinator
-                    .grouping
-                    .current()
-                    .shouldNotBeNull()
+            val promptBefore = observe().latestPromptMsgId
 
             selectTargetsIterative(emptyList())
 
-            bridge
-                .cutCoordinator
-                .grouping
-                .current()
-                ?.interactionId shouldBe promptBefore.interactionId
+            observe().latestPromptMsgId shouldBe promptBefore
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
             human.library should haveOnTop("Grizzly Bears")
         }

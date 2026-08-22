@@ -7,25 +7,19 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class RecommissionEffectStackTest :
     SessionTest({
-        fun MatchFlowHarness.enableStackAutoResolve() {
-            session.autoPassState.update(
-                SettingsMessage
-                    .newBuilder()
-                    .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                    .build(),
-            )
+        fun HeadlessMatch.enableStackAutoResolve() {
+            // Semantic headless matches resolve their own stack by default.
         }
 
         fun GameStateMessage.hasZoneTransfer(

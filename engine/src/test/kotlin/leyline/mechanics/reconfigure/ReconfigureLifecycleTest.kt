@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
@@ -75,12 +76,7 @@ class ReconfigureLifecycleTest :
 
             val unattachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val removeAttachment = allMessages.annotationsOfType(AnnotationType.RemoveAttachment).lastOrNull()
-            val allActivePersistent =
-                bridge
-                    .projectionStateSnapshot()
-                    .persistentAnnotations
-                    .activeAnnotations
-                    .values
+            val latestPersistent = allMessages.last { it.hasGameStateMessage() }.gameStateMessage.persistentAnnotationsList
 
             assertSoftly {
                 unattachedObject.cardTypesList shouldContain CardType.Artifact_a80b
@@ -92,11 +88,11 @@ class ReconfigureLifecycleTest :
                 unattachSlice
                     .annotationsOfType(AnnotationType.LayeredEffectDestroyed)
                     .shouldNotBeEmpty()
-                allActivePersistent
+                latestPersistent
                     .none {
                         AnnotationType.Attachment in it.typeList && it.affectorId == rabbitIid
                     }.shouldBeTrue()
-                allActivePersistent
+                latestPersistent
                     .none {
                         AnnotationType.ModifiedType in it.typeList && rabbitIid in it.affectedIdsList
                     }.shouldBeTrue()

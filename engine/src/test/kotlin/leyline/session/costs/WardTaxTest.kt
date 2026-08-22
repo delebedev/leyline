@@ -6,7 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 
 /**
@@ -24,8 +24,8 @@ import leyline.testkit.SessionTest
  *   to the warded permanent's controller (the trigger's "you"), which is
  *   the wrong seat. ComputerUtilMana auto-tap runs against the right seat's
  *   lands.
- * - Auto-response is wired via [MatchFlowHarness.drainSink] (default
- *   AllowYes, flipped via [MatchFlowHarness.declineNextOptionalAction] for
+ * - Auto-response is wired through semantic prompt controls (default
+ *   AllowYes, flipped via `declineNextOptionalAction` for
  *   the decline branch).
  *
  * The two branches are differentiated empirically by which lands the auto-tap
@@ -71,6 +71,7 @@ class WardTaxTest :
             // counters Bolt before any mana is drained for the {2}.
             declineNextOptionalAction()
             selectTargets(listOf(targetIid))
+            passUntilResolved(maxPasses = 8)
 
             val sovereign = ai.getZone(ZoneType.Battlefield).cards.firstOrNull { it.name == "Sovereign Okinec Ahau" }
             val gy = human.getZone(ZoneType.Graveyard).cards.map { it.name }

@@ -11,6 +11,7 @@ import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
@@ -52,9 +53,9 @@ class TeamworkLifecycleTest :
             val merfolkIid = human.battlefield.iid("Coral Merfolk")
             val bearsIid = human.battlefield.iid("Grizzly Bears")
             val striderIid = human.battlefield.iid("Goldfury Strider")
-            val timelineGrpId = bridge.cardRepository.findGrpIdByName("Timeline Inquiry")!!
+            val timelineGrpId = cardGrpId("Timeline Inquiry")!!
             val teamworkAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(timelineGrpId, KeywordAbilityIds.TEAMWORK)!!
+                keywordAbilityGrpId(timelineGrpId, KeywordAbilityIds.TEAMWORK)!!
 
             val cto =
                 after { castSpellByName("Timeline Inquiry").shouldBeTrue() }

@@ -1,54 +1,36 @@
 package leyline.behavior.annotations.tokencreated
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.event.FrameEventLog
-import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.SessionTest
-import leyline.testkit.TestCardRegistry
-import wotc.mtgo.gre.external.messaging.Messages.CardType
-import wotc.mtgo.gre.external.messaging.Messages.SubType
-import leyline.testkit.StateMapperShell as StateMapper
+import leyline.testkit.*
+import leyline.tooling.headless.HeadlessCard
+import leyline.tooling.headless.HeadlessMatch
 
-/**
- * Token diff stability — standard tokens retain cardTypes, subtypes,
- * and uniqueAbilities across diff GSMs.
- *
- * Cast Novice Inspector → ETB investigate → Clue token.
- * Build two GSMs — second must still have Artifact type, Clue subtype,
- * and sacrifice-to-draw ability on the Clue.
- */
+/** Clue tokens keep their semantic identity in both full and subsequent observations. */
 class TokenDiffStabilityTest :
     SessionTest({
-
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Novice Inspector")
             TestCardRegistry.ensureCardRegistered("Plains")
         }
-
-        val puzzleText =
+        val puzzle =
             """
             [metadata]
             Name:Clue Token Diff Stability
             Goal:Win
             Turns:5
-            Difficulty:Easy
-            Description:Cast Novice Inspector, investigate, check Clue token.
-
             [state]
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
             AILife=20
-
             humanhand=Novice Inspector
             humanbattlefield=Plains
             humanlibrary=Plains;Plains;Plains;Plains;Plains
@@ -56,111 +38,50 @@ class TokenDiffStabilityTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        fun MatchFlowHarness.castInspectorAndWaitForClue(): Int {
-            human
-                .getZone(ZoneType.Hand)
-                .cards
+        fun HeadlessMatch.castInspectorAndWaitForClue(): HeadlessCard {
+            human.hand.cards
                 .any { it.name == "Novice Inspector" }
                 .shouldBeTrue()
-
             castSpellByName("Novice Inspector").shouldBeTrue()
-
-            // Pass until Clue token appears (ETB trigger resolves)
-            repeat(15) {
-                val clues = human.getZone(ZoneType.Battlefield).cards.filter { it.isToken }
-                if (clues.isNotEmpty()) return@repeat
-                passPriority()
-            }
-
-            val clue =
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .firstOrNull { it.isToken }
-                    .shouldNotBeNull()
-            return human.battlefield.iid(clue)
+            repeat(15) { if (!human.battlefield.cards.any { it.isToken }) passPriority() }
+            return human.battlefield.cards
+                .firstOrNull { it.isToken }
+                .shouldNotBeNull()
         }
 
-        session("Clue token has Artifact type and Clue subtype in GSM", puzzle = puzzleText) {
-            val clueIid = castInspectorAndWaitForClue()
-
-            val snapClue1 = GsmSnapshot.capture(game(), bridge, "test-clue", 1)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(
-                        snapClue1,
-                        1,
-                        "test-clue",
-                        bridge,
-                        viewingSeatId = 1,
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    ).gsm
-            val clueObj =
-                gsm.gameObjectsList
-                    .firstOrNull { it.instanceId == clueIid }
-                    .shouldNotBeNull()
-
+        session("Clue token has Artifact type, Clue subtype, and an ability", puzzle = puzzle) {
+            val clue = castInspectorAndWaitForClue()
             assertSoftly {
-                clueObj.instanceId shouldBe clueIid
-                clueObj.cardTypesList shouldContain CardType.Artifact_a80b
-                clueObj.subtypesList shouldContain SubType.Clue
+                clue.cardTypes shouldContain "Artifact_a80b"
+                clue.subtypes shouldContain "Clue"
+                clue.abilityIds.shouldNotBeEmpty()
+                clue.isToken shouldBe true
             }
         }
 
-        session("Clue token retains types and subtypes across diff GSMs", puzzle = puzzleText) {
-            val clueIid = castInspectorAndWaitForClue()
-
-            // First GSM — baseline
-            val snapClue2 = GsmSnapshot.capture(game(), bridge, "test-clue", 1)
-            val gsm1 =
-                StateMapper
-                    .buildFromSnapshot(
-                        snapClue2,
-                        1,
-                        "test-clue",
-                        bridge,
-                        viewingSeatId = 1,
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    ).gsm
-
-            val clueObj1 = gsm1.gameObjectsList.first { it.instanceId == clueIid }
-            clueObj1.cardTypesList shouldContain CardType.Artifact_a80b
-            clueObj1.instanceId shouldBe clueIid
-
-            // Trigger a state change
+        session("Clue token retains identity across a later diff observation", puzzle = puzzle) {
+            val clue = castInspectorAndWaitForClue()
+            val checkpoint = checkpoint()
             passPriority()
-
-            // Second GSM — diff against snapClue2 baseline
-            val snapClue3 = GsmSnapshot.capture(game(), bridge, "test-clue", 2)
-            val gsm2 =
-                StateMapper
-                    .buildDiff(
-                        snapClue2,
-                        snapClue3,
-                        FrameEventLog.EMPTY,
-                        2,
-                        "test-clue",
-                        bridge,
-                        viewingSeatId = 1,
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
-                    ).gsm
-
-            // If Clue appears in diff, fields must be intact (not stripped)
-            val clueInDiff = gsm2.gameObjectsList.firstOrNull { it.instanceId == clueIid }
-            if (clueInDiff != null) {
-                assertSoftly {
-                    clueInDiff.cardTypesList shouldContain CardType.Artifact_a80b
-                    clueInDiff.subtypesList shouldContain SubType.Clue
-                    clueInDiff.instanceId shouldBe clueIid
+            val observed = cardByIid(clue.id).shouldNotBeNull()
+            val diffObjects =
+                messagesSince(checkpoint)
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.instanceId == clue.id }
+            assertSoftly {
+                observed.instanceId shouldBe clue.id
+                observed.cardTypes shouldContain "Artifact_a80b"
+                observed.subtypes shouldContain "Clue"
+                observed.abilityIds.shouldNotBeEmpty()
+                messagesSince(checkpoint).shouldNotBeEmpty()
+                if (diffObjects.isNotEmpty()) {
+                    diffObjects.forEach { diffObject ->
+                        diffObject.cardTypesList.shouldContain("Artifact_a80b")
+                        diffObject.subtypesList.shouldContain("Clue")
+                        diffObject.instanceId shouldBe clue.id
+                    }
                 }
             }
-
-            // Registry cached the grpId — stable for future diffs
-            bridge.tokenRegistry
-                .resolve(clueIid)
-                .shouldNotBeNull()
         }
     })

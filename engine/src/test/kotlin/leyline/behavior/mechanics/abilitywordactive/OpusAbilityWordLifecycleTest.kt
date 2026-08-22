@@ -8,7 +8,6 @@ import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.testkit.*
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
@@ -19,12 +18,13 @@ import leyline.testkit.detailString
 import leyline.testkit.detailUint
 import leyline.testkit.firstGameObjectByIid
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 class OpusAbilityWordLifecycleTest :
     SessionTest({
-        fun MatchFlowHarness.castTargetedSpell(
+        fun HeadlessMatch.castTargetedSpell(
             spellName: String,
             targetIid: Int,
         ): List<GREToClientMessage> =
@@ -50,20 +50,18 @@ class OpusAbilityWordLifecycleTest :
                 ailibrary=Forest;Forest;Forest
                 """,
         ) {
-            val source = human.getZone(forge.game.zone.ZoneType.Battlefield).cards.first { it.name == "Tackle Artist" }
             val target = instanceIdOf("Grizzly Bears", ai)
 
             val messages = castTargetedSpell("Shock", target)
 
             messages.opusMarkers().shouldBeEmpty()
-            source.getCounters(CounterEnumType.P1P1) shouldBe 1
+            human.battlefield.card("Tackle Artist").getCounters(CounterEnumType.P1P1) shouldBe 1
         }
 
         session(
             "five-plus Opus marker binds player to the exact trigger ability and is deleted on resolution",
             puzzle = opusPuzzle(sourceCount = 1),
         ) {
-            val source = human.getZone(forge.game.zone.ZoneType.Battlefield).cards.first { it.name == "Tackle Artist" }
             val sourceIid = instanceIdOf("Tackle Artist")
             val target = instanceIdOf("Grizzly Bears", ai)
 
@@ -107,7 +105,7 @@ class OpusAbilityWordLifecycleTest :
                 resolutionComplete.detailUint("grpid") shouldBe 204413
                 abilityDeleted.affectedIdsList shouldBe listOf(abilityIid)
                 messages.deletedPersistentAnnotationIds() shouldContainAll setOf(marker.id, triggeringObject.id)
-                source.getCounters(CounterEnumType.P1P1) shouldBe 2
+                human.battlefield.card("Tackle Artist").getCounters(CounterEnumType.P1P1) shouldBe 2
             }
         }
 

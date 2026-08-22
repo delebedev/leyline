@@ -5,6 +5,60 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.Matcher
 import io.kotest.matchers.MatcherResult
 
+fun beInZoneOf(
+    zone: ZoneType,
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> =
+    Matcher { cardName ->
+        val actual = player.cards(zone).count { it.name == cardName }
+        MatcherResult(
+            passed = actual == count,
+            { "seat ${player.seat}'s $zone should contain exactly $count copy(ies) of '$cardName' (found $actual)" },
+            { "seat ${player.seat}'s $zone should not contain exactly $count copy(ies) of '$cardName' (found $actual)" },
+        )
+    }
+
+fun beInHandOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Hand, player, count)
+
+fun beOnBattlefieldOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Battlefield, player, count)
+
+fun beInGraveyardOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Graveyard, player, count)
+
+fun beInLibraryOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Library, player, count)
+
+fun beInExileOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Exile, player, count)
+
+fun beInCommandOf(
+    player: HeadlessSeat,
+    count: Int = 1,
+): Matcher<String> = beInZoneOf(ZoneType.Command, player, count)
+
+fun haveOnTop(cardName: String): Matcher<HeadlessZone> =
+    Matcher { zone ->
+        val actual = zone.cards.firstOrNull()?.name
+        MatcherResult(
+            actual == cardName,
+            { "zone should have '$cardName' on top (was '$actual')" },
+            { "zone should not have '$cardName' on top" },
+        )
+    }
+
 /**
  * MTG-flavored zone-membership matchers. Subject is the card name (String);
  * matcher describes the expected zone + owner in rules-text phrasing.
@@ -73,20 +127,6 @@ fun beMissingFrom(
         val passed = actual == 0
         val expectation = "${player.name}'s $zone should not contain '$cardName' (found $actual)"
         val negation = "${player.name}'s $zone should contain '$cardName' but didn't"
-        MatcherResult(passed, { expectation }, { negation })
-    }
-
-/** Assert that a card is on top of a zone (first in the list). */
-fun haveOnTop(cardName: String): Matcher<PlayerZone> =
-    Matcher { zone ->
-        val cards = zone.player.getZone(zone.zone).cards
-        val actual = cards.firstOrNull()?.name
-        val passed = actual == cardName
-        val present = cards.map { it.name }
-        val expectation =
-            "${zone.player.name}'s ${zone.zone.name} top should be '$cardName' but was '$actual'\n" +
-                "${zone.zone.name} (${cards.size}): $present"
-        val negation = "${zone.player.name}'s ${zone.zone.name} should not have '$cardName' on top (but does)"
         MatcherResult(passed, { expectation }, { negation })
     }
 

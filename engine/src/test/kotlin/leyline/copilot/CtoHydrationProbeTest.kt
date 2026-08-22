@@ -3,11 +3,7 @@ package leyline.copilot
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
-import leyline.game.event.FrameEventLog
-import leyline.game.snapshot.GsmSnapshot
-import leyline.testkit.SessionTest
-import leyline.testkit.TestCardRegistry
+import leyline.testkit.*
 
 /**
  * Exploratory: does the CastingTimeOptions (kicker) decision hydrate faithfully?
@@ -39,22 +35,16 @@ class CtoHydrationProbeTest :
             castSpellByName("Burst Lightning").shouldBeTrue()
             val cto = allMessages.last { it.hasCastingTimeOptionsReq() }
 
-            val live = CopilotProposalService(bridge, SeatId(1)).propose(cto)
-
-            val snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "probe", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "probe", bridge, viewingSeatId = 1, events = FrameEventLog(emptyList()))
-                    .gsm
-            val snapshot = SnapshotConsult.consult(gsm, cto, 1, TestCardRegistry.repo).proposal
+            val live = advise(cto)
+            val snapshot = advise(cto, leyline.tooling.headless.HeadlessAdviceMode.Snapshot)
 
             // Kicker/optional-cost decides by rebuilding the ability from the card
             // (cardForInstance -> getAllCastableAbilities), not from the in-flight
             // stack ability, so hydration carries enough to reproduce it exactly.
             // (Modal "choose one" CTO, by contrast, needs the bound stack SA and
             // does not hydrate faithfully — a distinct gap.)
-            live.intent shouldBe "optional_cost"
-            live.responses.shouldNotBeEmpty()
-            snapshot.responses shouldBe live.responses
+            live.proposal.intent shouldBe "optional_cost"
+            live.proposal.responses.shouldNotBeEmpty()
+            snapshot.proposal.responses shouldBe live.proposal.responses
         }
     })

@@ -10,15 +10,15 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -105,11 +105,7 @@ class BoastLifecycleTest :
             passUntil(maxPasses = 30) {
                 turn() >= 3 &&
                     messagesSince(nextTurnAttackStart).any { it.hasDeclareAttackersReq() } &&
-                    bridge
-                        .actionBridge(SeatId(1))
-                        .getPending()
-                        ?.state
-                        ?.kind == PendingActionKind.DECLARE_ATTACKERS
+                    observe().pendingActionKind == PendingActionKind.DECLARE_ATTACKERS.name
             }.shouldBeTrue()
             declareAttackers(listOf(usherIid))
             passUntil(maxPasses = 8) { latestBoastOffer(usherIid) }
@@ -117,7 +113,7 @@ class BoastLifecycleTest :
         }
     })
 
-private fun MatchFlowHarness.latestBoastOffer(usherIid: Int): Boolean {
+private fun HeadlessMatch.latestBoastOffer(usherIid: Int): Boolean {
     val actions = allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList ?: return false
     return withClue(actions.map { "${it.actionType}:${it.instanceId}:${it.abilityGrpId}" }) {
         actions.any {

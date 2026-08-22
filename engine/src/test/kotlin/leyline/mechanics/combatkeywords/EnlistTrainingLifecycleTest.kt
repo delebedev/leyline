@@ -6,15 +6,15 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.annotation
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EnlistTrainingLifecycleTest :
@@ -148,13 +148,8 @@ class EnlistTrainingLifecycleTest :
         }
     }) {
     companion object {
-        private fun MatchFlowHarness.advanceToAttackersReq() {
-            fun isDeclareAttackersPending(): Boolean =
-                bridge
-                    .actionBridge(SeatId(HUMAN_SEAT))
-                    .getPending()
-                    ?.state
-                    ?.kind == PendingActionKind.DECLARE_ATTACKERS
+        private fun HeadlessMatch.advanceToAttackersReq() {
+            fun isDeclareAttackersPending(): Boolean = observe().pendingActionKind == PendingActionKind.DECLARE_ATTACKERS.name
 
             if (phase() == "COMBAT_DECLARE_ATTACKERS" && isDeclareAttackersPending()) return
             val snap = messageSnapshot()

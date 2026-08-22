@@ -14,10 +14,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.config.AiConfig
-import leyline.config.MatchConfig
-import leyline.config.ServerConfig
-import leyline.testkit.MatchFlowHarness
+import leyline.bridge.coord.GameLoopPoller
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
@@ -26,7 +24,6 @@ import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
-import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
 import leyline.testkit.findZoneTransfer
@@ -36,15 +33,9 @@ import leyline.testkit.gsm
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
-import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
-import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
-import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
-import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
@@ -115,10 +106,7 @@ class TargetingInteractionTest :
             val initialPromptMsgId = latestPromptMsgId()
             val before = messageSnapshot()
 
-            session.onSelectTargets(
-                submitWithGsId(leyline.testkit.selectTargetsResp(listOf(creatureIid), targetIdx = 0)),
-            )
-            drainSink()
+            selectTargetsIterative(listOf(creatureIid))
 
             val messages = messagesSince(before)
             messages.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
@@ -141,12 +129,7 @@ class TargetingInteractionTest :
         ) {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
-            val promptBefore =
-                bridge
-                    .cutCoordinator
-                    .targeting
-                    .current()
-                    .shouldNotBeNull()
+            val promptBefore = observe().blockingInteraction
 
             respondToSelectN(emptyList())
             respondToOrder(emptyList())
@@ -154,11 +137,7 @@ class TargetingInteractionTest :
             respondModalChoice(emptyList())
             respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
 
-            bridge
-                .cutCoordinator
-                .targeting
-                .current()
-                ?.interactionId shouldBe promptBefore.interactionId
+            observe().blockingInteraction shouldBe promptBefore
             selectTargets(listOf(creatureIid))
             passUntil(maxPasses = 6) { (cardByIid(creatureIid)?.netPower ?: 0) >= 4 }
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
@@ -176,64 +155,42 @@ class TargetingInteractionTest :
             assertGsIdChain(allMessages, context = "targeting flow")
         }
 
-        test("Giant Growth — prompt timeout drains queued playback") {
-            val h =
-                MatchFlowHarness(
-                    matchConfig =
-                        MatchConfig(
-                            ai = AiConfig(speed = 0.0),
-                            server =
-                                ServerConfig(
-                                    bridgeTimeoutMs = 5_000L,
-                                    promptFailsafeMs = 100L,
-                                    aiTurnWaitMs = 500L,
-                                    mulliganWaitMs = 500L,
-                                ),
-                        ),
-                )
-            try {
-                h.connectAndKeepPuzzleText(
-                    """
-                    [metadata]
-                    Name:Targeted Prompt Timeout
-                    Goal:Resolve prompt timeout
-                    Turns:1
+        session(
+            "Giant Growth — prompt timeout drains queued playback",
+            puzzle =
+                """
+                [metadata]
+                Name:Targeted Prompt Timeout
+                Goal:Resolve prompt timeout
+                Turns:1
 
-                    [state]
-                    ActivePlayer=Human
-                    ActivePhase=Main1
-                    HumanLife=20
-                    AILife=20
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-                    humanhand=Giant Growth
-                    humanbattlefield=Forest;Grizzly Bears
-                    humanlibrary=Forest
-                    ailibrary=Mountain
-                    """.trimIndent(),
-                )
+                humanhand=Giant Growth
+                humanbattlefield=Forest;Grizzly Bears
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """.trimIndent(),
+            promptTimeoutMs = 100L,
+        ) {
+            val checkpoint = checkpoint()
+            castSpellByName("Giant Growth").shouldBeTrue()
+            val promptGsId = allMessages.last { it.hasSelectTargetsReq() }.gameStateId
 
-                h.castSpellByName("Giant Growth").shouldBeTrue()
-                // Generous deadline, not pacing: under parallel-fork CI load the
-                // cast → prompt round trip alone can exceed 5s on a slow runner.
-                waitFor(timeoutMs = 20_000L) {
-                    h.drainSink()
-                    h.allMessages.any { it.hasSelectTargetsReq() }
-                }.shouldBeTrue()
-                val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
+            GameLoopPoller.awaitCondition(timeoutMs = 20_000, pollIntervalMs = 20) {
+                drainSink()
+                allMessages.any { it.gameStateId > promptGsId }
+            }
 
-                assertSoftly {
-                    waitFor(timeoutMs = 20_000L) {
-                        h.drainSink()
-                        h.allMessages.any { it.gameStateId > promptGsId }
-                    }.shouldBeTrue()
-
-                    val postPromptMessages = h.allMessages.filter { it.gameStateId > promptGsId }
-                    postPromptMessages.shouldNotBeEmpty()
-                    postPromptMessages.first().gameStateId shouldBeGreaterThan promptGsId
-                    postPromptMessages.any { it.hasGameStateMessage() }.shouldBeTrue()
-                }
-            } finally {
-                h.shutdown()
+            val postPromptMessages = messagesSince(checkpoint).filter { it.gameStateId > promptGsId }
+            assertSoftly {
+                postPromptMessages.shouldNotBeEmpty()
+                postPromptMessages.first().gameStateId shouldBeGreaterThan promptGsId
+                postPromptMessages.any { it.hasGameStateMessage() }.shouldBeTrue()
             }
         }
 
@@ -283,7 +240,7 @@ class TargetingInteractionTest :
                 }
 
             assertSoftly {
-                game().stack.isEmpty.shouldBeTrue()
+                observe().stackSize shouldBe 0
                 // Puzzle has exactly 1 Giant Growth; cancel returns it to hand.
                 "Giant Growth" should beInHandOf(human)
                 cancel.messages.any { it.hasActionsAvailableReq() }.shouldBeTrue()
@@ -351,7 +308,7 @@ class TargetingInteractionTest :
         session("Lightning Bolt — cancel then re-cast deals damage", puzzleFile = "puzzles/bolt-face.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             cancelAction()
-            game().stack.isEmpty.shouldBeTrue()
+            observe().stackSize shouldBe 0
 
             val preBoltAiLife = ai.life
             castSpellByName("Lightning Bolt").shouldBeTrue()
@@ -592,23 +549,7 @@ class TargetingInteractionTest :
 
             // Pick Grizzly, then tap it again with legalAction=Unselect — accumulation clears.
             selectTargetsIterative(listOf(humanBearsIid))
-            session.onSelectTargets(
-                submitWithGsId(
-                    clientMessage(ClientMessageType.SelectTargetsResp_097b) {
-                        setSelectTargetsResp(
-                            SelectTargetsResp.newBuilder().setTarget(
-                                TargetSelection.newBuilder().setTargetIdx(1).addTargets(
-                                    ProtoTarget
-                                        .newBuilder()
-                                        .setTargetInstanceId(humanBearsIid)
-                                        .setLegalAction(SelectAction.Unselect),
-                                ),
-                            ),
-                        )
-                    },
-                ),
-            )
-            drainSink()
+            unselectTargets(listOf(humanBearsIid))
 
             // Re-prompt after Unselect: both creatures selectable, selectedTargets=0.
             // Trigger one more tap to observe the latest re-prompt.
@@ -753,33 +694,15 @@ class TargetingInteractionTest :
             turns = 5,
         ) {
             // Simulate reference-client settings: auto-resolve own stack effects
-            session.autoPassState.update(
-                SettingsMessage
-                    .newBuilder()
-                    .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                    .build(),
-            )
+            sendSettings()
 
-            castCreature().shouldBeTrue()
+            castSpellByName("Llanowar Elves").shouldBeTrue()
 
             // Before the fix, castCreature() would leave the creature on the stack
             // (ActionsAvailableReq shown as "Resolve" button) instead of auto-resolving.
             assertSoftly {
                 humanBattlefieldCreatures().map { it.second } shouldContain "Llanowar Elves"
-                game().stack.size() shouldBe 0
+                (observe().stackSize ?: 0) shouldBe 0
             }
         }
     })
-
-@Suppress("NoThreadSleepInTests")
-private fun waitFor(
-    timeoutMs: Long,
-    predicate: () -> Boolean,
-): Boolean {
-    val deadline = System.currentTimeMillis() + timeoutMs
-    while (System.currentTimeMillis() < deadline) {
-        if (predicate()) return true
-        Thread.sleep(20)
-    }
-    return predicate()
-}

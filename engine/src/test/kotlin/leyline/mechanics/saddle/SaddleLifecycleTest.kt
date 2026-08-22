@@ -10,6 +10,7 @@ import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
@@ -143,7 +144,7 @@ class SaddleLifecycleTest :
             passUntilTurn(2, maxPasses = 20)
 
             val grizzly = human.battlefield.card("Drover Grizzly")
-            withClue("turn=${turn()} phase=${phase()} stack=${game().stack.map { it.sourceCard.name }}") {
+            withClue("turn=${turn()} phase=${phase()} stack=${observe().stackSize}") {
                 grizzly.isSaddled shouldBe false
             }
         }

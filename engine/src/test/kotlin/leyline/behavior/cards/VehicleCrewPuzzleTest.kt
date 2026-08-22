@@ -5,8 +5,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
@@ -23,6 +25,13 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  */
 class VehicleCrewPuzzleTest :
     SessionTest({
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+            listOf("Brute Suit", "Wall of Runes", "Grizzly Bears", "Mountain").forEach {
+                TestCardRegistry.ensureCardRegistered(it)
+            }
+        }
 
         session(
             "crew vehicle and attack for lethal",
@@ -54,7 +63,7 @@ class VehicleCrewPuzzleTest :
                 activateAbility("Brute Suit").shouldBeTrue()
 
                 // Pass priority until game over — auto-pass handles combat
-                passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
+                repeat(40) { if (!isGameOver()) passPriority() }
 
                 isGameOver().shouldBeTrue()
                 human.hasWon().shouldBeTrue()
@@ -82,12 +91,12 @@ class VehicleCrewPuzzleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
         ) {
-            val wall = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Wall of Runes" }
-            wall.addStaticAbility(
+            val wallIid = human.battlefield.iid("Wall of Runes")
+            addStaticAbility(
+                wallIid,
                 "Mode\$ TapPowerValue | ValidSA\$ Activated.Crew+Vehicle | " +
                     "ValidCard\$ Card.Self | Value\$ Toughness",
             )
-            val wallIid = human.battlefield.iid(wall)
             val bearsIid = human.battlefield.iid("Grizzly Bears")
             val paymentSlice = after { activateAbility("Brute Suit").shouldBeTrue() }
             val payment = paymentSlice.expectOnePayCostsReq()
@@ -116,7 +125,10 @@ class VehicleCrewPuzzleTest :
             passUntilResolved(maxPasses = 4)
 
             assertSoftly {
-                wall.isTapped.shouldBeTrue()
+                human.battlefield
+                    .card("Wall of Runes")
+                    .isTapped
+                    .shouldBeTrue()
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards

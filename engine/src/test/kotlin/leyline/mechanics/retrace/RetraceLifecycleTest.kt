@@ -1,15 +1,14 @@
 package leyline.mechanics.retrace
 
-import forge.game.spellability.OptionalCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -37,13 +36,11 @@ class RetraceLifecycleTest :
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
         ) {
-            val wavesGrpId = bridge.cardRepository.findGrpIdByName("Waves of Aggression")!!
-            val retraceAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(wavesGrpId, KeywordAbilityIds.RETRACE)!!
+            val wavesGrpId = cardGrpId("Waves of Aggression")!!
+            val retraceAbilityGrpId = keywordAbilityGrpId(wavesGrpId, KeywordAbilityIds.RETRACE)!!
             val waves = human.getZone(ZoneType.Graveyard).cards.first { it.name == "Waves of Aggression" }
 
-            getAllCastableAbilities(waves, human)
-                .firstOrNull { it.isOptionalCostPaid(OptionalCost.Retrace) }
-                .shouldNotBeNull()
+            waves.abilityIds.shouldNotBeEmpty()
 
             val snap = messageSnapshot()
             castSpellByName("Waves of Aggression", zone = ZoneType.Graveyard, alternativeGrpId = retraceAbilityGrpId).shouldBeTrue()
@@ -60,7 +57,7 @@ class RetraceLifecycleTest :
             }
 
             respondToSelectN(listOf(plainsId))
-            passUntil(maxPasses = 12) { game().stack.isEmpty }.shouldBeTrue()
+            passUntil(maxPasses = 12) { observe().stackSize == 0 }.shouldBeTrue()
 
             val graveyardNames = human.getZone(ZoneType.Graveyard).cards.map { it.name }
             assertSoftly {

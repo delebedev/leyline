@@ -6,10 +6,10 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allActions
 import leyline.testkit.haveManaCost
-import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -39,8 +39,8 @@ class CloakSessionTest :
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
             val coat = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Cryptic Coat" }
-            val cloakedIid = bridge.instanceId(cloaked)
-            val coatIid = bridge.instanceId(coat)
+            val cloakedIid = cloaked.instanceId
+            val coatIid = coat.instanceId
             val offer =
                 allMessages
                     .allActions()
@@ -74,13 +74,14 @@ class CloakSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            session.onPerformAction(submitWithGsId(performAction(turnUp)))
-            drainSink()
+            submitAction(turnUp)
 
+            val cloakedAfter = human.battlefield.cards.single { it.instanceId == cloakedIid }
+            val coatAfter = human.battlefield.card("Cryptic Coat")
             assertSoftly {
-                cloaked.isFaceDown shouldBe false
-                cloaked.name shouldBe "Centaur Courser"
-                coat.isAttachedToEntity(cloaked) shouldBe true
+                cloakedAfter.isFaceDown shouldBe false
+                cloakedAfter.name shouldBe "Centaur Courser"
+                coatAfter.isAttachedToEntity(cloakedAfter) shouldBe true
             }
         }
 
@@ -93,7 +94,7 @@ class CloakSessionTest :
             passUntilResolved()
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
-            val cloakedIid = bridge.instanceId(cloaked)
+            val cloakedIid = cloaked.instanceId
             val hasTurnUp =
                 allMessages
                     .allActions()

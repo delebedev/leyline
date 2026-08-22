@@ -14,13 +14,14 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.SnapshotCapture
+import leyline.testkit.*
 import leyline.testkit.BoardTest
-import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.humanPlayer
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -130,10 +131,10 @@ private val MUTATE_PUZZLE =
     ailibrary=Mountain;Mountain;Mountain
     """.trimIndent()
 
-private fun MatchFlowHarness.castMutateAndSelectTarget(): MutatePromptState {
-    val cardGrpId = bridge.cardRepository.findGrpIdByName(MUTATE_CARD)!!
-    val targetGrpId = bridge.cardRepository.findGrpIdByName(TARGET_CREATURE)!!
-    val mutateGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.MUTATE)!!
+private fun HeadlessMatch.castMutateAndSelectTarget(): MutatePromptState {
+    val cardGrpId = cardGrpId(MUTATE_CARD)!!
+    val targetGrpId = cardGrpId(TARGET_CREATURE)!!
+    val mutateGrpId = keywordAbilityGrpId(cardGrpId, KeywordAbilityIds.MUTATE)!!
     val targetIid = instanceIdOf(TARGET_CREATURE)
 
     val castSlice = after { castSpellByName(MUTATE_CARD, alternativeGrpId = mutateGrpId).shouldBeTrue() }
@@ -181,7 +182,7 @@ private fun MatchFlowHarness.castMutateAndSelectTarget(): MutatePromptState {
     return MutatePromptState(cardGrpId, targetGrpId, mutateGrpId, stackIid, targetIid)
 }
 
-private fun MatchFlowHarness.resolveMutate(choiceIid: Int): MutateResolutionState {
+private fun HeadlessMatch.resolveMutate(choiceIid: Int): MutateResolutionState {
     val resolveStart = messageSnapshot()
     respondToSelectN(listOf(choiceIid))
     passUntilResolved(maxPasses = 12)
@@ -201,7 +202,7 @@ private fun MatchFlowHarness.resolveMutate(choiceIid: Int): MutateResolutionStat
     return MutateResolutionState(gsms, suppressedObject!!.instanceId)
 }
 
-private fun MatchFlowHarness.assertMutateMerge(
+private fun HeadlessMatch.assertMutateMerge(
     prompt: MutatePromptState,
     result: MutateResolutionState,
     expectedIsTop: Int,

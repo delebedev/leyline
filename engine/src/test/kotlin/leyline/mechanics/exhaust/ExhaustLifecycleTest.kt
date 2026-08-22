@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.codes.DetailKeys
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allActions
 import leyline.testkit.detailInt
@@ -71,47 +72,38 @@ class ExhaustLifecycleTest :
                     }.shouldBeFalse()
             }
         }
+    })
 
-        session(
-            "Exhaust mana ability emits spent ability marker",
-            puzzle =
-                """
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Loot, the Pathfinder;Forest
-                humanlibrary=Forest;Forest;Forest
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
-        ) {
-            val lootIid = human.battlefield.iid("Loot, the Pathfinder")
-            val loot = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Loot, the Pathfinder" }
+class ExhaustManaProjectionTest :
+    BoardTest({
+        test("Exhaust mana ability emits spent ability marker") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Loot, the Pathfinder", human, ZoneType.Battlefield)
+                }
+            val loot = board.human.battlefield.card("Loot, the Pathfinder")
             loot.addAbilityActivated(loot.manaAbilities.first { it.isExhaust })
-            val snapshot = GsmSnapshot.capture(game(), bridge, "exhaust-mana-regression", 0)
-
+            val snapshot = GsmSnapshot.capture(board.game, board.bridge, "exhaust-mana-regression", 0)
             val abilityExhausted =
                 StateMapper
                     .buildFromSnapshot(
                         snapshot,
                         1,
                         "test",
-                        bridge,
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge),
+                        board.bridge,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, board.bridge),
                     ).gsm
                     .persistentAnnotationsList
                     .last {
-                        AnnotationType.AbilityExhausted in it.typeList &&
-                            lootIid in it.affectedIdsList
+                        AnnotationType.AbilityExhausted in it.typeList && board.bridge.instanceId(loot.id) in it.affectedIdsList
                     }
 
             assertSoftly {
                 abilityExhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe LOOT_MANA_EXHAUST_ABILITY_GRP_ID
                 abilityExhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 abilityExhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe 53
-                abilityExhausted.affectorId shouldBe lootIid
+                abilityExhausted.affectorId shouldBe board.bridge.instanceId(loot.id)
             }
         }
     })

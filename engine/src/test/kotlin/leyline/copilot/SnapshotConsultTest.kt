@@ -7,7 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
-import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -61,24 +61,11 @@ class SnapshotConsultTest :
         ) {
             // The harness seeds its initial Full GSM into the accumulator rather
             // than the message log; rebuild the same wire Full GSM here.
-            val sourceBridge = bridge
-            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1)
-                    .gsm
             val aar = allMessages.last { it.hasActionsAvailableReq() }
-
-            val result =
-                SnapshotConsult.consult(
-                    gsm = gsm,
-                    prompt = aar,
-                    seat = 1,
-                    cardRepository = TestCardRegistry.repo,
-                )
+            val result = advise(aar, leyline.tooling.headless.HeadlessAdviceMode.Snapshot)
 
             result.proposal.intent shouldBe "cast"
-            val boltGrpId = TestCardRegistry.repo.findGrpIdByName("Lightning Bolt").shouldNotBeNull()
+            val boltGrpId = cardGrpId("Lightning Bolt").shouldNotBeNull()
             val card = result.proposal.card.shouldNotBeNull()
             card.grpId shouldBe boltGrpId
 
@@ -86,7 +73,9 @@ class SnapshotConsultTest :
             // game's instanceId for the bolt, so the response is submittable
             // against the source game as-is.
             val sourceBoltIids =
-                gsm.gameObjectsList.filter { it.grpId == boltGrpId }.map { it.instanceId }
+                human.hand.cards
+                    .filter { it.name == "Lightning Bolt" }
+                    .map { it.id }
             sourceBoltIids.shouldNotBeEmpty()
             (card.instanceId in sourceBoltIids) shouldBe true
 
@@ -119,20 +108,7 @@ class SnapshotConsultTest :
             } shouldBe
                 true
 
-            val sourceBridge = bridge
-            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1)
-                    .gsm
-
-            val result =
-                SnapshotConsult.consult(
-                    gsm = gsm,
-                    prompt = aar,
-                    seat = 1,
-                    cardRepository = TestCardRegistry.repo,
-                )
+            val result = advise(aar, leyline.tooling.headless.HeadlessAdviceMode.Snapshot)
 
             result.proposal.intent shouldBe "cast"
             result.proposal.card
@@ -318,20 +294,7 @@ class SnapshotConsultTest :
             castSpellByName("Lava Axe").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = bridge
-            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1)
-                    .gsm
-
-            val result =
-                SnapshotConsult.consult(
-                    gsm = gsm,
-                    prompt = targetsReq,
-                    seat = 1,
-                    cardRepository = TestCardRegistry.repo,
-                )
+            val result = advise(targetsReq, leyline.tooling.headless.HeadlessAdviceMode.Snapshot)
 
             result.proposal.intent shouldBe "target"
             result.proposal.responseIds shouldBe listOf(2)
@@ -349,40 +312,18 @@ class SnapshotConsultTest :
             castSpellByName("Shock").shouldBeTrue()
             val targetsReq = allMessages.last { it.hasSelectTargetsReq() }
 
-            val sourceBridge = bridge
-            val live = CopilotProposalService(sourceBridge, leyline.bridge.types.SeatId(1)).propose(targetsReq)
-            live.responses.shouldNotBeEmpty()
+            val live = advise(targetsReq)
+            live.proposal.responses.shouldNotBeEmpty()
 
-            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1)
-                    .gsm
-            val result =
-                SnapshotConsult.consult(
-                    gsm = gsm,
-                    prompt = targetsReq,
-                    seat = 1,
-                    cardRepository = TestCardRegistry.repo,
-                )
+            val result = advise(targetsReq, leyline.tooling.headless.HeadlessAdviceMode.Snapshot)
 
-            result.proposal.responses shouldBe live.responses
+            result.proposal.responses shouldBe live.proposal.responses
         }
 
         session(
             "bounded target consult realizes zero-to-two and one-to-two groups",
             puzzle = BOUNDED_TARGET_CONSULT_REALIZES_PUZZLE,
         ) {
-            val sourceBridge = bridge
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(
-                        GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0),
-                        0,
-                        "consult",
-                        sourceBridge,
-                        viewingSeatId = 1,
-                    ).gsm
             val candidateIds = listOf(human.battlefield.iid("Grizzly Bears"), ai.battlefield.iid("Raging Goblin"))
 
             fun prompt(
@@ -394,7 +335,7 @@ class SnapshotConsultTest :
                     .newBuilder()
                     .setType(GREMessageType.SelectTargetsReq_695e)
                     .setMsgId(msgId)
-                    .setGameStateId(gsm.gameStateId)
+                    .setGameStateId(observe().client.latestGsId)
                     .addSystemSeatIds(1)
                     .setSelectTargetsReq(
                         SelectTargetsReq
@@ -418,13 +359,7 @@ class SnapshotConsultTest :
                             ),
                     ).build()
 
-            fun consult(prompt: GREToClientMessage): ClientToGREMessage =
-                decodeSingle(
-                    SnapshotConsult
-                        .consult(gsm = gsm, prompt = prompt, seat = 1, cardRepository = TestCardRegistry.repo)
-                        .proposal.responses
-                        .single(),
-                )
+            fun consult(prompt: GREToClientMessage): ClientToGREMessage = decodeSingle(advise(prompt).proposal.responses.single())
 
             consult(prompt(min = 0, max = 2, msgId = 61)).type shouldBe ClientMessageType.SubmitTargetsReq
             val required = consult(prompt(min = 1, max = 2, msgId = 62))
@@ -439,16 +374,6 @@ class SnapshotConsultTest :
         ) {
             val ownIds = listOf(human.battlefield.iid("Grizzly Bears"), human.battlefield.iid("Walking Corpse"))
             val opponentIds = listOf(ai.battlefield.iid("Raging Goblin"), ai.battlefield.iid("Centaur Courser"))
-            val sourceBridge = bridge
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(
-                        GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0),
-                        0,
-                        "consult",
-                        sourceBridge,
-                        viewingSeatId = 1,
-                    ).gsm
 
             fun target(
                 instanceId: Int,
@@ -488,7 +413,7 @@ class SnapshotConsultTest :
                     .newBuilder()
                     .setType(GREMessageType.SelectTargetsReq_695e)
                     .setMsgId(msgId)
-                    .setGameStateId(gsm.gameStateId)
+                    .setGameStateId(observe().client.latestGsId)
                     .addSystemSeatIds(1)
                     .setSelectTargetsReq(
                         SelectTargetsReq
@@ -497,13 +422,7 @@ class SnapshotConsultTest :
                             .addTargets(group(2, opponentIds, selectedOpponent)),
                     ).build()
 
-            fun consult(prompt: GREToClientMessage): ClientToGREMessage =
-                decodeSingle(
-                    SnapshotConsult
-                        .consult(gsm = gsm, prompt = prompt, seat = 1, cardRepository = TestCardRegistry.repo)
-                        .proposal.responses
-                        .single(),
-                )
+            fun consult(prompt: GREToClientMessage): ClientToGREMessage = decodeSingle(advise(prompt).proposal.responses.single())
 
             val first = consult(prompt(msgId = 71))
             first.type shouldBe ClientMessageType.SelectTargetsResp_097b
@@ -540,18 +459,12 @@ class SnapshotConsultTest :
             "modal consult retains the prompt ctoId in proposal and response",
             puzzle = MODAL_CONSULT_RETAINS_PROMPT_PUZZLE,
         ) {
-            val sourceBridge = bridge
-            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
-            val gsm =
-                StateMapper
-                    .buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1)
-                    .gsm
             val prompt =
                 GREToClientMessage
                     .newBuilder()
                     .setType(GREMessageType.CastingTimeOptionsReq_695e)
                     .setMsgId(91)
-                    .setGameStateId(gsm.gameStateId)
+                    .setGameStateId(observe().client.latestGsId)
                     .addSystemSeatIds(1)
                     .setCastingTimeOptionsReq(
                         CastingTimeOptionsReq
@@ -572,13 +485,7 @@ class SnapshotConsultTest :
                             ),
                     ).build()
 
-            val result =
-                SnapshotConsult.consult(
-                    gsm = gsm,
-                    prompt = prompt,
-                    seat = 1,
-                    cardRepository = TestCardRegistry.repo,
-                )
+            val result = advise(prompt)
 
             result.proposal.intent shouldBe "modal"
             result.proposal.ctoId shouldBe 3

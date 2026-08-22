@@ -2,6 +2,7 @@ package leyline.behavior.puzzles
 
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import kotlin.time.Duration.Companion.seconds

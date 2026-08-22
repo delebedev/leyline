@@ -124,7 +124,10 @@ class FranticScapegoatSuspectedTest :
                     .lastOrNull { it.detailInt(DetailKeys.GRPID) == SCAPEGOAT_TRANSFER_ABILITY_GRP_ID }
 
             assertSoftly {
-                scapegoat.isSuspected.shouldBeFalse()
+                human.battlefield
+                    .card("Frantic Scapegoat")
+                    .isSuspected
+                    .shouldBeFalse()
                 bear.isSuspected.shouldBeTrue()
                 gainBear.shouldNotBeNull()
                 loseScapegoat.shouldNotBeNull()

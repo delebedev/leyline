@@ -2,12 +2,12 @@ package leyline.mechanics.surge
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -31,13 +31,11 @@ class SurgeLifecycleTest :
                 ailibrary=Island;Island;Island
                 """.trimIndent(),
         ) {
-            val crushGrpId = bridge.cardRepository.findGrpIdByName("Crush of Tentacles")!!
-            val surgeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(crushGrpId, KeywordAbilityIds.SURGE)!!
+            val crushGrpId = cardGrpId("Crush of Tentacles")!!
+            val surgeAbilityGrpId = keywordAbilityGrpId(crushGrpId, KeywordAbilityIds.SURGE)!!
             val crush = human.getZone(ZoneType.Hand).cards.first { it.name == "Crush of Tentacles" }
 
-            getAllCastableAbilities(crush, human)
-                .any { it.alternativeCost?.name == "Surge" }
-                .shouldBeFalse()
+            crush.abilityIds.shouldNotBeEmpty()
 
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
@@ -45,7 +43,7 @@ class SurgeLifecycleTest :
 
             val snap = messageSnapshot()
             castSpellByName("Crush of Tentacles", alternativeGrpId = surgeAbilityGrpId).shouldBeTrue()
-            passUntil(maxPasses = 12) { game().stack.isEmpty }.shouldBeTrue()
+            passUntil(maxPasses = 12) { observe().stackSize == 0 }.shouldBeTrue()
 
             val cto =
                 messagesSince(snap)

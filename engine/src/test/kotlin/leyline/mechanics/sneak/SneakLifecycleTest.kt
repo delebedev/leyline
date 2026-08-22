@@ -7,11 +7,12 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.detail
 import leyline.testkit.detailInt
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
@@ -123,13 +124,9 @@ class SneakLifecycleTest :
         }
     })
 
-private fun MatchFlowHarness.sneakAbilityGrpId(): Int {
-    val repo = bridge.cardRepository
-    val cardGrpId = repo.findGrpIdByName("Splinter, Hamato Yoshi")!!
-    return repo.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.SNEAK)!!
-}
+private fun HeadlessMatch.sneakAbilityGrpId(): Int = keywordAbilityGrpId("Splinter, Hamato Yoshi", KeywordAbilityIds.SNEAK)!!
 
-private fun MatchFlowHarness.latestSneakOffer(sneakAbilityGrpId: Int) =
+private fun HeadlessMatch.latestSneakOffer(sneakAbilityGrpId: Int) =
     allMessages
         .asReversed()
         .firstOrNull { it.hasActionsAvailableReq() }

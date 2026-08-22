@@ -1,15 +1,16 @@
 package leyline.mechanics.cost
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
@@ -79,7 +80,6 @@ class OrdinaryTapCostLifecycleTest :
             val striderIid = human.battlefield.iid("Goldfury Strider")
             selectTargets(listOf(bearIid))
 
-            val battlefield = human.getZone(ZoneType.Battlefield).cards
             val payCostsMessage = allMessages.last { it.hasPayCostsReq() }
             val payCosts = payCostsMessage.payCostsReq
             val selection = payCosts.effectCostReq.costSelection
@@ -111,9 +111,15 @@ class OrdinaryTapCostLifecycleTest :
             respondToEffectCost(listOf(bearIid, corpseIid))
 
             assertSoftly {
-                battlefield.single { it.name == "Goldfury Strider" }.isTapped shouldBe false
-                battlefield.single { it.name == "Grizzly Bears" }.isTapped.shouldBeTrue()
-                battlefield.single { it.name == "Walking Corpse" }.isTapped.shouldBeTrue()
+                human.battlefield.card("Goldfury Strider").isTapped shouldBe false
+                human.battlefield
+                    .card("Grizzly Bears")
+                    .isTapped
+                    .shouldBeTrue()
+                human.battlefield
+                    .card("Walking Corpse")
+                    .isTapped
+                    .shouldBeTrue()
             }
 
             passUntilResolved(maxPasses = 4)
@@ -166,13 +172,11 @@ class OrdinaryTapCostLifecycleTest :
                 allMessages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).filter {
                     sourceIid in it.affectedIdsList
                 } shouldHaveSize 1
-                bridge.getLimboInstanceIds().map { it.value } shouldContain sourceIid
-                bridge
-                    .projectionStateSnapshot()
-                    .annotations.abilityLineage
-                    .find(sourceIid) shouldBe null
-                bridge.cutCoordinator.oneShotPayCosts
-                    .current() shouldBe null
+                observe()
+                    .client.zones[ZoneIds.STACK]
+                    ?.objectInstanceIdsList
+                    .orEmpty() shouldNotContain sourceIid
+                observe().pendingCostSelection shouldBe false
             }
         }
     })

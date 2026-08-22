@@ -5,12 +5,12 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.InstanceId
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.detailString
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -48,21 +48,16 @@ class LegendRuleTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
-        fun MatchFlowHarness.findUntappedIsamaru(instanceIds: List<Int>): Int? {
+        fun HeadlessMatch.findUntappedIsamaru(instanceIds: List<Int>): Int? {
             for (iid in instanceIds) {
-                val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: continue
-                val card =
-                    human
-                        .getZone(ForgeZoneType.Battlefield)
-                        .cards
-                        .firstOrNull { it.id == cardId.value }
+                val card = cardByIid(iid)
                 if (card != null && !card.isTapped) return iid
             }
             return null
         }
 
         /** Cast Isamaru, resolve, trigger legend rule, respond to SelectNReq. */
-        fun MatchFlowHarness.castAndResolveLegendRule(): Int {
+        fun HeadlessMatch.castAndResolveLegendRule(): Int {
             castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
             passPriority()
 
@@ -129,7 +124,7 @@ class LegendRuleTest :
             castAndResolveLegendRule()
 
             assertSoftly {
-                accumulator.assertConsistent("after legend rule")
+                assertConsistent("after legend rule")
                 assertGsIdChain(allMessages, context = "legend rule flow")
                 isGameOver().shouldBeFalse()
             }

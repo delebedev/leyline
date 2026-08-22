@@ -8,27 +8,22 @@ import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotation
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotation
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class LocalStackMicrostepTest :
     SessionTest({
-        fun MatchFlowHarness.enableStackAutoResolve() {
-            session.autoPassState.update(
-                SettingsMessage
-                    .newBuilder()
-                    .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                    .build(),
-            )
+        fun HeadlessMatch.enableStackAutoResolve() {
+            setAutoPass(AutoPassOption.ResolveMyStackEffects)
         }
 
         fun GameStateMessage.annotationTypes(): Set<AnnotationType> =

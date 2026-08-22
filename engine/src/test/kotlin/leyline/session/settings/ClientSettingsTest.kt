@@ -1,38 +1,16 @@
 package leyline.session.settings
 
-import forge.game.phase.PhaseType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import leyline.testkit.MatchFlowHarness
-import leyline.testkit.SessionTest
-import leyline.testkit.clientMessage
-import leyline.testkit.stop
+import leyline.testkit.*
 import wotc.mtgo.gre.external.messaging.Messages.*
 
-/**
- * Integration tests for client SetSettingsReq → PhaseStopProfile wiring.
- *
- * Verifies that toggling stops in the client settings message updates the
- * [PhaseStopProfile] on [GameBridge], which in turn controls where the
- * engine stops during the auto-pass loop.
- */
+/** SetSettingsReq is a semantic intent and updates the immutable stop profile. */
 class ClientSettingsTest :
     SessionTest({
-
-        fun MatchFlowHarness.sendSettings(vararg stops: Stop) {
-            val msg =
-                clientMessage(ClientMessageType.SetSettingsReq_097b) {
-                    setSetSettingsReq(
-                        SetSettingsReq.newBuilder().setSettings(
-                            SettingsMessage.newBuilder().addAllStops(stops.toList()),
-                        ),
-                    )
-                }
-            session.onSettings(msg)
-        }
-
         fun stop(
             type: StopType,
             scope: SettingScope,
@@ -46,115 +24,47 @@ class ClientSettingsTest :
                 .build()
 
         session("enabling Upkeep stop via Team scope updates the profile") {
-            val profile = bridge.phaseStopProfile!!
-            val humanId = human.id
-
-            // Default: Upkeep is NOT enabled for human
-            profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeFalse()
-
-            // Send settings with Upkeep = Set for Team scope
+            enabledStops() shouldNotContain "UPKEEP"
             sendSettings(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set))
-
-            assertSoftly {
-                profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
-                    setOf(
-                        PhaseType.UPKEEP,
-                        PhaseType.MAIN1,
-                        PhaseType.COMBAT_DECLARE_ATTACKERS,
-                        PhaseType.COMBAT_DECLARE_BLOCKERS,
-                        PhaseType.MAIN2,
-                    )
-            }
+            enabledStops() shouldBe setOf("UPKEEP", "MAIN1", "COMBAT_DECLARE_ATTACKERS", "COMBAT_DECLARE_BLOCKERS", "MAIN2")
         }
 
         session("disabling Main1 stop via Team scope updates the profile") {
-            val profile = bridge.phaseStopProfile!!
-            val humanId = human.id
-
-            // Default: Main1 IS enabled for human
-            profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
-
-            // Send settings with PrecombatMainPhase = Clear for Team scope
+            enabledStops() shouldContain "MAIN1"
             sendSettings(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe))
-
-            assertSoftly {
-                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeFalse()
-                profile.getEnabled(humanId) shouldBe
-                    setOf(
-                        PhaseType.COMBAT_DECLARE_ATTACKERS,
-                        PhaseType.COMBAT_DECLARE_BLOCKERS,
-                        PhaseType.MAIN2,
-                    )
-            }
+            enabledStops() shouldBe setOf("COMBAT_DECLARE_ATTACKERS", "COMBAT_DECLARE_BLOCKERS", "MAIN2")
         }
 
         session("multiple stops can be toggled in a single settings message") {
-            val profile = bridge.phaseStopProfile!!
-            val humanId = human.id
-
-            // Enable Draw, disable Main2
             sendSettings(
                 stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set),
                 stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
             )
-
             assertSoftly {
-                profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()
-                profile.isEnabled(humanId, PhaseType.MAIN2).shouldBeFalse()
-                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
-                    setOf(
-                        PhaseType.DRAW,
-                        PhaseType.MAIN1,
-                        PhaseType.COMBAT_DECLARE_ATTACKERS,
-                        PhaseType.COMBAT_DECLARE_BLOCKERS,
-                    )
+                enabledStops() shouldContain "DRAW"
+                enabledStops() shouldNotContain "MAIN2"
+                enabledStops() shouldBe setOf("DRAW", "MAIN1", "COMBAT_DECLARE_ATTACKERS", "COMBAT_DECLARE_BLOCKERS")
             }
         }
 
         session("opponents scope does not affect human") {
-            val profile = bridge.phaseStopProfile!!
-            val humanId = human.id
-
-            val before = profile.getEnabled(humanId)
-
-            // Send Opponents-only stop change
+            val before = enabledStops()
             sendSettings(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set))
-
-            val after = profile.getEnabled(humanId)
-            after shouldBe before
+            enabledStops() shouldBe before
         }
 
         session("AnyPlayer scope applies to human") {
-            val profile = bridge.phaseStopProfile!!
-            val humanId = human.id
-
-            profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeFalse()
-
+            enabledStops() shouldNotContain "END_OF_TURN"
             sendSettings(stop(StopType.EndStep_ad1f, SettingScope.AnyPlayer, SettingStatus.Set))
-
-            assertSoftly {
-                profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
-                    setOf(
-                        PhaseType.MAIN1,
-                        PhaseType.COMBAT_DECLARE_ATTACKERS,
-                        PhaseType.COMBAT_DECLARE_BLOCKERS,
-                        PhaseType.MAIN2,
-                        PhaseType.END_OF_TURN,
-                    )
-            }
+            enabledStops() shouldBe setOf("MAIN1", "COMBAT_DECLARE_ATTACKERS", "COMBAT_DECLARE_BLOCKERS", "MAIN2", "END_OF_TURN")
         }
 
         session("settings response is echoed back as raw message") {
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
-            drainSink()
-
-            val last = allRawMessages.single()
-            assertSoftly {
-                last.hasGreToClientEvent().shouldBeTrue()
-                last.greToClientEvent.greToClientMessagesList.map { it.type } shouldBe listOf(GREMessageType.SetSettingsResp_695e)
-            }
+            allRawMessages
+                .flatMap { it.greToClientEvent.greToClientMessagesList }
+                .filter {
+                    it.type == GREMessageType.SetSettingsResp_695e
+                }.shouldHaveSize(1)
         }
     })

@@ -1,6 +1,5 @@
 package leyline.session.combat
 
-import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
@@ -15,23 +14,20 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.SeatId
-import leyline.copilot.CopilotProposalService
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
-import leyline.testkit.TestCardInjector
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
-import leyline.testkit.declareAttackersResp
 import leyline.testkit.detailInt
+import leyline.tooling.headless.HeadlessMatch
 import leyline.tooling.headless.planeswalkerDamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -144,7 +140,7 @@ class CombatInteractionTest :
             return aars
         }
 
-        fun MatchFlowHarness.passBackToHumanMain1() {
+        fun HeadlessMatch.passBackToHumanMain1() {
             repeat(80) {
                 if (!isAiTurn() && phase() == "MAIN1" && turn() > 1) return
                 if (!isAiTurn() && phase() == "COMBAT_DECLARE_ATTACKERS") {
@@ -160,7 +156,7 @@ class CombatInteractionTest :
 
         // Post-connect half of the old setupSingleAttacker: the deckList/aiScript
         // that used to start the game now lives on each caller's session(...).
-        fun MatchFlowHarness.setupSingleAttacker(): Int {
+        fun HeadlessMatch.setupSingleAttacker(): Int {
             // Turn 1: play Mountain, cast Raging Goblin (R)
             assertSoftly {
                 playLand("Mountain").shouldBeTrue()
@@ -176,7 +172,7 @@ class CombatInteractionTest :
             return creatures.first().first
         }
 
-        fun MatchFlowHarness.setupMultipleAttackers(): List<Int> {
+        fun HeadlessMatch.setupMultipleAttackers(): List<Int> {
             // Turn 1: play Mountain, cast Raging Goblin #1
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -195,7 +191,7 @@ class CombatInteractionTest :
             return creatures.map { it.first }
         }
 
-        fun MatchFlowHarness.setupWithAiBlocker(): Int {
+        fun HeadlessMatch.setupWithAiBlocker(): Int {
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
@@ -217,14 +213,8 @@ class CombatInteractionTest :
             val attackerIid = setupSingleAttacker()
 
             // Pass-only phase stops are skipped before the declaration window.
-            val pending =
-                bridge
-                    .actionBridge(SeatId(1))
-                    .getPending()
-                    .shouldNotBeNull()
-            pending.state.kind shouldBe PendingActionKind.DECLARE_ATTACKERS
+            observe().pendingActionKind shouldBe PendingActionKind.DECLARE_ATTACKERS.name
             val requestMessage = allMessages.last { it.hasDeclareAttackersReq() }
-            requestMessage.gameStateId shouldBe pending.promptGameStateId
             val req = requestMessage.declareAttackersReq
             req.attackersCount shouldBeGreaterThan 0
 
@@ -263,14 +253,8 @@ class CombatInteractionTest :
 
             passPriority() // advance to combat
 
-            val pending =
-                bridge
-                    .actionBridge(SeatId(1))
-                    .getPending()
-                    .shouldNotBeNull()
-            pending.state.kind shouldBe PendingActionKind.DECLARE_ATTACKERS
+            observe().pendingActionKind shouldBe PendingActionKind.DECLARE_ATTACKERS.name
             val requestMessage = allMessages.last { it.hasDeclareAttackersReq() }
-            requestMessage.gameStateId shouldBe pending.promptGameStateId
             val req = requestMessage.declareAttackersReq
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }.toSet()
 
@@ -394,39 +378,19 @@ class CombatInteractionTest :
                 HumanLife=20
                 AILife=20
 
-                humanbattlefield=Mountain
+                humanbattlefield=Mountain;Raging Goblin
                 humanlibrary=Mountain;Mountain;Mountain
+                aibattlefield=Liliana of the Veil|Counters:LOYALTY=1
                 ailibrary=Mountain;Mountain;Mountain
                 """,
             turns = 5,
             validation = combatValidation,
         ) {
-            val attacker =
-                TestCardInjector.inject(
-                    bridge,
-                    HUMAN_SEAT,
-                    "Raging Goblin",
-                    ZoneType.Battlefield,
-                    sick = false,
-                )
-            val planeswalker =
-                TestCardInjector.inject(
-                    bridge,
-                    OPPONENT_SEAT,
-                    "Liliana of the Veil",
-                    ZoneType.Battlefield,
-                )
-            planeswalker.card.setCounters(CounterEnumType.LOYALTY, 1)
-            val attackerIid = attacker.instanceId
-            val planeswalkerIid = planeswalker.instanceId
+            val attackerIid = human.battlefield.iid("Raging Goblin")
+            val planeswalkerIid = ai.battlefield.iid("Liliana of the Veil")
             val startTurn = turn()
-
-            val promptSnap = messageSnapshot()
-            val sawPrompt =
-                passUntil(maxPasses = 5) {
-                    messagesSince(promptSnap).any { it.hasDeclareAttackersReq() }
-                }
-            val attackerPrompts = messagesSince(promptSnap).filter { it.hasDeclareAttackersReq() }
+            val sawPrompt = observe().pendingActionKind == PendingActionKind.DECLARE_ATTACKERS.name
+            val attackerPrompts = allMessages.filter { it.hasDeclareAttackersReq() }
             assertSoftly {
                 sawPrompt.shouldBeTrue()
                 attackerPrompts.size shouldBe 1
@@ -458,10 +422,8 @@ class CombatInteractionTest :
             submitAttackers()
             passThroughCombat(startTurn)
 
-            val battlefieldPlaneswalker =
-                ai.getZone(ZoneType.Battlefield).cards.firstOrNull { it.id == planeswalker.forgeCardId }
-            val graveyardPlaneswalker =
-                ai.getZone(ZoneType.Graveyard).cards.firstOrNull { it.id == planeswalker.forgeCardId }
+            val battlefieldPlaneswalker = ai.battlefield.cards.firstOrNull { it.instanceId == planeswalkerIid }
+            val graveyardPlaneswalker = ai.graveyard.cards.firstOrNull { it.name == "Liliana of the Veil" }
             assertSoftly {
                 ai.life shouldBe 20
                 withClue(
@@ -580,12 +542,7 @@ class CombatInteractionTest :
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .filter { it.isCreature }
-                .single()
-                .addIntrinsicKeyword("First Strike")
+            addIntrinsicKeyword(attackerIid, "First Strike")
 
             passPriority()
             declareAttackers(listOf(attackerIid))
@@ -618,12 +575,7 @@ class CombatInteractionTest :
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .filter { it.isCreature }
-                .single()
-                .addIntrinsicKeyword("Double Strike")
+            addIntrinsicKeyword(attackerIid, "Double Strike")
 
             passPriority()
             declareAttackers(listOf(attackerIid))
@@ -804,7 +756,7 @@ class CombatInteractionTest :
                 .single { it.attackerInstanceId == attackerIid }
                 .hasSelectedDamageRecipient()
                 .shouldBeTrue()
-            CopilotProposalService(bridge, SeatId(1)).propose(prompt).intent shouldBe "submit_attackers"
+            advise(prompt).proposal.intent shouldBe "submit_attackers"
         }
 
         session(
@@ -817,10 +769,7 @@ class CombatInteractionTest :
             passPriority()
             val before = messageSnapshot()
 
-            session.onDeclareAttackers(
-                submitWithGsId(declareAttackersResp(attackers = listOf(attackerIid))),
-            )
-            drainSink()
+            declareAttackersWithoutRecipients(listOf(attackerIid))
 
             val messages = messagesSince(before)
             val rejection = messages.single { it.type == GREMessageType.IllegalRequest }

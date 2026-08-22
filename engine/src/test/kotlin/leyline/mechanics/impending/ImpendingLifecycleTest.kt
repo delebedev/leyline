@@ -7,8 +7,8 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.detailInt
@@ -40,9 +40,9 @@ private val PUZZLE =
 class ImpendingLifecycleTest :
     SessionTest({
         session("impending cast enters with time counters and records cast-through option", puzzle = PUZZLE) {
-            val overlordGrpId = bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
+            val overlordGrpId = cardGrpId("Overlord of the Mistmoors")!!
             val impendingAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
+                keywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
 
             val snap = messageSnapshot()
             castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
@@ -68,9 +68,9 @@ class ImpendingLifecycleTest :
         }
 
         session("impending first end-step trigger removes one time counter", puzzle = PUZZLE) {
-            val overlordGrpId = bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
+            val overlordGrpId = cardGrpId("Overlord of the Mistmoors")!!
             val impendingAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
+                keywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
 
             castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
             passUntilResolved(maxPasses = 12)
@@ -89,9 +89,9 @@ class ImpendingLifecycleTest :
         }
 
         session("impending removes all time counters and becomes a creature", puzzle = PUZZLE) {
-            val overlordGrpId = bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
+            val overlordGrpId = cardGrpId("Overlord of the Mistmoors")!!
             val impendingAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
+                keywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
 
             castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
             var removedAllCounters = false
@@ -102,12 +102,7 @@ class ImpendingLifecycleTest :
                     removedAllCounters = true
                     return@repeat
                 }
-                if (bridge
-                        .actionBridge(SeatId(1))
-                        .getPending()
-                        ?.state
-                        ?.kind == PendingActionKind.DECLARE_ATTACKERS
-                ) {
+                if (observe().pendingActionKind == PendingActionKind.DECLARE_ATTACKERS.name) {
                     declareNoAttackers()
                 } else {
                     passPriority()

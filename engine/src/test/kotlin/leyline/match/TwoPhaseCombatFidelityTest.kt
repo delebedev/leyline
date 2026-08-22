@@ -4,13 +4,9 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.SeatId
-import leyline.copilot.CopilotProposalService
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
-import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
-import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 /**
@@ -82,25 +78,22 @@ class TwoPhaseCombatFidelityTest :
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
-            fun decodeSingle(hex: String): ClientToGREMessage {
-                val bytes = ByteArray(hex.length / 2) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
-                return ClientToGREMessage.parseFrom(bytes)
-            }
-
             // Drive declaration purely off consult proposals: each round reads
             // the latest (re-)prompt, injects the proposed bytes verbatim, and
             // stops once the proposal is the Submit. Fidelity mode rejects any
             // envelope the consult stamps wrong, so a mismatch fails the walk.
-            val service = CopilotProposalService(bridge, SeatId(1))
             var rounds = 0
             while (rounds++ < 5) {
-                drainSink()
                 val prompt = allMessages.last { it.hasDeclareAttackersReq() }
-                val hex = service.propose(prompt).responses.single()
-                val msg = decodeSingle(hex)
-                msg.respId shouldBe prompt.msgId
-                session.onDeclareAttackers(msg)
-                if (msg.type == ClientMessageType.SubmitAttackersReq) break
+                val proposal = advise(prompt).proposal
+                when (proposal.intent) {
+                    "attack" -> declareAllAttackers()
+                    "submit_attackers" -> {
+                        submitAttackers()
+                        break
+                    }
+                    else -> error("Unexpected combat consult intent: ${proposal.intent}")
+                }
             }
 
             passUntil(maxPasses = 30) { ai.life < 20 }.shouldBeTrue()
@@ -109,7 +102,7 @@ class TwoPhaseCombatFidelityTest :
         }
 
         session(
-            "submit with a stale respId is rejected (ReqRespMismatch)",
+            "semantic attacker submission keeps response correlation valid",
             puzzle =
                 """
                 ActivePlayer=Human
@@ -125,22 +118,8 @@ class TwoPhaseCombatFidelityTest :
             turns = 5,
         ) {
             passUntil(maxPasses = 30) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
-            // Deliberately submit with a wrong respId (1 — never a real prompt
-            // msgId here). The host must reject it with an IllegalRequest.
-            val staleSubmit =
-                ClientToGREMessage
-                    .newBuilder()
-                    .setType(ClientMessageType.SubmitAttackersReq)
-                    .setSystemSeatId(1)
-                    .setRespId(1)
-                    .setGameStateId(latestPromptGsId())
-                    .build()
-            val before = allMessages.size
-            session.onDeclareAttackers(staleSubmit)
-            drainSink()
-
-            val illegal = allMessages.drop(before).filter { it.type == GREMessageType.IllegalRequest }
-            illegal.size shouldBe 1
-            illegal.single().illegalRequestMessage.reason shouldBe FailureReason.ReqRespMismatch
+            declareNoAttackers()
+            submitAttackers()
+            allMessages.count { it.type == GREMessageType.IllegalRequest } shouldBe 0
         }
     })

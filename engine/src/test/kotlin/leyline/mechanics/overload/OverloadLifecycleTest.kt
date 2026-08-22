@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -35,9 +36,9 @@ private val PUZZLE =
 class OverloadLifecycleTest :
     SessionTest({
         session("overloaded Mizzium Mortars is targetless and hits each opposing creature", puzzle = PUZZLE) {
-            val mortarsGrpId = bridge.cardRepository.findGrpIdByName("Mizzium Mortars")!!
+            val mortarsGrpId = cardGrpId("Mizzium Mortars")!!
             val overloadAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(mortarsGrpId, KeywordAbilityIds.OVERLOAD)!!
+                keywordAbilityGrpId(mortarsGrpId, KeywordAbilityIds.OVERLOAD)!!
 
             val snap = messageSnapshot()
             castSpellByName("Mizzium Mortars", alternativeGrpId = overloadAbilityGrpId).shouldBeTrue()

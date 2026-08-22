@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldNotBe
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.testkit.*
-import leyline.testkit.CardDataDeriver
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
@@ -36,15 +35,6 @@ class CombatQualificationSessionTest :
                 """.trimIndent(),
         ) {
             val targetIid = ai.battlefield.iid("Grizzly Bears")
-            val aura = human.hand.card("Pacifism")
-            bridge.abilityRegistryFor(
-                aura,
-                CardDataDeriver.fromForgeCard(aura, "Pacifism").copy(
-                    abilityIds = emptyList(),
-                    abilityKinds = emptyList(),
-                ),
-            )
-
             val slice =
                 after {
                     castSpellByName("Pacifism") shouldBe true

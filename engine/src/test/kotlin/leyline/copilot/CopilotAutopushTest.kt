@@ -10,8 +10,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
-import leyline.testkit.SessionTest
-import leyline.testkit.submitTestAction
+import leyline.testkit.*
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.net.InetSocketAddress
@@ -23,11 +22,10 @@ import java.util.concurrent.atomic.AtomicReference
 /** Client-native push transport exercised against a live session prompt. */
 @Suppress("SleepInsteadOfDelay", "NoThreadSleepInTests")
 class CopilotAutopushTest :
-    SessionTest({
-        session(
-            "autopush waits for the exact request and submits pass through the client workflow",
-            puzzle = PASS_PUZZLE,
-        ) {
+    BoardTest({
+        test("autopush waits for the exact request and submits pass through the client workflow") {
+            val board = startPuzzleAtMain1(PASS_PUZZLE)
+            val bridge = board.bridge
             val statusCount = AtomicInteger(0)
             val submitCount = AtomicInteger(0)
             val rawCount = AtomicInteger(0)
@@ -55,7 +53,7 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                val prompt = prompt(GREMessageType.ActionsAvailableReq_695e, board.counter.currentGsId(), 1)
                 val actionBridge = bridge.seat(SeatId(1)).action
                 val pending = actionBridge.getPending() ?: error("expected a pending priority action")
                 onSubmit.set {
@@ -93,7 +91,9 @@ class CopilotAutopushTest :
             }
         }
 
-        session("autopush skips a prompt superseded before native readiness", puzzle = PASS_PUZZLE) {
+        test("autopush skips a prompt superseded before native readiness") {
+            val board = startPuzzleAtMain1(PASS_PUZZLE)
+            val bridge = board.bridge
             val requestCount = AtomicInteger(0)
             val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
             server.createContext("/") { exchange ->
@@ -103,7 +103,7 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                val prompt = prompt(GREMessageType.ActionsAvailableReq_695e, board.counter.currentGsId(), 1)
                 bridge.messageCounter.markPromptMsgId(prompt.msgId + 1)
 
                 val autopush =
@@ -198,7 +198,9 @@ class CopilotAutopushTest :
             }
         }
 
-        session("autopush never resubmits after the client delegate reports submitted", puzzle = CAST_PUZZLE) {
+        test("autopush never resubmits after the client delegate reports submitted") {
+            val board = startPuzzleAtMain1(CAST_PUZZLE)
+            val bridge = board.bridge
             val submitCount = AtomicInteger(0)
             val submitted = CountDownLatch(1)
             val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -215,7 +217,7 @@ class CopilotAutopushTest :
             server.start()
 
             try {
-                val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
+                val prompt = prompt(GREMessageType.ActionsAvailableReq_695e, board.counter.currentGsId(), 1)
                 val autopush =
                     CopilotAutopush(
                         bridge,
@@ -237,7 +239,9 @@ class CopilotAutopushTest :
             }
         }
 
-        session("landed requires the priority window to advance", puzzle = CAST_PUZZLE) {
+        test("landed requires the priority window to advance") {
+            val board = startPuzzleAtMain1(CAST_PUZZLE)
+            val bridge = board.bridge
             val autopush = CopilotAutopush(bridge, SeatId(1), "http://127.0.0.1:1")
             try {
                 val seatAction = bridge.seat(SeatId(1)).action

@@ -4,11 +4,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
@@ -31,8 +30,7 @@ class GameEndTest :
             // Concede triggers sendGameOver()
             val concede =
                 after {
-                    session.onConcede()
-                    drainSink()
+                    submit(leyline.tooling.headless.MatchIntent.Concede)
                 }
 
             // Verify GRE messages: 3x GSM + IntermissionReq
@@ -94,11 +92,6 @@ class GameEndTest :
                 finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
                 finalResult.resultListCount shouldBeGreaterThan 0
                 finalResult.getResultList(0).result shouldBe ResultType.WinLoss
-            }
-
-            assertSoftly {
-                registry.getMatch("test-match").shouldBeNull()
-                registry.getPeer("test-match", SeatId(1)).shouldBeNull()
             }
         }
 

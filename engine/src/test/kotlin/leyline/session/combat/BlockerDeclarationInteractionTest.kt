@@ -9,10 +9,11 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
+import leyline.tooling.headless.HeadlessMatch
 
 private val GOBLIN_ATTACK_AI_SCRIPT =
     listOf(
@@ -40,7 +41,7 @@ private val MULTI_BLOCKER_AI_SCRIPT =
  * and skips the entire DeclareBlockersReq flow. Use advanceToPhase +
  * triggerAutoPass instead, as below.
  */
-private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
+private fun HeadlessMatch.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
     playLand("Mountain").shouldBeTrue()
     castSpellByName("Raging Goblin").shouldBeTrue()
@@ -81,7 +82,7 @@ private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     return blockerIid to attackerIid
 }
 
-private fun MatchFlowHarness.advanceToMultiBlockerPrompt(): Triple<Int, Int, Int> {
+private fun HeadlessMatch.advanceToMultiBlockerPrompt(): Triple<Int, Int, Int> {
     passUntil(maxPasses = 6) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
 
     val req = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq

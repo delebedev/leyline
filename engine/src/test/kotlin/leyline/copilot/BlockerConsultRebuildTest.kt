@@ -1,11 +1,9 @@
 package leyline.copilot
 
-import forge.game.zone.ZoneType
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
-import leyline.testkit.SessionTest
+import leyline.testkit.*
 import wotc.mtgo.gre.external.messaging.Messages.Blocker
 import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -35,23 +33,8 @@ class BlockerConsultRebuildTest :
                 ailibrary=Mountain;Mountain
                 """.trimIndent(),
         ) {
-            val bridge = bridge
-
-            fun iidOf(
-                seat: Int,
-                name: String,
-            ): Int {
-                val card =
-                    bridge
-                        .getPlayer(SeatId(seat))!!
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .first { it.name == name }
-                return bridge.instanceId(card)
-            }
-
-            val courser = iidOf(1, "Centaur Courser")
-            val goblin = iidOf(2, "Raging Goblin")
+            val courser = human.battlefield.iid("Centaur Courser")
+            val goblin = ai.battlefield.iid("Raging Goblin")
 
             // The game hosts no combat (Main1) — exactly what a hydrated
             // consult sees. The prompt carries the attacker set.
@@ -73,7 +56,7 @@ class BlockerConsultRebuildTest :
                             ),
                     ).build()
 
-            val proposal = CopilotProposalService(bridge, SeatId(1)).propose(prompt)
+            val proposal = advise(prompt).proposal
 
             // A 3/3 blocking a 1/1 is a free kill — the AI takes it, and the
             // block decision proves combat was rebuilt from the prompt.

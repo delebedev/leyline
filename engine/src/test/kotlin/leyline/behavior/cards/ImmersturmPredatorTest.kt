@@ -4,10 +4,9 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PayCostsRouteKind
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
 
@@ -53,25 +52,20 @@ class ImmersturmPredatorTest :
             activateAbility("Immersturm Predator").shouldBeTrue()
 
             // Sacrifice cost prompt should appear — verify structural properties
-            val sacWindow =
-                bridge.cutCoordinator.oneShotPayCosts
-                    .current()
-                    .shouldNotBeNull()
             val sacPrompt = allMessages.last { it.hasPayCostsReq() }.payCostsReq
             val selection = sacPrompt.effectCostReq.costSelection
             assertSoftly {
                 selection.idsCount shouldBeGreaterThan 0
                 selection.minSel shouldBe 1
                 selection.maxSel shouldBe 1
-                sacWindow.kind shouldBe PayCostsRouteKind.Sacrifice
+                observe().pendingCostSelection shouldBe true
             }
 
             // --- Step 2: Respond to sacrifice cost through the session wire adapter ---
             respondToEffectCost(listOf(selection.idsList.first()))
 
             // Drain messages produced by the sacrifice
-            session.triggerAutoPass()
-            drainSink()
+            advance(leyline.tooling.headless.AdvanceGoal.TriggerAutoPass)
 
             // Bears should be sacrificed now
             human
@@ -87,13 +81,9 @@ class ImmersturmPredatorTest :
                 .shouldBeTrue()
 
             // --- Step 3: Tap trigger fires → targeting prompt for GY exile ---
-            if (bridge.cutCoordinator.targeting
-                    .current() != null
-            ) {
+            allMessages.lastOrNull { it.hasSelectTargetsReq() }?.let { targetMessage ->
                 val targetInstanceId =
-                    allMessages
-                        .last { it.hasSelectTargetsReq() }
-                        .selectTargetsReq.targetsList
+                    targetMessage.selectTargetsReq.targetsList
                         .single()
                         .targetsList
                         .first()

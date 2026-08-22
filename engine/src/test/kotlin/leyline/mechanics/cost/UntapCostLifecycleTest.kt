@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
@@ -30,9 +31,7 @@ class UntapCostLifecycleTest :
                 """.trimIndent(),
         ) {
             activateAbility("Halo Fountain", abilityIndex = 0).shouldBeTrue()
-            val battlefield = human.getZone(ZoneType.Battlefield).cards
-            val bear = battlefield.single { it.name == "Grizzly Bears" }
-            val corpse = battlefield.single { it.name == "Walking Corpse" }
+            val bear = human.battlefield.card("Grizzly Bears")
             assertSoftly {
                 bear.getCounters(CounterEnumType.STUN) shouldBe 1
             }
@@ -42,8 +41,11 @@ class UntapCostLifecycleTest :
             assertSoftly {
                 bear.isTapped.shouldBeTrue()
                 bear.getCounters(CounterEnumType.STUN) shouldBe 1
-                corpse.isTapped shouldBe false
-                battlefield.single { it.name == "Halo Fountain" }.isTapped.shouldBeTrue()
+                human.battlefield.card("Walking Corpse").isTapped shouldBe false
+                human.battlefield
+                    .card("Halo Fountain")
+                    .isTapped
+                    .shouldBeTrue()
             }
         }
 

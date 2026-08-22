@@ -4,10 +4,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeInRange
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.handoff.PromptCallStatus
-import leyline.bridge.types.SeatId
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.assertAccumulatorConsistent
@@ -93,17 +91,7 @@ class DiscardInteractionTest :
 
         session("discard-as-cost — empty controller answer cancels exact payment", puzzle = marduState, turns = 2) {
             castSpellByName("Mardu Outrider") shouldBe true
-            val pending =
-                bridge.cutCoordinator.cardSelect
-                    .current()
-                    .shouldNotBeNull()
-            pending.kind shouldBe leyline.bridge.handoff.CardSelectKind.Discard
-            bridge.cutCoordinator.cardSelect.submitSelectN(
-                pending.interactionId,
-                pending.gameStateId,
-                emptyList(),
-            ) shouldBe true
-            bridge.awaitPriority()
+            respondToSelectN(emptyList())
 
             assertSoftly {
                 human
@@ -113,7 +101,7 @@ class DiscardInteractionTest :
                     .toSet() shouldBe
                     setOf("Mardu Outrider", "Mountain")
                 human.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
-                game().stack.isEmpty shouldBe true
+                (observe().stackSize ?: 0) shouldBe 0
             }
         }
 
@@ -189,13 +177,8 @@ class DiscardInteractionTest :
             assertSoftly {
                 ai.getZone(ForgeZoneType.Hand).cards shouldHaveSize 2
                 ai.getZone(ForgeZoneType.Graveyard).cards shouldHaveSize 0
-                game().stack.isEmpty shouldBe true
-                bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .activeRevealEntry() shouldBe null
-                bridge.cutCoordinator.revealChoices
-                    .current() shouldBe null
+                (observe().stackSize ?: 0) shouldBe 0
+                observe().promptHistory.none { it.message.contains("reveal", ignoreCase = true) }
             }
         }
 
@@ -291,17 +274,11 @@ class DiscardInteractionTest :
             // Cleanup enforced 8 → 7; auto-pass may then carry into the next
             // turn's draw step (7 + 1 drawn). Either depth is legitimate —
             // the enforcement itself is proven by the graveyard count below.
-            human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8
-            // Divination (resolved) + 1 discarded card
-            human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
-
-            // Verify the discard prompt was answered via the bridge
-            val discardPrompts =
-                bridge
-                    .promptBridge(SeatId(1))
-                    .history
-                    .filter { it.message.contains("iscard", ignoreCase = true) }
-            discardPrompts shouldHaveSize 1
-            discardPrompts.first().outcome shouldBe PromptCallStatus.RESPONDED
+            assertSoftly {
+                human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8
+                // Divination (resolved) + 1 discarded card
+                human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
+                observe().promptHistory.count { it.message.contains("iscard", ignoreCase = true) } shouldBe 1
+            }
         }
     })

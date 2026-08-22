@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
@@ -84,11 +85,12 @@ class GatherCountersSessionTest :
             }
 
             assertSoftly {
-                sources.forEach { it.getCounters(forge.game.card.CounterEnumType.P1P1) shouldBe 0 }
+                human.battlefield.cards
+                    .filter { it.name == "Hopeful Initiate" }
+                    .forEach { it.getCounters(forge.game.card.CounterEnumType.P1P1) shouldBe 0 }
                 ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Sol Ring" } shouldBe true
                 ai.getZone(ZoneType.Graveyard).cards.any { it.name == "Sol Ring" } shouldBe true
-                bridge.cutCoordinator.oneShotPayCosts
-                    .current() shouldBe null
+                observe().pendingCostSelection shouldBe false
                 allMessages.none { it.hasSelectNReq() && it.selectNReq.idsList.any { id -> id in sourceIids } } shouldBe true
             }
         }

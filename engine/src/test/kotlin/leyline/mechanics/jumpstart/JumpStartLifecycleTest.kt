@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -39,9 +40,9 @@ private val PUZZLE =
 class JumpStartLifecycleTest :
     SessionTest({
         session("Jump-start prompts for discard, resolves, and exiles the spell", puzzle = PUZZLE) {
-            val radicalIdeaGrpId = bridge.cardRepository.findGrpIdByName("Radical Idea")!!
+            val radicalIdeaGrpId = cardGrpId("Radical Idea")!!
             val jumpStartAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
+                keywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
 
             val snap = messageSnapshot()
             castSpellByName("Radical Idea", zone = ZoneType.Graveyard, alternativeGrpId = jumpStartAbilityGrpId).shouldBeTrue()
@@ -113,9 +114,9 @@ class JumpStartLifecycleTest :
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
         ) {
-            val radicalIdeaGrpId = bridge.cardRepository.findGrpIdByName("Radical Idea")!!
+            val radicalIdeaGrpId = cardGrpId("Radical Idea")!!
             val jumpStartAbilityGrpId =
-                bridge.cardRepository.findKeywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
+                keywordAbilityGrpId(radicalIdeaGrpId, KeywordAbilityIds.JUMP_START)!!
 
             castSpellByName("Radical Idea", zone = ZoneType.Graveyard, alternativeGrpId = jumpStartAbilityGrpId).shouldBeTrue()
 

@@ -8,18 +8,17 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
-import leyline.testkit.ClientAccumulator
-import leyline.testkit.MatchFlowHarness
+import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.HeadlessMatch
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -78,7 +77,7 @@ class WaterbendLifecycleTest :
 
             val resolveSnap = messageSnapshot()
             respondToEffectCost(listOf(merfolkIid, bearIid, solRingIid))
-            passUntilResolved(maxPasses = 8)
+            passUntil(maxPasses = 8) { !hasPendingAction() }
 
             val tappedIds =
                 messagesSince(resolveSnap)
@@ -91,10 +90,7 @@ class WaterbendLifecycleTest :
                 tappedIds shouldContain merfolkIid
                 tappedIds shouldContain bearIid
                 tappedIds shouldContain solRingIid
-                bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .activeConvokePayments() shouldBe emptyMap()
+                observe().pendingAction shouldBe false
             }
         }
 
@@ -148,9 +144,12 @@ class WaterbendLifecycleTest :
             additionalCostAnnotations shouldHaveSize 1
             additionalCostAnnotations.single().detailInt(DetailKeys.ADDITIONAL_COST_GRP_ID) shouldBe RUINOUS_WATERBEND_ABILITY_GRP_ID
 
-            val client = ClientAccumulator()
-            allMessages.forEach(client::process)
-            val stackIds = client.zones[ZoneIds.STACK]?.objectInstanceIdsList.orEmpty()
+            val stackIds =
+                observe()
+                    .client.zones.values
+                    .firstOrNull { it.zoneId == ZoneIds.STACK }
+                    ?.objectInstanceIdsList
+                    .orEmpty()
             val stackTrace =
                 allMessages.gameStateMessages().mapNotNull { gsm ->
                     val zone = gsm.zonesList.firstOrNull { it.zoneId == ZoneIds.STACK }
@@ -161,7 +160,7 @@ class WaterbendLifecycleTest :
                         "gs=${gsm.gameStateId} zone=${zone?.objectInstanceIdsList} objects=$objects"
                     }
                 }
-            withClue("stack=$stackIds objects=${stackIds.map(client.objects::get)} trace=$stackTrace") {
+            withClue("stack=$stackIds objects=${stackIds.map(observe().client.objects::get)} trace=$stackTrace") {
                 stackIds shouldBe emptyList()
             }
         }
@@ -282,26 +281,15 @@ private fun assertWaterbendPaymentActions(
 
 private const val RUINOUS_WATERBEND_ABILITY_GRP_ID = 192688
 
-private fun MatchFlowHarness.respondToWaterbendMakePayment(instanceId: Int) {
-    session.onPerformAction(
-        submitWithGsId(
-            performAction {
-                actionType = ActionType.MakePayment
-                this.instanceId = instanceId
-            }.toBuilder().setGameStateId(latestPromptGsId()).build(),
-        ),
+private fun HeadlessMatch.respondToWaterbendMakePayment(instanceId: Int) {
+    submitAction(
+        performAction {
+            actionType = ActionType.MakePayment
+            this.instanceId = instanceId
+        },
     )
-    drainSink()
 }
 
-private fun MatchFlowHarness.respondToWaterbendPaymentDone() {
-    session.onPerformAction(
-        submitWithGsId(
-            performAction { actionType = ActionType.Pass }
-                .toBuilder()
-                .setGameStateId(latestPromptGsId())
-                .build(),
-        ),
-    )
-    drainSink()
+private fun HeadlessMatch.respondToWaterbendPaymentDone() {
+    submitAction(performAction { actionType = ActionType.Pass })
 }
