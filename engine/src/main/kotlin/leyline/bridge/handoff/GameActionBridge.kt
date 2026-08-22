@@ -243,7 +243,9 @@ class GameActionBridge(
         }
         try {
             runtime.publish(action)
-            check(runtime.isVisible(actionId)) { "Action window runtime returned before publication completed" }
+            check(runtime.isVisible(actionId) || future.isDone) {
+                "Action window runtime returned before publication completed"
+            }
         } catch (ex: Exception) {
             pending.compareAndSet(action, null)
             runtime.close(action, WindowCloseReason.Failed)

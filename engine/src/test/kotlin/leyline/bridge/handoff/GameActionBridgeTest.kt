@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
 private class FakeActionWindowRuntime(
     private val boundPromptGameStateId: Int? = null,
     private val onPublish: (PendingAction) -> Unit = {},
+    private val afterVisible: (PendingAction) -> Unit = {},
     private val onResolve: (PendingAction) -> PlayerAction = { error("unused") },
     private val onClaimTimeout: ((PendingAction, TimeoutException) -> Boolean)? = null,
 ) : GameActionBridge.ActionWindowRuntime {
@@ -34,6 +35,8 @@ private class FakeActionWindowRuntime(
     override fun publish(pending: PendingAction) {
         onPublish(pending)
         visibleActionId = pending.actionId
+        afterVisible(pending)
+        if (pending.future.isDone) visibleActionId = null
     }
 
     override fun isVisible(actionId: String): Boolean = visibleActionId == actionId
@@ -134,6 +137,22 @@ class GameActionBridgeTest :
                 shouldThrow<IllegalStateException> { bridge.awaitAction(state) }.message shouldBe "compile failed"
                 bridge.getPending().shouldBeNull()
                 runtime.closes.shouldContainExactly(WindowCloseReason.Failed)
+            }
+        }
+
+        test("response completed during publication wins the action window") {
+            lateinit var bridge: GameActionBridge
+            val runtime =
+                FakeActionWindowRuntime(
+                    afterVisible = { pending -> bridge.submitRuntimeToken(pending.actionId, 1) shouldBe true },
+                    onResolve = { PlayerAction.EndTurn },
+                )
+            bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
+
+            bridge.awaitAction(state) shouldBe PlayerAction.EndTurn
+            assertSoftly {
+                runtime.closes.shouldContainExactly(WindowCloseReason.Answered)
+                bridge.getPending().shouldBeNull()
             }
         }
 
