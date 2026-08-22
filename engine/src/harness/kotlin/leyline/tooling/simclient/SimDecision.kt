@@ -1,7 +1,6 @@
 package leyline.tooling.simclient
 
 import leyline.copilot.SimDecision
-import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -89,7 +88,7 @@ internal data class SimPromptResponse(
 )
 
 internal class SimDecisionSubmitter(
-    private val harness: MatchFlowHarness,
+    private val harness: SimClientHeadlessAdapter,
 ) {
     fun submit(decision: SimDecision): SimSubmitResult =
         when (decision) {
@@ -109,8 +108,8 @@ internal class SimDecisionSubmitter(
             is SimDecision.GroupTop ->
                 submitted {
                     harness.respondToScry(
-                        bottomInstanceIds = emptyList(),
-                        allInstanceIds = decision.instanceIds,
+                        bottom = emptyList(),
+                        all = decision.instanceIds,
                     )
                 }
             is SimDecision.GroupAway ->

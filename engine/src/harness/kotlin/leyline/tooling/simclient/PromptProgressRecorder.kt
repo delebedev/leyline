@@ -6,9 +6,10 @@ import leyline.tooling.simclient.PromptProgressSample
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 internal class PromptProgressRecorder(
-    private val harness: MatchFlowHarness,
+    private val harness: SimClientHeadlessAdapter,
     private val maxSamples: Int = 50,
 ) {
+    internal constructor(harness: MatchFlowHarness, maxSamples: Int = 50) : this(SimClientHeadlessAdapter(harness), maxSamples)
     private val samples = ArrayDeque<PromptProgressSample>()
 
     fun record(

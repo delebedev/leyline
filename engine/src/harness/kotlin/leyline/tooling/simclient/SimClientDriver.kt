@@ -1,6 +1,5 @@
 package leyline.tooling.simclient
 
-import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
 import leyline.tooling.headless.MatchFlowHarness
@@ -10,7 +9,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
- * Drives one match end-to-end against a [MatchFlowHarness] using a greedy
+ * Drives one match end-to-end against a [SimClientHeadlessAdapter] using a greedy
  * policy, and emits scry-ts-parseable Player.log lines via [PlayerLogWriter].
  *
  * v0 policy:
@@ -23,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * Loop runs until the engine reports game-over or [maxTurns] is reached.
  */
 internal class SimClientDriver(
-    val harness: MatchFlowHarness,
+    val harness: SimClientHeadlessAdapter,
     private val log: PlayerLogWriter,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
@@ -38,6 +37,27 @@ internal class SimClientDriver(
     private val shadowAdvisor: Boolean = false,
     private val snapshotShadow: Boolean = false,
 ) {
+    internal constructor(
+        harness: MatchFlowHarness,
+        log: PlayerLogWriter,
+        maxTurns: Int = 50,
+        maxIterations: Int = 2_000,
+        turnStallThreshold: Int = TURN_STALL_THRESHOLD,
+        connect: () -> Unit = { harness.connectAndKeep() },
+        forgeAi: ForgeAiPolicy? = null,
+        shadowAdvisor: Boolean = false,
+        snapshotShadow: Boolean = false,
+    ) : this(
+        SimClientHeadlessAdapter(harness),
+        log,
+        maxTurns,
+        maxIterations,
+        turnStallThreshold,
+        connect,
+        forgeAi,
+        shadowAdvisor,
+        snapshotShadow,
+    )
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private val snapshotProbe: SnapshotShadowProbe? = if (snapshotShadow) SnapshotShadowProbe(harness) else null
 
@@ -224,7 +244,7 @@ internal class SimClientDriver(
     }
 
     private fun promptHistory(): List<leyline.bridge.handoff.PromptRecord> =
-        runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
+        runCatching { harness.promptHistory() }.getOrDefault(emptyList())
 
     private data class FinalOutcome(
         val winnerSeat: Int?,
@@ -273,9 +293,9 @@ internal class SimClientDriver(
         logFailureAtError: Boolean,
     ) {
         try {
-            harness.session.onConcede()
-            // Concede emits via sink directly; drain pulls those bytes into
-            // allMessages so the log writer sees them.
+            harness.concede()
+            // Concede emits via the semantic seam; flush pulls those bytes
+            // into the immutable message view so the log writer sees them.
             harness.drainSink()
             flushNewMessagesToLog()
         } catch (t: Throwable) {

@@ -7,7 +7,6 @@ import leyline.copilot.SnapshotConsult
 import leyline.game.event.FrameEventLog
 import leyline.game.projectSnapshotForTest
 import leyline.game.snapshot.GsmSnapshot
-import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -33,7 +32,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  *   - error        — state rebuild or consult threw
  */
 internal class SnapshotShadowProbe(
-    private val harness: MatchFlowHarness,
+    private val harness: SimClientHeadlessAdapter,
     private val seat: Int = 1,
 ) {
     private val log = LoggerFactory.getLogger(SnapshotShadowProbe::class.java)

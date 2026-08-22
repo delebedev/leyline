@@ -48,8 +48,9 @@ internal data class SimPromptPolicyTelemetry(
 }
 
 internal open class GreedyPromptPolicy(
-    protected val harness: MatchFlowHarness,
+    protected val harness: SimClientHeadlessAdapter,
 ) : SimPromptPolicy {
+    internal constructor(harness: MatchFlowHarness) : this(SimClientHeadlessAdapter(harness))
     override fun respondToPrompt(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
@@ -273,7 +274,7 @@ internal open class GreedyPromptPolicy(
 }
 
 internal class ForgeAiPromptPolicy(
-    harness: MatchFlowHarness,
+    harness: SimClientHeadlessAdapter,
     private val forgeAi: ForgeAiPolicy,
 ) : GreedyPromptPolicy(harness) {
     private val aiConsultedByPrompt = mutableMapOf<String, Int>()

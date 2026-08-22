@@ -43,8 +43,9 @@ internal data class SimPromptLedgerStats(
 }
 
 internal class SimPromptLedger(
-    private val harness: MatchFlowHarness,
+    private val harness: SimClientHeadlessAdapter,
 ) {
+    internal constructor(harness: MatchFlowHarness) : this(SimClientHeadlessAdapter(harness))
     private val handledPromptMsgIds = mutableSetOf<Int>()
     private val retiredPromptMsgIds = mutableMapOf<Int, String>()
     private val retiredByReason = mutableMapOf<String, Int>()

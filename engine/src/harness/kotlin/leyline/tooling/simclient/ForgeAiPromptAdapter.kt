@@ -1,9 +1,9 @@
 package leyline.tooling.simclient
 
+import leyline.tooling.headless.MatchFlowHarness
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
 import leyline.game.mapping.ZoneIds
-import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -11,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 internal data class ForgeAiPromptContext(
-    val harness: MatchFlowHarness,
+    val harness: SimClientHeadlessAdapter,
     val forgeAi: ForgeAiPolicy,
     val attempts: ActionAttemptLedger,
 )
@@ -207,7 +207,7 @@ internal object ForgeAiCastingTimeOptionsAdapter : ForgeAiPromptAdapter {
 
 internal fun chooseBoardAwareSearchIds(
     msg: GREToClientMessage,
-    harness: MatchFlowHarness,
+    harness: SimClientHeadlessAdapter,
 ): List<Int>? {
     val req = msg.searchReq
     val max = if (req.maxFind > 0) req.maxFind else req.minFind
@@ -240,6 +240,11 @@ internal fun chooseBoardAwareSearchIds(
         .map { it.instanceId }
 }
 
+internal fun chooseBoardAwareSearchIds(
+    msg: GREToClientMessage,
+    harness: MatchFlowHarness,
+): List<Int>? = chooseBoardAwareSearchIds(msg, SimClientHeadlessAdapter(harness))
+
 private data class SearchCandidate(
     val instanceId: Int,
     val objectInfo: GameObjectInfo,
@@ -261,7 +266,7 @@ private fun GameObjectInfo.creatureScore(): Int =
 
 internal fun chooseBoardAwareGroupAwayIds(
     msg: GREToClientMessage,
-    harness: MatchFlowHarness,
+    harness: SimClientHeadlessAdapter,
 ): List<Int>? {
     val req = msg.groupReq
     if (req.context != GroupingContext.Scry_a0f6 && req.context != GroupingContext.Surveil) return null
@@ -287,6 +292,11 @@ internal fun chooseBoardAwareGroupAwayIds(
             candidate.objectInfo?.let { groupKeepPriority(it, battlefieldLands) } == GROUP_AWAY_PRIORITY
         }.map { it.instanceId }
 }
+
+internal fun chooseBoardAwareGroupAwayIds(
+    msg: GREToClientMessage,
+    harness: MatchFlowHarness,
+): List<Int>? = chooseBoardAwareGroupAwayIds(msg, SimClientHeadlessAdapter(harness))
 
 private data class GroupCandidate(
     val instanceId: Int,
