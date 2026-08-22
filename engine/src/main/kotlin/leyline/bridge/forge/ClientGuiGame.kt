@@ -58,6 +58,7 @@ class ClientGuiGame(
     private val currentStackTargetIndex: () -> Int = { 1 },
     private val currentStackTargetPromptId: () -> Int? = { null },
     private val playerSeatOf: (Player) -> Int? = { null },
+    private val playerViewSeatOf: (PlayerView) -> Int? = { null },
     private val stackTargetCandidate: (Int, Any?) -> TargetingCandidateValue.StackObject? = { _, _ -> null },
     private val currentDividedAllocationAbility: () -> SpellAbility? = { null },
     private val beforeDividedAllocation: (SpellAbility) -> List<DistributionTargetRef> = { emptyList() },
@@ -708,9 +709,10 @@ class ClientGuiGame(
         }
     }
 
-    private fun distributionTargetRef(entity: Any): DistributionTargetRef? =
+    internal fun distributionTargetRef(entity: Any): DistributionTargetRef? =
         when (entity) {
             is Player -> playerSeatOf(entity)?.let { DistributionTargetRef.Player(SeatId(it)) }
+            is PlayerView -> playerViewSeatOf(entity)?.let { DistributionTargetRef.Player(SeatId(it)) }
             is GameEntityView -> DistributionTargetRef.Card(ForgeCardId(entity.id))
             else -> null
         }
