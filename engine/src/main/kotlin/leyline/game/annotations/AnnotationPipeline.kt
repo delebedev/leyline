@@ -269,9 +269,7 @@ object AnnotationPipeline {
                     sourceZone,
                 ),
             )
-            // TriggeringObject is trigger-only — activated abilities (cycling,
-            // channel, unearth, …) do not carry one in the protocol shape.
-            if (!a.isActivatedAbility && !a.voidTrigger) {
+            if (TriggeringObjectProjection.shouldEmit(a.grpId, a.isActivatedAbility, a.voidTrigger, ctx?.environment?.cardReferences)) {
                 transferPersistent.add(
                     AnnotationBuilder.triggeringObject(
                         abilityInstanceId = InstanceId(a.abilityInstanceId),
@@ -558,7 +556,13 @@ object AnnotationPipeline {
                     sourceZone,
                 ),
             )
-            if (!cast.voidTrigger) {
+            if (TriggeringObjectProjection.shouldEmit(
+                    cast.abilityGrpId,
+                    isActivatedAbility = false,
+                    cast.voidTrigger,
+                    ctx.environment.cardReferences,
+                )
+            ) {
                 transferPersistent.add(
                     AnnotationBuilder.triggeringObject(
                         abilityInstanceId = InstanceId(abilityIid),
