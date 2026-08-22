@@ -150,6 +150,28 @@ scenarios:
             - annotation_seen: TokenCreated
             - zone_contains: { side: ours, zone: battlefield, card: Human Warrior Token }
             - stack_empty: true
+  - id: case-gateway-express-lifecycle
+    puzzle: case-gateway-express-lifecycle
+    run: attack with three Savannah Lions and advance to the Case solve trigger
+    expect: solve progress reaches three, the solve ability resolves, and the solved power effect is emitted
+    steps:
+      - expect:
+          battlefield_stats: { side: ours, card: Savannah Lions, power: 2, toughness: 1 }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack_all: {}
+      - pass_until:
+          annotation_seen:
+            type: ResolutionComplete
+            details: { grpid: 170350 }
+          max_passes: 20
+      - expect:
+          all:
+            - annotation_seen:
+                type: AbilityWordActive
+                details: { AbilityWordName: ToSolveCondition, value: 3, threshold: 3, AbilityGrpId: 170350 }
+            - annotation_seen: ModifiedPower
   - id: extinction-event-parity-choice
     puzzle: extinction-event-choice
     run: cast Extinction Event and choose even
