@@ -1,0 +1,13 @@
+name: "Alms of the Vein"
+grpId: 86141
+titleId: 3665
+abilities:
+  - id: 63644
+    textId: 3666
+    category: 4
+  - id: 5658
+    textId: 3667
+    category: 2
+    baseId: 36
+    mana: "oB"
+expansionCode: "SIR"

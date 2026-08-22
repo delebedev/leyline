@@ -1,0 +1,17 @@
+[metadata]
+Name:Select Replacement Double Madness
+Goal:Discard Fiery Temper and Alms of the Vein together, then choose Fiery Temper first.
+Turns:5
+Difficulty:Easy
+Description:Faithless Looting discards Fiery Temper and Alms of the Vein. Both Madness replacement effects compete; the player chooses Fiery Temper to apply first.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Faithless Looting;Fiery Temper;Alms of the Vein;Lightning Bolt
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Lightning Bolt;Lightning Bolt;Lightning Bolt;Lightning Bolt
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

@@ -22,6 +22,8 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         SimDecision.SubmitTargets -> "submit-targets"
         is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.Order -> "order:${orderedInstanceIds.joinToString("+")}"
+        is SimDecision.SelectReplacement ->
+            "select-replacement:${replacement.affectedObject}:${replacement.abilityGrpId}:${replacement.replacementEffectId}"
         is SimDecision.Search -> "search:${itemsFound.sorted().joinToString("+")}"
         is SimDecision.GroupedSearch -> "grouped-search:$groupId:${itemsFound.sorted().joinToString("+")}"
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
@@ -105,6 +107,7 @@ internal class SimDecisionSubmitter(
             is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
             is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
             is SimDecision.Distribution -> submitted { harness.respondToDistribution(decision.amountsByInstanceId.toList()) }
+            is SimDecision.SelectReplacement -> submitted { harness.respondToSelectReplacement(decision.replacement) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
             is SimDecision.GroupedSearch ->
                 submitted { harness.respondToGroupedSearch(decision.groupId, decision.itemsFound, decision.maxSelect) }

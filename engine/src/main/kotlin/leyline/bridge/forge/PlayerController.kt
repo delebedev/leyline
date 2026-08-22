@@ -59,6 +59,7 @@ import forge.util.collect.FCollectionView
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
+import leyline.bridge.coord.ReplacementCoordinator
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
@@ -239,6 +240,7 @@ class PlayerController(
         )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
+    private val replacementCoordinator = ReplacementCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
     private var activeSourceIsSpell: Boolean = false
     private var activeStackTargetingAbility: SpellAbility? = null
@@ -667,6 +669,19 @@ class PlayerController(
             )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
+    }
+
+    override fun chooseSingleReplacementEffect(possibleReplacers: List<ReplacementEffect>): ReplacementEffect {
+        // Preserve PCHuman's automatic behavior: a sole option or text-identical
+        // options answer without a prompt. Distinct cases route through the typed
+        // V1 self-replacement runtime, falling back to the inherited GUI order
+        // path when the choice is not a supported self-replacement shape.
+        val first = possibleReplacers.first()
+        if (possibleReplacers.size == 1) return first
+        val firstDescription = first.toString()
+        if (possibleReplacers.all { it === first || it.toString() == firstDescription }) return first
+        return replacementCoordinator.chooseSingleReplacementEffect(possibleReplacers)
+            ?: super.chooseSingleReplacementEffect(possibleReplacers)
     }
 
     private fun awaitCommanderReturn(

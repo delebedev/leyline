@@ -55,6 +55,8 @@ class PromptRouteMatrixTest :
                         ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationDamage, DistributionRouteKind.Damage),
                     PromptSemantic.DividedAllocationCounters to
                         ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationCounters, DistributionRouteKind.Counters),
+                    PromptSemantic.SelectReplacement to
+                        ResolvedPromptRoute.SelectReplacement(PromptSemantic.SelectReplacement),
                     PromptSemantic.RevealChoose to
                         ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
                     PromptSemantic.SelectNResolution to selectN(PromptSemantic.SelectNResolution),

@@ -35,6 +35,10 @@ internal object DefaultDecisions {
         return SimDecision.Distribution(amounts.toMap())
     }
 
+    /** Choose the first offered replacement row (matches Forge's first-option fallback). */
+    fun selectReplacement(msg: GREToClientMessage): SimDecision =
+        SimDecision.SelectReplacement(msg.selectReplacementReq.replacementsList.first())
+
     /** Take the required number of sought items. */
     fun search(msg: GREToClientMessage): SimDecision {
         val req = msg.searchReq

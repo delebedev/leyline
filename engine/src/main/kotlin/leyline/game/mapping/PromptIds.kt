@@ -155,4 +155,7 @@ object PromptIds {
 
     /** Divided counter allocation across already-selected targets. */
     const val DISTRIBUTE_COUNTERS = 4051
+
+    /** Choose which of several competing replacement effects applies first. */
+    const val SELECT_REPLACEMENT = 74
 }

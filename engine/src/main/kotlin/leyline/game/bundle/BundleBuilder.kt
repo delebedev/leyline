@@ -11,6 +11,7 @@ import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.OrderWindowValue
+import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.StaticChoiceKind
@@ -97,6 +98,7 @@ class BundleBuilder(
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
     private val orderWindows = OrderWindowMaterializer(seatId)
     private val distributionWindows = DistributionWindowMaterializer(seatId)
+    private val replacementWindows = ReplacementWindowMaterializer(seatId, bridge.cardRepository, bridge::cardGrpId)
     private val groupingWindows = GroupingWindowMaterializer(seatId)
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
     private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
@@ -1334,6 +1336,24 @@ class BundleBuilder(
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
         val diff = prepareFrameInputLocked(input)
         return distributionWindows.prepare(
+            gameState = diff.result.gsm,
+            gameStateId = diff.gameStateId,
+            counter = counter,
+            projection = diff.result.transition.nextState,
+            transition = diff.result.transition,
+            window = window,
+        )
+    }
+
+    /** Prepare, but do not install, one coordinator-owned competing-replacement window. */
+    internal fun prepareReplacementWindow(
+        game: Game,
+        counter: MessageCounter,
+        window: ReplacementWindowValue,
+    ): ReplacementWindowMaterializer.Prepared {
+        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
+        return replacementWindows.prepare(
             gameState = diff.result.gsm,
             gameStateId = diff.gameStateId,
             counter = counter,

@@ -679,6 +679,15 @@ class ForgeAiPolicy(
             isSingleChooseXCto(options)
     }
 
+    /** Competing-replacement choices have no AI ordering signal; first row is the documented fallback. */
+    fun canChooseSelectReplacement(msg: GREToClientMessage): Boolean =
+        msg.hasSelectReplacementReq() && msg.selectReplacementReq.replacementsCount > 0
+
+    internal fun chooseSelectReplacement(msg: GREToClientMessage): SimDecision? {
+        if (!canChooseSelectReplacement(msg)) return null
+        return DefaultDecisions.selectReplacement(msg)
+    }
+
     internal fun chooseCastingTimeOptions(msg: GREToClientMessage): SimDecision? {
         if (!canChooseCastingTimeOptions(msg)) return null
         return chooseManaTypeCastingTimeOptions(msg)?.let { SimDecision.ManaTypeChoices(it) }

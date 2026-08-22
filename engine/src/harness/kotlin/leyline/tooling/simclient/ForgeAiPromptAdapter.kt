@@ -125,6 +125,24 @@ internal object ForgeAiSelectTargetsAdapter : ForgeAiPromptAdapter {
     }
 }
 
+internal object ForgeAiSelectReplacementAdapter : ForgeAiPromptAdapter {
+    override val promptType: GREMessageType = GREMessageType.SelectReplacementReq_695e
+    override val telemetryName: String = "SelectReplacementReq"
+
+    override fun shouldConsult(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): Boolean = context.forgeAi.canChooseSelectReplacement(prompt.msg)
+
+    override fun decide(
+        prompt: ActivePrompt,
+        context: ForgeAiPromptContext,
+    ): SimPromptResponse? {
+        val selected = context.forgeAi.chooseSelectReplacement(prompt.msg) ?: return null
+        return SimPromptResponse(selected)
+    }
+}
+
 internal object ForgeAiSearchAdapter : ForgeAiPromptAdapter {
     override val promptType: GREMessageType = GREMessageType.SearchReq_695e
     override val telemetryName: String = "SearchReq"

@@ -53,6 +53,7 @@ class PlayerControllerStructureTest :
                 "choosePermanentsToSacrifice",
                 "choosePlayerToAssistPayment",
                 "chooseSingleEntityForEffect",
+                "chooseSingleReplacementEffect",
                 "chooseSingleStaticAbility",
                 "chooseSomeType",
                 "chooseSpellAbilityToPlay",
@@ -82,8 +83,8 @@ class PlayerControllerStructureTest :
                 "willPutCardOnTop",
             )
 
-        test("override count is pinned at 58") {
-            expectedOverrides.size shouldBe 58
+        test("override count is pinned at 59") {
+            expectedOverrides.size shouldBe 59
         }
 
         test("PlayerController declares exactly the expected overrides") {

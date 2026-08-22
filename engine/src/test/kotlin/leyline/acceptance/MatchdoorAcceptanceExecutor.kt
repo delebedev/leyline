@@ -144,6 +144,7 @@ private class ScenarioRun(
             is SelectCardsStep -> selectCards(step)
             is SearchCardsStep -> searchCards(step)
             is OrderCardsStep -> orderCards(step)
+            is ReplacementChoiceStep -> replacementChoice(step)
             is BlockStep -> block(step)
             is AttackStep -> attack(step)
             is TurnFaceUpStep -> turnFaceUp(step)
@@ -334,6 +335,21 @@ private class ScenarioRun(
         }
         val orderedIds = resolvePromptCardOrder(prompt.orderReq.idsList, step.cards)
         harness.respondToOrder(orderedIds)
+    }
+
+    private fun replacementChoice(step: ReplacementChoiceStep) {
+        val prompt = latestPromptMessage()
+        require(prompt?.hasSelectReplacementReq() == true) {
+            "$context expected latest prompt SelectReplacementReq; actual=${latestPromptNameWithId() ?: "none"}"
+        }
+        val row =
+            prompt.selectReplacementReq.replacementsList.firstOrNull { r ->
+                cardNameByInstanceId(r.affectedObject).equals(step.card, ignoreCase = true)
+            } ?: error(
+                "$context could not find ${step.card} in SelectReplacementReq candidates " +
+                    promptCardNames(prompt.selectReplacementReq.replacementsList.map { it.affectedObject }),
+            )
+        harness.respondToSelectReplacement(row)
     }
 
     private fun activate(step: ActivateStep) {
@@ -632,6 +648,12 @@ private class ScenarioRun(
 
             is PromptCondition ->
                 ConditionResult(promptSeen(condition.prompt, condition.promptId), "latest prompt=${latestPromptNameWithId() ?: "none"}")
+
+            is PromptNotSeenCondition ->
+                ConditionResult(
+                    harness.allMessages.none { it.matchesPrompt(condition.prompt) },
+                    "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() }.distinct()}",
+                )
 
             is AnnotationSeenCondition ->
                 ConditionResult(annotationSeen(condition), "annotations=${annotationTypes().distinct()}")

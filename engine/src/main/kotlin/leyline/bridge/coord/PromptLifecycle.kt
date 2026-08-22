@@ -24,6 +24,7 @@ internal enum class PromptTerminalPriority {
     ManaSourcePayment,
     Search,
     Distribution,
+    Replacement,
     Order,
     Grouping,
     CardSelect,

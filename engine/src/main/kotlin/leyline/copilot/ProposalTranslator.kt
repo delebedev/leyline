@@ -160,6 +160,10 @@ internal object ProposalTranslator {
 
             is SimDecision.GroupedSearch -> base("search", promptType, seat).copy(responseIds = decision.itemsFound)
 
+            // SelectReplacement serializes through ResponseBuilder (direct injection),
+            // not the autoplay proposal path, because it echoes a complete identity-rich row.
+            is SimDecision.SelectReplacement -> unrealizable(promptType, seat, "select-replacement is not an autoplay intent")
+
             SimDecision.CancelAction -> base("cancel", promptType, seat)
 
             SimDecision.RetirePrompt,

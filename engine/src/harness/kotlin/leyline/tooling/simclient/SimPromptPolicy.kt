@@ -71,6 +71,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondOrder(prompt.msg))
             GREMessageType.DistributionReq_695e ->
                 SimPromptResponse(respondDistribution(prompt.msg))
+            GREMessageType.SelectReplacementReq_695e ->
+                SimPromptResponse(respondSelectReplacement(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
             GREMessageType.SearchFromGroupsReq_695e ->
@@ -226,6 +228,8 @@ internal open class GreedyPromptPolicy(
 
     private fun respondDistribution(msg: GREToClientMessage): SimDecision = DefaultDecisions.distribution(msg)
 
+    private fun respondSelectReplacement(msg: GREToClientMessage): SimDecision = DefaultDecisions.selectReplacement(msg)
+
     private fun respondSearch(msg: GREToClientMessage): SimDecision = DefaultDecisions.search(msg)
 
     private fun learnLessonIds(req: SelectNReq): List<Int> {
@@ -296,6 +300,7 @@ internal class ForgeAiPromptPolicy(
             ForgeAiDeclareBlockersAdapter,
             ForgeAiSelectNAdapter,
             ForgeAiSelectTargetsAdapter,
+            ForgeAiSelectReplacementAdapter,
             ForgeAiSearchAdapter,
             ForgeAiGroupAdapter,
             ForgeAiCastingTimeOptionsAdapter,

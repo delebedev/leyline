@@ -7,6 +7,7 @@ internal data class PromptRuntimeBindings(
     val search: SearchInteractionRuntime? = null,
     val order: OrderInteractionRuntime? = null,
     val distribution: DistributionInteractionRuntime? = null,
+    val replacement: ReplacementInteractionRuntime? = null,
     val grouping: GroupingInteractionRuntime? = null,
     val cardSelect: CardSelectInteractionRuntime? = null,
     val staticChoice: StaticChoiceInteractionRuntime? = null,

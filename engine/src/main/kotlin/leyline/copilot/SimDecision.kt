@@ -3,6 +3,7 @@ package leyline.copilot
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 
 /**
  * Backend-neutral description of the response the Forge-AI decision brain
@@ -55,6 +56,13 @@ internal sealed interface SimDecision {
         val orderedInstanceIds: List<Int>,
     ) : SimDecision {
         override val kind: String = "order"
+    }
+
+    /** Echo one complete published replacement row for a SelectReplacementReq. */
+    data class SelectReplacement(
+        val replacement: ReplacementEffect,
+    ) : SimDecision {
+        override val kind: String = "select-replacement"
     }
 
     data class Search(

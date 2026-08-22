@@ -76,6 +76,11 @@ sealed interface ResolvedPromptRoute {
         val kind: DistributionRouteKind,
     ) : ResolvedPromptRoute
 
+    /** Choose one of several competing self-replacement effects to apply first. */
+    data class SelectReplacement(
+        override val semantic: PromptSemantic,
+    ) : ResolvedPromptRoute
+
     data class Targeting(
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
@@ -289,6 +294,7 @@ object PromptRouteResolver {
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
             PromptSemantic.DividedAllocationDamage -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Damage)
             PromptSemantic.DividedAllocationCounters -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Counters)
+            PromptSemantic.SelectReplacement -> ResolvedPromptRoute.SelectReplacement(semantic)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)

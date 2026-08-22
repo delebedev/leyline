@@ -55,6 +55,7 @@ internal class MatchCutCoordinator(
     internal val search get() = prompts.search
     internal val order get() = prompts.order
     internal val distribution get() = prompts.distribution
+    internal val replacement get() = prompts.replacement
     internal val grouping get() = prompts.grouping
     internal val cardSelect get() = prompts.cardSelect
     internal val staticChoices get() = prompts.staticChoices

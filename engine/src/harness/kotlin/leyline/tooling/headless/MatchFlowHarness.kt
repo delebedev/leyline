@@ -1169,6 +1169,11 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    fun respondToSelectReplacement(replacement: wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect) {
+        localConnection.submitGREMessage(submitWithGsId(selectReplacementResp(replacement)))
+        drainSink()
+    }
+
     fun respondToSearch(itemsFound: List<Int>) {
         localConnection.submitGREMessage(submitWithGsId(searchResp(itemsFound)))
         drainSink()
@@ -1438,6 +1443,8 @@ class MatchFlowHarness(
     fun latestPromptMsgId(): Int = messageLog.latestPromptMsgId()
 
     fun hasPendingSelectNPrompt(): Boolean = bridge.cutCoordinator.cardSelect.current() != null
+
+    fun hasPendingSelectReplacementPrompt(): Boolean = bridge.cutCoordinator.replacement.current() != null
 
     /**
      * Reflect the latest prompt ids onto a client response before it enters

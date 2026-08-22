@@ -1,0 +1,21 @@
+name: select-replacement
+description: Competing self-replacement ordering across Madness discards.
+scenarios:
+  - id: select-replacement-single-madness
+    puzzle: select-replacement-double-madness
+    run: discard one Madness card alongside a plain card
+    expect: the automatic replacement path applies with no SelectReplacementReq
+    steps:
+      - wait:
+          action: { type: cast, card: Faithless Looting }
+      - cast: Faithless Looting
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_cards: { zone: hand, cards: [Fiery Temper, Lightning Bolt] }
+      - optional_action: { accept: false }
+      - expect:
+          all:
+            - prompt_not_seen: SelectReplacementReq
+            - zone_contains: { side: ours, zone: graveyard, card: Fiery Temper }
+            - zone_contains: { side: ours, zone: graveyard, card: Lightning Bolt }

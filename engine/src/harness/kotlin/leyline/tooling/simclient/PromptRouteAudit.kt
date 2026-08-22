@@ -94,6 +94,7 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.GroupedSearch -> "SearchFromGroupsReq"
             is ResolvedPromptRoute.Order -> "OrderReq"
             is ResolvedPromptRoute.Distribution -> "DistributionReq"
+            is ResolvedPromptRoute.SelectReplacement -> "SelectReplacementReq"
             is ResolvedPromptRoute.Targeting -> "SelectTargetsReq"
             is ResolvedPromptRoute.CompatibilityCostSelection -> "SelectTargetsReq"
             is ResolvedPromptRoute.AutoResolve -> null

@@ -78,6 +78,7 @@ object AcceptanceSuiteLoader {
             "select_cards" -> parseSelectCards(value, "$context.select_cards")
             "search_cards" -> parseSearchCards(value, "$context.search_cards")
             "order_cards" -> parseOrderCards(value, "$context.order_cards")
+            "replacement_choice" -> ReplacementChoiceStep(value.asString("$context.replacement_choice"))
             "block" -> parseBlock(value, "$context.block")
             "attack" -> parseAttack(value, "$context.attack")
             "turn_face_up" -> TurnFaceUpStep(value.asString("$context.turn_face_up"))
@@ -316,6 +317,7 @@ object AcceptanceSuiteLoader {
             "loser" -> LoserCondition(AcceptanceSide.parse(value.asString("$context.loser")))
             "phase" -> PhaseCondition(value.asString("$context.phase"))
             "prompt" -> parsePrompt(value, "$context.prompt")
+            "prompt_not_seen" -> PromptNotSeenCondition(value.asString("$context.prompt_not_seen"))
             "annotation_seen" -> parseAnnotationSeen(value, "$context.annotation_seen")
             "annotation_seen_in_phase" -> parseAnnotationSeenInPhase(value, "$context.annotation_seen_in_phase")
             "stack_empty" -> {

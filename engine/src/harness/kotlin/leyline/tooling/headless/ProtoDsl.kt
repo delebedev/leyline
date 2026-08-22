@@ -329,6 +329,14 @@ fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage =
         )
     }
 
+/** Respond to a SelectReplacementReq by echoing one complete published row. */
+fun selectReplacementResp(replacement: ReplacementEffect): ClientToGREMessage =
+    clientMessage(ClientMessageType.SelectReplacementResp_097b) {
+        setSelectReplacementResp(
+            SelectReplacementResp.newBuilder().setReplacement(replacement),
+        )
+    }
+
 /** [SearchResp] — respond to a library/search prompt with selected instanceIds. */
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
     clientMessage(ClientMessageType.SearchResp_097b) {

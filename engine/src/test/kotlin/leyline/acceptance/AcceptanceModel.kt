@@ -180,6 +180,12 @@ data class OrderCardsStep(
     override val label: String = "order_cards ${cards.joinToString()}"
 }
 
+data class ReplacementChoiceStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "replacement_choice $card"
+}
+
 data object ResolveStackStep : AcceptanceStep {
     override val label: String = "resolve_stack"
 }
@@ -272,6 +278,12 @@ data class PromptCondition(
     val promptId: Int? = null,
 ) : AcceptanceCondition {
     override val label: String = "prompt $prompt${promptId?.let { "#$it" } ?: ""} seen"
+}
+
+data class PromptNotSeenCondition(
+    val prompt: String,
+) : AcceptanceCondition {
+    override val label: String = "prompt $prompt not seen"
 }
 
 data class AnnotationSeenCondition(

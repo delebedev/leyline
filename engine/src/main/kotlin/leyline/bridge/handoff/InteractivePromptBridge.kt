@@ -2,6 +2,7 @@ package leyline.bridge.handoff
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
@@ -465,6 +466,45 @@ class InteractivePromptBridge(
         }
     }
 
+    /**
+     * Route one competing-replacement choice with its exact Forge
+     * [ReplacementEffect] handles. Returns null when the V1 replacement route
+     * does not cover the choice, so the caller can fall back to the inherited
+     * controller behavior without emitting a falsely grounded request.
+     */
+    fun requestReplacement(
+        request: PromptRequest,
+        possibleReplacers: List<ReplacementEffect>,
+    ): ReplacementInteractionResult? {
+        check(request.route is ResolvedPromptRoute.SelectReplacement) { "SelectReplacement route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) return null
+        val runtime = checkNotNull(runtimeBindings.replacement) { "Replacement runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitReplacement(request, possibleReplacers, timeoutMs)
+            if (result == null) {
+                record(request, PromptCallStatus.DEFAULTED_POLICY, emptyList(), System.currentTimeMillis() - startMs)
+                return null
+            }
+            record(
+                request,
+                if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+                listOf(result.optionIndex),
+                System.currentTimeMillis() - startMs,
+            )
+            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            result
+        } catch (_: ReplacementInteractionTimeoutException) {
+            val fallback = ReplacementInteractionResult(0, possibleReplacers.first(), timedOut = true)
+            record(request, PromptCallStatus.TIMEOUT, listOf(0), System.currentTimeMillis() - startMs)
+            timeoutListener?.invoke()
+            fallback
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
     /** Route one Scry or Surveil grouping request with its exact Forge card handles. */
     fun requestGrouping(
         request: PromptRequest,
@@ -751,6 +791,9 @@ enum class PromptSemantic {
 
     /** Allocate a fixed counter total across already-selected targets. */
     DividedAllocationCounters,
+
+    /** Choose which of several competing self-replacement effects applies first. */
+    SelectReplacement,
 
     /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
     RevealChoose,
