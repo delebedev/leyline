@@ -159,6 +159,7 @@ internal class MatchFlowHarness(
     private var nextOptionalResponse: OptionResponse? = null
     private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
+    private var lastConsumedPromptMsgIds: List<Int> = emptyList()
 
     lateinit var session: MatchSession
         private set
@@ -1641,8 +1642,14 @@ internal class MatchFlowHarness(
             is MatchIntent.ManaTypeChoices -> respondToManaTypeChoices(intent.choicesByCtoId)
             is MatchIntent.OptionalAction -> respondToOptionalAction(intent.accept)
             is MatchIntent.NumericInput -> respondToNumericInput(intent.value)
+            MatchIntent.Flush -> drainSink()
+            MatchIntent.Concede -> {
+                session.onConcede()
+                drainSink()
+            }
         }
         val consumed = consumedPromptMsgIds.toList().filterNot { it in consumedBefore }
+        lastConsumedPromptMsgIds = consumed
         return result(consumedPromptMsgIds = consumed)
     }
 
@@ -1685,5 +1692,36 @@ internal class MatchFlowHarness(
             gameOver = runCatching { isGameOver() }.getOrDefault(false),
             latestPromptGsId = messageLog.latestPromptGsId(),
             latestPromptMsgId = messageLog.latestPromptMsgId(),
+            cards = cardViews(),
+            stackSize = runCatching { game().stack.size() }.getOrNull(),
+            pendingAction = runCatching { hasPendingAction() }.getOrDefault(false),
+            pendingActionKind =
+                runCatching { bridge.actionBridge(seatId).getPending()?.state?.kind?.name }.getOrNull(),
+            blockingInteraction =
+                runCatching { bridge.cutCoordinator.currentBlockingInteraction()?.interaction?.javaClass?.simpleName }.getOrNull(),
+            validationViolations = validatingSink?.violations?.toList().orEmpty(),
+            validationViolationsByCheck = validatingSink?.violationsByCheck?.toMap().orEmpty(),
+            consumedPromptMsgIds = lastConsumedPromptMsgIds,
         )
+
+    private fun cardViews(): List<HeadlessCard> =
+        runCatching {
+            game().registeredPlayers.flatMap { player ->
+                val seat = bridge.seatOf(player)?.value ?: return@flatMap emptyList()
+                ZoneType.values().flatMap { zoneType ->
+                    player.getZone(zoneType).cards.map { card ->
+                        HeadlessCard(
+                            instanceId = bridge.instanceId(card),
+                            name = card.name,
+                            seat = seat,
+                            zone = zoneType.name,
+                            power = card.netPower.takeIf { card.isCreature },
+                            toughness = card.netToughness.takeIf { card.isCreature },
+                            planeswalker = card.isPlaneswalker,
+                            faceDown = card.isFaceDown,
+                        )
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
 }

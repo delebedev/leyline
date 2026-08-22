@@ -134,6 +134,10 @@ sealed interface MatchIntent {
     data class OptionalAction(val accept: Boolean) : MatchIntent
 
     data class NumericInput(val value: Int) : MatchIntent
+
+    data object Flush : MatchIntent
+
+    data object Concede : MatchIntent
 }
 
 enum class SpellZone {
@@ -186,6 +190,26 @@ data class MatchObservation(
     val gameOver: Boolean,
     val latestPromptGsId: Int,
     val latestPromptMsgId: Int,
+    val cards: List<HeadlessCard>,
+    val stackSize: Int?,
+    val pendingAction: Boolean,
+    val pendingActionKind: String?,
+    val blockingInteraction: String?,
+    val validationViolations: List<String>,
+    val validationViolationsByCheck: Map<String, Int>,
+    val consumedPromptMsgIds: List<Int> = emptyList(),
+)
+
+/** Immutable card view used by tooling and acceptance assertions. */
+data class HeadlessCard(
+    val instanceId: Int,
+    val name: String,
+    val seat: Int,
+    val zone: String,
+    val power: Int? = null,
+    val toughness: Int? = null,
+    val planeswalker: Boolean = false,
+    val faceDown: Boolean = false,
 )
 
 /** Immutable projection of the client accumulator. */
