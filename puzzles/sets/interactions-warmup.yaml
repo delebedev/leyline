@@ -40,6 +40,8 @@ scenarios:
             - stack_empty: true
   - id: mystical-teachings-grouped-search
     puzzle: mystical-teachings-grouped-search
+    web:
+      skip: Browser runner does not implement grouped library search responses.
     run: cast Mystical Teachings, choose a flash creature from its grouped search, and finish resolving
     expect: SearchFromGroupsReq returns the selected card to hand
     steps:
