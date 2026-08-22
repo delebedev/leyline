@@ -1,16 +1,19 @@
 package leyline.game.annotations
 
+import leyline.bridge.types.GrpId
+import leyline.bridge.types.InstanceId
+
 /** Universal content-side grpIds that annotations reference directly. */
 object AnnotationConstants {
     /** Ability grpId used by the `TemporaryPermanent` annotation to mark EOT-sacrifice tokens. */
-    const val EOT_SACRIFICE_GRP_ID = 192424
+    val EOT_SACRIFICE_GRP_ID: GrpId = GrpId(192424)
 
     /** Adventure-cast qualification grpId — fixed ability ID referenced by the `Qualification` annotation. */
-    const val ADVENTURE_QUALIFICATION_GRP_ID = 196
+    val ADVENTURE_QUALIFICATION_GRP_ID: GrpId = GrpId(196)
 
     /** Shared Battlefield zone ID, used as `affectorId` on zone-scoped persistent
      *  annotations whose affector is the zone rather than any specific permanent. */
-    const val BATTLEFIELD_ZONE_AFFECTOR = 28
+    val BATTLEFIELD_ZONE_AFFECTOR: InstanceId = InstanceId(28)
 
     /** `DesignationType` enum value for the `Commander` player/card state designation. */
     const val DESIGNATION_TYPE_COMMANDER: Int = 1
@@ -39,7 +42,7 @@ object AnnotationConstants {
     const val DESIGNATION_TYPE_SOLVED: Int = 15
 
     /** Ability grpId for the static "can't block" row paired with Suspected. */
-    const val SUSPECTED_CANT_BLOCK_GRP_ID = 86476
+    val SUSPECTED_CANT_BLOCK_GRP_ID: GrpId = GrpId(86476)
 
     /** `DesignationType` enum value for the `Prepared` card-state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`. */

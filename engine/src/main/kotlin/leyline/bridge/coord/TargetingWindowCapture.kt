@@ -233,9 +233,9 @@ internal class TargetingWindowCapture(
             "Battlefield" -> ZoneIds.BATTLEFIELD
             "Exile" -> ZoneIds.EXILE
             "Stack" -> ZoneIds.STACK
-            "Graveyard" -> ZoneIds.graveyardOf(ownerSeat.value)
-            "Hand" -> ZoneIds.handOf(ownerSeat.value)
-            "Library" -> ZoneIds.libraryOf(ownerSeat.value)
+            "Graveyard" -> ZoneIds.graveyardOf(ownerSeat)
+            "Hand" -> ZoneIds.handOf(ownerSeat)
+            "Library" -> ZoneIds.libraryOf(ownerSeat)
             else -> 0
         }
 }

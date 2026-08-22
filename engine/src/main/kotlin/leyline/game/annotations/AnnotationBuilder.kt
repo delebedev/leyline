@@ -275,7 +275,7 @@ object AnnotationBuilder {
      * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
      * [landInstanceId] = the land (or mana source) that produced the mana (affectorId).
      * [manaId] = mana payment tracking ID, or null when substitution payments omit it.
-     * [color] = mana color as int bitmask (e.g. 2 = blue), matching the client wire format.
+     * [color] = mana color as int bitmask (e.g. 2 = blue), matching the client format.
      * [substitutionGrpId] = keyword/base row when the payment substitutes for mana (Convoke).
      * When mana tracking is not available, pass defaults (0, 0).
      */
@@ -543,7 +543,7 @@ object AnnotationBuilder {
 
     /** Transient: Aura/Equipment attached to target. client type 70 (AttachmentCreated).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
-     *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
+     *  Shape: affectorId=auraIid, affectedIds=[targetIid]. */
     fun attachmentCreated(
         auraIid: InstanceId,
         targetIid: InstanceId,
@@ -557,7 +557,7 @@ object AnnotationBuilder {
 
     /** Persistent: Ongoing attachment relationship. client type 20 (Attachment).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
-     *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
+     *  Shape: affectorId=auraIid, affectedIds=[targetIid]. */
     fun attachment(
         auraIid: InstanceId,
         targetIid: InstanceId,
@@ -779,7 +779,7 @@ object AnnotationBuilder {
     /**
      * Persistent annotation for ability word condition tracking.
      *
-     * Wire shape:
+     * Shape:
      * - types: [AbilityWordActive]
      * - affectorId: creature instanceId (or seat=1 for Descended)
      * - affectedIds: [creature instanceId]
@@ -812,7 +812,7 @@ object AnnotationBuilder {
      * Keyword grant via layered effect — multi-creature form.
      * Types: [AddAbility_af5a, LayeredEffect]. One pAnn covers all affected creatures.
      *
-     * Wire shape: flat affectedIds list, one UniqueAbilityId per creature, shared grpId.
+     * Shape: flat affectedIds list, one UniqueAbilityId per creature, shared grpId.
      */
     fun addAbilityMulti(
         affectedIds: List<InstanceId>,
@@ -876,7 +876,7 @@ object AnnotationBuilder {
         instanceId: InstanceId,
         qualificationType: QualificationType = QualificationType.Adventure,
         qualificationSubtype: Int = 0,
-        grpId: GrpId = GrpId(AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID),
+        grpId: GrpId = AnnotationConstants.ADVENTURE_QUALIFICATION_GRP_ID,
         sourceParent: InstanceId = InstanceId(0),
     ): AnnotationInfo =
         AnnotationInfo
@@ -1293,7 +1293,7 @@ object AnnotationBuilder {
      *  exact object that caused it. Client draws the source-arrow UI from that
      *  object to the ability on the stack. Removed when the ability resolves
      *  or is otherwise removed from the stack.
-     *  Wire shape: affectorId = stack ability instance, affectedIds = [source card].
+     *  Shape: affectorId = stack ability instance, affectedIds = [source card].
      *  Client annotation type 32 (TriggeringObject). */
     fun triggeringObject(
         abilityInstanceId: InstanceId,
@@ -1361,7 +1361,7 @@ object AnnotationBuilder {
 
     /** Card displayed under another card (exile-under-permanent, imprint, adventure exile).
      *  client type 38 (DisplayCardUnderCard). Persistent while source permanent remains.
-     *  Wire shape: affectorId=sourcePermanentIid, affectedIds=[exiledCardIid]. */
+     *  Shape: affectorId=sourcePermanentIid, affectedIds=[exiledCardIid]. */
     fun displayCardUnderCard(
         affectorId: InstanceId,
         instanceId: InstanceId,
@@ -1392,7 +1392,7 @@ object AnnotationBuilder {
     // -- Controller change annotations --
 
     /** Transient: controller changed event. client type 15 (ControllerChanged).
-     *  Wire shape: affectorId = spell/ability instance, affectedIds = [stolen permanent].
+     *  Shape: affectorId = spell/ability instance, affectedIds = [stolen permanent].
      *  No details field. */
     fun controllerChanged(
         affectorId: InstanceId,
@@ -1466,7 +1466,7 @@ object AnnotationBuilder {
 
     /**
      * Persistent: vehicle was crewed this turn. client type 94 (CrewedThisTurn).
-     * Wire shape: affectorId = vehicle instanceId, affectedIds = crew source instanceIds.
+     * Shape: affectorId = vehicle instanceId, affectedIds = crew source instanceIds.
      * Emitted when crew resolves; persists until end of turn.
      */
     fun crewedThisTurn(
@@ -1482,7 +1482,7 @@ object AnnotationBuilder {
 
     /**
      * Persistent: mount was saddled this turn. client type 104 (SaddledThisTurn).
-     * Wire shape mirrors CrewedThisTurn: affectorId = mount instanceId,
+     * Shape mirrors CrewedThisTurn: affectorId = mount instanceId,
      * affectedIds = helper creature instanceIds.
      */
     fun saddledThisTurn(
@@ -1498,7 +1498,7 @@ object AnnotationBuilder {
 
     /**
      * Persistent: vehicle became a creature via crew (type change). Types: [ModifiedType, LayeredEffect].
-     * Wire shape: affectedIds = [vehicleInstanceId], effect_id, sourceAbilityGRPID (crew ability grpId).
+     * Shape: affectedIds = [vehicleInstanceId], effect_id, sourceAbilityGRPID (crew ability grpId).
      * Emitted when crew resolves and vehicle gains Creature type; removed on expiry.
      */
     fun modifiedTypeLayeredEffect(
@@ -1608,7 +1608,7 @@ object AnnotationBuilder {
      *  `affectedIds` is the cumulative set of victims for the current turn. */
     fun damagedThisTurn(
         affectedIds: List<InstanceId>,
-        affectorId: InstanceId = InstanceId(AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR),
+        affectorId: InstanceId = AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1630,7 +1630,7 @@ object AnnotationBuilder {
      */
     fun temporaryPermanent(
         tokenInstanceId: InstanceId,
-        abilityGrpId: GrpId = GrpId(AnnotationConstants.EOT_SACRIFICE_GRP_ID),
+        abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
         affectorId: InstanceId = tokenInstanceId,
     ): AnnotationInfo =
         AnnotationInfo
@@ -1743,7 +1743,7 @@ object AnnotationBuilder {
         key: String,
         value: Int,
     ): KeyValuePairInfo =
-        // MTGA's Qualification badge parser reads these numeric details from int32 fields.
+        // The Qualification badge parser reads these numeric details from int32 fields.
         int32Detail(key, value)
 
     private fun int32ListDetail(

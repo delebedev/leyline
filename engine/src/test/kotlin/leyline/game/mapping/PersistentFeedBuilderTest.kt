@@ -251,7 +251,7 @@ class PersistentFeedBuilderTest :
                     listOf(
                         AnnotationBuilder.temporaryPermanent(
                             tokenInstanceId = InstanceId(100),
-                            abilityGrpId = GrpId(leyline.game.annotations.AnnotationConstants.EOT_SACRIFICE_GRP_ID),
+                            abilityGrpId = leyline.game.annotations.AnnotationConstants.EOT_SACRIFICE_GRP_ID,
                             affectorId = InstanceId(100),
                         ),
                     )

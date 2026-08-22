@@ -113,7 +113,7 @@ class MatchSearchInteractionRuntimeTest :
                 search.gameStateId shouldBe published.gameStateId
                 search.searchReq.itemsToSearchList.shouldHaveSize(2)
                 search.searchReq.itemsSoughtList.shouldHaveSize(2)
-                search.searchReq.zonesToSearchList shouldContainExactly listOf(ZoneIds.libraryOf(1))
+                search.searchReq.zonesToSearchList shouldContainExactly listOf(ZoneIds.libraryOf(SeatId(1)))
                 search.searchReq.maxFind shouldBe 1
                 libraryObjects.containsAll(search.searchReq.itemsToSearchList) shouldBe true
                 finished.count shouldBe 1

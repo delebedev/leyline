@@ -132,11 +132,11 @@ class FranticScapegoatSuspectedTest :
                 bearAbilityRows
                     .any {
                         it.detailInts(DetailKeys.GRPID).containsAll(
-                            listOf(142, AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID),
+                            listOf(142, AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID.value),
                         )
                     }.shouldBeTrue()
                 bearQualificationGrpIds shouldContain 142
-                bearQualificationGrpIds shouldContain AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID
+                bearQualificationGrpIds shouldContain AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID.value
                 bearQualificationTypes shouldContain QualificationType.CombatKeyword.wireValue
                 bearQualificationTypes shouldContain QualificationType.CantBlock.wireValue
                 val resolution = transferResolution.shouldNotBeNull()

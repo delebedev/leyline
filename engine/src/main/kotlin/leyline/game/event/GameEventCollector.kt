@@ -552,7 +552,6 @@ class GameEventCollector(
      *
      * Returns 0 when nothing pins down the zone.
      */
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun resolveActivationZoneId(
         topSa: forge.game.spellability.SpellAbility?,
         cardId: Int,
@@ -566,7 +565,7 @@ class GameEventCollector(
         val target = ForgeCardId(cardId)
         for (ev in frame.asReversed()) {
             when (ev) {
-                is GameEvent.CardDiscarded -> if (ev.cardId == target) return ZoneIds.handOf(seat.value)
+                is GameEvent.CardDiscarded -> if (ev.cardId == target) return ZoneIds.handOf(seat)
                 is GameEvent.ZoneChanged ->
                     if (ev.cardId == target) {
                         return zoneToProtocolId(ev.from, seat)
@@ -598,14 +597,14 @@ class GameEventCollector(
         seat: SeatId,
     ): Int =
         when (zone) {
-            Zone.Hand -> ZoneIds.handOf(seat.value)
-            Zone.Graveyard -> ZoneIds.graveyardOf(seat.value)
+            Zone.Hand -> ZoneIds.handOf(seat)
+            Zone.Graveyard -> ZoneIds.graveyardOf(seat)
             Zone.Battlefield -> ZoneIds.BATTLEFIELD
             Zone.Exile -> ZoneIds.EXILE
             Zone.Command -> ZoneIds.COMMAND
             Zone.Stack -> ZoneIds.STACK
-            Zone.Library -> ZoneIds.libraryOf(seat.value)
-            Zone.Sideboard -> ZoneIds.sideboardOf(seat.value)
+            Zone.Library -> ZoneIds.libraryOf(seat)
+            Zone.Sideboard -> ZoneIds.sideboardOf(seat)
             // Other / unmapped — not a wire-level zone we surface.
             else -> 0
         }
@@ -626,14 +625,14 @@ class GameEventCollector(
         seat: SeatId,
     ): Int =
         when (zone) {
-            ZoneType.Hand -> ZoneIds.handOf(seat.value)
-            ZoneType.Graveyard -> ZoneIds.graveyardOf(seat.value)
+            ZoneType.Hand -> ZoneIds.handOf(seat)
+            ZoneType.Graveyard -> ZoneIds.graveyardOf(seat)
             ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
             ZoneType.Exile -> ZoneIds.EXILE
             ZoneType.Command -> ZoneIds.COMMAND
             ZoneType.Stack -> ZoneIds.STACK
-            ZoneType.Library -> ZoneIds.libraryOf(seat.value)
-            ZoneType.Sideboard -> ZoneIds.sideboardOf(seat.value)
+            ZoneType.Library -> ZoneIds.libraryOf(seat)
+            ZoneType.Sideboard -> ZoneIds.sideboardOf(seat)
             // Subgame / ExtraHand / None — not zones the AbilityInstance source_zone surfaces.
             else -> 0
         }
@@ -1292,7 +1291,7 @@ class GameEventCollector(
      *  redirect Hand→GY discards to Hand→Exile but client still tags them as Discard.
      *  Reads directly from the live Forge [Card] via [CardView.id] so we don't
      *  depend on card-DB keyword tables (the Arena DB does not expose a
-     *  keyword-name map, and corpus-sourced BaseIds for Madness/Mayhem are not
+     *  keyword-name map, and BaseIds for Madness/Mayhem are not
      *  yet populated — see TODO in KEYWORD_BASE_IDS). */
     private fun hasDiscardReplacementKeyword(cardView: CardView): Boolean {
         val forgeCard = bridge.findCard(ForgeCardId(cardView.id)) ?: return false

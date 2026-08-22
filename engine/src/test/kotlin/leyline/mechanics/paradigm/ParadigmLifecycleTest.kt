@@ -99,28 +99,54 @@ class ParadigmLifecycleTest :
 
             val allGsms = gsms()
             val allAnnotations = allGsms.flatMap { it.annotationsList }
+            val allPersistent = allGsms.flatMap { it.persistentAnnotationsList }
             val originalStackToExile = allAnnotations.first { it.isStackToExileParadigmTransfer() }
             val originalExileIid = originalStackToExile.affectedIdsList.single()
             val originalStackIid =
                 allAnnotations
                     .first { it.isObjectIdChangedTo(originalExileIid) }
                     .detailInt("orig_id")
+            val triggerObject =
+                allGsms
+                    .flatMap { it.gameObjectsList }
+                    .firstOrNull {
+                        it.type == GameObjectType.Ability &&
+                            it.grpId == PARADIGM_COPY_TRIGGER &&
+                            it.objectSourceGrpId == GERMINATION_PRACTICUM &&
+                            it.zoneId == ZoneIds.STACK
+                    }
+            val triggerIid = triggerObject?.instanceId ?: 0
             val copyCastAction = allAnnotations.first { it.isParadigmCopyCastAction() }
             val copyStackIid = copyCastAction.affectedIdsList.single()
-            val copyTransfer = allAnnotations.first { it.isExileToStackParadigmCastTransfer(copyStackIid) }
-            val triggerIid = copyTransfer.affectorId
             assertSoftly {
                 allAnnotations
                     .count { it.isStackToExileParadigmTransfer() }
                     .let { it >= 2 }
                     .shouldBeTrue()
 
+                triggerObject shouldNotBe null
+                triggerObject?.parentId shouldBe originalStackIid
                 pendingHolder?.parentId shouldBe originalStackIid
                 allGsms.none { pendingHolder?.instanceId in it.diffDeletedInstanceIdsList }.shouldBeTrue()
 
-                triggerIid shouldNotBe 0
+                allAnnotations
+                    .firstOrNull {
+                        it.typeList.contains(AnnotationType.AbilityInstanceCreated) &&
+                            it.affectedIdsList.contains(triggerIid) &&
+                            it.affectorId == originalStackIid &&
+                            it.detailInt("source_zone") == ZoneIds.STACK
+                    } shouldNotBe null
+                allPersistent
+                    .firstOrNull {
+                        it.typeList.contains(AnnotationType.TriggeringObject) &&
+                            it.affectorId == triggerIid &&
+                            it.affectedIdsList.contains(originalStackIid) &&
+                            it.detailInt("source_zone") == ZoneIds.STACK
+                    } shouldNotBe null
                 allAnnotations.firstOrNull { it.isParadigmCopyCastAction() } shouldNotBe null
-                copyTransfer.affectorId shouldBe triggerIid
+                allAnnotations
+                    .firstOrNull { it.isExileToStackParadigmCastTransfer(copyStackIid) }
+                    ?.affectorId shouldBe triggerIid
                 allAnnotations
                     .firstOrNull { it.isObjectIdChangedTo(copyStackIid) }
                     ?.let { objectIdChanged ->

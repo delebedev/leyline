@@ -8,7 +8,6 @@ rootProject.name = "leyline"
 include("domain")
 include("engine")
 include("gre-proto")
-include("headless")
 include("native")
 include("web")
 include("tools:detekt-rules")

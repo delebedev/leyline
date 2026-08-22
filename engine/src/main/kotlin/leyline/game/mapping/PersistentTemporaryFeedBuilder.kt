@@ -47,7 +47,7 @@ internal object PersistentTemporaryFeedBuilder {
                         mobilize?.let { frameIds.cardIid(FrameIdResolver.delayedTriggerHolderForgeId(it.first)) } ?: tokenIid
                     AnnotationBuilder.temporaryPermanent(
                         tokenInstanceId = tokenIid,
-                        abilityGrpId = mobilize?.second?.let(::GrpId) ?: GrpId(AnnotationConstants.EOT_SACRIFICE_GRP_ID),
+                        abilityGrpId = mobilize?.second?.let(::GrpId) ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
                         affectorId = affector,
                     )
                 } +

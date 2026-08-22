@@ -1406,7 +1406,7 @@ object ZoneTransferDetector {
      * and [TransferCategory.Return] transfers with two fresh allocations so
      * the client sees the expected ObjectIdChanged + ZoneTransfer pairs.
      *
-     * Expected wire shape:
+     * Expected shape:
      * `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
      * `ObjectIdChanged(B→C)` + `ZT(C, Exile→BF, "Return")`.
      */
@@ -1545,7 +1545,7 @@ object ZoneTransferDetector {
 
             val stillOnBattlefield = instanceId in currentInstanceIds
             val ownerSeat = sacrificeEv.seatId
-            val destZone = ZoneIds.graveyardOf(ownerSeat.value)
+            val destZone = ZoneIds.graveyardOf(ownerSeat)
             val handoff = ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
             val origId = handoff.realloc.old.value
             val newId = handoff.realloc.new.value

@@ -29,7 +29,6 @@ Local playtesting server built around a client protocol bridge, a web head, and 
 app/            Composition root — LeylineMain, local control server, management server, seed DB.
 domain/         Domain model, services, repository ports.
 engine/         Forge bridge + GRE match-session engine. See engine/AGENTS.md.
-headless/       In-process GRE match client for repository-local puzzle tests.
 native/         Native-client head; packages account/frontdoor/matchdoor. Web-excluded leaf.
 web/            Browser-facing HTTP/WebSocket head.
 ```

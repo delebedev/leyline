@@ -152,7 +152,7 @@ internal object PersistentFeedBuilder {
                     AnnotationBuilder.qualification(
                         affectorId = iid,
                         instanceId = iid,
-                        grpId = GrpId(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID),
+                        grpId = AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID,
                         qualificationType = QualificationType.CantBlock,
                         sourceParent = iid,
                     ),

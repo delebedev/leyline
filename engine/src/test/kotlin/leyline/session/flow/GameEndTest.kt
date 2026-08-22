@@ -8,6 +8,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
@@ -23,6 +24,75 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class GameEndTest :
     SessionTest({
+
+        session("concede produces MatchCompleted") {
+            // Concede triggers sendGameOver()
+            val concede =
+                after {
+                    concede()
+                }
+
+            // Verify GRE messages: 3x GSM + IntermissionReq
+            val msgs = concede.messages
+            val gsmCount = msgs.count { it.hasGameStateMessage() }
+            val intermission = msgs.firstOrNull { it.hasIntermissionReq() }
+
+            gsmCount shouldBeGreaterThanOrEqualTo 3
+            intermission.shouldNotBeNull()
+
+            // First GSM should have GameInfo with stage=GameOver
+            val firstGsm = msgs.first { it.hasGameStateMessage() }.gameStateMessage
+            assertSoftly {
+                firstGsm.hasGameInfo().shouldBeTrue()
+                firstGsm.gameInfo.stage shouldBe GameStage.GameOver
+                firstGsm.gameInfo.matchState shouldBe MatchState.GameComplete
+            }
+
+            // IntermissionReq should have result with winning team + reason
+            val req = intermission.intermissionReq
+            assertSoftly {
+                req.hasResult().shouldBeTrue()
+                req.result.result shouldBe ResultType.WinLoss
+                req.result.winningTeamId shouldBeGreaterThan 0
+                req.result.reason shouldBe ResultReason.Concede
+            }
+
+            // IntermissionReq should have options + intermissionPrompt
+            assertSoftly {
+                req.optionsCount shouldBeGreaterThan 0
+                req.optionsCount shouldBeGreaterThanOrEqualTo 2
+                req.hasIntermissionPrompt().shouldBeTrue()
+                req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+                req.intermissionPrompt.parametersCount shouldBeGreaterThan 0
+            }
+
+            // prevGameStateId chain: gs1.prev = last-known, gs2.prev = gs1, gs3.prev = gs2
+            val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            assertSoftly {
+                gsms.size shouldBeGreaterThanOrEqualTo 3
+                gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+                gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            }
+
+            // MatchCompleted room state should be in allRawMessages
+            val rawMsgs = allRawMessages
+            val matchCompleted =
+                rawMsgs.firstOrNull {
+                    it.hasMatchGameRoomStateChangedEvent() &&
+                        it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                        MatchGameRoomStateType.MatchCompleted
+                }
+            matchCompleted.shouldNotBeNull()
+
+            // Verify FinalMatchResult
+            val finalResult = matchCompleted.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
+            assertSoftly {
+                matchCompleted.hasMatchGameRoomStateChangedEvent().shouldBeTrue()
+                finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
+                finalResult.resultListCount shouldBeGreaterThan 0
+                finalResult.getResultList(0).result shouldBe ResultType.WinLoss
+            }
+        }
 
         session(
             "lethal damage produces MatchCompleted room state",

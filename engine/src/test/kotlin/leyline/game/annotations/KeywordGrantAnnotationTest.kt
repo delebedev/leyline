@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.codes.DetailKeys
@@ -76,7 +75,7 @@ class KeywordGrantAnnotationTest :
                     uniqueAbilityIdAllocator = { uniqueId++ },
                     keywordExtraAbilityGrpIds = { instanceId, keyword ->
                         if (instanceId.value == 119 && keyword == "Menace") {
-                            listOf(GrpId(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID))
+                            listOf(AnnotationConstants.SUSPECTED_CANT_BLOCK_GRP_ID)
                         } else {
                             emptyList()
                         }

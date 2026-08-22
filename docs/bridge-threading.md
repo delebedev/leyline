@@ -18,7 +18,7 @@ session and delivery ownership. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web/headless input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native/web/in-process input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 

@@ -7,8 +7,7 @@ read_when:
 ---
 # Leyline Architecture
 
-Leyline is one stateful game backbone with two external protocol heads and an
-in-process headless client. This document
+Leyline is one stateful game backbone with two protocol heads. This document
 describes the current implementation. Durable architectural decisions live in
 [`docs/decisions/`](decisions/); current cross-thread constraints live in
 [`bridge-threading.md`](bridge-threading.md).
@@ -21,26 +20,22 @@ flowchart LR
     B["Browser"] --> W["web<br/>HTTP · WebSocket"]
     N --> E["engine<br/>match runtime · projection"]
     W --> E
-    H["headless<br/>in-process GRE client"] --> E
     N --> D["domain"]
     W --> D
     E --> D
     E --> F["forge<br/>rules engine"]
-    E --> GP["gre-proto<br/>schema · wire identifiers"]
+    E --> GP["gre-proto<br/>generated GRE schema"]
     N --> GP
     W --> GP
-    H --> GP
     A["app<br/>composition root"] --> GP
     A -. "wires" .-> N
     A -. "wires" .-> W
     A -. "wires" .-> E
 ```
 
-The external heads decode different transports, while `headless` submits parsed
-messages in-process. All three use the same engine match surface. `engine` is
-the only Gradle module that depends on Forge. `gre-proto`
-(mapped to `proto/`) owns the generated GRE wire schema and dependency-light
-wire identifiers. It synchronizes
+The heads decode different transports but submit to the same engine match
+surface. `engine` is the only Gradle module that depends on Forge. `gre-proto`
+(mapped to `proto/`) owns the generated GRE wire schema: it synchronizes
 `proto/src/main/proto/messages.proto` from the `proto/upstream` submodule
 through `proto/rename-map.sed`, runs protoc, and ships the generated
 `wotc.mtgo.gre.external.messaging` classes.
@@ -51,9 +46,8 @@ through `proto/rename-map.sed`, runs protoc, and ships the generated
 |---|---|---|
 | root `app/` | `LeylineMain`, service wiring, local control, management | domain, engine, gre-proto, native, web |
 | `domain` | Shared values, services, repository ports | no application module |
-| `gre-proto` | Generated GRE schema, protoc output, shared wire identifiers | no application module |
+| `gre-proto` | Generated GRE schema, protoc output | no application module |
 | `engine` | Forge adapter, match runtime, interaction ownership, state projection | domain, gre-proto, Forge |
-| `headless` | In-process GRE match driver and emitted-message batches | engine, gre-proto |
 | `native` | Account, lobby, native match transport and framing | domain, engine, gre-proto |
 | `web` | Browser routes, authentication, GRE relay | domain, engine, gre-proto |
 
@@ -94,9 +88,9 @@ transport framing belongs to `native.protocol.FrameCodec`.
 
 Forge is synchronous and mutable. One engine thread advances each game and
 blocks in controller callbacks when a human answer is required. Native, web,
-headless, timer, and test entrants call the transport-neutral match surface.
-The current runtime serializes interactive session work while the match
-coordinator owns committed cuts and interaction windows.
+timer, and test entrants call the transport-neutral match surface; the current
+runtime serializes interactive session work while the match coordinator owns
+committed cuts and interaction windows.
 
 ```mermaid
 flowchart LR
