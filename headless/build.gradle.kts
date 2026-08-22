@@ -24,6 +24,7 @@ dependencies {
 
     add("consumerTestImplementation", project(":gre-proto"))
     add("consumerTestImplementation", libs.kotlin.stdlib)
+    add("consumerTestImplementation", libs.kotlin.reflect)
     add("consumerTestImplementation", libs.kotest.runner)
     add("consumerTestImplementation", libs.kotest.assertions)
 }

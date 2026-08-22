@@ -24,7 +24,13 @@ data class HeadlessCard(
     val sVars: Map<String, String>,
 )
 
-/** Bounded engine-state reader and fixture command surface. */
+/**
+ * Value-only access to engine state for claims not represented in emitted GRE.
+ *
+ * Calls require a connected match and must not overlap [HeadlessMatch] input.
+ * Returned values are detached snapshots. Fixture commands mutate the live game
+ * directly and do not publish output to [HeadlessClient].
+ */
 class HeadlessEngine private constructor(
     private val driver: HeadlessEngineDriver,
 ) {

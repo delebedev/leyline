@@ -19,12 +19,18 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.MatchGameRoomStateType
 import wotc.mtgo.gre.external.messaging.Messages.MatchState
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import java.nio.file.Path
+import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.KVisibility
+import kotlin.reflect.full.companionObject
+import kotlin.reflect.full.createType
 
 class HeadlessMatchTest :
     FunSpec({
@@ -60,7 +66,7 @@ class HeadlessMatchTest :
             }
         }
 
-        test("play land is observed through the emitted zone transfer") {
+        test("play land emits client state and the next action lane") {
             HeadlessMatch.puzzle(Path.of("puzzles/warmup-land-permanent.pzl")).use { match ->
                 val initial = match.connect()
                 val prompt = initial.single { it.hasActionsAvailableReq() }
@@ -81,6 +87,12 @@ class HeadlessMatchTest :
                 val hand = transferState?.zonesList?.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
                 val battlefield = transferState?.zonesList?.firstOrNull { it.type == ZoneType.Battlefield }
                 val playedLand = transferState?.gameObjectsList?.firstOrNull { it.instanceId == newId }
+                val laneStateIndex =
+                    afterPlay.indexOfFirst {
+                        it.hasGameStateMessage() && it.gameStateMessage.update == GameStateUpdate.SendAndRecord
+                    }
+                val laneState = afterPlay.getOrNull(laneStateIndex)?.gameStateMessage
+                val nextMessage = afterPlay.getOrNull(laneStateIndex + 1)
 
                 assertSoftly {
                     gameStates.shouldNotBeEmpty()
@@ -94,34 +106,48 @@ class HeadlessMatchTest :
                     playedLand shouldNotBe null
                     match.client.zone(ZoneIds.P1_HAND)?.objectInstanceIdsCount shouldBe 1
                     match.client.objectsInZone(ZoneIds.BATTLEFIELD).any { it.instanceId == newId } shouldBe true
+                    laneState shouldNotBe null
+                    nextMessage?.hasActionsAvailableReq() shouldBe true
+                    nextMessage?.gameStateId shouldBe laneState?.gameStateId
+                    laneState?.pendingMessageCount shouldBe 1
                 }
             }
         }
 
         test("consumer-visible protocol constants and callable API stay engine-free") {
-            val publicTypes =
-                listOf(
-                    HeadlessMatch::class.java,
-                    HeadlessClient::class.java,
-                    HeadlessEngine::class.java,
-                    HeadlessCard::class.java,
-                    HeadlessZone::class.java,
-                )
-            val signatureTypes =
-                publicTypes.flatMap { type ->
-                    val methods =
-                        type.declaredMethods
-                            .filter {
-                                java.lang.reflect.Modifier
-                                    .isPublic(it.modifiers)
-                            }.flatMap { method -> listOf(method.returnType) + method.parameterTypes }
-                    val constructors =
-                        type.declaredConstructors
-                            .filter {
-                                java.lang.reflect.Modifier
-                                    .isPublic(it.modifiers)
-                            }.flatMap { it.parameterTypes.toList() }
-                    methods + constructors
+            val inspected = mutableSetOf<KClass<*>>()
+            val signatureTypes = mutableSetOf<String>()
+
+            fun inspectType(type: KType) {
+                val classifier = type.classifier as? KClass<*> ?: return
+                val name = classifier.qualifiedName ?: return
+                signatureTypes += name
+                type.arguments.forEach { it.type?.let(::inspectType) }
+                if (!name.startsWith("leyline.headless.") || !inspected.add(classifier)) return
+
+                (classifier.members + classifier.constructors)
+                    .filter { it.visibility == KVisibility.PUBLIC }
+                    .forEach { callable ->
+                        inspectType(callable.returnType)
+                        callable.parameters.forEach { inspectType(it.type) }
+                    }
+                classifier.companionObject?.let { companion ->
+                    if (companion.visibility == KVisibility.PUBLIC) {
+                        companion.members
+                            .filter { it.visibility == KVisibility.PUBLIC }
+                            .forEach { callable ->
+                                inspectType(callable.returnType)
+                                callable.parameters.forEach { inspectType(it.type) }
+                            }
+                    }
+                }
+            }
+
+            inspectType(HeadlessMatch::class.createType())
+            val forbiddenTypes =
+                signatureTypes.filter { name ->
+                    name.startsWith("forge.") ||
+                        (name.startsWith("leyline.") && !name.startsWith("leyline.headless."))
                 }
 
             assertSoftly {
@@ -129,10 +155,7 @@ class HeadlessMatchTest :
                 PromptIds.DECLARE_ATTACKERS shouldBe 6
                 KeywordAbilityIds.HASTE shouldBe 9
                 AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR shouldBe ZoneIds.BATTLEFIELD
-                signatureTypes
-                    .map(Class<*>::getName)
-                    .none { it.startsWith("leyline.match.") || it.startsWith("leyline.game.state.") || it.startsWith("forge.") } shouldBe
-                    true
+                forbiddenTypes shouldBe emptyList()
             }
         }
 
