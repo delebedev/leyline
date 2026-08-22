@@ -34,6 +34,7 @@ class GameActionBridge(
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         const val DISCONNECT_TIMEOUT_MS = 300_000L
+        internal const val ENGINE_PASS_TOKEN = 0L
         private val log = LoggerFactory.getLogger(GameActionBridge::class.java)
     }
 
@@ -101,9 +102,9 @@ class GameActionBridge(
         val state: PendingActionState,
         val future: CompletableFuture<ActionSubmission>,
         internal val priorityCandidates: PriorityActionCandidates? = null,
-        internal val windowRuntime: ActionWindowRuntime? = null,
+        internal val windowRuntime: ActionWindowRuntime,
     ) {
-        val promptGameStateId: Int? get() = windowRuntime?.promptGameStateId(actionId)
+        val promptGameStateId: Int? get() = windowRuntime.promptGameStateId(actionId)
     }
 
     private data class AwaitedSubmission(
@@ -112,12 +113,9 @@ class GameActionBridge(
     )
 
     sealed interface ActionSubmission {
+        /** Token [ENGINE_PASS_TOKEN] is reserved for an engine-only pass. */
         data class RuntimeToken(
             val token: Long,
-        ) : ActionSubmission
-
-        data class LegacyRuntimeAction(
-            val action: PlayerAction,
         ) : ActionSubmission
     }
 
@@ -160,15 +158,12 @@ class GameActionBridge(
 
         /** Complete a delivered state-only barrier with its engine-only pass. */
         fun completeSynchronization(pending: PendingAction): Boolean =
-            pending.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+            pending.future.complete(ActionSubmission.RuntimeToken(ENGINE_PASS_TOKEN))
     }
 
     enum class WindowCloseReason { Answered, TimedOut, Cancelled, Failed }
 
     private val pending = AtomicReference<PendingAction?>(null)
-
-    /** Visibility latch for the no-runtime path; the runtime owns it otherwise. */
-    @Volatile private var detachedVisibleActionId: String? = null
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
 
@@ -238,24 +233,20 @@ class GameActionBridge(
 
         val actionId = UUID.randomUUID().toString()
         val future = CompletableFuture<ActionSubmission>()
-        val action = PendingAction(actionId, state, future, priorityCandidates, windowRuntime)
+        val runtime = checkNotNull(windowRuntime) { "Blocking action waits require ActionWindowRuntime" }
+        val action = PendingAction(actionId, state, future, priorityCandidates, runtime)
 
         if (!pending.compareAndSet(null, action)) {
             log.warn("Action bridge already has a pending action; auto-passing")
             DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
-        detachedVisibleActionId = null
         try {
-            if (windowRuntime == null) {
-                detachedVisibleActionId = actionId
-            } else {
-                windowRuntime.publish(action)
-                check(windowRuntime.isVisible(actionId)) { "Action window runtime returned before publication completed" }
-            }
+            runtime.publish(action)
+            check(runtime.isVisible(actionId)) { "Action window runtime returned before publication completed" }
         } catch (ex: Exception) {
             pending.compareAndSet(action, null)
-            windowRuntime?.close(action, WindowCloseReason.Failed)
+            runtime.close(action, WindowCloseReason.Failed)
             throw ex
         }
         prioritySignal?.signal()
@@ -267,15 +258,14 @@ class GameActionBridge(
         var closeReason = awaited.closeReason
         return try {
             when (val submission = awaited.submission) {
-                is ActionSubmission.LegacyRuntimeAction -> submission.action
                 is ActionSubmission.RuntimeToken ->
-                    checkNotNull(windowRuntime?.resolve(action, submission)) { "Action runtime token did not resolve" }
+                    checkNotNull(runtime.resolve(action, submission)) { "Action runtime token did not resolve" }
             }
         } catch (ex: Exception) {
             closeReason = WindowCloseReason.Failed
             throw ex
         } finally {
-            windowRuntime?.close(action, closeReason)
+            runtime.close(action, closeReason)
         }
     }
 
@@ -291,10 +281,10 @@ class GameActionBridge(
                 awaitTimedSubmission(action, effectiveTimeout)
             }
         } catch (ex: ExecutionException) {
-            windowRuntime?.close(action, WindowCloseReason.Failed)
+            action.windowRuntime.close(action, WindowCloseReason.Failed)
             throw ex.cause ?: ex
         } catch (ex: Exception) {
-            windowRuntime?.close(action, WindowCloseReason.Failed)
+            action.windowRuntime.close(action, WindowCloseReason.Failed)
             throw ex
         } finally {
             deadlineMs = null
@@ -321,10 +311,9 @@ class GameActionBridge(
         val timeout = TimeoutException("Action window timed out")
         val claimed =
             if (action.state.kind == PendingActionKind.SYNC_ONLY) {
-                windowRuntime?.claimSynchronizationTimeout(action, timeout)
-                    ?: action.future.completeExceptionally(timeout)
+                action.windowRuntime.claimSynchronizationTimeout(action, timeout)
             } else {
-                windowRuntime?.claimTimeout(action, timeout) ?: action.future.completeExceptionally(timeout)
+                action.windowRuntime.claimTimeout(action, timeout)
             }
         if (!claimed) {
             return try {
@@ -354,7 +343,7 @@ class GameActionBridge(
         log.warn("Action timed out, auto-passing\n{}", diagnostic)
         DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
         return AwaitedSubmission(
-            ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority),
+            ActionSubmission.RuntimeToken(ENGINE_PASS_TOKEN),
             WindowCloseReason.TimedOut,
         )
     }
@@ -374,19 +363,8 @@ class GameActionBridge(
         val current = pending.get() ?: return false
         if (current.actionId != actionId || current.state.kind != PendingActionKind.SYNC_ONLY) return false
         return (
-            windowRuntime?.completeSynchronization(current)
-                ?: current.future.complete(ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+            current.windowRuntime.completeSynchronization(current)
         )
-    }
-
-    @org.jetbrains.annotations.VisibleForTesting
-    internal fun submitTestRuntimeAction(
-        actionId: String,
-        action: PlayerAction,
-    ): Boolean {
-        val current = pending.get() ?: return false
-        if (current.actionId != actionId) return false
-        return current.future.complete(ActionSubmission.LegacyRuntimeAction(action))
     }
 
     /**
@@ -403,8 +381,7 @@ class GameActionBridge(
     fun getPending(): PendingAction? {
         val p = pending.get() ?: return null
         if (p.future.isDone) return null
-        val visible = windowRuntime?.isVisible(p.actionId) ?: (detachedVisibleActionId == p.actionId)
-        return if (visible) p else null
+        return if (p.windowRuntime.isVisible(p.actionId)) p else null
     }
 
     internal fun exactPending(actionId: String): PendingAction? = pending.get()?.takeIf { it.actionId == actionId && !it.future.isDone }

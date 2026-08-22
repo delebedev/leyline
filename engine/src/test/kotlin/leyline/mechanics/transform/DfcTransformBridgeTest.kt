@@ -9,10 +9,10 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
+import leyline.testkit.submitTestAction
 
 class DfcTransformBridgeTest :
     BoardTest({
@@ -36,7 +36,7 @@ class DfcTransformBridgeTest :
             pending.shouldNotBeNull()
 
             val submitted =
-                b.actionBridge(SeatId(1)).submitTestRuntimeAction(
+                b.submitTestAction(
                     pending.actionId,
                     PlayerAction.ActivateAbility(ForgeCardId(curtains.id), 0),
                 )
@@ -44,7 +44,7 @@ class DfcTransformBridgeTest :
 
             val pending2 = awaitFreshPending(b, pending.actionId)
             pending2.shouldNotBeNull()
-            b.actionBridge(SeatId(1)).submitTestRuntimeAction(
+            b.submitTestAction(
                 pending2.actionId,
                 PlayerAction.PassPriority,
             )

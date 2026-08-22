@@ -21,6 +21,7 @@ import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
+import leyline.testkit.submitTestAction
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import java.util.concurrent.CountDownLatch
@@ -227,7 +228,7 @@ class MatchCutCoordinatorTest :
             check(drainFinished.await(3, TimeUnit.SECONDS))
             val pending = checkNotNull(actionBridge.getPending())
             drained.get().flatten().any { it.hasActionsAvailableReq() } shouldBe true
-            actionBridge.submitTestRuntimeAction(pending.actionId, PlayerAction.PassPriority) shouldBe true
+            board.bridge.cutCoordinator.submitTestAction(actionBridge, pending.actionId, PlayerAction.PassPriority) shouldBe true
             engine.join(3_000)
             board.bridge.cutCoordinator.beforeActionPublished = null
         }

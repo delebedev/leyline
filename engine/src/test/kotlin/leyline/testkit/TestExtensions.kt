@@ -6,10 +6,18 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PlayerAction
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.InvariantChecker
+import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
+
+/** Submit a test action through the coordinator-owned action-window runtime. */
+fun GameBridge.submitTestAction(
+    actionId: String,
+    action: PlayerAction,
+): Boolean = cutCoordinator.submitTestAction(actionBridge(seating.humanSeat), actionId, action)
 
 // ----- Zone shorthand properties (package-level, complementing MatchFlowHarness) -----
 

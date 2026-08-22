@@ -121,6 +121,13 @@ internal class MatchCutCoordinator(
         childToken: Long? = null,
     ): Boolean = actions.complete(claim, childToken)
 
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun submitTestAction(
+        actionBridge: GameActionBridge,
+        actionId: String,
+        action: leyline.bridge.handoff.PlayerAction,
+    ): Boolean = actions.submitTestAction(actionBridge, actionId, action)
+
     fun failActionClaim(
         claim: MatchActionWindowRuntime.ActionClaim,
         cause: Throwable,

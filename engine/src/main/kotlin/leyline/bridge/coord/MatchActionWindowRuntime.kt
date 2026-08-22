@@ -100,7 +100,33 @@ internal class MatchActionWindowRuntime(
     internal fun completeSynchronization(pending: GameActionBridge.PendingAction): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            pending.future.complete(GameActionBridge.ActionSubmission.LegacyRuntimeAction(PlayerAction.PassPriority))
+            pending.future.complete(GameActionBridge.ActionSubmission.RuntimeToken(GameActionBridge.ENGINE_PASS_TOKEN))
+        }
+
+    @org.jetbrains.annotations.VisibleForTesting
+    internal fun submitTestAction(
+        bridge: GameActionBridge,
+        actionId: String,
+        action: PlayerAction,
+    ): Boolean =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val window = actionWindows[actionId] ?: return false
+            val pending = bridge.getPending() ?: return false
+            if (pending.actionId != actionId || window.status != ActionWindowStatus.Published) return false
+            if (action == PlayerAction.PassPriority) {
+                return bridge.submitRuntimeToken(actionId, GameActionBridge.ENGINE_PASS_TOKEN)
+            }
+            val matches =
+                window.offers.values
+                    .flatten()
+                    .filter { sameTestCommand(it.second.command, action) }
+            val (token, offer) = matches.singleOrNull() ?: return false
+            window.selections[token] = RuntimeActionSelection(offer, Action.getDefaultInstance())
+            window.status = ActionWindowStatus.Claimed(ActionClaimKind.Immediate, token)
+            val completed = bridge.submitRuntimeToken(actionId, token)
+            if (completed) window.status = ActionWindowStatus.Completed
+            completed
         }
 
     fun legalAttackerIds(actionId: String): List<Int> = synchronized(owner.feedLock) { actionWindows[actionId]?.legalAttackerIds.orEmpty() }
@@ -505,6 +531,7 @@ internal class MatchActionWindowRuntime(
         submission: GameActionBridge.ActionSubmission.RuntimeToken,
     ): PlayerAction? =
         synchronized(owner.feedLock) {
+            if (submission.token == GameActionBridge.ENGINE_PASS_TOKEN) return PlayerAction.PassPriority
             declaredActions.remove(pending.actionId)?.let { return it }
             val selection = actionWindows[pending.actionId]?.selections?.remove(submission.token) ?: return null
             val command = selection.offer.command
@@ -519,3 +546,27 @@ internal class MatchActionWindowRuntime(
         }
     }
 }
+
+@Suppress("CyclomaticComplexMethod")
+private fun sameTestCommand(
+    offered: PlayerAction,
+    requested: PlayerAction,
+): Boolean =
+    when {
+        offered is PlayerAction.CastSpell && requested is PlayerAction.CastSpell ->
+            offered.cardId == requested.cardId &&
+                (requested.abilityId == null || offered.abilityId == requested.abilityId) &&
+                offered.targets == requested.targets
+        offered is PlayerAction.ActivateAbility && requested is PlayerAction.ActivateAbility ->
+            offered.cardId == requested.cardId && offered.abilityId == requested.abilityId && offered.targets == requested.targets
+        offered is PlayerAction.ActivateMana && requested is PlayerAction.ActivateMana ->
+            offered.cardId == requested.cardId &&
+                (requested.abilityId == null || offered.abilityId == requested.abilityId) &&
+                offered.selectedColor == requested.selectedColor
+        offered is PlayerAction.PlayLand && requested is PlayerAction.PlayLand -> offered.cardId == requested.cardId
+        offered is PlayerAction.DeclareAttackers && requested is PlayerAction.DeclareAttackers -> offered == requested
+        offered is PlayerAction.DeclareBlockers && requested is PlayerAction.DeclareBlockers -> offered == requested
+        offered is PlayerAction.PassPriority && requested is PlayerAction.PassPriority -> true
+        offered is PlayerAction.EndTurn && requested is PlayerAction.EndTurn -> true
+        else -> false
+    }

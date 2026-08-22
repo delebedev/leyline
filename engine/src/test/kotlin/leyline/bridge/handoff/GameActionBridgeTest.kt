@@ -43,7 +43,12 @@ private class FakeActionWindowRuntime(
     override fun resolve(
         pending: PendingAction,
         submission: ActionSubmission.RuntimeToken,
-    ): PlayerAction = onResolve(pending)
+    ): PlayerAction =
+        if (submission.token == GameActionBridge.ENGINE_PASS_TOKEN) {
+            PlayerAction.PassPriority
+        } else {
+            onResolve(pending)
+        }
 
     override fun close(
         pending: PendingAction,
@@ -252,15 +257,22 @@ class GameActionBridgeTest :
             }
         }
 
-        test("a bridge without a window runtime exposes its own pending window") {
+        test("blocking waits require a window runtime") {
             val bridge = GameActionBridge(timeoutMs = 5_000)
+            shouldThrow<IllegalStateException> { bridge.awaitAction(state) }
+            bridge.getPending().shouldBeNull()
+        }
+
+        test("a test runtime resolves an exact command without a bridge bypass") {
+            val runtime = FakeActionWindowRuntime(onResolve = { PlayerAction.EndTurn })
+            val bridge = GameActionBridge(timeoutMs = 5_000, windowRuntime = runtime)
             val result = AtomicReference<PlayerAction>()
             val engine = Thread { result.set(bridge.awaitAction(state)) }.also { it.start() }
 
             val pending = pollForPending(bridge)
             assertSoftly {
                 pending.promptGameStateId.shouldBeNull()
-                bridge.submitTestRuntimeAction(pending.actionId, PlayerAction.EndTurn) shouldBe true
+                bridge.submitRuntimeToken(pending.actionId, 1) shouldBe true
             }
             engine.join(2_000)
 
