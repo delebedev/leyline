@@ -13,7 +13,6 @@ import leyline.domain.CourseDeck
 import leyline.domain.CourseDeckSummary
 import leyline.domain.CourseModule
 import leyline.domain.DeckId
-import leyline.domain.DraftStatus
 import leyline.domain.MatchInfo
 import leyline.domain.PlayerId
 import leyline.domain.Preferences
@@ -341,11 +340,12 @@ class FrontDoorHandler(
                 val eventName = req?.eventName
                 log.info("Front Door: Event_Join event={}", eventName)
                 if (eventName != null) {
-                    val existingCourse = courseService.getCourse(playerId, eventName)
-                    if (EventRegistry.isDraft(eventName) && existingCourse?.module == CourseModule.Complete) {
-                        draftService.drop(playerId, eventName)
-                    }
-                    val course = courseService.join(playerId, eventName)
+                    val course =
+                        if (EventRegistry.isDraft(eventName)) {
+                            draftService.joinDraft(playerId, eventName)
+                        } else {
+                            courseService.join(playerId, eventName)
+                        }
                     writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildJoinResponse(course)))
                 } else {
                     writer.send(ctx, txId, FdResponse.Empty)
@@ -357,7 +357,12 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_Drop event={}", req?.eventName)
                 if (req?.eventName != null) {
                     try {
-                        val course = courseService.drop(playerId, req.eventName)
+                        val course =
+                            if (EventRegistry.isDraft(req.eventName)) {
+                                draftService.drop(playerId, req.eventName)
+                            } else {
+                                courseService.drop(playerId, req.eventName)
+                            }
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
                         log.debug("Front Door: Event_Drop failed: {}", e.message)
@@ -416,10 +421,12 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_Resign event={}", req?.eventName)
                 if (req?.eventName != null) {
                     try {
-                        if (EventRegistry.isDraft(req.eventName)) {
-                            draftService.drop(playerId, req.eventName)
-                        }
-                        val course = courseService.drop(playerId, req.eventName)
+                        val course =
+                            if (EventRegistry.isDraft(req.eventName)) {
+                                draftService.drop(playerId, req.eventName)
+                            } else {
+                                courseService.drop(playerId, req.eventName)
+                            }
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
                         log.debug("Front Door: Event_Resign failed: {}", e.message)
@@ -477,13 +484,9 @@ class FrontDoorHandler(
 
             CmdType.BOT_DRAFT_PICK.value -> {
                 val req = FdRequests.parseDraftPick(json)
-                log.info("Front Door: BotDraft_DraftPick card={} pack={} pick={}", req?.cardId, req?.packNumber, req?.pickNumber)
+                log.info("Front Door: BotDraft_DraftPick card={}", req?.cardId)
                 if (req != null) {
-                    val session = draftService.pick(playerId, req.eventName, req.cardId, req.packNumber, req.pickNumber)
-                    if (session.status == DraftStatus.Completed) {
-                        val collationId = EventRegistry.findEvent(req.eventName)?.collationId ?: 0
-                        courseService.completeDraft(playerId, req.eventName, session.pickedCards, collationId)
-                    }
+                    val session = draftService.pick(playerId, req.eventName, req.cardId)
                     writer.send(ctx, txId, FdResponse.Json(DraftWireBuilder.buildDraftResponse(session)))
                 } else {
                     writer.send(ctx, txId, FdResponse.Empty)

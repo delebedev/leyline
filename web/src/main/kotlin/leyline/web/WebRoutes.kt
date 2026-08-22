@@ -29,12 +29,10 @@ import kotlinx.serialization.json.Json
 import leyline.domain.Course
 import leyline.domain.CourseDeck
 import leyline.domain.CourseDeckSummary
-import leyline.domain.CourseModule
 import leyline.domain.Deck
 import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.DraftSession
-import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.json.productionJson
@@ -202,11 +200,6 @@ private fun Route.installDraftRoutes(services: WebServices) {
         post("/start") {
             val request = call.receive<StartDraftRequest>()
             val playerId = call.ownedPlayerId(services, request.playerId)
-            val existingCourse = services.courseService.getCourse(playerId, request.eventName)
-            if (EventRegistry.isDraft(request.eventName) && existingCourse?.module == CourseModule.Complete) {
-                services.draftService.drop(playerId, request.eventName)
-            }
-            services.courseService.join(playerId, request.eventName)
             call.respond(sessionView(services.draftService.startDraft(playerId, request.eventName)))
         }
         post("/pick") {
@@ -217,13 +210,7 @@ private fun Route.installDraftRoutes(services: WebServices) {
                     playerId,
                     request.eventName,
                     request.cardId,
-                    request.packNumber,
-                    request.pickNumber,
                 )
-            if (session.status == DraftStatus.Completed) {
-                val collationId = EventRegistry.findEvent(request.eventName)?.collationId ?: 0
-                services.courseService.completeDraft(playerId, request.eventName, session.pickedCards, collationId)
-            }
             call.respond(sessionView(session))
         }
         get("/status") {
@@ -240,7 +227,6 @@ private fun Route.installDraftRoutes(services: WebServices) {
             val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
             val eventName = call.requiredQuery("eventName")
             services.draftService.drop(playerId, eventName)
-            services.courseService.drop(playerId, eventName)
             call.respond(HttpStatusCode.NoContent)
         }
     }

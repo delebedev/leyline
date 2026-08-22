@@ -13,8 +13,6 @@ data class PickDraftRequest(
     val playerId: String,
     val eventName: String,
     val cardId: Int,
-    val packNumber: Int,
-    val pickNumber: Int,
 )
 
 @Serializable
