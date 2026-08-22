@@ -33,6 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.OrderResp
 import wotc.mtgo.gre.external.messaging.Messages.OrderingType
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.PerformAutoTapActionsResp
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsResp
 import wotc.mtgo.gre.external.messaging.Messages.SearchResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectManaTypeResp
@@ -300,6 +301,20 @@ internal object ResponseBuilder {
                     base(ClientMessageType.SearchResp_097b)
                         .setSearchResp(SearchResp.newBuilder().addAllItemsFound(decision.itemsFound))
                         .build(),
+                )
+
+            is SimDecision.GroupedSearch ->
+                listOf(
+                    base(ClientMessageType.SearchFromGroupsResp_097b)
+                        .setSearchFromGroupsResp(
+                            SearchFromGroupsResp.newBuilder().addGroups(
+                                Group
+                                    .newBuilder()
+                                    .setGroupId(decision.groupId)
+                                    .setMaxSelect(decision.maxSelect)
+                                    .addAllIds(decision.itemsFound),
+                            ),
+                        ).build(),
                 )
 
             // Modal "choose one/two" — CastingTimeOptionsReq with the picked grpIds.

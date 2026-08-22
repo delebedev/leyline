@@ -83,6 +83,43 @@ object RequestBuilder {
             .build()
     }
 
+    @Suppress("LongParameterList")
+    fun buildSearchFromGroupsReq(
+        msgId: Int,
+        gsId: Int,
+        systemSeatId: Int,
+        sourceInstanceId: Int,
+        hostCardInstanceId: Int,
+        libraryZoneId: Int,
+        groups: List<Group>,
+        maxFind: Int,
+        allowFailToFind: Boolean,
+    ): GREToClientMessage {
+        val search =
+            SearchFromGroupsReq
+                .newBuilder()
+                .setMaxFind(maxFind)
+                .addZonesToSearch(libraryZoneId)
+                .addAllGroups(groups)
+                .setGroupingStyle(GroupingStyle.SingleGroup)
+                .setSourceId(sourceInstanceId)
+        if (allowFailToFind) search.allowFailToFind = AllowFailToFind.Any
+        return GREToClientMessage
+            .newBuilder()
+            .setType(GREMessageType.SearchFromGroupsReq_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(systemSeatId)
+            .setAllowCancel(AllowCancel.No_a526)
+            .setPrompt(
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.SEARCH_FROM_GROUPS)
+                    .addParameters(cardIdPromptParameter(hostCardInstanceId)),
+            ).setSearchFromGroupsReq(search)
+            .build()
+    }
+
     private fun playerDamageRecipient(seatId: SeatId): DamageRecipient =
         DamageRecipient
             .newBuilder()

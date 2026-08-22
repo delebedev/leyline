@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedSearchInteraction
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.SearchGroupResponseValue
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.SearchInteractionTimeoutException
 import leyline.bridge.handoff.SearchWindowValue
@@ -55,7 +56,7 @@ internal class MatchSearchInteractionRuntime(
         request: PromptRequest,
         timeoutMs: Long?,
     ): List<Int> {
-        check(request.route is ResolvedPromptRoute.Search)
+        check(request.route is ResolvedPromptRoute.Search || request.route is ResolvedPromptRoute.GroupedSearch)
         val value =
             try {
                 capture.capture(request)
@@ -80,6 +81,7 @@ internal class MatchSearchInteractionRuntime(
             synchronized(owner.feedLock) {
                 owner.ensureOpen()
                 val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+                if (pending.value.groups.isNotEmpty()) return false
                 if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
                 val selectedOptions =
                     if (selectedInstanceIds.isEmpty()) {
@@ -88,6 +90,47 @@ internal class MatchSearchInteractionRuntime(
                     } else {
                         if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return false
                         selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
+                    }
+                resetBaseline()
+                afterBaselineResetBeforeRelease?.invoke()
+                windows.completeLocked(pending, selectedOptions)
+            }
+        }
+
+    fun submitGroups(
+        interactionId: String,
+        gameStateId: Int,
+        responseGroups: List<SearchGroupResponseValue>,
+    ): Boolean =
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val pending =
+                    windows.matchingLocked(interactionId, gameStateId)
+                        ?: return false
+                if (pending.value.groups.isEmpty()) return false
+                val selectedOptions =
+                    if (responseGroups.isEmpty()) {
+                        if (pending.value.minFind != 0) return false
+                        listOf(pending.value.optionCount)
+                    } else {
+                        if (responseGroups.size != 1) return false
+                        val response = responseGroups.single()
+                        val group =
+                            pending.value.groups.singleOrNull { it.groupId == response.groupId }
+                                ?: return false
+                        if (response.maxSelect != group.maxSelect) return false
+                        if (response.selectedInstanceIds.size != response.selectedInstanceIds.distinct().size) {
+                            return false
+                        }
+                        if (response.selectedInstanceIds.size !in pending.value.minFind..group.maxSelect) {
+                            return false
+                        }
+                        val allowedOptions = group.candidateCardIdsByOption.keys
+                        response.selectedInstanceIds.map { iid ->
+                            pending.optionByInstanceId[iid]?.takeIf(allowedOptions::contains)
+                                ?: return false
+                        }
                     }
                 resetBaseline()
                 afterBaselineResetBeforeRelease?.invoke()

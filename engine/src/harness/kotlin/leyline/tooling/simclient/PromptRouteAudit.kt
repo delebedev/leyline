@@ -91,6 +91,7 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.RevealChoice -> "SelectNReq"
             is ResolvedPromptRoute.PayCosts -> "PayCostsReq"
             is ResolvedPromptRoute.Search -> "SearchReq"
+            is ResolvedPromptRoute.GroupedSearch -> "SearchFromGroupsReq"
             is ResolvedPromptRoute.Order -> "OrderReq"
             is ResolvedPromptRoute.Distribution -> "DistributionReq"
             is ResolvedPromptRoute.Targeting -> "SelectTargetsReq"

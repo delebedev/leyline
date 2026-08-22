@@ -73,6 +73,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondDistribution(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
+            GREMessageType.SearchFromGroupsReq_695e ->
+                SimPromptResponse(DefaultDecisions.groupedSearch(prompt.msg))
             GREMessageType.PayCostsReq_695e ->
                 SimPromptResponse(respondPayCosts(prompt.msg))
             GREMessageType.GroupReq_695e ->

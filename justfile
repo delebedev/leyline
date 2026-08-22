@@ -28,8 +28,8 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 _module_classes := project_dir + '/matchdoor/build/classes/kotlin/main:' + project_dir + '/matchdoor/build/classes/java/main:' + project_dir + '/matchdoor/build/resources/main:' + project_dir + '/frontdoor/build/classes/kotlin/main:' + project_dir + '/frontdoor/build/resources/main:' + project_dir + '/account/build/classes/kotlin/main:' + project_dir + '/account/build/resources/main:' + project_dir + '/app/build/classes/kotlin/main:' + project_dir + '/app/build/resources/main'
 _cp := '"' + _module_classes + ':$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
-# Kill this worktree's ports + launch (for server targets).
-_java := 'if [ -f "' + local_env + '" ]; then set -a; source "' + local_env + '"; set +a; fi; ports="${LEYLINE_PORTS:-${LEYLINE_FD_PORT:-30010} ${LEYLINE_MD_PORT:-30003} ${LEYLINE_DEBUG_PORT:-8090} ${LEYLINE_MANAGEMENT_PORT:-8091} ${LEYLINE_ACCOUNT_PORT:-9443}}"; for p in $ports; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
+# Kill this worktree's listeners + launch (for server targets).
+_java := 'if [ -f "' + local_env + '" ]; then set -a; source "' + local_env + '"; set +a; fi; ports="${LEYLINE_PORTS:-${LEYLINE_FD_PORT:-30010} ${LEYLINE_MD_PORT:-30003} ${LEYLINE_DEBUG_PORT:-8090} ${LEYLINE_MANAGEMENT_PORT:-8091} ${LEYLINE_ACCOUNT_PORT:-9443}}"; for p in $ports; do for pid in $(lsof -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null); do echo "Killing listener pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
 # Read-only CLI (no port kill)
 _cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
@@ -347,6 +347,25 @@ simclient-puzzle puzzles seeds="42":
 serve: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
+    client_path="${LEYLINE_CLIENT_PATH:-}"
+    if [ -z "$client_path" ]; then
+      shopt -s nullglob
+      client_candidates=(/Users/Shared/Epic\ Games/MagicTheGathering/*.app)
+      if [ ${#client_candidates[@]} -eq 1 ]; then client_path="${client_candidates[0]}"; fi
+    fi
+    if [ -n "$client_path" ]; then
+      source_services="{{project_dir}}/app/main/resources/services.conf"
+      client_services="$client_path/Contents/Resources/Data/StreamingAssets/services.conf"
+      if [ ! -f "$client_services" ]; then
+        install -m 644 "$source_services" "$client_services"
+        echo "Installed local client services.conf because it was absent. Relaunch a running client to use it."
+      elif ! cmp -s "$source_services" "$client_services"; then
+        install -m 644 "$source_services" "$client_services"
+        echo "Updated local client services.conf. Relaunch a running client to use it."
+      else
+        echo "Local client services.conf already current."
+      fi
+    fi
     {{_cert_flags}}
     if [ ${#cert_flags[@]} -gt 0 ]; then
       {{_java}} leyline.LeylineMainKt "${cert_flags[@]}" --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"

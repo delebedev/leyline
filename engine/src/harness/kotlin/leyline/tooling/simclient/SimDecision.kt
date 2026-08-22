@@ -23,6 +23,7 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.Order -> "order:${orderedInstanceIds.joinToString("+")}"
         is SimDecision.Search -> "search:${itemsFound.sorted().joinToString("+")}"
+        is SimDecision.GroupedSearch -> "grouped-search:$groupId:${itemsFound.sorted().joinToString("+")}"
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.AutoTapPayment -> "auto-tap-payment:$solutionIndex"
         SimDecision.KeepHand -> "keep-hand"
@@ -105,6 +106,8 @@ internal class SimDecisionSubmitter(
             is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
             is SimDecision.Distribution -> submitted { harness.respondToDistribution(decision.amountsByInstanceId.toList()) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
+            is SimDecision.GroupedSearch ->
+                submitted { harness.respondToGroupedSearch(decision.groupId, decision.itemsFound, decision.maxSelect) }
             is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
             // Consult/live-client path only; leyline's own server auto-resolves mana.
             is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted

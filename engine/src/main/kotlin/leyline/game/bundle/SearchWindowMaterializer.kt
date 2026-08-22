@@ -9,6 +9,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
 
 /** Value-only GRE preparation for coordinator-owned library-search windows. */
 internal class SearchWindowMaterializer(
@@ -37,25 +38,47 @@ internal class SearchWindowMaterializer(
                 ?.let { projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(it.forgeAbilityId)) }
                 ?: hostId
         val request =
-            RequestBuilder.buildSearchReq(
-                msgId = counter.nextMsgId(),
-                gsId = requestGameStateId,
-                systemSeatId = seatId.value,
-                sourceInstanceId = sourceId,
-                hostCardInstanceId = hostId,
-                searchingSeat = seatId.value,
-                libraryZoneId = ZoneIds.libraryOf(seatId),
-                allLibraryIds = libraryIds,
-                validTargetIds = validIds,
-                maxFind = window.maxFind,
-                allowFailToFind = window.minFind == 0,
-                promptId =
-                    if (window.source?.let { it.abilityOnStack && it.typeCycling } == true) {
-                        PromptIds.SEARCH_TYPECYCLING
-                    } else {
-                        PromptIds.SEARCH
-                    },
-            )
+            if (window.groups.isNotEmpty()) {
+                RequestBuilder.buildSearchFromGroupsReq(
+                    msgId = counter.nextMsgId(),
+                    gsId = requestGameStateId,
+                    systemSeatId = seatId.value,
+                    sourceInstanceId = hostId,
+                    hostCardInstanceId = hostId,
+                    libraryZoneId = ZoneIds.libraryOf(seatId),
+                    groups =
+                        window.groups.map { group ->
+                            Group
+                                .newBuilder()
+                                .setGroupId(group.groupId)
+                                .setMaxSelect(group.maxSelect)
+                                .addAllIds(group.candidateCardIdsByOption.values.map { projection.requireInstanceId(it) })
+                                .build()
+                        },
+                    maxFind = window.maxFind,
+                    allowFailToFind = window.minFind == 0,
+                )
+            } else {
+                RequestBuilder.buildSearchReq(
+                    msgId = counter.nextMsgId(),
+                    gsId = requestGameStateId,
+                    systemSeatId = seatId.value,
+                    sourceInstanceId = sourceId,
+                    hostCardInstanceId = hostId,
+                    searchingSeat = seatId.value,
+                    libraryZoneId = ZoneIds.libraryOf(seatId),
+                    allLibraryIds = libraryIds,
+                    validTargetIds = validIds,
+                    maxFind = window.maxFind,
+                    allowFailToFind = window.minFind == 0,
+                    promptId =
+                        if (window.source?.let { it.abilityOnStack && it.typeCycling } == true) {
+                            PromptIds.SEARCH_TYPECYCLING
+                        } else {
+                            PromptIds.SEARCH
+                        },
+                )
+            }
         return Prepared(
             bundle = BundleBuilder.BundleResult(stateMessages + request, actionGameStateId = requestGameStateId),
             transition = transition,

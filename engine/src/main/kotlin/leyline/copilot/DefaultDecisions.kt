@@ -42,6 +42,11 @@ internal object DefaultDecisions {
         return SimDecision.Search(req.itemsSoughtList.take(count))
     }
 
+    fun groupedSearch(msg: GREToClientMessage): SimDecision {
+        val group = msg.searchFromGroupsReq.groupsList.first { it.idsCount > 0 }
+        return SimDecision.GroupedSearch(group.groupId, group.idsList.take(group.maxSelect.coerceAtLeast(1)), group.maxSelect)
+    }
+
     /** Pick a small legal value (min, capped at [NUMERIC_INPUT_DEFAULT_MAX]). */
     fun numericInput(msg: GREToClientMessage): SimDecision {
         val req = msg.numericInputReq

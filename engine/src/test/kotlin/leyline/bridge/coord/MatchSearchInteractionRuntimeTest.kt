@@ -12,6 +12,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.handoff.SearchGroupResponseValue
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
@@ -49,6 +50,7 @@ class MatchSearchInteractionRuntimeTest :
             min: Int = 1,
             defaultIndex: Int = 0,
             source: SearchSourceValue? = null,
+            grouped: Boolean = false,
         ): PromptRequest {
             val candidates = board.human.getZone(ZoneType.Library).cards
             return PromptRequest(
@@ -62,8 +64,14 @@ class MatchSearchInteractionRuntimeTest :
                     candidates.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Library.name)
                     },
-                route = ResolvedPromptRoute.Search(PromptSemantic.Search),
+                route =
+                    if (grouped) {
+                        ResolvedPromptRoute.GroupedSearch(PromptSemantic.GroupedSearch)
+                    } else {
+                        ResolvedPromptRoute.Search(PromptSemantic.Search)
+                    },
                 searchSource = source,
+                searchGroupOptionIndices = if (grouped) listOf(listOf(0), listOf(1)) else emptyList(),
             )
         }
 
@@ -187,6 +195,92 @@ class MatchSearchInteractionRuntimeTest :
             }
         }
 
+        test("grouped search publishes disjoint rows and accepts only an echoed row") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val sourceCard =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val result = AtomicReference<List<Int>>()
+            val finished = CountDownLatch(1)
+            Thread {
+                result.set(
+                    coordinator.search.awaitSearch(
+                        request(
+                            board,
+                            grouped = true,
+                            source = SearchSourceValue(ForgeCardId(sourceCard.id), 0, false, false),
+                        ),
+                        3_000,
+                    ),
+                )
+                finished.countDown()
+            }.start()
+
+            val published = awaitPublished(coordinator)
+            val message = coordinator.drain(SeatId(1)).flatten().single { it.hasSearchFromGroupsReq() }
+            val req = message.searchFromGroupsReq
+            val first = req.groupsList.first()
+            val second = req.groupsList.last()
+            assertSoftly {
+                message.prompt.promptId shouldBe PromptIds.SEARCH_FROM_GROUPS
+                message.prompt.parametersCount shouldBe 1
+                req.sourceId shouldBe
+                    message.prompt.parametersList
+                        .single()
+                        .numberValue
+                req.groupingStyle.name shouldBe "SingleGroup"
+                req.groupsList.map { it.groupId } shouldContainExactly listOf(5003, 5004)
+                req.groupsList
+                    .flatMap { it.idsList }
+                    .distinct()
+                    .shouldHaveSize(2)
+                req.additionalZonesList shouldBe emptyList()
+                coordinator.search.submit(published.interactionId, published.gameStateId, first.idsList) shouldBe false
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(SearchGroupResponseValue(9999, first.idsList, first.maxSelect)),
+                ) shouldBe false
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(SearchGroupResponseValue(first.groupId, first.idsList, first.maxSelect + 1)),
+                ) shouldBe false
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(SearchGroupResponseValue(first.groupId, second.idsList, first.maxSelect)),
+                ) shouldBe false
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(
+                        SearchGroupResponseValue(first.groupId, listOf(first.idsList.single(), first.idsList.single()), first.maxSelect),
+                    ),
+                ) shouldBe false
+                coordinator.search.submitGroups(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(
+                        SearchGroupResponseValue(first.groupId, first.idsList, first.maxSelect),
+                        SearchGroupResponseValue(second.groupId, second.idsList, second.maxSelect),
+                    ),
+                ) shouldBe false
+                finished.count shouldBe 1
+            }
+            coordinator.search.submitGroups(
+                published.interactionId,
+                published.gameStateId,
+                listOf(SearchGroupResponseValue(first.groupId, first.idsList, first.maxSelect)),
+            ) shouldBe true
+            finished.await(3, TimeUnit.SECONDS) shouldBe true
+            result.get() shouldContainExactly listOf(0)
+        }
+
         test("response invalidates the reveal baseline before the engine resumes") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
@@ -241,6 +335,24 @@ class MatchSearchInteractionRuntimeTest :
             coordinator.search.afterBaselineResetBeforeRelease = null
         }
 
+        test("grouped search accepts an empty fail-to-find response") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val result = AtomicReference<List<Int>>()
+            val finished = CountDownLatch(1)
+            Thread {
+                result.set(coordinator.search.awaitSearch(request(board, min = 0, grouped = true), 3_000))
+                finished.countDown()
+            }.start()
+            val published = awaitPublished(coordinator)
+            coordinator.drain(SeatId(1))
+
+            coordinator.search.submitGroups(published.interactionId, published.gameStateId, emptyList()) shouldBe true
+            finished.await(3, TimeUnit.SECONDS) shouldBe true
+            result.get() shouldContainExactly listOf(2)
+        }
+
         test("bridge timeout returns the configured default and requests later progression") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
@@ -254,7 +366,7 @@ class MatchSearchInteractionRuntimeTest :
                     it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
-                result.set(bridge.requestChoice(request(board, min = 0, defaultIndex = 1)))
+                result.set(bridge.requestChoice(request(board, min = 0, defaultIndex = 1, grouped = true)))
                 finished.countDown()
             }.start()
             awaitPublished(coordinator)

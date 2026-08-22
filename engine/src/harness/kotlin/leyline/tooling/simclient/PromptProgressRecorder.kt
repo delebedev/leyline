@@ -117,6 +117,7 @@ private fun SimDecision.targetIds(): List<Int> =
         is SimDecision.Order -> orderedInstanceIds
         is SimDecision.Distribution -> amountsByInstanceId.keys.toList()
         is SimDecision.Search -> itemsFound
+        is SimDecision.GroupedSearch -> itemsFound
         is SimDecision.EffectCost -> selectedInstanceIds
         is SimDecision.GroupTop -> instanceIds
         is SimDecision.GroupAway -> awayInstanceIds

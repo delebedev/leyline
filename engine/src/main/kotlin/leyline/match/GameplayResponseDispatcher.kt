@@ -38,6 +38,7 @@ private fun gameplayResponseHandler(type: ClientMessageType): GameplayResponseHa
         ClientMessageType.DistributionResp_097b -> ActionReceiver::onDistributionResp
         ClientMessageType.CastingTimeOptionsResp_097b -> ActionReceiver::onCastingTimeOptions
         ClientMessageType.SearchResp_097b -> ActionReceiver::onSearch
+        ClientMessageType.SearchFromGroupsResp_097b -> ActionReceiver::onSearchFromGroups
         ClientMessageType.AssignDamageResp_097b -> ActionReceiver::onAssignDamage
         ClientMessageType.OptionalActionResp -> ActionReceiver::onOptionalActionResp
         ClientMessageType.NumericInputResp_097b -> ActionReceiver::onNumericInputResp

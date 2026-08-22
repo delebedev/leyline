@@ -187,6 +187,8 @@ interface ActionReceiver {
 
     fun onSearch(greMsg: ClientToGREMessage) {}
 
+    fun onSearchFromGroups(greMsg: ClientToGREMessage) {}
+
     fun onAssignDamage(greMsg: ClientToGREMessage) {}
 
     fun onOptionalActionResp(greMsg: ClientToGREMessage) {}

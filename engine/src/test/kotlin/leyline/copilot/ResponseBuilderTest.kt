@@ -119,6 +119,16 @@ class ResponseBuilderTest :
             msgs[0].selectNResp.idsList shouldBe listOf(5, 9)
         }
 
+        test("grouped search echoes the selected request row") {
+            val message = bytesOf(SimDecision.GroupedSearch(5004, listOf(42), 1), respId = 224).single()
+            message.type shouldBe ClientMessageType.SearchFromGroupsResp_097b
+            message.respId shouldBe 224
+            val group = message.searchFromGroupsResp.groupsList.single()
+            group.groupId shouldBe 5004
+            group.maxSelect shouldBe 1
+            group.idsList shouldBe listOf(42)
+        }
+
         test("modal choose-one serializes the picked grpIds as a CastingTimeOptions modal") {
             val msgs = bytesOf(SimDecision.ModalChoice(ctoId = 3, selectedGrpIds = listOf(101, 202)))
             msgs.size shouldBe 1

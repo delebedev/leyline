@@ -29,6 +29,7 @@ internal val CORRELATED_CLIENT_MESSAGE_TYPES: Set<ClientMessageType> =
         ClientMessageType.DistributionResp_097b,
         ClientMessageType.CastingTimeOptionsResp_097b,
         ClientMessageType.SearchResp_097b,
+        ClientMessageType.SearchFromGroupsResp_097b,
         ClientMessageType.AssignDamageResp_097b,
         ClientMessageType.OptionalActionResp,
         ClientMessageType.NumericInputResp_097b,

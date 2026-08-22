@@ -1174,6 +1174,15 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    fun respondToGroupedSearch(
+        groupId: Int,
+        itemsFound: List<Int>,
+        maxSelect: Int,
+    ) {
+        session.onSearchFromGroups(submitWithGsId(searchFromGroupsResp(groupId, itemsFound, maxSelect)))
+        drainSink()
+    }
+
     fun respondToEffectCost(selectedInstanceIds: List<Int>) {
         localConnection.submitGREMessage(submitWithGsId(effectCostResp(selectedInstanceIds)))
         drainSink()

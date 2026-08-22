@@ -8,7 +8,12 @@ import leyline.SimClientTag
 import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 
 /**
  * Drives the copilot proposal surface against a live Forge game (not synthetic
@@ -54,5 +59,42 @@ class CopilotProposalServiceTest :
 
             proposal.intent shouldBe "unrealizable"
             proposal.reason.shouldNotBeNull()
+        }
+
+        test("grouped search proposal carries an injectable echoed-group response") {
+            val harness = MatchFlowHarness(seed = 9L, deckList = "60 Forest")
+            harness.connectAndKeep()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SearchFromGroupsReq_695e)
+                    .setMsgId(224)
+                    .setGameStateId(174)
+                    .setSearchFromGroupsReq(
+                        SearchFromGroupsReq
+                            .newBuilder()
+                            .addGroups(
+                                Group
+                                    .newBuilder()
+                                    .setGroupId(5004)
+                                    .setMaxSelect(1)
+                                    .addIds(42),
+                            ),
+                    ).build()
+
+            val proposal = CopilotProposalService(harness.bridge, SeatId(1)).propose(prompt)
+            val hex = proposal.responses.single()
+            val response =
+                ClientToGREMessage.parseFrom(
+                    ByteArray(hex.length / 2) { index -> hex.substring(index * 2, index * 2 + 2).toInt(16).toByte() },
+                )
+
+            proposal.intent shouldBe "search"
+            proposal.responseIds shouldBe listOf(42)
+            response.type shouldBe ClientMessageType.SearchFromGroupsResp_097b
+            response.respId shouldBe 224
+            response.searchFromGroupsResp.groupsList
+                .single()
+                .groupId shouldBe 5004
         }
     })

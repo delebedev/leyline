@@ -3,6 +3,7 @@ package leyline.match
 import leyline.DevCheck
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.SearchGroupResponseValue
 import leyline.bridge.handoff.TargetToggleValue
 import leyline.bridge.handoff.TargetingCommandReceipt
 import leyline.bridge.handoff.TargetingInteractionKind
@@ -395,6 +396,34 @@ class TargetingHandler(
             return
         }
         bridge.awaitPriority()
+        autoPass()
+    }
+
+    fun onSearchFromGroupsResp(
+        greMsg: ClientToGREMessage,
+        autoPass: () -> Unit,
+    ) {
+        val search = ctx.bridge.cutCoordinator.search
+        val pending = search.current()
+        if (pending == null) {
+            log.warn("SearchFromGroupsResp but no coordinator-owned search window")
+            DevCheck.failOnAutoPass { "SearchFromGroupsResp but no search window" }
+            return
+        }
+        val accepted =
+            search.submitGroups(
+                pending.interactionId,
+                greMsg.gameStateId,
+                greMsg.searchFromGroupsResp.groupsList.map { group ->
+                    SearchGroupResponseValue(group.groupId, group.idsList, group.maxSelect)
+                },
+            )
+        if (!accepted) {
+            log.warn("SearchFromGroupsResp did not match the current search window")
+            DevCheck.failOnAutoPass { "SearchFromGroupsResp did not match the current search window" }
+            return
+        }
+        ctx.bridge.awaitPriority()
         autoPass()
     }
 

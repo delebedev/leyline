@@ -339,6 +339,23 @@ fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
         )
     }
 
+fun searchFromGroupsResp(
+    groupId: Int,
+    itemsFound: List<Int>,
+    maxSelect: Int,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchFromGroupsResp_097b) {
+        setSearchFromGroupsResp(
+            SearchFromGroupsResp.newBuilder().addGroups(
+                Group
+                    .newBuilder()
+                    .setGroupId(groupId)
+                    .setMaxSelect(maxSelect)
+                    .addAllIds(itemsFound),
+            ),
+        )
+    }
+
 // ---------------------------------------------------------------------------
 // Modal — CastingTimeOptionsResp
 // ---------------------------------------------------------------------------

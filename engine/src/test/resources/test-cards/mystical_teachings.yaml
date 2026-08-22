@@ -1,0 +1,13 @@
+name: "Mystical Teachings"
+grpId: 94022
+titleId: 34988
+abilities:
+  - id: 12940
+    textId: 654745
+    category: 4
+  - id: 12941
+    textId: 34990
+    category: 8
+    baseId: 35
+    mana: "o5oB"
+expansionCode: "FDN"

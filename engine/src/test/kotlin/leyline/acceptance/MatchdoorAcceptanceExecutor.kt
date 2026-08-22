@@ -300,16 +300,31 @@ private class ScenarioRun(
 
     private fun searchCards(step: SearchCardsStep) {
         val prompt = latestPromptMessage()
-        require(prompt?.hasSearchReq() == true) {
-            "$context expected latest prompt SearchReq"
+        require(prompt?.let { it.hasSearchReq() || it.hasSearchFromGroupsReq() } == true) {
+            "$context expected latest prompt SearchReq or SearchFromGroupsReq"
         }
-        val selectedIds = step.cards.map { resolveCardInZone(step.side, AcceptanceZone.Library, it) }
+        val selectedIds =
+            if (prompt.hasSearchFromGroupsReq()) {
+                val candidates = prompt.searchFromGroupsReq.groupsList.flatMap { it.idsList }
+                step.cards.map { card ->
+                    candidates.firstOrNull { iid -> cardNameByInstanceId(iid).equals(card, ignoreCase = true) }
+                        ?: error("$context could not find $card in grouped search candidates ${promptCardNames(candidates)}")
+                }
+            } else {
+                step.cards.map { resolveCardInZone(step.side, AcceptanceZone.Library, it) }
+            }
         selectedIds.zip(step.cards).forEach { (selectedId, card) ->
+            if (prompt.hasSearchFromGroupsReq()) return@forEach
             require(selectedId in prompt.searchReq.itemsSoughtList) {
                 "$context selected $card iid=$selectedId is not in SearchReq candidates ${prompt.searchReq.itemsSoughtList}"
             }
         }
-        harness.respondToSearch(selectedIds)
+        if (prompt.hasSearchFromGroupsReq()) {
+            val group = prompt.searchFromGroupsReq.groupsList.single { it.idsList.containsAll(selectedIds) }
+            harness.respondToGroupedSearch(group.groupId, selectedIds, group.maxSelect)
+        } else {
+            harness.respondToSearch(selectedIds)
+        }
     }
 
     private fun orderCards(step: OrderCardsStep) {

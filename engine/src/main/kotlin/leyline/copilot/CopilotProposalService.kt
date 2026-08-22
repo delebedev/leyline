@@ -86,6 +86,8 @@ class CopilotProposalService(
 
             GREMessageType.SearchReq_695e -> proposalFor(DefaultDecisions.search(prompt), prompt)
 
+            GREMessageType.SearchFromGroupsReq_695e -> proposalFor(DefaultDecisions.groupedSearch(prompt), prompt)
+
             GREMessageType.NumericInputReq_695e -> proposalFor(DefaultDecisions.numericInput(prompt), prompt)
 
             GREMessageType.PayCostsReq_695e ->

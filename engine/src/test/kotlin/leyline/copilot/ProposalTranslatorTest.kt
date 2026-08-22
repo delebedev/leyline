@@ -301,6 +301,18 @@ class ProposalTranslatorTest :
             p.responseIds shouldBe listOf(1, 2)
         }
 
+        test("grouped search preserves the backend-neutral search intent") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.GroupedSearch(5004, listOf(42), 1),
+                    GREMessageType.SearchFromGroupsReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "search"
+            p.responseIds shouldBe listOf(42)
+        }
+
         test("distribution decodes to a fixed-total intent carrying per-target amounts") {
             val p =
                 ProposalTranslator.translate(

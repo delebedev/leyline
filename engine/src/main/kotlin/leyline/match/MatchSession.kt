@@ -349,6 +349,11 @@ class MatchSession(
             targetingHandler.onSearchResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
         }
 
+    override fun onSearchFromGroups(greMsg: ClientToGREMessage) =
+        withValidResponse(greMsg) {
+            targetingHandler.onSearchFromGroupsResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+        }
+
     private fun withValidResponse(
         greMsg: ClientToGREMessage,
         block: () -> Unit,
