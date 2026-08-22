@@ -1,15 +1,12 @@
 package leyline.protocol
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
-import leyline.game.bundle.MechanicSourceFactsCapture
-import leyline.game.bundle.PersistentFeedFactsCapture
+import leyline.game.bundle.StateFrameInputCapture
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.snapshot.GsmSnapshot
@@ -497,37 +494,21 @@ object HandshakeMessages {
 
         // Full GSM built from live game state (stage=Play, cards in zones)
         val priorProjection = bridge.projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            bridge.editProjection(priorProjection) {
-                GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, gameStateId)
-            }
-        val events = bridge.closeBundleFrame(seatId.value)
-        val promptFacts = bridge.materializePromptProjectionFacts()
+        val input =
+            StateFrameInputCapture(bridge, matchId, seatId.value).capture(
+                game = bridge.getGame()!!,
+                gameStateId = gameStateId,
+                revealForSeat = null,
+                events = StateFrameInputCapture.Events.CloseBundleFrame,
+                priorProjectionOverride = priorProjection,
+                includePreviousSnapshot = false,
+            ) { _, _ -> GameStateUpdate.SendAndRecord }
+        val snap = input.state.snapshot
         val fullResult =
             StateProjectionCompiler.compileOneViewer(
                 environment = bridge.stateProjectionEnvironment,
-                input =
-                    StateFrameInput(
-                        gameStateId = gameStateId,
-                        snapshot = snap,
-                        previousSnapshot = null,
-                        events = events,
-                        promptFacts = promptFacts,
-                        persistentFeedFacts =
-                            PersistentFeedFactsCapture.capture(
-                                snap,
-                                promptFacts,
-                                bridge,
-                                bridge.stateProjectionEnvironment,
-                            ),
-                        effectFacts = bridge.materializeEffectProjectionFacts(),
-                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, events.events),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, bridge),
-                        updateType = GameStateUpdate.SendAndRecord,
-                        viewingSeatId = seatId.value,
-                        revealForSeat = null,
-                    ),
-                prior = capturedProjection.copy(revision = priorProjection.revision),
+                input = input.state,
+                prior = input.priorProjection,
                 intent = ViewerProjectionIntent.EMPTY,
             )
         val transition = fullResult.transition
