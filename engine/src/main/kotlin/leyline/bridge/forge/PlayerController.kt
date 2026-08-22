@@ -275,6 +275,13 @@ class PlayerController(
                 playerSeatOf = { target ->
                     if (target.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
                 },
+                playerViewSeatOf = { target ->
+                    game.players
+                        .firstOrNull { it.id == target.id }
+                        ?.let {
+                            if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                        }
+                },
                 stackTargetCandidate = ::stackTargetCandidate,
                 currentDividedAllocationAbility = { activeDividedAllocationAbility },
                 beforeDividedAllocation = targetingCoordinator::recordCompletedTargetSpec,
