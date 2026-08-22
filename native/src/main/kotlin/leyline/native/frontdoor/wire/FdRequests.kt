@@ -158,8 +158,6 @@ object FdRequests {
     data class DraftPick(
         val eventName: String,
         val cardId: Int,
-        val packNumber: Int,
-        val pickNumber: Int,
     )
 
     fun parseDraftPick(json: String?): DraftPick? =
@@ -174,9 +172,7 @@ object FdRequests {
                     ?.content
                     ?.toIntOrNull()
                     ?: return@parse null
-            val packNumber = pickInfo["PackNumber"]?.jsonPrimitive?.int ?: return@parse null
-            val pickNumber = pickInfo["PickNumber"]?.jsonPrimitive?.int ?: return@parse null
-            DraftPick(eventName, cardId, packNumber, pickNumber)
+            DraftPick(eventName, cardId)
         }
 
     private inline fun <T> parse(

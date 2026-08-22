@@ -1,13 +1,14 @@
 package leyline.domain.service
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.domain.CourseModule
 import leyline.domain.DraftStatus
 import leyline.domain.PlayerId
+import leyline.domain.repo.InMemoryCourseRepository
 import leyline.domain.repo.InMemoryDraftSessionRepository
 
 /**
@@ -76,8 +77,12 @@ class DraftServiceTest :
 
         fun createService(packs: List<List<Int>> = scriptedPacks()): Pair<DraftService, ScriptedDraftDriver> {
             val repo = InMemoryDraftSessionRepository()
+            val courseService =
+                CourseService(InMemoryCourseRepository()) { _ ->
+                    GeneratedPool(emptyList(), emptyList(), 0)
+                }
             val driver = ScriptedDraftDriver(packs)
-            return DraftService(repo, driver) to driver
+            return DraftService(repo, driver, courseService) to driver
         }
 
         test("startDraft creates session with first pack of 13 cards") {
@@ -105,7 +110,7 @@ class DraftServiceTest :
             val session = service.startDraft(playerId, eventName)
             val cardToPick = session.draftPack.first()
 
-            val after = service.pick(playerId, eventName, cardToPick, 0, 0)
+            val after = service.pick(playerId, eventName, cardToPick)
 
             assertSoftly {
                 after.pickNumber shouldBe 1
@@ -122,7 +127,7 @@ class DraftServiceTest :
 
             repeat(13) {
                 val card = session.draftPack.first()
-                session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
+                session = service.pick(playerId, eventName, card)
             }
 
             assertSoftly {
@@ -139,7 +144,7 @@ class DraftServiceTest :
 
             repeat(39) {
                 val card = session.draftPack.first()
-                session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
+                session = service.pick(playerId, eventName, card)
             }
 
             assertSoftly {
@@ -160,12 +165,16 @@ class DraftServiceTest :
                     botDecks = List(7) { seat -> List(40) { 80000 + seat * 100 + it } },
                 )
             val driver = ScriptedDraftDriver(packs, expectedPod)
-            val service = DraftService(repo, driver)
+            val courseService =
+                CourseService(InMemoryCourseRepository()) { _ ->
+                    GeneratedPool(emptyList(), emptyList(), 0)
+                }
+            val service = DraftService(repo, driver, courseService)
             var session = service.startDraft(playerId, eventName)
 
             repeat(39) {
                 val card = session.draftPack.first()
-                session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
+                session = service.pick(playerId, eventName, card)
             }
 
             val saved = repo.findPodResults(session.id)
@@ -198,13 +207,52 @@ class DraftServiceTest :
             service.startDraft(playerId, eventName)
             service.getStatus(playerId, eventName) shouldNotBe null
 
-            service.drop(playerId, eventName)
+            val dropped = service.drop(playerId, eventName)
+            dropped.module shouldBe CourseModule.Complete
             service.getStatus(playerId, eventName) shouldBe null
         }
 
-        test("drop on non-existent session is a no-op") {
+        test("drop closes a joined course when no draft session exists") {
             val (service, _) = createService()
-            shouldNotThrowAny { service.drop(playerId, eventName) }
+            service.joinDraft(playerId, eventName)
+            service.drop(playerId, eventName).module shouldBe CourseModule.Complete
+        }
+
+        test("final pick transitions the course to deck selection") {
+            val courseRepo = InMemoryCourseRepository()
+            val courseService = CourseService(courseRepo) { _ -> GeneratedPool(emptyList(), emptyList(), 0) }
+            val service =
+                DraftService(
+                    InMemoryDraftSessionRepository(),
+                    ScriptedDraftDriver(listOf(listOf(1001)), DraftService.PodOutcome(listOf(1001), emptyList())),
+                    courseService,
+                )
+
+            val session = service.startDraft(playerId, eventName)
+            service.pick(playerId, eventName, session.draftPack.single())
+
+            val course = courseRepo.findByPlayerAndEvent(playerId, eventName)
+            assertSoftly {
+                course?.module shouldBe CourseModule.DeckSelect
+                course?.cardPool shouldBe listOf(1001)
+                course?.cardPoolByCollation?.single()?.collationId shouldBe 100058
+            }
+        }
+
+        test("starting after a completed course creates a fresh draft") {
+            val courseRepo = InMemoryCourseRepository()
+            val courseService = CourseService(courseRepo) { _ -> GeneratedPool(emptyList(), emptyList(), 0) }
+            val service = DraftService(InMemoryDraftSessionRepository(), ScriptedDraftDriver(listOf(listOf(1001))), courseService)
+
+            val first = service.startDraft(playerId, eventName)
+            courseService.claimPrize(playerId, eventName)
+            val restarted = service.startDraft(playerId, eventName)
+
+            assertSoftly {
+                restarted.id shouldNotBe first.id
+                restarted.status shouldBe DraftStatus.PickNext
+                courseRepo.findByPlayerAndEvent(playerId, eventName)?.module shouldBe CourseModule.BotDraft
+            }
         }
 
         test("variable pack sizes complete correctly") {
@@ -220,7 +268,7 @@ class DraftServiceTest :
             val totalCards = 14 + 14 + 13
             repeat(totalCards) {
                 val card = session.draftPack.first()
-                session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
+                session = service.pick(playerId, eventName, card)
             }
 
             assertSoftly {

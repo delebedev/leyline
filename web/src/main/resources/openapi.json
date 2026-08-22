@@ -734,20 +734,12 @@
                     },
                     "cardId": {
                         "type": "integer"
-                    },
-                    "packNumber": {
-                        "type": "integer"
-                    },
-                    "pickNumber": {
-                        "type": "integer"
                     }
                 },
                 "required": [
                     "playerId",
                     "eventName",
-                    "cardId",
-                    "packNumber",
-                    "pickNumber"
+                    "cardId"
                 ],
                 "additionalProperties": false
             },

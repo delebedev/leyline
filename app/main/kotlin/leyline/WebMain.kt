@@ -92,6 +92,7 @@ fun main(args: Array<String>) {
                     return DraftService.PodOutcome(result.playerPool, result.botDecks)
                 }
             },
+            courseService,
         ).also { it.discardIncompleteSessions() }
     val coordinator = AppMatchCoordinator(defaultPlayerId, deckService, courseService, draftRepo, cardRepo::findNameByGrpId)
     val relay = InProcessWebGreRelay()
