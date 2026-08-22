@@ -12,10 +12,15 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.game.PlaybackTerminalFailure
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.infra.MessageSink
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
@@ -39,7 +44,7 @@ class SpectatorSessionTest :
         test("pumpOnce sends game over once") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -59,6 +64,9 @@ class SpectatorSessionTest :
                 session.pumpOnce().shouldBeTrue()
                 session.pumpOnce().shouldBeFalse()
                 sink.rawMessages shouldHaveSize 1
+                sink.messages
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage.gameInfo.matchID shouldBe "test-match"
             }
             releaseHook.countDown()
             session.close()
@@ -67,7 +75,7 @@ class SpectatorSessionTest :
         test("pumpOnce forwards AI-vs-AI playback") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -97,12 +105,52 @@ class SpectatorSessionTest :
             }
         }
 
+        test("game-over delivery failure terminalizes the coordinator") {
+            val reachedHook = CountDownLatch(1)
+            val releaseHook = CountDownLatch(1)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
+            bridge = b
+            b.startAiVsAi(
+                seed = 42,
+                startGameHook =
+                    Runnable {
+                        reachedHook.countDown()
+                        releaseHook.await(5, TimeUnit.SECONDS)
+                    },
+            )
+            reachedHook.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+            val failure = IllegalStateException("spectator sink failed")
+            val sink =
+                object : MessageSink {
+                    override fun send(messages: List<GREToClientMessage>) = throw failure
+
+                    override fun sendRaw(msg: MatchServiceToClientMessage) = error("raw delivery should not run")
+                }
+            val session = SpectatorSession(SeatId(1), "test-match", sink, b)
+            try {
+                b.getGame()!!.age = GameStage.GameOver
+                val terminal =
+                    shouldThrow<PlaybackTerminalFailure> {
+                        session.sendGameOver(ResultReason.Concede)
+                    }
+
+                assertSoftly {
+                    terminal.cause shouldBe failure
+                    b.cutCoordinator.failure() shouldBe terminal
+                }
+            } finally {
+                releaseHook.countDown()
+                session.close()
+            }
+        }
+
         test("pumpOnce surfaces a main-loop completion failure") {
             val reachedStart = CountDownLatch(1)
             val releaseStart = CountDownLatch(1)
             val reachedCompletion = CountDownLatch(1)
             val failure = IllegalStateException("completion failed")
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             b.startAiVsAi(
                 seed = 42,
@@ -144,7 +192,7 @@ class SpectatorSessionTest :
         test("projection freezes Brawl configuration after spectator game starts") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             val sink = ListMessageSink()
             val session = SpectatorSession(SeatId(1), "test-match", sink, b)
@@ -177,7 +225,7 @@ class SpectatorSessionTest :
         }
 
         test("registering replacement spectator session closes prior pump") {
-            val b = GameBridge(cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
             bridge = b
             val registry = MatchRegistry()
             val first = SpectatorSession(SeatId(1), "test-match", ListMessageSink(), b)

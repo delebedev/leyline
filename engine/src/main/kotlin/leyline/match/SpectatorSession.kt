@@ -108,7 +108,7 @@ class SpectatorSession(
                 lossReason = AnnotationLossReason.LifeTotal,
             ),
         )
-        gameBridge.cutCoordinator.drain(seatId).forEach(::sendBundledGRE)
+        deliverCommittedCoordinatorBatches(this, gameBridge, seatId)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
 

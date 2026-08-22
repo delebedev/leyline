@@ -584,7 +584,7 @@ class MatchSession(
                 lossReason = lossReason,
             ),
         )
-        bridge.cutCoordinator.drain(seatId).forEach(::sendBundledGRE)
+        deliverCommittedCoordinatorBatches(this, bridge, seatId)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
