@@ -7,6 +7,9 @@ enableFeaturePreview("NO_IMPLICIT_LOOKUP_IN_PARENT_PROJECTS")
 rootProject.name = "leyline"
 include("domain")
 include("engine")
+include("gre-proto")
 include("native")
 include("web")
 include("tools:detekt-rules")
+
+project(":gre-proto").projectDir = file("proto")

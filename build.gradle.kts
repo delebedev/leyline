@@ -42,7 +42,7 @@ configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
     version.set(ktlintVersion)
 }
 subprojects {
-    if (path == ":tools" || path == ":tools:detekt-rules") return@subprojects
+    if (path == ":tools" || path == ":tools:detekt-rules" || path == ":gre-proto") return@subprojects
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
     configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
         version.set(ktlintVersion)
@@ -79,9 +79,8 @@ allprojects {
 }
 
 subprojects {
-    // Skip the implicit `:tools` container project and the custom-rules module
-    // itself (can't depend on itself, and it doesn't need detekt's scrutiny).
-    if (path == ":tools" || path == ":tools:detekt-rules") return@subprojects
+    // Skip projects without Kotlin sources and the custom-rules module itself.
+    if (path == ":tools" || path == ":tools:detekt-rules" || path == ":gre-proto") return@subprojects
     apply(plugin = "dev.detekt")
     repositories { mavenCentral() }
     configure<dev.detekt.gradle.extensions.DetektExtension> {
@@ -136,6 +135,7 @@ dependencies {
     implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(project(":engine"))
+    implementation(project(":gre-proto"))
     implementation(project(":native"))
     implementation(project(":web"))
     implementation(libs.protobuf.java.util)
@@ -166,6 +166,7 @@ dependencies {
     webProfileRuntimeClasspath(sourceSets.main.get().output)
     webProfileRuntimeClasspath(project(":domain"))
     webProfileRuntimeClasspath(project(":engine"))
+    webProfileRuntimeClasspath(project(":gre-proto"))
     webProfileRuntimeClasspath(project(":web"))
     webProfileRuntimeClasspath(libs.kotlin.stdlib)
     webProfileRuntimeClasspath(libs.serialization.json)

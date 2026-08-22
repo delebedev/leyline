@@ -2,7 +2,6 @@
 
 Forge bridge and GRE match-session engine. Native TCP and web transports both feed parsed GRE messages into `leyline.match.MatchHandler`; ports and byte framing live outside this module.
 
-- **Proto:** `src/main/proto/messages.proto` — canonical client protobuf schema.
 - **Forge coupling is structural:** `PlayerController` extends `PlayerControllerHuman`; `GameBootstrap` constructs Forge `Match`, `Game`, and `Deck`.
 - **Proto pervasive:** GRE protobuf is the output format, not an anti-corruption boundary.
 

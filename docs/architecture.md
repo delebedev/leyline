@@ -24,23 +24,32 @@ flowchart LR
     W --> D
     E --> D
     E --> F["forge<br/>rules engine"]
-    A["app<br/>composition root"] -. "wires" .-> N
+    E --> GP["gre-proto<br/>generated GRE schema"]
+    N --> GP
+    W --> GP
+    A["app<br/>composition root"] --> GP
+    A -. "wires" .-> N
     A -. "wires" .-> W
     A -. "wires" .-> E
 ```
 
 The heads decode different transports but submit to the same engine match
-surface. `engine` is the only Gradle module that depends on Forge.
+surface. `engine` is the only Gradle module that depends on Forge. `gre-proto`
+(mapped to `proto/`) owns the generated GRE wire schema: it synchronizes
+`proto/src/main/proto/messages.proto` from the `proto/upstream` submodule
+through `proto/rename-map.sed`, runs protoc, and ships the generated
+`wotc.mtgo.gre.external.messaging` classes.
 
 ## Modules
 
 | Module | Owns | Depends on |
 |---|---|---|
-| root `app/` | `LeylineMain`, service wiring, local control, management | domain, engine, native, web |
+| root `app/` | `LeylineMain`, service wiring, local control, management | domain, engine, gre-proto, native, web |
 | `domain` | Shared values, services, repository ports | no application module |
-| `engine` | Forge adapter, match runtime, interaction ownership, state projection | domain, Forge |
-| `native` | Account, lobby, native match transport and framing | domain, engine |
-| `web` | Browser routes, authentication, GRE relay | domain, engine |
+| `gre-proto` | Generated GRE schema, protoc output | no application module |
+| `engine` | Forge adapter, match runtime, interaction ownership, state projection | domain, gre-proto, Forge |
+| `native` | Account, lobby, native match transport and framing | domain, engine, gre-proto |
+| `web` | Browser routes, authentication, GRE relay | domain, engine, gre-proto |
 
 Within `engine`, responsibilities follow the runtime boundary:
 

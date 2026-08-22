@@ -13,6 +13,7 @@ dependencies {
     implementation(platform(libs.netty.bom))
     implementation(project(":domain"))
     implementation(project(":engine"))
+    implementation(project(":gre-proto"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
     implementation(libs.protobuf.java)
