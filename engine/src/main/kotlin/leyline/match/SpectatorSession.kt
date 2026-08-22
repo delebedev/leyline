@@ -1,6 +1,8 @@
 package leyline.match
 
+import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
+import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
@@ -97,7 +99,16 @@ class SpectatorSession(
     override fun sendGameOver(reason: ResultReason) {
         val p1Won = gameBridge.getPlayer(SeatId(1))?.getOutcome()?.hasWon() == true
         val winningTeam = if (p1Won) 1 else 2
-        sendBundledGRE(bundleBuilder.gameOverBundle(winningTeam, counter, reason = reason).messages)
+        gameBridge.cutCoordinator.publishGameOver(
+            seatId,
+            GameOverIntent(
+                winningTeam = winningTeam,
+                reason = reason,
+                losingPlayerSeatId = 0,
+                lossReason = AnnotationLossReason.LifeTotal,
+            ),
+        )
+        gameBridge.cutCoordinator.drain(seatId).forEach(::sendBundledGRE)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
 

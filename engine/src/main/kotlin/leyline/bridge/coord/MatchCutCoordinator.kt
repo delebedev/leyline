@@ -44,6 +44,7 @@ internal class MatchCutCoordinator(
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
+    internal val gameOver = MatchGameOverRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
     internal val interactions = MatchBlockingInteractionRuntime(this)
     internal val prompts = MatchPromptRuntimeSet(this)
@@ -71,6 +72,12 @@ internal class MatchCutCoordinator(
     internal var beforePublicationLock: (() -> Unit)? = null
 
     fun actionWindowRuntime(seatId: SeatId): GameActionBridge.ActionWindowRuntime = actions.bridge(seatId)
+
+    /** Publish the terminal lifecycle cut for one viewer. Delivery stays with the session. */
+    fun publishGameOver(
+        seatId: SeatId,
+        intent: GameOverIntent,
+    ) = gameOver.publish(seatId, intent)
 
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
 

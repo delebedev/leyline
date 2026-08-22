@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.player.GameLossReason
+import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.SeatId
@@ -574,28 +575,16 @@ class MatchSession(
         val losingPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
         val lossReason = annotationLossReasonFor(reason, losingPlayer?.getOutcome()?.lossState)
 
-        // If there are pending events (e.g. mana-ability sacrifice during resolution),
-        // build a final diff GSM to emit those annotations before the game-over bundle.
-        // This mirrors client behavior, which sends a resolution GSM before GameComplete.
-        val bb = bundleBuilder
-        if (bridge.hasPendingEvents()) {
-            val game = bridge.getGame()
-            if (game != null) {
-                val resolutionBundle = bb.stateOnlyDiff(game, counter)
-                sendBundledGRE(resolutionBundle.messages)
-                log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
-            }
-        }
-
-        val result =
-            bb.gameOverBundle(
-                winningTeam,
-                counter,
+        bridge.cutCoordinator.publishGameOver(
+            seatId,
+            GameOverIntent(
+                winningTeam = winningTeam,
                 reason = reason,
                 losingPlayerSeatId = losingPlayerSeatId,
                 lossReason = lossReason,
-            )
-        sendBundledGRE(result.messages)
+            ),
+        )
+        bridge.cutCoordinator.drain(seatId).forEach(::sendBundledGRE)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
