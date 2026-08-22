@@ -11,6 +11,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.MatchSpec
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -32,9 +33,17 @@ class MatchdoorAcceptanceExecutor(
         onComplete: (List<GREToClientMessage>) -> Unit = {},
     ): Int {
         require(scenario.steps.isNotEmpty()) { "scenario ${scenario.id} has no executable steps" }
-        val harness = MatchFlowHarness(seed = seed)
+        val match =
+            MatchFlowHarness.fromSpec(
+                MatchSpec(
+                    seed = seed,
+                    puzzleText = readPuzzleText(scenario.puzzle),
+                    responseMode = leyline.tooling.headless.HeadlessResponseMode.AutoForTests,
+                ),
+            )
+        val harness = match as MatchFlowHarness
         try {
-            harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
+            match.start()
             val run = ScenarioRun(harness, scenario.id)
             var remainingOptionalActions = scenario.steps.count { it is OptionalActionStep }
             if (remainingOptionalActions > 0) harness.holdNextOptionalAction()
@@ -50,7 +59,7 @@ class MatchdoorAcceptanceExecutor(
             onComplete(harness.allMessages.toList())
             return scenario.steps.size
         } finally {
-            harness.shutdown()
+            match.close()
         }
     }
 }
