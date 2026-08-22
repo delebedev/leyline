@@ -274,6 +274,7 @@ class MatchFlowHarness(
 
     private fun newBridge(repo: CardRepository): GameBridge =
         GameBridge(
+            matchId = matchId,
             bridgeTimeoutMs = effectiveMatchConfig.server.bridgeTimeoutMs,
             promptFailsafeMs = effectiveMatchConfig.server.promptFailsafeMs,
             matchConfig = effectiveMatchConfig,

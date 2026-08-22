@@ -1800,9 +1800,32 @@ class BundleBuilder(
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
     ): BundleResult =
-        projectAndCommit {
-            buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
-        }
+        prepareGameOverBundle(
+            winningTeam = winningTeam,
+            counter = counter,
+            reason = reason,
+            losingPlayerSeatId = losingPlayerSeatId,
+            lossReason = lossReason,
+        ).bundle
+
+    /** Prepare the terminal lifecycle bundle without installing projection state. */
+    internal fun prepareGameOverBundle(
+        winningTeam: Int,
+        counter: MessageCounter,
+        reason: ResultReason = ResultReason.Game_ae0a,
+        losingPlayerSeatId: Int = 0,
+        lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
+        priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
+    ): ActionWindowPrepared {
+        val (bundle, next) =
+            bridge.editProjection(priorProjection) {
+                buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
+            }
+        return ActionWindowPrepared(
+            bundle = bundle,
+            transition = ProjectionTransition(priorProjection.revision, next),
+        )
+    }
 
     @Suppress("LongMethod") // fixed three-message game-over protocol sequence
     private fun buildGameOverBundle(

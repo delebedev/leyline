@@ -28,7 +28,10 @@ can run inside a larger mutation burst.
 
 The coordinator owns committed feeds and the focused interaction runtimes under
 that boundary. `ProjectionState` installs through a revision-checked transition;
-pending windows use correlated values and bounded retained-handle tables.
+pending windows use correlated values and bounded retained-handle tables. The
+coordinator's game-over lifecycle cut also materializes any pending resolution
+diff and the terminal sequence before one ordered feed installation; sessions
+only drain that feed and deliver the raw room-state completion message.
 
 ### Lock order
 
@@ -52,9 +55,9 @@ must remain protected as one publication boundary.
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`.
 Puzzle replacement can install fresh projection state from its own executor.
-Named lifecycle and residual output builders still share counters and sequencing
-with coordinator-backed output. These are explicit migration seams, not patterns
-for new entry points.
+Residual output builders still share counters and sequencing with
+coordinator-backed output. These are explicit migration seams, not patterns for
+new entry points.
 
 ## Publication before signalling
 
