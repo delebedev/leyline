@@ -168,11 +168,11 @@ class CourseService(
         playerId: PlayerId,
         eventName: String,
         pickedCards: List<Int>,
-        collationId: Int = 0,
     ): Course {
         val course =
             repo.findByPlayerAndEvent(playerId, eventName)
                 ?: throw IllegalArgumentException("No course for $eventName")
+        val collationId = EventRegistry.findEvent(eventName)?.collationId ?: 0
         val updated =
             course.copy(
                 module = CourseModule.DeckSelect,
