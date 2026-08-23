@@ -9,6 +9,7 @@ import leyline.SimClientTag
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import leyline.tooling.artifact.SyntheticArtifactWriter
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.nio.file.Files
@@ -27,7 +28,7 @@ class SimClientE2ETest :
             val harness = MatchFlowHarness(seed = 42L)
             val tempLog = Files.createTempFile("simclient-bolt-face-", ".log").toFile()
             val writer = tempLog.bufferedWriter()
-            val playerLog = PlayerLogWriter(out = writer, matchId = "simclient-bolt-face")
+            val playerLog = SyntheticArtifactWriter(out = writer, matchId = "simclient-bolt-face")
             try {
                 SimClientDriver(
                     harness = harness,

@@ -1,4 +1,4 @@
-package leyline.tooling.simclient
+package leyline.tooling.artifact
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -37,7 +37,7 @@ import java.io.StringWriter
 import java.nio.file.Files
 import java.time.LocalDateTime
 
-class PlayerLogWriterTest :
+class SyntheticArtifactWriterTest :
     FunSpec({
         tags(UnitTag)
 
@@ -45,13 +45,17 @@ class PlayerLogWriterTest :
             val dir = Files.createTempDirectory("simclient-sidecar").toFile()
             val logFile = dir.resolve("quoted.log")
 
-            writeSimClientSidecar(
+            writeSyntheticArtifactSidecar(
                 logFile = logFile,
-                matchId = "match-\"quoted\"",
-                runLabel = "Deck \"A\"",
-                opponentRunLabel = "Blue\\Tempo",
-                seed = 7,
-                generatedAt = LocalDateTime.of(2026, 5, 1, 12, 0, 0),
+                identity =
+                    SyntheticArtifactIdentity(
+                        matchId = "match-\"quoted\"",
+                        runLabel = "Deck \"A\"",
+                        opponentRunLabel = "Blue\\Tempo",
+                        seed = 7,
+                        generatedAt = LocalDateTime.of(2026, 5, 1, 12, 0, 0),
+                        runKind = "deck",
+                    ),
             )
 
             val sidecar = dir.resolve("quoted.meta.json").readText()
@@ -79,7 +83,7 @@ class PlayerLogWriterTest :
             val logFile = source.resolve("acceptance-example.log").apply { writeText("trace") }
             source.resolve("acceptance-example.meta.json").writeText("{}")
 
-            ingestSimClientArtifacts(logFile, target)
+            ingestSyntheticArtifacts(logFile, target)
 
             target.resolve("acceptance-example.log").toFile().readText() shouldBe "trace"
             target.resolve("acceptance-example.meta.json").toFile().readText() shouldBe "{}"
@@ -88,7 +92,7 @@ class PlayerLogWriterTest :
         test("writeBundle normalizes annotation enum suffixes") {
             val out = StringWriter()
             val writer =
-                PlayerLogWriter(
+                SyntheticArtifactWriter(
                     out = out,
                     matchId = "match-annotations",
                     clock = { LocalDateTime.of(2026, 5, 1, 12, 0, 0) },
@@ -147,7 +151,7 @@ class PlayerLogWriterTest :
         test("writeBundle canonicalizes common enum fields") {
             val out = StringWriter()
             val writer =
-                PlayerLogWriter(
+                SyntheticArtifactWriter(
                     out = out,
                     matchId = "match-enums",
                     clock = { LocalDateTime.of(2026, 5, 1, 12, 0, 0) },

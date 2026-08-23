@@ -41,7 +41,10 @@ class SimClientRunnerTest :
                 )
             assertSoftly {
                 Files.exists(outDir.resolve("${row.tag}.log").toPath()) shouldBe true
-                Files.exists(outDir.resolve("${row.tag}.meta.json").toPath()) shouldBe true
+                val meta = outDir.resolve("${row.tag}.meta.json").toPath()
+                Files.exists(meta) shouldBe true
+                Files.readString(meta) shouldContain "\"source\": \"simclient\""
+                Files.readString(meta) shouldContain "\"deck:forest-only\""
                 Files.exists(outDir.resolve("${row.tag}.stats.json").toPath()) shouldBe true
             }
         }
@@ -65,6 +68,7 @@ class SimClientRunnerTest :
             val row = result.rows.single().row
             row.runKind shouldBe "puzzle"
             row.runLabel shouldBe "bolt-face"
+            Files.readString(outDir.resolve("${row.tag}.meta.json").toPath()) shouldContain "\"puzzle:bolt-face\""
             Files.exists(outDir.resolve("${row.tag}.stats.json").toPath()) shouldBe true
         }
 

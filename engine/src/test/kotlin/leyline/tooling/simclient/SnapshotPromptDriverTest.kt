@@ -8,6 +8,7 @@ import leyline.SimClientTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.artifact.SyntheticArtifactWriter
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -25,7 +26,7 @@ class SnapshotPromptDriverTest :
             return try {
                 SimClientDriver(
                     harness = harness,
-                    log = PlayerLogWriter(writer, "snapshot-prompt-driver"),
+                    log = SyntheticArtifactWriter(writer, "snapshot-prompt-driver"),
                     maxTurns = 2,
                     connect = {
                         harness.connectAndKeepPuzzleText(

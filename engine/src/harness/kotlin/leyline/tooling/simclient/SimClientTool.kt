@@ -4,6 +4,12 @@ import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
+import leyline.tooling.artifact.SyntheticArtifactIdentity
+import leyline.tooling.artifact.SyntheticArtifactQuarantine
+import leyline.tooling.artifact.SyntheticArtifactQuarantineSide
+import leyline.tooling.artifact.SyntheticArtifactWriter
+import leyline.tooling.artifact.ingestSyntheticArtifacts
+import leyline.tooling.artifact.writeSyntheticArtifactSidecar
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import java.io.File
@@ -133,7 +139,7 @@ class SimClientRunner internal constructor(
     private fun createDriver(
         row: SimClientRow,
         harness: MatchFlowHarness,
-        playerLog: PlayerLogWriter,
+        playerLog: SyntheticArtifactWriter,
     ): SimClientDriver {
         val forgeAi =
             if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
@@ -171,7 +177,7 @@ class SimClientRunner internal constructor(
     private fun runWithTimeout(
         run: TimedRunContext,
         createHarness: () -> MatchFlowHarness,
-        runGame: (MatchFlowHarness, PlayerLogWriter) -> GameStats,
+        runGame: (MatchFlowHarness, SyntheticArtifactWriter) -> GameStats,
     ): GameStats {
         val matchId = "simclient-${run.tag}"
         val harnessRef = AtomicReference<MatchFlowHarness?>()
@@ -186,7 +192,7 @@ class SimClientRunner internal constructor(
                     val writer = run.logFile.bufferedWriter()
                     try {
                         val playerLog =
-                            PlayerLogWriter(
+                            SyntheticArtifactWriter(
                                 out = writer,
                                 matchId = matchId,
                                 clock = {
@@ -219,16 +225,21 @@ class SimClientRunner internal constructor(
             } finally {
                 executor.shutdownNow()
             }
-        writeSimClientSidecar(
+        writeSyntheticArtifactSidecar(
             run.logFile,
-            matchId,
-            run.runLabel,
-            run.opponentRunLabel,
-            run.seed,
-            LocalDateTime.now(),
-            run.runKind,
-            deckOverlay = run.deckOverlay,
-            opponentDeckOverlay = run.opponentDeckOverlay,
+            SyntheticArtifactIdentity(
+                matchId = matchId,
+                runLabel = run.runLabel,
+                opponentRunLabel = run.opponentRunLabel,
+                seed = run.seed,
+                generatedAt = LocalDateTime.now(),
+                runKind = run.runKind,
+                quarantine =
+                    SyntheticArtifactQuarantine(
+                        deck = run.deckOverlay?.toSyntheticArtifactSide(),
+                        opponentDeck = run.opponentDeckOverlay?.toSyntheticArtifactSide(),
+                    ).takeUnless { it.deck == null && it.opponentDeck == null },
+            ),
         )
         return stats
     }
@@ -346,7 +357,7 @@ class SimClientRunner internal constructor(
         val out = Path.of(System.getProperty("user.home"), ".scry", "games")
         var count = 0
         config.outDir.listFiles { file -> isSimClientGameLogFile(file) }.orEmpty().forEach { log ->
-            ingestSimClientArtifacts(log, out)
+            ingestSyntheticArtifacts(log, out)
             count += 1
         }
         println("Sim-client: $count game(s) ingested into $out")
@@ -372,3 +383,11 @@ private data class TimedRunContext(
 )
 
 internal fun isSimClientGameLogFile(file: File): Boolean = file.extension == "log" && !file.name.endsWith(".console.log")
+
+private fun DeckOverlayReport.toSyntheticArtifactSide(): SyntheticArtifactQuarantineSide =
+    SyntheticArtifactQuarantineSide(
+        policy = if (policy == SimClientExcludePolicy.ReplaceBasic) "replace-basic" else "skip-deck",
+        removedCount = removedCount,
+        removedCards = removedCards,
+        replacement = replacement,
+    )
