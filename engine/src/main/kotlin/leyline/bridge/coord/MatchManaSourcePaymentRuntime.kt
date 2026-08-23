@@ -24,7 +24,10 @@ import java.util.concurrent.atomic.AtomicLong
 /** Exact iterative mana-source payment lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchManaSourcePaymentRuntime(
     private val owner: MatchCutCoordinator,
-) : ManaSourcePaymentRuntime {
+) : ManaSourcePaymentRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.ManaSourcePayment
+
     private sealed interface Command {
         val reply: CompletableFuture<ManaSourcePaymentCommandReceipt>
 
@@ -140,7 +143,7 @@ internal class MatchManaSourcePaymentRuntime(
         }
     }
 
-    fun current(): PublishedManaSourcePaymentInteraction? =
+    override fun current(): PublishedManaSourcePaymentInteraction? =
         synchronized(owner.feedLock) {
             window?.takeUnless { it.exchange.inFlight != null || it.exchange.delivery != null }?.published
         }
@@ -175,9 +178,10 @@ internal class MatchManaSourcePaymentRuntime(
         return true
     }
 
-    fun pendingCutLocked(): PendingPromptCut<ManaSourcePaymentWindowValue>? = window?.cut.also { afterDeliveryCutLookup?.invoke() }
+    override fun claimTerminalCutLocked(): PendingPromptCut<ManaSourcePaymentWindowValue>? =
+        window?.cut.also { afterDeliveryCutLookup?.invoke() }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             val pending = window ?: return
             pending.exchange.terminateLocked(cause, Command.Terminal(cause))
@@ -185,7 +189,7 @@ internal class MatchManaSourcePaymentRuntime(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) { window = null }
     }
 

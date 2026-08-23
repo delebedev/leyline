@@ -16,7 +16,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchCardSelectInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : CardSelectInteractionRuntime {
+) : CardSelectInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.CardSelect
+
     private data class Window(
         val published: PublishedCardSelectInteraction,
         val value: CardSelectWindowValue,
@@ -63,7 +66,7 @@ internal class MatchCardSelectInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedCardSelectInteraction? = windows.current()?.published
+    override fun current(): PublishedCardSelectInteraction? = windows.current()?.published
 
     fun submitSelectN(
         interactionId: String,
@@ -101,11 +104,11 @@ internal class MatchCardSelectInteractionRuntime(
             completeSelection(pending, selectedInstanceIds)
         }
 
-    fun terminate(cause: Throwable) = windows.terminate(cause)
+    override fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() = windows.reset()
+    override fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingPromptCut<CardSelectWindowValue>? = windows.pendingCutLocked()
+    override fun claimTerminalCutLocked(): PendingPromptCut<CardSelectWindowValue>? = windows.pendingCutLocked()
 
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
         kernel.publish(

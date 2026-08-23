@@ -15,7 +15,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact static enum SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchStaticChoiceInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : StaticChoiceInteractionRuntime {
+) : StaticChoiceInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.StaticChoice
+
     private data class Window(
         val published: PublishedStaticChoiceInteraction,
         val value: StaticChoiceWindowValue,
@@ -62,7 +65,7 @@ internal class MatchStaticChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedStaticChoiceInteraction? = windows.current()?.published
+    override fun current(): PublishedStaticChoiceInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -80,11 +83,11 @@ internal class MatchStaticChoiceInteractionRuntime(
             windows.completeLocked(pending, options)
         }
 
-    fun terminate(cause: Throwable) = windows.terminate(cause)
+    override fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() = windows.reset()
+    override fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingPromptCut<StaticChoiceWindowValue>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<StaticChoiceWindowValue>? =
         windows.pendingCutLocked().also {
             afterDeliveryCutLookup?.invoke()
         }

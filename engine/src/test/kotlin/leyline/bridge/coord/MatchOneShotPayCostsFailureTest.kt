@@ -9,6 +9,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.OneShotPayCostsTimeoutException
 import leyline.bridge.handoff.OneShotPayCostsWindow
 import leyline.bridge.handoff.PayCostsPromptRoute
@@ -16,6 +17,7 @@ import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -223,7 +225,10 @@ class MatchOneShotPayCostsFailureTest :
                     enqueueOwner.oneShotPayCosts.awaitPayment(request(enqueueBoard), cards(enqueueBoard), 3_000)
                 }
             assertSoftly {
-                enqueue.pendingPromptCut.shouldNotBeNull()
+                enqueue.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
                 enqueueOwner.drain(SeatId(1)) shouldContainExactly listOf(existing)
             }
 
@@ -241,7 +246,10 @@ class MatchOneShotPayCostsFailureTest :
                     installOwner.oneShotPayCosts.awaitPayment(request(installBoard), cards(installBoard), 3_000)
                 }
             assertSoftly {
-                install.pendingPromptCut.shouldNotBeNull()
+                install.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
                 installOwner.drain(SeatId(1)) shouldBe emptyList()
                 installBoard.bridge.projectionStateSnapshot() shouldBe competing
             }
@@ -267,6 +275,10 @@ class MatchOneShotPayCostsFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
                 terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 coordinator.oneShotPayCosts
                     .current()
@@ -322,11 +334,65 @@ class MatchOneShotPayCostsFailureTest :
                 responseFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get() as PlaybackTerminalFailure
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
                 terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 engineFailure.get() shouldBe terminal
                 responseFailure.get() shouldBe terminal
             }
             coordinator.oneShotPayCosts.afterDeliveryCutLookup = null
+        }
+
+        test("delivery retains an inner payment cut ahead of an outer blocking cut") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val blockingFailure = AtomicReference<Throwable>()
+            val blockingFinished = CountDownLatch(1)
+            Thread {
+                runCatching {
+                    coordinator.awaitOptional(
+                        BlockingInteraction.Optional(ForgeCardId(cards(board).first().id), true, null, null),
+                        3_000,
+                        false,
+                    )
+                }.onFailure(blockingFailure::set)
+                blockingFinished.countDown()
+            }.start()
+            val blockingDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            var blocking = coordinator.currentBlockingInteraction()
+            while (blocking == null && System.nanoTime() < blockingDeadline) {
+                Thread.onSpinWait()
+                blocking = coordinator.currentBlockingInteraction()
+            }
+            checkNotNull(blocking) { "Blocking publication failed: ${blockingFailure.get()}" }
+
+            val paymentFailure = AtomicReference<Throwable>()
+            val paymentFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), null) }
+                    .onFailure(paymentFailure::set)
+                paymentFinished.countDown()
+            }.start()
+            awaitPublished(coordinator)
+
+            val terminal =
+                shouldThrow<PlaybackTerminalFailure> {
+                    coordinator.failDelivery(IllegalStateException("delivery unavailable"))
+                }
+
+            assertSoftly {
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
+                blockingFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                paymentFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                blockingFailure.get() shouldBe terminal
+                paymentFailure.get() shouldBe terminal
+            }
         }
 
         test("teardown wakes the pending engine and clears the window") {

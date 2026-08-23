@@ -200,6 +200,10 @@ class MatchManaSourcePaymentFailureTest :
                 acknowledgementFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
                 terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 coordinator.manaSourcePayments
                     .current()

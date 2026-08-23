@@ -15,7 +15,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchOrderInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : OrderInteractionRuntime {
+) : OrderInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Order
+
     private data class Window(
         val published: PublishedOrderInteraction,
         val value: OrderWindowValue,
@@ -64,7 +67,7 @@ internal class MatchOrderInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedOrderInteraction? = windows.current()?.published
+    override fun current(): PublishedOrderInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -82,11 +85,11 @@ internal class MatchOrderInteractionRuntime(
             windows.completeLocked(pending, result)
         }
 
-    fun terminate(cause: Throwable) = windows.terminate(cause)
+    override fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() = windows.reset()
+    override fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingPromptCut<OrderWindowValue>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<OrderWindowValue>? =
         windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     private fun publish(initial: OrderWindowCapture.Initial): Window =

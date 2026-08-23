@@ -17,7 +17,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact Forge-handle modal lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchModalChoiceRuntime(
     private val owner: MatchCutCoordinator,
-) : ModalChoiceInteractionRuntime {
+) : ModalChoiceInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.ModalChoice
+
     private data class Window(
         val published: PublishedModalChoiceInteraction,
         val value: ModalChoiceWindowValue,
@@ -76,7 +79,7 @@ internal class MatchModalChoiceRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedModalChoiceInteraction? = windows.current()?.published
+    override fun current(): PublishedModalChoiceInteraction? = windows.current()?.published
 
     /** Read-only Forge context for the harness policy; no prompt/session lookup. */
     internal fun aiContext(): ModalChoiceAiContext? =
@@ -121,21 +124,21 @@ internal class MatchModalChoiceRuntime(
             }
         }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             windows.terminate(cause)
             cleanupReceipts.clear()
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             windows.reset()
             cleanupReceipts.clear()
         }
     }
 
-    internal fun pendingCutLocked(): PendingPromptCut<ModalChoiceWindowValue>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<ModalChoiceWindowValue>? =
         windows
             .pendingCutLocked()
             .also { afterDeliveryCutLookup?.invoke() }

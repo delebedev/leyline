@@ -9,6 +9,8 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -89,7 +91,10 @@ class CoordinatorCutInstallerTest :
                     coordinator.cardSelect.awaitSelection(request(board, Int.MAX_VALUE), options(board), 3_000)
                 }
             assertSoftly {
-                materialization.promptMaterializationDiagnostic.shouldNotBeNull()
+                materialization.promptMaterializationDiagnostic
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<CardSelectWindowValue>()
                 materialization.pendingPromptCut.shouldBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 board.bridge.projectionStateSnapshot() shouldBe prior
@@ -106,7 +111,10 @@ class CoordinatorCutInstallerTest :
                     enqueueCoordinator.cardSelect.awaitSelection(request(enqueueBoard), options(enqueueBoard), 3_000)
                 }
             assertSoftly {
-                enqueue.pendingPromptCut.shouldNotBeNull()
+                enqueue.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<CardSelectWindowValue>()
                 enqueueCoordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
             }
         }
@@ -128,7 +136,10 @@ class CoordinatorCutInstallerTest :
                     coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
                 }
             assertSoftly {
-                stale.pendingPromptCut.shouldNotBeNull()
+                stale.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<CardSelectWindowValue>()
                 coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
                 board.bridge.projectionStateSnapshot() shouldBe competing
             }
@@ -146,6 +157,10 @@ class CoordinatorCutInstallerTest :
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
+                committed.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<CardSelectWindowValue>()
                 committed.pendingPromptCut.shouldNotBeNull().messages shouldBe retained
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 coordinator.cardSelect.current().shouldBeNull()

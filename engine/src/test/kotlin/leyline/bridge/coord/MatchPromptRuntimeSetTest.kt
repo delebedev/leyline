@@ -1,7 +1,6 @@
 package leyline.bridge.coord
 
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.testkit.BoardTest
 import java.lang.reflect.Modifier
@@ -37,6 +36,5 @@ class MatchPromptRuntimeSetTest :
             val expectedOwners = boundRuntimes + prompts.blocking
 
             prompts.lifecycleOwners() shouldContainExactlyInAnyOrder expectedOwners
-            prompts.lifecycleOwners().none { it === prompts.compatibilityCostSelection } shouldBe true
         }
     })

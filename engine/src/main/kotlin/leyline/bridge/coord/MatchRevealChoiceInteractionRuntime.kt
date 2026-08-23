@@ -16,7 +16,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact reveal-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchRevealChoiceInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : RevealChoiceInteractionRuntime {
+) : RevealChoiceInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.RevealChoice
+
     private data class Window(
         val published: PublishedRevealChoiceInteraction,
         val value: RevealChoiceWindowValue,
@@ -77,7 +80,7 @@ internal class MatchRevealChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedRevealChoiceInteraction? = windows.current()?.published
+    override fun current(): PublishedRevealChoiceInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -93,7 +96,7 @@ internal class MatchRevealChoiceInteractionRuntime(
             completeLocked(pending, options, timedOut = false)
         }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             windows.current()?.let { pending ->
                 clearReveal(pending.revealEntry, pending.value.journalSeatId)
@@ -102,14 +105,14 @@ internal class MatchRevealChoiceInteractionRuntime(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             windows.current()?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
             windows.reset()
         }
     }
 
-    internal fun claimDeliveryFailureCutLocked(): PendingPromptCut<RevealChoiceWindowValue>? {
+    override fun claimTerminalCutLocked(): PendingPromptCut<RevealChoiceWindowValue>? {
         val pending = windows.current()
         afterDeliveryCutLookup?.invoke()
         pending?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }

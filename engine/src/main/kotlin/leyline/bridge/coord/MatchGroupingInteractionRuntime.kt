@@ -17,7 +17,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact Scry and Surveil lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchGroupingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : GroupingInteractionRuntime {
+) : GroupingInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Grouping
+
     private data class Window(
         val published: PublishedGroupingInteraction,
         val value: GroupingWindowValue,
@@ -77,7 +80,7 @@ internal class MatchGroupingInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedGroupingInteraction? = windows.current()?.published
+    override fun current(): PublishedGroupingInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -136,7 +139,7 @@ internal class MatchGroupingInteractionRuntime(
             if (index < 0) null else arrangements.removeAt(index)
         }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             windows.terminate(cause)
             finalization = null
@@ -144,7 +147,7 @@ internal class MatchGroupingInteractionRuntime(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             windows.reset()
             finalization = null
@@ -152,7 +155,7 @@ internal class MatchGroupingInteractionRuntime(
         }
     }
 
-    internal fun pendingCutLocked(): PendingPromptCut<GroupingWindowValue>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<GroupingWindowValue>? =
         windows
             .pendingCutLocked()
             .also { afterDeliveryCutLookup?.invoke() }

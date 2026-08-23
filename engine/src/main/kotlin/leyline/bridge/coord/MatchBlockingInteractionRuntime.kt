@@ -29,7 +29,10 @@ data class DamageAssignmentValue(
 /** Blocking prompt handles and value answers beneath [MatchCutCoordinator]. */
 internal class MatchBlockingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : BlockingInteractionRuntime {
+) : BlockingInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Blocking
+
     private sealed interface Answer {
         data class Optional(
             val accepted: Boolean,
@@ -133,9 +136,10 @@ internal class MatchBlockingInteractionRuntime(
             resolveDamageMap(cards, assignment.assignments)
         }
 
-    fun current(): PublishedBlockingInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+    override fun current(): PublishedBlockingInteraction? =
+        synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
-    internal fun pendingCutLocked(): PendingPromptCut<BlockingInteraction>? = window?.takeUnless { it.future.isDone }?.cut
+    override fun claimTerminalCutLocked(): PendingPromptCut<BlockingInteraction>? = window?.takeUnless { it.future.isDone }?.cut
 
     fun submitOptional(
         interactionId: String,
@@ -193,15 +197,15 @@ internal class MatchBlockingInteractionRuntime(
             }
         }
 
-    fun terminate(failure: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(failure)
+            window?.future?.completeExceptionally(cause)
             window = null
             damageCache.clear()
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             window = null
             damageCache.clear()

@@ -24,7 +24,10 @@ import java.util.concurrent.CompletableFuture
 /** Match-scoped lifecycle for Select and the bounded GatherCounters PayCosts windows. */
 internal class MatchOneShotPayCostsRuntime(
     private val owner: MatchCutCoordinator,
-) : OneShotPayCostsRuntime {
+) : OneShotPayCostsRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.OneShotPayCosts
+
     private data class SelectWindow(
         val published: PublishedOneShotPayCostsInteraction,
         val value: OneShotPayCostsWindowValue,
@@ -113,7 +116,7 @@ internal class MatchOneShotPayCostsRuntime(
         return awaitGather(publishGather(initial), timeoutMs)
     }
 
-    fun current(): PublishedOneShotPayCostsInteraction? =
+    override fun current(): PublishedOneShotPayCostsInteraction? =
         synchronized(owner.feedLock) {
             selectWindows.current()?.published ?: gatherWindows.current()?.published
         }
@@ -180,19 +183,19 @@ internal class MatchOneShotPayCostsRuntime(
             false
         }
 
-    fun terminate(cause: Throwable) =
+    override fun terminate(cause: Throwable) =
         synchronized(owner.feedLock) {
             selectWindows.terminate(cause)
             gatherWindows.terminate(cause)
         }
 
-    fun reset() =
+    override fun reset() =
         synchronized(owner.feedLock) {
             selectWindows.reset()
             gatherWindows.reset()
         }
 
-    internal fun pendingCutLocked(): PendingPromptCut<OneShotPayCostsWindow>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<OneShotPayCostsWindow>? =
         (selectWindows.pendingCutLocked() ?: gatherWindows.pendingCutLocked())
             .also { afterDeliveryCutLookup?.invoke() }
 

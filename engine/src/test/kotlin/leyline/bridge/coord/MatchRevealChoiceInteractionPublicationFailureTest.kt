@@ -161,6 +161,10 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             val retained = coordinator.drain(SeatId(1)).single()
 
             assertSoftly {
+                failure.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
                 failure.pendingPromptCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasSelectNReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1

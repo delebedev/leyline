@@ -13,7 +13,10 @@ import java.util.concurrent.CompletableFuture
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchSearchInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : SearchInteractionRuntime {
+) : SearchInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Search
+
     private data class Window(
         val published: PublishedSearchInteraction,
         val value: SearchWindowValue,
@@ -63,9 +66,9 @@ internal class MatchSearchInteractionRuntime(
         return await(pending, timeoutMs)
     }
 
-    fun current(): PublishedSearchInteraction? = windows.current()?.published
+    override fun current(): PublishedSearchInteraction? = windows.current()?.published
 
-    internal fun pendingCutLocked(): PendingPromptCut<SearchWindowValue>? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<SearchWindowValue>? =
         windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     fun submit(
@@ -92,9 +95,9 @@ internal class MatchSearchInteractionRuntime(
             }
         }
 
-    fun terminate(cause: Throwable) = windows.terminate(cause)
+    override fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun reset() = windows.reset()
+    override fun reset() = windows.reset()
 
     private fun publish(value: SearchWindowValue): Window =
         kernel.publish(

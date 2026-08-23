@@ -11,6 +11,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
+import leyline.bridge.handoff.StaticChoiceWindowValue
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.PlaybackTerminalFailure
@@ -171,6 +172,10 @@ class MatchStaticChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<StaticChoiceWindowValue>()
                 terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
