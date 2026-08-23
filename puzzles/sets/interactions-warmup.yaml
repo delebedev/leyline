@@ -1,6 +1,28 @@
 name: interactions-warmup
 description: Activated ability and simple zone movement protocol smoke.
 scenarios:
+  - id: distribution-arc-lightning
+    puzzle: distribution-arc-lightning
+    run: cast Arc Lightning, target both opposing creatures, assign one and two damage, and resolve
+    expect: fixed-total allocation uses DistributionReq and both creatures die
+    steps:
+      - expect:
+          action: { type: cast, card: Arc Lightning }
+      - cast: Arc Lightning
+      - targets:
+          - { side: opponent, zone: battlefield, card: Coral Merfolk }
+          - { side: opponent, zone: battlefield, card: Savannah Lions }
+      - pass_until:
+          prompt: DistributionReq
+      - distribute:
+          - { side: opponent, card: Coral Merfolk, amount: 1 }
+          - { side: opponent, card: Savannah Lions, amount: 2 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Coral Merfolk }
+            - zone_contains: { side: opponent, zone: graveyard, card: Savannah Lions }
+            - stack_empty: true
   - id: commander-return-after-destroy
     puzzle: commander-return-self-bolt
     run: destroy Arabella, accept the state-based command-zone move, and verify the commander returns

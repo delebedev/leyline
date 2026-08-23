@@ -84,6 +84,24 @@ data class TargetStep(
     override val label: String = "target ${target.label}"
 }
 
+data class TargetsStep(
+    val targets: List<AcceptanceTargetSpec>,
+) : AcceptanceStep {
+    override val label: String = "targets ${targets.joinToString { it.label }}"
+}
+
+data class DistributionAssignment(
+    val side: AcceptanceSide,
+    val card: String,
+    val amount: Int,
+)
+
+data class DistributeStep(
+    val assignments: List<DistributionAssignment>,
+) : AcceptanceStep {
+    override val label: String = "distribute ${assignments.joinToString { "${it.card}=${it.amount}" }}"
+}
+
 data class BlockStep(
     val blocker: String,
     val attacker: String,
