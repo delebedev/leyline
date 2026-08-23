@@ -187,6 +187,7 @@ class SimClientDriver(
             aiMaxMsByPrompt = policyTelemetry.maxMs,
             targetChoiceCounts = policyTelemetry.targetChoices,
             targetChoiceSamples = policyTelemetry.targetChoiceSamples,
+            advisorUnavailableByReason = policyTelemetry.advisorUnavailableByReason,
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,

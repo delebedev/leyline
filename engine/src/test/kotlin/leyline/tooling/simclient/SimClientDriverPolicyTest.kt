@@ -552,7 +552,7 @@ class SimClientDriverPolicyTest :
 
             recorder.record(
                 prompt = prompt,
-                decision = SimDecision.SelectTargets(listOf(2)),
+                decision = SimDecision.SelectTargets(mapOf(0 to listOf(2))),
                 submitResult = SimSubmitResult.Submitted,
                 beforeMessages = 1,
                 beforeLast = msg,

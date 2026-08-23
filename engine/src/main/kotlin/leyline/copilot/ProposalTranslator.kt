@@ -46,12 +46,14 @@ internal object ProposalTranslator {
             is SimDecision.SelectTargets ->
                 base("target", promptType, seat).copy(
                     targets = decision.targetInstanceIds.map(resolve::resolve),
+                    targetGroups = decision.targetGroups.mapKeys { (targetIdx, _) -> targetIdx.toString() },
                     responseIds = decision.targetInstanceIds,
                 )
 
             is SimDecision.UnselectTargets ->
                 base("untarget", promptType, seat).copy(
                     targets = decision.targetInstanceIds.map(resolve::resolve),
+                    targetGroups = decision.targetGroups.mapKeys { (targetIdx, _) -> targetIdx.toString() },
                     responseIds = decision.targetInstanceIds,
                 )
 

@@ -111,13 +111,14 @@ class ProposalTranslatorTest :
         test("select-targets → target intent with resolved entities") {
             val p =
                 ProposalTranslator.translate(
-                    SimDecision.SelectTargets(listOf(21, 22)),
+                    SimDecision.SelectTargets(mapOf(0 to listOf(21, 22))),
                     GREMessageType.SelectTargetsReq_695e,
                     seat = 1,
                     resolve,
                 )
             p.intent shouldBe "target"
             p.targets.map { it.instanceId } shouldBe listOf(21, 22)
+            p.targetGroups shouldBe mapOf("0" to listOf(21, 22))
             p.responseIds shouldBe listOf(21, 22)
         }
 

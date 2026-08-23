@@ -3,8 +3,6 @@ package leyline.copilot
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 
-internal typealias TargetGroupSelections = Map<Int, List<Int>>
-
 /**
  * One step of iterative target declaration — the targeting sibling of
  * [CombatDeclarationDiff]. `SelectTargetsReq` is iterative-delta: each
@@ -57,12 +55,12 @@ internal object TargetSelectionDiff {
         for (group in req.targetsList) {
             val desiredIds = desired[group.targetIdx].orEmpty()
             val extra = committed[group.targetIdx].orEmpty().firstOrNull { it !in desiredIds }
-            if (extra != null) return SimDecision.UnselectTargets(listOf(extra), group.targetIdx)
+            if (extra != null) return SimDecision.UnselectTargets(mapOf(group.targetIdx to listOf(extra)))
         }
         for (group in req.targetsList) {
             val committedIds = committed[group.targetIdx].orEmpty()
             val missing = desired[group.targetIdx].orEmpty().firstOrNull { it !in committedIds }
-            if (missing != null) return SimDecision.SelectTargets(listOf(missing), group.targetIdx)
+            if (missing != null) return SimDecision.SelectTargets(mapOf(group.targetIdx to listOf(missing)))
         }
         return SimDecision.SubmitTargets.takeIf { isValid(req, committed) }
     }

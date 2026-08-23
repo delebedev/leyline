@@ -129,7 +129,7 @@ class ResponseBuilderTest :
         }
 
         test("select targets is a Select-marked pick carrying the group targetIdx") {
-            val msgs = bytesOf(SimDecision.SelectTargets(listOf(282), targetIdx = 1), respId = 93)
+            val msgs = bytesOf(SimDecision.SelectTargets(mapOf(1 to listOf(282))), respId = 93)
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.SelectTargetsResp_097b
             msgs[0].respId shouldBe 93
@@ -143,7 +143,7 @@ class ResponseBuilderTest :
         }
 
         test("unselect targets marks the pick Unselect") {
-            val msgs = bytesOf(SimDecision.UnselectTargets(listOf(283)), respId = 94)
+            val msgs = bytesOf(SimDecision.UnselectTargets(mapOf(0 to listOf(283))), respId = 94)
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.SelectTargetsResp_097b
             val t =

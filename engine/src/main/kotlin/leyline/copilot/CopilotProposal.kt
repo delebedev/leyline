@@ -35,6 +35,8 @@ data class CopilotProposal(
     val alternativeGrpId: Int? = null,
     /** Selected entities: target / select_n / pay_cost / attack. */
     val targets: List<EntityRef> = emptyList(),
+    /** Desired target ids keyed by the GRE target group's targetIdx. */
+    val targetGroups: Map<String, List<Int>> = emptyMap(),
     /** Blocker→attacker assignments for `block`. */
     val blocks: List<BlockAssignment> = emptyList(),
     /** Chosen modal grpIds for `modal`. */
