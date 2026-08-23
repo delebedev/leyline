@@ -141,6 +141,7 @@ dependencies {
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
+    implementation(libs.tomlkt)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
