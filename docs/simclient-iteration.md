@@ -54,7 +54,7 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-just simclient "--decks 'Control Sample' --seeds 3"
+just simclient --decks 'Control Sample' --seeds 3
 ```
 
 Small seed range after a fix:
@@ -64,13 +64,13 @@ SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_OPPONENT_DECK="Aggro Sample" \
 SIMCLIENT_MAX_TURNS=200 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=900 \
-just simclient "--decks 'Control Sample' --seeds 1..5"
+just simclient --decks 'Control Sample' --seeds 1..5
 ```
 
 Scout mode for broad deck sweeps keeps going after per-game exceptions and writes `completionReason=exception` stats rows. This is the standalone tool default; use `--strict` when a matrix is acting as a regression gate:
 
 ```bash
-SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient "--decks 'Deck A,Deck B,Deck C' --seeds 1..20"
+SIMCLIENT_CONTINUE_ON_EXCEPTION=true just simclient --decks 'Deck A,Deck B,Deck C' --seeds 1..20
 ```
 
 Simclient test lane:
@@ -94,7 +94,7 @@ Quarantine known-bad cards during discovery without editing deck files:
 
 ```bash
 SIMCLIENT_EXCLUDE_CARDS="Tinybones Joins Up,102468" \
-  just simclient "--decks 'Deck A,Deck B' --seeds 1..20"
+  just simclient --decks 'Deck A,Deck B' --seeds 1..20
 ```
 
 `data/simclient/quarantine.txt` is loaded by default when present. Put one exact
@@ -137,7 +137,7 @@ Run the active-game `forge-ai` policy after the bug shape is known:
 SIMCLIENT_POLICY=forge-ai \
 SIMCLIENT_MAX_TURNS=3 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
-just simclient "--puzzles extinction-event-choice.pzl --seeds 1"
+just simclient --puzzles extinction-event-choice.pzl --seeds 1
 ```
 
 Run the same forced position from reconstructed state:
@@ -146,7 +146,7 @@ Run the same forced position from reconstructed state:
 SIMCLIENT_POLICY=snapshot \
 SIMCLIENT_MAX_TURNS=3 \
 SIMCLIENT_GAME_TIMEOUT_SECONDS=120 \
-just simclient "--puzzles extinction-event-choice.pzl --seeds 1"
+just simclient --puzzles extinction-event-choice.pzl --seeds 1
 ```
 
 `forge-ai` runs the Forge advisor on the active game, then uses the greedy policy

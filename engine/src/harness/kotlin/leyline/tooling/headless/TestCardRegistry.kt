@@ -77,7 +77,7 @@ object TestCardRegistry {
         }
         check(failures.isEmpty()) {
             "Cards not found in Forge DB (grpId=0): ${failures.joinToString()}. " +
-                "Use `just card-grp \"<name>\"` to verify card names."
+                "Use `just card \"<name>\"` to verify card names."
         }
     }
 

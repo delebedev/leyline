@@ -27,7 +27,7 @@ class ClientCardDatabase private constructor(
     val path: File,
 ) {
     /** Lazily-connected Exposed handle over [path]. */
-    val database: Database = Database.connect("jdbc:sqlite:${path.absolutePath}", "org.sqlite.JDBC")
+    private val database: Database = Database.connect("jdbc:sqlite:${path.absolutePath}", "org.sqlite.JDBC")
 
     /** A read-only [CardRepository] over the validated database. */
     fun cardRepository(): CardRepository = SqliteCardRepository(database)

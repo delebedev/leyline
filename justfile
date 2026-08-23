@@ -259,15 +259,15 @@ seed-db: (_require classpath) check-java
 #
 # Examples:
 #   just simclient                                    # default matrix + ingest
-#   just simclient "--decks mono-r-burn --seeds 1..20"
-#   just simclient "--puzzles bolt-face.pzl --seeds 7,13,42"
-#   just simclient "--decks 'Deck A,Deck B' --seeds 1..5 --resume"
+#   just simclient --decks mono-r-burn --seeds 1..20
+#   just simclient --puzzles bolt-face.pzl --seeds 7,13,42
+#   just simclient --decks 'Deck A,Deck B' --seeds 1..5 --resume
 #
 # Output: engine/build/simclient/*.log + .meta.json (source: simclient).
 # Logs are copied into ~/.scry/games/ so scry-ts (with --source simclient) can
 # read them alongside other saved games.
 [group('simclient')]
-simclient args="--ingest-scry":
+simclient *args="--ingest-scry":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"

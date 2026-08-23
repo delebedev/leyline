@@ -38,7 +38,7 @@ Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `p
 ## Build & Run
 
 ```bash
-just bootstrap    # fresh clone/worktree → submodules → forge install → build → seed DB
+just bootstrap    # fresh clone/worktree → submodules → forge install → build → hooks
 just hooks-install # enable repo-tracked git hooks for this clone
 just build        # gradle: proto-sync + compile + jar
 just serve        # start server (restart after code changes — JVM holds old bytecode)
