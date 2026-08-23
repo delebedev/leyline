@@ -58,6 +58,7 @@ internal class PromptDecisionAdvisor(
             )
         }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun decideSafely(
         prompt: GREToClientMessage,
         context: PromptDecisionContext,

@@ -32,7 +32,8 @@ simclient and Copilot. It returns either a complete desired `SimDecision` with a
 source (`ForgeAi` or `Default`) or an `Unavailable` result with one of
 `UnsupportedPrompt`, `NoForgeChoice`, `RejectedAttempt`, or `ConsultFailed`.
 Simclient records unavailable reasons before using its host fallback. Copilot
-turns an unavailable result into an `unrealizable` proposal.
+turns an unavailable result into an `unrealizable` proposal unless its explicit
+main-phase proactive-permanent host safeguard applies.
 
 Target decisions are grouped by GRE `targetIdx` and retain both group identity
 and instance ids. Simclient flattens the complete desired map only at its
@@ -70,7 +71,8 @@ verdict; detailed evidence stays in per-row stats and paired artifacts.
   and headless whole-selection submission have different ownership and would
   recreate a leaky abstraction.
 - Move retry suppression, land/cast/pass strategy, or telemetry into the advisor.
-  Rejected because those are simclient host concerns, not prompt decisions.
+  Rejected because those are host concerns, not prompt decisions. Copilot's
+  narrow main-phase safeguard remains in its host as an explicit fallback.
 - Make the advisor depend on acceptance executors or run strategies. Rejected
   because the decision seam must serve both autonomous hosts and remain reusable
   by focused tests.

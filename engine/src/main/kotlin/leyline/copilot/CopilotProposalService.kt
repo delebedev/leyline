@@ -50,7 +50,7 @@ class CopilotProposalService(
             // so it only fires on the live-client path.
             GREMessageType.MulliganReq_aa0d -> advisedProposal(prompt)
 
-            GREMessageType.ActionsAvailableReq_695e -> advisedProposal(prompt)
+            GREMessageType.ActionsAvailableReq_695e -> aarProposal(prompt)
 
             // Two-round-trip targeting: diff the prompt's committed picks
             // against the AI's desired set — select the missing, Submit (stamped
@@ -101,6 +101,14 @@ class CopilotProposalService(
             is PromptDecisionResult.Chosen -> proposalFor(result.decision, prompt)
             is PromptDecisionResult.Unavailable -> unavailableProposal(prompt, result)
         }
+
+    private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Chosen) return proposalFor(result.decision, prompt)
+        val proactive = policy.chooseMain2ProactivePermanent(prompt.actionsAvailableReq.actionsList)
+        return proactive?.let { proposalFor(SimDecision.PerformAction(it.action), prompt) }
+            ?: unavailableProposal(prompt, result as PromptDecisionResult.Unavailable)
+    }
 
     private fun targetProposal(prompt: GREToClientMessage): CopilotProposal {
         val result = advisor.decide(prompt)

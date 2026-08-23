@@ -66,10 +66,12 @@ class SimClientRunnerTest :
 
             result.rows shouldHaveSize 1
             val row = result.rows.single().row
-            row.runKind shouldBe "puzzle"
-            row.runLabel shouldBe "bolt-face"
-            Files.readString(outDir.resolve("${row.tag}.meta.json").toPath()) shouldContain "\"puzzle:bolt-face\""
-            Files.exists(outDir.resolve("${row.tag}.stats.json").toPath()) shouldBe true
+            assertSoftly {
+                row.runKind shouldBe "puzzle"
+                row.runLabel shouldBe "bolt-face"
+                Files.readString(outDir.resolve("${row.tag}.meta.json").toPath()) shouldContain "\"puzzle:bolt-face\""
+                Files.exists(outDir.resolve("${row.tag}.stats.json").toPath()) shouldBe true
+            }
         }
 
         test("strict runner failures change the command exit status") {
