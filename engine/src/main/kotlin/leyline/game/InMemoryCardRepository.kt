@@ -70,7 +70,8 @@ class InMemoryCardRepository : CardRepository {
 
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = modalCache[cardGrpId]
 
-    override fun registerModalOptions(
+    /** Register modal options on the concrete in-memory repository (fixture path only). */
+    fun registerModalOptions(
         cardGrpId: Int,
         info: ModalAbilityInfo,
     ) {

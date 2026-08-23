@@ -2,7 +2,8 @@ package leyline
 
 import leyline.config.MatchConfig
 import leyline.debug.DebugServer
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.CardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
 import leyline.native.account.AccountServer
@@ -92,50 +93,7 @@ private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     return if (cert != null && key != null) cert to key else null to null
 }
 
-private fun openCardRepo(): ExposedCardRepository {
-    val cardDbPath =
-        System.getenv("LEYLINE_CARD_DB")
-            ?: detectArenaCardDb()
-    requireNotNull(cardDbPath) {
-        "Card database not found. Set LEYLINE_CARD_DB or install the compatible client.\n" +
-            "  macOS: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga\n" +
-            "  Windows: C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga"
-    }
-    val cardDbFile = File(cardDbPath)
-    validateCardDbFile(cardDbFile, cardDbPath)
-    val repo =
-        ExposedCardRepository(
-            Database.connect(
-                "jdbc:sqlite:${cardDbFile.absolutePath}",
-                "org.sqlite.JDBC",
-            ),
-        )
-    requireUsableCardRows(cardDbPath, repo.findAllGrpIds())
-    return repo
-}
-
-internal fun validateCardDbFile(
-    cardDbFile: File,
-    cardDbPath: String = cardDbFile.path,
-) {
-    require(cardDbFile.exists()) { "Card database not found at: $cardDbPath" }
-    require(cardDbFile.length() >= MIN_CARD_DB_BYTES) {
-        "Card database at $cardDbPath is ${cardDbFile.length()} bytes — too small to be a real DB.\n" +
-            "Likely an in-progress download placeholder alongside a real file in the same directory.\n" +
-            "Remove the empty file and rerun, or set LEYLINE_CARD_DB to the full DB explicitly."
-    }
-}
-
-internal fun requireUsableCardRows(
-    cardDbPath: String,
-    grpIds: Iterable<Int>,
-) {
-    check(grpIds.any()) {
-        "Card database at $cardDbPath has no usable Cards rows. Wrong file, or schema changed."
-    }
-}
-
-private const val MIN_CARD_DB_BYTES = 1_000_000L
+private fun openCardRepo(): CardRepository = ClientCardDatabase.open().cardRepository()
 
 // -- Server builders ----------------------------------------------------------
 
@@ -182,7 +140,7 @@ private fun buildAccountServer(
  * existing local cache entries remain valid.
  */
 private fun detectCachedManifests(): String? {
-    val downloadsDir = detectArenaDownloadsDir() ?: return null
+    val downloadsDir = ClientCardDatabase.detectArenaDownloadsDir() ?: return null
     if (!downloadsDir.isDirectory) return null
 
     // Manifest_<hex>.mtga → main
@@ -258,49 +216,6 @@ private fun printBanner(
 }
 
 // -- Utilities ----------------------------------------------------------------
-
-internal fun detectArenaCardDb(): String? {
-    val rawDir = detectArenaDownloadsDir()?.resolve("Raw") ?: return null
-    if (!rawDir.isDirectory) return null
-    return rawDir
-        .listFiles()
-        ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-        ?.filter { it.length() >= MIN_CARD_DB_BYTES }
-        ?.maxByOrNull { it.lastModified() }
-        ?.absolutePath
-}
-
-/**
- * Locate the local client Downloads directory across platforms.
- *
- * macOS: ~/Library/Application Support/com.wizards.mtga/Downloads
- * Windows: <Epic install>/MTGA_Data/Downloads (card data lives inside the install)
- */
-internal fun detectArenaDownloadsDir(): File? {
-    val home = File(System.getProperty("user.home"))
-    val os = System.getProperty("os.name").lowercase()
-
-    // macOS: user-local application support
-    if (os.contains("mac")) {
-        val dir = home.resolve("Library/Application Support/com.wizards.mtga/Downloads")
-        if (dir.isDirectory) return dir
-    }
-
-    // Windows: inside Epic Games or Steam install directory
-    if (os.contains("win")) {
-        val programFiles = System.getenv("PROGRAMFILES") ?: "C:/Program Files"
-        val programFilesX86 = System.getenv("PROGRAMFILES(X86)") ?: "C:/Program Files (x86)"
-        val candidates =
-            listOf(
-                File(programFiles, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-                File(programFilesX86, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-                File(programFilesX86, "Steam/steamapps/common/MTGA/MTGA_Data/Downloads"),
-            )
-        candidates.firstOrNull { it.isDirectory }?.let { return it }
-    }
-
-    return null
-}
 
 internal fun parseArgs(args: Array<String>): Map<String, String> {
     val map = mutableMapOf<String, String>()

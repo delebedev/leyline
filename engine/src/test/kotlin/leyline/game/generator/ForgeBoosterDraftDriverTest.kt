@@ -11,13 +11,13 @@ import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.data.AutoMappingCardRepository
 import leyline.game.data.CardRepository
+import leyline.testkit.SyntheticNameCardRepository
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Wraps a real repository but reports every name lookup as unmapped, to exercise miss-handling. */
 private class AlwaysMissingCardRepository(
-    delegate: CardRepository = AutoMappingCardRepository(),
+    delegate: CardRepository = SyntheticNameCardRepository(),
 ) : CardRepository by delegate {
     override fun findGrpIdByName(name: String): Int? = null
 }
@@ -32,7 +32,7 @@ class ForgeBoosterDraftDriverTest :
         }
 
         test("pack shrinks 1 card per pick within pack 0") {
-            val driver = ForgeBoosterDraftDriver(AutoMappingCardRepository())
+            val driver = ForgeBoosterDraftDriver(SyntheticNameCardRepository())
             val firstPack = driver.start("session-1", "FDN")
 
             firstPack.size shouldBeGreaterThanOrEqual 13
@@ -63,7 +63,7 @@ class ForgeBoosterDraftDriverTest :
         }
 
         test("draft completes after consuming all packs; pod result has 7 bot decks") {
-            val driver = ForgeBoosterDraftDriver(AutoMappingCardRepository())
+            val driver = ForgeBoosterDraftDriver(SyntheticNameCardRepository())
             var pack = driver.start("session-2", "FDN")
             var lastResult: PickResult? = null
             var requestPickNumber = 0
@@ -94,7 +94,7 @@ class ForgeBoosterDraftDriverTest :
         }
 
         test("pack 1 starts fresh after pack 0 fully drains") {
-            val driver = ForgeBoosterDraftDriver(AutoMappingCardRepository())
+            val driver = ForgeBoosterDraftDriver(SyntheticNameCardRepository())
             var pack = driver.start("session-3", "FDN")
             val pack0Size = pack.size
 
@@ -119,14 +119,14 @@ class ForgeBoosterDraftDriverTest :
         }
 
         test("unknown set falls back to FDN") {
-            val driver = ForgeBoosterDraftDriver(AutoMappingCardRepository())
+            val driver = ForgeBoosterDraftDriver(SyntheticNameCardRepository())
             val pack = driver.start("session-4", "ZZZZZ-not-a-set")
             pack.size shouldBeGreaterThanOrEqual 13
             driver.discardAll()
         }
 
         test("bot decks contain real grpIds (round-trip through repository)") {
-            val repo = AutoMappingCardRepository()
+            val repo = SyntheticNameCardRepository()
             val driver = ForgeBoosterDraftDriver(repo)
             var pack = driver.start("session-5", "FDN")
             while (pack.isNotEmpty()) {

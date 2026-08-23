@@ -8,7 +8,8 @@ import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.SystemPlayers
 import leyline.domain.repo.DeckRepository
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.CardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.infra.persistence.SqlitePlayerStore
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
@@ -128,24 +129,14 @@ object SeedDb {
         println("Player: $PLAYER_NAME ($PLAYER_ID)")
 
         // Seed starter decks (resolve card names → grpIds via card DB)
-        val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        val cardDbFile =
-            if (cardDbPath != null) {
-                File(cardDbPath).takeIf { it.exists() }
-            } else {
-                // Auto-detect from Arena install
-                val raw = leyline.detectArenaDownloadsDir()?.resolve("Raw")
-                raw?.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-            }
+        val cardRepo = ClientCardDatabase.open().cardRepository()
         // Seed decks from data/decks/*.txt
         val decksDir = File(projectDir, "data/decks")
         val deckFiles = loadDeckFiles(decksDir)
         if (deckFiles.isEmpty()) {
             println("No deck files in ${decksDir.absolutePath} — skipping deck seeding")
             reconcileSpectatorDecks(store, emptySet())
-        } else if (cardDbFile != null) {
-            val cardDb = Database.connect("jdbc:sqlite:${cardDbFile.absolutePath}", "org.sqlite.JDBC")
-            val cardRepo = ExposedCardRepository(cardDb)
+        } else {
             val flavorNameAliases = ForgeFlavorNameAliases.load(projectDir)
             seedDecks(store, cardRepo, deckFiles, flavorNameAliases)
 
@@ -159,8 +150,6 @@ object SeedDb {
             val activeRotationDeckIds =
                 seedDecks(store, cardRepo, rotation, flavorNameAliases, SystemPlayers.SPECTATOR, "spectator/")
             reconcileSpectatorDecks(store, activeRotationDeckIds)
-        } else {
-            println("CardDb not available — skipping deck seeding")
         }
 
         // Summary
@@ -173,7 +162,7 @@ object SeedDb {
 
     private fun seedDecks(
         store: SqlitePlayerStore,
-        cardRepo: ExposedCardRepository,
+        cardRepo: CardRepository,
         deckFiles: List<Pair<String, ParsedDeck>>,
         flavorNameAliases: Map<String, String>,
         ownerId: PlayerId = PlayerId(PLAYER_ID),

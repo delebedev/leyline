@@ -6,12 +6,12 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.data.AutoMappingCardRepository
 import leyline.game.data.CardRepository
+import leyline.testkit.SyntheticNameCardRepository
 
 /** Wraps a real repository but reports every name lookup as unmapped, to exercise miss-handling. */
 private class AlwaysMissingSealedCardRepository(
-    delegate: CardRepository = AutoMappingCardRepository(),
+    delegate: CardRepository = SyntheticNameCardRepository(),
 ) : CardRepository by delegate {
     override fun findGrpIdByName(name: String): Int? = null
 }
@@ -26,7 +26,7 @@ class SealedPoolGeneratorTest :
         }
 
         test("generates a 6-pack pool with a mapped grpId per card") {
-            val pool = SealedPoolGenerator(AutoMappingCardRepository()).generate("FDN")
+            val pool = SealedPoolGenerator(SyntheticNameCardRepository()).generate("FDN")
 
             pool.grpIds.shouldNotBeEmpty()
             pool.collationId shouldBe 100026

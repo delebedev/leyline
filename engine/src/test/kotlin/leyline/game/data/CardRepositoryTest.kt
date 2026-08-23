@@ -24,32 +24,6 @@ class CardRepositoryTest :
             repo = InMemoryCardRepository()
         }
 
-        test("auto repository maps unknown names to stable synthetic grpIds") {
-            val auto = AutoMappingCardRepository()
-            val first = auto.findGrpIdByName("Draft Common")
-            val second = auto.findGrpIdByName("Draft Common")
-            val other = auto.findGrpIdByName("Draft Uncommon")
-
-            assertSoftly {
-                second shouldBe first
-                auto.findNameByGrpId(first) shouldBe "Draft Common"
-                auto.findNameByGrpId(other) shouldBe "Draft Uncommon"
-                auto.findByGrpId(first).shouldBeNull()
-            }
-        }
-
-        test("auto repository uses fixture data when available") {
-            val auto = AutoMappingCardRepository(useFixtures = true)
-            val grpId = auto.findGrpIdByName("Lightning Bolt")
-
-            assertSoftly {
-                grpId shouldBe 98647
-                auto.findNameByGrpId(grpId) shouldBe "Lightning Bolt"
-                auto.findByGrpId(grpId)?.grpId shouldBe grpId
-                auto.findAbilityInfo(70361)?.category shouldBe 4
-            }
-        }
-
         // --- parseTokenGrpIds ---
 
         test("parse token grp ids single entry") {

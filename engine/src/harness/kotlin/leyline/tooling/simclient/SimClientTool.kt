@@ -3,10 +3,9 @@ package leyline.tooling.simclient
 import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
-import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.nio.file.Path
 import java.time.LocalDateTime
@@ -34,21 +33,15 @@ object SimClientMain {
 class SimClientRunner(
     private val config: SimClientConfig,
 ) {
-    @Suppress("CanBeNonNullable")
-    private val resolvedCardDbPath: String? by lazy { resolveSimClientCardDbPath(config) }
-
-    private val cardRepo: CardRepository by lazy {
-        val path = requireNotNull(resolvedCardDbPath) { "Card database not found; set LEYLINE_CARD_DB or --card-db" }
-        val file = validateSimClientCardDbFile(path)
-        ExposedCardRepository(Database.connect("jdbc:sqlite:${file.absolutePath}", "org.sqlite.JDBC"))
-    }
+    /** One shared client-database repository for every row in this run. */
+    private val cardRepo: CardRepository by lazy { ClientCardDatabase.open().cardRepository() }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
-        if (rows.any { it.useCardDb } || resolvedCardDbPath != null) {
-            require(resolvedCardDbPath != null) { "Card database not found; set LEYLINE_CARD_DB or --card-db for deck-file rows" }
-        }
+        // Every deck and puzzle row is client-database-backed; resolve early so
+        // a missing database fails the run before any game starts.
+        if (rows.isNotEmpty()) cardRepo
         val runLine =
             "=== simclient: ${rows.size} row(s) policy=${config.policy.name} " +
                 "out=${config.outDir} strict=${config.strict} resume=${config.resume} ==="
@@ -114,7 +107,7 @@ class SimClientRunner(
                     opponentDeckList = row.opponentDeckList,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
+                    cardRepositoryOverride = cardRepo,
                     responseMode = HeadlessResponseMode.PolicyVisible,
                 )
             is PuzzleSimClientRow ->
@@ -123,7 +116,7 @@ class SimClientRunner(
                     deckList = null,
                     validation = InvariantSelection.protocolFacts(),
                     validationStrict = false,
-                    cardRepositoryOverride = if (row.useCardDb || resolvedCardDbPath != null) cardRepo else null,
+                    cardRepositoryOverride = cardRepo,
                     responseMode = HeadlessResponseMode.PolicyVisible,
                 )
         }
@@ -232,7 +225,7 @@ class SimClientRunner(
     }
 
     private fun resolveRowOverlay(row: SimClientRow): SimClientRow? {
-        if (row !is DeckSimClientRow || !row.useCardDb) return row
+        if (row !is DeckSimClientRow) return row
         val quarantine = quarantineSpec(config)
         if (quarantine.isEmpty) return row
         val overlay = overlayDeck(row.deckList, quarantine, config.excludePolicy, cardRepo)

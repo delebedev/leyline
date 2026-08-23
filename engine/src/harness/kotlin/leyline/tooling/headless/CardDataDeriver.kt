@@ -13,9 +13,9 @@ import leyline.game.data.TestCardFixtures
  * identity from a YAML fixture under
  * `engine/src/test/resources/test-cards/`.
  *
- * Deliberately in the main source set (unlike its `leyline.tooling.headless`
- * siblings in `src/harness/`): it backs [FixtureCardLoader], which the auto
- * card mode consumes in production.
+ * Lives in the harness source set with the rest of the fixture/test
+ * tooling: it backs [FixtureCardLoader], which nothing in production
+ * consumes.
  *
  * Forge owns the rules data (P/T, types, subtypes, supertypes, colors, mana
  * cost). The fixture supplies the client identity (grpId, ability ids paired
@@ -28,7 +28,7 @@ import leyline.game.data.TestCardFixtures
  * Saga chapters resolve through [CardData.abilityCategories]: chapter
  * abilities are trigger rows (Category = 2) in chapter order, and
  * `ZoneMapper.chapterGrpIdFromCardData` filters to those rows — matching the
- * prod `ExposedCardRepository` shape, including read-ahead sagas whose
+ * prod `SqliteCardRepository` shape, including read-ahead sagas whose
  * leading "Read ahead" static row (Category = 3) must be skipped.
  */
 object CardDataDeriver {

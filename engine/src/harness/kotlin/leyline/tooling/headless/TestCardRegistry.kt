@@ -33,6 +33,28 @@ object TestCardRegistry {
     fun ensureCardRegistered(cardName: String): Int = FixtureCardLoader.ensureCardRegistered(repo, cardName)
 
     /**
+     * Register the entire YAML fixture catalog into the shared repo.
+     *
+     * Puzzle runs pre-register the catalog before the puzzle applies, so
+     * `GameBridge`'s puzzle-card lookups resolve client identity directly
+     * from the in-memory repository — the one fixture repository used by
+     * both constructed and puzzle harnesses. Idempotent per JVM; cards
+     * without a fixture still fail clearly via [FixtureCardLoader].
+     */
+    fun ensureFixtureCatalogRegistered() {
+        if (catalogRegistered) return
+        synchronized(this) {
+            if (catalogRegistered) return
+            for (name in leyline.game.data.TestCardFixtures.all.keys) {
+                ensureCardRegistered(name)
+            }
+            catalogRegistered = true
+        }
+    }
+
+    private var catalogRegistered = false
+
+    /**
      * Bulk-register all card names from a deck list string.
      * Parses "N CardName" lines, registers each unique name.
      */
@@ -55,7 +77,7 @@ object TestCardRegistry {
         }
         check(failures.isEmpty()) {
             "Cards not found in Forge DB (grpId=0): ${failures.joinToString()}. " +
-                "Use `just card-grp \"<name>\"` to verify card names."
+                "Use `just card \"<name>\"` to verify card names."
         }
     }
 
