@@ -1,6 +1,8 @@
 package leyline.tooling.artifact
 
 import com.google.protobuf.util.JsonFormat
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import leyline.protocol.PlayerLogEnumJson
@@ -27,17 +29,43 @@ data class SyntheticArtifactIdentity(
 )
 
 /** Optional quarantine details preserved in the neutral sidecar schema. */
+@Serializable
 data class SyntheticArtifactQuarantine(
     val deck: SyntheticArtifactQuarantineSide? = null,
     val opponentDeck: SyntheticArtifactQuarantineSide? = null,
 )
 
+@Serializable
 data class SyntheticArtifactQuarantineSide(
     val policy: String,
     val removedCount: Int,
     val removedCards: Int,
     val replacement: String? = null,
 )
+
+@Serializable
+private data class SyntheticArtifactMetadata(
+    val cards: List<String>,
+    val tags: List<String>,
+    val notes: List<String>,
+    val quarantine: SyntheticArtifactQuarantine?,
+    val provenance: SyntheticArtifactProvenance,
+)
+
+@Serializable
+private data class SyntheticArtifactProvenance(
+    val source: String,
+    val confidence: String,
+    val matchId: String,
+    val eventName: String,
+    val recordedAt: String,
+)
+
+private val syntheticArtifactJson =
+    Json {
+        prettyPrint = true
+        prettyPrintIndent = "  "
+    }
 
 /** Writes the synthetic GRE log stream consumed by the run lifecycle. */
 interface SyntheticArtifactSink {
@@ -159,7 +187,7 @@ fun writeSyntheticArtifactSidecar(
             "${identity.runKind}:${identity.runLabel}",
             identity.opponentRunLabel?.let { "opponent:$it" },
             "seed:${identity.seed}",
-        ).joinToString(", ") { jsonString(it) }
+        )
     val eventName =
         if (identity.opponentRunLabel == null) {
             "simclient-${identity.runLabel}"
@@ -167,21 +195,22 @@ fun writeSyntheticArtifactSidecar(
             "simclient-${identity.runLabel}-vs-${identity.opponentRunLabel}"
         }
     val json =
-        """
-        {
-          "cards": [],
-          "tags": [$runTags],
-          "notes": [],
-          "quarantine": ${quarantineJson(identity.quarantine)},
-          "provenance": {
-            "source": "simclient",
-            "confidence": "explicit",
-            "matchId": ${jsonString(identity.matchId)},
-            "eventName": ${jsonString(eventName)},
-            "recordedAt": ${jsonString(ts)}
-          }
-        }
-        """.trimIndent()
+        syntheticArtifactJson.encodeToString(
+            SyntheticArtifactMetadata(
+                cards = emptyList(),
+                tags = runTags,
+                notes = emptyList(),
+                quarantine = identity.quarantine,
+                provenance =
+                    SyntheticArtifactProvenance(
+                        source = "simclient",
+                        confidence = "explicit",
+                        matchId = identity.matchId,
+                        eventName = eventName,
+                        recordedAt = ts,
+                    ),
+            ),
+        )
     sidecar.writeText(json)
 }
 
@@ -197,41 +226,3 @@ fun ingestSyntheticArtifacts(
         Files.copy(sidecar.toPath(), gamesDir.resolve("$base.meta.json"), StandardCopyOption.REPLACE_EXISTING)
     }
 }
-
-private fun quarantineJson(quarantine: SyntheticArtifactQuarantine?): String {
-    if (quarantine == null) return "null"
-    return buildString {
-        append('{')
-        append("\"deck\":${quarantineSideJson(quarantine.deck)},")
-        append("\"opponentDeck\":${quarantineSideJson(quarantine.opponentDeck)}")
-        append('}')
-    }
-}
-
-private fun quarantineSideJson(side: SyntheticArtifactQuarantineSide?): String {
-    if (side == null) return "null"
-    return buildString {
-        append('{')
-        append("\"policy\":${jsonString(side.policy)},")
-        append("\"removedCount\":${side.removedCount},")
-        append("\"removedCards\":${side.removedCards},")
-        append("\"replacement\":${side.replacement?.let(::jsonString) ?: "null"}")
-        append('}')
-    }
-}
-
-private fun jsonString(value: String): String =
-    buildString {
-        append('"')
-        value.forEach { c ->
-            when (c) {
-                '\\', '"' -> append('\\').append(c)
-                '\n' -> append("\\n")
-                '\r' -> append("\\r")
-                '\t' -> append("\\t")
-                in '\u0000'..'\u001f' -> append("\\u%04x".format(c.code))
-                else -> append(c)
-            }
-        }
-        append('"')
-    }

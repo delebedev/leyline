@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import kotlinx.serialization.json.Json
 import leyline.UnitTag
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -59,22 +60,24 @@ class SyntheticArtifactWriterTest :
             )
 
             val sidecar = dir.resolve("quoted.meta.json").readText()
-            sidecar shouldBe
-                """
-                {
-                  "cards": [],
-                  "tags": ["simclient", "deck:Deck \"A\"", "opponent:Blue\\Tempo", "seed:7"],
-                  "notes": [],
-                  "quarantine": null,
-                  "provenance": {
-                    "source": "simclient",
-                    "confidence": "explicit",
-                    "matchId": "match-\"quoted\"",
-                    "eventName": "simclient-Deck \"A\"-vs-Blue\\Tempo",
-                    "recordedAt": "2026-05-01T12:00:00"
-                  }
-                }
-                """.trimIndent()
+            Json.parseToJsonElement(sidecar) shouldBe
+                Json.parseToJsonElement(
+                    """
+                    {
+                      "cards": [],
+                      "tags": ["simclient", "deck:Deck \"A\"", "opponent:Blue\\Tempo", "seed:7"],
+                      "notes": [],
+                      "quarantine": null,
+                      "provenance": {
+                        "source": "simclient",
+                        "confidence": "explicit",
+                        "matchId": "match-\"quoted\"",
+                        "eventName": "simclient-Deck \"A\"-vs-Blue\\Tempo",
+                        "recordedAt": "2026-05-01T12:00:00"
+                      }
+                    }
+                    """.trimIndent(),
+                )
         }
 
         test("ingest copies a generated log and its sidecar") {
