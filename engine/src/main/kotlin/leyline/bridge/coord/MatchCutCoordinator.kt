@@ -7,7 +7,7 @@ import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
-import leyline.game.PendingInteractionCut
+import leyline.game.PendingPromptCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
@@ -46,7 +46,6 @@ internal class MatchCutCoordinator(
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val gameOver = MatchGameOverRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
-    internal val interactions = MatchBlockingInteractionRuntime(this)
     internal val prompts = MatchPromptRuntimeSet(this)
 
     // Read-only views; [prompts] remains the sole lifecycle owner.
@@ -61,6 +60,7 @@ internal class MatchCutCoordinator(
     internal val modalChoices get() = prompts.modalChoices
     internal val manaSourcePayments get() = prompts.manaSourcePayments
     internal val oneShotPayCosts get() = prompts.oneShotPayCosts
+    internal val interactions get() = prompts.blocking
 
     private val terminal = MatchCutTerminalRuntime(this)
 
@@ -381,8 +381,13 @@ internal class MatchCutCoordinator(
 
     internal fun fail(
         cause: Throwable,
-        pendingInteraction: PendingInteractionCut? = null,
-    ): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingInteraction = pendingInteraction))
+        pendingPrompt: PendingPromptCut<*>? = null,
+    ): Nothing =
+        if (pendingPrompt == null) {
+            failTerminal(cause, MatchCutTerminalRuntime.Context())
+        } else {
+            failPrompt(cause, pendingPrompt)
+        }
 
     internal fun failDelivery(cause: Throwable): Nothing = prompts.failDelivery(cause)
 

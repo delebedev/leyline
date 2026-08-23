@@ -10,33 +10,36 @@ import leyline.bridge.handoff.PublishedGroupingInteraction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.game.GroupingMaterializationDiagnostic
-import leyline.game.PendingGroupingCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Exact Scry and Surveil lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchGroupingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : GroupingInteractionRuntime {
+) : GroupingInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Grouping
+
     private data class Window(
         val published: PublishedGroupingInteraction,
         val value: GroupingWindowValue,
-        override val cut: PendingGroupingCut,
+        override val cut: PendingPromptCut<GroupingWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         val instanceIdsByCardId: Map<ForgeCardId, InstanceId>,
         override val future: CompletableFuture<GroupingInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<GroupingInteractionResult, PendingGroupingCut> {
+    ) : SinglePromptWindow<GroupingInteractionResult, PendingPromptCut<GroupingWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingGroupingCut, GroupingInteractionResult>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<GroupingWindowValue>, GroupingInteractionResult>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingGroupingCut, GroupingInteractionResult>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<GroupingWindowValue>, GroupingInteractionResult>(
             owner,
             windows,
-            publicationFailure = { cause, failed -> owner.failGrouping(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
     private data class Finalization(
@@ -77,7 +80,7 @@ internal class MatchGroupingInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedGroupingInteraction? = windows.current()?.published
+    override fun current(): PublishedGroupingInteraction? = windows.current()?.published
 
     fun submit(
         interactionId: String,
@@ -136,7 +139,7 @@ internal class MatchGroupingInteractionRuntime(
             if (index < 0) null else arrangements.removeAt(index)
         }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             windows.terminate(cause)
             finalization = null
@@ -144,7 +147,7 @@ internal class MatchGroupingInteractionRuntime(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             windows.reset()
             finalization = null
@@ -152,7 +155,7 @@ internal class MatchGroupingInteractionRuntime(
         }
     }
 
-    internal fun pendingCutLocked(): PendingGroupingCut? =
+    override fun claimTerminalCutLocked(): PendingPromptCut<GroupingWindowValue>? =
         windows
             .pendingCutLocked()
             .also { afterDeliveryCutLookup?.invoke() }
@@ -162,7 +165,7 @@ internal class MatchGroupingInteractionRuntime(
             duplicateMessage = "A Grouping interaction is already pending",
             ensureEmptyLocked = { check(finalization == null) { "A Grouping interaction is already active" } },
             prepare = { interactionId, feed, game ->
-                val diagnostic = GroupingMaterializationDiagnostic(interactionId, initial.value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         beforeMaterialize?.invoke()
@@ -172,7 +175,7 @@ internal class MatchGroupingInteractionRuntime(
                             initial.value,
                         )
                     } catch (ex: Exception) {
-                        owner.failGrouping(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedGroupingInteraction(
@@ -181,7 +184,7 @@ internal class MatchGroupingInteractionRuntime(
                         initial.value.context,
                     )
                 val exact =
-                    PendingGroupingCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -193,12 +196,12 @@ internal class MatchGroupingInteractionRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]
-                                ?: owner.failGrouping(IllegalStateException("Grouping candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("Grouping candidate was not projected"), exact)
                         Triple(instanceId.value, candidate.originalOptionIndex, candidate.forgeCardId to instanceId)
                     }
                 val optionsByInstanceId = entries.associate { it.first to it.second }
                 if (optionsByInstanceId.size != entries.size) {
-                    owner.failGrouping(IllegalStateException("Grouping candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("Grouping candidates have ambiguous identities"), exact)
                 }
                 val created =
                     Window(

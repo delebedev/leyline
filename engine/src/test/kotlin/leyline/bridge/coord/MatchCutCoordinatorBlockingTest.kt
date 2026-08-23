@@ -90,7 +90,7 @@ class MatchCutCoordinatorBlockingTest :
             val terminal = thrown.get() as? PlaybackTerminalFailure
             assertSoftly {
                 terminal.shouldNotBeNull()
-                terminal.pendingInteractionCut.shouldNotBeNull().interaction shouldBe interaction
+                terminal.pendingPromptCut.shouldNotBeNull().interaction shouldBe interaction
                 board.bridge.projectionStateSnapshot() shouldBe competing
                 board.bridge.projectionStateSnapshot().limboInstanceIds shouldNotContain promptInstanceId
                 board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe null

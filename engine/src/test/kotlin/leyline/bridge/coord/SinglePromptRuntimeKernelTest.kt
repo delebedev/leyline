@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.CardSelectInteractionResult
 import leyline.bridge.handoff.CardSelectInteractionTimeoutException
+import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -176,7 +177,11 @@ class SinglePromptRuntimeKernelTest :
                     deliveryCoordinator.failDelivery(IllegalStateException("delivery unavailable"))
                 }
             assertSoftly {
-                delivery.pendingCardSelectCut.shouldNotBeNull().messages shouldBe attempted
+                delivery.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<CardSelectWindowValue>()
+                delivery.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 deliveryFinished.await(3, TimeUnit.SECONDS) shouldBe true
             }
 

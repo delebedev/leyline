@@ -20,7 +20,8 @@ import java.util.concurrent.atomic.AtomicLong
 /** Exact targeting-window lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchTargetingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : TargetingInteractionRuntime {
+) : TargetingInteractionRuntime,
+    PromptLifecycle {
     internal var beforeInstall: (() -> Unit)? = null
     internal var beforeTimeoutClaim: (() -> Unit)? = null
     internal var afterCommandClaim: (() -> Unit)? = null
@@ -79,7 +80,7 @@ internal class MatchTargetingInteractionRuntime(
         return awaitCommands(pending)
     }
 
-    fun current(): PublishedTargetingInteraction? = synchronized(owner.feedLock) { window?.published }
+    override fun current(): PublishedTargetingInteraction? = synchronized(owner.feedLock) { window?.published }
 
     /** Read-only Forge context for the in-process decision policy. */
     internal fun aiContext(): SpellAbility? = synchronized(owner.feedLock) { window?.targetingAbility }
@@ -114,7 +115,7 @@ internal class MatchTargetingInteractionRuntime(
         return true
     }
 
-    fun terminate(cause: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             val pending = window ?: return
             pending.exchange.terminateLocked(cause, TargetingCommand.Terminal(cause))
@@ -122,7 +123,7 @@ internal class MatchTargetingInteractionRuntime(
         }
     }
 
-    fun reset() {
+    override fun reset() {
         synchronized(owner.feedLock) {
             window = null
         }

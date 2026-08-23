@@ -7,7 +7,7 @@ import forge.game.card.CardCollectionView
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.types.ForgeCardId
-import leyline.game.PendingInteractionCut
+import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -29,7 +29,10 @@ data class DamageAssignmentValue(
 /** Blocking prompt handles and value answers beneath [MatchCutCoordinator]. */
 internal class MatchBlockingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : BlockingInteractionRuntime {
+) : BlockingInteractionRuntime,
+    PromptTerminalCutOwner {
+    override val terminalPriority = PromptTerminalPriority.Blocking
+
     private sealed interface Answer {
         data class Optional(
             val accepted: Boolean,
@@ -46,6 +49,7 @@ internal class MatchBlockingInteractionRuntime(
 
     private data class Window(
         val published: PublishedBlockingInteraction,
+        val cut: PendingPromptCut<BlockingInteraction>,
         val future: CompletableFuture<Answer>,
         val damageCards: Map<ForgeCardId, Card> = emptyMap(),
     )
@@ -132,7 +136,10 @@ internal class MatchBlockingInteractionRuntime(
             resolveDamageMap(cards, assignment.assignments)
         }
 
-    fun current(): PublishedBlockingInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+    override fun current(): PublishedBlockingInteraction? =
+        synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
+
+    override fun claimTerminalCutLocked(): PendingPromptCut<BlockingInteraction>? = window?.takeUnless { it.future.isDone }?.cut
 
     fun submitOptional(
         interactionId: String,
@@ -190,9 +197,16 @@ internal class MatchBlockingInteractionRuntime(
             }
         }
 
-    fun terminate(failure: Throwable) {
+    override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
-            window?.future?.completeExceptionally(failure)
+            window?.future?.completeExceptionally(cause)
+            window = null
+            damageCache.clear()
+        }
+    }
+
+    override fun reset() {
+        synchronized(owner.feedLock) {
             window = null
             damageCache.clear()
         }
@@ -225,14 +239,14 @@ internal class MatchBlockingInteractionRuntime(
                                 interaction,
                             )
                         val exact =
-                            PendingInteractionCut(
+                            PendingPromptCut(
                                 published.interactionId,
                                 published.gameStateId,
                                 interaction,
                                 prepared.bundle.messages,
                                 prepared.transition,
                             )
-                        val created = Window(published, CompletableFuture(), damageCards)
+                        val created = Window(published, exact, CompletableFuture(), damageCards)
                         owner.cutInstaller.install(
                             feed,
                             PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),

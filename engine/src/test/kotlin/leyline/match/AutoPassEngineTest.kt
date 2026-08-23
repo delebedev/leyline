@@ -5,17 +5,20 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import forge.game.GameEndReason
+import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.SeatId
 import leyline.game.GamePlayback
@@ -34,6 +37,7 @@ import leyline.testkit.submitTestAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import kotlin.time.Duration.Companion.seconds
 
@@ -82,6 +86,42 @@ class AutoPassEngineTest :
     BoardTest({
 
         timeout = 15.seconds.inWholeMilliseconds
+
+        test("blocking prompt is visible through the coordinator prompt check") {
+            lateinit var source: Card
+            val (bridge, game, counter) =
+                startWithBoard { _, human, _ ->
+                    source = addCard("Forest", human, ZoneType.Hand)
+                }
+            registerPlaybackForPriorityTest(bridge)
+            val failure = AtomicReference<Throwable>()
+            val waiter =
+                thread(isDaemon = true, name = "blocking-prompt-visibility") {
+                    runCatching {
+                        bridge.cutCoordinator.awaitOptional(
+                            BlockingInteraction.Optional(ForgeCardId(source.id), true, null, null),
+                            3_000,
+                            false,
+                        )
+                    }.onFailure(failure::set)
+                }
+            val deadline = System.nanoTime() + 3.seconds.inWholeNanoseconds
+            var pending = bridge.cutCoordinator.currentBlockingInteraction()
+            while (pending == null && System.nanoTime() < deadline) {
+                Thread.onSpinWait()
+                pending = bridge.cutCoordinator.currentBlockingInteraction()
+            }
+            val exact = checkNotNull(pending) { "Blocking publication failed: ${failure.get()}" }
+            val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
+            val handler = TargetingHandler(sink = ops, counters = ops, bundles = ops, ctx = ops.ctx)
+
+            handler.checkPendingPrompt() shouldBe TargetingHandler.PromptResult.SENT_TO_CLIENT
+
+            bridge.cutCoordinator.submitOptionalAnswer(exact.interactionId, exact.gameStateId, true)
+            waiter.join(3_000)
+            failure.get() shouldBe null
+            game.isGameOver shouldBe false
+        }
 
         // --- checkHumanActions: AI turn ---
 

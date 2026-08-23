@@ -1322,8 +1322,7 @@ class GameBridge(
         actionBridges.values.any { it.getPending() != null } ||
             hasPendingNonActionInteraction()
 
-    fun hasPendingNonActionInteraction(): Boolean =
-        cutCoordinator.currentBlockingInteraction() != null || cutCoordinator.prompts.hasPendingInteraction()
+    fun hasPendingNonActionInteraction(): Boolean = cutCoordinator.prompts.hasPendingInteraction()
 
     /** Current typed one-shot PayCosts window for harness policy inspection. */
     fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.prompts.currentOneShotPayCosts()

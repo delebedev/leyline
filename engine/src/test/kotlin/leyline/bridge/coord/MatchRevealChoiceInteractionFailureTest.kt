@@ -14,6 +14,7 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedRevealChoiceInteraction
+import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -183,7 +184,11 @@ class MatchRevealChoiceInteractionFailureTest :
 
             assertSoftly {
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe attempted.get()
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted.get()
                 attempted.get().any { it.hasSelectNReq() } shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
@@ -254,7 +259,11 @@ class MatchRevealChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 board.bridge
