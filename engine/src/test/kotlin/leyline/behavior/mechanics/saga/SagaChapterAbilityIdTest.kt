@@ -12,7 +12,7 @@ import leyline.testkit.TestCardInjector
 /**
  * Verifies the saga chapter resolution shape after the fixture migration.
  *
- * Fixture-driven cards mirror the prod `ExposedCardRepository` layout:
+ * Fixture-driven cards mirror the prod `SqliteCardRepository` layout:
  * the client's `Cards.AbilityIds` column lists chapter abilities as trigger
  * rows (client category 2) in chapter order. `ZoneMapper.chapterGrpIdFromCardData`
  * resolves chapters by filtering to trigger rows — which also skips the

@@ -98,7 +98,7 @@ class SneakActionTest :
                 "and no alt-cost sneak offer when combat preconditions fail",
         ) {
             // Reproduces the runtime shape where CardData.keywordAbilityGrpIds arrives
-            // empty (production ExposedCardRepository does not populate it). Forces
+            // empty (production SqliteCardRepository does not populate it). Forces
             // canPayManaCost via a stubbed SA path is too much ceremony, so we exercise
             // the pure mapper path and assert that when canPay would be true, the
             // AbilityRegistry fallback surfaces the slot grpId.

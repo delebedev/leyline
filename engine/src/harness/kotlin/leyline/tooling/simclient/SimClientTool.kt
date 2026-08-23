@@ -3,7 +3,7 @@ package leyline.tooling.simclient
 import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.SqliteCardRepository
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -40,7 +40,7 @@ class SimClientRunner(
     private val cardRepo: CardRepository by lazy {
         val path = requireNotNull(resolvedCardDbPath) { "Card database not found; set LEYLINE_CARD_DB or --card-db" }
         val file = validateSimClientCardDbFile(path)
-        ExposedCardRepository(Database.connect("jdbc:sqlite:${file.absolutePath}", "org.sqlite.JDBC"))
+        SqliteCardRepository(Database.connect("jdbc:sqlite:${file.absolutePath}", "org.sqlite.JDBC"))
     }
 
     fun run(): SimClientRunResult {

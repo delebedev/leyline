@@ -15,7 +15,7 @@ import java.sql.DriverManager
  * Covers the Universes Within case: those printings are flagged
  * IsPrimaryCard=0, so an explicit set code must still resolve them.
  */
-class ExposedCardRepositoryNameLookupTest :
+class SqliteCardRepositoryNameLookupTest :
     FunSpec({
 
         tags(UnitTag)
@@ -39,7 +39,7 @@ class ExposedCardRepositoryNameLookupTest :
             }
         }
 
-        fun withDb(block: (ExposedCardRepository, String) -> Unit) {
+        fun withDb(block: (SqliteCardRepository, String) -> Unit) {
             val dbFile = File.createTempFile("cardlookup", ".sqlite").apply { deleteOnExit() }
             val url = "jdbc:sqlite:${dbFile.absolutePath}"
             DriverManager.getConnection(url).use { conn ->
@@ -64,7 +64,7 @@ class ExposedCardRepositoryNameLookupTest :
                     )
                 }
             }
-            block(ExposedCardRepository(Database.connect(url, "org.sqlite.JDBC")), url)
+            block(SqliteCardRepository(Database.connect(url, "org.sqlite.JDBC")), url)
         }
 
         test("name + set resolves a non-primary-only printing (Universes Within)") {

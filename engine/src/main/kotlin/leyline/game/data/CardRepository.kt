@@ -6,8 +6,8 @@ import kotlin.collections.iterator
 /**
  * Read-only card data repository — abstracts the client's local card database.
  *
- * Production impl ([ExposedCardRepository]) reads from the client's SQLite.
- * Tests use `InMemoryCardRepository` (in test source set) with synthetic data.
+ * Production impl ([SqliteCardRepository]) reads from the client's SQLite via
+ * [ClientCardDatabase]. Tests use `InMemoryCardRepository` with fixture data.
  */
 interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
@@ -53,7 +53,7 @@ interface CardRepository {
      *
      * Returns null if the repository does not carry Abilities-table data
      * (in-memory test repos) or the row is absent. Production impl is
-     * [ExposedCardRepository] which reads the client SQLite.
+     * [SqliteCardRepository] which reads the client SQLite.
      */
     fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = null
 

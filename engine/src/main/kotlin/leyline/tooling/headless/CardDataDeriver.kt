@@ -28,7 +28,7 @@ import leyline.game.data.TestCardFixtures
  * Saga chapters resolve through [CardData.abilityCategories]: chapter
  * abilities are trigger rows (Category = 2) in chapter order, and
  * `ZoneMapper.chapterGrpIdFromCardData` filters to those rows — matching the
- * prod `ExposedCardRepository` shape, including read-ahead sagas whose
+ * prod `SqliteCardRepository` shape, including read-ahead sagas whose
  * leading "Read ahead" static row (Category = 3) must be skipped.
  */
 object CardDataDeriver {

@@ -20,13 +20,17 @@ import java.util.concurrent.ConcurrentHashMap
  * Read-only [CardRepository] over the client's local SQLite card DB (Exposed).
  *
  * Never creates or modifies the schema — tables (Cards, Localizations_enUS)
- * are owned by the Arena client. Entries are cached lazily per-key on first
- * access and never evicted; card data is immutable for a given client build.
+ * are owned by the client installation. Entries are cached lazily per-key on
+ * first access and never evicted; card data is immutable for a given client
+ * build.
+ *
+ * Internal: construct via [ClientCardDatabase.open] so discovery, validation,
+ * and connection all flow through the single resolution policy.
  */
-class ExposedCardRepository(
+internal class SqliteCardRepository(
     private val database: Database,
 ) : CardRepository {
-    private val log = LoggerFactory.getLogger(ExposedCardRepository::class.java)
+    private val log = LoggerFactory.getLogger(SqliteCardRepository::class.java)
 
     // --- Exposed table objects matching external schema ---
 
