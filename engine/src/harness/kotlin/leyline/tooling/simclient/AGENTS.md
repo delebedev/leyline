@@ -13,7 +13,11 @@ just simclient mono-r-burn 1..10                 # focused deck/seed range
 SIMCLIENT_POLICY=forge-ai just simclient bears 3 # policy + fixed seed
 ```
 
-Arbitrary deck files may require `LEYLINE_CARD_DB`; built-in fixture decks do not. Store reusable decks under `data/decks/`. Use environment variables or CLI flags for run configuration; do not hardcode local paths.
+Every deck and puzzle row is backed by the client card database, resolved
+through `leyline.game.data.ClientCardDatabase` (`LEYLINE_CARD_DB` override or
+standard-location autodiscovery). Store reusable decks under `data/decks/` and
+reference them by basename. Use environment variables or CLI flags for run
+configuration; do not hardcode local paths.
 
 ## Ownership
 
