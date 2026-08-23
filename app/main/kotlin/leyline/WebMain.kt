@@ -4,6 +4,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import leyline.config.ConfigException
 import leyline.config.EngineSettings
+import leyline.config.LeylineConfig
 import leyline.config.LeylineConfigResolver
 import leyline.config.ResolvedLeylineConfig
 import leyline.config.RuntimeMatchConfig
@@ -51,6 +52,8 @@ fun main(args: Array<String>) {
     // steps only delays frame delivery, so the web profile runs the engine
     // at the web head's pacing (full speed by default).
     val engineSettings = resolved.config.engine.copy(aiSpeed = web.aiSpeed)
+
+    println(resolved.report(head = "web", redactedPaths = LeylineConfig.SECRET_PATHS))
 
     val cardRepo = resolveCardRepository()
     val playerDb = paths.playerDb
