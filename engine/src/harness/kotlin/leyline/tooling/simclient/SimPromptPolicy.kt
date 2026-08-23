@@ -321,21 +321,23 @@ internal class ForgeAiPromptPolicy(
         attempts: ActionAttemptLedger,
     ): SimPromptResponse {
         val telemetryName = prompt.type.telemetryName()
+        val consultedAt = System.nanoTime()
         val result =
-            timed(telemetryName) {
-                advisor.decide(
-                    prompt.msg,
-                    context =
-                        PromptDecisionContext(
-                            isSkippedAction = { action -> action.isSkippedBy(attempts.skipFingerprints()) },
-                            board = PromptDecisionBoard(harness.accumulator.objects.toMap()),
-                        ),
-                )
-            }
+            advisor.decide(
+                prompt.msg,
+                context =
+                    PromptDecisionContext(
+                        isSkippedAction = { action -> action.isSkippedBy(attempts.skipFingerprints()) },
+                        board = PromptDecisionBoard(harness.accumulator.objects.toMap()),
+                    ),
+            )
+        if (result.forgeAiAttempted) {
+            bumpConsulted(telemetryName)
+            recordConsultationTime(telemetryName, (System.nanoTime() - consultedAt) / 1_000_000)
+        }
         when (result) {
             is PromptDecisionResult.Chosen -> {
                 if (result.source == leyline.copilot.PromptDecisionSource.ForgeAi) {
-                    bumpConsulted(telemetryName)
                     bumpChose(telemetryName)
                     val response = SimPromptResponse(result.decision)
                     recordTargetChoice(prompt, response, source = "forge-ai")
@@ -398,22 +400,16 @@ internal class ForgeAiPromptPolicy(
         return "object:${objectInfo.type.name}:grp:${objectInfo.grpId}:$name:ctrl:${objectInfo.controllerSeatId}:types:$types"
     }
 
-    private inline fun <T> timed(
-        prompt: String,
-        block: () -> T,
-    ): T {
-        val t0 = System.nanoTime()
-        return try {
-            block()
-        } finally {
-            val elapsedMs = (System.nanoTime() - t0) / 1_000_000
-            aiTotalMsByPrompt.merge(prompt, elapsedMs) { a, b -> a + b }
-            aiMaxMsByPrompt.merge(prompt, elapsedMs) { a, b -> maxOf(a, b) }
-        }
-    }
-
     private fun bumpConsulted(prompt: String) {
         aiConsultedByPrompt.merge(prompt, 1) { a, b -> a + b }
+    }
+
+    private fun recordConsultationTime(
+        prompt: String,
+        elapsedMs: Long,
+    ) {
+        aiTotalMsByPrompt.merge(prompt, elapsedMs) { a, b -> a + b }
+        aiMaxMsByPrompt.merge(prompt, elapsedMs) { a, b -> maxOf(a, b) }
     }
 
     private fun bumpChose(prompt: String) {

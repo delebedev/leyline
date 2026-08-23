@@ -28,8 +28,10 @@ configuration; do not hardcode local paths.
 - `PromptDecisionAdvisor` — shared prompt-family decision authority in the main source set.
 - `SimDecision` — decision model and submission.
 - `ActionAttemptLedger` — per-turn action attempts and outcomes.
-- `leyline.tooling.artifact.SyntheticArtifactWriter` — shared GRE log framing,
-  canonical enum conversion, metadata sidecars, quarantine details, and ingestion.
+- `leyline.tooling.artifact.SyntheticArtifactRun` — shared GRE log framing,
+  canonical enum conversion, metadata sidecars, quarantine details, and optional
+  paired-artifact ingestion. `SyntheticArtifactWriter` is the lower-level log
+  stream used by that run and by focused writer tests.
 - `GameLogCollector` — per-row warning/error telemetry.
 - `leyline.tooling.headless.MatchFlowHarness` — generic in-process session wiring shared with tests.
 - This harness package — CLI/config, matrix expansion, watchdog, policy telemetry,

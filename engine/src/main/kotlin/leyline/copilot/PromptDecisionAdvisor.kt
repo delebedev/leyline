@@ -23,14 +23,18 @@ internal enum class PromptUnavailableReason {
 }
 
 internal sealed interface PromptDecisionResult {
+    val forgeAiAttempted: Boolean
+
     data class Chosen(
         val decision: SimDecision,
         val source: PromptDecisionSource,
+        override val forgeAiAttempted: Boolean = source == PromptDecisionSource.ForgeAi,
     ) : PromptDecisionResult
 
     data class Unavailable(
         val reason: PromptUnavailableReason,
         val detail: String,
+        override val forgeAiAttempted: Boolean = false,
     ) : PromptDecisionResult
 }
 
@@ -55,6 +59,7 @@ internal class PromptDecisionAdvisor(
             PromptDecisionResult.Unavailable(
                 reason = PromptUnavailableReason.ConsultFailed,
                 detail = "${t::class.simpleName}: ${t.message ?: "no message"}",
+                forgeAiAttempted = forgeAiAttemptedFor(prompt),
             )
         }
 
@@ -73,18 +78,26 @@ internal class PromptDecisionAdvisor(
                     if (TargetSelectionDiff.isValid(prompt.selectTargetsReq, desired)) {
                         forgeChosen(SimDecision.SelectTargets(desired))
                     } else {
-                        unavailable(PromptUnavailableReason.NoForgeChoice, "Forge AI returned an invalid grouped target plan")
+                        unavailable(
+                            PromptUnavailableReason.NoForgeChoice,
+                            "Forge AI returned an invalid grouped target plan",
+                            forgeAiAttempted = true,
+                        )
                     }
-                } ?: unavailable(PromptUnavailableReason.NoForgeChoice, "Forge AI returned no grouped target plan")
+                } ?: unavailable(
+                    PromptUnavailableReason.NoForgeChoice,
+                    "Forge AI returned no grouped target plan",
+                    forgeAiAttempted = true,
+                )
 
             GREMessageType.SelectNreq ->
                 forgeAi.chooseSelectN(prompt.selectNReq)?.let { forgeChosen(SimDecision.SelectN(it)) }
                     ?: forgeAi.chooseStaticColorSelectN(prompt)?.let { forgeChosen(SimDecision.SelectN(it)) }
-                    ?: defaulted(DefaultDecisions.selectN(prompt))
+                    ?: defaulted(DefaultDecisions.selectN(prompt), forgeAiAttempted = true)
 
             GREMessageType.CastingTimeOptionsReq_695e ->
                 forgeAi.chooseCastingTimeOptions(prompt)?.let(::forgeChosen)
-                    ?: defaulted(DefaultDecisions.castingTimeOptions(prompt))
+                    ?: defaulted(DefaultDecisions.castingTimeOptions(prompt), forgeAiAttempted = true)
 
             GREMessageType.OrderReq_695e -> defaulted(DefaultDecisions.order(prompt))
 
@@ -118,13 +131,17 @@ internal class PromptDecisionAdvisor(
 
             GREMessageType.DeclareAttackersReq_695e ->
                 forgeAi.chooseAttackers()?.let { forgeChosen(SimDecision.DeclareAttackers(it)) }
-                    ?: unavailable(PromptUnavailableReason.NoForgeChoice, "Forge AI declared no attackers")
+                    ?: unavailable(
+                        PromptUnavailableReason.NoForgeChoice,
+                        "Forge AI declared no attackers",
+                        forgeAiAttempted = true,
+                    )
 
             GREMessageType.AssignDamageReq_695e -> defaulted(DefaultDecisions.assignDamage(prompt))
 
             GREMessageType.DeclareBlockersReq_695e ->
                 forgeAi.chooseBlockers(prompt)?.let { forgeChosen(SimDecision.DeclareBlockers(it)) }
-                    ?: defaulted(SimDecision.DeclareNoBlockers)
+                    ?: defaulted(SimDecision.DeclareNoBlockers, forgeAiAttempted = true)
 
             GREMessageType.OptionalActionMessage_695e -> defaulted(DefaultDecisions.optionalAction())
 
@@ -148,6 +165,7 @@ internal class PromptDecisionAdvisor(
             } else {
                 "Forge AI returned no available action"
             },
+            forgeAiAttempted = true,
         )
     }
 
@@ -156,11 +174,17 @@ internal class PromptDecisionAdvisor(
             return defaulted(SimDecision.AutoTapPayment(0))
         }
         return forgeAi.chooseEffectCostPayment(prompt)?.let { forgeChosen(SimDecision.EffectCost(it)) }
-            ?: unavailable(PromptUnavailableReason.NoForgeChoice, "Forge AI returned no effect-cost selection")
+            ?: unavailable(
+                PromptUnavailableReason.NoForgeChoice,
+                "Forge AI returned no effect-cost selection",
+                forgeAiAttempted = true,
+            )
     }
 
-    private fun defaulted(decision: SimDecision): PromptDecisionResult.Chosen =
-        PromptDecisionResult.Chosen(decision, PromptDecisionSource.Default)
+    private fun defaulted(
+        decision: SimDecision,
+        forgeAiAttempted: Boolean = false,
+    ): PromptDecisionResult.Chosen = PromptDecisionResult.Chosen(decision, PromptDecisionSource.Default, forgeAiAttempted)
 
     private fun forgeChosen(decision: SimDecision): PromptDecisionResult.Chosen =
         PromptDecisionResult.Chosen(decision, PromptDecisionSource.ForgeAi)
@@ -168,7 +192,21 @@ internal class PromptDecisionAdvisor(
     private fun unavailable(
         reason: PromptUnavailableReason,
         detail: String,
-    ): PromptDecisionResult.Unavailable = PromptDecisionResult.Unavailable(reason, detail)
+        forgeAiAttempted: Boolean = false,
+    ): PromptDecisionResult.Unavailable = PromptDecisionResult.Unavailable(reason, detail, forgeAiAttempted)
+
+    private fun forgeAiAttemptedFor(prompt: GREToClientMessage): Boolean =
+        when (prompt.type) {
+            GREMessageType.ActionsAvailableReq_695e,
+            GREMessageType.SelectTargetsReq_695e,
+            GREMessageType.SelectNreq,
+            GREMessageType.CastingTimeOptionsReq_695e,
+            GREMessageType.DeclareAttackersReq_695e,
+            GREMessageType.DeclareBlockersReq_695e,
+            -> true
+            GREMessageType.PayCostsReq_695e -> prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount == 0
+            else -> false
+        }
 
     companion object {
         internal fun chooseBoardAwareSearchIds(

@@ -39,12 +39,21 @@ data class SyntheticArtifactQuarantineSide(
     val replacement: String? = null,
 )
 
-/** Writes the paired log/metadata lifecycle shared by synthetic callers. */
+/** Writes the synthetic GRE log stream consumed by the run lifecycle. */
+interface SyntheticArtifactSink {
+    fun emitGameStart(seatId: Int = 1)
+
+    fun writeBundle(messages: List<GREToClientMessage>)
+
+    fun flush()
+}
+
+/** Writes the synthetic GRE log stream for callers that own the surrounding file. */
 class SyntheticArtifactWriter(
     private val out: Writer,
     private val matchId: String,
     private val clock: () -> LocalDateTime = LocalDateTime::now,
-) {
+) : SyntheticArtifactSink {
     private val printer: JsonFormat.Printer =
         JsonFormat.printer().omittingInsignificantWhitespace().preservingProtoFieldNames()
     private val timestampFormat: DateTimeFormatter =
@@ -52,7 +61,7 @@ class SyntheticArtifactWriter(
     private var gameStartEmitted = false
 
     /** Synthesize a ConnectResp so following GSMs form one contiguous game. */
-    fun emitGameStart(seatId: Int = 1) {
+    override fun emitGameStart(seatId: Int) {
         if (gameStartEmitted) return
         gameStartEmitted = true
         val ts = clock().format(timestampFormat)
@@ -66,7 +75,7 @@ class SyntheticArtifactWriter(
         out.write("\n")
     }
 
-    fun writeBundle(messages: List<GREToClientMessage>) {
+    override fun writeBundle(messages: List<GREToClientMessage>) {
         if (messages.isEmpty()) return
         if (!gameStartEmitted) emitGameStart()
         val event = GreToClientEvent.newBuilder().also { ev -> messages.forEach(ev::addGreToClientMessages) }.build()
@@ -77,7 +86,7 @@ class SyntheticArtifactWriter(
         out.write("\n")
     }
 
-    fun flush() = out.flush()
+    override fun flush() = out.flush()
 
     private fun translateToScryFormat(json: String): String {
         val normalized =
@@ -87,6 +96,55 @@ class SyntheticArtifactWriter(
             )
         return Json.encodeToString(JsonElement.serializer(), normalized)
     }
+}
+
+/** Owns one synthetic log/metadata pair from open through optional ingest. */
+class SyntheticArtifactRun internal constructor(
+    val logFile: File,
+    private val out: Writer,
+    private val writer: SyntheticArtifactWriter,
+    private val identity: SyntheticArtifactIdentity,
+) : SyntheticArtifactSink,
+    AutoCloseable {
+    private var finished = false
+
+    override fun emitGameStart(seatId: Int) = writer.emitGameStart(seatId)
+
+    override fun writeBundle(messages: List<GREToClientMessage>) = writer.writeBundle(messages)
+
+    override fun flush() = writer.flush()
+
+    /** Flushes, closes, writes metadata, and optionally ingests the exact pair. */
+    @Synchronized
+    fun finish(ingestTo: Path? = null) {
+        if (!finished) {
+            try {
+                writer.flush()
+            } finally {
+                out.close()
+            }
+            writeSyntheticArtifactSidecar(logFile, identity)
+            finished = true
+        }
+        if (ingestTo != null) ingestSyntheticArtifacts(logFile, ingestTo)
+    }
+
+    override fun close() = finish()
+}
+
+fun openSyntheticArtifactRun(
+    logFile: File,
+    identity: SyntheticArtifactIdentity,
+    clock: () -> LocalDateTime = LocalDateTime::now,
+): SyntheticArtifactRun {
+    logFile.parentFile?.mkdirs()
+    val out = logFile.bufferedWriter()
+    return SyntheticArtifactRun(
+        logFile = logFile,
+        out = out,
+        writer = SyntheticArtifactWriter(out = out, matchId = identity.matchId, clock = clock),
+        identity = identity,
+    )
 }
 
 fun writeSyntheticArtifactSidecar(

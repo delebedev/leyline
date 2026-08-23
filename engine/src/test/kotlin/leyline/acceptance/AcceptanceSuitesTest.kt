@@ -5,12 +5,11 @@ import io.kotest.matchers.shouldBe
 import leyline.AcceptanceTag
 import leyline.IntegrationTag
 import leyline.tooling.artifact.SyntheticArtifactIdentity
-import leyline.tooling.artifact.SyntheticArtifactWriter
-import leyline.tooling.artifact.ingestSyntheticArtifacts
-import leyline.tooling.artifact.writeSyntheticArtifactSidecar
+import leyline.tooling.artifact.openSyntheticArtifactRun
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.LocalDateTime
 
 class AcceptanceSuitesTest :
@@ -63,24 +62,23 @@ private fun writeScryRun(
     val outDir = AcceptancePaths.resolve("engine", exists = Files::isDirectory).resolve("build/acceptance-scry").toFile()
     outDir.mkdirs()
     val logFile = File(outDir, "$matchId.log")
-    logFile.bufferedWriter().use { out ->
-        SyntheticArtifactWriter(out, matchId).apply {
-            writeBundle(messages)
-            flush()
-        }
+    val artifactRun =
+        openSyntheticArtifactRun(
+            logFile = logFile,
+            identity =
+                SyntheticArtifactIdentity(
+                    matchId = matchId,
+                    runLabel = runLabel,
+                    seed = seed,
+                    generatedAt = LocalDateTime.now(),
+                    runKind = "acceptance",
+                ),
+        )
+    try {
+        artifactRun.writeBundle(messages)
+    } finally {
+        artifactRun.finish(ingestTo = Path.of(System.getProperty("user.home"), ".scry", "games"))
     }
-    writeSyntheticArtifactSidecar(
-        logFile = logFile,
-        identity =
-            SyntheticArtifactIdentity(
-                matchId = matchId,
-                runLabel = runLabel,
-                seed = seed,
-                generatedAt = LocalDateTime.now(),
-                runKind = "acceptance",
-            ),
-    )
-    ingestSyntheticArtifacts(logFile)
 }
 
 private fun discoverSuiteNames(): List<String> {

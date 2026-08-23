@@ -7,9 +7,9 @@ import leyline.game.data.ClientCardDatabase
 import leyline.tooling.artifact.SyntheticArtifactIdentity
 import leyline.tooling.artifact.SyntheticArtifactQuarantine
 import leyline.tooling.artifact.SyntheticArtifactQuarantineSide
-import leyline.tooling.artifact.SyntheticArtifactWriter
+import leyline.tooling.artifact.SyntheticArtifactSink
 import leyline.tooling.artifact.ingestSyntheticArtifacts
-import leyline.tooling.artifact.writeSyntheticArtifactSidecar
+import leyline.tooling.artifact.openSyntheticArtifactRun
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import java.io.File
@@ -139,7 +139,7 @@ class SimClientRunner internal constructor(
     private fun createDriver(
         row: SimClientRow,
         harness: MatchFlowHarness,
-        playerLog: SyntheticArtifactWriter,
+        playerLog: SyntheticArtifactSink,
     ): SimClientDriver {
         val forgeAi =
             if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
@@ -177,9 +177,23 @@ class SimClientRunner internal constructor(
     private fun runWithTimeout(
         run: TimedRunContext,
         createHarness: () -> MatchFlowHarness,
-        runGame: (MatchFlowHarness, SyntheticArtifactWriter) -> GameStats,
+        runGame: (MatchFlowHarness, SyntheticArtifactSink) -> GameStats,
     ): GameStats {
         val matchId = "simclient-${run.tag}"
+        val identity =
+            SyntheticArtifactIdentity(
+                matchId = matchId,
+                runLabel = run.runLabel,
+                opponentRunLabel = run.opponentRunLabel,
+                seed = run.seed,
+                generatedAt = LocalDateTime.now(),
+                runKind = run.runKind,
+                quarantine =
+                    SyntheticArtifactQuarantine(
+                        deck = run.deckOverlay?.toSyntheticArtifactSide(),
+                        opponentDeck = run.opponentDeckOverlay?.toSyntheticArtifactSide(),
+                    ).takeUnless { it.deck == null && it.opponentDeck == null },
+            )
         val harnessRef = AtomicReference<MatchFlowHarness?>()
         val timeoutMs = config.gameTimeoutSeconds * 1_000
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
@@ -189,20 +203,28 @@ class SimClientRunner internal constructor(
                     val harness = createHarness()
                     harnessRef.set(harness)
                     var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-                    val writer = run.logFile.bufferedWriter()
+                    val artifactRun =
+                        openSyntheticArtifactRun(
+                            logFile = run.logFile,
+                            identity = identity,
+                            clock = {
+                                fakeNow = fakeNow.plusSeconds(1)
+                                fakeNow
+                            },
+                        )
                     try {
-                        val playerLog =
-                            SyntheticArtifactWriter(
-                                out = writer,
-                                matchId = matchId,
-                                clock = {
-                                    fakeNow = fakeNow.plusSeconds(1)
-                                    fakeNow
-                                },
-                            )
-                        runGame(harness, playerLog)
+                        runGame(harness, artifactRun)
                     } finally {
-                        runCatching { writer.close() }
+                        runCatching {
+                            artifactRun.finish(
+                                ingestTo =
+                                    if (config.ingestScry) {
+                                        Path.of(System.getProperty("user.home"), ".scry", "games")
+                                    } else {
+                                        null
+                                    },
+                            )
+                        }
                         runCatching { harness.shutdown() }
                     }
                 }
@@ -225,22 +247,6 @@ class SimClientRunner internal constructor(
             } finally {
                 executor.shutdownNow()
             }
-        writeSyntheticArtifactSidecar(
-            run.logFile,
-            SyntheticArtifactIdentity(
-                matchId = matchId,
-                runLabel = run.runLabel,
-                opponentRunLabel = run.opponentRunLabel,
-                seed = run.seed,
-                generatedAt = LocalDateTime.now(),
-                runKind = run.runKind,
-                quarantine =
-                    SyntheticArtifactQuarantine(
-                        deck = run.deckOverlay?.toSyntheticArtifactSide(),
-                        opponentDeck = run.opponentDeckOverlay?.toSyntheticArtifactSide(),
-                    ).takeUnless { it.deck == null && it.opponentDeck == null },
-            ),
-        )
         return stats
     }
 

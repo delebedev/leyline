@@ -24,6 +24,37 @@ class SimClientE2ETest :
     FunSpec({
         tags(SimClientTag)
 
+        test("grouped target decisions advance each target group before submit") {
+            val harness = MatchFlowHarness(seed = 42L)
+            val tempLog = Files.createTempFile("simclient-grouped-targets-", ".log").toFile()
+            val writer = tempLog.bufferedWriter()
+            val playerLog = SyntheticArtifactWriter(out = writer, matchId = "simclient-grouped-targets")
+            try {
+                val stats =
+                    SimClientDriver(
+                        harness = harness,
+                        log = playerLog,
+                        maxTurns = 2,
+                        connect = {
+                            harness.connectAndKeepPuzzleText(
+                                Files.readString(Path.of("../puzzles/bite-down.pzl")),
+                            )
+                        },
+                    ).runOneGame()
+
+                val targetIndices =
+                    harness.allMessages
+                        .filter { it.hasSelectTargetsReq() }
+                        .flatMap { it.selectTargetsReq.targetsList.map { selection -> selection.targetIdx } }
+                        .distinct()
+                targetIndices shouldBe listOf(1, 2)
+                stats.completionReason shouldBe "max-turns"
+            } finally {
+                writer.close()
+                runCatching { harness.shutdown() }
+            }
+        }
+
         test("bolt-face orders noncombat damage inside its resolution lifecycle before stack exit") {
             val harness = MatchFlowHarness(seed = 42L)
             val tempLog = Files.createTempFile("simclient-bolt-face-", ".log").toFile()

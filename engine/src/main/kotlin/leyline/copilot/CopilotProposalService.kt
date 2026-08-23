@@ -163,12 +163,22 @@ class CopilotProposalService(
     private fun unavailableProposal(
         prompt: GREToClientMessage,
         result: PromptDecisionResult.Unavailable,
-    ): CopilotProposal =
-        ProposalTranslator.unrealizable(
-            prompt.type,
-            seatId.value,
-            "advisor unavailable: ${result.reason.name}: ${result.detail}",
-        )
+    ): CopilotProposal {
+        val fallback =
+            when {
+                result.reason !in setOf(PromptUnavailableReason.NoForgeChoice, PromptUnavailableReason.RejectedAttempt) -> null
+                prompt.type == GREMessageType.ActionsAvailableReq_695e -> SimDecision.PassPriority
+                prompt.type == GREMessageType.PayCostsReq_695e &&
+                    prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount == 0 -> SimDecision.CancelAction
+                else -> null
+            }
+        return fallback?.let { proposalFor(it, prompt) }
+            ?: ProposalTranslator.unrealizable(
+                prompt.type,
+                seatId.value,
+                "advisor unavailable: ${result.reason.name}: ${result.detail}",
+            )
+    }
 
     /** Translate the decision and attach its ordered delivery messages. */
     private fun proposalFor(
