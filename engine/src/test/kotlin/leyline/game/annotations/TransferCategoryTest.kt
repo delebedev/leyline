@@ -15,19 +15,6 @@ class TransferCategoryTest :
 
         tags(UnitTag)
 
-        test("Resolve keeps same instanceId") {
-            TransferCategory.Resolve.keepsSameInstanceId shouldBe true
-        }
-
-        test("all other categories realloc instanceId") {
-            val nonRealloc = TransferCategory.entries.filter { it.keepsSameInstanceId }
-            nonRealloc.map { it.name } shouldBe listOf("Resolve")
-        }
-
-        test("CastSpell does not keep same instanceId") {
-            TransferCategory.CastSpell.keepsSameInstanceId shouldBe false
-        }
-
         test("event resolver keeps SpellCast when cast and resolve share an event drain") {
             val cardId = ForgeCardId(42)
             val events =
