@@ -1179,7 +1179,7 @@ class MatchFlowHarness(
         itemsFound: List<Int>,
         maxSelect: Int,
     ) {
-        session.onSearchFromGroups(submitWithGsId(searchFromGroupsResp(groupId, itemsFound, maxSelect)))
+        localConnection.submitGREMessage(submitWithGsId(searchFromGroupsResp(groupId, itemsFound, maxSelect)))
         drainSink()
     }
 
