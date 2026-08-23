@@ -202,13 +202,6 @@ internal class SqliteCardRepository(
         return info
     }
 
-    override fun registerModalOptions(
-        cardGrpId: Int,
-        info: ModalAbilityInfo,
-    ) {
-        modalCache[cardGrpId] = info
-    }
-
     override fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? {
         abilityInfoCache[abilityGrpId]?.let { return it.orElse(null) }
         val info = queryAbilityInfo(abilityGrpId)

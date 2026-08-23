@@ -12,7 +12,6 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
-import leyline.game.data.AutoMappingCardRepository
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
 import leyline.game.generator.ForgeBoosterDraftDriver
@@ -192,15 +191,7 @@ private class WebRuntimeMatchLauncher(
     }
 }
 
-private fun resolveCardRepository(): CardRepository =
-    when (System.getenv("LEYLINE_CARD_MODE")?.lowercase()) {
-        "auto" -> AutoMappingCardRepository(useFixtures = true)
-        null,
-        "sqlite",
-        -> ClientCardDatabase.open().cardRepository()
-
-        else -> error("LEYLINE_CARD_MODE must be 'sqlite' or 'auto'")
-    }
+private fun resolveCardRepository(): CardRepository = ClientCardDatabase.open().cardRepository()
 
 private fun resolveWebAuthSecret(): String {
     val secret = System.getenv("LEYLINE_WEB_AUTH_SECRET")?.takeIf { it.isNotBlank() }

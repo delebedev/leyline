@@ -17,7 +17,6 @@ import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
-import leyline.game.data.AutoMappingCardRepository
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.mapping.ActionMapper
@@ -370,8 +369,12 @@ class MatchFlowHarness(
         if (cardRepositoryOverride != null) {
             cardRepositoryOverride
         } else {
+            // Pre-register the fixture catalog so GameBridge's puzzle-card
+            // lookups resolve client identity directly from the one in-memory
+            // repository — no synthetic ids, no source-selection wrapper.
             TestCardRegistry.ensureRegistered()
-            AutoMappingCardRepository(useFixtures = true, fixtureRepo = TestCardRegistry.repo)
+            TestCardRegistry.ensureFixtureCatalogRegistered()
+            TestCardRegistry.repo
         }
 
     private val effectiveMatchConfig: MatchConfig = matchConfig.copy(game = matchConfig.game.copy(seed = seed))
