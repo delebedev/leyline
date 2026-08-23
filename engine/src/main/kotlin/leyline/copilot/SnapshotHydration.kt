@@ -97,15 +97,62 @@ object SnapshotHydration {
         bridge.startPuzzle(
             puzzle,
             controlledSeat = SeatId(consultSeat),
-            beforeRuntimeStart = { restoreCombatState(gsm, puzzle, bridge, consultSeat) },
+            beforeRuntimeStart = {
+                enforceTapState(gsm, puzzle)
+                reconcileVisibleTypes(gsm, puzzle)
+                bridge.getGame()?.action?.checkStaticAbilities(false)
+                reconcileCharacteristics(gsm, puzzle)
+                restoreMarkedDamage(gsm, puzzle)
+                restoreCombatState(gsm, puzzle, bridge, consultSeat)
+            },
         )
         rebindInstanceIds(puzzle, bridge)
-        enforceTapState(gsm, puzzle)
-        reconcileCharacteristics(gsm, puzzle)
         return HydratedSnapshot(
             bridge = bridge,
             fidelity = verifyFidelity(gsm, puzzle, projection),
         )
+    }
+
+    /** Apply marked damage only after current characteristics can survive it. */
+    private fun restoreMarkedDamage(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+    ) {
+        val damageByIid = gsm.gameObjectsList.associate { it.instanceId to it.damage }
+        for ((sourceIid, card) in idToCardOf(puzzle)) {
+            if (!card.isInPlay) continue
+            card.setDamage(damageByIid[sourceIid] ?: 0)
+        }
+    }
+
+    /** Carry visible type additions before power/toughness reconciliation. */
+    private fun reconcileVisibleTypes(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+    ) {
+        val idToCard = idToCardOf(puzzle)
+        for (source in gsm.gameObjectsList) {
+            val card = idToCard[source.instanceId] ?: continue
+            if (!card.isInPlay) continue
+            val visibleTypes =
+                (source.superTypesList + source.cardTypesList + source.subtypesList)
+                    .map { it.name.substringBefore('_') }
+                    .filterNot { it.startsWith("None") }
+            if (visibleTypes.isEmpty()) continue
+            val before = card.type.toString()
+            card.addType(visibleTypes)
+            val after = card.type.toString()
+            if (before != after) {
+                log.info(
+                    "SnapshotHydration: types iid={} card={} before={} source={} after={}",
+                    source.instanceId,
+                    card.name,
+                    before,
+                    visibleTypes,
+                    after,
+                )
+            }
+        }
     }
 
     /**
@@ -141,10 +188,25 @@ object SnapshotHydration {
         for (source in gsm.gameObjectsList) {
             val card = idToCard[source.instanceId] ?: continue
             if (!card.isInPlay) continue
-            val powerDelta = if (source.hasPower()) source.power.value - card.netPower else 0
-            val toughnessDelta = if (source.hasToughness()) source.toughness.value - card.netToughness else 0
+            val powerBefore = card.netPower
+            val toughnessBefore = card.netToughness
+            val powerDelta = if (source.hasPower()) source.power.value - powerBefore else 0
+            val toughnessDelta = if (source.hasToughness()) source.toughness.value - toughnessBefore else 0
             if (powerDelta != 0 || toughnessDelta != 0) {
                 card.addPTBoost(powerDelta, toughnessDelta, card.game.nextTimestamp, 0L)
+                log.info(
+                    "SnapshotHydration: reconcile iid={} card={} source={}/{} before={}/{} delta={}/{} after={}/{}",
+                    source.instanceId,
+                    card.name,
+                    source.power.value,
+                    source.toughness.value,
+                    powerBefore,
+                    toughnessBefore,
+                    powerDelta,
+                    toughnessDelta,
+                    card.netPower,
+                    card.netToughness,
+                )
             }
         }
     }
@@ -257,7 +319,6 @@ object SnapshotHydration {
                         .takeIf { it in battlefieldIds }
                         ?.let { append(":").append(it) }
                 }
-                if (obj.damage > 0) append("|Damage:").append(obj.damage)
                 countersByIid[obj.instanceId]?.let { append("|Counters:").append(it.joinToString(",")) }
                 attachmentTargetsByIid[obj.instanceId]?.let { append("|AttachedTo:").append(it) }
             }
@@ -378,11 +439,22 @@ object SnapshotHydration {
             }.distinct()
         val characteristicMismatchIds =
             gsm.gameObjectsList
-                .filter { source ->
-                    val card = idToCard[source.instanceId] ?: return@filter false
-                    (source.hasPower() && card.netPower != source.power.value) ||
-                        (source.hasToughness() && card.netToughness != source.toughness.value)
-                }.map { it.instanceId }
+                .mapNotNull { source ->
+                    val card = idToCard[source.instanceId] ?: return@mapNotNull null
+                    val powerMismatch = source.hasPower() && card.netPower != source.power.value
+                    val toughnessMismatch = source.hasToughness() && card.netToughness != source.toughness.value
+                    if (!powerMismatch && !toughnessMismatch) return@mapNotNull null
+                    log.warn(
+                        "SnapshotHydration: characteristic mismatch iid={} card={} source={}/{} hydrated={}/{}",
+                        source.instanceId,
+                        card.name,
+                        source.power.value,
+                        source.toughness.value,
+                        card.netPower,
+                        card.netToughness,
+                    )
+                    source.instanceId
+                }
 
         fun verifiedFeature(
             feature: String,

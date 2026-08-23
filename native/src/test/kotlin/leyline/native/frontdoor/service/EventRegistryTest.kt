@@ -31,9 +31,18 @@ class EventRegistryTest :
             bot["EventNameBO1"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
-        test("queue config includes AIBotMatch") {
+        test("queue config includes native match-entry queues") {
             val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
             result shouldContain "AIBotMatch"
+            result shouldContain "\"EventNameBO1\":\"Play\""
+            result shouldContain "\"EventNameBO1\":\"Ladder\""
+        }
+
+        test("standard queue events distinguish ranked from unranked") {
+            EventRegistry.findEvent("Play")?.flags?.contains("Ranked") shouldBe false
+            EventRegistry.findEvent("Ladder")?.flags?.contains("Ranked") shouldBe true
+            EventRegistry.forgeFormatFor("Play") shouldBe "Standard"
+            EventRegistry.forgeFormatFor("Ladder") shouldBe "Standard"
         }
 
         test("active events JSON has all formats and AiBotMatches") {

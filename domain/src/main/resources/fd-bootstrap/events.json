@@ -1,5 +1,27 @@
 [
   {
+    "internalName": "Play",
+    "publicName": "Play",
+    "deckSelectFormat": "Standard",
+    "displayPriority": -1,
+    "titleLocKey": "Events/Event_Title_Play_Bo1",
+    "descLocKey": "Events/Event_Desc_Play"
+  },
+  {
+    "internalName": "Ladder",
+    "publicName": "Ranked",
+    "deckSelectFormat": "Standard",
+    "displayPriority": -1,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "UpdateQuests",
+      "UpdateDailyWeeklyRewards",
+      "Ranked"
+    ],
+    "titleLocKey": "Events/Event_Title_Ladder_Bo1",
+    "descLocKey": "Events/Event_Desc_Ladder"
+  },
+  {
     "internalName": "AIBotMatch",
     "publicName": "Bot Match",
     "deckSelectFormat": "Standard",

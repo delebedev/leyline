@@ -1,5 +1,17 @@
 [
   {
+    "id": "StandardPlay",
+    "queueType": "Unranked",
+    "locTitle": "Events/Event_Title_Play_Bo1",
+    "eventNameBO1": "Play"
+  },
+  {
+    "id": "StandardRanked",
+    "queueType": "Ranked",
+    "locTitle": "Events/Event_Title_Ladder_Bo1",
+    "eventNameBO1": "Ladder"
+  },
+  {
     "id": "AIBotMatch",
     "queueType": "Unranked",
     "locTitle": "Events/Event_Title_AIBotMatch",

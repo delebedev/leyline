@@ -180,6 +180,92 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("current type and stats are restored before marked damage") {
+            val battlefieldZoneId = 7
+            val animatedId = 201
+            val pumpedId = 202
+            val animatedGrpId = TestCardRegistry.ensureCardRegistered("Fabrication Foundry")
+            val pumpedGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(
+                        TurnInfo
+                            .newBuilder()
+                            .setPhase(Phase.Main2_a549)
+                            .setTurnNumber(5)
+                            .setActivePlayer(1)
+                            .setPriorityPlayer(1)
+                            .setDecisionPlayer(1),
+                    ).addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(16))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(battlefieldZoneId)
+                            .setType(ZoneType.Battlefield)
+                            .addObjectInstanceIds(animatedId)
+                            .addObjectInstanceIds(pumpedId),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(animatedId)
+                            .setGrpId(animatedGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Creature)
+                            .addCardTypes(CardType.Artifact_a80b)
+                            .addSubtypes(SubType.Construct)
+                            .setPower(Int32Value.newBuilder().setValue(7))
+                            .setToughness(Int32Value.newBuilder().setValue(7)),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(pumpedId)
+                            .setGrpId(pumpedGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Creature)
+                            .addSubtypes(SubType.Bear)
+                            .setPower(Int32Value.newBuilder().setValue(4))
+                            .setToughness(Int32Value.newBuilder().setValue(4))
+                            .setDamage(2),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val battlefield =
+                    hydrated.bridge
+                        .getGame()
+                        .shouldNotBeNull()
+                        .players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                battlefield.single { it.name == "Fabrication Foundry" }.let { card ->
+                    card.isCreature shouldBe true
+                    card.netPower shouldBe 7
+                    card.netToughness shouldBe 7
+                }
+                battlefield.single { it.name == "Grizzly Bears" }.let { card ->
+                    card.netPower shouldBe 4
+                    card.netToughness shouldBe 4
+                    card.damage shouldBe 2
+                }
+                hydrated.fidelity.features
+                    .single { it.feature == "characteristics" }
+                    .status shouldBe "carried"
+                hydrated.fidelity.features
+                    .single { it.feature == "marked_damage" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         test("attacker and committed blocker hydrate into Forge combat") {
             val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
             val blockerGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
