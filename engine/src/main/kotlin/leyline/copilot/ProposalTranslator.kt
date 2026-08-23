@@ -154,14 +154,7 @@ internal object ProposalTranslator {
 
             is SimDecision.Order -> base("order", promptType, seat).copy(responseIds = decision.orderedInstanceIds)
 
-            is SimDecision.Distribution ->
-                base("distribution", promptType, seat).copy(
-                    distribution =
-                        decision.amountsByInstanceId.map { (instanceId, amount) ->
-                            DistributionAmount(instanceId, amount)
-                        },
-                    responseIds = decision.amountsByInstanceId.keys.toList(),
-                )
+            is SimDecision.Distribution -> distribution(decision, promptType, seat)
 
             is SimDecision.Search -> base("search", promptType, seat).copy(responseIds = decision.itemsFound)
 
@@ -196,6 +189,19 @@ internal object ProposalTranslator {
             responseIds = listOf(action.instanceId),
         )
     }
+
+    private fun distribution(
+        decision: SimDecision.Distribution,
+        promptType: GREMessageType,
+        seat: Int,
+    ): CopilotProposal =
+        base("distribute", promptType, seat).copy(
+            distribution =
+                decision.amountsByInstanceId.map { (instanceId, amount) ->
+                    DistributionAmount(instanceId, amount)
+                },
+            responseIds = decision.amountsByInstanceId.keys.toList(),
+        )
 
     private fun base(
         intent: String,

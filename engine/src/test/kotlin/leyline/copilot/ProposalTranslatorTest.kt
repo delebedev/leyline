@@ -309,7 +309,7 @@ class ProposalTranslatorTest :
                     seat = 1,
                     resolve,
                 )
-            p.intent shouldBe "distribution"
+            p.intent shouldBe "distribute"
             p.distribution.map { it.instanceId to it.amount } shouldBe listOf(11 to 2, 12 to 3)
             p.responseIds shouldBe listOf(11, 12)
         }
