@@ -22,19 +22,28 @@ fun main(args: Array<String>) {
 }
 
 object SimClientMain {
-    fun run(args: Array<String>): Int {
-        val config = SimClientConfig.parse(args.toList(), System.getenv()) ?: return 0
+    fun run(args: Array<String>): Int = run(args.toList(), System.getenv()) { config -> SimClientRunner(config) }
+
+    internal fun run(
+        args: List<String>,
+        env: Map<String, String>,
+        runnerFactory: (SimClientConfig) -> SimClientRunner,
+    ): Int {
+        val config = SimClientConfig.parse(args, env) ?: return 0
         SimClientLogging.configure(config.verbose)
-        val result = SimClientRunner(config).run()
+        val result = runnerFactory(config).run()
         return if (config.strict && result.hasStrictFailures) 1 else 0
     }
 }
 
-class SimClientRunner(
+class SimClientRunner internal constructor(
     private val config: SimClientConfig,
+    /** Test-only seam; production runs always resolve the client card database. */
+    private val cardRepositoryOverride: CardRepository? = null,
+    private val rowRunnerOverride: ((SimClientRow) -> GameStats)? = null,
 ) {
     /** One shared client-database repository for every row in this run. */
-    private val cardRepo: CardRepository by lazy { ClientCardDatabase.open().cardRepository() }
+    private val cardRepo: CardRepository by lazy { cardRepositoryOverride ?: ClientCardDatabase.open().cardRepository() }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
@@ -61,7 +70,7 @@ class SimClientRunner(
                 println("[${row.runLabel} s=${row.seed}] skipped by quarantine")
                 continue
             }
-            val stats = runRow(rowWithResolvedOverlay)
+            val stats = rowRunnerOverride?.invoke(rowWithResolvedOverlay) ?: runRow(rowWithResolvedOverlay)
             results += SimClientRowResult(rowWithResolvedOverlay, stats)
             printRowSummary(rowWithResolvedOverlay, stats)
             if (!config.continueOnException && (stats.completionReason == "wall-timeout" || stats.completionReason == "exception")) {

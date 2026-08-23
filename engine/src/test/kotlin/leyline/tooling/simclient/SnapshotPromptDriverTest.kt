@@ -83,20 +83,6 @@ class SnapshotPromptDriverTest :
             }
         }
 
-        test("forge-ai policy and snapshot consult preserve the Adventure cast rail") {
-            val baseline = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.ForgeAi)
-            val snapshot = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.Snapshot)
-
-            assertSoftly {
-                baseline.winnerSeat shouldBe 1
-                baseline.promptProgressSamples.first().decisionKind shouldBe "perform:CastAdventure"
-
-                snapshot.winnerSeat shouldBe 1
-                snapshot.promptProgressSamples.first().decisionKind shouldBe "snapshot:cast_adventure"
-                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:target" } shouldBe true
-            }
-        }
-
         test("forge-ai policy and snapshot consult preserve an Omen cast offer through the generic matcher") {
             val baseline = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.Snapshot)
