@@ -1,37 +1,41 @@
 # Card & ability lookups against the local client SQLite DB.
 # Imported by justfile — all variables available from parent.
+# One validated database path comes from ClientCardDatabase via `card-db`;
+# no recipe scans the installation directory or assigns LEYLINE_CARD_DB.
 
-arena_db := env("HOME", "/tmp") / "Library/Application Support/com.wizards.mtga/Downloads/Raw"
 cardsfolder := project_dir / "forge/forge-gui/res/cardsfolder"
 
-# grpId → card name (accepts multiple IDs)
+# Resolve one validated client card database path (LEYLINE_CARD_DB override or
+# standard-location autodiscovery). Used by the operator recipes below.
+_card_db_path := 'db="$(' + _cli + ' leyline.cli.CardDbPathKt)"'
+
+# print the resolved, validated client card database path
 [group('lookup')]
-card +ids:
+card-db:
+    @{{_cli}} leyline.cli.CardDbPathKt
+
+# bidirectional card lookup: grpIds → names, or name → grpIds (LIKE match)
+[group('lookup')]
+card query:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=""
-    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
-        [ -f "$candidate" ] || continue
-        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
-        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
-    done
-    if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
-    ids="{{ids}}"
-    in_clause=$(echo "$ids" | tr ' ' ',')
-    sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.GrpId IN ($in_clause);"
+    cd "{{project_dir}}"
+    {{_card_db_path}}
+    if [[ "{{query}}" =~ ^[0-9]+([[:space:]][0-9]+)*$ ]]; then
+        ids=$(echo "{{query}}" | tr ' ' ',')
+        sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.GrpId IN ($ids) ORDER BY c.GrpId;"
+    else
+        escaped=$(echo "{{query}}" | sed "s/'/''/g")
+        sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc LIKE '%$escaped%' ORDER BY c.GrpId;"
+    fi
 
 # abilityId → name, category, text, owning cards
 [group('lookup')]
 ability id:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=""
-    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
-        [ -f "$candidate" ] || continue
-        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
-        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
-    done
-    if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
+    cd "{{project_dir}}"
+    {{_card_db_path}}
     echo "--- Info ---"
     sqlite3 -header "$db" "SELECT a.Id, COALESCE(l.Loc, '(no name)') AS Name, a.Category, a.SubCategory, a.IsIntrinsicAbility FROM Abilities a LEFT JOIN Localizations_enUS l ON a.TextId = l.LocId WHERE a.Id = {{id}};"
     echo "--- Text ---"
@@ -39,33 +43,13 @@ ability id:
     echo "--- Owners (first 10) ---"
     sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.AbilityIds LIKE '%{{id}}:%' OR c.HiddenAbilityIds LIKE '%{{id}}:%' LIMIT 10;"
 
-# card name → grpId (exact match)
-[group('lookup')]
-card-grp name:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    db=""
-    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
-        [ -f "$candidate" ] || continue
-        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
-        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
-    done
-    if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
-    escaped=$(echo "{{name}}" | sed "s/'/''/g")
-    sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc LIKE '%$escaped%';"
-
 # validate all card names in a .pzl puzzle file against the client card DB
 [group('lookup')]
 puzzle-check file:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=""
-    for candidate in "{{arena_db}}"/Raw_CardDatabase_*.mtga; do
-        [ -f "$candidate" ] || continue
-        sqlite3 "$candidate" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Cards'" | grep -q 1 || continue
-        if [ -z "$db" ] || [ "$candidate" -nt "$db" ]; then db="$candidate"; fi
-    done
-    if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
+    cd "{{project_dir}}"
+    {{_card_db_path}}
     if [ ! -f "{{file}}" ]; then echo "Puzzle file not found: {{file}}" >&2; exit 1; fi
     cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile|command|sideboard)=' "{{file}}" \
         | sed 's/^[^=]*=//' | tr ';' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
@@ -78,15 +62,6 @@ puzzle-check file:
         if [ -z "$grp" ]; then echo "FAIL  $name"; fail=1; else echo "  OK  $name ($grp)"; fi
     done <<< "$cards"
     [ "$fail" -eq 0 ] && echo "All cards valid." || { echo "Missing cards — puzzle will crash."; exit 1; }
-
-# list all cards in a set
-[group('lookup')]
-cards-by-set setcode:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
-    if [ ! -f "$db" ]; then echo "Client DB not found at {{arena_db}}" >&2; exit 1; fi
-    sqlite3 -header "$db" "SELECT c.GrpId, l.Loc AS Name, c.Colors, c.Types, c.Rarity FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.ExpansionCode = '{{setcode}}' AND c.IsToken = 0 AND c.IsPrimaryCard = 1 AND l.Formatted = 1 ORDER BY l.Loc;"
 
 # card name → Forge script path (fuzzy: lowercased, spaces/punctuation → underscore)
 [group('lookup')]

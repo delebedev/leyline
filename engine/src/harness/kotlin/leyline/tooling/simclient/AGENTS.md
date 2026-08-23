@@ -9,8 +9,9 @@ Use `docs/simclient-iteration.md` for the fixed-seed debugging loop, failure tax
 ```bash
 just test-simclient                              # full simclient test lane
 just simclient                                   # default matrix + scry ingest
-just simclient mono-r-burn 1..10                 # focused deck/seed range
-SIMCLIENT_POLICY=forge-ai just simclient bears 3 # policy + fixed seed
+just simclient "--decks mono-r-burn --seeds 1..10"   # focused deck/seed range
+SIMCLIENT_POLICY=forge-ai just simclient "--decks bears --seeds 3"  # policy + fixed seed
+just simclient "--puzzles bolt-face.pzl --seeds 7"   # puzzle matrix
 ```
 
 Every deck and puzzle row is backed by the client card database, resolved
