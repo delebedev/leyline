@@ -57,7 +57,7 @@ fun main(args: Array<String>) {
     playerStore.ensurePlayer(defaultPlayerId, "Web Player")
 
     val deckService = DeckService(playerStore)
-    val sealedPoolGenerator = SealedPoolGenerator(cardRepo)
+    val sealedPoolGenerator = SealedPoolGenerator(cardRepo::findGrpIdByName)
     val courseService =
         CourseService(playerStore) { setCode ->
             val pool = sealedPoolGenerator.generate(setCode)
@@ -68,7 +68,7 @@ fun main(args: Array<String>) {
             )
         }
     val draftRepo = playerStore.asDraftSessionRepository()
-    val draftDriver = ForgeBoosterDraftDriver(cardRepo, config.draft)
+    val draftDriver = ForgeBoosterDraftDriver(cardRepo::findGrpIdByName, config.draft)
     val draftService =
         DraftService(
             draftRepo,

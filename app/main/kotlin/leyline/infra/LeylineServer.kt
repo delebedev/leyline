@@ -152,7 +152,7 @@ class LeylineServer(
         store.ensurePlayer(pid, "Player")
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val sealedPoolGen = SealedPoolGenerator(cardRepo)
+        val sealedPoolGen = SealedPoolGenerator(cardRepo::findGrpIdByName)
         val courseService =
             CourseService(store) { setCode ->
                 val pool = sealedPoolGen.generate(setCode)
@@ -163,7 +163,7 @@ class LeylineServer(
                 )
             }
         val draftRepo = store.asDraftSessionRepository()
-        val forgeDriver = ForgeBoosterDraftDriver(cardRepo, matchConfig.draft)
+        val forgeDriver = ForgeBoosterDraftDriver(cardRepo::findGrpIdByName, matchConfig.draft)
         val draftService =
             DraftService(
                 draftRepo,
