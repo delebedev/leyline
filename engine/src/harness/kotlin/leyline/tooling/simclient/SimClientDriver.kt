@@ -3,6 +3,7 @@ package leyline.tooling.simclient
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
+import leyline.tooling.artifact.SyntheticArtifactSink
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
@@ -11,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * Drives one match end-to-end against a [MatchFlowHarness] using a greedy
- * policy, and emits scry-ts-parseable Player.log lines via [PlayerLogWriter].
+ * policy, and emits scry-ts-parseable Player.log lines via [SyntheticArtifactSink].
  *
  * v0 policy:
  *   - mulligan: always keep (delegated to harness.connectAndKeep)
@@ -24,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  */
 class SimClientDriver(
     val harness: MatchFlowHarness,
-    private val log: PlayerLogWriter,
+    private val log: SyntheticArtifactSink,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
     private val turnStallThreshold: Int = TURN_STALL_THRESHOLD,
@@ -187,6 +188,7 @@ class SimClientDriver(
             aiMaxMsByPrompt = policyTelemetry.maxMs,
             targetChoiceCounts = policyTelemetry.targetChoices,
             targetChoiceSamples = policyTelemetry.targetChoiceSamples,
+            advisorUnavailableByReason = policyTelemetry.advisorUnavailableByReason,
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,

@@ -4,6 +4,12 @@ import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
+import leyline.tooling.artifact.SyntheticArtifactIdentity
+import leyline.tooling.artifact.SyntheticArtifactQuarantine
+import leyline.tooling.artifact.SyntheticArtifactQuarantineSide
+import leyline.tooling.artifact.SyntheticArtifactSink
+import leyline.tooling.artifact.ingestSyntheticArtifacts
+import leyline.tooling.artifact.openSyntheticArtifactRun
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import java.io.File
@@ -22,19 +28,28 @@ fun main(args: Array<String>) {
 }
 
 object SimClientMain {
-    fun run(args: Array<String>): Int {
-        val config = SimClientConfig.parse(args.toList(), System.getenv()) ?: return 0
+    fun run(args: Array<String>): Int = run(args.toList(), System.getenv()) { config -> SimClientRunner(config) }
+
+    internal fun run(
+        args: List<String>,
+        env: Map<String, String>,
+        runnerFactory: (SimClientConfig) -> SimClientRunner,
+    ): Int {
+        val config = SimClientConfig.parse(args, env) ?: return 0
         SimClientLogging.configure(config.verbose)
-        val result = SimClientRunner(config).run()
+        val result = runnerFactory(config).run()
         return if (config.strict && result.hasStrictFailures) 1 else 0
     }
 }
 
-class SimClientRunner(
+class SimClientRunner internal constructor(
     private val config: SimClientConfig,
+    /** Test-only seam; production runs always resolve the client card database. */
+    private val cardRepositoryOverride: CardRepository? = null,
+    private val rowRunnerOverride: ((SimClientRow) -> GameStats)? = null,
 ) {
     /** One shared client-database repository for every row in this run. */
-    private val cardRepo: CardRepository by lazy { ClientCardDatabase.open().cardRepository() }
+    private val cardRepo: CardRepository by lazy { cardRepositoryOverride ?: ClientCardDatabase.open().cardRepository() }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
@@ -61,7 +76,7 @@ class SimClientRunner(
                 println("[${row.runLabel} s=${row.seed}] skipped by quarantine")
                 continue
             }
-            val stats = runRow(rowWithResolvedOverlay)
+            val stats = rowRunnerOverride?.invoke(rowWithResolvedOverlay) ?: runRow(rowWithResolvedOverlay)
             results += SimClientRowResult(rowWithResolvedOverlay, stats)
             printRowSummary(rowWithResolvedOverlay, stats)
             if (!config.continueOnException && (stats.completionReason == "wall-timeout" || stats.completionReason == "exception")) {
@@ -124,7 +139,7 @@ class SimClientRunner(
     private fun createDriver(
         row: SimClientRow,
         harness: MatchFlowHarness,
-        playerLog: PlayerLogWriter,
+        playerLog: SyntheticArtifactSink,
     ): SimClientDriver {
         val forgeAi =
             if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
@@ -162,9 +177,23 @@ class SimClientRunner(
     private fun runWithTimeout(
         run: TimedRunContext,
         createHarness: () -> MatchFlowHarness,
-        runGame: (MatchFlowHarness, PlayerLogWriter) -> GameStats,
+        runGame: (MatchFlowHarness, SyntheticArtifactSink) -> GameStats,
     ): GameStats {
         val matchId = "simclient-${run.tag}"
+        val identity =
+            SyntheticArtifactIdentity(
+                matchId = matchId,
+                runLabel = run.runLabel,
+                opponentRunLabel = run.opponentRunLabel,
+                seed = run.seed,
+                generatedAt = LocalDateTime.now(),
+                runKind = run.runKind,
+                quarantine =
+                    SyntheticArtifactQuarantine(
+                        deck = run.deckOverlay?.toSyntheticArtifactSide(),
+                        opponentDeck = run.opponentDeckOverlay?.toSyntheticArtifactSide(),
+                    ).takeUnless { it.deck == null && it.opponentDeck == null },
+            )
         val harnessRef = AtomicReference<MatchFlowHarness?>()
         val timeoutMs = config.gameTimeoutSeconds * 1_000
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
@@ -174,20 +203,28 @@ class SimClientRunner(
                     val harness = createHarness()
                     harnessRef.set(harness)
                     var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
-                    val writer = run.logFile.bufferedWriter()
+                    val artifactRun =
+                        openSyntheticArtifactRun(
+                            logFile = run.logFile,
+                            identity = identity,
+                            clock = {
+                                fakeNow = fakeNow.plusSeconds(1)
+                                fakeNow
+                            },
+                        )
                     try {
-                        val playerLog =
-                            PlayerLogWriter(
-                                out = writer,
-                                matchId = matchId,
-                                clock = {
-                                    fakeNow = fakeNow.plusSeconds(1)
-                                    fakeNow
-                                },
-                            )
-                        runGame(harness, playerLog)
+                        runGame(harness, artifactRun)
                     } finally {
-                        runCatching { writer.close() }
+                        runCatching {
+                            artifactRun.finish(
+                                ingestTo =
+                                    if (config.ingestScry) {
+                                        Path.of(System.getProperty("user.home"), ".scry", "games")
+                                    } else {
+                                        null
+                                    },
+                            )
+                        }
                         runCatching { harness.shutdown() }
                     }
                 }
@@ -210,17 +247,6 @@ class SimClientRunner(
             } finally {
                 executor.shutdownNow()
             }
-        writeSimClientSidecar(
-            run.logFile,
-            matchId,
-            run.runLabel,
-            run.opponentRunLabel,
-            run.seed,
-            LocalDateTime.now(),
-            run.runKind,
-            deckOverlay = run.deckOverlay,
-            opponentDeckOverlay = run.opponentDeckOverlay,
-        )
         return stats
     }
 
@@ -337,7 +363,7 @@ class SimClientRunner(
         val out = Path.of(System.getProperty("user.home"), ".scry", "games")
         var count = 0
         config.outDir.listFiles { file -> isSimClientGameLogFile(file) }.orEmpty().forEach { log ->
-            ingestSimClientArtifacts(log, out)
+            ingestSyntheticArtifacts(log, out)
             count += 1
         }
         println("Sim-client: $count game(s) ingested into $out")
@@ -363,3 +389,11 @@ private data class TimedRunContext(
 )
 
 internal fun isSimClientGameLogFile(file: File): Boolean = file.extension == "log" && !file.name.endsWith(".console.log")
+
+private fun DeckOverlayReport.toSyntheticArtifactSide(): SyntheticArtifactQuarantineSide =
+    SyntheticArtifactQuarantineSide(
+        policy = if (policy == SimClientExcludePolicy.ReplaceBasic) "replace-basic" else "skip-deck",
+        removedCount = removedCount,
+        removedCards = removedCards,
+        replacement = replacement,
+    )

@@ -834,19 +834,25 @@ class MatchFlowHarness(
      * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
-        val before = allMessages.size
-        localConnection.submitGREMessage(
-            submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())),
-        )
-        drainSink()
-        // The engine echoes the picked target back as an iterative re-prompt and
-        // holds the window open for the submit below. That echo is answered here,
-        // not by whoever asked for this call, so record it as consumed — a driver
-        // that later treats it as outstanding work would answer a window this
-        // method already closed.
-        for (i in before until allMessages.size) {
-            val msg = allMessages[i]
-            if (msg.hasSelectTargetsReq()) consumedPromptMsgIds += msg.msgId
+        selectTargets(mapOf(currentTargetIndex() to targetInstanceIds))
+    }
+
+    /** Select one correlated target response for each request group, then submit. */
+    fun selectTargets(targetGroups: Map<Int, List<Int>>) {
+        require(targetGroups.isNotEmpty()) { "targetGroups must not be empty" }
+        targetGroups.forEach { (targetIdx, targetInstanceIds) ->
+            val before = allMessages.size
+            localConnection.submitGREMessage(
+                submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx)),
+            )
+            drainSink()
+            // Each iterative response echoes a fresh prompt. This helper owns
+            // those intermediate prompts so the caller only sees the final
+            // submitted interaction.
+            for (i in before until allMessages.size) {
+                val msg = allMessages[i]
+                if (msg.hasSelectTargetsReq()) consumedPromptMsgIds += msg.msgId
+            }
         }
         localConnection.submitGREMessage(submitWithGsId(submitTargetsReq()))
         drainSink()

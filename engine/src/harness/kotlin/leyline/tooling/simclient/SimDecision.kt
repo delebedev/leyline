@@ -17,7 +17,13 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
                 "ability=${action.abilityGrpId}",
                 "alt=${action.alternativeGrpId}",
             ).joinToString(":")
-        is SimDecision.SelectTargets -> "select-targets:${targetInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.SelectTargets ->
+            "select-targets:" +
+                targetGroups.entries
+                    .sortedBy { it.key }
+                    .joinToString("+") { (idx, ids) ->
+                        "$idx=${ids.sorted().joinToString(",")}"
+                    }
         is SimDecision.UnselectTargets -> "unselect-targets:${targetInstanceIds.sorted().joinToString("+")}"
         SimDecision.SubmitTargets -> "submit-targets"
         is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
@@ -97,7 +103,7 @@ internal class SimDecisionSubmitter(
     fun submit(decision: SimDecision): SimSubmitResult =
         when (decision) {
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
-            is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetInstanceIds) }
+            is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetGroups) }
             SimDecision.SubmitTargets -> submitted { harness.submitTargets() }
             // Consult/live-client path only; simclient uses full-list SelectTargets.
             is SimDecision.UnselectTargets -> SimSubmitResult.NotSubmitted
