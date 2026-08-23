@@ -89,8 +89,8 @@ class CoordinatorCutInstallerTest :
                     coordinator.cardSelect.awaitSelection(request(board, Int.MAX_VALUE), options(board), 3_000)
                 }
             assertSoftly {
-                materialization.cardSelectDiagnostic.shouldNotBeNull()
-                materialization.pendingCardSelectCut.shouldBeNull()
+                materialization.promptMaterializationDiagnostic.shouldNotBeNull()
+                materialization.pendingPromptCut.shouldBeNull()
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 board.bridge.projectionStateSnapshot() shouldBe prior
             }
@@ -106,7 +106,7 @@ class CoordinatorCutInstallerTest :
                     enqueueCoordinator.cardSelect.awaitSelection(request(enqueueBoard), options(enqueueBoard), 3_000)
                 }
             assertSoftly {
-                enqueue.pendingCardSelectCut.shouldNotBeNull()
+                enqueue.pendingPromptCut.shouldNotBeNull()
                 enqueueCoordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
             }
         }
@@ -128,7 +128,7 @@ class CoordinatorCutInstallerTest :
                     coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
                 }
             assertSoftly {
-                stale.pendingCardSelectCut.shouldNotBeNull()
+                stale.pendingPromptCut.shouldNotBeNull()
                 coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
                 board.bridge.projectionStateSnapshot() shouldBe competing
             }
@@ -146,7 +146,7 @@ class CoordinatorCutInstallerTest :
                 }
             val retained = coordinator.drain(SeatId(1)).single()
             assertSoftly {
-                committed.pendingCardSelectCut.shouldNotBeNull().messages shouldBe retained
+                committed.pendingPromptCut.shouldNotBeNull().messages shouldBe retained
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 coordinator.cardSelect.current().shouldBeNull()
             }

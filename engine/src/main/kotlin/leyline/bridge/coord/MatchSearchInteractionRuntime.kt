@@ -6,8 +6,8 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.SearchInteractionTimeoutException
 import leyline.bridge.handoff.SearchWindowValue
-import leyline.game.PendingSearchCut
-import leyline.game.SearchMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
@@ -17,21 +17,21 @@ internal class MatchSearchInteractionRuntime(
     private data class Window(
         val published: PublishedSearchInteraction,
         val value: SearchWindowValue,
-        override val cut: PendingSearchCut,
+        override val cut: PendingPromptCut<SearchWindowValue>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>, PendingSearchCut> {
+    ) : SinglePromptWindow<List<Int>, PendingPromptCut<SearchWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
     private val capture = SearchWindowCapture(owner)
-    private val windows = SinglePromptWindowState<Window, PendingSearchCut, List<Int>>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<SearchWindowValue>, List<Int>>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingSearchCut, List<Int>>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<SearchWindowValue>, List<Int>>(
             owner,
             windows,
-            publicationFailure = { cause, failed -> owner.failSearch(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
     internal var beforeInstall: (() -> Unit)?
@@ -65,7 +65,8 @@ internal class MatchSearchInteractionRuntime(
 
     fun current(): PublishedSearchInteraction? = windows.current()?.published
 
-    internal fun pendingCutLocked(): PendingSearchCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
+    internal fun pendingCutLocked(): PendingPromptCut<SearchWindowValue>? =
+        windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     fun submit(
         interactionId: String,
@@ -93,20 +94,13 @@ internal class MatchSearchInteractionRuntime(
 
     fun terminate(cause: Throwable) = windows.terminate(cause)
 
-    fun failDelivery(cause: Throwable): Nothing =
-        synchronized(owner.feedLock) {
-            val pending = windows.pendingCutLocked()
-            afterDeliveryCutLookup?.invoke()
-            pending?.let { owner.failSearch(cause, it) } ?: owner.fail(cause)
-        }
-
     fun reset() = windows.reset()
 
     private fun publish(value: SearchWindowValue): Window =
         kernel.publish(
             duplicateMessage = "A search interaction is already pending",
             prepare = { interactionId, feed, game ->
-                val diagnostic = SearchMaterializationDiagnostic(interactionId, value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
                 val prepared =
                     try {
                         feed.builder.prepareSearchWindow(
@@ -115,11 +109,11 @@ internal class MatchSearchInteractionRuntime(
                             value,
                         )
                     } catch (ex: Exception) {
-                        owner.failSearch(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published = PublishedSearchInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
-                    PendingSearchCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         value,
@@ -131,12 +125,12 @@ internal class MatchSearchInteractionRuntime(
                     value.candidateCardIdsByOption.map { (option, cardId) ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[cardId]?.value
-                                ?: owner.failSearch(IllegalStateException("Search candidate ${cardId.value} was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("Search candidate ${cardId.value} was not projected"), exact)
                         instanceId to option
                     }
                 val optionByInstanceId = optionEntries.toMap()
                 if (optionByInstanceId.size != optionEntries.size) {
-                    owner.failSearch(IllegalStateException("Search candidates have ambiguous client identities"), exact)
+                    owner.failPrompt(IllegalStateException("Search candidates have ambiguous client identities"), exact)
                 }
                 val created = Window(published, value, exact, optionByInstanceId)
                 SinglePromptPublication(

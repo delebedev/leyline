@@ -7,7 +7,7 @@ import forge.game.card.CardCollectionView
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.types.ForgeCardId
-import leyline.game.PendingInteractionCut
+import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -46,6 +46,7 @@ internal class MatchBlockingInteractionRuntime(
 
     private data class Window(
         val published: PublishedBlockingInteraction,
+        val cut: PendingPromptCut<BlockingInteraction>,
         val future: CompletableFuture<Answer>,
         val damageCards: Map<ForgeCardId, Card> = emptyMap(),
     )
@@ -134,6 +135,8 @@ internal class MatchBlockingInteractionRuntime(
 
     fun current(): PublishedBlockingInteraction? = synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
+    internal fun pendingCutLocked(): PendingPromptCut<BlockingInteraction>? = window?.takeUnless { it.future.isDone }?.cut
+
     fun submitOptional(
         interactionId: String,
         gameStateId: Int,
@@ -198,6 +201,13 @@ internal class MatchBlockingInteractionRuntime(
         }
     }
 
+    fun reset() {
+        synchronized(owner.feedLock) {
+            window = null
+            damageCache.clear()
+        }
+    }
+
     private fun publish(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
@@ -225,14 +235,14 @@ internal class MatchBlockingInteractionRuntime(
                                 interaction,
                             )
                         val exact =
-                            PendingInteractionCut(
+                            PendingPromptCut(
                                 published.interactionId,
                                 published.gameStateId,
                                 interaction,
                                 prepared.bundle.messages,
                                 prepared.transition,
                             )
-                        val created = Window(published, CompletableFuture(), damageCards)
+                        val created = Window(published, exact, CompletableFuture(), damageCards)
                         owner.cutInstaller.install(
                             feed,
                             PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),

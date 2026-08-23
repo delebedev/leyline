@@ -9,8 +9,8 @@ import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedCardSelectInteraction
-import leyline.game.CardSelectMaterializationDiagnostic
-import leyline.game.PendingCardSelectCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -20,21 +20,21 @@ internal class MatchCardSelectInteractionRuntime(
     private data class Window(
         val published: PublishedCardSelectInteraction,
         val value: CardSelectWindowValue,
-        override val cut: PendingCardSelectCut,
+        override val cut: PendingPromptCut<CardSelectWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<CardSelectInteractionResult, PendingCardSelectCut> {
+    ) : SinglePromptWindow<CardSelectInteractionResult, PendingPromptCut<CardSelectWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingCardSelectCut, CardSelectInteractionResult>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<CardSelectWindowValue>, CardSelectInteractionResult>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingCardSelectCut, CardSelectInteractionResult>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<CardSelectWindowValue>, CardSelectInteractionResult>(
             owner,
             windows,
-            publicationFailure = { cause, failed -> owner.failCardSelect(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
     internal var beforeInstall: (() -> Unit)?
@@ -105,13 +105,13 @@ internal class MatchCardSelectInteractionRuntime(
 
     fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingCardSelectCut? = windows.pendingCutLocked()
+    internal fun pendingCutLocked(): PendingPromptCut<CardSelectWindowValue>? = windows.pendingCutLocked()
 
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "A CardSelect interaction is already pending",
             prepare = { interactionId, feed, game ->
-                val diagnostic = CardSelectMaterializationDiagnostic(interactionId, initial.value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareCardSelectWindow(
@@ -120,7 +120,7 @@ internal class MatchCardSelectInteractionRuntime(
                             initial.value,
                         )
                     } catch (ex: Exception) {
-                        owner.failCardSelect(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedCardSelectInteraction(
@@ -129,7 +129,7 @@ internal class MatchCardSelectInteractionRuntime(
                         initial.value.kind,
                     )
                 val exact =
-                    PendingCardSelectCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -141,12 +141,12 @@ internal class MatchCardSelectInteractionRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                ?: owner.failCardSelect(IllegalStateException("CardSelect candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("CardSelect candidate was not projected"), exact)
                         instanceId to candidate.originalOptionIndex
                     }
                 val optionByInstanceId = entries.toMap()
                 if (optionByInstanceId.size != entries.size) {
-                    owner.failCardSelect(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
                 SinglePromptPublication(

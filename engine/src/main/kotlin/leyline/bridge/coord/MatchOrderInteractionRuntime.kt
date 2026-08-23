@@ -8,8 +8,8 @@ import leyline.bridge.handoff.OrderMoveIntent
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedOrderInteraction
-import leyline.game.OrderMaterializationDiagnostic
-import leyline.game.PendingOrderCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
@@ -19,21 +19,21 @@ internal class MatchOrderInteractionRuntime(
     private data class Window(
         val published: PublishedOrderInteraction,
         val value: OrderWindowValue,
-        override val cut: PendingOrderCut,
+        override val cut: PendingPromptCut<OrderWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OrderInteractionResult, PendingOrderCut> {
+    ) : SinglePromptWindow<OrderInteractionResult, PendingPromptCut<OrderWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingOrderCut, OrderInteractionResult>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<OrderWindowValue>, OrderInteractionResult>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingOrderCut, OrderInteractionResult>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<OrderWindowValue>, OrderInteractionResult>(
             owner,
             windows,
-            publicationFailure = { cause, failed -> owner.failOrder(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
     internal var beforeInstall: (() -> Unit)?
@@ -86,13 +86,14 @@ internal class MatchOrderInteractionRuntime(
 
     fun reset() = windows.reset()
 
-    internal fun pendingCutLocked(): PendingOrderCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
+    internal fun pendingCutLocked(): PendingPromptCut<OrderWindowValue>? =
+        windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
 
     private fun publish(initial: OrderWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "An Order interaction is already pending",
             prepare = { interactionId, feed, game ->
-                val diagnostic = OrderMaterializationDiagnostic(interactionId, initial.value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareOrderWindow(
@@ -101,7 +102,7 @@ internal class MatchOrderInteractionRuntime(
                             initial.value,
                         )
                     } catch (ex: Exception) {
-                        owner.failOrder(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedOrderInteraction(
@@ -110,7 +111,7 @@ internal class MatchOrderInteractionRuntime(
                         initial.value.kind,
                     )
                 val exact =
-                    PendingOrderCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -122,12 +123,12 @@ internal class MatchOrderInteractionRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                ?: owner.failOrder(IllegalStateException("Order candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("Order candidate was not projected"), exact)
                         instanceId to candidate.originalOptionIndex
                     }
                 val optionsByInstanceId = entries.toMap()
                 if (optionsByInstanceId.size != entries.size) {
-                    owner.failOrder(IllegalStateException("Order candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("Order candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
                 SinglePromptPublication(

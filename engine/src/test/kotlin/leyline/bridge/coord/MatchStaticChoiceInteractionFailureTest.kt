@@ -171,7 +171,7 @@ class MatchStaticChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
-                terminal.pendingStaticChoiceCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 board.bridge

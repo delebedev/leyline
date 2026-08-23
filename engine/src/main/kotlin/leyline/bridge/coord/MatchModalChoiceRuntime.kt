@@ -9,8 +9,8 @@ import leyline.bridge.handoff.ModalChoiceInteractionRuntime
 import leyline.bridge.handoff.ModalChoiceWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedModalChoiceInteraction
-import leyline.game.ModalChoiceMaterializationDiagnostic
-import leyline.game.PendingModalChoiceCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import leyline.game.bundle.ModalChoiceWindowMaterializer
 import java.util.concurrent.CompletableFuture
 
@@ -21,12 +21,12 @@ internal class MatchModalChoiceRuntime(
     private data class Window(
         val published: PublishedModalChoiceInteraction,
         val value: ModalChoiceWindowValue,
-        override val cut: PendingModalChoiceCut,
+        override val cut: PendingPromptCut<ModalChoiceWindowValue>,
         val handlesByOptionIndex: Map<Int, AbilitySub>,
         val optionIndexByGrpId: Map<Int, Int>,
         val aiContext: ModalChoiceAiContext,
         override val future: CompletableFuture<ModalChoiceInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<ModalChoiceInteractionResult, PendingModalChoiceCut> {
+    ) : SinglePromptWindow<ModalChoiceInteractionResult, PendingPromptCut<ModalChoiceWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
@@ -35,15 +35,15 @@ internal class MatchModalChoiceRuntime(
         val interactionId: String,
         val sourceInstanceId: Int,
         val triggered: Boolean,
-        val cut: PendingModalChoiceCut,
+        val cut: PendingPromptCut<ModalChoiceWindowValue>,
     )
 
-    private val windows = SinglePromptWindowState<Window, PendingModalChoiceCut, ModalChoiceInteractionResult>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<ModalChoiceWindowValue>, ModalChoiceInteractionResult>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingModalChoiceCut, ModalChoiceInteractionResult>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<ModalChoiceWindowValue>, ModalChoiceInteractionResult>(
             owner,
             windows,
-            publicationFailure = { cause, failed -> owner.failModalChoice(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
     private val cleanupReceipts = mutableMapOf<String, CleanupReceipt>()
 
@@ -135,7 +135,7 @@ internal class MatchModalChoiceRuntime(
         }
     }
 
-    internal fun pendingCutLocked(): PendingModalChoiceCut? =
+    internal fun pendingCutLocked(): PendingPromptCut<ModalChoiceWindowValue>? =
         windows
             .pendingCutLocked()
             .also { afterDeliveryCutLookup?.invoke() }
@@ -144,7 +144,7 @@ internal class MatchModalChoiceRuntime(
         kernel.publish(
             duplicateMessage = "A ModalChoice interaction is already pending",
             prepare = { interactionId, feed, game ->
-                val diagnostic = ModalChoiceMaterializationDiagnostic(interactionId, initial.value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareModalChoiceWindow(
@@ -153,7 +153,7 @@ internal class MatchModalChoiceRuntime(
                             initial.value,
                         )
                     } catch (ex: Exception) {
-                        owner.failModalChoice(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedModalChoiceInteraction(
@@ -162,7 +162,7 @@ internal class MatchModalChoiceRuntime(
                         prepared.sourceInstanceId,
                     )
                 val exact =
-                    PendingModalChoiceCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -254,7 +254,7 @@ internal class MatchModalChoiceRuntime(
             feed.beforeBatchEnqueue?.invoke(0, listOf(cleanup))
             feed.queue.add(listOf(cleanup))
         } catch (ex: Exception) {
-            owner.failModalChoice(ex, pending = receipt.cut)
+            owner.failPrompt(ex, pending = receipt.cut)
         }
     }
 }

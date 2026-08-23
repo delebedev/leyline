@@ -96,7 +96,7 @@ class GatherCountersRuntimeFailureTest :
                     )
                 }
             assertSoftly {
-                captureFailure.pendingOneShotPayCostsCut.shouldBeNull()
+                captureFailure.pendingPromptCut.shouldBeNull()
                 capture.board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .shouldBeEmpty()
@@ -116,7 +116,7 @@ class GatherCountersRuntimeFailureTest :
                     )
                 }
             assertSoftly {
-                enqueueFailure.pendingOneShotPayCostsCut.shouldNotBeNull()
+                enqueueFailure.pendingPromptCut.shouldNotBeNull()
                 enqueue.board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .shouldBeEmpty()
@@ -177,7 +177,7 @@ class GatherCountersRuntimeFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = terminalFailure.get() as PlaybackTerminalFailure
                 engineFailure.get() shouldBe terminal
-                terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
             }
             coordinator.oneShotPayCosts.afterDeliveryCutLookup = null

@@ -183,7 +183,7 @@ class MatchRevealChoiceInteractionFailureTest :
 
             assertSoftly {
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe attempted.get()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted.get()
                 attempted.get().any { it.hasSelectNReq() } shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
@@ -254,7 +254,7 @@ class MatchRevealChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 board.bridge

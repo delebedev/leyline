@@ -176,7 +176,7 @@ class SinglePromptRuntimeKernelTest :
                     deliveryCoordinator.failDelivery(IllegalStateException("delivery unavailable"))
                 }
             assertSoftly {
-                delivery.pendingCardSelectCut.shouldNotBeNull().messages shouldBe attempted
+                delivery.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 deliveryFinished.await(3, TimeUnit.SECONDS) shouldBe true
             }
 

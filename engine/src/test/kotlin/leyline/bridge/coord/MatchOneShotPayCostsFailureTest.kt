@@ -10,6 +10,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.OneShotPayCostsTimeoutException
+import leyline.bridge.handoff.OneShotPayCostsWindow
 import leyline.bridge.handoff.PayCostsPromptRoute
 import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.PromptRequest
@@ -183,8 +184,8 @@ class MatchOneShotPayCostsFailureTest :
                         .awaitPayment(request(captureBoard), cards(captureBoard) + cards(captureBoard).first(), 3_000)
                 }
             assertSoftly {
-                capture.oneShotPayCostsDiagnostic.shouldBeNull()
-                capture.pendingOneShotPayCostsCut.shouldBeNull()
+                capture.promptMaterializationDiagnostic.shouldBeNull()
+                capture.pendingPromptCut.shouldBeNull()
                 captureBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe emptyList()
             }
 
@@ -200,12 +201,14 @@ class MatchOneShotPayCostsFailureTest :
                     )
                 }
             assertSoftly {
-                materialize.oneShotPayCostsDiagnostic
+                materialize.promptMaterializationDiagnostic
                     .shouldNotBeNull()
-                    .interaction.sourceForgeCardId
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow.Select>()
+                    .sourceForgeCardId
                     ?.value shouldBe
                     Int.MAX_VALUE
-                materialize.pendingOneShotPayCostsCut.shouldBeNull()
+                materialize.pendingPromptCut.shouldBeNull()
                 materializeOwner.drain(SeatId(1)) shouldBe emptyList()
             }
 
@@ -220,7 +223,7 @@ class MatchOneShotPayCostsFailureTest :
                     enqueueOwner.oneShotPayCosts.awaitPayment(request(enqueueBoard), cards(enqueueBoard), 3_000)
                 }
             assertSoftly {
-                enqueue.pendingOneShotPayCostsCut.shouldNotBeNull()
+                enqueue.pendingPromptCut.shouldNotBeNull()
                 enqueueOwner.drain(SeatId(1)) shouldContainExactly listOf(existing)
             }
 
@@ -238,7 +241,7 @@ class MatchOneShotPayCostsFailureTest :
                     installOwner.oneShotPayCosts.awaitPayment(request(installBoard), cards(installBoard), 3_000)
                 }
             assertSoftly {
-                install.pendingOneShotPayCostsCut.shouldNotBeNull()
+                install.pendingPromptCut.shouldNotBeNull()
                 installOwner.drain(SeatId(1)) shouldBe emptyList()
                 installBoard.bridge.projectionStateSnapshot() shouldBe competing
             }
@@ -264,7 +267,7 @@ class MatchOneShotPayCostsFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
-                terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe attempted
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 coordinator.oneShotPayCosts
                     .current()
                     .shouldBeNull()
@@ -319,7 +322,7 @@ class MatchOneShotPayCostsFailureTest :
                 responseFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get() as PlaybackTerminalFailure
-                terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 engineFailure.get() shouldBe terminal
                 responseFailure.get() shouldBe terminal
             }

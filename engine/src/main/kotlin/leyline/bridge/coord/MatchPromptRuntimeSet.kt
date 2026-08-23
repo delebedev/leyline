@@ -3,40 +3,112 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.PromptRuntimeBindings
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
 import leyline.bridge.types.SeatId
-import leyline.game.CardSelectMaterializationDiagnostic
-import leyline.game.GroupingMaterializationDiagnostic
-import leyline.game.ManaSourcePaymentMaterializationDiagnostic
-import leyline.game.ModalChoiceMaterializationDiagnostic
-import leyline.game.OneShotPayCostsMaterializationDiagnostic
-import leyline.game.OrderMaterializationDiagnostic
-import leyline.game.PendingCardSelectCut
-import leyline.game.PendingGroupingCut
-import leyline.game.PendingManaSourcePaymentCut
-import leyline.game.PendingModalChoiceCut
-import leyline.game.PendingOneShotPayCostsCut
-import leyline.game.PendingOrderCut
-import leyline.game.PendingRevealChoiceCut
-import leyline.game.PendingSearchCut
-import leyline.game.PendingStaticChoiceCut
-import leyline.game.RevealChoiceMaterializationDiagnostic
-import leyline.game.SearchMaterializationDiagnostic
-import leyline.game.StaticChoiceMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import leyline.game.PromptTerminalEvidence
 
-/** Owns the complete prompt-runtime inventory for one match. */
+/** Owns the complete coordinator prompt-runtime inventory for one match. */
 internal class MatchPromptRuntimeSet(
     private val owner: MatchCutCoordinator,
 ) {
-    val targeting = MatchTargetingInteractionRuntime(owner)
+    private data class Lifecycle(
+        val runtime: Any,
+        val current: () -> Any?,
+        val terminate: (Throwable) -> Unit,
+        val reset: () -> Unit,
+        val pendingCutLocked: () -> PendingPromptCut<*>?,
+    )
+
+    private val lifecycle = mutableListOf<Lifecycle>()
+
+    val targeting =
+        own(
+            MatchTargetingInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+        )
     val compatibilityCostSelection = MatchCompatibilityCostSelectionRuntime(owner)
-    val search = MatchSearchInteractionRuntime(owner)
-    val order = MatchOrderInteractionRuntime(owner)
-    val grouping = MatchGroupingInteractionRuntime(owner)
-    val cardSelect = MatchCardSelectInteractionRuntime(owner)
-    val staticChoices = MatchStaticChoiceInteractionRuntime(owner)
-    val revealChoices = MatchRevealChoiceInteractionRuntime(owner)
-    val modalChoices = MatchModalChoiceRuntime(owner)
-    val manaSourcePayments = MatchManaSourcePaymentRuntime(owner)
-    val oneShotPayCosts = MatchOneShotPayCostsRuntime(owner)
+    val blocking =
+        own(
+            MatchBlockingInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val search =
+        own(
+            MatchSearchInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val order =
+        own(
+            MatchOrderInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val grouping =
+        own(
+            MatchGroupingInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val cardSelect =
+        own(
+            MatchCardSelectInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val staticChoices =
+        own(
+            MatchStaticChoiceInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val revealChoices =
+        own(
+            MatchRevealChoiceInteractionRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.claimDeliveryFailureCutLocked() },
+        )
+    val modalChoices =
+        own(
+            MatchModalChoiceRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val manaSourcePayments =
+        own(
+            MatchManaSourcePaymentRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
+    val oneShotPayCosts =
+        own(
+            MatchOneShotPayCostsRuntime(owner),
+            current = { it.current() },
+            terminate = { runtime, cause -> runtime.terminate(cause) },
+            reset = { it.reset() },
+            pendingCutLocked = { it.pendingCutLocked() },
+        )
 
     fun bindings(seatId: SeatId): PromptRuntimeBindings {
         check(seatId == owner.humanSeat) { "Prompt runtimes are only registered for the human seat" }
@@ -55,126 +127,55 @@ internal class MatchPromptRuntimeSet(
         )
     }
 
-    fun hasPendingInteraction(): Boolean =
-        targeting.current() != null ||
-            search.current() != null ||
-            modalChoices.current() != null ||
-            order.current() != null ||
-            grouping.current() != null ||
-            cardSelect.current() != null ||
-            staticChoices.current() != null ||
-            revealChoices.current() != null ||
-            manaSourcePayments.current() != null ||
-            oneShotPayCosts.current() != null
+    fun hasPendingInteraction(): Boolean = lifecycle.any { it.current() != null }
 
     fun hasRevealProjectionPrompt(): Boolean = revealChoices.current() != null || cardSelect.current() != null
 
     fun currentOneShotPayCosts(): PublishedOneShotPayCostsInteraction? = oneShotPayCosts.current()
 
-    fun terminate(cause: Throwable) {
-        targeting.terminate(cause)
-        search.terminate(cause)
-        order.terminate(cause)
-        grouping.terminate(cause)
-        cardSelect.terminate(cause)
-        staticChoices.terminate(cause)
-        revealChoices.terminate(cause)
-        modalChoices.terminate(cause)
-        manaSourcePayments.terminate(cause)
-        oneShotPayCosts.terminate(cause)
-    }
+    fun terminate(cause: Throwable) = lifecycle.forEach { it.terminate(cause) }
 
-    fun reset() {
-        targeting.reset()
-        search.reset()
-        order.reset()
-        grouping.reset()
-        cardSelect.reset()
-        staticChoices.reset()
-        revealChoices.reset()
-        modalChoices.reset()
-        manaSourcePayments.reset()
-        oneShotPayCosts.reset()
-    }
+    fun reset() = lifecycle.forEach { it.reset() }
 
     fun failDelivery(cause: Throwable): Nothing =
         synchronized(owner.feedLock) {
-            oneShotPayCosts.pendingCutLocked()?.let { owner.failOneShotPayCosts(cause, it) }
-            manaSourcePayments.pendingCutLocked()?.let { owner.failManaSourcePayment(cause, it) }
-            search.pendingCutLocked()?.let { owner.failSearch(cause, it) }
-            order.pendingCutLocked()?.let { owner.failOrder(cause, it) }
-            grouping.pendingCutLocked()?.let { owner.failGrouping(cause, it) }
-            cardSelect.pendingCutLocked()?.let { owner.failCardSelect(cause, it) }
-            staticChoices.pendingCutLocked()?.let { owner.failStaticChoice(cause, it) }
-            modalChoices.pendingCutLocked()?.let { owner.failModalChoice(cause, it) }
-            revealChoices.failDelivery(cause)
+            lifecycle.forEach { entry ->
+                entry.pendingCutLocked()?.let { pending ->
+                    owner.failPrompt(cause, pending)
+                }
+            }
+            owner.fail(cause)
+        }
+
+    internal fun lifecycleOwners(): List<Any> = lifecycle.map { it.runtime }
+
+    private fun <T : Any> own(
+        runtime: T,
+        current: (T) -> Any?,
+        terminate: (T, Throwable) -> Unit,
+        reset: (T) -> Unit,
+        pendingCutLocked: (T) -> PendingPromptCut<*>? = { null },
+    ): T =
+        runtime.also {
+            lifecycle +=
+                Lifecycle(
+                    runtime = runtime,
+                    current = { current(runtime) },
+                    terminate = { cause -> terminate(runtime, cause) },
+                    reset = { reset(runtime) },
+                    pendingCutLocked = { pendingCutLocked(runtime) },
+                )
         }
 }
 
-internal fun MatchCutCoordinator.failSearch(
+internal fun MatchCutCoordinator.failPrompt(
     cause: Throwable,
-    pending: PendingSearchCut? = null,
-    diagnostic: SearchMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingSearch = pending, searchDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failManaSourcePayment(
-    cause: Throwable,
-    pending: PendingManaSourcePaymentCut? = null,
-    diagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
-): Nothing =
-    failTerminal(
-        cause,
-        MatchCutTerminalRuntime.Context(
-            pendingManaSourcePayment = pending,
-            manaSourcePaymentDiagnostic = diagnostic,
-        ),
-    )
-
-internal fun MatchCutCoordinator.failOneShotPayCosts(
-    cause: Throwable,
-    pending: PendingOneShotPayCostsCut? = null,
-    diagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
-): Nothing =
-    failTerminal(
-        cause,
-        MatchCutTerminalRuntime.Context(
-            pendingOneShotPayCosts = pending,
-            oneShotPayCostsDiagnostic = diagnostic,
-        ),
-    )
-
-internal fun MatchCutCoordinator.failOrder(
-    cause: Throwable,
-    pending: PendingOrderCut? = null,
-    diagnostic: OrderMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingOrder = pending, orderDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failGrouping(
-    cause: Throwable,
-    pending: PendingGroupingCut? = null,
-    diagnostic: GroupingMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingGrouping = pending, groupingDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failCardSelect(
-    cause: Throwable,
-    pending: PendingCardSelectCut? = null,
-    diagnostic: CardSelectMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingCardSelect = pending, cardSelectDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failStaticChoice(
-    cause: Throwable,
-    pending: PendingStaticChoiceCut? = null,
-    diagnostic: StaticChoiceMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingStaticChoice = pending, staticChoiceDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failRevealChoice(
-    cause: Throwable,
-    pending: PendingRevealChoiceCut? = null,
-    diagnostic: RevealChoiceMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingRevealChoice = pending, revealChoiceDiagnostic = diagnostic))
-
-internal fun MatchCutCoordinator.failModalChoice(
-    cause: Throwable,
-    pending: PendingModalChoiceCut? = null,
-    diagnostic: ModalChoiceMaterializationDiagnostic? = null,
-): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingModalChoice = pending, modalChoiceDiagnostic = diagnostic))
+    pending: PendingPromptCut<*>? = null,
+    diagnostic: PromptMaterializationDiagnostic<*>? = null,
+): Nothing {
+    check(pending == null || diagnostic == null) { "Prompt failure cannot retain both a cut and a materialization diagnostic" }
+    val evidence =
+        pending?.let(PromptTerminalEvidence::Pending)
+            ?: diagnostic?.let(PromptTerminalEvidence::Materialization)
+    failTerminal(cause, MatchCutTerminalRuntime.Context(promptEvidence = evidence))
+}

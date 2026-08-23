@@ -17,8 +17,8 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
 import leyline.bridge.handoff.firstFitGatherCounters
-import leyline.game.OneShotPayCostsMaterializationDiagnostic
-import leyline.game.PendingOneShotPayCostsCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Match-scoped lifecycle for Select and the bounded GatherCounters PayCosts windows. */
@@ -28,11 +28,11 @@ internal class MatchOneShotPayCostsRuntime(
     private data class SelectWindow(
         val published: PublishedOneShotPayCostsInteraction,
         val value: OneShotPayCostsWindowValue,
-        override val cut: PendingOneShotPayCostsCut,
+        override val cut: PendingPromptCut<OneShotPayCostsWindow>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OneShotPayCostsResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OneShotPayCostsResult, PendingOneShotPayCostsCut> {
+    ) : SinglePromptWindow<OneShotPayCostsResult, PendingPromptCut<OneShotPayCostsWindow>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
@@ -40,11 +40,11 @@ internal class MatchOneShotPayCostsRuntime(
     private data class GatherWindow(
         val published: PublishedOneShotPayCostsInteraction,
         val value: GatherCountersWindowValue,
-        override val cut: PendingOneShotPayCostsCut,
+        override val cut: PendingPromptCut<OneShotPayCostsWindow>,
         val handlesBySourceId: Map<Int, Card>,
         val sourceByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<GatherCountersResult> = CompletableFuture(),
-    ) : SinglePromptWindow<GatherCountersResult, PendingOneShotPayCostsCut> {
+    ) : SinglePromptWindow<GatherCountersResult, PendingPromptCut<OneShotPayCostsWindow>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
 
@@ -52,19 +52,19 @@ internal class MatchOneShotPayCostsRuntime(
             firstFitGatherCounters(value.sources, value.amountToGather, handlesBySourceId, timedOut)
     }
 
-    private val selectWindows = SinglePromptWindowState<SelectWindow, PendingOneShotPayCostsCut, OneShotPayCostsResult>(owner)
-    private val gatherWindows = SinglePromptWindowState<GatherWindow, PendingOneShotPayCostsCut, GatherCountersResult>(owner)
+    private val selectWindows = SinglePromptWindowState<SelectWindow, PendingPromptCut<OneShotPayCostsWindow>, OneShotPayCostsResult>(owner)
+    private val gatherWindows = SinglePromptWindowState<GatherWindow, PendingPromptCut<OneShotPayCostsWindow>, GatherCountersResult>(owner)
     private val selectKernel =
-        SinglePromptRuntimeKernel<SelectWindow, PendingOneShotPayCostsCut, OneShotPayCostsResult>(
+        SinglePromptRuntimeKernel<SelectWindow, PendingPromptCut<OneShotPayCostsWindow>, OneShotPayCostsResult>(
             owner,
             selectWindows,
-            publicationFailure = { cause, failed -> owner.failOneShotPayCosts(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
     private val gatherKernel =
-        SinglePromptRuntimeKernel<GatherWindow, PendingOneShotPayCostsCut, GatherCountersResult>(
+        SinglePromptRuntimeKernel<GatherWindow, PendingPromptCut<OneShotPayCostsWindow>, GatherCountersResult>(
             owner,
             gatherWindows,
-            publicationFailure = { cause, failed -> owner.failOneShotPayCosts(cause, failed.cut) },
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
     private val capture = OneShotPayCostsWindowCapture(owner)
     private val gatherCapture = GatherCountersWindowCapture(capture)
@@ -192,7 +192,7 @@ internal class MatchOneShotPayCostsRuntime(
             gatherWindows.reset()
         }
 
-    internal fun pendingCutLocked(): PendingOneShotPayCostsCut? =
+    internal fun pendingCutLocked(): PendingPromptCut<OneShotPayCostsWindow>? =
         (selectWindows.pendingCutLocked() ?: gatherWindows.pendingCutLocked())
             .also { afterDeliveryCutLookup?.invoke() }
 
@@ -202,7 +202,7 @@ internal class MatchOneShotPayCostsRuntime(
             prepare = { interactionId, feed, game ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
                 val window = OneShotPayCostsWindow.Select(initial.value)
-                val diagnostic = OneShotPayCostsMaterializationDiagnostic(interactionId, window)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
                 if (initial.value.kind == PayCostsRouteKind.CollectEvidence) {
                     owner.bridge.promptBridge(owner.humanSeat).journal.record(
                         PromptSideEffect.CollectEvidenceCost(
@@ -215,7 +215,7 @@ internal class MatchOneShotPayCostsRuntime(
                     try {
                         feed.builder.prepareOneShotPayCosts(resolved, owner.counter, initial.value)
                     } catch (ex: Exception) {
-                        owner.failOneShotPayCosts(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedOneShotPayCostsInteraction(
@@ -224,7 +224,7 @@ internal class MatchOneShotPayCostsRuntime(
                         selectKind = initial.value.kind,
                     )
                 val exact =
-                    PendingOneShotPayCostsCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         window,
@@ -236,12 +236,12 @@ internal class MatchOneShotPayCostsRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                ?: owner.failOneShotPayCosts(IllegalStateException("PayCosts candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("PayCosts candidate was not projected"), exact)
                         instanceId to candidate.originalOptionIndex
                     }
                 val optionByInstanceId = optionEntries.toMap()
                 if (optionByInstanceId.size != optionEntries.size) {
-                    owner.failOneShotPayCosts(IllegalStateException("PayCosts candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("PayCosts candidates have ambiguous identities"), exact)
                 }
                 SinglePromptPublication(
                     SelectWindow(published, initial.value, exact, initial.handlesByOption, optionByInstanceId),
@@ -260,12 +260,12 @@ internal class MatchOneShotPayCostsRuntime(
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
                 val value = initial.value
                 val window = OneShotPayCostsWindow.GatherCounters(value)
-                val diagnostic = OneShotPayCostsMaterializationDiagnostic(interactionId, window)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
                 val prepared =
                     try {
                         feed.builder.prepareGatherCounters(resolved, owner.counter, value)
                     } catch (ex: Exception) {
-                        owner.failOneShotPayCosts(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val published =
                     PublishedOneShotPayCostsInteraction(
@@ -274,7 +274,7 @@ internal class MatchOneShotPayCostsRuntime(
                         windowKind = OneShotPayCostsWindowKind.GatherCounters,
                     )
                 val exact =
-                    PendingOneShotPayCostsCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         window,
@@ -286,7 +286,7 @@ internal class MatchOneShotPayCostsRuntime(
                     value.sources.map { source ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[source.forgeCardId]?.value
-                                ?: owner.failOneShotPayCosts(
+                                ?: owner.failPrompt(
                                     IllegalStateException("GatherCounters source was not projected"),
                                     exact,
                                 )
@@ -294,7 +294,7 @@ internal class MatchOneShotPayCostsRuntime(
                     }
                 val sourceByInstanceId = sourceEntries.toMap()
                 if (sourceByInstanceId.size != sourceEntries.size) {
-                    owner.failOneShotPayCosts(IllegalStateException("GatherCounters sources have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("GatherCounters sources have ambiguous identities"), exact)
                 }
                 SinglePromptPublication(
                     GatherWindow(published, value, exact, initial.handlesBySourceId, sourceByInstanceId),

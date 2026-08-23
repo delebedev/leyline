@@ -9,8 +9,8 @@ import leyline.bridge.handoff.RevealChoiceInteractionResult
 import leyline.bridge.handoff.RevealChoiceInteractionRuntime
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
-import leyline.game.PendingRevealChoiceCut
-import leyline.game.RevealChoiceMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
 import java.util.concurrent.CompletableFuture
 
 /** Exact reveal-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -21,23 +21,23 @@ internal class MatchRevealChoiceInteractionRuntime(
         val published: PublishedRevealChoiceInteraction,
         val value: RevealChoiceWindowValue,
         val revealEntry: PromptJournal.RevealEntry,
-        override val cut: PendingRevealChoiceCut,
+        override val cut: PendingPromptCut<RevealChoiceWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<RevealChoiceInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<RevealChoiceInteractionResult, PendingRevealChoiceCut> {
+    ) : SinglePromptWindow<RevealChoiceInteractionResult, PendingPromptCut<RevealChoiceWindowValue>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingRevealChoiceCut, RevealChoiceInteractionResult>(owner)
+    private val windows = SinglePromptWindowState<Window, PendingPromptCut<RevealChoiceWindowValue>, RevealChoiceInteractionResult>(owner)
     private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingRevealChoiceCut, RevealChoiceInteractionResult>(
+        SinglePromptRuntimeKernel<Window, PendingPromptCut<RevealChoiceWindowValue>, RevealChoiceInteractionResult>(
             owner,
             windows,
             publicationFailure = { cause, failed ->
                 clearReveal(failed.revealEntry, failed.value.journalSeatId)
-                owner.failRevealChoice(cause, failed.cut)
+                owner.failPrompt(cause, failed.cut)
             },
         )
 
@@ -102,17 +102,6 @@ internal class MatchRevealChoiceInteractionRuntime(
         }
     }
 
-    fun failDelivery(cause: Throwable): Nothing =
-        synchronized(owner.feedLock) {
-            val pending = windows.current()
-            afterDeliveryCutLookup?.invoke()
-            if (pending != null) {
-                clearReveal(pending.revealEntry, pending.value.journalSeatId)
-                owner.failRevealChoice(cause, pending.cut)
-            }
-            owner.fail(cause)
-        }
-
     fun reset() {
         synchronized(owner.feedLock) {
             windows.current()?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
@@ -120,16 +109,18 @@ internal class MatchRevealChoiceInteractionRuntime(
         }
     }
 
-    internal fun pendingCutLocked(): PendingRevealChoiceCut? =
-        windows
-            .pendingCutLocked()
-            .also { afterDeliveryCutLookup?.invoke() }
+    internal fun claimDeliveryFailureCutLocked(): PendingPromptCut<RevealChoiceWindowValue>? {
+        val pending = windows.current()
+        afterDeliveryCutLookup?.invoke()
+        pending?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
+        return pending?.cut
+    }
 
     private fun publish(initial: RevealChoiceWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "A RevealChoice interaction is already pending",
             prepare = { interactionId, feed, game ->
-                val diagnostic = RevealChoiceMaterializationDiagnostic(interactionId, initial.value)
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareRevealChoiceWindow(
@@ -142,7 +133,7 @@ internal class MatchRevealChoiceInteractionRuntime(
                     }
                 val published = PublishedRevealChoiceInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
-                    PendingRevealChoiceCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -214,11 +205,11 @@ internal class MatchRevealChoiceInteractionRuntime(
     private fun failInitial(
         cause: Throwable,
         initial: RevealChoiceWindowCapture.Initial,
-        pending: PendingRevealChoiceCut? = null,
-        diagnostic: RevealChoiceMaterializationDiagnostic? = null,
+        pending: PendingPromptCut<RevealChoiceWindowValue>? = null,
+        diagnostic: PromptMaterializationDiagnostic<RevealChoiceWindowValue>? = null,
     ): Nothing {
         clearReveal(initial.revealEntry, initial.value.journalSeatId)
-        owner.failRevealChoice(cause, pending, diagnostic)
+        owner.failPrompt(cause, pending, diagnostic)
     }
 
     private fun clearReveal(

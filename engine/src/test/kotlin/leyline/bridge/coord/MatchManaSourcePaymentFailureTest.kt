@@ -11,6 +11,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ManaSourcePaymentTimeoutException
+import leyline.bridge.handoff.ManaSourcePaymentWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
@@ -94,9 +95,11 @@ class MatchManaSourcePaymentFailureTest :
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "mana-source feed unavailable"
-                terminal.pendingManaSourcePaymentCut
+                terminal.pendingPromptCut
                     .shouldNotBeNull()
-                    .interaction.candidates.size shouldBe 2
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                    .candidates.size shouldBe 2
                 coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
                 board.bridge.projectionStateSnapshot() shouldBe prior
                 coordinator.manaSourcePayments
@@ -129,9 +132,11 @@ class MatchManaSourcePaymentFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
-                terminal.pendingManaSourcePaymentCut
+                terminal.pendingPromptCut
                     .shouldNotBeNull()
-                    .interaction.selections
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                    .selections
                     .map { it.originalOptionIndex } shouldBe
                     listOf(0)
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
@@ -195,7 +200,7 @@ class MatchManaSourcePaymentFailureTest :
                 acknowledgementFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
-                terminal.pendingManaSourcePaymentCut.shouldNotBeNull().messages shouldBe attempted
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 coordinator.manaSourcePayments
                     .current()
                     .shouldBeNull()
