@@ -295,7 +295,7 @@ object ZoneTransferDetector {
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
                 val handoff =
-                    if ((!category.keepsSameInstanceId || obj.zoneId in libraryZoneIds) && forgeCardId != null) {
+                    if (!keepsSameInstanceId(category, obj.zoneId) && forgeCardId != null) {
                         ZoneHandoff.fromRealloc(idAllocator(forgeCardId), obj.zoneId)
                     } else {
                         ZoneHandoff.keepingSameInstanceId(InstanceId(obj.instanceId), obj.zoneId)
@@ -1078,7 +1078,7 @@ object ZoneTransferDetector {
                     null
                 }
             val handoff =
-                if (!category.keepsSameInstanceId || destZone in libraryZoneIds) {
+                if (!keepsSameInstanceId(category, destZone)) {
                     ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
                 } else {
                     ZoneHandoff.keepingSameInstanceId(InstanceId(iid), destZone)
@@ -1115,6 +1115,11 @@ object ZoneTransferDetector {
         gameObjectIds: Set<Int>,
         transfers: List<AppliedTransfer>,
     ): Boolean = iid !in gameObjectIds && destZone != ZoneIds.LIMBO && transfers.none { it.origId == iid || it.newId == iid }
+
+    private fun keepsSameInstanceId(
+        category: TransferCategory,
+        destinationZoneId: Int,
+    ): Boolean = category == TransferCategory.Resolve && destinationZoneId == ZoneIds.BATTLEFIELD
 
     private fun isCollapsedCastResolveToLibrary(
         ledgerIntents: List<ZoneMoveIntent>,
@@ -1159,8 +1164,6 @@ object ZoneTransferDetector {
             ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD, ZoneIds.REVEALED_P2 -> 2
             else -> null
         }
-
-    private val libraryZoneIds = setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
 
     private inline fun <T> MutableList<T>.removeFirstOrNull(predicate: (T) -> Boolean): T? {
         val index = indexOfFirst(predicate)

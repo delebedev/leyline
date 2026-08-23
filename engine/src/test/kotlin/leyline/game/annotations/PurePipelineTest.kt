@@ -233,6 +233,40 @@ class PurePipelineTest :
             }
         }
 
+        test("detectZoneTransfers reallocates Resolve into graveyard") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.P1_GRAVEYARD, ownerSeatId = 1)
+            val zones =
+                listOf(
+                    zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
+            val events = listOf(GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false))
+
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    context =
+                        zoneTransferContext(
+                            previousZones = mapOf(100 to ZoneIds.STACK),
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
+                )
+
+            val transfer = result.transfers.single()
+            assertSoftly {
+                transfer.category shouldBe TransferCategory.Resolve
+                transfer.origId shouldBe 100
+                transfer.newId shouldBe 200
+                result.retiredIds shouldBe listOf(100)
+                result.patchedObjects.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.instanceId shouldBe 200
+                result.patchedZones.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldBe listOf(200)
+            }
+        }
+
         // -----------------------------------------------------------------------
         // Test 4: battlefield-to-graveyard with CardDestroyed — Destroy
         // -----------------------------------------------------------------------

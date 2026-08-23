@@ -11,11 +11,10 @@ package leyline.game.annotations
  */
 enum class TransferCategory(
     val label: String,
-    val keepsSameInstanceId: Boolean = false,
 ) {
     PlayLand("PlayLand"),
     CastSpell("CastSpell"),
-    Resolve("Resolve", keepsSameInstanceId = true),
+    Resolve("Resolve"),
     Destroy("Destroy"),
     Sacrifice("Sacrifice"),
     Countered("Countered"),

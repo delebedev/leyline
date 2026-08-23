@@ -4,12 +4,14 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -81,13 +83,23 @@ class RecommissionEffectStackTest :
                 gsms
                     .firstOrNull { it.hasZoneTransfer("Resolve", src = ZoneIds.STACK, dest = ZoneIds.P1_GRAVEYARD) }
                     .shouldNotBeNull()
-
-            val graveyardObject = clearFrame.gameObjectsList.first { it.instanceId == stackIid }
+            val objectIdChanged =
+                clearFrame.annotationsList.first {
+                    AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == stackIid
+                }
+            val graveyardIid = objectIdChanged.detailInt("new_id")
+            val zoneTransfer =
+                clearFrame.annotationsList.first {
+                    AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Resolve"
+                }
+            val graveyardObject = clearFrame.gameObjectsList.first { it.instanceId == graveyardIid }
             assertSoftly {
                 clearFrame.zonesList.first { it.zoneId == ZoneIds.STACK }.objectInstanceIdsList shouldNotContain stackIid
-                clearFrame.zonesList.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldContain stackIid
+                clearFrame.zonesList.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldContain graveyardIid
+                clearFrame.zonesList.first { it.zoneId == ZoneIds.LIMBO }.objectInstanceIdsList shouldContain stackIid
+                clearFrame.annotationsList.indexOf(objectIdChanged) shouldBeLessThan clearFrame.annotationsList.indexOf(zoneTransfer)
+                zoneTransfer.affectedIdsList shouldBe listOf(graveyardIid)
                 graveyardObject.zoneId shouldBe ZoneIds.P1_GRAVEYARD
-                clearFrame.diffDeletedInstanceIdsList shouldNotContain stackIid
             }
         }
     })
