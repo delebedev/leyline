@@ -1,6 +1,6 @@
 package leyline.match
 
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
@@ -17,7 +17,7 @@ internal data class ConnectAttempt(
 @Suppress("LongParameterList")
 internal class MatchConnectFlow(
     private val registry: MatchRegistry,
-    private val matchConfig: MatchConfig,
+    private val engineSettings: EngineSettings,
     private val coordinator: MatchCoordinator?,
     private val cardRepository: CardRepository,
     private val puzzleHandler: PuzzleHandler,
@@ -70,9 +70,9 @@ internal class MatchConnectFlow(
                 val bridge =
                     GameBridge(
                         matchId = attempt.matchId,
-                        bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                        promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                        matchConfig = matchConfig,
+                        bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
+                        promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        engineSettings = engineSettings,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
@@ -84,14 +84,14 @@ internal class MatchConnectFlow(
                     val decks = resolveSeatDecks()
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
-                            seed = matchConfig.game.seed,
+                            seed = engineSettings.seed,
                             deckList1 = decks.first,
                             deckList2 = decks.second,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
-                            seed = matchConfig.game.seed,
+                            seed = engineSettings.seed,
                             deckList1 = decks.first,
                             deckList2 = decks.second,
                             variant = gameVariant,

@@ -17,7 +17,7 @@ import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.debug.DebugSinkAdapter
 import leyline.domain.CollationPool
@@ -57,8 +57,12 @@ class LeylineServer(
     private val matchDoorPort: Int = 30003,
     /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
     private val tlsFiles: Pair<File?, File?> = null to null,
-    /** Playtest configuration (decks, seed, die roll, AI speed). */
-    val matchConfig: MatchConfig = MatchConfig(),
+    /** Resolved engine behavior settings (timing, match defaults, draft, diagnostics). */
+    private val engineSettings: EngineSettings = EngineSettings(),
+    /** Resolved puzzle library root (content root). */
+    private val puzzlesDir: File = File("puzzles"),
+    /** Resolved booster-draft model directory (content-root anchored). */
+    private val draftModelDir: File = File("data/draft-models"),
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchConnection for grpId↔name lookups. */
@@ -99,7 +103,7 @@ class LeylineServer(
 
     fun start() {
         // Initialize dev-time strict checking from config
-        DevCheck.init(matchConfig.dev.strict, matchConfig.dev.strictPass)
+        DevCheck.init(engineSettings.dev.strict, engineSettings.dev.strictPass)
 
         // Configure proto dump output directory
         leyline.protocol.ProtoDump.engineDumpDir = engineDumpDir
@@ -170,7 +174,8 @@ class LeylineServer(
                 )
             }
         val draftRepo = store.asDraftSessionRepository()
-        val forgeDriver = ForgeBoosterDraftDriver(cardRepo::findGrpIdByName, matchConfig.draft)
+        val forgeDriver =
+            ForgeBoosterDraftDriver(cardRepo::findGrpIdByName, engineSettings.draft.copy(modelDir = draftModelDir.absolutePath))
         val draftService =
             DraftService(
                 draftRepo,
@@ -275,7 +280,8 @@ class LeylineServer(
                 workerGroup = workerGroup,
                 ssl = mdSsl,
                 port = matchDoorPort,
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
+                puzzlesDir = puzzlesDir,
                 coordinator = coordinator,
                 cardRepository = cardRepo,
                 debugSink = debugSink,

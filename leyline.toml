@@ -96,6 +96,10 @@ strict_pass = false
 #copilot_bridge_url = "http://127.0.0.1:8092"
 
 [paths]
+# Read-only bundled content root (decks, draft models, puzzles). Unset = this
+# file's directory.
+#content = ""
+
 # Persistent mutable state directory; `player.db` lives inside. Unset = the
 # durable user-level location shared across worktrees.
 #state = ""
@@ -103,3 +107,27 @@ strict_pass = false
 # Per-instance artifact root for logs, protocol dumps, and sessions
 # (relative to this file).
 artifacts = "logs"
+
+[web]
+# Web head listener port and bind address (loopback by default).
+port = 8080
+host = "127.0.0.1"
+# Default local player identity used for web matches.
+# player_id = "web-player"
+# Web authentication signing secret — required when the web head is active.
+# Supplied externally, never stored here: LEYLINE_WEB_AUTH_SECRET.
+# auth_secret = ""
+# Optional fixed six-digit login code; requires allow_fixed_login_code = true.
+# login_code = ""
+# allow_fixed_login_code = false
+# Transactional email (Resend). Empty = in-memory dev sender.
+# Supplied externally: LEYLINE_WEB_RESEND_API_KEY.
+# resend_api_key = ""
+# resend_from = "login@localhost"
+# Auth rate limiting.
+# rate_limit_enabled = true
+# rate_limit = 10
+# rate_limit_window_ms = 60000
+# Engine pacing for web matches. Browsers animate on their own, so the web
+# head runs the engine at full speed by default.
+# ai_speed = 0.0

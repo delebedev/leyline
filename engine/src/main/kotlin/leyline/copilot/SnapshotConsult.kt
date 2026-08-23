@@ -2,7 +2,7 @@ package leyline.copilot
 
 import kotlinx.serialization.Serializable
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.data.CardRepository
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -27,9 +27,9 @@ object SnapshotConsult {
         prompt: GREToClientMessage?,
         seat: Int,
         cardRepository: CardRepository,
-        matchConfig: MatchConfig = MatchConfig(),
+        engineSettings: EngineSettings = EngineSettings(),
     ): ConsultResponse {
-        val hydrated = SnapshotHydration.hydrateWithReport(gsm, seat, cardRepository, matchConfig)
+        val hydrated = SnapshotHydration.hydrateWithReport(gsm, seat, cardRepository, engineSettings)
         val bridge = hydrated.bridge
         val normalizedPrompt = prompt?.let { normalizePayCostsSource(gsm, it) }
         return try {

@@ -89,7 +89,7 @@ class MatchSession(
     fun lastPromptMessage(): GREToClientMessage? = lastPrompt
 
     private val autopush: leyline.copilot.CopilotAutopush? by lazy {
-        val dev = gameBridge.matchConfig.dev
+        val dev = gameBridge.engineSettings.dev
         if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null
     }
 

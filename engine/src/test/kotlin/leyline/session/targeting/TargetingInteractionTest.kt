@@ -14,9 +14,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.config.AiConfig
-import leyline.config.MatchConfig
-import leyline.config.ServerConfig
+import leyline.config.EngineSettings
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
@@ -179,16 +177,13 @@ class TargetingInteractionTest :
         test("Giant Growth — prompt timeout drains queued playback") {
             val h =
                 MatchFlowHarness(
-                    matchConfig =
-                        MatchConfig(
-                            ai = AiConfig(speed = 0.0),
-                            server =
-                                ServerConfig(
-                                    bridgeTimeoutMs = 5_000L,
-                                    promptFailsafeMs = 100L,
-                                    aiTurnWaitMs = 500L,
-                                    mulliganWaitMs = 500L,
-                                ),
+                    engineSettings =
+                        EngineSettings(
+                            aiSpeed = 0.0,
+                            bridgeTimeoutMs = 5_000L,
+                            promptFailsafeMs = 100L,
+                            aiTurnWaitMs = 500L,
+                            mulliganWaitMs = 500L,
                         ),
                 )
             try {

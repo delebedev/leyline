@@ -1,7 +1,7 @@
 package leyline
 
 import leyline.config.ConfigException
-import leyline.config.LegacyMatchConfigAdapter
+import leyline.config.LeylineConfig
 import leyline.config.LeylineConfigResolver
 import leyline.config.NativeEndpoints
 import leyline.config.ResolvedLeylineConfig
@@ -31,6 +31,8 @@ fun main(args: Array<String>) {
     val native = resolved.config.native
     val paths = resolved.paths.also { it.ensureDirectories() }
     val endpoints = nativeEndpoints(native)
+    // File logging lands beneath the resolved per-instance artifact root.
+    System.setProperty("LEYLINE_LOG_DIR", paths.artifactsRoot.absolutePath)
 
     val tls = resolveTls(a)
     val cardRepo = openCardRepo()
@@ -39,7 +41,9 @@ fun main(args: Array<String>) {
             frontDoorPort = endpoints.frontDoorPort,
             matchDoorPort = endpoints.matchDoorPort,
             tlsFiles = tls,
-            matchConfig = LegacyMatchConfigAdapter.from(resolved.config),
+            engineSettings = resolved.config.engine,
+            puzzlesDir = paths.puzzlesDir,
+            draftModelDir = paths.draftModelDir(resolved.config.engine.draft.modelDir),
             externalHost = native.externalHost,
             cardRepo = cardRepo,
             playerDbFile = paths.playerDb,
@@ -80,7 +84,7 @@ private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     return if (cert != null && key != null) cert to key else null to null
 }
 
-private fun openCardRepo(): CardRepository = ClientCardDatabase.open().cardRepository()
+private fun openCardRepo(): CardRepository = ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
 
 // -- Server builders ----------------------------------------------------------
 
@@ -190,7 +194,7 @@ private fun printBanner(
     resolved: ResolvedLeylineConfig,
     endpoints: NativeEndpoints,
 ) {
-    println(resolved.report(head = "native"))
+    println(resolved.report(head = "native", redactedPaths = LeylineConfig.SECRET_PATHS))
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:${endpoints.managementPort}/health")
     println("Debug controls: http://localhost:${endpoints.debugPort}")

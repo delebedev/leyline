@@ -80,12 +80,15 @@ protocol heads and local operator services.
 | Local control | 8090 | `app/.../debug/DebugServer` |
 | Account | 9443 | `native/account/AccountServer` |
 | Management | 8091 | `app/.../infra/ManagementServer` |
+| Web head | 8080 | `app/.../WebMain` (Ktor/Netty over `web/`) |
 
-`leyline.toml` configures these defaults, with `LEYLINE_*` environment
-overrides on top (precedence: typed default < TOML < environment). Relative
-paths resolve against the TOML file, and `LEYLINE_INSTANCE=<name>` starts an
-additional instance with isolated state and artifact paths. Exact native
-transport framing belongs to `native.protocol.FrameCodec`.
+Both heads compose from one resolved configuration snapshot. `leyline.toml`
+configures owner-shaped settings (`[native]`, `[web]`, `[engine]`,
+`[paths]`), with `LEYLINE_*` environment overrides on top (precedence: typed
+default < TOML < environment). Relative paths resolve against the TOML file,
+and `LEYLINE_INSTANCE=<name>` starts an additional instance with isolated
+state and artifact paths. Exact native transport framing belongs to
+`native.protocol.FrameCodec`.
 
 ## Match runtime
 

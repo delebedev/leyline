@@ -17,7 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 private val relayLog = LoggerFactory.getLogger("leyline.web.WebGreRelay")
@@ -249,12 +250,14 @@ class InProcessWebGreRelay(
 }
 
 class DirectWebGreEngineSession(
-    private val matchConfig: MatchConfig,
+    private val engineSettings: EngineSettings,
     private val coordinator: MatchCoordinator,
     private val cardRepository: CardRepository,
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry,
     onFrame: (ByteArray) -> Unit,
     onClosed: () -> Unit = {},
+    /** Resolved puzzle library root (content root). */
+    private val puzzlesDir: File = File("puzzles"),
 ) : WebGreEngineSession {
     /**
      * Shared by the browser's seat and the [WebFamiliarSeat] the server drives
@@ -268,7 +271,8 @@ class DirectWebGreEngineSession(
         MatchConnection(
             registry = registry,
             output = output,
-            matchConfig = matchConfig,
+            engineSettings = engineSettings,
+            puzzlesDir = puzzlesDir,
             coordinator = coordinator,
             cardRepository = cardRepository,
             runtimeMatchConfigs = runtimeMatchConfigs,
@@ -290,7 +294,7 @@ class DirectWebGreEngineSession(
     private fun needsFamiliarSeat(matchId: String): Boolean {
         val config = runtimeMatchConfigs.get(matchId)
         val puzzle = !config?.puzzle.isNullOrBlank()
-        val spectating = config?.spectatorMode ?: matchConfig.game.spectatorMode
+        val spectating = config?.spectatorMode ?: engineSettings.spectatorMode
         return !puzzle && !spectating
     }
 

@@ -7,7 +7,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import leyline.bridge.bootstrap.CardEntry
 import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.json.productionJson
@@ -22,6 +22,7 @@ import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.io.File
 
 /**
  * Transport-neutral GRE match connection — routes parsed match-service messages into the engine.
@@ -36,7 +37,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MatchConnection(
     private val registry: MatchRegistry,
     private val output: MatchOutput,
-    private val matchConfig: MatchConfig = MatchConfig(),
+    private val engineSettings: EngineSettings = EngineSettings(),
+    /** Resolved puzzle library root (content root). */
+    private val puzzlesDir: File = File(findLeylineDir(), "puzzles"),
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
@@ -115,7 +118,7 @@ class MatchConnection(
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler =
         MulliganHandler(
-            matchConfig,
+            engineSettings,
             registry,
             sessionProvider = { session as? GameOps },
             outputProvider = { output },
@@ -124,12 +127,12 @@ class MatchConnection(
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(::resolvePuzzlePath, cardRepository, registry, matchConfig)
+    private val puzzleHandler = PuzzleHandler(::resolvePuzzlePath, cardRepository, registry, engineSettings, puzzlesDir)
 
     private val connectFlow =
         MatchConnectFlow(
             registry = registry,
-            matchConfig = matchConfig,
+            engineSettings = engineSettings,
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
@@ -166,7 +169,7 @@ class MatchConnection(
 
     private fun resolveRuntimeMatchConfig(): RuntimeMatchConfig? = runtimeMatchConfigs?.get(matchId)
 
-    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: matchConfig.game.spectatorMode
+    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: engineSettings.spectatorMode
 
     fun opened() {
         log.info("Match connection opened")
@@ -310,7 +313,7 @@ class MatchConnection(
             MatchSession(
                 connection = connection,
                 gameBridge = bridge,
-                paceDelayMs = matchConfig.paceDelayMs,
+                paceDelayMs = engineSettings.paceDelayMs,
                 deferNetworkAdvance = deferGameplayAdvance,
             )
         bindSession(s)
@@ -610,7 +613,7 @@ class MatchConnection(
      * Priority:
      *   1. Pod-bot deck for the active event (Quick Draft → one of the 7 bots that
      *      drafted alongside the player). Falls through if the event has no pod.
-     *   2. AI deck name from `matchConfig.game.aiDeck` looked up in player.db.
+     *   2. AI deck name from `engineSettings.aiDeck` looked up in player.db.
      *   3. Mirror seat 1's deck.
      */
     private fun resolveSeat2Deck(
@@ -644,7 +647,7 @@ class MatchConnection(
             }
         }
 
-        val aiDeckName = matchConfig.game.aiDeck
+        val aiDeckName = engineSettings.aiDeck
         if (aiDeckName != null && coordinator != null) {
             val cardsJson = coordinator.resolveDeckJsonByName(aiDeckName)
             if (cardsJson != null) {
@@ -658,7 +661,7 @@ class MatchConnection(
 
     private fun spectatorRandomDecksIfEnabled(): Pair<String, String>? {
         if (!isSpectatorMode()) return null
-        if (!matchConfig.game.aiDeck.equals("random", ignoreCase = true)) return null
+        if (!engineSettings.aiDeck.equals("random", ignoreCase = true)) return null
         return spectatorRandomDecks()
     }
 

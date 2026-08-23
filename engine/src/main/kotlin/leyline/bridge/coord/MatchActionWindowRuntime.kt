@@ -296,7 +296,7 @@ internal class MatchActionWindowRuntime(
                     window.selections[token] = RuntimeActionSelection(offer, response)
                     val kind = if (defer) ActionClaimKind.Deferred else ActionClaimKind.Immediate
                     window.status = ActionWindowStatus.Claimed(kind, token)
-                    if (owner.bridge.matchConfig.game.timer) {
+                    if (owner.bridge.engineSettings.timer) {
                         val timer = owner.feed(window.seatId).builder.timerStop(owner.counter)
                         owner.feed(window.seatId).queue.add(timer.messages)
                     }
@@ -434,7 +434,7 @@ internal class MatchActionWindowRuntime(
                     val result = prepared.bundle
                     val messages =
                         try {
-                            if (pending.state.kind == PendingActionKind.PRIORITY && owner.bridge.matchConfig.game.timer) {
+                            if (pending.state.kind == PendingActionKind.PRIORITY && owner.bridge.engineSettings.timer) {
                                 result.messages + feed.builder.timerStart(owner.counter).messages
                             } else {
                                 result.messages

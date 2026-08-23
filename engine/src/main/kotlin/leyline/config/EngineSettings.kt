@@ -5,9 +5,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * Engine behavior settings: match timing, new-match defaults, draft policy,
- * and diagnostics. Consumed by the engine bridge and match session through
- * the legacy [MatchConfig] translation until the engine slice migrates
- * consumers to this owner shape directly.
+ * and diagnostics. The :app composition root resolves these values once from
+ * `leyline.toml` plus `LEYLINE_*` overrides and passes them explicitly to the
+ * engine bridge and match session.
  */
 @Serializable
 data class EngineSettings(
@@ -47,6 +47,19 @@ data class EngineSettings(
     /** Development-time diagnostics knobs. */
     val dev: DevSettings = DevSettings(),
 ) {
+    /**
+     * AI delay multiplier derived from [aiSpeed].
+     * speed=2 means 2x faster → delays halved (multiplier=0.5).
+     * speed=0 means instant (multiplier=0).
+     */
+    val aiDelayMultiplier: Double get() = if (aiSpeed == 0.0) 0.0 else 1.0 / aiSpeed
+
+    /**
+     * Session pacing delay derived from [aiSpeed], applied between auto-pass
+     * and combat steps so clients can animate. speed=0 disables pacing entirely.
+     */
+    val paceDelayMs: Long get() = (200L * aiDelayMultiplier).toLong()
+
     fun validate() {
         bridgeTimeoutMs?.let { require(it > 0) { "engine.bridge_timeout_ms must be positive when set, got $it" } }
         promptFailsafeMs?.let { require(it > 0) { "engine.prompt_failsafe_ms must be positive when set, got $it" } }

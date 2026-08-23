@@ -18,8 +18,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
@@ -334,12 +333,12 @@ class GameBridgeTest :
         }
 
         test("dieRollWinner respects config override") {
-            val config1 = MatchConfig(game = GameConfig(dieRollWinner = 1))
-            val b1 = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config1)
+            val config1 = EngineSettings(dieRollWinner = 1)
+            val b1 = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config1)
             b1.dieRollWinner shouldBe 1
 
-            val config2 = MatchConfig(game = GameConfig(dieRollWinner = 2))
-            val b2 = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config2)
+            val config2 = EngineSettings(dieRollWinner = 2)
+            val b2 = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config2)
             b2.dieRollWinner shouldBe 2
         }
 
@@ -564,8 +563,8 @@ class GameBridgeTest :
         // --- skipMulligan tests ---
 
         test("skip mulligan advances to priority without keep") {
-            val config = MatchConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config)
+            val config = EngineSettings(skipMulligan = true)
+            val b = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config)
             bridge = b
             b.start(seed = 42L)
 
@@ -584,8 +583,8 @@ class GameBridgeTest :
         }
 
         test("skip mulligan produces valid game state") {
-            val config = MatchConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config)
+            val config = EngineSettings(skipMulligan = true)
+            val b = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config)
             bridge = b
             b.start(seed = 42L)
             b.awaitPriority()

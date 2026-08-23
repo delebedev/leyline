@@ -2,7 +2,7 @@ package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 /** Test-only Netty edge adapter for legacy match-flow fixtures. */
 class MatchHandler(
     private val registry: MatchRegistry,
-    private val matchConfig: MatchConfig = MatchConfig(),
+    private val engineSettings: EngineSettings = EngineSettings(),
     private val coordinator: MatchCoordinator? = null,
     private val cardRepository: CardRepository,
     private val debugSink: MatchDebugSink? = null,
@@ -39,7 +39,7 @@ class MatchHandler(
                             ctx.close()
                         }
                     },
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
                 coordinator = coordinator,
                 cardRepository = cardRepository,
                 debugSink = debugSink,
