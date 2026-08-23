@@ -415,7 +415,7 @@ object ZoneTransferDetector {
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
                         val manaAbilityIid = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value
-                        val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value
+                        val abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(mp.sourceCardId).value
                         ManaPaymentRecord(
                             landInstanceId = landIid,
                             manaAbilityInstanceId = manaAbilityIid,
@@ -942,7 +942,7 @@ object ZoneTransferDetector {
                     landInstanceId = idLookup(mp.sourceCardId).value,
                     manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value,
                     color = mp.color,
-                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value,
+                    abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(mp.sourceCardId).value,
                     spellInstanceId = stackId,
                 )
             } ?: emptyList()
@@ -1633,7 +1633,7 @@ object ZoneTransferDetector {
                 landInstanceId = origId,
                 manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(forgeCardId)).value,
                 color = mp.color,
-                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId).value,
+                abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(forgeCardId).value,
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )

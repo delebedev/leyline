@@ -1,10 +1,12 @@
 package leyline.game.event
 
+import forge.card.MagicColor
 import forge.game.ability.AbilityKey
 import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.player.PlayerView
+import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -110,6 +112,47 @@ class GameEventCollectorTest :
                 sc.size shouldBe 1
                 sc[0].cardId shouldBe ForgeCardId(spell.id)
                 sc[0].seatId shouldBe SeatId(1)
+            }
+        }
+
+        test("spell cast payment retains producing mana ability identity") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            val spell = game.humanPlayer.hand.card("Lightning Bolt")
+            val source = game.humanPlayer.battlefield.card("Llanowar Elves")
+            val manaAbility = source.spellAbilities.single { it.isManaAbility() }
+            val payment =
+                GameEventSpellAbilityCast.ManaPaymentInfo(
+                    source.id,
+                    MagicColor.GREEN,
+                    manaAbility.definitionId,
+                )
+
+            game.fireEvent(
+                GameEventSpellAbilityCast(
+                    SpellAbilityView.get(spell.firstSpellAbility),
+                    null,
+                    0,
+                    null,
+                    listOf(payment),
+                ),
+            )
+
+            val cast =
+                collector
+                    .closeFrame()
+                    .events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .single()
+            assertSoftly {
+                cast.manaPayments.single().sourceCardId shouldBe ForgeCardId(source.id)
+                cast.manaPayments.single().abilityDefinitionId shouldBe manaAbility.definitionId
+                cast.manaPayments.single().abilityGrpId shouldBe 1005
             }
         }
 
