@@ -16,10 +16,15 @@ match/       MatchHandler, MatchSession, FamiliarSession, combat/targeting/mulli
 protocol/    GRE handshake/proto dump helpers. TCP frame codecs live in native.protocol.
 ```
 
-`leyline.tooling` (headless match harness, simclient) lives in the separate `harness`
+`leyline.tooling` (headless match harness, simclient, and neutral synthetic artifacts) lives in the separate `harness`
 source set (`src/harness/kotlin/`, not `src/main/`) so none of it ships in the engine
 jar. It compiles against main's classes and is on the classpath for engine tests and
 the `simclient` JavaExec task.
+
+Proof ownership is explicit: `MatchFlowHarness` executes deterministic acceptance
+YAML; simclient discovers and reproduces synthetic Playthrough failures; the live
+client runs the same scripted intent through the Arena head; Copilot/Pilot owns
+autonomous robustness; conformance compares protocol fidelity.
 
 ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
 

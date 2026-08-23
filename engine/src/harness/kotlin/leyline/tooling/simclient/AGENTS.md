@@ -24,18 +24,23 @@ configuration; do not hardcode local paths.
 
 - `SimClientDriver` — game loop and orchestration.
 - `SimPromptLedger` — active/handled/retired prompt lifecycle and stall fingerprints.
-- `SimPromptPolicy` / `ForgeAiPromptAdapter` — decision policy and Forge-AI translation.
+- `SimPromptPolicy` — retry-aware policy fallback, telemetry, and submission routing.
+- `PromptDecisionAdvisor` — shared prompt-family decision authority in the main source set.
 - `SimDecision` — decision model and submission.
 - `ActionAttemptLedger` — per-turn action attempts and outcomes.
-- `PlayerLogWriter` — Player.log-compatible GRE output and metadata sidecars.
+- `leyline.tooling.artifact.SyntheticArtifactWriter` — shared GRE log framing,
+  canonical enum conversion, metadata sidecars, quarantine details, and ingestion.
 - `GameLogCollector` — per-row warning/error telemetry.
 - `leyline.tooling.headless.MatchFlowHarness` — generic in-process session wiring shared with tests.
-- This harness package — CLI/config, matrix expansion, watchdog, stats, summary, ingest.
+- This harness package — CLI/config, matrix expansion, watchdog, policy telemetry,
+  stats, and summary. Artifact lifecycle belongs to the neutral artifact package.
 
 Keep policy, telemetry, and row orchestration here. Put generic session response helpers in the headless harness. Policies return decisions; they do not submit directly.
 
-Simclient evaluates the client-facing execution path. It does not own direct
-Forge runs, AI-strength comparisons, or experiment evidence.
+Simclient owns synthetic Playthrough discovery, fixed-seed reproduction,
+policy-realization probes, and synthetic game output. It is not the
+deterministic acceptance executor, a live-client driver, or a conformance
+comparison engine.
 
 ## Policy priorities
 
@@ -55,15 +60,18 @@ A dumb legal response beats a clever unstable one. Repeated fingerprints indicat
 3. Skip advisor work on pass-only action requests; latency can outlive the active priority window and create stale submissions.
 4. Keep greedy fallback when the advisor has no mapped or useful answer.
 
-Add a translator in `ForgeAiPromptAdapter`, not the driver. Translate the Forge-side choice into `SimDecision`, then submit through existing decision/harness paths.
+Add a prompt-family route to `PromptDecisionAdvisor`, not the driver. Return a
+complete `SimDecision` or a typed unavailable reason. Keep retry suppression,
+strategic fallback, telemetry, and submission in this package. Copilot uses the
+same desired decision but owns incremental native response realization.
 
 ## Prompt responder changes
 
 When a prompt stalls:
 
-1. Add or extend the policy/adapter decision for that GRE type.
+1. Add or extend the shared advisor decision for that GRE type.
 2. Reuse a `MatchFlowHarness` response helper; add a generic helper there if missing.
-3. Ensure `PlayerLogWriter` recognizes the message type so downstream parsing preserves it.
+3. Ensure `SyntheticArtifactWriter` preserves the canonical message shape when the type is emitted.
 4. Ensure prompt detection/ledger retirement includes the type.
 5. Test one successful response and one retirement/stale-prompt case.
 
@@ -75,8 +83,9 @@ For simclient tooling changes:
 
 1. run the focused unit tests;
 2. run `just test-simclient`;
-3. rerun one representative fixed seed;
+3. run one representative fixed seed through `just simclient`;
 4. inspect stats and generated log/metadata shape;
-5. run a small widened range when policy or orchestration changed.
+5. run `just test-acceptance` when the deterministic YAML path is affected;
+6. run a small widened range when policy or orchestration changed.
 
 The broad matrix is discovery evidence. Focused tests and deterministic acceptance remain the regression contract.
