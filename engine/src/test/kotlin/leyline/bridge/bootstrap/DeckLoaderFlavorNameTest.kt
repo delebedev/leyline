@@ -15,7 +15,7 @@ class DeckLoaderFlavorNameTest :
         }
 
         test("loads normalized Universes Within flavor name") {
-            val deck = DeckLoader.parseDeckList("1 Detect Intrusion")
+            val deck = DeckLoader.load(DeckSource.ForgeText("1 Detect Intrusion"))
 
             deck
                 .getOrCreate(DeckSection.Main)

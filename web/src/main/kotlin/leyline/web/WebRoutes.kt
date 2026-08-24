@@ -36,9 +36,9 @@ import leyline.domain.DraftSession
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.json.productionJson
+import leyline.domain.repo.DeckRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger
 data class WebServices(
     val draftService: DraftService,
     val courseService: CourseService,
-    val deckService: DeckService,
+    val decks: DeckRepository,
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
@@ -141,21 +141,21 @@ fun Application.installWeb(services: WebServices) {
             route("/decks") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
-                    call.respond(services.deckService.listForPlayer(playerId).map(::deckView))
+                    call.respond(services.decks.findAllForPlayer(playerId).map(::deckView))
                 }
                 post {
                     val request = call.receive<CreateDeckRequest>()
                     val playerId = call.ownedPlayerId(services, request.playerId)
                     val deck = request.toDeck(playerId)
-                    services.deckService.save(deck)
+                    services.decks.save(deck)
                     call.respond(deckView(deck))
                 }
                 get("/{deckId}") {
-                    val deck = services.deckService.getById(DeckId(call.parameters["deckId"].orEmpty()))
+                    val deck = services.decks.findById(DeckId(call.parameters["deckId"].orEmpty()))
                     if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deckView(deck))
                 }
                 delete("/{deckId}") {
-                    services.deckService.delete(DeckId(call.parameters["deckId"].orEmpty()))
+                    services.decks.delete(DeckId(call.parameters["deckId"].orEmpty()))
                     call.respond(HttpStatusCode.NoContent)
                 }
             }
@@ -167,6 +167,9 @@ fun Application.installWeb(services: WebServices) {
 
 private fun Application.installErrorHandling() {
     install(StatusPages) {
+        exception<leyline.domain.deck.DecklistException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, ParseDecklistErrorResponse(cause.errors))
+        }
         exception<IllegalArgumentException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
         }

@@ -7,6 +7,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldNotBeBlank
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.domain.service.EventRegistry
@@ -32,14 +33,14 @@ class FormatValidationIntegrationTest :
             """.trimIndent()
 
         test("Standard rejects a card not in Standard") {
-            val deck = DeckLoader.parseDeckList(nonStandardDeck)
+            val deck = DeckLoader.load(DeckSource.ForgeText(nonStandardDeck))
             val error = FormatService.validateDeck(deck, "Standard")
             error.shouldNotBeNull()
             error.shouldNotBeBlank()
         }
 
         test("same card is accepted in Pioneer") {
-            val deck = DeckLoader.parseDeckList(nonStandardDeck)
+            val deck = DeckLoader.load(DeckSource.ForgeText(nonStandardDeck))
             val error = FormatService.validateDeck(deck, "Pioneer")
             error.shouldBeNull()
         }

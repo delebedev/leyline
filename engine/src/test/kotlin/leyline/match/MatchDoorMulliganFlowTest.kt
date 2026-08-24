@@ -13,6 +13,8 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.DeckCard
+import leyline.domain.deck.DeckCards
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -168,9 +170,9 @@ class MatchDoorMulliganFlowTest :
             val mountainGrpId = TestCardRegistry.repo.findGrpIdByName("Mountain")!!
             val coordinator =
                 object : MatchCoordinator by MatchCoordinator.NOOP {
-                    override fun resolveDeckJsonByName(name: String): String? =
+                    override fun resolveDeckCardsByName(name: String): DeckCards? =
                         if (name == "Green test") {
-                            """{"MainDeck":[{"cardId":$forestGrpId,"quantity":60}]}"""
+                            DeckCards(mainDeck = listOf(DeckCard(forestGrpId, 60)))
                         } else {
                             null
                         }

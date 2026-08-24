@@ -1,13 +1,18 @@
 package leyline.config
 
 import kotlinx.serialization.Serializable
+import leyline.domain.deck.DeckCards
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class RuntimeMatchConfig(
     val matchId: String,
+    /** Genuine runtime/puzzle decklist text — see [leyline.bridge.bootstrap.DeckSource.ForgeText]. */
     val seat1Deck: String? = null,
     val seat2Deck: String? = null,
+    /** Typed resolved cards from a persisted/course source — checked before [seat1Deck]/[seat2Deck]. */
+    val seat1Cards: DeckCards? = null,
+    val seat2Cards: DeckCards? = null,
     /** Forge variant for a runtime-started match; null keeps the configured default. */
     val gameVariant: String? = null,
     val puzzle: String? = null,

@@ -1,5 +1,8 @@
 package leyline.match
 
+import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckSource
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
@@ -27,7 +30,7 @@ internal class MatchConnectFlow(
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
     private val sendRoomState: () -> Unit,
     private val sendInitialBundle: () -> Unit,
-    private val resolveSeatDecks: () -> Pair<String, String>,
+    private val resolveSeatDecks: () -> Pair<DeckSource, DeckSource>,
     private val resolveGameVariant: () -> String?,
     private val isSpectatorMode: () -> Boolean,
     private val onLocalPlayerConnected: (GameBridge) -> Unit,
@@ -82,18 +85,23 @@ internal class MatchConnectFlow(
                     // bundles. Mirrors the non-spectator flow; avoids two connects
                     // racing to start it.
                     val decks = resolveSeatDecks()
+                    // Idempotent — GameBridge.start() also calls this, but deck
+                    // realization now happens before that, on first use here.
+                    GameBootstrap.initializeCardDatabase()
+                    val deck1 = DeckLoader.load(decks.first, cardRepository::findNameByGrpId)
+                    val deck2 = DeckLoader.load(decks.second, cardRepository::findNameByGrpId)
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
                             seed = engineSettings.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            deck1 = deck1,
+                            deck2 = deck2,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
                             seed = engineSettings.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            deck1 = deck1,
+                            deck2 = deck2,
                             variant = gameVariant,
                         )
                     }

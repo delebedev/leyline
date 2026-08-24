@@ -1,22 +1,14 @@
 package leyline.infra
 
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import leyline.bridge.bootstrap.CardEntry
-import leyline.bridge.bootstrap.DeckConverter
 import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
+import leyline.domain.deck.DeckCards
+import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.MatchCoordinator
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -30,10 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class AppMatchCoordinator(
     private val playerId: PlayerId,
-    private val deckService: DeckService,
+    private val decks: DeckRepository,
     private val courseService: CourseService,
     private val draftRepo: DraftSessionRepository,
-    private val nameByGrpId: (Int) -> String? = { null },
 ) : MatchCoordinator {
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
     private val opponentRotationByEvent = ConcurrentHashMap<String, AtomicInteger>()
@@ -55,37 +46,37 @@ class AppMatchCoordinator(
         selectedEventName = eventName
     }
 
-    override fun resolveDeckJson(deckId: String): String? {
+    override fun resolveDeckCards(deckId: String): DeckCards? {
         // 1. Constructed deck from repository
-        deckService.getById(DeckId(deckId))?.let {
-            return cardsToJson(it.mainDeck, it.sideboard, it.commandZone)
+        decks.findById(DeckId(deckId))?.let {
+            return DeckCards(it.mainDeck, it.sideboard, it.commandZone, it.companions)
         }
 
         // 2. Sealed/draft course deck (no command zone)
         val event = selectedEventName ?: return null
         val courseDeck = courseService.getCourse(playerId, event)?.deck ?: return null
-        return cardsToJson(courseDeck.mainDeck, courseDeck.sideboard)
+        return DeckCards(courseDeck.mainDeck, courseDeck.sideboard)
     }
 
-    override fun resolveFirstDeck(): String? {
-        val first = deckService.listForPlayer(playerId).firstOrNull() ?: return null
+    override fun resolveFirstDeckCards(): DeckCards? {
+        val first = decks.findAllForPlayer(playerId).firstOrNull() ?: return null
         log.info("Fallback deck: {} ({})", first.name, first.id.value)
-        return cardsToJson(first.mainDeck, first.sideboard)
+        return DeckCards(first.mainDeck, first.sideboard)
     }
 
-    override fun resolveDeckJsonByName(name: String): String? {
-        if (name.equals("random", ignoreCase = true)) return resolveRandomDeckJson()
+    override fun resolveDeckCardsByName(name: String): DeckCards? {
+        if (name.equals("random", ignoreCase = true)) return resolveRandomDeckCards()
 
-        val deck = deckService.getByName(name) ?: return null
-        return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
+        val deck = decks.findByName(name) ?: return null
+        return DeckCards(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
-    override fun resolveRandomDeckPairJson(): Pair<String, String>? {
+    override fun resolveRandomDeckCardsPair(): Pair<DeckCards, DeckCards>? {
         val targetFormat = if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) Format.Brawl else Format.Standard
-        val decks = deckService.listForPlayer(playerId).filter { it.format == targetFormat }
-        if (decks.isEmpty()) return null
+        val candidates = decks.findAllForPlayer(playerId).filter { it.format == targetFormat }
+        if (candidates.isEmpty()) return null
 
-        val shuffled = decks.shuffled()
+        val shuffled = candidates.shuffled()
         val seat1 = shuffled[0]
         val seat2 = shuffled.drop(1).firstOrNull() ?: seat1
         log.info(
@@ -96,27 +87,27 @@ class AppMatchCoordinator(
             seat2.id.value,
             targetFormat,
         )
-        return cardsToJson(seat1.mainDeck, seat1.sideboard, seat1.commandZone) to
-            cardsToJson(seat2.mainDeck, seat2.sideboard, seat2.commandZone)
+        return DeckCards(seat1.mainDeck, seat1.sideboard, seat1.commandZone) to
+            DeckCards(seat2.mainDeck, seat2.sideboard, seat2.commandZone)
     }
 
-    private fun resolveRandomDeckJson(): String? {
+    private fun resolveRandomDeckCards(): DeckCards? {
         val targetFormat = if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) Format.Brawl else Format.Standard
-        val decks = deckService.listForPlayer(playerId).filter { it.format == targetFormat }
-        if (decks.isEmpty()) return null
+        val candidates = decks.findAllForPlayer(playerId).filter { it.format == targetFormat }
+        if (candidates.isEmpty()) return null
 
-        val candidates = decks.filterNot { it.id.value == selectedDeckId }.ifEmpty { decks }
-        val deck = candidates.random()
+        val pool = candidates.filterNot { it.id.value == selectedDeckId }.ifEmpty { candidates }
+        val deck = pool.random()
         log.info("Random AI deck: {} ({}) format={}", deck.name, deck.id.value, deck.format)
-        return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
+        return DeckCards(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
-    override fun resolveOpponentDeckJson(eventName: String): String? = resolveOpponentDeckJson(playerId, eventName)
+    override fun resolveOpponentDeckCards(eventName: String): DeckCards? = resolveOpponentDeckCards(playerId, eventName)
 
-    fun resolveOpponentDeckJson(
+    fun resolveOpponentDeckCards(
         playerId: PlayerId,
         eventName: String,
-    ): String? {
+    ): DeckCards? {
         val session = draftRepo.findByPlayerAndEvent(playerId, eventName) ?: return null
         if (session.status != DraftStatus.Completed) return null
         val pod = draftRepo.findPodResults(session.id)
@@ -138,24 +129,23 @@ class AppMatchCoordinator(
                 .groupingBy { it }
                 .eachCount()
                 .map { DeckCard(it.key, it.value) }
-        return cardsToJson(mainDeck, sideboard = emptyList())
+        return DeckCards(mainDeck)
     }
 
     fun configureCourseMatch(
         matchId: String,
         playerId: PlayerId,
         eventName: String,
-    ): Pair<String, String> {
+    ): Pair<DeckCards, DeckCards> {
         val course = courseService.getCourse(playerId, eventName) ?: missingCourseState("No course for $eventName")
         val deck = course.deck ?: missingCourseState("No course deck for $eventName")
         // Draft events have a pod of bot decks from the draft; sealed events don't
         // (no bots were seated to draft alongside the player), so mirror the
         // player's own deck as the opponent — same fallback the native Match Door
         // uses in MatchConnection.resolveSeat2Deck when no pod is available.
-        val seat2Json = resolveOpponentDeckJson(playerId, eventName) ?: cardsToJson(deck.mainDeck, deck.sideboard)
+        val seat2 = resolveOpponentDeckCards(playerId, eventName) ?: DeckCards(deck.mainDeck, deck.sideboard)
         courseByMatchId[matchId] = playerId to eventName
-        return DeckConverter.toDeckText(deck.mainDeck.toCardEntries(), deck.sideboard.toCardEntries(), nameByGrpId = nameByGrpId) to
-            jsonCardsToDeckText(seat2Json)
+        return DeckCards(deck.mainDeck, deck.sideboard) to seat2
     }
 
     private fun missingCourseState(message: String): Nothing = throw IllegalArgumentException(message)
@@ -179,52 +169,4 @@ class AppMatchCoordinator(
         courseService.recordMatchResult(player, event, won)
         log.info("Match result recorded: matchId={} player={} event={} won={}", matchId, player.value, event, won)
     }
-
-    private fun cardsToJson(
-        mainDeck: List<DeckCard>,
-        sideboard: List<DeckCard>,
-        commandZone: List<DeckCard> = emptyList(),
-    ): String =
-        buildJsonObject {
-            put("MainDeck", cardsToJsonArray(mainDeck))
-            put("Sideboard", cardsToJsonArray(sideboard))
-            if (commandZone.isNotEmpty()) {
-                put("CommandZone", cardsToJsonArray(commandZone))
-            }
-        }.toString()
-
-    // Local {cardId, quantity} array builder — this class must stay loadable
-    // on classpaths that exclude the native client head.
-    private fun cardsToJsonArray(cards: List<DeckCard>) =
-        buildJsonArray {
-            for (c in cards) {
-                add(
-                    buildJsonObject {
-                        put("cardId", c.grpId)
-                        put("quantity", c.quantity)
-                    },
-                )
-            }
-        }
-
-    private fun jsonCardsToDeckText(cardsJson: String): String {
-        val obj =
-            kotlinx.serialization.json.Json
-                .parseToJsonElement(cardsJson)
-                .jsonObject
-        val main = parseCards(obj["MainDeck"]?.jsonArray)
-        val sideboard = parseCards(obj["Sideboard"]?.jsonArray)
-        return DeckConverter.toDeckText(main.toCardEntries(), sideboard.toCardEntries(), nameByGrpId = nameByGrpId)
-    }
-
-    private fun List<DeckCard>.toCardEntries(): List<CardEntry> = map { CardEntry(it.grpId, it.quantity) }
-
-    private fun parseCards(array: kotlinx.serialization.json.JsonArray?): List<DeckCard> =
-        array.orEmpty().map { element ->
-            val obj = element.jsonObject
-            DeckCard(
-                grpId = obj["cardId"]!!.jsonPrimitive.int,
-                quantity = obj["quantity"]!!.jsonPrimitive.int,
-            )
-        }
 }

@@ -202,20 +202,28 @@ data class ParseDecklistRequest(
     val text: String,
 )
 
+/** A fully resolved decklist card — the endpoint never returns an unresolved row. */
 @Serializable
-data class ParsedCardDto(
-    val name: String,
-    val grpId: Int? = null,
+data class DecklistCardDto(
+    val grpId: Int,
     val quantity: Int,
-    val found: Boolean,
-    val card: DraftCardDto? = null,
+    val card: DraftCardDto,
 )
 
+/**
+ * Success shape for `/api/cards/parse-decklist`. Command-zone and companion sections
+ * are rejected (see [ParseDecklistErrorResponse]) until the Web deck editor can
+ * persist them.
+ */
 @Serializable
 data class ParseDecklistResponse(
-    val mainboard: List<ParsedCardDto>,
-    val sideboard: List<ParsedCardDto>,
-    val commander: List<ParsedCardDto>,
+    val mainboard: List<DecklistCardDto>,
+    val sideboard: List<DecklistCardDto>,
+)
+
+/** Failure shape for `/api/cards/parse-decklist` — every parse/resolution failure, not just the first. */
+@Serializable
+data class ParseDecklistErrorResponse(
     val errors: List<String>,
 )
 

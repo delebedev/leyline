@@ -16,7 +16,7 @@ import leyline.game.data.CardRepository
 /** Public spectator-match routes and their deck conversion boundary. */
 internal fun Route.installPublicSpectatorRoutes(services: WebServices) {
     post("/public/spectator/start") {
-        val rotation = services.deckService.listForPlayer(SystemPlayers.SPECTATOR).sortedBy { it.name }
+        val rotation = services.decks.findAllForPlayer(SystemPlayers.SPECTATOR).sortedBy { it.name }
         if (rotation.size < 2) {
             call.respond(HttpStatusCode.ServiceUnavailable)
             return@post

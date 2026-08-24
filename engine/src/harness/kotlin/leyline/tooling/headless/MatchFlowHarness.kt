@@ -1482,9 +1482,9 @@ class MatchFlowHarness(
                 .filter { !sectionHeader.matches(it) }
                 // Strip leading `<count> ` and trailing Arena-export suffix
                 // ` (SET) NNN` (e.g. `4 Diregraf Ghoul (FDN) 171` → `Diregraf Ghoul`).
-                // Mirrors `DeckLoader.parseDeckList` — without this, the
-                // validator looks up `Diregraf Ghoul (FDN) 171` verbatim and
-                // every Arena-export deck spuriously fails to resolve.
+                // Mirrors Forge's own `DeckRecognizer` stripping (see `DeckLoader`) —
+                // without this, the validator looks up `Diregraf Ghoul (FDN) 171`
+                // verbatim and every Arena-export deck spuriously fails to resolve.
                 .map {
                     it
                         .replaceFirst(Regex("^\\d+\\s+"), "")

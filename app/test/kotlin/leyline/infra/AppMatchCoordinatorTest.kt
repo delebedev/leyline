@@ -1,16 +1,9 @@
 package leyline.infra
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.string.shouldContain
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
 import leyline.domain.CollationPool
 import leyline.domain.Course
@@ -29,7 +22,6 @@ import leyline.domain.repo.CourseRepository
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.GeneratedPool
 
 private class FakeDraftRepo : DraftSessionRepository {
@@ -119,14 +111,12 @@ class AppMatchCoordinatorTest :
             draftRepo: FakeDraftRepo = FakeDraftRepo(),
             courseRepo: FakeCourseRepo = FakeCourseRepo(),
             deckRepo: FakeDeckRepo = FakeDeckRepo(),
-            nameByGrpId: (Int) -> String? = { null },
         ): AppMatchCoordinator {
-            val deckService = DeckService(deckRepo)
             val courseService =
                 CourseService(courseRepo) {
                     GeneratedPool(emptyList(), listOf(CollationPool(0, emptyList())), 0)
                 }
-            return AppMatchCoordinator(playerId, deckService, courseService, draftRepo, nameByGrpId)
+            return AppMatchCoordinator(playerId, deckRepo, courseService, draftRepo)
         }
 
         fun deck(
@@ -147,11 +137,11 @@ class AppMatchCoordinatorTest :
                 companions = emptyList(),
             )
 
-        test("resolveOpponentDeckJson returns null when no draft session") {
-            coordinator().resolveOpponentDeckJson(event) shouldBe null
+        test("resolveOpponentDeckCards returns null when no draft session") {
+            coordinator().resolveOpponentDeckCards(event) shouldBe null
         }
 
-        test("resolveDeckJsonByName random picks a non-selected player deck") {
+        test("resolveDeckCardsByName random picks a non-selected player deck") {
             val coord =
                 coordinator(
                     deckRepo =
@@ -164,15 +154,13 @@ class AppMatchCoordinatorTest :
                 )
             coord.selectDeck("selected")
 
-            val json = coord.resolveDeckJsonByName("random")
+            val cards = coord.resolveDeckCardsByName("random")
 
-            json.shouldNotBeNull()
-            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
-            main.size shouldBe 1
-            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
+            cards.shouldNotBeNull()
+            cards.mainDeck shouldBe listOf(DeckCard(202, 4))
         }
 
-        test("resolveDeckJsonByName random filters by selected event format") {
+        test("resolveDeckCardsByName random filters by selected event format") {
             val coord =
                 coordinator(
                     deckRepo =
@@ -185,15 +173,13 @@ class AppMatchCoordinatorTest :
                 )
             coord.selectEvent("Play_Brawl")
 
-            val json = coord.resolveDeckJsonByName("random")
+            val cards = coord.resolveDeckCardsByName("random")
 
-            json.shouldNotBeNull()
-            val main = Json.parseToJsonElement(json).jsonObject["MainDeck"]!!.jsonArray
-            main.size shouldBe 1
-            main[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 202
+            cards.shouldNotBeNull()
+            cards.mainDeck shouldBe listOf(DeckCard(202, 4))
         }
 
-        test("resolveRandomDeckPairJson picks two distinct decks when possible") {
+        test("resolveRandomDeckCardsPair picks two distinct decks when possible") {
             val coord =
                 coordinator(
                     deckRepo =
@@ -205,29 +191,14 @@ class AppMatchCoordinatorTest :
                         ),
                 )
 
-            val pair = coord.resolveRandomDeckPairJson()
+            val pair = coord.resolveRandomDeckCardsPair()
 
             pair.shouldNotBeNull()
-            val first =
-                Json
-                    .parseToJsonElement(pair.first)
-                    .jsonObject["MainDeck"]!!
-                    .jsonArray[0]
-                    .jsonObject["cardId"]
-                    ?.jsonPrimitive
-                    ?.int
-            val second =
-                Json
-                    .parseToJsonElement(pair.second)
-                    .jsonObject["MainDeck"]!!
-                    .jsonArray[0]
-                    .jsonObject["cardId"]
-                    ?.jsonPrimitive
-                    ?.int
-            setOf(first, second) shouldBe setOf(101, 202)
+            val (first, second) = pair
+            setOf(first.mainDeck.single().grpId, second.mainDeck.single().grpId) shouldBe setOf(101, 202)
         }
 
-        test("resolveOpponentDeckJson returns null when draft incomplete") {
+        test("resolveOpponentDeckCards returns null when draft incomplete") {
             val draftRepo = FakeDraftRepo()
             draftRepo.save(
                 DraftSession(
@@ -239,10 +210,10 @@ class AppMatchCoordinatorTest :
                     pickedCards = emptyList(),
                 ),
             )
-            coordinator(draftRepo).resolveOpponentDeckJson(event) shouldBe null
+            coordinator(draftRepo).resolveOpponentDeckCards(event) shouldBe null
         }
 
-        test("resolveOpponentDeckJson returns null when no pod persisted") {
+        test("resolveOpponentDeckCards returns null when no pod persisted") {
             val draftRepo = FakeDraftRepo()
             draftRepo.save(
                 DraftSession(
@@ -252,10 +223,10 @@ class AppMatchCoordinatorTest :
                     status = DraftStatus.Completed,
                 ),
             )
-            coordinator(draftRepo).resolveOpponentDeckJson(event) shouldBe null
+            coordinator(draftRepo).resolveOpponentDeckCards(event) shouldBe null
         }
 
-        test("resolveOpponentDeckJson groups grpIds by quantity") {
+        test("resolveOpponentDeckCards groups grpIds by quantity") {
             val draftRepo = FakeDraftRepo()
             val sessionId = DraftSessionId("d1")
             draftRepo.save(
@@ -272,24 +243,13 @@ class AppMatchCoordinatorTest :
                 listOf(seat1Deck) + List(6) { listOf(900 + it) },
             )
 
-            val json = coordinator(draftRepo).resolveOpponentDeckJson(event)
-            json.shouldNotBeNull()
-            val parsed = Json.parseToJsonElement(json).jsonObject
-            val main = parsed["MainDeck"]!!.jsonArray
+            val cards = coordinator(draftRepo).resolveOpponentDeckCards(event)
+            cards.shouldNotBeNull()
 
-            assertSoftly {
-                main.size shouldBe 3
-                json shouldContain "100"
-                json shouldContain "200"
-                json shouldContain "300"
-            }
-
-            val entry100 = main.firstOrNull { it.jsonObject["cardId"]?.jsonPrimitive?.int == 100 }
-            entry100.shouldNotBeNull()
-            entry100.jsonObject["quantity"]?.jsonPrimitive?.int shouldBe 3
+            cards.mainDeck shouldBe listOf(DeckCard(100, 3), DeckCard(200, 2), DeckCard(300, 1))
         }
 
-        test("resolveOpponentDeckJson rotates bot selection per match launch") {
+        test("resolveOpponentDeckCards rotates bot selection per match launch") {
             val draftRepo = FakeDraftRepo()
             val courseRepo = FakeCourseRepo()
             val sessionId = DraftSessionId("d1")
@@ -305,13 +265,8 @@ class AppMatchCoordinatorTest :
             draftRepo.savePodResults(sessionId, pod)
 
             val coord = coordinator(draftRepo, courseRepo)
-            val firstMain = Json.parseToJsonElement(coord.resolveOpponentDeckJson(event)!!).jsonObject["MainDeck"]!!.jsonArray
-            firstMain.size shouldBe 1
-            firstMain[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 700
-
-            val secondMain = Json.parseToJsonElement(coord.resolveOpponentDeckJson(event)!!).jsonObject["MainDeck"]!!.jsonArray
-            secondMain.size shouldBe 1
-            secondMain[0].jsonObject["cardId"]?.jsonPrimitive?.int shouldBe 701
+            coord.resolveOpponentDeckCards(event)!!.mainDeck shouldBe listOf(DeckCard(700, 1))
+            coord.resolveOpponentDeckCards(event)!!.mainDeck shouldBe listOf(DeckCard(701, 1))
         }
 
         test("configureCourseMatch mirrors seat1 as the opponent when no draft pod exists") {
@@ -327,9 +282,9 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val (seat1Deck, seat2Deck) = coordinator(courseRepo = courseRepo).configureCourseMatch("match-1", playerId, sealedEvent)
+            val (seat1Cards, seat2Cards) = coordinator(courseRepo = courseRepo).configureCourseMatch("match-1", playerId, sealedEvent)
 
-            seat1Deck shouldBe seat2Deck
+            seat1Cards shouldBe seat2Cards
         }
 
         test("configureCourseMatch uses the draft pod as opponent when one exists") {
@@ -348,10 +303,8 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val names = mapOf(101 to "Pod Card", 200 to "Seat One Card")
-            val (seat1Deck, seat2Deck) =
-                coordinator(draftRepo, courseRepo, nameByGrpId = names::get).configureCourseMatch("match-1", playerId, event)
+            val (seat1Cards, seat2Cards) = coordinator(draftRepo, courseRepo).configureCourseMatch("match-1", playerId, event)
 
-            seat1Deck shouldNotBe seat2Deck
+            seat1Cards shouldNotBe seat2Cards
         }
     })

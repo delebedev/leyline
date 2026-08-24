@@ -17,9 +17,9 @@ import leyline.domain.MatchInfo
 import leyline.domain.PlayerId
 import leyline.domain.Preferences
 import leyline.domain.json.productionJson
+import leyline.domain.repo.DeckRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.domain.service.MatchCoordinator
@@ -44,7 +44,7 @@ import java.util.UUID
 /**
  * Front Door handler (port 30010).
  *
- * Dispatches by CmdType to layered services ([DeckService], [PlayerService],
+ * Dispatches by CmdType to layered services ([DeckRepository], [PlayerService],
  * [MatchmakingService]) with [LobbyStubs] for unimplemented endpoints.
  *
  * Static protocol data (formats, sets, graph defs) comes from [FrontDoorBootstrapData].
@@ -53,7 +53,7 @@ import java.util.UUID
  */
 class FrontDoorHandler(
     private val playerId: PlayerId,
-    private val deckService: DeckService,
+    private val deckRepository: DeckRepository,
     private val playerService: PlayerService,
     private val matchmaking: MatchmakingService,
     private val collectionService: CollectionService,
@@ -216,7 +216,7 @@ class FrontDoorHandler(
             }
 
             CmdType.START_HOOK.value -> {
-                val decks = deckService.listForPlayer(playerId)
+                val decks = deckRepository.findAllForPlayer(playerId)
                 val hook = StartHookBuilder.build(decks)
                 log.info("Front Door: StartHook ({}B, {} decks)", hook.length, decks.size)
                 writer.send(ctx, txId, FdResponse.Json(hook))
@@ -282,7 +282,7 @@ class FrontDoorHandler(
             CmdType.DECK_DELETE.value -> {
                 val req = FdRequests.parseDeleteDeck(json)
                 if (req != null) {
-                    deckService.delete(DeckId(req.deckId))
+                    deckRepository.delete(DeckId(req.deckId))
                     log.info("Front Door: Deck_DeleteDeck '{}'", req.deckId)
                 }
                 writer.send(ctx, txId, FdResponse.Json("Success"))
@@ -293,7 +293,7 @@ class FrontDoorHandler(
                     val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
                     val resp =
                         if (savedDeck != null) {
-                            deckService.save(savedDeck)
+                            deckRepository.save(savedDeck)
                             log.info("Front Door: Deck_UpsertDeckV2 saved '{}'", savedDeck.name)
                             val summary = DeckWireBuilder.toV2Summary(savedDeck)
                             buildJsonObject { put("Summary", summary) }
@@ -310,7 +310,7 @@ class FrontDoorHandler(
                     val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
                     val resp =
                         if (savedDeck != null) {
-                            deckService.save(savedDeck)
+                            deckRepository.save(savedDeck)
                             log.info("Front Door: Deck_UpsertDeckV3 saved '{}'", savedDeck.name)
                             DeckWireBuilder.toStartHookSummary(savedDeck)
                         } else {
@@ -322,7 +322,7 @@ class FrontDoorHandler(
             }
 
             CmdType.DECK_GET_SUMMARIES_V2.value -> {
-                val decks = deckService.listForPlayer(playerId)
+                val decks = deckRepository.findAllForPlayer(playerId)
                 val summaries = buildJsonArray { decks.forEach { add(DeckWireBuilder.toV2Summary(it)) } }
                 log.info("Front Door: DeckSummariesV2 ({} decks)", decks.size)
                 val resp = buildJsonObject { put("Summaries", summaries) }
@@ -624,7 +624,7 @@ class FrontDoorHandler(
         // AI mirrors seat 1's deck (same commander) — seat 2 gets the same grpIds.
         val commanderGrpIds =
             coordinator.selectedDeckId?.let { deckId ->
-                deckService.getById(DeckId(deckId))?.commandZone?.map { it.grpId }
+                deckRepository.findById(DeckId(deckId))?.commandZone?.map { it.grpId }
             } ?: emptyList()
 
         val playerInfos =

@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import forge.ai.LobbyPlayerAi
+import forge.deck.Deck
 import forge.game.Game
 import forge.game.GameEntity
 import forge.game.GameType
@@ -16,6 +17,7 @@ import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
@@ -955,6 +957,15 @@ class GameBridge(
         g.subscribeToEvents(collector)
     }
 
+    private fun seedRandom(seed: Long?) {
+        if (seed != null) {
+            log.info("GameBridge: using deterministic seed={}", seed)
+            MyRandom.setRandom(Random(seed))
+        } else {
+            log.info("GameBridge: using random seed")
+        }
+    }
+
     private fun registerHumanController(g: Game) {
         val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
@@ -997,20 +1008,33 @@ class GameBridge(
         deckList2: String? = null,
         variant: String? = null,
     ) {
-        log.info("GameBridge: initializing card database")
-        GameBootstrap.initializeCardDatabase()
-
-        if (seed != null) {
-            log.info("GameBridge: using deterministic seed={}", seed)
-            MyRandom.setRandom(Random(seed))
-        } else {
-            log.info("GameBridge: using random seed")
-        }
-
         val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
-        val deck1 = DeckLoader.parseDeckList(seat1Str)
-        val deck2 = DeckLoader.parseDeckList(seat2Str)
+        start(
+            seed = seed,
+            deck1 = DeckLoader.load(DeckSource.ForgeText(seat1Str)),
+            deck2 = DeckLoader.load(DeckSource.ForgeText(seat2Str)),
+            variant = variant,
+        )
+    }
+
+    /**
+     * Initialize card DB, create game, start engine loop, wait for mulligan.
+     * Blocks caller until engine has dealt hands and is waiting for keep/mull.
+     *
+     * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
+     * @param deck1 seat 1 (human) deck, already realized via [DeckLoader.load].
+     * @param deck2 seat 2 (AI) deck, already realized via [DeckLoader.load].
+     */
+    fun start(
+        seed: Long? = null,
+        deck1: Deck,
+        deck2: Deck,
+        variant: String? = null,
+    ) {
+        log.info("GameBridge: initializing card database")
+        GameBootstrap.initializeCardDatabase()
+        seedRandom(seed)
         log.info(
             "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
             deck1.main.countAll(),
@@ -1072,20 +1096,35 @@ class GameBridge(
         variant: String? = null,
         startGameHook: Runnable? = null,
     ) {
-        log.info("GameBridge: initializing AI-vs-AI spectator game")
-        GameBootstrap.initializeCardDatabase()
-
-        if (seed != null) {
-            log.info("GameBridge: using deterministic seed={}", seed)
-            MyRandom.setRandom(Random(seed))
-        } else {
-            log.info("GameBridge: using random seed")
-        }
-
         val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
-        val deck1 = DeckLoader.parseDeckList(seat1Str)
-        val deck2 = DeckLoader.parseDeckList(seat2Str)
+        startAiVsAi(
+            seed = seed,
+            deck1 = DeckLoader.load(DeckSource.ForgeText(seat1Str)),
+            deck2 = DeckLoader.load(DeckSource.ForgeText(seat2Str)),
+            variant = variant,
+            startGameHook = startGameHook,
+        )
+    }
+
+    /**
+     * Initialize a native Forge AI-vs-AI game for spectator mode, from already-realized decks.
+     *
+     * No bridged [PlayerController] is installed; both seats keep Forge's AI
+     * controllers. [startGameHook] runs after opening-hand setup and before the
+     * main loop, giving the observer path a stable point to emit its initial GSM.
+     */
+    fun startAiVsAi(
+        seed: Long? = null,
+        deck1: Deck,
+        deck2: Deck,
+        variant: String? = null,
+        startGameHook: Runnable? = null,
+    ) {
+        log.info("GameBridge: initializing AI-vs-AI spectator game")
+        GameBootstrap.initializeCardDatabase()
+        seedRandom(seed)
+
         val g =
             if (variant != null && isCommanderVariantName(variant)) {
                 GameBootstrap.createAiVsAiCommanderGame(deck1, deck2, variant)

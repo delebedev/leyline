@@ -37,7 +37,6 @@ import leyline.domain.repo.InMemoryCourseRepository
 import leyline.domain.repo.InMemoryDraftSessionRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.domain.service.GeneratedPool
@@ -72,7 +71,6 @@ class FrontDoorHandlerTest :
 
         val store = InMemoryPlayerDeckRepository()
         val bootstrapData = FrontDoorBootstrapData.loadFromClasspath()
-        val deckService = DeckService(store)
         val playerService = PlayerService(store)
         val matchmakingService = MatchmakingService(store, "localhost", 30003)
         val writer = FdResponseWriter()
@@ -119,7 +117,7 @@ class FrontDoorHandlerTest :
                 EmbeddedChannel(
                     FrontDoorHandler(
                         playerId = PlayerId(testPlayerId),
-                        deckService = deckService,
+                        deckRepository = store,
                         playerService = playerService,
                         matchmaking = matchmaking,
                         collectionService = CollectionService { emptyList() },
@@ -430,13 +428,13 @@ class FrontDoorHandlerTest :
                     companions = emptyList(),
                 ),
             )
-            deckService.getById(DeckId(deletableId)).shouldNotBeNull()
+            store.findById(DeckId(deletableId)).shouldNotBeNull()
 
             val ch = fdChannel()
             val msg = ch.sendCmd(403, """{"DeckId":"$deletableId"}""")
             msg.jsonPayload shouldBe "Success"
 
-            deckService.getById(DeckId(deletableId)) shouldBe null
+            store.findById(DeckId(deletableId)) shouldBe null
         }
 
         test("CmdType 406 - UpsertDeckV2 creates deck and returns enriched Summary") {
@@ -468,7 +466,7 @@ class FrontDoorHandlerTest :
                 summary["DeckValidationSummaries"]?.jsonArray.shouldNotBeNull()
             }
 
-            val saved = deckService.getById(DeckId(newDeckId))
+            val saved = store.findById(DeckId(newDeckId))
             assertSoftly {
                 saved.shouldNotBeNull()
                 saved.name shouldBe "New Deck"
@@ -516,7 +514,7 @@ class FrontDoorHandlerTest :
                 summary["UnownedCards"] shouldBe null
             }
 
-            val saved = deckService.getById(DeckId(newDeckId))
+            val saved = store.findById(DeckId(newDeckId))
             assertSoftly {
                 saved.shouldNotBeNull()
                 saved.name shouldBe "V3 Deck"

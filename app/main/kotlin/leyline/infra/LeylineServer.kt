@@ -12,9 +12,8 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.pkitesting.CertificateBuilder
 import leyline.DevCheck
-import leyline.bridge.bootstrap.CardEntry
-import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
@@ -23,9 +22,9 @@ import leyline.debug.DebugSinkAdapter
 import leyline.domain.CollationPool
 import leyline.domain.DeckCard
 import leyline.domain.PlayerId
+import leyline.domain.deck.DeckCards
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchmakingService
@@ -163,7 +162,6 @@ class LeylineServer(
         store.createTables()
         val pid = PlayerId(playerId)
         store.ensurePlayer(pid, "Player")
-        val deckService = DeckService(store)
         val playerService = PlayerService(store)
         val sealedPoolGen = SealedPoolGenerator(cardRepo::findGrpIdByName)
         val courseService =
@@ -226,10 +224,9 @@ class LeylineServer(
         val coordinator =
             AppMatchCoordinator(
                 playerId = pid,
-                deckService = deckService,
+                decks = store,
                 courseService = courseService,
                 draftRepo = draftRepo,
-                nameByGrpId = cardRepo::findNameByGrpId,
             )
         frontDoorChannel =
             bindServer(fdSsl, frontDoorPort) { ch ->
@@ -238,7 +235,7 @@ class LeylineServer(
                     "handler",
                     FrontDoorHandler(
                         playerId = pid,
-                        deckService = deckService,
+                        deckRepository = store,
                         playerService = playerService,
                         matchmaking = matchmakingService,
                         collectionService = CollectionService { cardRepo.findAllGrpIds() },
@@ -306,18 +303,15 @@ class LeylineServer(
     }
 
     /**
-     * Compose DeckConverter + DeckLoader + FormatService into a single validation lambda.
+     * Compose DeckLoader + FormatService into a single validation lambda.
      * Returns null if legal, error string if illegal. Keeps engine deps behind the native composition layer.
      */
     private fun buildDeckValidator(nameByGrpId: (Int) -> String?): (List<DeckCard>, List<DeckCard>, String) -> String? =
         { mainDeck, sideboard, formatId ->
-            val mainEntries = mainDeck.map { CardEntry(it.grpId, it.quantity) }
-            val sideEntries = sideboard.map { CardEntry(it.grpId, it.quantity) }
-            val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
-            if (deckText.isBlank()) {
+            if (mainDeck.isEmpty() && sideboard.isEmpty()) {
                 null
             } else {
-                val forgeDeck = DeckLoader.parseDeckList(deckText)
+                val forgeDeck = DeckLoader.load(DeckSource.Cards(DeckCards(mainDeck, sideboard)), nameByGrpId)
                 FormatService.validateDeck(forgeDeck, formatId)
             }
         }
