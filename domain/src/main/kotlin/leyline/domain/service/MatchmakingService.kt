@@ -17,8 +17,8 @@ import java.util.UUID
  * formats Forge doesn't model yet (e.g. Alchemy) so the client can still queue.
  *
  * Deck validation is injected as a lambda to keep this module free of Forge engine
- * dependencies. The wiring layer ([leyline.infra.LeylineServer]) composes DeckConverter,
- * DeckLoader, and FormatService into the lambda.
+ * dependencies. The wiring layer ([leyline.infra.LeylineServer]) composes DeckLoader
+ * and FormatService into the lambda.
  */
 class MatchmakingService(
     private val decks: DeckRepository,

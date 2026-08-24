@@ -1,5 +1,7 @@
 package leyline.domain
 
+import kotlinx.serialization.Serializable
+
 @JvmInline value class DeckId(
     val value: String,
 )
@@ -22,6 +24,7 @@ enum class Format {
     }
 }
 
+@Serializable
 data class DeckCard(
     val grpId: Int,
     val quantity: Int,

@@ -9,6 +9,9 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import leyline.domain.deck.DecklistSection
+import leyline.domain.deck.parseDecklist
+import leyline.domain.deck.resolveCards
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.EvergreenKeywords
@@ -41,7 +44,7 @@ internal fun Route.installCardRoutes(services: WebServices) {
             val request = call.receive<ParseDecklistRequest>()
             require(request.text.isNotBlank()) { "empty decklist" }
             require(request.text.length <= MAX_DECKLIST_CHARS) { "decklist too large (max $MAX_DECKLIST_CHARS chars)" }
-            call.respond(parseDecklist(services.cardRepository, request.text))
+            call.respond(parseDecklistForWeb(services.cardRepository, request.text))
         }
     }
 }
@@ -96,66 +99,40 @@ private fun searchCards(
         .toList()
 }
 
-private val LINE_REGEX = Regex("""^(\d+)\s+(.+)$""")
-private val SET_PAREN_REGEX = Regex("""\s*\([A-Za-z0-9]+\)\s*\d*\s*$""")
-private val PIPE_SET_REGEX = Regex("""\|[A-Za-z0-9]+$""")
-private val SECTION_BRACKET_REGEX = Regex("""^\[(\w+)]$""")
-private val SECTION_LABEL_REGEX = Regex("""^(Sideboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
-private val COMMENT_REGEX = Regex("""^[#;]|^//""")
-private val SET_CODE_REGEX = Regex("""\(([A-Za-z0-9]+)\)""")
 private val WUBRG = setOf("W", "U", "B", "R", "G")
 
 /** Upper bound on decklist text size — a generous Commander list is well under this. */
 private const val MAX_DECKLIST_CHARS = 20_000
 
-private fun parseDecklist(
+/**
+ * Parse and fully resolve a Web-import decklist. All-or-nothing: any malformed line or
+ * unresolved card name throws [leyline.domain.deck.DecklistException] with every failure.
+ * Command-zone and companion sections are rejected until the Web deck editor can persist
+ * them (see leyline-5rqn.3).
+ */
+private fun parseDecklistForWeb(
     cardRepository: CardRepository,
     text: String,
 ): ParseDecklistResponse {
-    val mainboard = mutableListOf<ParsedCardDto>()
-    val sideboard = mutableListOf<ParsedCardDto>()
-    val commander = mutableListOf<ParsedCardDto>()
-    val errors = mutableListOf<String>()
-    var currentSection = "main"
-
-    for (rawLine in text.lines()) {
-        val line = rawLine.trim()
-        if (line.isBlank() || COMMENT_REGEX.containsMatchIn(line)) continue
-
-        SECTION_BRACKET_REGEX.matchEntire(line)?.let {
-            currentSection = it.groupValues[1].lowercase()
-            continue
-        }
-        SECTION_LABEL_REGEX.matchEntire(line)?.let {
-            currentSection = it.groupValues[1].lowercase()
-            continue
-        }
-
-        val match = LINE_REGEX.matchEntire(line)
-        val quantity = match?.groupValues?.get(1)?.toInt() ?: 1
-        val rawName = match?.groupValues?.get(2) ?: line
-        val cleaned = rawName.replace(SET_PAREN_REGEX, "").replace(PIPE_SET_REGEX, "").trim()
-        if (cleaned.isBlank()) continue
-
-        val setCode = SET_CODE_REGEX.find(rawName)?.groupValues?.get(1)
-        val grpId = cardRepository.findGrpIdByNameAndSet(cleaned, setCode.orEmpty()) ?: cardRepository.findGrpIdByName(cleaned)
-        val parsedCard =
-            if (grpId != null) {
-                val meta = cardRepository.cardMeta(grpId)
-                ParsedCardDto(name = meta.name ?: cleaned, grpId = grpId, quantity = quantity, found = true, card = meta.toDraftCard())
-            } else {
-                errors.add("Card not found: $cleaned")
-                ParsedCardDto(name = cleaned, quantity = quantity, found = false)
-            }
-
-        when (currentSection) {
-            "sideboard" -> sideboard.add(parsedCard)
-            "commander", "companion" -> commander.add(parsedCard)
-            else -> mainboard.add(parsedCard)
-        }
+    val decklist = parseDecklist(text)
+    val unsupported = decklist.entries.filter { it.section == DecklistSection.Commander || it.section == DecklistSection.Companion }
+    if (unsupported.isNotEmpty()) {
+        throw leyline.domain.deck.DecklistException(
+            unsupported.map { "${it.section} section is not supported for Web import: ${it.name}" },
+        )
     }
 
-    return ParseDecklistResponse(mainboard = mainboard, sideboard = sideboard, commander = commander, errors = errors)
+    val resolved =
+        decklist.resolveCards { name, setCode ->
+            cardRepository.findGrpIdByNameAndSet(name, setCode.orEmpty()) ?: cardRepository.findGrpIdByName(name)
+        }
+
+    fun toDtos(cards: List<leyline.domain.DeckCard>) =
+        cards.map { card ->
+            DecklistCardDto(grpId = card.grpId, quantity = card.quantity, card = cardRepository.cardMeta(card.grpId).toDraftCard())
+        }
+
+    return ParseDecklistResponse(mainboard = toDtos(resolved.mainDeck), sideboard = toDtos(resolved.sideboard))
 }
 
 private fun CardRepository.cardMeta(grpId: Int): GreCardMetaDto {

@@ -1,5 +1,7 @@
 package leyline.domain.service
 
+import leyline.domain.deck.DeckCards
+
 /**
  * Cross-boundary coordinator between Front Door (lobby) and Match Door (engine).
  *
@@ -28,19 +30,19 @@ interface MatchCoordinator {
     val selectedEventName: String?
 
     /**
-     * Resolve a deck to its JSON card list (MainDeck + Sideboard).
+     * Resolve a deck to its typed card sections (main + sideboard + command zone).
      * Tries DeckRepository first, falls back to CourseService for sealed events.
      */
-    fun resolveDeckJson(deckId: String): String?
+    fun resolveDeckCards(deckId: String): DeckCards?
 
     /** Resolve a deck by name (AI deck from config). */
-    fun resolveDeckJsonByName(name: String): String?
+    fun resolveDeckCardsByName(name: String): DeckCards?
 
     /** Resolve two player decks for AI-vs-AI spectator games. */
-    fun resolveRandomDeckPairJson(): Pair<String, String>? = null
+    fun resolveRandomDeckCardsPair(): Pair<DeckCards, DeckCards>? = null
 
     /** Resolve the first available deck (fallback when client doesn't send deckId). */
-    fun resolveFirstDeck(): String? = null
+    fun resolveFirstDeckCards(): DeckCards? = null
 
     /**
      * Resolve a pod-bot opponent deck for the given event. Returns null if the
@@ -50,7 +52,7 @@ interface MatchCoordinator {
      * alongside the player. Bot selection rotates per match in the course so a
      * second match faces a different bot than the first.
      */
-    fun resolveOpponentDeckJson(eventName: String): String? = null
+    fun resolveOpponentDeckCards(eventName: String): DeckCards? = null
 
     // --- MD writes back (match result) ---
 
@@ -74,13 +76,13 @@ interface MatchCoordinator {
                 override val selectedDeckId: String? = null
                 override val selectedEventName: String? = null
 
-                override fun resolveDeckJson(deckId: String): String? = null
+                override fun resolveDeckCards(deckId: String): DeckCards? = null
 
-                override fun resolveDeckJsonByName(name: String): String? = null
+                override fun resolveDeckCardsByName(name: String): DeckCards? = null
 
-                override fun resolveRandomDeckPairJson(): Pair<String, String>? = null
+                override fun resolveRandomDeckCardsPair(): Pair<DeckCards, DeckCards>? = null
 
-                override fun resolveOpponentDeckJson(eventName: String): String? = null
+                override fun resolveOpponentDeckCards(eventName: String): DeckCards? = null
 
                 override fun reportMatchResult(won: Boolean) {}
             }

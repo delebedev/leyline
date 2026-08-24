@@ -218,8 +218,9 @@ object WebOpenApi {
             component("GreCardMetaDto", serializer<GreCardMetaDto>())
             component("DraftCardDto", serializer<DraftCardDto>())
             component("ParseDecklistRequest", serializer<ParseDecklistRequest>())
-            component("ParsedCardDto", serializer<ParsedCardDto>())
+            component("DecklistCardDto", serializer<DecklistCardDto>())
             component("ParseDecklistResponse", serializer<ParseDecklistResponse>())
+            component("ParseDecklistErrorResponse", serializer<ParseDecklistErrorResponse>())
         }
 
     private fun <T> JsonObjectBuilder.component(

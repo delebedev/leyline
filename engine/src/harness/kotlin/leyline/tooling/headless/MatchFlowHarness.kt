@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.deck.DeckSource
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
@@ -271,8 +272,8 @@ class MatchFlowHarness(
             put(
                 RuntimeMatchConfig(
                     matchId = matchId,
-                    seat1Deck = deckList ?: DEFAULT_DECK.trimIndent(),
-                    seat2Deck = opponentDeckList,
+                    seat1 = DeckSource.ForgeText(deckList ?: DEFAULT_DECK.trimIndent()),
+                    seat2 = opponentDeckList?.let(DeckSource::ForgeText),
                     gameVariant = variant,
                     puzzle = puzzlePath?.toString(),
                 ),
@@ -1482,9 +1483,9 @@ class MatchFlowHarness(
                 .filter { !sectionHeader.matches(it) }
                 // Strip leading `<count> ` and trailing Arena-export suffix
                 // ` (SET) NNN` (e.g. `4 Diregraf Ghoul (FDN) 171` → `Diregraf Ghoul`).
-                // Mirrors `DeckLoader.parseDeckList` — without this, the
-                // validator looks up `Diregraf Ghoul (FDN) 171` verbatim and
-                // every Arena-export deck spuriously fails to resolve.
+                // Mirrors Forge's own `DeckRecognizer` stripping (see `DeckLoader`) —
+                // without this, the validator looks up `Diregraf Ghoul (FDN) 171`
+                // verbatim and every Arena-export deck spuriously fails to resolve.
                 .map {
                     it
                         .replaceFirst(Regex("^\\d+\\s+"), "")

@@ -55,7 +55,6 @@ import leyline.domain.repo.InMemoryDeckRepository
 import leyline.domain.repo.InMemoryDraftSessionRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchCoordinator
@@ -770,11 +769,11 @@ class WebRoutesTest :
             }
         }
 
-        test("parses decklists into sections") {
+        test("parses a fully resolved decklist into sections") {
             withWeb(json) {
                 val response =
                     client.post("/api/cards/parse-decklist") {
-                        jsonBody("""{"text":"2 Alpha Card (TST) 1\nSideboard\n1 Missing Card\n[commander]\nBeta Card"}""")
+                        jsonBody("""{"text":"2 Alpha Card (TST) 1\nSideboard\n1 Beta Card"}""")
                     }
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
 
@@ -788,17 +787,44 @@ class WebRoutesTest :
                     body["sideboard"]!!
                         .jsonArray
                         .single()
-                        .jsonObject["found"]!!
-                        .jsonPrimitive.content shouldBe "false"
-                    body["commander"]!!
-                        .jsonArray
-                        .single()
                         .jsonObject["grpId"]!!
                         .jsonPrimitive.content shouldBe "101"
+                }
+            }
+        }
+
+        test("rejects a decklist with an unresolved card") {
+            withWeb(json) {
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        jsonBody("""{"text":"1 Alpha Card\n1 Missing Card"}""")
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.BadRequest
                     body["errors"]!!
                         .jsonArray
                         .single()
                         .jsonPrimitive.content shouldBe "Card not found: Missing Card"
+                }
+            }
+        }
+
+        test("rejects a decklist with a commander section") {
+            withWeb(json) {
+                val response =
+                    client.post("/api/cards/parse-decklist") {
+                        jsonBody("""{"text":"1 Alpha Card\nCommander\n1 Beta Card"}""")
+                    }
+                val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+                assertSoftly {
+                    response.status shouldBe HttpStatusCode.BadRequest
+                    body["errors"]!!
+                        .jsonArray
+                        .single()
+                        .jsonPrimitive.content shouldBe "Commander section is not supported for Web import: Beta Card"
                 }
             }
         }
@@ -1003,7 +1029,7 @@ private fun withWeb(
                 puzzleCatalog = puzzleCatalog,
                 draftService = DraftService(repos.draft, StaticDraftDriver(), courseService),
                 courseService = courseService,
-                deckService = DeckService(repos.deck),
+                decks = repos.deck,
                 collectionService = CollectionService { listOf(100, 101) },
                 cardRepository = repos.cards,
                 authService = WebAuthService(InMemoryWebAuthStore(), repos.emailSender, DEV_WEB_AUTH_SECRET),

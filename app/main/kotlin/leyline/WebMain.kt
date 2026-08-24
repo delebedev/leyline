@@ -11,9 +11,9 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.WebSettings
 import leyline.domain.CollationPool
 import leyline.domain.PlayerId
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.game.data.CardRepository
@@ -58,7 +58,6 @@ fun main(args: Array<String>) {
     val defaultPlayerId = PlayerId(web.playerId)
     playerStore.ensurePlayer(defaultPlayerId, "Web Player")
 
-    val deckService = DeckService(playerStore)
     val sealedPoolGenerator = SealedPoolGenerator(cardRepo::findGrpIdByName)
     val courseService =
         CourseService(playerStore) { setCode ->
@@ -99,7 +98,7 @@ fun main(args: Array<String>) {
             },
             courseService,
         ).also { it.discardIncompleteSessions() }
-    val coordinator = AppMatchCoordinator(defaultPlayerId, deckService, courseService, draftRepo, cardRepo::findNameByGrpId)
+    val coordinator = AppMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val relay = InProcessWebGreRelay()
     val runtimeMatches = RuntimeMatchConfigRegistry()
     val launcher =
@@ -122,7 +121,7 @@ fun main(args: Array<String>) {
         WebServices(
             draftService = draftService,
             courseService = courseService,
-            deckService = deckService,
+            decks = playerStore,
             collectionService = CollectionService { cardRepo.findAllGrpIds() },
             cardRepository = cardRepo,
             matchLauncher = launcher,
@@ -167,11 +166,13 @@ private class WebRuntimeMatchLauncher(
         // Watch requests may arrive without decklists; an AI-vs-AI match still
         // needs two decks, so blank spectator seats fall back to defaults.
         val spectator = request.spectatorMode == true
+        val seat1Text = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator }
+        val seat2Text = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator }
         runtimeMatches.configure(
             RuntimeMatchConfig(
                 matchId = matchId,
-                seat1Deck = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator },
-                seat2Deck = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator },
+                seat1 = seat1Text?.let(DeckSource::ForgeText),
+                seat2 = seat2Text?.let(DeckSource::ForgeText),
                 gameVariant = request.gameVariant,
                 puzzle = request.puzzle,
                 spectatorMode = request.spectatorMode,
@@ -186,7 +187,9 @@ private class WebRuntimeMatchLauncher(
     ): DraftPlayResponse {
         val matchId = "web-${UUID.randomUUID()}"
         val (seat1, seat2) = coordinator.configureCourseMatch(matchId, playerId, eventName)
-        runtimeMatches.configure(RuntimeMatchConfig(matchId = matchId, seat1Deck = seat1, seat2Deck = seat2))
+        runtimeMatches.configure(
+            RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.Cards(seat1), seat2 = DeckSource.Cards(seat2)),
+        )
         return register(matchId, playerId)
     }
 

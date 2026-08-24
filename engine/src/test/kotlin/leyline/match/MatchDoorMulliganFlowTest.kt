@@ -13,6 +13,9 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.DeckCard
+import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -143,7 +146,9 @@ class MatchDoorMulliganFlowTest :
             matchId: String,
             deckList: String = deck,
         ): Pair<EmbeddedChannel, EmbeddedChannel> {
-            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deckList, seat2Deck = deckList))
+            runtimeMatchConfigs.put(
+                RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
+            )
             val local = EmbeddedChannel(handler(registry))
             val familiar = EmbeddedChannel(handler(registry))
 
@@ -168,9 +173,9 @@ class MatchDoorMulliganFlowTest :
             val mountainGrpId = TestCardRegistry.repo.findGrpIdByName("Mountain")!!
             val coordinator =
                 object : MatchCoordinator by MatchCoordinator.NOOP {
-                    override fun resolveDeckJsonByName(name: String): String? =
+                    override fun resolveDeckCardsByName(name: String): DeckCards? =
                         if (name == "Green test") {
-                            """{"MainDeck":[{"cardId":$forestGrpId,"quantity":60}]}"""
+                            DeckCards(mainDeck = listOf(DeckCard(forestGrpId, 60)))
                         } else {
                             null
                         }
@@ -190,7 +195,7 @@ class MatchDoorMulliganFlowTest :
                 )
 
             fun connectWithSeatOneDeck(matchId: String): Pair<EmbeddedChannel, EmbeddedChannel> {
-                configs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = "60 Mountain"))
+                configs.put(RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText("60 Mountain")))
                 val local = EmbeddedChannel(testHandler())
                 val familiar = EmbeddedChannel(testHandler())
                 local.writeInbound(auth("local-player", 1))

@@ -171,6 +171,8 @@ dependencies {
     webProfileRuntimeClasspath(project(":web"))
     webProfileRuntimeClasspath(libs.kotlin.stdlib)
     webProfileRuntimeClasspath(libs.serialization.json)
+    // LeylineConfigResolver parses the fixed TOML at web startup.
+    webProfileRuntimeClasspath(libs.tomlkt)
     webProfileRuntimeClasspath(libs.exposed.core)
     webProfileRuntimeClasspath(libs.exposed.jdbc)
     webProfileRuntimeClasspath(libs.sqlite.jdbc)

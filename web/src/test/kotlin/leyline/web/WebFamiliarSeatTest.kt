@@ -9,6 +9,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -52,7 +53,7 @@ class WebFamiliarSeatTest :
             frames: MutableList<ByteArray>,
         ): DirectWebGreEngineSession {
             val configs = RuntimeMatchConfigRegistry()
-            configs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
+            configs.put(RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deck), seat2 = DeckSource.ForgeText(deck)))
             return DirectWebGreEngineSession(
                 matchConfig(),
                 MatchCoordinator.NOOP,

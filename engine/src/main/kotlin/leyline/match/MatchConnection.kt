@@ -1,16 +1,11 @@
 package leyline.match
 
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import leyline.bridge.bootstrap.CardEntry
-import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.domain.json.productionJson
+import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
@@ -112,7 +107,7 @@ class MatchConnection(
             bindSession(value ?: error("session cannot be cleared via assignment"))
         }
 
-    private var spectatorRandomDeckPair: Pair<String, String>? = null
+    private var spectatorRandomDeckPair: Pair<DeckCards, DeckCards>? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler =
@@ -146,14 +141,6 @@ class MatchConnection(
             isSpectatorMode = ::isSpectatorMode,
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
-
-    companion object {
-        private val lenientJson =
-            productionJson {
-                ignoreUnknownKeys = true
-                isLenient = true
-            }
-    }
 
     init {
         // Wire local-control bridge/session providers once per handler instance.
@@ -557,8 +544,8 @@ class MatchConnection(
     }
 
     private data class SeatDecks(
-        val seat1: String,
-        val seat2: String,
+        val seat1: DeckSource,
+        val seat2: DeckSource,
     )
 
     private fun resolveSeatDecks(): SeatDecks {
@@ -573,35 +560,34 @@ class MatchConnection(
     }
 
     /**
-     * Resolve seat 1 deck: FD stored a deckId from 612 → look it up in player.db
-     * and convert grpIds → card names for Forge engine.
+     * Resolve seat 1 deck: FD stored a deckId from 612 → look it up in player.db.
      */
     private fun resolveSeat1Deck(
-        randomDecks: Pair<String, String>?,
+        randomDecks: Pair<DeckCards, DeckCards>?,
         runtimeMatchConfig: RuntimeMatchConfig?,
-    ): String {
+    ): DeckSource {
         randomDecks?.first?.let {
             log.info("Match Door: spectator seat 1 deck from random pair")
-            return convertArenaCardsToDeckText(it)
+            return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat1?.let {
             log.info("Match Door: seat 1 deck from runtime override")
             return it
         }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
-            val cardsJson = coordinator.resolveDeckJson(deckId)
-            if (cardsJson != null) {
+            val cards = coordinator.resolveDeckCards(deckId)
+            if (cards != null) {
                 log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: deckId {} not in DB", deckId)
         }
         // Fallback: pick first deck from DB (AI bot events don't send deckId)
-        val fallback = coordinator?.resolveFirstDeck()
+        val fallback = coordinator?.resolveFirstDeckCards()
         if (fallback != null) {
             log.info("Match Door: seat 1 using fallback deck (no deckId from client)")
-            return convertArenaCardsToDeckText(fallback)
+            return DeckSource.Cards(fallback)
         }
         error("No deck selected for seat 1 — select a deck in the Arena client before queuing")
     }
@@ -616,86 +602,64 @@ class MatchConnection(
      *   3. Mirror seat 1's deck.
      */
     private fun resolveSeat2Deck(
-        randomDecks: Pair<String, String>?,
+        randomDecks: Pair<DeckCards, DeckCards>?,
         runtimeMatchConfig: RuntimeMatchConfig?,
         opponentDeckName: String?,
-        seat1Deck: String,
-    ): String {
+        seat1Deck: DeckSource,
+    ): DeckSource {
         randomDecks?.second?.let {
             log.info("Match Door: spectator seat 2 deck from random pair")
-            return convertArenaCardsToDeckText(it)
+            return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat2?.let {
             log.info("Match Door: seat 2 deck from runtime override")
             return it
         }
         opponentDeckName?.takeIf { it.isNotBlank() }?.let { name ->
-            val cardsJson = coordinator?.resolveDeckJsonByName(name)
-            if (cardsJson != null) {
+            val cards = coordinator?.resolveDeckCardsByName(name)
+            if (cards != null) {
                 log.info("Match Door: seat 2 deck from one-shot override name={}", name)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: one-shot AI deck '{}' not in DB, falling back", name)
         }
         val event = coordinator?.selectedEventName
         if (event != null) {
-            val podJson = coordinator.resolveOpponentDeckJson(event)
-            if (podJson != null) {
+            val podCards = coordinator.resolveOpponentDeckCards(event)
+            if (podCards != null) {
                 log.info("Match Door: seat 2 deck from draft pod event={}", event)
-                return convertArenaCardsToDeckText(podJson)
+                return DeckSource.Cards(podCards)
             }
         }
 
         val aiDeckName = engineSettings.aiDeck
         if (aiDeckName != null && coordinator != null) {
-            val cardsJson = coordinator.resolveDeckJsonByName(aiDeckName)
-            if (cardsJson != null) {
+            val cards = coordinator.resolveDeckCardsByName(aiDeckName)
+            if (cards != null) {
                 log.info("Match Door: seat 2 deck from DB name={}", aiDeckName)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: AI deck '{}' not in DB, mirroring seat 1", aiDeckName)
         }
         return seat1Deck
     }
 
-    private fun spectatorRandomDecksIfEnabled(): Pair<String, String>? {
+    private fun spectatorRandomDecksIfEnabled(): Pair<DeckCards, DeckCards>? {
         if (!isSpectatorMode()) return null
         if (!engineSettings.aiDeck.equals("random", ignoreCase = true)) return null
         return spectatorRandomDecks()
     }
 
-    private fun spectatorRandomDecks(): Pair<String, String>? {
+    private fun spectatorRandomDecks(): Pair<DeckCards, DeckCards>? {
         spectatorRandomDeckPair?.let { return it }
-        val pair = coordinator?.resolveRandomDeckPairJson()
+        val pair = coordinator?.resolveRandomDeckCardsPair()
         spectatorRandomDeckPair = pair
         if (pair == null) log.warn("Match Door: spectator random deck pair unavailable, falling back to selected deck")
         return pair
     }
 
-    /** Parse Arena cards JSON → Forge deck text (qty + name per line). Delegates to [DeckConverter]. */
-    private fun convertArenaCardsToDeckText(cardsJson: String): String {
-        val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
-        val mainDeck = parseDeckSection(obj, "MainDeck")
-        val sideboard = parseDeckSection(obj, "Sideboard")
-        val commandZone = parseDeckSection(obj, "CommandZone")
-        return DeckConverter.toDeckText(mainDeck, sideboard, commandZone, cardRepository::findNameByGrpId)
-    }
-
     /** A runtime launch overrides the selected event; event selection remains the client-match fallback. */
     private fun resolveGameVariant(): String? = runtimeGameVariant(resolveRuntimeMatchConfig(), coordinator?.selectedEventName)
-
-    private fun parseDeckSection(
-        obj: kotlinx.serialization.json.JsonObject,
-        section: String,
-    ): List<CardEntry> {
-        val arr = obj[section]?.jsonArray ?: return emptyList()
-        return arr.mapNotNull { entry ->
-            val cardObj = entry.jsonObject
-            val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: return@mapNotNull null
-            val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: return@mapNotNull null
-            CardEntry(grpId, qty)
-        }
-    }
 }
 
 /** Runtime spectator launches own their format; other matches retain event-selected format inference. */

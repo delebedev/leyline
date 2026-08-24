@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.config.EngineSettings
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
@@ -27,7 +28,7 @@ internal class MatchConnectFlow(
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
     private val sendRoomState: () -> Unit,
     private val sendInitialBundle: () -> Unit,
-    private val resolveSeatDecks: () -> Pair<String, String>,
+    private val resolveSeatDecks: () -> Pair<DeckSource, DeckSource>,
     private val resolveGameVariant: () -> String?,
     private val isSpectatorMode: () -> Boolean,
     private val onLocalPlayerConnected: (GameBridge) -> Unit,
@@ -85,15 +86,15 @@ internal class MatchConnectFlow(
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
                             seed = engineSettings.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
                             seed = engineSettings.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     }
