@@ -94,7 +94,6 @@ sealed interface GameEvent {
     data class ManaPayment(
         val sourceCardId: ForgeCardId,
         val color: Int,
-        val abilityDefinitionId: Int = 0,
         val abilityGrpId: Int = 0,
     )
 

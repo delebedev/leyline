@@ -784,15 +784,12 @@ object AnnotationPipeline {
             }
         if (tokenCreatedAnns.isNotEmpty()) {
             val firstCompletionOrDamageIdx =
-                annotations.indexOfFirst { ann ->
-                    AnnotationType.ResolutionComplete in ann.typeList ||
-                        AnnotationType.DamageDealt_af5a in ann.typeList
-                }
-            if (firstCompletionOrDamageIdx >= 0) {
-                annotations.addAll(firstCompletionOrDamageIdx, tokenCreatedAnns)
-            } else {
-                annotations.addAll(tokenCreatedAnns)
-            }
+                annotations
+                    .indexOfFirst { ann ->
+                        AnnotationType.ResolutionComplete in ann.typeList ||
+                            AnnotationType.DamageDealt_af5a in ann.typeList
+                    }.takeIf { it >= 0 } ?: annotations.size
+            annotations.addAll(firstCompletionOrDamageIdx, tokenCreatedAnns)
         }
         annotations.addAll(otherMechanic)
         annotations.addAll(earthbend.powerToughnessMods)

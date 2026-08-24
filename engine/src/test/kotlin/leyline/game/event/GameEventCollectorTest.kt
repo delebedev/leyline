@@ -151,7 +151,6 @@ class GameEventCollectorTest :
                     .single()
             assertSoftly {
                 cast.manaPayments.single().sourceCardId shouldBe ForgeCardId(source.id)
-                cast.manaPayments.single().abilityDefinitionId shouldBe manaAbility.definitionId
                 cast.manaPayments.single().abilityGrpId shouldBe 1005
             }
         }

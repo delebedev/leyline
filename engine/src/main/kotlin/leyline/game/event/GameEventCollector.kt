@@ -223,7 +223,6 @@ class GameEventCollector(
                 GameEvent.ManaPayment(
                     sourceCardId = sourceCardId,
                     color = mp.color().toInt() and 0xFF,
-                    abilityDefinitionId = abilityDefinitionId,
                     abilityGrpId = abilityGrpId,
                 )
             }

@@ -311,7 +311,7 @@ object TransferAnnotations {
                     instanceId = manaAbilityIid,
                     seatId = ev.seatId,
                     actionType = ActionType.ActivateMana,
-                    abilityGrpId = mp.resolvedAbilityGrpId(manaAbilityGrpIdResolver),
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver),
                 ),
             )
             annotations.add(
@@ -371,7 +371,7 @@ object TransferAnnotations {
                     instanceId = manaAbilityIid,
                     seatId = ev.seatId,
                     actionType = ActionType.ActivateMana,
-                    abilityGrpId = mp.resolvedAbilityGrpId(manaAbilityGrpIdResolver),
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver),
                 ),
             )
             annotations.add(
@@ -394,9 +394,6 @@ object TransferAnnotations {
         )
         return annotations
     }
-
-    private fun GameEvent.ManaPayment.resolvedAbilityGrpId(fallback: (ForgeCardId) -> GrpId): GrpId =
-        abilityGrpId.takeIf { it != 0 }?.let(::GrpId) ?: fallback(sourceCardId)
 
     private fun emitConvokePayment(
         annotations: MutableList<AnnotationInfo>,

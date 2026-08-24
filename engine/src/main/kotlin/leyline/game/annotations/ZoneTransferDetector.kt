@@ -415,12 +415,11 @@ object ZoneTransferDetector {
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
                         val manaAbilityIid = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value
-                        val abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(mp.sourceCardId).value
                         ManaPaymentRecord(
                             landInstanceId = landIid,
                             manaAbilityInstanceId = manaAbilityIid,
                             color = mp.color,
-                            abilityGrpId = abilityGrpId,
+                            abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                             spellInstanceId = newId,
                         )
                     } ?: emptyList()
@@ -942,7 +941,7 @@ object ZoneTransferDetector {
                     landInstanceId = idLookup(mp.sourceCardId).value,
                     manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value,
                     color = mp.color,
-                    abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(mp.sourceCardId).value,
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                     spellInstanceId = stackId,
                 )
             } ?: emptyList()
@@ -1636,7 +1635,7 @@ object ZoneTransferDetector {
                 landInstanceId = origId,
                 manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(forgeCardId)).value,
                 color = mp.color,
-                abilityGrpId = mp.abilityGrpId.takeIf { it != 0 } ?: manaAbilityGrpIdResolver(forgeCardId).value,
+                abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )
