@@ -8,6 +8,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import net.peanuuutz.tomlkt.Toml
+import net.peanuuutz.tomlkt.TomlElement
+import net.peanuuutz.tomlkt.TomlTable
 import java.io.File
 
 /** Configuration resolution failure — the process must not start. */
@@ -28,10 +30,9 @@ enum class Source { DEFAULT, TOML, ENV }
  * name is derived mechanically from the canonical key path (for example
  * `native.fd_port` → `LEYLINE_NATIVE_FD_PORT`).
  *
- * Unknown TOML keys, malformed overrides, legacy environment names, and
- * invalid active combinations fail startup with [ConfigException]. Relative
- * path values resolve against [baseDir] (the configuration file's directory),
- * never the process working directory.
+ * Unknown TOML keys, malformed overrides, and invalid combinations fail
+ * startup with [ConfigException]. Relative path values resolve against
+ * [baseDir], never the process working directory.
  */
 class LeylineConfigResolver(
     private val baseDir: File,
@@ -43,14 +44,9 @@ class LeylineConfigResolver(
     private val json = Json { encodeDefaults = true }
 
     fun resolve(configFile: File = File(baseDir, LeylineConfig.FILENAME)): ResolvedLeylineConfig {
-        if (!configFile.isFile) {
-            throw ConfigException("Configuration file not found: ${configFile.absolutePath}")
-        }
-        rejectLegacyEnvNames()
-        val text = configFile.readText()
-        val defaults = LeylineConfig()
-        val base = decodeToml(text, configFile)
-        val defaultsJson = json.encodeToJsonElement(LeylineConfig.serializer(), defaults).jsonObject
+        val text = configFile.takeIf { it.isFile }?.readText().orEmpty()
+        val (base, table) = decodeToml(text, configFile)
+        rejectTomlSecrets(table)
         val baseJson = json.encodeToJsonElement(LeylineConfig.serializer(), base).jsonObject
         val overrides = collectEnvOverrides()
         val effectiveJson = overrides.fold(baseJson) { tree, (path, value) -> setAt(tree, path, value) }
@@ -62,7 +58,7 @@ class LeylineConfigResolver(
             }
         validate(effective)
         val instance = env["LEYLINE_INSTANCE"]?.takeIf { it.isNotBlank() }
-        val provenance = buildProvenance(defaultsJson, baseJson, overrides)
+        val provenance = buildProvenance(table, overrides)
         val paths = ResolvedPaths.resolve(baseDir, effective.paths, instance, defaultStateDir)
         return ResolvedLeylineConfig(
             config = effective,
@@ -76,45 +72,17 @@ class LeylineConfigResolver(
     private fun decodeToml(
         text: String,
         configFile: File,
-    ): LeylineConfig =
+    ): Pair<LeylineConfig, TomlTable> =
         try {
-            toml.decodeFromString(LeylineConfig.serializer(), text)
+            val table = toml.parseToTomlTable(text)
+            toml.decodeFromTomlElement(LeylineConfig.serializer(), table) to table
         } catch (e: Exception) {
             throw ConfigException("Failed to parse ${configFile.absolutePath}: ${e.message}", e)
         }
 
-    /**
-     * Legacy environment names that previously configured server behavior are
-     * hard failures with a rename hint, so the old surface cannot silently
-     * return. Names that are now mechanically canonical (for example
-     * `LEYLINE_WEB_AUTH_SECRET`) are not listed.
-     */
-    private fun rejectLegacyEnvNames() {
-        val hit = env.keys.firstOrNull { it in LEGACY_ENV_RENAMES } ?: return
-        throw ConfigException(
-            "Environment variable $hit is no longer read; use ${LEGACY_ENV_RENAMES.getValue(hit)}",
-        )
-    }
-
-    companion object {
-        val LEGACY_ENV_RENAMES: Map<String, String> =
-            mapOf(
-                "LEYLINE_FD_PORT" to "LEYLINE_NATIVE_FD_PORT",
-                "LEYLINE_MD_PORT" to "LEYLINE_NATIVE_MD_PORT",
-                "LEYLINE_DEBUG_PORT" to "LEYLINE_NATIVE_DEBUG_PORT",
-                "LEYLINE_ACCOUNT_PORT" to "LEYLINE_NATIVE_ACCOUNT_PORT",
-                "LEYLINE_MANAGEMENT_PORT" to "LEYLINE_NATIVE_MANAGEMENT_PORT",
-                "LEYLINE_FD_HOST" to "LEYLINE_NATIVE_EXTERNAL_HOST",
-                "LEYLINE_DEBUG_BIND" to "LEYLINE_NATIVE_DEBUG_BIND",
-                "LEYLINE_WEBDOOR_PORT" to "LEYLINE_WEB_PORT",
-                "LEYLINE_WEBDOOR_HOST" to "LEYLINE_WEB_HOST",
-                "LEYLINE_PLAYER_DB" to "LEYLINE_PATHS_STATE",
-                "LEYLINE_AI_SPEED" to "LEYLINE_WEB_AI_SPEED",
-                "LEYLINE_PUZZLE_DIR" to "paths.content (puzzle root)",
-                "LEYLINE_SESSIONS_ROOT" to "LEYLINE_PATHS_ARTIFACTS",
-                "LEYLINE_ENGINE_DUMP" to "LEYLINE_PATHS_ARTIFACTS",
-                "LEYLINE_ALLOW_FIXED_LOGIN_CODE" to "LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE",
-            )
+    private fun rejectTomlSecrets(table: TomlTable) {
+        val secret = WebSettings.SECRET_PATHS.firstOrNull { valueAt(table, it.split('.')) != null } ?: return
+        throw ConfigException("$secret must be supplied through ${SettingsSchema.envNameOf(secret.split('.'))}")
     }
 
     private fun validate(config: LeylineConfig) {
@@ -175,8 +143,7 @@ class LeylineConfigResolver(
     }
 
     private fun buildProvenance(
-        defaultsJson: JsonObject,
-        baseJson: JsonObject,
+        table: TomlTable,
         overrides: List<Pair<List<String>, JsonElement>>,
     ): Map<String, Source> {
         val envPaths = overrides.map { it.first.joinToString(".") }.toSet()
@@ -185,7 +152,7 @@ class LeylineConfigResolver(
             val source =
                 when {
                     key in envPaths -> Source.ENV
-                    valueAt(baseJson, leaf.path) != valueAt(defaultsJson, leaf.path) -> Source.TOML
+                    valueAt(table, leaf.path) != null -> Source.TOML
                     else -> Source.DEFAULT
                 }
             key to source
@@ -193,12 +160,12 @@ class LeylineConfigResolver(
     }
 
     private fun valueAt(
-        root: JsonObject,
+        root: TomlTable,
         path: List<String>,
-    ): JsonElement? {
-        var current: JsonElement? = root
+    ): TomlElement? {
+        var current: TomlElement? = root
         for (part in path) {
-            current = (current as? JsonObject)?.get(part) ?: return null
+            current = (current as? TomlTable)?.get(part) ?: return null
         }
         return current
     }

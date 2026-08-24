@@ -282,7 +282,7 @@ simclient *args="--ingest-scry":
 
 # default dev mode: local FD + local MD. Ports and paths come from leyline.toml
 # and LEYLINE_* overrides (for example LEYLINE_NATIVE_FD_PORT); no flags are
-# injected, so documented TOML ports always win.
+# injected, so TOML participates in the documented precedence.
 [group('serve')]
 serve: build check-java
     #!/usr/bin/env bash

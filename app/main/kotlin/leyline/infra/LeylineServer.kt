@@ -53,24 +53,26 @@ import java.util.concurrent.atomic.AtomicReference
  * Both doors share the same 6-byte header framing (see [ClientFrameDecoder]).
  */
 class LeylineServer(
-    private val frontDoorPort: Int = 30010,
-    private val matchDoorPort: Int = 30003,
+    private val bindAddress: String,
+    private val frontDoorPort: Int,
+    private val matchDoorPort: Int,
     /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
     private val tlsFiles: Pair<File?, File?> = null to null,
     /** Resolved engine behavior settings (timing, match defaults, draft, diagnostics). */
-    private val engineSettings: EngineSettings = EngineSettings(),
+    private val engineSettings: EngineSettings,
     /** Resolved puzzle library root (content root). */
-    private val puzzlesDir: File = File("puzzles"),
+    private val puzzlesDir: File,
     /** Resolved booster-draft model directory (content-root anchored). */
-    private val draftModelDir: File = File("data/draft-models"),
+    private val draftModelDir: File,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
-    private val externalHost: String = "localhost",
+    private val externalHost: String,
     /** Card data repository — passed to MatchConnection for grpId↔name lookups. */
     val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
     /** Resolved protocol dump output directory (outbound GRE messages). */
-    private val engineDumpDir: File = File("/tmp/leyline/engine"),
+    private val engineDumpDir: File,
+    private val sessionJournalFile: File,
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -248,7 +250,7 @@ class LeylineServer(
                     ),
                 )
             }
-        log.info("Client Front Door (local) listening on :{}", frontDoorPort)
+        log.info("Client Front Door listening on {}:{}", bindAddress, frontDoorPort)
 
         matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
     }
@@ -262,6 +264,7 @@ class LeylineServer(
         val source = if (puzzle != null && puzzleEvent) "puzzle" else "leyline"
         val puzzleRef = if (source == "puzzle") File(puzzle).nameWithoutExtension else null
         ScrySessionJournal.record(
+            journalPath = sessionJournalFile.toPath(),
             matchId = matchId,
             source = source,
             eventName = eventName,
@@ -279,6 +282,7 @@ class LeylineServer(
                 bossGroup = bossGroup,
                 workerGroup = workerGroup,
                 ssl = mdSsl,
+                bindAddress = bindAddress,
                 port = matchDoorPort,
                 engineSettings = engineSettings,
                 puzzlesDir = puzzlesDir,
@@ -289,7 +293,7 @@ class LeylineServer(
                 runtimeMatchConfigs = runtimeMatchConfigs,
                 aiDeckNameOverride = { aiDeckOverride.getAndSet(null) },
             )
-        log.info("Client Match Door (local) listening on :{}", matchDoorPort)
+        log.info("Client Match Door listening on {}:{}", bindAddress, matchDoorPort)
         return ch
     }
 
@@ -337,6 +341,6 @@ class LeylineServer(
                 ).option(ChannelOption.SO_BACKLOG, 128)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
 
-        return bootstrap.bind(port).sync().channel()
+        return bootstrap.bind(bindAddress, port).sync().channel()
     }
 }

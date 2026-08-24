@@ -288,6 +288,7 @@ class MatchFlowHarness(
             registry = registry,
             output = SinkMatchOutput(outputSink),
             engineSettings = effectiveMatchConfig,
+            puzzlesDir = Path.of("puzzles").toFile(),
             cardRepository = repo,
             runtimeMatchConfigs = runtimeConfigs,
             deferGameplayAdvance = false,

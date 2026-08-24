@@ -16,9 +16,9 @@ import java.time.Instant
  */
 object ScrySessionJournal {
     private val log = LoggerFactory.getLogger(ScrySessionJournal::class.java)
-    private val journalPath: Path = Path.of(System.getProperty("user.home"), ".scry", "leyline-sessions.jsonl")
 
     fun record(
+        journalPath: Path,
         matchId: String,
         source: String,
         eventName: String,

@@ -2,6 +2,7 @@ package leyline.config
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.net.URI
 
 /**
  * Process-head settings for the native-client head: listener ports, the
@@ -31,10 +32,15 @@ data class NativeSettings(
      */
     @SerialName("external_host")
     val externalHost: String = "localhost",
-    /** Local control listener bind address (loopback by default). */
-    @SerialName("debug_bind")
-    val debugBind: String = "127.0.0.1",
+    /** Listener bind address. */
+    val bind: String = "127.0.0.1",
 ) {
+    val advertisedFdUri: String
+        get() = if (externalAuthority().port == -1) "$externalHost:$fdPort" else externalHost
+
+    val matchDoorHost: String
+        get() = externalAuthority().host
+
     fun validate() {
         listOf(
             "fd_port" to fdPort,
@@ -45,7 +51,21 @@ data class NativeSettings(
         ).forEach { (name, port) ->
             require(port in 1..65535) { "native.$name must be in 1..65535, got $port" }
         }
-        require(externalHost.isNotBlank()) { "native.external_host must not be blank" }
-        require(debugBind.isNotBlank()) { "native.debug_bind must not be blank" }
+        externalAuthority()
+        require(bind.isNotBlank()) { "native.bind must not be blank" }
+    }
+
+    private fun externalAuthority(): URI {
+        val uri = runCatching { URI("leyline://$externalHost") }.getOrNull()
+        require(
+            uri != null &&
+                uri.host != null &&
+                (uri.port == -1 || uri.port in 1..65535) &&
+                uri.userInfo == null &&
+                uri.path.isEmpty() &&
+                uri.query == null &&
+                uri.fragment == null,
+        ) { "native.external_host must be a host or host:port, got '$externalHost'" }
+        return uri
     }
 }

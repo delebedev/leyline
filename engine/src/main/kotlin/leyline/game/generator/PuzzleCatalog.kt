@@ -8,8 +8,7 @@ import java.io.File
  * for listing (e.g. a public puzzle browser). Parsing reuses [PuzzleSource];
  * no DB or full [forge.gamemodes.puzzle.Puzzle] construction.
  *
- * The puzzle root is supplied explicitly (the composition root passes the
- * resolved content root); no ambient directory search happens here.
+ * The puzzle root is supplied by the composition root.
  */
 object PuzzleCatalog {
     private val log = LoggerFactory.getLogger(PuzzleCatalog::class.java)

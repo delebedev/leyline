@@ -29,9 +29,8 @@ class PuzzleHandler(
     private val puzzlePath: (String) -> String?,
     private val cardRepository: CardRepository,
     private val registry: MatchRegistry,
-    private val engineSettings: EngineSettings = EngineSettings(),
-    /** Resolved puzzle library root (content root); production passes the resolved content root explicitly. */
-    private val puzzlesDir: File = File("puzzles"),
+    private val engineSettings: EngineSettings,
+    private val puzzlesDir: File,
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 

@@ -117,8 +117,6 @@ object SeedDb {
     @JvmStatic
     fun main(args: Array<String>) {
         val projectDir = findProjectDir()
-        // Seed the same persistent player database the server resolves from
-        // leyline.toml (default: the durable user-level location).
         val dbFile = LeylineConfigResolver(baseDir = projectDir, env = System.getenv()).resolve().paths.playerDb
         dbFile.parentFile.mkdirs()
         println("Seeding ${dbFile.absolutePath}")

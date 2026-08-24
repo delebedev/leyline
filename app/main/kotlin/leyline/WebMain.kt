@@ -4,7 +4,6 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import leyline.config.ConfigException
 import leyline.config.EngineSettings
-import leyline.config.LeylineConfig
 import leyline.config.LeylineConfigResolver
 import leyline.config.ResolvedLeylineConfig
 import leyline.config.RuntimeMatchConfig
@@ -45,15 +44,11 @@ fun main(args: Array<String>) {
     val resolved = resolveWebConfig()
     val web = resolved.config.web
     validateWebHead(web)
-    // File logging lands beneath the resolved per-instance artifact root.
     System.setProperty("LEYLINE_LOG_DIR", resolved.paths.artifactsRoot.absolutePath)
     val paths = resolved.paths.also { it.ensureDirectories() }
-    // Browser clients animate on their own; server-side pacing between engine
-    // steps only delays frame delivery, so the web profile runs the engine
-    // at the web head's pacing (full speed by default).
-    val engineSettings = resolved.config.engine.copy(aiSpeed = web.aiSpeed)
+    val engineSettings = resolved.config.engine
 
-    println(resolved.report(head = "web", redactedPaths = LeylineConfig.SECRET_PATHS))
+    println(resolved.report(head = "web"))
 
     val cardRepo = resolveCardRepository()
     val playerDb = paths.playerDb

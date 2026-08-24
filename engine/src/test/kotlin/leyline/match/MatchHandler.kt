@@ -9,11 +9,13 @@ import leyline.game.data.CardRepository
 import leyline.infra.MatchOutput
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import java.io.File
 
 /** Test-only Netty edge adapter for legacy match-flow fixtures. */
 class MatchHandler(
     private val registry: MatchRegistry,
     private val engineSettings: EngineSettings = EngineSettings(),
+    private val puzzlesDir: File = File("src/test/resources/puzzles"),
     private val coordinator: MatchCoordinator? = null,
     private val cardRepository: CardRepository,
     private val debugSink: MatchDebugSink? = null,
@@ -40,6 +42,7 @@ class MatchHandler(
                         }
                     },
                 engineSettings = engineSettings,
+                puzzlesDir = puzzlesDir,
                 coordinator = coordinator,
                 cardRepository = cardRepository,
                 debugSink = debugSink,

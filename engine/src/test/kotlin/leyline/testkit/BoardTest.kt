@@ -11,6 +11,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
@@ -99,7 +100,10 @@ abstract class BoardTest(
      *
      * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
      */
-    fun startPuzzleAtMain1(puzzleText: String): Board = trackResult(Board.startPuzzleAtMain1(puzzleText))
+    fun startPuzzleAtMain1(
+        puzzleText: String,
+        engineSettings: EngineSettings = EngineSettings(),
+    ): Board = trackResult(Board.startPuzzleAtMain1(puzzleText, engineSettings))
 
     /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
     fun startPuzzleAtMain1FromResource(resourcePath: String): Board = trackResult(Board.startPuzzleAtMain1FromResource(resourcePath))

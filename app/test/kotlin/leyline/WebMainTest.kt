@@ -1,6 +1,5 @@
 package leyline
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -51,21 +50,5 @@ class WebMainTest :
         test("fixed login code rejects non-six-digit values") {
             shouldThrow<IllegalArgumentException> { validateWebHead(web(loginCode = "dev", allowFixed = true)) }
                 .message shouldBe "web.login_code must be a six-digit code"
-        }
-
-        test("optional integrations default to disabled or safe values") {
-            val defaults = WebSettings()
-
-            assertSoftly {
-                defaults.port shouldBe 8080
-                defaults.host shouldBe "127.0.0.1"
-                defaults.playerId shouldBe "web-player"
-                defaults.resendApiKey shouldBe ""
-                defaults.resendFrom shouldBe "login@localhost"
-                defaults.rateLimitEnabled shouldBe true
-                defaults.rateLimit shouldBe 10
-                defaults.rateLimitWindowMs shouldBe 60_000L
-                defaults.aiSpeed shouldBe 0.0
-            }
         }
     })

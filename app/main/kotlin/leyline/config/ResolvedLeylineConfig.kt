@@ -17,17 +17,8 @@ class ResolvedLeylineConfig(
     val instance: String?,
     val paths: ResolvedPaths,
 ) {
-    /**
-     * Human-readable startup report: active head, instance, absolute paths,
-     * endpoints, value provenance, and redacted secrets.
-     *
-     * [redactedPaths] lists canonical keys whose values must never be echoed
-     * (secrets). The web slice populates them from web-auth secrets.
-     */
-    fun report(
-        head: String,
-        redactedPaths: Set<String> = emptySet(),
-    ): String {
+    /** Human-readable startup report with value provenance and redacted secrets. */
+    fun report(head: String): String {
         val tree = json.encodeToJsonElement(LeylineConfig.serializer(), config).jsonObject
         val bySection = SettingsSchema.leaves(LeylineConfig.serializer().descriptor).groupBy { it.path.first() }
         return buildString {
@@ -39,7 +30,7 @@ class ResolvedLeylineConfig(
                     val key = leaf.path.joinToString(".")
                     val value = valueAt(tree, leaf.path)
                     val source = provenance[key] ?: Source.DEFAULT
-                    val display = if (key in redactedPaths) "<redacted>" else value?.toString() ?: "null"
+                    val display = if (key in WebSettings.SECRET_PATHS) "<redacted>" else value?.toString() ?: "null"
                     appendLine("    $key = $display [$source]")
                 }
             }
@@ -48,7 +39,7 @@ class ResolvedLeylineConfig(
             appendLine("    player_db: ${paths.playerDb.absolutePath}")
             appendLine("    artifacts: ${paths.artifactsRoot.absolutePath}")
             appendLine("    engine_dump: ${paths.engineDump.absolutePath}")
-            appendLine("    sessions: ${paths.sessionsRoot.absolutePath}")
+            appendLine("    session_journal: ${paths.sessionJournal.absolutePath}")
         }
     }
 

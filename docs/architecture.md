@@ -82,12 +82,12 @@ protocol heads and local operator services.
 | Management | 8091 | `app/.../infra/ManagementServer` |
 | Web head | 8080 | `app/.../WebMain` (Ktor/Netty over `web/`) |
 
-Both heads compose from one resolved configuration snapshot. `leyline.toml`
-configures owner-shaped settings (`[native]`, `[web]`, `[engine]`,
-`[paths]`), with `LEYLINE_*` environment overrides on top (precedence: typed
-default < TOML < environment). Relative paths resolve against the TOML file,
-and `LEYLINE_INSTANCE=<name>` starts an additional instance with isolated
-state and artifact paths. Exact native transport framing belongs to
+Both heads compose from one resolved configuration snapshot. Code defaults
+define the normal profile; optional `leyline.toml` entries and mechanical
+`LEYLINE_*` environment names provide overrides (precedence: typed default <
+TOML < environment). Relative paths resolve against the application root, and
+`LEYLINE_INSTANCE=<name>` starts an additional instance with isolated state and
+artifact paths. Exact native transport framing belongs to
 `native.protocol.FrameCodec`.
 
 ## Match runtime
