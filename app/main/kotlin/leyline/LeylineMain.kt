@@ -1,89 +1,76 @@
 package leyline
 
-import leyline.config.MatchConfig
+import leyline.config.ConfigException
+import leyline.config.LegacyMatchConfigAdapter
+import leyline.config.LeylineConfigResolver
+import leyline.config.NativeEndpoints
+import leyline.config.ResolvedLeylineConfig
+import leyline.config.nativeEndpoints
 import leyline.debug.DebugServer
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
 import leyline.native.account.AccountServer
-import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 
 /**
- * Standalone entry point for the local Leyline server.
+ * Standalone entry point for the local Leyline server (native head).
  *
  * Run via justfile target: `just serve`.
  * See AGENTS.md for mode descriptions.
  *
- * TLS: self-signed certs by default. Pass --cert/--key for explicit certs.
- *
- * Configuration layering (highest priority wins):
- *   CLI args > env vars > leyline.toml > code defaults
+ * Configuration is resolved once from the fixed `leyline.toml` plus `LEYLINE_*`
+ * environment overrides; see [LeylineConfigResolver]. `--cert`/`--key` still
+ * select explicit TLS certificates.
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
 
-    val config = loadConfig(a)
-    val sc = config.server
+    val resolved = resolveLaunchConfig()
+    val native = resolved.config.native
+    val paths = resolved.paths.also { it.ensureDirectories() }
+    val endpoints = nativeEndpoints(native)
+
     val tls = resolveTls(a)
     val cardRepo = openCardRepo()
-    val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
-    val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
-    val fdHost =
-        a["--fd-host"]
-            ?: System.getenv("LEYLINE_FD_HOST")
-            ?: "localhost:$fdPort"
-
-    val playerDbFile = resolvePlayerDb(config)
-
     val server =
         LeylineServer(
-            frontDoorPort = fdPort,
-            matchDoorPort = mdPort,
+            frontDoorPort = endpoints.frontDoorPort,
+            matchDoorPort = endpoints.matchDoorPort,
             tlsFiles = tls,
-            matchConfig = config,
-            externalHost = fdHost.substringBefore(":"),
+            matchConfig = LegacyMatchConfigAdapter.from(resolved.config),
+            externalHost = native.externalHost,
             cardRepo = cardRepo,
-            playerDbFile = playerDbFile,
+            playerDbFile = paths.playerDb,
+            engineDumpDir = paths.engineDump,
         )
 
-    val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
-    val mgmtPort = a["--management-port"]?.toIntOrNull() ?: sc.managementPort
-    val accountPort = a["--account-port"]?.toIntOrNull() ?: sc.accountPort
-
-    val debugServer = buildDebugServer(debugPort, server)
-    val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
+    val debugServer = buildDebugServer(native.debugPort, native.debugBind, server)
+    val mgmtServer = ManagementServer(port = endpoints.managementPort, healthCheck = { server.isHealthy() })
     val accountDb =
         org.jetbrains.exposed.v1.jdbc.Database.connect(
-            "jdbc:sqlite:${playerDbFile.absolutePath}",
+            "jdbc:sqlite:${paths.playerDb.absolutePath}",
             "org.sqlite.JDBC",
         )
-    val accountServer = buildAccountServer(a, accountPort, tls, fdHost, accountDb)
+    val accountServer = buildAccountServer(a, endpoints.accountPort, tls, endpoints.advertisedFdUri, accountDb)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
-    printBanner(config, mgmtPort, debugPort, accountPort, fdHost)
+    printBanner(resolved, endpoints)
 
     Thread.currentThread().join()
 }
 
 // -- Config & resources -------------------------------------------------------
 
-private fun loadConfig(a: Map<String, String>): MatchConfig {
-    val configFile =
-        a["--config"]?.let { File(it) }
-            ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
-    return MatchConfig.load(configFile)
-}
-
-/** Resolve the player DB file from env → config → default, coercing relative paths and ensuring the parent dir exists. */
-internal fun resolvePlayerDb(config: MatchConfig): File {
-    val path = System.getenv("LEYLINE_PLAYER_DB") ?: config.server.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
-    val file = File(path).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), path) }
-    file.parentFile?.mkdirs()
-    return file
-}
+private fun resolveLaunchConfig(): ResolvedLeylineConfig =
+    try {
+        LeylineConfigResolver(baseDir = File(System.getProperty("user.dir")), env = System.getenv()).resolve()
+    } catch (e: ConfigException) {
+        System.err.println("Configuration error: ${e.message}")
+        kotlin.system.exitProcess(1)
+    }
 
 private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
@@ -99,9 +86,11 @@ private fun openCardRepo(): CardRepository = ClientCardDatabase.open().cardRepos
 
 private fun buildDebugServer(
     port: Int,
+    bindAddress: String,
     server: LeylineServer,
 ) = DebugServer(
     port = port,
+    bindAddress = bindAddress,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
     runtimePuzzle = server.runtimePuzzle,
     cardRepositoryProvider = { server.cardRepo },
@@ -198,21 +187,15 @@ private fun startAll(
 }
 
 private fun printBanner(
-    config: MatchConfig,
-    mgmtPort: Int,
-    debugPort: Int,
-    accountPort: Int,
-    fdHost: String,
+    resolved: ResolvedLeylineConfig,
+    endpoints: NativeEndpoints,
 ) {
-    val mode = "local"
-
-    println("Starting Leyline server ($mode mode)...")
+    println(resolved.report(head = "native"))
     println("Leyline server running. Press Ctrl+C to stop.")
-    println("Management: http://localhost:$mgmtPort/health")
-    println("Debug controls: http://localhost:$debugPort")
-    println("Account:     https://localhost:$accountPort")
-    println("Doorbell:    FdURI=$fdHost")
-    println("Config: ${config.summary()}")
+    println("Management: http://localhost:${endpoints.managementPort}/health")
+    println("Debug controls: http://localhost:${endpoints.debugPort}")
+    println("Account:     https://localhost:${endpoints.accountPort}")
+    println("Doorbell:    FdURI=${endpoints.advertisedFdUri}")
 }
 
 // -- Utilities ----------------------------------------------------------------

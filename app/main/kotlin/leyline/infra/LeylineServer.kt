@@ -65,6 +65,8 @@ class LeylineServer(
     val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
+    /** Resolved protocol dump output directory (outbound GRE messages). */
+    private val engineDumpDir: File = File("/tmp/leyline/engine"),
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -100,7 +102,7 @@ class LeylineServer(
         DevCheck.init(matchConfig.dev.strict, matchConfig.dev.strictPass)
 
         // Configure proto dump output directory
-        leyline.protocol.ProtoDump.engineDumpDir = leyline.LeylinePaths.ENGINE_DUMP
+        leyline.protocol.ProtoDump.engineDumpDir = engineDumpDir
 
         // Initialize engine card DB on a background thread — server accepts connections
         // immediately while the ~2s card parse runs. GameBridge.start() calls
@@ -138,12 +140,17 @@ class LeylineServer(
         fdSsl: SslContext,
         mdSsl: SslContext,
     ) {
-        val hasDb = playerDbFile.exists()
-        if (!hasDb) log.warn("No player.db found — run `just seed-db` first. Using in-memory DB.")
-
+        // Always use the persistent player database: create the file and schema
+        // when missing. The former in-memory fallback never worked (each pooled
+        // SQLite `:memory:` connection is a separate empty database) and blocked
+        // fresh state paths such as additional instances.
+        playerDbFile.parentFile?.mkdirs()
+        if (!playerDbFile.exists()) {
+            log.info("No player.db at {} — creating a fresh persistent database", playerDbFile.absolutePath)
+        }
         val db =
             org.jetbrains.exposed.v1.jdbc.Database.connect(
-                if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
+                "jdbc:sqlite:${playerDbFile.absolutePath}",
                 "org.sqlite.JDBC",
             )
         val store = SqlitePlayerStore(db)

@@ -27,9 +27,11 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 _module_classes := project_dir + '/engine/build/classes/kotlin/main:' + project_dir + '/engine/build/classes/java/main:' + project_dir + '/engine/build/resources/main:' + project_dir + '/domain/build/classes/kotlin/main:' + project_dir + '/domain/build/resources/main:' + project_dir + '/native/build/classes/kotlin/main:' + project_dir + '/native/build/resources/main:' + project_dir + '/web/build/classes/kotlin/main:' + project_dir + '/web/build/resources/main:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main'
 _cp := '"' + _module_classes + ':$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
-# Kill this worktree's ports + launch (for server targets).
-_java := 'ports="${LEYLINE_PORTS:-${LEYLINE_FD_PORT:-30010} ${LEYLINE_MD_PORT:-30003} ${LEYLINE_DEBUG_PORT:-8090} ${LEYLINE_MANAGEMENT_PORT:-8091} ${LEYLINE_ACCOUNT_PORT:-9443}}"; for p in $ports; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
-# Read-only CLI (no port kill)
+# Launch a server target on the resolved classpath. Ports come from leyline.toml
+# and LEYLINE_* overrides only; nothing is injected and no processes are killed,
+# so one worktree's server never terminates another's.
+_java := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
+# Read-only CLI (no server launch)
 _cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
 # --- TLS certs (provide custom cert/key or place them in the default local path) ---
@@ -278,16 +280,18 @@ simclient *args="--ingest-scry":
 
 # --- Serve ---
 
-# default dev mode: local FD + local MD
+# default dev mode: local FD + local MD. Ports and paths come from leyline.toml
+# and LEYLINE_* overrides (for example LEYLINE_NATIVE_FD_PORT); no flags are
+# injected, so documented TOML ports always win.
 [group('serve')]
 serve: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     {{_cert_flags}}
     if [ ${#cert_flags[@]} -gt 0 ]; then
-      {{_java}} leyline.LeylineMainKt "${cert_flags[@]}" --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"
+      {{_java}} leyline.LeylineMainKt "${cert_flags[@]}"
     else
-      {{_java}} leyline.LeylineMainKt --fd-port "${LEYLINE_FD_PORT:-30010}" --md-port "${LEYLINE_MD_PORT:-30003}" --debug-port "${LEYLINE_DEBUG_PORT:-8090}" --management-port "${LEYLINE_MANAGEMENT_PORT:-8091}" --account-port "${LEYLINE_ACCOUNT_PORT:-9443}"
+      {{_java}} leyline.LeylineMainKt
     fi
 
 # verify web profile excludes local client door/debug posture

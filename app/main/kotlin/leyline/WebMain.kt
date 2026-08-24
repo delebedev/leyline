@@ -2,6 +2,9 @@ package leyline
 
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import leyline.config.AiConfig
+import leyline.config.LegacyMatchConfigAdapter
+import leyline.config.LeylineConfigResolver
 import leyline.config.MatchConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
@@ -44,12 +47,11 @@ fun main(args: Array<String>) {
     // steps only delays frame delivery, so the web profile runs the engine
     // at full speed unless LEYLINE_AI_SPEED asks for pacing.
     val aiSpeed = System.getenv("LEYLINE_AI_SPEED")?.toDoubleOrNull() ?: 0.0
-    val config =
-        MatchConfig
-            .load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
-            .let { it.copy(ai = it.ai.copy(speed = aiSpeed)) }
+    val resolved = LeylineConfigResolver(baseDir = File(System.getProperty("user.dir")), env = System.getenv()).resolve()
+    val config = LegacyMatchConfigAdapter.from(resolved.config).copy(ai = AiConfig(speed = aiSpeed))
+    val paths = resolved.paths.also { it.ensureDirectories() }
     val cardRepo = resolveCardRepository()
-    val playerDb = resolvePlayerDb(config)
+    val playerDb = paths.playerDb
     val playerDatabase = Database.connect("jdbc:sqlite:${playerDb.absolutePath}", "org.sqlite.JDBC")
     val playerStore = SqlitePlayerStore(playerDatabase).also { it.createTables() }
     val authStore = SqliteWebAuthStore(playerDatabase).also { it.createTables() }

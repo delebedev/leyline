@@ -81,7 +81,10 @@ protocol heads and local operator services.
 | Account | 9443 | `native/account/AccountServer` |
 | Management | 8091 | `app/.../infra/ManagementServer` |
 
-`leyline.toml` and command-line flags override these defaults. Exact native
+`leyline.toml` configures these defaults, with `LEYLINE_*` environment
+overrides on top (precedence: typed default < TOML < environment). Relative
+paths resolve against the TOML file, and `LEYLINE_INSTANCE=<name>` starts an
+additional instance with isolated state and artifact paths. Exact native
 transport framing belongs to `native.protocol.FrameCodec`.
 
 ## Match runtime

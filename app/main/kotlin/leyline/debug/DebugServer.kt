@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicReference
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
     private val port: Int = 8090,
+    /** Bind address for local controls (loopback by default). */
+    private val bindAddress: String = "127.0.0.1",
     private val sessionProvider: (() -> MatchSession?)? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
@@ -130,8 +132,8 @@ class DebugServer(
         server = null
     }
 
-    /** Loopback by default; `LEYLINE_DEBUG_BIND=0.0.0.0` opts into binding all interfaces. */
-    private fun resolveBindAddress(): String = System.getenv("LEYLINE_DEBUG_BIND")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
+    /** Loopback by default; the resolved `native.debug_bind` setting opts into binding all interfaces. */
+    private fun resolveBindAddress(): String = bindAddress
 
     /** Register a POST-only endpoint with standard error handling. */
     private fun HttpServer.postContext(
