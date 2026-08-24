@@ -29,23 +29,20 @@ class DecklistTest :
             }
         }
 
-        test("strips a pipe set-code suffix from the name") {
-            val entry = parseDecklist("2 Counterspell|M10").entries.single()
-
-            entry.name shouldBe "Counterspell"
-        }
-
-        test("routes bracket and label section headers") {
+        test("routes bare label section headers, including Deck and Main") {
             val decklist =
                 parseDecklist(
                     """
+                    Deck
                     4 Lightning Bolt
                     Sideboard
                     2 Negate
-                    [Commander]
+                    Commander
                     1 Atraxa, Praetors' Voice
                     Companion
                     1 Lurrus of the Dream-Den
+                    Main
+                    1 Mountain
                     """.trimIndent(),
                 )
 
@@ -55,6 +52,28 @@ class DecklistTest :
                 bySection["Negate"] shouldBe DecklistSection.Sideboard
                 bySection["Atraxa, Praetors' Voice"] shouldBe DecklistSection.Commander
                 bySection["Lurrus of the Dream-Den"] shouldBe DecklistSection.Companion
+                bySection["Mountain"] shouldBe DecklistSection.Main
+            }
+        }
+
+        test("parses a representative bundled deck header sequence") {
+            // Matches the real data/decks/*.txt shape: bare `Deck`, main-deck lines with
+            // an Arena export suffix, then bare `Sideboard`.
+            val decklist =
+                parseDecklist(
+                    """
+                    Deck
+                    4 Lightning Bolt (M10) 146
+                    Sideboard
+                    2 Negate (M10) 55
+                    """.trimIndent(),
+                )
+
+            val bySection = decklist.entries.associate { it.name to it.section }
+            assertSoftly {
+                decklist.entries shouldHaveSize 2
+                bySection["Lightning Bolt"] shouldBe DecklistSection.Main
+                bySection["Negate"] shouldBe DecklistSection.Sideboard
             }
         }
 
@@ -73,8 +92,16 @@ class DecklistTest :
             decklist.entries shouldHaveSize 1
         }
 
-        test("defaults to quantity one when no leading number") {
-            parseDecklist("Lightning Bolt").entries.single().quantity shouldBe 1
+        test("rejects a card line without a leading quantity") {
+            val ex = shouldThrow<DecklistException> { parseDecklist("Lightning Bolt") }
+
+            ex.errors shouldHaveSize 1
+        }
+
+        test("rejects an unsupported bracket header instead of silently routing to Main") {
+            val ex = shouldThrow<DecklistException> { parseDecklist("[Maybeboard]\n4 Lightning Bolt") }
+
+            ex.errors shouldHaveSize 1
         }
 
         test("rejects a zero quantity line") {

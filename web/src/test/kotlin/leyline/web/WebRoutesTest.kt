@@ -815,7 +815,7 @@ class WebRoutesTest :
             withWeb(json) {
                 val response =
                     client.post("/api/cards/parse-decklist") {
-                        jsonBody("""{"text":"1 Alpha Card\n[commander]\n1 Beta Card"}""")
+                        jsonBody("""{"text":"1 Alpha Card\nCommander\n1 Beta Card"}""")
                     }
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
 

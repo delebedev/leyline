@@ -1,6 +1,6 @@
 package leyline.match
 
-import forge.deck.Deck
+import leyline.domain.deck.DeckSource
 import leyline.game.state.GameBridge
 import java.util.concurrent.atomic.AtomicReference
 
@@ -38,8 +38,8 @@ class Match(
 
     fun start(
         seed: Long? = null,
-        deck1: Deck,
-        deck2: Deck,
+        deck1: DeckSource,
+        deck2: DeckSource,
         variant: String? = null,
     ) {
         bridge.start(seed, deck1, deck2, variant)
@@ -67,8 +67,8 @@ class Match(
     @Synchronized
     fun startAiVsAi(
         seed: Long? = null,
-        deck1: Deck,
-        deck2: Deck,
+        deck1: DeckSource,
+        deck2: DeckSource,
         variant: String? = null,
         startGameHook: Runnable? = null,
     ) {

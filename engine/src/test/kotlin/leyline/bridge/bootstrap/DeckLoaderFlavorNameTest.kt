@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.domain.deck.DeckSource
 
 class DeckLoaderFlavorNameTest :
     FunSpec({

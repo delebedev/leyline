@@ -14,6 +14,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.domain.deck.DeckSource
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
@@ -271,8 +272,8 @@ class MatchFlowHarness(
             put(
                 RuntimeMatchConfig(
                     matchId = matchId,
-                    seat1Deck = deckList ?: DEFAULT_DECK.trimIndent(),
-                    seat2Deck = opponentDeckList,
+                    seat1 = DeckSource.ForgeText(deckList ?: DEFAULT_DECK.trimIndent()),
+                    seat2 = opponentDeckList?.let(DeckSource::ForgeText),
                     gameVariant = variant,
                     puzzle = puzzlePath?.toString(),
                 ),

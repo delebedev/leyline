@@ -1,11 +1,11 @@
 package leyline.match
 
-import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
@@ -570,13 +570,9 @@ class MatchConnection(
             log.info("Match Door: spectator seat 1 deck from random pair")
             return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat1Cards?.let {
-            log.info("Match Door: seat 1 deck from runtime override (cards)")
-            return DeckSource.Cards(it)
-        }
-        runtimeMatchConfig?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
-            log.info("Match Door: seat 1 deck from runtime override (text)")
-            return DeckSource.ForgeText(it)
+        runtimeMatchConfig?.seat1?.let {
+            log.info("Match Door: seat 1 deck from runtime override")
+            return it
         }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
@@ -615,13 +611,9 @@ class MatchConnection(
             log.info("Match Door: spectator seat 2 deck from random pair")
             return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat2Cards?.let {
-            log.info("Match Door: seat 2 deck from runtime override (cards)")
-            return DeckSource.Cards(it)
-        }
-        runtimeMatchConfig?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
-            log.info("Match Door: seat 2 deck from runtime override (text)")
-            return DeckSource.ForgeText(it)
+        runtimeMatchConfig?.seat2?.let {
+            log.info("Match Door: seat 2 deck from runtime override")
+            return it
         }
         opponentDeckName?.takeIf { it.isNotBlank() }?.let { name ->
             val cards = coordinator?.resolveDeckCardsByName(name)

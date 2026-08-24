@@ -1,6 +1,7 @@
 package leyline.domain.deck
 
 import kotlinx.serialization.Serializable
+import leyline.domain.Deck
 import leyline.domain.DeckCard
 
 /** Section a decklist line or resolved card belongs to. */
@@ -33,6 +34,30 @@ data class DeckCards(
     val companions: List<DeckCard> = emptyList(),
 )
 
+/** The one mapping from a persisted [Deck] to its [DeckCards] — every repository lookup uses this. */
+fun Deck.toDeckCards(): DeckCards = DeckCards(mainDeck, sideboard, commandZone, companions)
+
+/**
+ * Where a Forge deck gets realized from — see
+ * [leyline.bridge.bootstrap.DeckLoader], the sole realization seam. Lives in domain
+ * (not alongside DeckLoader) because config-tier types reference it and must not
+ * depend on the engine/bridge layer.
+ */
+@Serializable
+sealed interface DeckSource {
+    /** Resolved grpId cards from a Leyline decklist — parsed and resolved upstream. */
+    @Serializable
+    data class Cards(
+        val cards: DeckCards,
+    ) : DeckSource
+
+    /** Genuine Forge/runtime decklist text — puzzles, harness, simclient fixtures. */
+    @Serializable
+    data class ForgeText(
+        val text: String,
+    ) : DeckSource
+}
+
 /** A decklist or card resolution failed. Carries every failure, not just the first. */
 class DecklistException(
     val errors: List<String>,
@@ -40,17 +65,18 @@ class DecklistException(
 
 private val LINE_REGEX = Regex("""^(\d+)\s+(.+)$""")
 private val SET_PAREN_REGEX = Regex("""\s*\([A-Za-z0-9]+\)\s*\d*\s*$""")
-private val PIPE_SET_REGEX = Regex("""\|[A-Za-z0-9]+$""")
-private val SECTION_BRACKET_REGEX = Regex("""^\[(\w+)]$""")
-private val SECTION_LABEL_REGEX = Regex("""^(Sideboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
+private val SECTION_LABEL_REGEX = Regex("""^(Deck|Main|Sideboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
 private val COMMENT_REGEX = Regex("""^[#;]|^//""")
 private val SET_CODE_REGEX = Regex("""\(([A-Za-z0-9]+)\)""")
 
 /**
  * Parse bundled and Web-import decklist text into sectioned, unresolved entries.
- * Grammar: `N Name`, `N Name (SET) NUM`, `N Name|SET`, `[Section]` and bare
- * `Sideboard`/`Commander`/`Companion` headers, `#`/`;`/`//` comments.
- * Rejects the whole input on a malformed quantity or an empty result.
+ * Grammar: `N Name` or `N Name (SET) NUM`, bare `Deck`/`Main`/`Sideboard`/`Commander`/
+ * `Companion` headers, `#`/`;`/`//` comments. No pipe set-code suffix, bracketed
+ * headers, or quantity-less card lines — Forge/runtime text already goes through
+ * [leyline.bridge.bootstrap.DeckLoader]'s own [forge.deck.DeckRecognizer] grammar.
+ * Rejects the whole input on any unrecognized line, a malformed quantity, or an
+ * empty result.
  */
 fun parseDecklist(text: String): Decklist {
     val entries = mutableListOf<DecklistEntry>()
@@ -61,24 +87,26 @@ fun parseDecklist(text: String): Decklist {
         val line = rawLine.trim()
         if (line.isBlank() || COMMENT_REGEX.containsMatchIn(line)) continue
 
-        val bracket = SECTION_BRACKET_REGEX.matchEntire(line)
-        if (bracket != null) {
-            section = sectionFor(bracket.groupValues[1]) ?: DecklistSection.Main
-            continue
-        }
         val label = SECTION_LABEL_REGEX.matchEntire(line)
         if (label != null) {
-            section = sectionFor(label.groupValues[1]) ?: DecklistSection.Main
+            section = sectionFor(label.groupValues[1])
             continue
         }
 
         val match = LINE_REGEX.matchEntire(line)
-        val quantity = match?.groupValues?.get(1)?.toIntOrNull() ?: 1
-        val rawName = match?.groupValues?.get(2) ?: line
-        val cleaned = rawName.replace(SET_PAREN_REGEX, "").replace(PIPE_SET_REGEX, "").trim()
-        if (cleaned.isBlank()) continue
-        if (quantity <= 0) {
+        if (match == null) {
+            errors += "Unrecognized line: $rawLine"
+            continue
+        }
+        val quantity = match.groupValues[1].toIntOrNull()
+        if (quantity == null || quantity <= 0) {
             errors += "Invalid quantity on line: $rawLine"
+            continue
+        }
+        val rawName = match.groupValues[2]
+        val cleaned = rawName.replace(SET_PAREN_REGEX, "").trim()
+        if (cleaned.isBlank()) {
+            errors += "Missing card name on line: $rawLine"
             continue
         }
 
@@ -91,13 +119,12 @@ fun parseDecklist(text: String): Decklist {
     return Decklist(entries)
 }
 
-private fun sectionFor(label: String): DecklistSection? =
+private fun sectionFor(label: String): DecklistSection =
     when (label.trim().lowercase()) {
         "sideboard" -> DecklistSection.Sideboard
         "commander" -> DecklistSection.Commander
         "companion" -> DecklistSection.Companion
-        "deck", "main", "maybeboard" -> DecklistSection.Main
-        else -> null
+        else -> DecklistSection.Main // "deck", "main"
     }
 
 /**

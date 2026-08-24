@@ -1,18 +1,16 @@
 package leyline.config
 
 import kotlinx.serialization.Serializable
-import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class RuntimeMatchConfig(
     val matchId: String,
-    /** Genuine runtime/puzzle decklist text — see [leyline.bridge.bootstrap.DeckSource.ForgeText]. */
-    val seat1Deck: String? = null,
-    val seat2Deck: String? = null,
-    /** Typed resolved cards from a persisted/course source — checked before [seat1Deck]/[seat2Deck]. */
-    val seat1Cards: DeckCards? = null,
-    val seat2Cards: DeckCards? = null,
+    /** Seat 1 (human) deck override; realized via [leyline.bridge.bootstrap.DeckLoader]. */
+    val seat1: DeckSource? = null,
+    /** Seat 2 (AI) deck override; realized via [leyline.bridge.bootstrap.DeckLoader]. */
+    val seat2: DeckSource? = null,
     /** Forge variant for a runtime-started match; null keeps the configured default. */
     val gameVariant: String? = null,
     val puzzle: String? = null,
@@ -46,14 +44,22 @@ class RuntimeMatchConfigRegistry {
         val normalized =
             config.copy(
                 matchId = matchId,
-                seat1Deck = config.seat1Deck?.trim()?.takeIf { it.isNotEmpty() },
-                seat2Deck = config.seat2Deck?.trim()?.takeIf { it.isNotEmpty() },
+                seat1 = config.seat1.normalized(),
+                seat2 = config.seat2.normalized(),
                 gameVariant = config.gameVariant?.trim()?.takeIf { it.isNotEmpty() },
                 puzzle = config.puzzle?.trim()?.takeIf { it.isNotEmpty() },
             )
         configs[matchId] = normalized
         return normalized
     }
+
+    /** Trims [DeckSource.ForgeText]; blank-after-trim normalizes to null, same as a blank string field. */
+    private fun DeckSource?.normalized(): DeckSource? =
+        when (this) {
+            is DeckSource.ForgeText -> text.trim().takeIf { it.isNotEmpty() }?.let { DeckSource.ForgeText(it) }
+            is DeckSource.Cards -> this
+            null -> null
+        }
 
     fun get(matchId: String): RuntimeMatchConfig? = configs[matchId]
 

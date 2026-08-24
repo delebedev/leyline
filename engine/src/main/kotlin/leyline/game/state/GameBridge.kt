@@ -1,7 +1,6 @@
 package leyline.game.state
 
 import forge.ai.LobbyPlayerAi
-import forge.deck.Deck
 import forge.game.Game
 import forge.game.GameEntity
 import forge.game.GameType
@@ -17,7 +16,6 @@ import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
-import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
@@ -38,6 +36,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.config.EngineSettings
+import leyline.domain.deck.DeckSource
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.MessageCounter
@@ -1012,41 +1011,48 @@ class GameBridge(
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
         start(
             seed = seed,
-            deck1 = DeckLoader.load(DeckSource.ForgeText(seat1Str)),
-            deck2 = DeckLoader.load(DeckSource.ForgeText(seat2Str)),
+            deck1 = DeckSource.ForgeText(seat1Str),
+            deck2 = DeckSource.ForgeText(seat2Str),
             variant = variant,
         )
     }
 
     /**
-     * Initialize card DB, create game, start engine loop, wait for mulligan.
-     * Blocks caller until engine has dealt hands and is waiting for keep/mull.
+     * Initialize card DB, realize both decks through [DeckLoader], create game, start
+     * engine loop, wait for mulligan. Blocks caller until engine has dealt hands and is
+     * waiting for keep/mull.
+     *
+     * Card database initialization runs before deck realization: [DeckSource.ForgeText]
+     * resolves card names against the Forge card database via
+     * [forge.deck.DeckRecognizer], which requires it to already be loaded.
      *
      * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
-     * @param deck1 seat 1 (human) deck, already realized via [DeckLoader.load].
-     * @param deck2 seat 2 (AI) deck, already realized via [DeckLoader.load].
+     * @param deck1 seat 1 (human) deck source.
+     * @param deck2 seat 2 (AI) deck source.
      */
     fun start(
         seed: Long? = null,
-        deck1: Deck,
-        deck2: Deck,
+        deck1: DeckSource,
+        deck2: DeckSource,
         variant: String? = null,
     ) {
         log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
         seedRandom(seed)
+        val realizedDeck1 = DeckLoader.load(deck1, cardRepository::findNameByGrpId)
+        val realizedDeck2 = DeckLoader.load(deck2, cardRepository::findNameByGrpId)
         log.info(
             "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
-            deck1.main.countAll(),
-            deck2.main.countAll(),
+            realizedDeck1.main.countAll(),
+            realizedDeck2.main.countAll(),
         )
 
         val g =
             if (variant != null && isCommanderVariantName(variant)) {
                 log.info("GameBridge: creating commander-variant game (variant={})", variant)
-                GameBootstrap.createCommanderGame(deck1, deck2, variant)
+                GameBootstrap.createCommanderGame(realizedDeck1, realizedDeck2, variant)
             } else {
-                GameBootstrap.createConstructedGame(deck1, deck2)
+                GameBootstrap.createConstructedGame(realizedDeck1, realizedDeck2)
             }
         game = g
 
@@ -1100,15 +1106,16 @@ class GameBridge(
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
         startAiVsAi(
             seed = seed,
-            deck1 = DeckLoader.load(DeckSource.ForgeText(seat1Str)),
-            deck2 = DeckLoader.load(DeckSource.ForgeText(seat2Str)),
+            deck1 = DeckSource.ForgeText(seat1Str),
+            deck2 = DeckSource.ForgeText(seat2Str),
             variant = variant,
             startGameHook = startGameHook,
         )
     }
 
     /**
-     * Initialize a native Forge AI-vs-AI game for spectator mode, from already-realized decks.
+     * Initialize a native Forge AI-vs-AI game for spectator mode, realizing both decks
+     * through [DeckLoader] before Forge card-lookup-dependent construction runs.
      *
      * No bridged [PlayerController] is installed; both seats keep Forge's AI
      * controllers. [startGameHook] runs after opening-hand setup and before the
@@ -1116,20 +1123,22 @@ class GameBridge(
      */
     fun startAiVsAi(
         seed: Long? = null,
-        deck1: Deck,
-        deck2: Deck,
+        deck1: DeckSource,
+        deck2: DeckSource,
         variant: String? = null,
         startGameHook: Runnable? = null,
     ) {
         log.info("GameBridge: initializing AI-vs-AI spectator game")
         GameBootstrap.initializeCardDatabase()
         seedRandom(seed)
+        val realizedDeck1 = DeckLoader.load(deck1, cardRepository::findNameByGrpId)
+        val realizedDeck2 = DeckLoader.load(deck2, cardRepository::findNameByGrpId)
 
         val g =
             if (variant != null && isCommanderVariantName(variant)) {
-                GameBootstrap.createAiVsAiCommanderGame(deck1, deck2, variant)
+                GameBootstrap.createAiVsAiCommanderGame(realizedDeck1, realizedDeck2, variant)
             } else {
-                GameBootstrap.createAiVsAiGame(deck1, deck2)
+                GameBootstrap.createAiVsAiGame(realizedDeck1, realizedDeck2)
             }
         game = g
         populateSeatMap(g)

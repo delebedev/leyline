@@ -7,9 +7,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldNotBeBlank
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.DeckLoader
-import leyline.bridge.bootstrap.DeckSource
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.EventRegistry
 
 /**

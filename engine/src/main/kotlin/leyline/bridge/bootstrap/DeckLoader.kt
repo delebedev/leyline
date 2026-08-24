@@ -5,20 +5,8 @@ import forge.deck.DeckRecognizer
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import forge.deck.DeckSection as ForgeDeckSection
-
-/** Where a Forge [Deck] gets realized from. */
-sealed interface DeckSource {
-    /** Resolved grpId cards from a Leyline decklist — parsed and resolved upstream. */
-    data class Cards(
-        val cards: DeckCards,
-    ) : DeckSource
-
-    /** Genuine Forge/runtime decklist text — puzzles, harness, simclient fixtures. */
-    data class ForgeText(
-        val text: String,
-    ) : DeckSource
-}
 
 /** Deck realization failed. Carries every failure, not just the first. */
 class DeckRealizationException(
@@ -91,7 +79,8 @@ object DeckLoader {
             val token = recognizer.recognizeLine(rawLine, section) ?: continue
             when (token.type) {
                 DeckRecognizer.TokenType.DECK_SECTION_NAME -> section = forgeSectionFor(token.text) ?: section
-                DeckRecognizer.TokenType.COMMENT, DeckRecognizer.TokenType.UNKNOWN_TEXT -> {}
+                DeckRecognizer.TokenType.COMMENT -> {}
+                DeckRecognizer.TokenType.UNKNOWN_TEXT,
                 DeckRecognizer.TokenType.UNKNOWN_CARD,
                 DeckRecognizer.TokenType.UNSUPPORTED_CARD,
                 DeckRecognizer.TokenType.CARD_FROM_NOT_ALLOWED_SET,

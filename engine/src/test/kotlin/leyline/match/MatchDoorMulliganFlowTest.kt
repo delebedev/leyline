@@ -15,6 +15,7 @@ import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.DeckCard
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -145,7 +146,9 @@ class MatchDoorMulliganFlowTest :
             matchId: String,
             deckList: String = deck,
         ): Pair<EmbeddedChannel, EmbeddedChannel> {
-            runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deckList, seat2Deck = deckList))
+            runtimeMatchConfigs.put(
+                RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
+            )
             val local = EmbeddedChannel(handler(registry))
             val familiar = EmbeddedChannel(handler(registry))
 
@@ -192,7 +195,7 @@ class MatchDoorMulliganFlowTest :
                 )
 
             fun connectWithSeatOneDeck(matchId: String): Pair<EmbeddedChannel, EmbeddedChannel> {
-                configs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = "60 Mountain"))
+                configs.put(RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText("60 Mountain")))
                 val local = EmbeddedChannel(testHandler())
                 val familiar = EmbeddedChannel(testHandler())
                 local.writeInbound(auth("local-player", 1))

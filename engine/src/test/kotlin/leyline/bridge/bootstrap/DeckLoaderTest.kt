@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.domain.DeckCard
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import forge.deck.DeckSection as ForgeDeckSection
 
 class DeckLoaderTest :
@@ -69,6 +70,15 @@ class DeckLoaderTest :
             val ex =
                 shouldThrow<DeckRealizationException> {
                     DeckLoader.load(DeckSource.ForgeText("4 Lightning Bolt\n2 Not A Real Card"))
+                }
+
+            ex.errors shouldHaveSize 1
+        }
+
+        test("ForgeText source rejects the whole deck on unstructured garbage text") {
+            val ex =
+                shouldThrow<DeckRealizationException> {
+                    DeckLoader.load(DeckSource.ForgeText("4 Lightning Bolt\nthis is not a deck line at all"))
                 }
 
             ex.errors shouldHaveSize 1

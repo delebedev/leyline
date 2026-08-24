@@ -1,7 +1,9 @@
 package leyline.cli
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import leyline.UnitTag
 import leyline.domain.Deck
 import leyline.domain.DeckCard
@@ -9,7 +11,9 @@ import leyline.domain.DeckId
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.SystemPlayers
+import leyline.domain.deck.parseDecklist
 import leyline.domain.repo.DeckRepository
+import java.io.File
 
 class SeedDbTest :
     FunSpec({
@@ -27,6 +31,18 @@ class SeedDbTest :
 
             reconcileSpectatorDecks(decks, emptySet())
             decks.findAllForPlayer(SystemPlayers.SPECTATOR) shouldContainExactly emptyList()
+        }
+
+        test("parses every bundled data/decks/*.txt file") {
+            val decksDir = File("data/decks")
+            val deckFiles = decksDir.listFiles { f -> f.extension == "txt" }.orEmpty().toList()
+            deckFiles.size shouldBeGreaterThan 0
+
+            for (file in deckFiles) {
+                withClue(file.name) {
+                    parseDecklist(file.readText()).entries.size shouldBeGreaterThan 0
+                }
+            }
         }
     })
 

@@ -6,6 +6,7 @@ import leyline.domain.DraftStatus
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.toDeckCards
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
 import leyline.domain.service.CourseService
@@ -49,7 +50,7 @@ class AppMatchCoordinator(
     override fun resolveDeckCards(deckId: String): DeckCards? {
         // 1. Constructed deck from repository
         decks.findById(DeckId(deckId))?.let {
-            return DeckCards(it.mainDeck, it.sideboard, it.commandZone, it.companions)
+            return it.toDeckCards()
         }
 
         // 2. Sealed/draft course deck (no command zone)
@@ -61,14 +62,14 @@ class AppMatchCoordinator(
     override fun resolveFirstDeckCards(): DeckCards? {
         val first = decks.findAllForPlayer(playerId).firstOrNull() ?: return null
         log.info("Fallback deck: {} ({})", first.name, first.id.value)
-        return DeckCards(first.mainDeck, first.sideboard)
+        return first.toDeckCards()
     }
 
     override fun resolveDeckCardsByName(name: String): DeckCards? {
         if (name.equals("random", ignoreCase = true)) return resolveRandomDeckCards()
 
         val deck = decks.findByName(name) ?: return null
-        return DeckCards(deck.mainDeck, deck.sideboard, deck.commandZone)
+        return deck.toDeckCards()
     }
 
     override fun resolveRandomDeckCardsPair(): Pair<DeckCards, DeckCards>? {
@@ -87,8 +88,7 @@ class AppMatchCoordinator(
             seat2.id.value,
             targetFormat,
         )
-        return DeckCards(seat1.mainDeck, seat1.sideboard, seat1.commandZone) to
-            DeckCards(seat2.mainDeck, seat2.sideboard, seat2.commandZone)
+        return seat1.toDeckCards() to seat2.toDeckCards()
     }
 
     private fun resolveRandomDeckCards(): DeckCards? {
@@ -99,7 +99,7 @@ class AppMatchCoordinator(
         val pool = candidates.filterNot { it.id.value == selectedDeckId }.ifEmpty { candidates }
         val deck = pool.random()
         log.info("Random AI deck: {} ({}) format={}", deck.name, deck.id.value, deck.format)
-        return DeckCards(deck.mainDeck, deck.sideboard, deck.commandZone)
+        return deck.toDeckCards()
     }
 
     override fun resolveOpponentDeckCards(eventName: String): DeckCards? = resolveOpponentDeckCards(playerId, eventName)

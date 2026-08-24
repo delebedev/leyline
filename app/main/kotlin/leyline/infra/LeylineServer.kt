@@ -13,7 +13,7 @@ import io.netty.handler.ssl.SslContextBuilder
 import io.netty.pkitesting.CertificateBuilder
 import leyline.DevCheck
 import leyline.bridge.bootstrap.DeckLoader
-import leyline.bridge.bootstrap.DeckSource
+import leyline.bridge.bootstrap.DeckRealizationException
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
@@ -23,6 +23,7 @@ import leyline.domain.CollationPool
 import leyline.domain.DeckCard
 import leyline.domain.PlayerId
 import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
@@ -305,14 +306,21 @@ class LeylineServer(
     /**
      * Compose DeckLoader + FormatService into a single validation lambda.
      * Returns null if legal, error string if illegal. Keeps engine deps behind the native composition layer.
+     *
+     * Always realizes through [DeckLoader] rather than short-circuiting on an empty
+     * [mainDeck]/[sideboard]: a deck that fails to realize is illegal, not unvalidated —
+     * treating it as legal here would let matchmaking succeed and defer the failure to
+     * the later match launch.
      */
     private fun buildDeckValidator(nameByGrpId: (Int) -> String?): (List<DeckCard>, List<DeckCard>, String) -> String? =
         { mainDeck, sideboard, formatId ->
-            if (mainDeck.isEmpty() && sideboard.isEmpty()) {
-                null
-            } else {
+            try {
                 val forgeDeck = DeckLoader.load(DeckSource.Cards(DeckCards(mainDeck, sideboard)), nameByGrpId)
                 FormatService.validateDeck(forgeDeck, formatId)
+            } catch (e: DeckRealizationException) {
+                e.errors.joinToString("; ")
+            } catch (e: IllegalArgumentException) {
+                e.message ?: "empty deck"
             }
         }
 

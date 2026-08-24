@@ -1,5 +1,6 @@
 package leyline.infra
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -139,6 +140,43 @@ class AppMatchCoordinatorTest :
 
         test("resolveOpponentDeckCards returns null when no draft session") {
             coordinator().resolveOpponentDeckCards(event) shouldBe null
+        }
+
+        fun brawlDeck(id: String): Deck =
+            Deck(
+                id = DeckId(id),
+                playerId = playerId,
+                name = id,
+                format = Format.Brawl,
+                tileId = 0,
+                mainDeck = listOf(DeckCard(101, 59)),
+                sideboard = emptyList(),
+                commandZone = listOf(DeckCard(301, 1)),
+                companions = listOf(DeckCard(401, 1)),
+            )
+
+        test("every repository-backed fallback preserves command zone and companions") {
+            val coord = coordinator(deckRepo = FakeDeckRepo(listOf(brawlDeck("brawl-1"), brawlDeck("brawl-2"))))
+            coord.selectEvent("Play_Brawl")
+
+            val fromFirst = coord.resolveFirstDeckCards()
+            val fromName = coord.resolveDeckCardsByName("brawl-1")
+            val fromRandomPair = coord.resolveRandomDeckCardsPair()
+
+            assertSoftly {
+                fromFirst.shouldNotBeNull()
+                fromFirst.commandZone shouldBe listOf(DeckCard(301, 1))
+                fromFirst.companions shouldBe listOf(DeckCard(401, 1))
+
+                fromName.shouldNotBeNull()
+                fromName.commandZone shouldBe listOf(DeckCard(301, 1))
+                fromName.companions shouldBe listOf(DeckCard(401, 1))
+
+                fromRandomPair.shouldNotBeNull()
+                val (first, second) = fromRandomPair
+                first.companions shouldBe listOf(DeckCard(401, 1))
+                second.companions shouldBe listOf(DeckCard(401, 1))
+            }
         }
 
         test("resolveDeckCardsByName random picks a non-selected player deck") {

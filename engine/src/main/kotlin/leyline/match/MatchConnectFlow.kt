@@ -1,9 +1,7 @@
 package leyline.match
 
-import leyline.bridge.bootstrap.DeckLoader
-import leyline.bridge.bootstrap.DeckSource
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
@@ -85,23 +83,18 @@ internal class MatchConnectFlow(
                     // bundles. Mirrors the non-spectator flow; avoids two connects
                     // racing to start it.
                     val decks = resolveSeatDecks()
-                    // Idempotent — GameBridge.start() also calls this, but deck
-                    // realization now happens before that, on first use here.
-                    GameBootstrap.initializeCardDatabase()
-                    val deck1 = DeckLoader.load(decks.first, cardRepository::findNameByGrpId)
-                    val deck2 = DeckLoader.load(decks.second, cardRepository::findNameByGrpId)
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
                             seed = engineSettings.seed,
-                            deck1 = deck1,
-                            deck2 = deck2,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
                             seed = engineSettings.seed,
-                            deck1 = deck1,
-                            deck2 = deck2,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     }
