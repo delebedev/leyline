@@ -774,25 +774,22 @@ object AnnotationPipeline {
         val earthbend = EarthbendEmitter.emit(ctx.effects.earthbend, ctx.effectFacts, snap)
         annotations.addAll(earthbend.destroyed)
         annotations.addAll(earthbend.created)
-        // Token entries belong before combat damage: a Mobilize trigger that
-        // resolves between attacker declaration and combat damage produces tokens
-        // that themselves attack and deal damage. The client identity map needs
-        // them in place before processing the DamageDealt entries that reference
-        // their iids — otherwise the tokens visually pop in after first damage
-        // animates. Other mechanic annotations (counters, scry, surveil, …) keep
-        // their post-combat slot since they typically come from damage-triggered
-        // effects.
+        // Token entries belong inside the resolution bracket and before combat
+        // damage. The client identity map needs them before ResolutionComplete
+        // and before any DamageDealt entry that can reference the new token.
+        // Other mechanic annotations keep their later slot.
         val (tokenCreatedAnns, otherMechanic) =
             mechanicResult.transient.partition { ann ->
                 AnnotationType.TokenCreated in ann.typeList
             }
         if (tokenCreatedAnns.isNotEmpty()) {
-            val firstDamageIdx =
+            val firstCompletionOrDamageIdx =
                 annotations.indexOfFirst { ann ->
-                    AnnotationType.DamageDealt_af5a in ann.typeList
+                    AnnotationType.ResolutionComplete in ann.typeList ||
+                        AnnotationType.DamageDealt_af5a in ann.typeList
                 }
-            if (firstDamageIdx >= 0) {
-                annotations.addAll(firstDamageIdx, tokenCreatedAnns)
+            if (firstCompletionOrDamageIdx >= 0) {
+                annotations.addAll(firstCompletionOrDamageIdx, tokenCreatedAnns)
             } else {
                 annotations.addAll(tokenCreatedAnns)
             }

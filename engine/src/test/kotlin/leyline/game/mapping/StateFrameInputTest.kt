@@ -649,9 +649,9 @@ private fun expectedMechanicSourceTransientShapes(): List<AnnotationShape> =
             details = listOf("source_zone" to ZoneIds.P1_GRAVEYARD),
         ),
         expectedAnnotation(51, 100, AnnotationType.ResolutionStart, affectorId = 100, details = listOf("grpid" to 771)),
-        expectedAnnotation(52, 100, AnnotationType.ResolutionComplete, affectorId = 100, details = listOf("grpid" to 771)),
-        expectedAnnotation(53, 100, AnnotationType.AbilityInstanceDeleted, affectorId = 102),
-        expectedAnnotation(54, 106, AnnotationType.TokenCreated, affectorId = 109),
+        expectedAnnotation(52, 106, AnnotationType.TokenCreated, affectorId = 109),
+        expectedAnnotation(53, 100, AnnotationType.ResolutionComplete, affectorId = 100, details = listOf("grpid" to 771)),
+        expectedAnnotation(54, 100, AnnotationType.AbilityInstanceDeleted, affectorId = 102),
         expectedAnnotation(
             55,
             108,

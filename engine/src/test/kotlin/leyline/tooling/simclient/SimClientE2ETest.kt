@@ -87,6 +87,7 @@ class SimClientE2ETest :
                             AnnotationType.SyntheticEvent,
                             AnnotationType.ModifiedLife,
                             AnnotationType.ResolutionComplete,
+                            AnnotationType.ObjectIdChanged,
                             AnnotationType.ZoneTransfer_af5a,
                         )
                     damageGsm.annotationsList

@@ -125,6 +125,20 @@ class PurePipelineTest :
             affector shouldBe InstanceId(421)
         }
 
+        test("tokenCreated affector uses the sole resolving spell when the source is absent") {
+            val event = GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1))
+
+            val affector =
+                AnnotationPipeline.tokenCreatedAffectorId(
+                    event,
+                    resolvingStackIidsByCard = mapOf(ForgeCardId(42) to InstanceId(404)),
+                    stackAbilityIid = { _, _ -> error("spell source should not use ability iid") },
+                    cardIid = { error("resolving spell iid is already known") },
+                )
+
+            affector shouldBe InstanceId(404)
+        }
+
         // -----------------------------------------------------------------------
         // Test 1: hand-to-battlefield — PlayLand
         // -----------------------------------------------------------------------

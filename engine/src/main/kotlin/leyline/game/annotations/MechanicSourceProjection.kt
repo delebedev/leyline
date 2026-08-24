@@ -41,7 +41,11 @@ internal object MechanicSourceProjection {
             }
         }
 
-        val fallback = facts.tokenCreatorByTokenForgeCardId[event.cardId] ?: return null
-        return stackAbilityIid(fallback.sourceAbilityForgeId, fallback.sourceForgeCardId)
+        val fallback = facts.tokenCreatorByTokenForgeCardId[event.cardId]
+        if (fallback != null) {
+            return stackAbilityIid(fallback.sourceAbilityForgeId, fallback.sourceForgeCardId)
+        }
+
+        return resolvingStackIidsByCard.values.singleOrNull()
     }
 }
