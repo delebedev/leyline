@@ -1159,7 +1159,18 @@ class GameEventCollector(
     override fun visit(ev: GameEventTokenCreated) {
         for (card in ev.tokens()) {
             val seat = seatOf(card.controller) ?: continue
-            val sourceAbility = card.tokenSpawningAbility?.rootAbility
+            val spawningAbility = card.tokenSpawningAbility?.rootAbility
+            val resolvingAbility =
+                bridge
+                    .getGame()
+                    ?.stack
+                    ?.peek()
+                    ?.spellAbility
+                    ?.takeIf { pendingStackAbilities.contextFor(it.id) != null }
+            val sourceAbility =
+                resolvingAbility
+                    ?.takeIf { spawningAbility == null || it.hostCard?.id == spawningAbility.hostCard?.id }
+                    ?: spawningAbility
             val sourceId = sourceAbility?.hostCard?.id
             val sourceAbilityId =
                 sourceAbility
