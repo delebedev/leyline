@@ -32,7 +32,7 @@ data class EngineSettings(
     @SerialName("skip_mulligan")
     val skipMulligan: Boolean = false,
     /** Send the decision timer (rope) on priority grant. */
-    val timer: Boolean = true,
+    val timer: Boolean = false,
     /** AI opponent deck name (looked up in player.db). "random" picks a random deck. Null = mirror match. */
     @SerialName("ai_deck")
     val aiDeck: String? = null,

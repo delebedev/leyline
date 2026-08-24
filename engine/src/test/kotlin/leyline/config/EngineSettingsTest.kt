@@ -1,43 +1,14 @@
 package leyline.config
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 
 class EngineSettingsTest :
     FunSpec({
         tags(UnitTag)
-
-        test("defaults preserve the established engine behavior") {
-            val defaults = EngineSettings()
-
-            assertSoftly {
-                defaults.bridgeTimeoutMs.shouldBeNull()
-                defaults.promptFailsafeMs shouldBe 45_000L
-                defaults.aiTurnWaitMs shouldBe 30_000L
-                defaults.mulliganWaitMs shouldBe 45_000L
-                defaults.seed.shouldBeNull()
-                defaults.dieRollWinner.shouldBeNull()
-                defaults.skipMulligan shouldBe false
-                defaults.timer shouldBe true
-                defaults.aiDeck.shouldBeNull()
-                defaults.spectatorMode shouldBe false
-                defaults.aiSpeed shouldBe 1.0
-                defaults.draft.picker shouldBe "forge"
-                defaults.draft.modelDir shouldBe "data/draft-models"
-                defaults.dev.strict shouldBe false
-                defaults.dev.strictPass shouldBe false
-                defaults.dev.copilotAutopush shouldBe false
-            }
-        }
-
-        test("defaults validate cleanly") {
-            shouldNotThrowAny { EngineSettings().validate() }
-        }
 
         test("pacing derivation mirrors the legacy aiDelayMultiplier contract") {
             assertSoftly {

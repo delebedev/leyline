@@ -5,9 +5,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * Process-head settings for the browser-facing web head: listener, player
- * identity, authentication, email, rate limiting, and pacing.
+ * identity, authentication, email, and rate limiting.
  *
- * Secrets ([authSecret], [resendApiKey]) are supplied externally via
+ * Secrets ([authSecret], [loginCode], [resendApiKey]) are supplied externally via
  * `LEYLINE_*` environment overrides and are redacted from startup reporting.
  * The active head is decided by the entry point; there are no head enable
  * flags.
@@ -45,12 +45,6 @@ data class WebSettings(
     /** Rate-limit window (ms). */
     @SerialName("rate_limit_window_ms")
     val rateLimitWindowMs: Long = 60_000,
-    /**
-     * Engine pacing for web matches. Browser clients animate on their own, so
-     * the web profile runs the engine at full speed by default.
-     */
-    @SerialName("ai_speed")
-    val aiSpeed: Double = 0.0,
 ) {
     fun validate() {
         require(port in 1..65535) { "web.port must be in 1..65535, got $port" }
@@ -58,11 +52,10 @@ data class WebSettings(
         require(playerId.isNotBlank()) { "web.player_id must not be blank" }
         require(rateLimit > 0) { "web.rate_limit must be positive, got $rateLimit" }
         require(rateLimitWindowMs > 0) { "web.rate_limit_window_ms must be positive, got $rateLimitWindowMs" }
-        require(aiSpeed >= 0.0) { "web.ai_speed must be non-negative, got $aiSpeed" }
     }
 
     companion object {
         /** Canonical keys whose values are secrets and must be redacted from startup reporting. */
-        val SECRET_PATHS: Set<String> = setOf("web.auth_secret", "web.resend_api_key")
+        val SECRET_PATHS: Set<String> = setOf("web.auth_secret", "web.login_code", "web.resend_api_key")
     }
 }

@@ -1,11 +1,8 @@
 package leyline
 
 import leyline.config.ConfigException
-import leyline.config.LeylineConfig
 import leyline.config.LeylineConfigResolver
-import leyline.config.NativeEndpoints
 import leyline.config.ResolvedLeylineConfig
-import leyline.config.nativeEndpoints
 import leyline.debug.DebugServer
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
@@ -20,8 +17,8 @@ import java.io.File
  * Run via justfile target: `just serve`.
  * See AGENTS.md for mode descriptions.
  *
- * Configuration is resolved once from the fixed `leyline.toml` plus `LEYLINE_*`
- * environment overrides; see [LeylineConfigResolver]. `--cert`/`--key` still
+ * Configuration is resolved once from code defaults, optional `leyline.toml`,
+ * and `LEYLINE_*` environment overrides; see [LeylineConfigResolver]. `--cert`/`--key` still
  * select explicit TLS certificates.
  */
 fun main(args: Array<String>) {
@@ -30,38 +27,38 @@ fun main(args: Array<String>) {
     val resolved = resolveLaunchConfig()
     val native = resolved.config.native
     val paths = resolved.paths.also { it.ensureDirectories() }
-    val endpoints = nativeEndpoints(native)
-    // File logging lands beneath the resolved per-instance artifact root.
     System.setProperty("LEYLINE_LOG_DIR", paths.artifactsRoot.absolutePath)
 
     val tls = resolveTls(a)
     val cardRepo = openCardRepo()
     val server =
         LeylineServer(
-            frontDoorPort = endpoints.frontDoorPort,
-            matchDoorPort = endpoints.matchDoorPort,
+            bindAddress = native.bind,
+            frontDoorPort = native.fdPort,
+            matchDoorPort = native.mdPort,
             tlsFiles = tls,
             engineSettings = resolved.config.engine,
             puzzlesDir = paths.puzzlesDir,
             draftModelDir = paths.draftModelDir(resolved.config.engine.draft.modelDir),
-            externalHost = native.externalHost,
+            externalHost = native.matchDoorHost,
             cardRepo = cardRepo,
             playerDbFile = paths.playerDb,
             engineDumpDir = paths.engineDump,
+            sessionJournalFile = paths.sessionJournal,
         )
 
-    val debugServer = buildDebugServer(native.debugPort, native.debugBind, server)
-    val mgmtServer = ManagementServer(port = endpoints.managementPort, healthCheck = { server.isHealthy() })
+    val debugServer = buildDebugServer(native.debugPort, native.bind, server)
+    val mgmtServer = ManagementServer(native.bind, native.managementPort, healthCheck = { server.isHealthy() })
     val accountDb =
         org.jetbrains.exposed.v1.jdbc.Database.connect(
             "jdbc:sqlite:${paths.playerDb.absolutePath}",
             "org.sqlite.JDBC",
         )
-    val accountServer = buildAccountServer(a, endpoints.accountPort, tls, endpoints.advertisedFdUri, accountDb)
+    val accountServer = buildAccountServer(a, native.bind, native.accountPort, tls, native.advertisedFdUri, accountDb)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
-    printBanner(resolved, endpoints)
+    printBanner(resolved)
 
     Thread.currentThread().join()
 }
@@ -103,6 +100,7 @@ private fun buildDebugServer(
 
 private fun buildAccountServer(
     a: Map<String, String>,
+    bindAddress: String,
     port: Int,
     tls: Pair<File?, File?>,
     fdHost: String,
@@ -113,6 +111,7 @@ private fun buildAccountServer(
     val cachedManifests = detectCachedManifests()
 
     return AccountServer(
+        bindAddress = bindAddress,
         port = port,
         certFile = a["--account-cert"]?.let { File(it) } ?: tls.first,
         keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
@@ -190,16 +189,14 @@ private fun startAll(
     accountServer.start()
 }
 
-private fun printBanner(
-    resolved: ResolvedLeylineConfig,
-    endpoints: NativeEndpoints,
-) {
-    println(resolved.report(head = "native", redactedPaths = LeylineConfig.SECRET_PATHS))
+private fun printBanner(resolved: ResolvedLeylineConfig) {
+    val native = resolved.config.native
+    println(resolved.report(head = "native"))
     println("Leyline server running. Press Ctrl+C to stop.")
-    println("Management: http://localhost:${endpoints.managementPort}/health")
-    println("Debug controls: http://localhost:${endpoints.debugPort}")
-    println("Account:     https://localhost:${endpoints.accountPort}")
-    println("Doorbell:    FdURI=${endpoints.advertisedFdUri}")
+    println("Management: http://${native.bind}:${native.managementPort}/health")
+    println("Debug controls: http://${native.bind}:${native.debugPort}")
+    println("Account:     https://${native.bind}:${native.accountPort}")
+    println("Doorbell:    FdURI=${native.advertisedFdUri}")
 }
 
 // -- Utilities ----------------------------------------------------------------

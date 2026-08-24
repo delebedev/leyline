@@ -29,9 +29,8 @@ class PuzzleHandler(
     private val puzzlePath: (String) -> String?,
     private val cardRepository: CardRepository,
     private val registry: MatchRegistry,
-    private val engineSettings: EngineSettings = EngineSettings(),
-    /** Resolved puzzle library root (content root). Defaults to the legacy working-directory walk-up. */
-    private val puzzlesDir: File = File(findLeylineDir(), "puzzles"),
+    private val engineSettings: EngineSettings,
+    private val puzzlesDir: File,
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
@@ -113,8 +112,9 @@ class PuzzleHandler(
 
     /**
      * Load puzzle: prefer the configured path/name, else the matchId convention.
-     * The configured value may be an absolute path, a cwd-relative path, or a bare
-     * puzzle name (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl`.
+     * The configured value may be an absolute path or a bare puzzle name
+     * (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl` under the
+     * resolved puzzle root.
      */
     private fun loadPuzzleForMatch(matchId: String): Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
@@ -127,17 +127,14 @@ class PuzzleHandler(
         return PuzzleSource.loadFromFile(file.absolutePath)
     }
 
-    /** First existing candidate: as-given, with `.pzl`, then under the resolved puzzle root. */
+    /** First existing candidate: as-given absolute path, with `.pzl`, then under the resolved puzzle root. */
     private fun resolvePuzzleFile(name: String): File? {
-        val cwd = File(System.getProperty("user.dir"))
         val withPzl = if (name.endsWith(".pzl")) name else "$name.pzl"
 
-        fun atCwd(n: String) = File(n).let { if (it.isAbsolute) it else File(cwd, n) }
         return listOf(
-            atCwd(name),
-            atCwd(withPzl),
+            File(name).takeIf { it.isAbsolute },
             File(puzzlesDir, name),
             File(puzzlesDir, withPzl),
-        ).firstOrNull { it.isFile }
+        ).firstOrNull { it != null && it.isFile }
     }
 }

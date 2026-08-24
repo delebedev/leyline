@@ -28,6 +28,7 @@ object NativeMatchDoorBootstrap {
         bossGroup: EventLoopGroup,
         workerGroup: EventLoopGroup,
         ssl: SslContext,
+        bindAddress: String,
         port: Int,
         engineSettings: EngineSettings,
         puzzlesDir: File,
@@ -72,7 +73,7 @@ object NativeMatchDoorBootstrap {
                         )
                     }
                 },
-            ).bind(port)
+            ).bind(bindAddress, port)
             .sync()
             .channel()
     }

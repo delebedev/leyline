@@ -20,6 +20,7 @@ import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.GamePlayback
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackCutRequest
@@ -72,7 +73,7 @@ class MatchCutCoordinatorTest :
         }
 
         test("runtime token resolves one live action and closes the old window") {
-            val board = startPuzzleAtMain1(puzzle)
+            val board = startPuzzleAtMain1(puzzle, EngineSettings(timer = true))
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val messages =
                 board.bridge.cutCoordinator

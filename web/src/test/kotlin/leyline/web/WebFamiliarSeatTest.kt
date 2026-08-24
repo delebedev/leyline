@@ -59,6 +59,7 @@ class WebFamiliarSeatTest :
                 InMemoryCardRepository(),
                 configs,
                 frames::add,
+                puzzlesDir = java.io.File("."),
             )
         }
 

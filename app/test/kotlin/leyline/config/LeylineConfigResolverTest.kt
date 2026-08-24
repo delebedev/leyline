@@ -85,9 +85,9 @@ class LeylineConfigResolverTest :
                 }
             }
 
-            test("missing config file fails startup") {
+            test("missing config file resolves to typed defaults") {
                 val dir = tmpDir()
-                shouldThrow<ConfigException> { resolver(dir).resolve(File(dir, LeylineConfig.FILENAME)) }
+                resolver(dir).resolve(File(dir, LeylineConfig.FILENAME)).config shouldBe LeylineConfig()
             }
 
             test("an empty TOML resolves to the typed defaults") {
@@ -96,6 +96,13 @@ class LeylineConfigResolverTest :
                 val resolved = resolver(dir).resolve(file)
 
                 resolved.config shouldBe LeylineConfig()
+            }
+
+            test("an explicit TOML value equal to its default retains TOML provenance") {
+                val dir = tmpDir()
+                val file = writeToml(dir, "[native]\nfd_port = 30010\n")
+
+                resolver(dir).resolve(file).provenance["native.fd_port"] shouldBe Source.TOML
             }
         }
 
@@ -157,7 +164,7 @@ class LeylineConfigResolverTest :
                 assertSoftly {
                     resolved.paths.artifactsRoot.absolutePath shouldBe File(dir, "out/logs").absolutePath
                     resolved.paths.engineDump.absolutePath shouldBe File(dir, "out/logs/engine").absolutePath
-                    resolved.paths.sessionsRoot.absolutePath shouldBe File(dir, "out/logs/sessions").absolutePath
+                    resolved.paths.sessionJournal.absolutePath shouldBe File(dir, "out/logs/sessions.jsonl").absolutePath
                 }
             }
 
@@ -247,14 +254,14 @@ class LeylineConfigResolverTest :
                         """,
                     )
                 val resolved = resolver(dir).resolve(file)
-                val report = resolved.report(head = "native", redactedPaths = setOf("native.external_host"))
+                val report = resolved.report(head = "native")
 
                 resolved.config.native.fdPort shouldBe 30011
                 assertSoftly {
                     report shouldContain "head=native"
                     report shouldContain "native.fd_port = 30011 [TOML]"
                     report shouldContain "native.md_port = 30003 [DEFAULT]"
-                    report shouldContain "native.external_host = <redacted> [DEFAULT]"
+                    report shouldContain "native.external_host = \"localhost\" [DEFAULT]"
                     report shouldContain "player_db: "
                     report shouldContain "artifacts: "
                 }
@@ -311,7 +318,7 @@ class LeylineConfigResolverTest :
                                 "LEYLINE_WEB_RESEND_API_KEY" to "re_abcdef",
                             ),
                     ).resolve(file)
-                val report = resolved.report(head = "web", redactedPaths = LeylineConfig.SECRET_PATHS)
+                val report = resolved.report(head = "web")
 
                 resolved.config.web.authSecret shouldBe "a-32-char-secret-for-tests-0123456789"
                 assertSoftly {
@@ -320,45 +327,31 @@ class LeylineConfigResolverTest :
                     report shouldNotContain "re_abcdef"
                 }
             }
+
+            test("fixed login code is redacted from the startup report") {
+                val dir = tmpDir()
+                val file = writeToml(dir, "")
+                val resolved = resolver(dir, env = mapOf("LEYLINE_WEB_LOGIN_CODE" to "123456")).resolve(file)
+
+                resolved.config.web.loginCode shouldBe "123456"
+                resolved.report(head = "web") shouldContain "web.login_code = <redacted> [ENV]"
+            }
+
+            test("secrets in TOML fail startup") {
+                val dir = tmpDir()
+                for (key in listOf("auth_secret", "login_code", "resend_api_key")) {
+                    val file = writeToml(dir, "[web]\n$key = \"secret\"\n")
+                    shouldThrow<ConfigException> { resolver(dir).resolve(file) }
+                        .message shouldContain "web.$key must be supplied through LEYLINE_WEB_"
+                }
+            }
         }
 
-        context("legacy adapter") {
-            test("engine settings translate into the legacy MatchConfig surface") {
-                val dir = tmpDir()
-                val file =
-                    writeToml(
-                        dir,
-                        """
-                        [engine]
-                        seed = 7
-                        die_roll_winner = 2
-                        skip_mulligan = true
-                        timer = false
-                        ai_speed = 0.5
-                        spectator_mode = true
-
-                        [engine.draft]
-                        picker = "model"
-
-                        [engine.dev]
-                        strict = true
-                        """,
-                    )
-                val resolved = resolver(dir).resolve(file)
-                val legacy = LegacyMatchConfigAdapter.from(resolved.config)
-
-                assertSoftly {
-                    legacy.game.seed shouldBe 7L
-                    legacy.game.dieRollWinner shouldBe 2
-                    legacy.game.skipMulligan shouldBe true
-                    legacy.game.timer shouldBe false
-                    legacy.ai.speed shouldBe 0.5
-                    legacy.game.spectatorMode shouldBe true
-                    legacy.draft.picker shouldBe "model"
-                    legacy.dev.strict shouldBe true
-                    legacy.dev.strictPass shouldBe false
-                    legacy.server.playerDb shouldBe ""
-                }
+        context("environment names") {
+            test("canonical env names derive without collisions") {
+                val leaves = SettingsSchema.leaves(LeylineConfig.serializer().descriptor)
+                val envNames = leaves.map { SettingsSchema.envNameOf(it.path) }
+                envNames.size shouldBe envNames.toSet().size
             }
         }
     })

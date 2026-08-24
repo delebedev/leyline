@@ -6,6 +6,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
@@ -33,7 +34,7 @@ class MatchActionClaimTest :
             """.trimIndent()
 
         test("deferred claim blocks engine progress and FloatMana resolves the pass offer") {
-            val board = startPuzzleAtMain1(puzzle)
+            val board = startPuzzleAtMain1(puzzle, EngineSettings(timer = true))
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             board.bridge.cutCoordinator.drain(SeatId(1))
             val floatMana = Action.newBuilder().setActionType(ActionType.FloatMana).build()

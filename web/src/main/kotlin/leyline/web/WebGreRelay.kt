@@ -256,8 +256,7 @@ class DirectWebGreEngineSession(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry,
     onFrame: (ByteArray) -> Unit,
     onClosed: () -> Unit = {},
-    /** Resolved puzzle library root (content root). */
-    private val puzzlesDir: File = File("puzzles"),
+    private val puzzlesDir: File,
 ) : WebGreEngineSession {
     /**
      * Shared by the browser's seat and the [WebFamiliarSeat] the server drives

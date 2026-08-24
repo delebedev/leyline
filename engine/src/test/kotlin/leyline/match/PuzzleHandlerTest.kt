@@ -13,6 +13,7 @@ import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.infra.ListMessageSink
@@ -94,7 +95,14 @@ class PuzzleHandlerTest :
             val sink = ListMessageSink()
             val temp = tempPuzzleFile("bundle")
             try {
-                val handler = PuzzleHandler(puzzlePath = { temp.absolutePath }, TestCardRegistry.repo, registry)
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { temp.absolutePath },
+                        TestCardRegistry.repo,
+                        registry,
+                        EngineSettings(),
+                        temp.parentFile,
+                    )
                 val (channel, ctx) = channelCtx()
 
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-bolt-face")
@@ -151,7 +159,14 @@ class PuzzleHandlerTest :
             val registry = MatchRegistry()
             val temp = tempPuzzleFile("reuse")
             try {
-                val handler = PuzzleHandler(puzzlePath = { temp.absolutePath }, TestCardRegistry.repo, registry)
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { temp.absolutePath },
+                        TestCardRegistry.repo,
+                        registry,
+                        EngineSettings(),
+                        temp.parentFile,
+                    )
 
                 val sink1 = ListMessageSink()
                 val first = handler.getOrCreatePuzzleBridge("puzzle-lands-only")
@@ -233,6 +248,8 @@ class PuzzleHandlerTest :
                         puzzlePath = { temp.absolutePath },
                         TestCardRegistry.repo,
                         registry,
+                        EngineSettings(),
+                        temp.parentFile,
                     )
                 val (channel, ctx) = channelCtx()
 
@@ -280,6 +297,8 @@ class PuzzleHandlerTest :
                         puzzlePath = { matchId -> configRegistry.get(matchId)?.puzzle },
                         TestCardRegistry.repo,
                         registry,
+                        EngineSettings(),
+                        temp.parentFile,
                     )
                 val (channel, ctx) = channelCtx()
 

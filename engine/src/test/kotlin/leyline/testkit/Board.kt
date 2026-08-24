@@ -8,6 +8,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
@@ -257,14 +258,23 @@ class Board(
          *
          * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
          */
-        fun startPuzzleAtMain1(puzzleText: String): Board = startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText))
+        fun startPuzzleAtMain1(
+            puzzleText: String,
+            engineSettings: EngineSettings = EngineSettings(),
+        ): Board = startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText), engineSettings)
 
         /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
-        fun startPuzzleAtMain1FromResource(resourcePath: String): Board = startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath))
+        fun startPuzzleAtMain1FromResource(
+            resourcePath: String,
+            engineSettings: EngineSettings = EngineSettings(),
+        ): Board = startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath), engineSettings)
 
-        private fun startPuzzleAtMain1(puzzle: forge.gamemodes.puzzle.Puzzle): Board {
+        private fun startPuzzleAtMain1(
+            puzzle: forge.gamemodes.puzzle.Puzzle,
+            engineSettings: EngineSettings,
+        ): Board {
             val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val b = GameBridge(engineSettings = engineSettings, messageCounter = counter, cardRepository = TestCardRegistry.repo)
 
             b.startPuzzle(puzzle)
 

@@ -97,13 +97,6 @@ data class AuthRateLimitConfig(
     val loginWindowMs: Long = 60_000,
 ) {
     companion object {
-        fun fromEnv(): AuthRateLimitConfig =
-            AuthRateLimitConfig(
-                enabled = System.getenv("AUTH_RATE_LIMIT_ENABLED")?.toBooleanStrictOrNull() ?: true,
-                loginLimit = System.getenv("AUTH_LOGIN_RATE_LIMIT")?.toIntOrNull() ?: 10,
-                loginWindowMs = System.getenv("AUTH_LOGIN_RATE_WINDOW_MS")?.toLongOrNull() ?: 60_000,
-            )
-
         fun disabled(): AuthRateLimitConfig = AuthRateLimitConfig(enabled = false)
     }
 }

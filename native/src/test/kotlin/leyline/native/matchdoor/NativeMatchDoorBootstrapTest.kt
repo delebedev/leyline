@@ -39,6 +39,7 @@ class NativeMatchDoorBootstrapTest :
                     bossGroup = bossGroup,
                     workerGroup = workerGroup,
                     ssl = ssl,
+                    bindAddress = "127.0.0.1",
                     port = 0,
                     engineSettings = EngineSettings(),
                     puzzlesDir = File("puzzles"),

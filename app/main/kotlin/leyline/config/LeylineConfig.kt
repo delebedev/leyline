@@ -6,11 +6,11 @@ import kotlinx.serialization.Serializable
  * Immutable application configuration snapshot, resolved once per process
  * lifetime by [LeylineConfigResolver].
  *
- * The root graph composes owner-shaped settings directly; the fixed
+ * The root graph composes owner-shaped settings directly. An optional
  * `leyline.toml` at the installation/worktree root is the single
  * configuration file. Effective values follow typed default < TOML <
  * `LEYLINE_*` environment override. Relative path values resolve against the
- * TOML file's directory, never the process working directory.
+ * configuration base directory, never the process working directory.
  */
 @Serializable
 data class LeylineConfig(
@@ -26,9 +26,6 @@ data class LeylineConfig(
     companion object {
         /** Fixed configuration file name at the installation/worktree root. */
         const val FILENAME = "leyline.toml"
-
-        /** Canonical keys whose values are secrets and must be redacted from startup reporting. */
-        val SECRET_PATHS: Set<String> = WebSettings.SECRET_PATHS
     }
 
     /** Validate the complete snapshot. Throws [IllegalArgumentException] on invalid combinations. */
