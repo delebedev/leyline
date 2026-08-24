@@ -323,7 +323,7 @@ class AutoPassEngine(
                 )?.let { bridge.cutCoordinator.completeActionClaim(it.actionClaim) }
             bridge.awaitPriority()
         } else if (isAiTurn) {
-            val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.matchConfig.server.aiTurnWaitMs)
+            val reachedPriority = bridge.awaitPriorityWithTimeout(bridge.engineSettings.aiTurnWaitMs)
             if (!reachedPriority) {
                 if (game.isGameOver) {
                     if (drainPlayback().progressed) return LoopSignal.CONTINUE

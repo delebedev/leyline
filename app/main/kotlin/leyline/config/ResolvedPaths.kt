@@ -11,6 +11,8 @@ import java.io.File
  * additional servers from one worktree never share mutable state or artifacts.
  */
 class ResolvedPaths(
+    /** Resolved read-only content root. */
+    val contentRoot: File,
     /** Resolved persistent mutable state directory. */
     val stateDir: File,
     /** Resolved per-instance artifact root. */
@@ -25,6 +27,12 @@ class ResolvedPaths(
     /** Session journal directory. */
     val sessionsRoot: File get() = File(artifactsRoot, "sessions")
 
+    /** Puzzle library root (`.pzl` fixtures). */
+    val puzzlesDir: File get() = File(contentRoot, "puzzles")
+
+    /** Resolved booster-draft model directory (relative values anchor to the content root). */
+    fun draftModelDir(modelDir: String): File = resolveAgainst(contentRoot, modelDir)
+
     fun ensureDirectories() {
         stateDir.mkdirs()
         engineDump.mkdirs()
@@ -38,11 +46,12 @@ class ResolvedPaths(
             instance: String?,
             defaultStateDir: File,
         ): ResolvedPaths {
+            val contentRoot = if (paths.content.isBlank()) baseDir else resolveAgainst(baseDir, paths.content)
             val baseState = if (paths.state.isBlank()) defaultStateDir else resolveAgainst(baseDir, paths.state)
             val baseArtifacts = resolveAgainst(baseDir, paths.artifacts)
             val stateDir = instance?.let { File(baseState, it) } ?: baseState
             val artifactsRoot = instance?.let { File(baseArtifacts, it) } ?: baseArtifacts
-            return ResolvedPaths(stateDir = stateDir, artifactsRoot = artifactsRoot)
+            return ResolvedPaths(contentRoot = contentRoot, stateDir = stateDir, artifactsRoot = artifactsRoot)
         }
 
         private fun resolveAgainst(

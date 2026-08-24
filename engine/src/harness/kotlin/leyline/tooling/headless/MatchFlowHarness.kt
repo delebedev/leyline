@@ -11,11 +11,9 @@ import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.config.AiConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.config.ServerConfig
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
@@ -50,19 +48,16 @@ class MatchFlowHarness(
     validating: Boolean = true,
     private val validation: InvariantSelection = defaultValidation(validating),
     private val validationStrict: Boolean = true,
-    private val matchConfig: MatchConfig =
-        MatchConfig(
-            ai = AiConfig(speed = 0.0),
+    private val engineSettings: EngineSettings =
+        EngineSettings(
+            aiSpeed = 0.0,
             // Fail fast in tests. Local gameplay leaves the human bridge
             // timeout disabled; here the engine
             // Candidate projection can traverse a full action set under suite
             // load; this remains short enough to surface a stalled game loop.
-            server =
-                ServerConfig(
-                    bridgeTimeoutMs = 15_000L,
-                    aiTurnWaitMs = 2_000L,
-                    mulliganWaitMs = 2_000L,
-                ),
+            bridgeTimeoutMs = 15_000L,
+            aiTurnWaitMs = 2_000L,
+            mulliganWaitMs = 2_000L,
         ),
     private val variant: String? = null,
     /**
@@ -292,7 +287,7 @@ class MatchFlowHarness(
         MatchConnection(
             registry = registry,
             output = SinkMatchOutput(outputSink),
-            matchConfig = effectiveMatchConfig,
+            engineSettings = effectiveMatchConfig,
             cardRepository = repo,
             runtimeMatchConfigs = runtimeConfigs,
             deferGameplayAdvance = false,
@@ -377,7 +372,7 @@ class MatchFlowHarness(
             TestCardRegistry.repo
         }
 
-    private val effectiveMatchConfig: MatchConfig = matchConfig.copy(game = matchConfig.game.copy(seed = seed))
+    private val effectiveMatchConfig: EngineSettings = engineSettings.copy(seed = seed)
 
     /**
      * Play a land from hand. Returns true if successful.

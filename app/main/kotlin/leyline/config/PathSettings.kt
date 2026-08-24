@@ -14,6 +14,11 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PathSettings(
     /**
+     * Read-only bundled content root (decks, draft models, puzzles).
+     * Empty = the configuration file's directory.
+     */
+    val content: String = "",
+    /**
      * Persistent mutable state directory; `player.db` lives inside.
      * Empty = durable user-level location shared across worktrees.
      */

@@ -16,19 +16,25 @@ import kotlinx.serialization.Serializable
 data class LeylineConfig(
     /** Native-client head: listeners, advertised endpoint, operator ports. */
     val native: NativeSettings = NativeSettings(),
+    /** Browser-facing web head: listener, player, auth, email, rate limiting. */
+    val web: WebSettings = WebSettings(),
     /** Engine behavior: match timing, match defaults, draft policy, diagnostics. */
     val engine: EngineSettings = EngineSettings(),
-    /** Resource locations: mutable state and per-instance artifacts. */
+    /** Resource locations: content, mutable state, and per-instance artifacts. */
     val paths: PathSettings = PathSettings(),
 ) {
     companion object {
         /** Fixed configuration file name at the installation/worktree root. */
         const val FILENAME = "leyline.toml"
+
+        /** Canonical keys whose values are secrets and must be redacted from startup reporting. */
+        val SECRET_PATHS: Set<String> = WebSettings.SECRET_PATHS
     }
 
     /** Validate the complete snapshot. Throws [IllegalArgumentException] on invalid combinations. */
     fun validate() {
         native.validate()
+        web.validate()
         engine.validate()
         paths.validate()
     }

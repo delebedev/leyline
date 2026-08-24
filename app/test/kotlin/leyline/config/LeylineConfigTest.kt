@@ -1,10 +1,12 @@
 package leyline.config
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldEndWith
 import leyline.UnitTag
+import leyline.validateWebHead
 import java.io.File
 import java.nio.file.Path
 
@@ -42,6 +44,24 @@ class LeylineConfigTest :
                 resolved.paths.artifactsRoot.absolutePath shouldBe File(repoRoot, "logs").absolutePath
                 resolved.paths.playerDb.absolutePath
                     .shouldEndWith("dev.leyline/player.db")
+            }
+        }
+
+        test("web head resolves from the checked-in TOML with head-specific validation") {
+            val repoRoot = Path.of(System.getProperty("user.dir")).toFile()
+            val file = File(repoRoot, LeylineConfig.FILENAME)
+            val resolved = LeylineConfigResolver(baseDir = repoRoot, env = emptyMap()).resolve(file)
+
+            assertSoftly {
+                // One file supplies both heads.
+                resolved.config.native.fdPort shouldBe 30010
+                resolved.config.web.port shouldBe 8080
+                resolved.config.web.host shouldBe "127.0.0.1"
+                resolved.config.web.rateLimitEnabled shouldBe true
+                resolved.config.engine.skipMulligan shouldBe true
+                // The web head requires an external auth secret; the native head does not.
+                shouldThrow<IllegalArgumentException> { validateWebHead(resolved.config.web) }
+                resolved.config.native.validate()
             }
         }
 

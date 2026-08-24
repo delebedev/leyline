@@ -2,7 +2,7 @@ package leyline.match
 
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.bundle.markPrompts
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
@@ -22,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * [MulliganHandler], which requires both seat handlers to be registered first.
  */
 class MulliganHandler(
-    private val matchConfig: MatchConfig,
+    private val engineSettings: EngineSettings,
     private val registry: MatchRegistry,
     private val sessionProvider: () -> GameOps?,
     private val outputProvider: () -> MatchOutput,
@@ -52,7 +52,7 @@ class MulliganHandler(
             return
         }
 
-        if (matchConfig.game.skipMulligan) {
+        if (engineSettings.skipMulligan) {
             log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
             // Send DealHand on this seat's channel — use handler's session (may be FamiliarSession)
             sendDealHandViaConnection(session, match?.bridge)

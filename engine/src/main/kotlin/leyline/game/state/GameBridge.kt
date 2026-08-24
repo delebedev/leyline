@@ -35,7 +35,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.MessageCounter
@@ -86,7 +86,7 @@ class GameBridge(
     /** Timeout for client-visible prompts. Null waits indefinitely. */
     private val promptFailsafeMs: Long? = DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS,
     /** Playtest config — controls AI speed, die roll, etc. */
-    val matchConfig: MatchConfig = MatchConfig(),
+    val engineSettings: EngineSettings = EngineSettings(),
     /** Shared protocol counter for GRE message sequencing.
      *  Production: shared with MatchSession. Tests: local default. */
     val messageCounter: MessageCounter = MessageCounter(),
@@ -108,7 +108,7 @@ class GameBridge(
             bridge = this,
             matchId = matchId,
             counter = messageCounter,
-            delayMultiplier = matchConfig.aiDelayMultiplier,
+            delayMultiplier = engineSettings.aiDelayMultiplier,
         )
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
@@ -333,7 +333,7 @@ class GameBridge(
      * Lazy — evaluated once, after [start] seeds the RNG.
      */
     val dieRollWinner: Int by lazy {
-        matchConfig.game.dieRollWinner ?: (MyRandom.getRandom().nextInt(2) + 1)
+        engineSettings.dieRollWinner ?: (MyRandom.getRandom().nextInt(2) + 1)
     }
 
     // --- Per-seat bridge maps ---
@@ -373,8 +373,8 @@ class GameBridge(
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
-                autoKeep = matchConfig.game.skipMulligan,
-                timeoutMs = matchConfig.server.mulliganWaitMs,
+                autoKeep = engineSettings.skipMulligan,
+                timeoutMs = engineSettings.mulliganWaitMs,
             )
     }
 
@@ -1046,7 +1046,7 @@ class GameBridge(
         loop.start()
         loop.awaitStarted()
 
-        if (matchConfig.game.skipMulligan) {
+        if (engineSettings.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
             awaitPriority()
             log.info("GameBridge: engine reached priority after auto-keep")
@@ -1364,7 +1364,7 @@ class GameBridge(
             }
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
             // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
-            val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+            val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
                 val prompt = bridge.pendingPromptAfter(seqBefore)
                 if (prompt != null) {
@@ -1398,7 +1398,7 @@ class GameBridge(
      * publishing a [MulliganPhase.WaitingTuck] prompt.
      */
     fun awaitTuckReady() {
-        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingTuck) return
             Thread.sleep(POLL_INTERVAL_MS)
@@ -1578,7 +1578,7 @@ class GameBridge(
         for (bridge in promptBridges.values) bridge.resetForPuzzle()
 
         cutCoordinator.resetForNewGame()
-        startPuzzle(puzzle, seed = matchConfig.game.seed)
+        startPuzzle(puzzle, seed = engineSettings.seed)
         log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
         return deletedIds
     }
@@ -2025,7 +2025,7 @@ class GameBridge(
      * meaning the engine has dealt the hand and is blocking.
      */
     private fun awaitMulliganReady() {
-        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)

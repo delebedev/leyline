@@ -129,7 +129,7 @@ object SeedDb {
         println("Player: $PLAYER_NAME ($PLAYER_ID)")
 
         // Seed starter decks (resolve card names → grpIds via card DB)
-        val cardRepo = ClientCardDatabase.open().cardRepository()
+        val cardRepo = ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
         // Seed decks from data/decks/*.txt
         val decksDir = File(projectDir, "data/decks")
         val deckFiles = loadDeckFiles(decksDir)

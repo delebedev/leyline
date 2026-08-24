@@ -3,7 +3,7 @@ package leyline.match
 import forge.gamemodes.puzzle.Puzzle
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markPrompts
 import leyline.game.data.CardRepository
@@ -29,7 +29,9 @@ class PuzzleHandler(
     private val puzzlePath: (String) -> String?,
     private val cardRepository: CardRepository,
     private val registry: MatchRegistry,
-    private val matchConfig: MatchConfig = MatchConfig(),
+    private val engineSettings: EngineSettings = EngineSettings(),
+    /** Resolved puzzle library root (content root). Defaults to the legacy working-directory walk-up. */
+    private val puzzlesDir: File = File(findLeylineDir(), "puzzles"),
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
@@ -49,15 +51,15 @@ class PuzzleHandler(
                 val bridge =
                     GameBridge(
                         matchId = matchId,
-                        bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                        promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                        matchConfig = matchConfig,
+                        bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
+                        promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        engineSettings = engineSettings,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
                 Match(matchId, bridge).also {
                     val puzzle = loadPuzzleForMatch(matchId)
-                    bridge.startPuzzle(puzzle, seed = matchConfig.game.seed)
+                    bridge.startPuzzle(puzzle, seed = engineSettings.seed)
                 }
             }
         return match.bridge
@@ -121,14 +123,13 @@ class PuzzleHandler(
         val name = puzzlePath(matchId) ?: matchId.removePrefix("puzzle-")
         val file =
             resolvePuzzleFile(name)
-                ?: error("Puzzle not found: $name (looked in ${File(findLeylineDir(), "puzzles").absolutePath})")
+                ?: error("Puzzle not found: $name (looked in ${puzzlesDir.absolutePath})")
         return PuzzleSource.loadFromFile(file.absolutePath)
     }
 
-    /** First existing candidate: as-given, with `.pzl`, then under `puzzles/`. */
+    /** First existing candidate: as-given, with `.pzl`, then under the resolved puzzle root. */
     private fun resolvePuzzleFile(name: String): File? {
         val cwd = File(System.getProperty("user.dir"))
-        val puzzlesDir = File(findLeylineDir(), "puzzles")
         val withPzl = if (name.endsWith(".pzl")) name else "$name.pzl"
 
         fun atCwd(n: String) = File(n).let { if (it.isAbsolute) it else File(cwd, n) }

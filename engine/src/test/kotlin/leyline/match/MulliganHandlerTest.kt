@@ -9,7 +9,7 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.infra.ListMessageSink
 import leyline.infra.MatchOutput
 import leyline.testkit.BoardTest
@@ -66,7 +66,7 @@ class MulliganHandlerTest :
             ctx: ChannelHandlerContext? = null,
         ): MulliganHandler =
             MulliganHandler(
-                MatchConfig(),
+                EngineSettings(),
                 registry,
                 sessionProvider = { session },
                 outputProvider = {

@@ -35,8 +35,9 @@ class ClientCardDatabase private constructor(
     companion object {
         private const val MIN_CARD_DB_BYTES = 1_000_000L
 
-        /** Open the client card database using the environment override or standard-location autodiscovery. */
-        fun open(): ClientCardDatabase = open(overridePath = System.getenv("LEYLINE_CARD_DB"), standardLocation = ::detectArenaDownloadsDir)
+        /** Open the client card database with an optional explicit override; otherwise standard-location autodiscovery. */
+        fun open(overridePath: String? = null): ClientCardDatabase =
+            open(overridePath = overridePath, standardLocation = ::detectArenaDownloadsDir)
 
         /**
          * Resolve and validate the client card database path without holding a

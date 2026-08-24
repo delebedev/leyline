@@ -5,7 +5,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.codes.DetailKeys
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
@@ -62,14 +62,14 @@ object SnapshotHydration {
         gsm: GameStateMessage,
         consultSeat: Int,
         cardRepository: CardRepository,
-        matchConfig: MatchConfig = MatchConfig(),
-    ): GameBridge = hydrateWithReport(gsm, consultSeat, cardRepository, matchConfig).bridge
+        engineSettings: EngineSettings = EngineSettings(),
+    ): GameBridge = hydrateWithReport(gsm, consultSeat, cardRepository, engineSettings).bridge
 
     fun hydrateWithReport(
         gsm: GameStateMessage,
         consultSeat: Int,
         cardRepository: CardRepository,
-        matchConfig: MatchConfig = MatchConfig(),
+        engineSettings: EngineSettings = EngineSettings(),
     ): HydratedSnapshot {
         val projection = project(gsm, consultSeat, cardRepository)
         val lines = projection.lines
@@ -91,7 +91,7 @@ object SnapshotHydration {
             )
         val bridge =
             GameBridge(
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
                 cardRepository = cardRepository,
             )
         bridge.startPuzzle(

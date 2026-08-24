@@ -6,11 +6,9 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.config.ServerConfig
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -33,15 +31,14 @@ class WebFamiliarSeatTest :
         val deck = "60 Forest"
 
         fun matchConfig() =
-            MatchConfig(
-                server =
-                    ServerConfig(
-                        bridgeTimeoutMs = 2_000L,
-                        promptFailsafeMs = 2_000L,
-                        aiTurnWaitMs = 2_000L,
-                        mulliganWaitMs = 2_000L,
-                    ),
-                game = GameConfig(seed = 42L, dieRollWinner = 1, skipMulligan = false),
+            EngineSettings(
+                seed = 42L,
+                dieRollWinner = 1,
+                skipMulligan = false,
+                bridgeTimeoutMs = 2_000L,
+                promptFailsafeMs = 2_000L,
+                aiTurnWaitMs = 2_000L,
+                mulliganWaitMs = 2_000L,
             )
 
         fun greTypes(frames: List<ByteArray>): List<GREMessageType> =

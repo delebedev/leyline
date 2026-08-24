@@ -49,7 +49,10 @@ class SimClientRunner internal constructor(
     private val rowRunnerOverride: ((SimClientRow) -> GameStats)? = null,
 ) {
     /** One shared client-database repository for every row in this run. */
-    private val cardRepo: CardRepository by lazy { cardRepositoryOverride ?: ClientCardDatabase.open().cardRepository() }
+    private val cardRepo: CardRepository by lazy {
+        cardRepositoryOverride
+            ?: ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
+    }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()

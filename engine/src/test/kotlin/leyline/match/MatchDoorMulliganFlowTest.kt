@@ -10,11 +10,9 @@ import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.config.ServerConfig
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
@@ -45,16 +43,15 @@ class MatchDoorMulliganFlowTest :
 
         val deck = "60 Forest"
 
-        fun matchConfig() =
-            MatchConfig(
-                server =
-                    ServerConfig(
-                        bridgeTimeoutMs = 2_000L,
-                        promptFailsafeMs = 2_000L,
-                        aiTurnWaitMs = 2_000L,
-                        mulliganWaitMs = 2_000L,
-                    ),
-                game = GameConfig(seed = 42L, dieRollWinner = 1, skipMulligan = false),
+        fun engineSettings() =
+            EngineSettings(
+                seed = 42L,
+                dieRollWinner = 1,
+                skipMulligan = false,
+                bridgeTimeoutMs = 2_000L,
+                promptFailsafeMs = 2_000L,
+                aiTurnWaitMs = 2_000L,
+                mulliganWaitMs = 2_000L,
             )
 
         val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
@@ -62,7 +59,7 @@ class MatchDoorMulliganFlowTest :
         fun handler(registry: MatchRegistry) =
             MatchHandler(
                 registry = registry,
-                matchConfig = matchConfig(),
+                engineSettings = engineSettings(),
                 cardRepository = TestCardRegistry.repo,
                 runtimeMatchConfigs = runtimeMatchConfigs,
             )
@@ -182,7 +179,7 @@ class MatchDoorMulliganFlowTest :
             fun testHandler() =
                 MatchHandler(
                     registry = registry,
-                    matchConfig = matchConfig(),
+                    engineSettings = engineSettings(),
                     coordinator = coordinator,
                     cardRepository = TestCardRegistry.repo,
                     runtimeMatchConfigs = configs,

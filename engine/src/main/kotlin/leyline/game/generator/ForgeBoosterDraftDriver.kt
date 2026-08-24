@@ -5,7 +5,7 @@ import forge.gamemodes.limited.IBoosterDraft
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.DraftConfig
+import leyline.config.DraftSettings
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ForgeBoosterDraftDriver(
     private val findGrpIdByName: (String) -> Int?,
-    private val draftConfig: DraftConfig = DraftConfig(),
+    private val draftSettings: DraftSettings = DraftSettings(),
 ) : BoosterDraftDriver {
     private val log = LoggerFactory.getLogger(ForgeBoosterDraftDriver::class.java)
 
@@ -66,8 +66,8 @@ class ForgeBoosterDraftDriver(
                 "(LAND_SET_CODE[0] is process-global)"
         }
         val strategy =
-            when (draftConfig.picker) {
-                "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftConfig.modelDir)
+            when (draftSettings.picker) {
+                "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftSettings.modelDir)
                 else -> DraftPickStrategies.default()
             }
         val draft = HeadlessBoosterDraft(effectiveSet, strategy)

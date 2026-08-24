@@ -40,7 +40,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.CollationPool
@@ -509,7 +509,7 @@ class WebRoutesTest :
                 val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
                 runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                    DirectWebGreEngineSession(MatchConfig(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
+                    DirectWebGreEngineSession(EngineSettings(), MatchCoordinator.NOOP, repos.cards, runtimeMatchConfigs, onFrame, onClosed)
                 }
 
                 greSocket(login, matchId) {
@@ -594,7 +594,7 @@ class WebRoutesTest :
             val closedA = AtomicBoolean(false)
             val engineA =
                 DirectWebGreEngineSession(
-                    MatchConfig(),
+                    EngineSettings(),
                     MatchCoordinator.NOOP,
                     cards,
                     configs,
@@ -603,7 +603,7 @@ class WebRoutesTest :
                 )
             val engineB =
                 DirectWebGreEngineSession(
-                    MatchConfig(),
+                    EngineSettings(),
                     MatchCoordinator.NOOP,
                     cards,
                     configs,

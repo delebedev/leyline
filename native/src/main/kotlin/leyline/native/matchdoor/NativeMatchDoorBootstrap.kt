@@ -9,7 +9,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.protobuf.ProtobufDecoder
 import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
@@ -20,6 +20,7 @@ import leyline.native.protocol.ClientFrameDecoder
 import leyline.native.protocol.ClientHeaderPrepender
 import leyline.native.protocol.ClientHeaderStripper
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import java.io.File
 
 object NativeMatchDoorBootstrap {
     @Suppress("LongParameterList")
@@ -28,7 +29,8 @@ object NativeMatchDoorBootstrap {
         workerGroup: EventLoopGroup,
         ssl: SslContext,
         port: Int,
-        matchConfig: MatchConfig,
+        engineSettings: EngineSettings,
+        puzzlesDir: File,
         coordinator: MatchCoordinator,
         cardRepository: CardRepository,
         debugSink: MatchDebugSink,
@@ -56,7 +58,8 @@ object NativeMatchDoorBootstrap {
                                     MatchConnection(
                                         registry = registry,
                                         output = output,
-                                        matchConfig = matchConfig,
+                                        engineSettings = engineSettings,
+                                        puzzlesDir = puzzlesDir,
                                         coordinator = coordinator,
                                         cardRepository = cardRepository,
                                         debugSink = debugSink,

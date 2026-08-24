@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldEndWith
+import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
 import java.io.File
 import java.nio.file.Files
@@ -266,6 +267,58 @@ class LeylineConfigResolverTest :
 
                 resolved.config.engine.aiSpeed shouldBe 2.0
                 resolved.report(head = "native") shouldContain "engine.ai_speed = 2.0 [ENV]"
+            }
+        }
+
+        context("web head") {
+            test("web settings resolve from TOML with environment precedence") {
+                val dir = tmpDir()
+                val file =
+                    writeToml(
+                        dir,
+                        """
+                        [web]
+                        port = 8081
+                        """,
+                    )
+                val resolved =
+                    resolver(
+                        dir,
+                        env =
+                            mapOf(
+                                "LEYLINE_WEB_PORT" to "9090",
+                                "LEYLINE_WEB_AUTH_SECRET" to "a-32-char-secret-for-tests-0123456789",
+                            ),
+                    ).resolve(file)
+
+                assertSoftly {
+                    resolved.config.web.port shouldBe 9090
+                    resolved.config.web.authSecret shouldBe "a-32-char-secret-for-tests-0123456789"
+                    resolved.provenance["web.port"] shouldBe Source.ENV
+                    resolved.provenance["web.host"] shouldBe Source.DEFAULT
+                }
+            }
+
+            test("web secrets are redacted from the startup report by default") {
+                val dir = tmpDir()
+                val file = writeToml(dir, "")
+                val resolved =
+                    resolver(
+                        dir,
+                        env =
+                            mapOf(
+                                "LEYLINE_WEB_AUTH_SECRET" to "a-32-char-secret-for-tests-0123456789",
+                                "LEYLINE_WEB_RESEND_API_KEY" to "re_abcdef",
+                            ),
+                    ).resolve(file)
+                val report = resolved.report(head = "web", redactedPaths = LeylineConfig.SECRET_PATHS)
+
+                resolved.config.web.authSecret shouldBe "a-32-char-secret-for-tests-0123456789"
+                assertSoftly {
+                    report shouldContain "web.auth_secret = <redacted> [ENV]"
+                    report shouldContain "web.resend_api_key = <redacted> [ENV]"
+                    report shouldNotContain "re_abcdef"
+                }
             }
         }
 

@@ -8,7 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.testkit.TestCardRegistry
@@ -165,7 +165,7 @@ class PuzzleMatchDoorFlowTest :
                 val handler =
                     MatchHandler(
                         registry = registry,
-                        matchConfig = MatchConfig(),
+                        engineSettings = EngineSettings(),
                         cardRepository = TestCardRegistry.repo,
                         runtimeMatchConfigs = runtimeMatchConfigs,
                     )
@@ -208,7 +208,7 @@ class PuzzleMatchDoorFlowTest :
             val handler =
                 MatchHandler(
                     registry = registry,
-                    matchConfig = MatchConfig(),
+                    engineSettings = EngineSettings(),
                     cardRepository = TestCardRegistry.repo,
                     runtimeMatchConfigs = runtimeMatchConfigs,
                 )
@@ -245,7 +245,7 @@ class PuzzleMatchDoorFlowTest :
                 val handler =
                     MatchHandler(
                         registry = registry,
-                        matchConfig = MatchConfig(),
+                        engineSettings = EngineSettings(),
                         cardRepository = TestCardRegistry.repo,
                         runtimeMatchConfigs = runtimeMatchConfigs,
                     )

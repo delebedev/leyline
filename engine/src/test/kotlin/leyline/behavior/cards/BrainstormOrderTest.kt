@@ -9,9 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.SeatId
-import leyline.config.AiConfig
-import leyline.config.MatchConfig
-import leyline.config.ServerConfig
+import leyline.config.EngineSettings
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
@@ -94,16 +92,13 @@ class BrainstormOrderTest :
         test("Brainstorm timeout advances its default card through the one-card order path") {
             val h =
                 MatchFlowHarness(
-                    matchConfig =
-                        MatchConfig(
-                            ai = AiConfig(speed = 0.0),
-                            server =
-                                ServerConfig(
-                                    bridgeTimeoutMs = 5_000L,
-                                    promptFailsafeMs = 100L,
-                                    aiTurnWaitMs = 500L,
-                                    mulliganWaitMs = 500L,
-                                ),
+                    engineSettings =
+                        EngineSettings(
+                            aiSpeed = 0.0,
+                            bridgeTimeoutMs = 5_000L,
+                            promptFailsafeMs = 100L,
+                            aiTurnWaitMs = 500L,
+                            mulliganWaitMs = 500L,
                         ),
                 )
             try {
