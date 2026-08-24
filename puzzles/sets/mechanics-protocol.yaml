@@ -937,6 +937,41 @@ scenarios:
     steps:
       - expect:
           action: { type: cast, card: Demon Bolt, alt_cost: foretell }
+  - id: foretell-depart-the-realm-lifecycle
+    puzzle: foretell-depart-the-realm
+    run: foretell Depart the Realm, then cast it from exile on a later turn
+    expect: the foretold spell returns Grizzly Bears to its owner's hand and resolves to the graveyard
+    steps:
+      - expect:
+          action: { type: cast, card: Depart the Realm, alt_cost: foretell }
+      - cast: { card: Depart the Realm, alt_cost: foretell }
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: exile, count: 1 }
+            - annotation_seen:
+                type: ZoneTransfer_af5a
+                details: { category: Foretell, zone_src: 31, zone_dest: 29 }
+            - annotation_seen: FaceDown
+            - annotation_seen: SuppressedPowerAndToughness
+      - pass_until:
+          action: { type: cast, card: Depart the Realm, alt_cost: foretell }
+          max_passes: 20
+      - cast: { card: Depart the Realm, zone: exile, alt_cost: foretell }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: hand, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Depart the Realm }
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: TargetSpec
+            - annotation_seen: UserActionTaken
+            - annotation_seen: PlayerSubmittedTargets
+            - annotation_seen: ManaPaid
+            - annotation_seen: ResolutionStart
+            - annotation_seen: ResolutionComplete
+            - stack_empty: true
   - id: plot-railway-brawler
     puzzle: plot-railway-brawler
     run: plot Railway Brawler, then cast it from exile on a later turn
@@ -1048,15 +1083,32 @@ scenarios:
             - stack_empty: true
   - id: warp-quantum-riddler
     puzzle: try-warp
-    run: cast Quantum Riddler for its Warp cost
-    expect: Quantum Riddler resolves through the Warp cast rail
+    run: cast Quantum Riddler for its Warp cost, exile it at end step, then cast it from exile
+    expect: Quantum Riddler completes both Warp cast rails and returns to the battlefield
     steps:
       - expect:
           action: { type: cast, card: Quantum Riddler }
       - cast: { card: Quantum Riddler, alt_cost: warp }
+      - resolve_stack: {}
       - expect:
           all:
-            - zone_not_contains: { side: ours, zone: hand, card: Quantum Riddler }
+            - zone_contains: { side: ours, zone: battlefield, card: Quantum Riddler }
+            - stack_empty: true
+      - pass_until:
+          action: { type: cast, card: Quantum Riddler }
+          max_passes: 20
+      - expect:
+          zone_contains: { side: ours, zone: exile, card: Quantum Riddler }
+      - cast: { card: Quantum Riddler, zone: exile }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Quantum Riddler }
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: UserActionTaken
+            - annotation_seen: ResolutionStart
+            - annotation_seen: ResolutionComplete
+            - stack_empty: true
   - id: impending-overlord
     puzzle: impending-overlord-of-the-mistmoors
     run: cast Overlord of the Mistmoors for its Impending cost
