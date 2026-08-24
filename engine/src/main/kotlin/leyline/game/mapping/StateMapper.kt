@@ -312,6 +312,24 @@ object StateMapper {
                 editor.identities,
                 FrameIdResolver.postReallocIids(transferResult),
             )
+        val tokenParents =
+            eventsMutable
+                .filterIsInstance<GameEvent.TokenCreated>()
+                .mapNotNull { event ->
+                    val sourceCardId = event.sourceCardId ?: return@mapNotNull null
+                    if (event.sourceAbilityForgeId == 0) return@mapNotNull null
+                    frameIds.cardIid(event.cardId).value to
+                        AnnotationContext.stackAbilityIid(event.sourceAbilityForgeId, sourceCardId, frameIds)
+                }.toMap()
+        if (tokenParents.isNotEmpty()) {
+            transferResult =
+                transferResult.copy(
+                    patchedObjects =
+                        transferResult.patchedObjects.map { obj ->
+                            tokenParents[obj.instanceId]?.let { obj.toBuilder().setParentId(it).build() } ?: obj
+                        },
+                )
+        }
         val (opponentKnowledge, nextOpponentKnowledge) =
             OpponentKnowledgeTracker.plan(editor.opponentKnowledge, snap, frameIds, eventsMutable)
         editor.opponentKnowledge = nextOpponentKnowledge

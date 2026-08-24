@@ -94,6 +94,7 @@ sealed interface GameEvent {
     data class ManaPayment(
         val sourceCardId: ForgeCardId,
         val color: Int,
+        val abilityGrpId: Int = 0,
     )
 
     /** A spell or ability was cast (hand/battlefield → stack).
