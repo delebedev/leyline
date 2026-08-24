@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
  *
- * Binds loopback-only by default. Set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose
+ * Binds loopback-only by default; `native.debug_bind` opts into binding
  * these local controls on all interfaces.
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.

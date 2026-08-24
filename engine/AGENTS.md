@@ -9,7 +9,7 @@ Forge bridge and GRE match-session engine. Native TCP and web transports both fe
 
 ```
 bridge/      Forge adapter and engine-thread interaction surface.
-config/      MatchConfig and runtime match config.
+config/      EngineSettings and runtime match config.
 game/        Engine state -> GRE protobuf mapping, annotations, data, generators.
 infra/       Message sinks and output plumbing.
 match/       MatchHandler, MatchSession, FamiliarSession, combat/targeting/mulligan/puzzle handlers.

@@ -10,5 +10,5 @@ import leyline.game.data.ClientCardDatabase
  * validation per recipe.
  */
 fun main() {
-    println(ClientCardDatabase.resolveValidatedPath().absolutePath)
+    println(ClientCardDatabase.resolveValidatedPath(overridePath = System.getenv("LEYLINE_CARD_DB")).absolutePath)
 }

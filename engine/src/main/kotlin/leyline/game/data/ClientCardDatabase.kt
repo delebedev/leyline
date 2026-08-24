@@ -44,8 +44,8 @@ class ClientCardDatabase private constructor(
          * connection. Thin operator tooling (the just lookup recipes) uses this
          * to obtain one validated path for direct SQL.
          */
-        fun resolveValidatedPath(): File =
-            resolveValidatedPath(overridePath = System.getenv("LEYLINE_CARD_DB"), standardLocation = ::detectArenaDownloadsDir)
+        fun resolveValidatedPath(overridePath: String? = null): File =
+            resolveValidatedPath(overridePath = overridePath, standardLocation = ::detectArenaDownloadsDir)
 
         internal fun open(
             overridePath: String?,

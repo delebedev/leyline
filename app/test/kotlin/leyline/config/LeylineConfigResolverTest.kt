@@ -322,43 +322,25 @@ class LeylineConfigResolverTest :
             }
         }
 
-        context("legacy adapter") {
-            test("engine settings translate into the legacy MatchConfig surface") {
+        context("legacy environment names") {
+            test("legacy server env names are hard failures with rename hints") {
                 val dir = tmpDir()
-                val file =
-                    writeToml(
-                        dir,
-                        """
-                        [engine]
-                        seed = 7
-                        die_roll_winner = 2
-                        skip_mulligan = true
-                        timer = false
-                        ai_speed = 0.5
-                        spectator_mode = true
-
-                        [engine.draft]
-                        picker = "model"
-
-                        [engine.dev]
-                        strict = true
-                        """,
-                    )
-                val resolved = resolver(dir).resolve(file)
-                val legacy = LegacyMatchConfigAdapter.from(resolved.config)
-
-                assertSoftly {
-                    legacy.game.seed shouldBe 7L
-                    legacy.game.dieRollWinner shouldBe 2
-                    legacy.game.skipMulligan shouldBe true
-                    legacy.game.timer shouldBe false
-                    legacy.ai.speed shouldBe 0.5
-                    legacy.game.spectatorMode shouldBe true
-                    legacy.draft.picker shouldBe "model"
-                    legacy.dev.strict shouldBe true
-                    legacy.dev.strictPass shouldBe false
-                    legacy.server.playerDb shouldBe ""
+                val file = writeToml(dir, "")
+                for ((legacy, hint) in LeylineConfigResolver.LEGACY_ENV_RENAMES) {
+                    shouldThrow<ConfigException> {
+                        resolver(dir, env = mapOf(legacy to "1")).resolve(file)
+                    }.message shouldContain legacy
+                    shouldThrow<ConfigException> {
+                        resolver(dir, env = mapOf(legacy to "1")).resolve(file)
+                    }.message shouldContain hint
                 }
+            }
+
+            test("canonical env names derive without collisions") {
+                val leaves = SettingsSchema.leaves(LeylineConfig.serializer().descriptor)
+                val envNames = leaves.map { SettingsSchema.envNameOf(it.path) }
+                envNames.size shouldBe envNames.toSet().size
+                envNames.toSet().intersect(LeylineConfigResolver.LEGACY_ENV_RENAMES.keys) shouldBe emptySet()
             }
         }
     })

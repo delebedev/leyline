@@ -38,8 +38,8 @@ class MatchConnection(
     private val registry: MatchRegistry,
     private val output: MatchOutput,
     private val engineSettings: EngineSettings = EngineSettings(),
-    /** Resolved puzzle library root (content root). */
-    private val puzzlesDir: File = File(findLeylineDir(), "puzzles"),
+    /** Resolved puzzle library root (content root); production passes the resolved content root explicitly. */
+    private val puzzlesDir: File = File("puzzles"),
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
