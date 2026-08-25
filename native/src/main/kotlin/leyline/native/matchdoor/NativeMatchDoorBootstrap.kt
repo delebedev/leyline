@@ -41,6 +41,7 @@ object NativeMatchDoorBootstrap {
         aiDeckNameOverride: () -> String? = { null },
     ): Channel {
         val registry = MatchRegistry()
+        debugSink.sessionProvider = { registry.activeHumanSession() }
         return ServerBootstrap()
             .group(bossGroup, workerGroup)
             .channel(NioServerSocketChannel::class.java)
@@ -64,7 +65,6 @@ object NativeMatchDoorBootstrap {
                                         puzzleLibrary = PuzzleLibrary(puzzlesDir),
                                         coordinator = coordinator,
                                         cardRepository = cardRepository,
-                                        debugSink = debugSink,
                                         puzzleIdentity = puzzleIdentity,
                                         runtimeMatchConfigs = runtimeMatchConfigs,
                                         aiDeckNameOverride = aiDeckNameOverride,

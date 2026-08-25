@@ -49,6 +49,13 @@ class MatchRegistry {
         return sessions[matchId]?.get(peerSeat.value)
     }
 
+    /** Return the active human session; Familiar registration never replaces it. */
+    fun activeHumanSession(): MatchSession? =
+        sessions.values
+            .asSequence()
+            .mapNotNull { it[1] as? MatchSession }
+            .firstOrNull()
+
     /**
      * Remove all matches and sessions except [currentMatchId].
      * Returns list of evicted matches (already closed).

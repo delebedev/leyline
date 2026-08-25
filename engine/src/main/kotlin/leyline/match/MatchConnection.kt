@@ -40,8 +40,6 @@ class MatchConnection(
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cardRepository: CardRepository,
-    /** Debug server wiring — session/bridge providers. Null in tests. */
-    private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session action recorders. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
     /** Runtime puzzle identity supplier — non-null activates puzzle mode. */
@@ -153,11 +151,6 @@ class MatchConnection(
             isSpectatorMode = ::isSpectatorMode,
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
-
-    init {
-        // Wire local-control bridge/session providers once per handler instance.
-        debugSink?.sessionProvider = { session as? MatchSession }
-    }
 
     private fun resolvePuzzleIdentity(matchId: String): String? {
         val config = runtimeMatchConfigs?.get(matchId)

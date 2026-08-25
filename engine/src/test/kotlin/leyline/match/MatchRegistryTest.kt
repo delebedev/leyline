@@ -173,7 +173,7 @@ class MatchRegistryTest :
             }
         }
 
-        test("registerSession accepts FamiliarSession via SessionOps interface") {
+        test("Familiar registration preserves the active seat-1 human session") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
             val human =
@@ -191,8 +191,11 @@ class MatchRegistryTest :
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", SeatId(1), human)
             registry.registerSession("m1", SeatId(2), familiar)
-            registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs familiar
-            registry.getPeer("m1", SeatId(2)) shouldBeSameInstanceAs human
+            assertSoftly {
+                registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs familiar
+                registry.getPeer("m1", SeatId(2)) shouldBeSameInstanceAs human
+                registry.activeHumanSession() shouldBeSameInstanceAs human
+            }
         }
 
         test("onStateChanged callback enables auto-removal from registry") {
