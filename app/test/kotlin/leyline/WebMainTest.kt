@@ -5,8 +5,13 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.config.PuzzleDefinition
 import leyline.config.WebSettings
+import leyline.web.ChallengeCatalog
+import leyline.web.ChallengeDefinition
+import leyline.web.ChallengeSummary
 import leyline.web.DEV_WEB_AUTH_SECRET
+import leyline.web.GreStartRequest
 
 class WebMainTest :
     FunSpec({
@@ -50,5 +55,26 @@ class WebMainTest :
         test("fixed login code rejects non-six-digit values") {
             shouldThrow<IllegalArgumentException> { validateWebHead(web(loginCode = "dev", allowFixed = true)) }
                 .message shouldBe "web.login_code must be a six-digit code"
+        }
+
+        test("challenge resolution returns the catalog definition") {
+            val definition = PuzzleDefinition("known", "[state]")
+            val catalog = ChallengeCatalog(listOf(ChallengeDefinition(ChallengeSummary("known", "Known"), definition)))
+
+            resolveChallenge(GreStartRequest(challengeId = "known"), catalog) shouldBe definition
+        }
+
+        test("challenge resolution rejects unknown and mixed launches as bad requests") {
+            val catalog =
+                ChallengeCatalog(
+                    listOf(ChallengeDefinition(ChallengeSummary("known", "Known"), PuzzleDefinition("known", ""))),
+                )
+
+            shouldThrow<IllegalArgumentException> {
+                resolveChallenge(GreStartRequest(challengeId = "missing"), catalog)
+            }
+            shouldThrow<IllegalArgumentException> {
+                resolveChallenge(GreStartRequest(challengeId = "known", puzzle = "explicit"), catalog)
+            }
         }
     })

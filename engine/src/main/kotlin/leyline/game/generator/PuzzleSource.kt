@@ -4,18 +4,14 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.util.FileSection
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.PuzzleDefinition
-import org.slf4j.LoggerFactory
-import java.io.File
 
 /**
- * Loads Forge `.pzl` puzzles from text, file, or classpath resource.
+ * Loads Forge `.pzl` puzzles from text or a classpath resource.
  *
  * Lightweight: no DB dependency (unlike forge-web's PuzzleLoader which uses Exposed).
  * Parses via Forge's [FileSection.parseSections] and constructs a [Puzzle] object.
  */
 object PuzzleSource {
-    private val log = LoggerFactory.getLogger(PuzzleSource::class.java)
-
     /** Keep raw puzzle identity and content independent of Forge. */
     fun definitionFromText(
         content: String,
@@ -37,19 +33,6 @@ object PuzzleSource {
         name: String = "inline",
     ): Puzzle = load(definitionFromText(content, name))
 
-    /** Create a shared definition from a `.pzl` file on disk. */
-    fun definitionFromFile(path: String): PuzzleDefinition {
-        val file = File(path)
-        require(file.exists()) { "Puzzle file not found: $path" }
-        val content = file.readText()
-        val name = file.nameWithoutExtension
-        log.info("Loaded puzzle definition from file: {} ({} chars)", path, content.length)
-        return definitionFromText(content, name)
-    }
-
-    /** Load a puzzle from a `.pzl` file on disk. */
-    fun loadFromFile(path: String): Puzzle = load(definitionFromFile(path))
-
     /** Create a definition from a classpath resource (normally a test-private fixture). */
     fun definitionFromResource(resourcePath: String): PuzzleDefinition {
         if (resourcePath.startsWith("data/puzzles/")) {
@@ -60,7 +43,6 @@ object PuzzleSource {
                 ?: error("Puzzle resource not found: $resourcePath")
         val content = stream.bufferedReader().use { it.readText() }
         val name = resourcePath.substringAfterLast('/').removeSuffix(".pzl")
-        log.info("Loaded puzzle definition from resource: {} ({} chars)", resourcePath, content.length)
         return definitionFromText(content, name)
     }
 
