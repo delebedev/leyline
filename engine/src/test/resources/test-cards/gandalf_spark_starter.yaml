@@ -1,0 +1,11 @@
+name: "Gandalf, Spark Starter"
+grpId: 103474
+titleId: 1113597
+abilities:
+  - id: 13
+    textId: 143
+    category: 3
+  - id: 205168
+    textId: 1113600
+    category: 2
+expansionCode: "HOB"
