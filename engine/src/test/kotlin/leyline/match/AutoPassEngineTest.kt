@@ -297,8 +297,6 @@ class AutoPassEngineTest :
             priorityPolicy.submit(
                 PrioritySettingsCommand(
                     settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                    humanPlayerId = null,
-                    opponentPlayerId = null,
                 ),
             )
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -334,8 +332,6 @@ class AutoPassEngineTest :
             priorityPolicy.submit(
                 PrioritySettingsCommand(
                     settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                    humanPlayerId = null,
-                    opponentPlayerId = null,
                 ),
             )
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
@@ -412,7 +408,7 @@ class AutoPassEngineTest :
 
         // --- checkHumanActions: decision diagnostics ---
 
-        test("checkHumanActions logs structured session decisions") {
+        test("suppression check does not duplicate the runtime skip diagnostic") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -434,6 +430,7 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
+                bridge.priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction = false) shouldBe true
                 engine.checkHumanActions(game, hasLegalAction = false)
                 appender.list.single().formattedMessage shouldBe
                     "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
@@ -444,7 +441,7 @@ class AutoPassEngineTest :
             }
         }
 
-        test("AI turn skip logs one runtime decision") {
+        test("non-suppressed grant logs one runtime decision") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -466,9 +463,10 @@ class AutoPassEngineTest :
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(game, hasLegalAction = false)
+                bridge.priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction = true) shouldBe false
+                engine.checkHumanActions(game, hasLegalAction = true)
                 appender.list.single().formattedMessage shouldBe
-                    "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
+                    "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Grant(MAIN1,1)"
             } finally {
                 logger.detachAppender(appender)
                 logger.level = previousLevel

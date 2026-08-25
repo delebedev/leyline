@@ -321,8 +321,6 @@ class ModalETBFlowTest :
                                     .build(),
                             )
                         },
-                    humanPlayerId = human.id,
-                    opponentPlayerId = null,
                 ),
             )
             passUntil(maxPasses = 30) {

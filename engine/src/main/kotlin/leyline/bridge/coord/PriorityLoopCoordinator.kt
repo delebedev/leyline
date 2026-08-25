@@ -74,15 +74,6 @@ class PriorityLoopCoordinator(
         }
 
         val isOwnTurn = handler.playerTurn?.id == player.id
-        // Phase stop check only applies on human's own turn. During opponent's turn
-        // the session layer (advanceOrWait) handles opponent-turn stops separately.
-        if (!priorityPolicy.isFullControl() &&
-            isOwnTurn &&
-            !priorityPolicy.isPhaseStopped(player.id, handler.phase)
-        ) {
-            priorityPolicy.recordDecision(game, PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
-            return null
-        }
 
         // Loop so that mana abilities (which don't use the stack) keep priority with the player.
         var forceVisibleAfterMana = false
@@ -91,22 +82,29 @@ class PriorityLoopCoordinator(
             val forceVisible = actionBridge.consumeForceNextWindowVisible()
             val continuation = actionBridge.consumeSynchronizationContinuation()
             val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
-            val mode =
-                priorityPolicy.priorityWindowMode(
-                    fullControl = priorityPolicy.isFullControl(),
-                    forceVisible = forceVisible || forceVisibleAfterMana,
-                    smartPhaseSkip = smartPhaseSkip,
-                    promptJustResolved = promptJustResolved,
-                    stackEmpty = game.stack.isEmpty,
-                    continuation = continuation,
-                    opponentStop = !isOwnTurn && handler.phase?.let(priorityPolicy::hasOpponentStop) == true,
-                    hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+            val decision =
+                priorityPolicy.classifyPriorityWindow(
+                    PriorityWindowObservation(
+                        isOwnTurn = isOwnTurn,
+                        phase = handler.phase,
+                        smartPhaseSkip = smartPhaseSkip,
+                        promptJustResolved = promptJustResolved,
+                        stackEmpty = game.stack.isEmpty,
+                        forceVisible = forceVisible || forceVisibleAfterMana,
+                        continuation = continuation,
+                        hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+                    ),
                 )
             forceVisibleAfterMana = false
-            if (mode == PriorityWindowMode.Skip) {
-                priorityPolicy.recordDecision(game, PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
-                return null
-            }
+            val present =
+                when (decision) {
+                    is PriorityWindowDecision.Present -> decision
+                    is PriorityWindowDecision.Skip -> {
+                        priorityPolicy.recordDecision(game, PriorityDecision.Skip(decision.reason))
+                        return null
+                    }
+                }
+            val mode = present.mode
             owner.notifyStateChanged()
 
             val state =
@@ -120,7 +118,7 @@ class PriorityLoopCoordinator(
                         synchronizationContinuation(
                             mode = mode,
                             stackEmpty = game.stack.isEmpty,
-                            autoResolve = priorityPolicy.shouldAutoPass(),
+                            autoResolve = present.autoResolve,
                         ),
                 )
             val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })
@@ -154,23 +152,6 @@ class PriorityLoopCoordinator(
     }
 
     companion object {
-        internal fun priorityWindowMode(
-            fullControl: Boolean,
-            smartPhaseSkip: Boolean,
-            promptJustResolved: Boolean,
-            stackEmpty: Boolean,
-            opponentStop: Boolean,
-            hasMeaningfulAction: Boolean,
-        ): PriorityWindowMode =
-            PriorityPolicyRuntime().priorityWindowMode(
-                fullControl = fullControl,
-                smartPhaseSkip = smartPhaseSkip,
-                promptJustResolved = promptJustResolved,
-                stackEmpty = stackEmpty,
-                opponentStop = opponentStop,
-                hasMeaningfulAction = hasMeaningfulAction,
-            )
-
         internal fun synchronizationContinuation(
             mode: PriorityWindowMode,
             stackEmpty: Boolean,

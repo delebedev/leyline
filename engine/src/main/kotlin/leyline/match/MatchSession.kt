@@ -4,7 +4,6 @@ import forge.game.player.GameLossReason
 import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.coord.PrioritySettingsCommand
 import leyline.bridge.types.SeatId
-import leyline.bridge.types.opponent
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
@@ -396,13 +395,9 @@ class MatchSession(
             // Merge incoming delta into accumulated clientSettings (client sends only changed fields).
             clientSettings = mergeSettings(clientSettings, incoming)
 
-            val humanPlayerId = gameBridge.getPlayer(seatId)?.id
-            val opponentPlayerId = gameBridge.getPlayer(seatId.opponent)?.id
             gameBridge.priorityPolicy.submit(
                 PrioritySettingsCommand(
                     settings = incoming,
-                    humanPlayerId = humanPlayerId,
-                    opponentPlayerId = opponentPlayerId,
                 ),
             )
 
