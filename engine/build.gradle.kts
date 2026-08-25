@@ -65,6 +65,7 @@ dependencies {
 
 tasks.named<Test>("test") {
     systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag")
+    systemProperty("leyline.content.root", rootProject.projectDir.absolutePath)
 }
 
 // Default fork count scales with the machine: ~1 fork per 4 cores, capped at 4.

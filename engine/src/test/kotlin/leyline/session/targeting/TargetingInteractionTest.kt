@@ -295,7 +295,21 @@ class TargetingInteractionTest :
 
         // ─── Lightning Bolt: player + creature targeting ───────────────────────
 
-        session("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent", puzzleFile = "data/puzzles/bolt-face.pzl") {
+        session(
+            "Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Lightning Bolt
+                humanbattlefield=Mountain
+                humanlibrary=Mountain
+                aibattlefield=Grizzly Bears
+                ailibrary=Mountain
+                """,
+        ) {
             val msgs = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
             val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
             stMsg.shouldNotBeNull()
