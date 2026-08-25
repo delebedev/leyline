@@ -1,9 +1,8 @@
 package leyline.bridge.handoff
 
 import forge.game.card.Card
-import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PriorityDecision
 
 /**
  * Narrow access surface exposed by [PlayerController] to coordinators and helpers.
@@ -22,11 +21,8 @@ import leyline.bridge.types.PriorityDecision
  * decide what belongs here vs. on the class vs. on [InteractivePromptBridge].
  */
 interface OwnerContext {
-    /** Client auto-pass state (full-control flag, phase stops). */
-    val autoPassState: ClientAutoPassState?
-
-    /** Emit a structured priority-decision log entry. */
-    fun recordDecision(decision: PriorityDecision)
+    /** Runtime owner of priority policy and settings state. */
+    val priorityPolicy: PriorityPolicyRuntime
 
     /** Invoke the `onStateChanged` callback so the session layer can ship updated state. */
     fun notifyStateChanged()

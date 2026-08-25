@@ -1,6 +1,5 @@
 package leyline.match
 
-import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.infra.MessageSink
@@ -26,9 +25,6 @@ class ConnectionState(
 
     /** Saved client settings for echoing in SetSettingsResp. */
     var clientSettings: SettingsMessage? = null
-
-    /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
-    val autoPassState = ClientAutoPassState()
 
     /**
      * Serializes all game-logic entry points (Netty I/O threads are concurrent).

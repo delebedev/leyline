@@ -2,8 +2,7 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.types.AutoPassReason
-import leyline.bridge.types.ClientAutoPassState
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.types.PriorityDecision
 import org.slf4j.LoggerFactory
 
@@ -25,7 +24,7 @@ class AutoPassEngine(
     private val optionalActionHandler: OptionalActionHandler,
     private val numericInputHandler: NumericInputHandler,
     private val ctx: SessionContext,
-    private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
+    private val priorityPolicy: PriorityPolicyRuntime = ctx.bridge.priorityPolicy,
 ) {
     private val log = LoggerFactory.getLogger(AutoPassEngine::class.java)
 
@@ -34,18 +33,6 @@ class AutoPassEngine(
 
     companion object {
         private const val MAX_ITERATIONS = 50
-    }
-
-    private fun recordDecision(
-        game: Game,
-        decision: PriorityDecision,
-    ) {
-        log.info(
-            "event=priority_decision source=session phase={} turn={} decision={}",
-            game.phaseHandler.phase?.name,
-            game.phaseHandler.turn,
-            decision,
-        )
     }
 
     /**
@@ -88,6 +75,7 @@ class AutoPassEngine(
                 TargetingHandler.PromptResult.NONE -> {} // continue
             }
 
+            var combatDecision: PriorityDecision? = null
             // Combat phase handling
             when (combatHandler.checkCombatPhase(phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
@@ -112,7 +100,9 @@ class AutoPassEngine(
                             return
                         }
                         val pending = checkNotNull(bridge.seat(counters.seatId).action.getPending())
-                        if (bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)) {
+                        val hasLegalAction = bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)
+                        combatDecision = priorityPolicy.decideHumanActions(game, hasLegalAction)
+                        if (combatDecision is PriorityDecision.Grant) {
                             sink.sendPriorityState(bridge)
                             return
                         }
@@ -145,9 +135,8 @@ class AutoPassEngine(
             if (shouldCheckHumanActions(isAiTurn)) {
                 val pending = checkNotNull(bridge.seat(counters.seatId).action.getPending())
                 val decision =
-                    checkHumanActions(
+                    combatDecision ?: checkHumanActions(
                         game,
-                        isAiTurn,
                         bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId),
                     )
                 if (decision is PriorityDecision.Grant) {
@@ -213,7 +202,7 @@ class AutoPassEngine(
         log.debug("drainPlayback: drained committed coordinator feed")
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
-        // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
+        // past phases the client never saw (for example, a draw phase skipped by policy),
         // causing subsequent diffs to omit new objects (drawn cards) that the client
         // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
         return outcome
@@ -223,13 +212,13 @@ class AutoPassEngine(
         val bridge = ctx.bridge
         val game = ctx.game
         val human = bridge.getPlayer(counters.seatId) ?: return
-        if (game.phaseHandler.playerTurn == human || autoPassState.isFullControl) return
-        val phase = game.phaseHandler.phase
-        if (phase != null && autoPassState.hasOpponentStop(phase)) return
+        if (game.phaseHandler.playerTurn == human) return
         val pending = bridge.seat(counters.seatId).action.getPending() ?: return
         if (pending.state.kind != leyline.bridge.handoff.PendingActionKind.PRIORITY) return
-        if (bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)) return
-        bridge.cutCoordinator.suppressPriorityPresentation(pending.actionId)
+        val hasLegalAction = bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)
+        if (priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction)) {
+            bridge.cutCoordinator.suppressPriorityPresentation(pending.actionId)
+        }
     }
 
     /**
@@ -240,45 +229,8 @@ class AutoPassEngine(
      */
     internal fun checkHumanActions(
         game: Game,
-        isAiTurn: Boolean,
         hasLegalAction: Boolean,
-    ): PriorityDecision {
-        // Full control: always grant priority (never auto-pass on session side)
-        if (autoPassState.isFullControl) {
-            val decision =
-                PriorityDecision.Grant(
-                    phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-                    actionCount = if (hasLegalAction) 1 else 0,
-                )
-            recordDecision(game, decision)
-            return decision
-        }
-
-        // Opponent-turn windows still build actions: legal instants and instant-speed
-        // activations must stop, while pass-only windows keep auto-advancing.
-        // Client autoPassOption active + no stop-worthy actions → skip.
-        if (autoPassState.shouldAutoPass() && !hasLegalAction) {
-            val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
-            if (!isAiTurn) {
-                recordDecision(game, decision)
-            }
-            return decision
-        }
-
-        if (!hasLegalAction) {
-            val decision = PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
-            if (!isAiTurn) recordDecision(game, decision)
-            return decision
-        }
-
-        val decision =
-            PriorityDecision.Grant(
-                phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
-                actionCount = 1,
-            )
-        recordDecision(game, decision)
-        return decision
-    }
+    ): PriorityDecision = priorityPolicy.decideHumanActions(game, hasLegalAction)
 
     /**
      * Submit auto-pass or wait for AI/engine. Returns [LoopSignal.CONTINUE] to
@@ -297,9 +249,9 @@ class AutoPassEngine(
         if (pending != null) {
             // Opponent-turn phase stops: only stop if the client explicitly
             // toggled this phase via SetSettingsReq with Opponents scope.
-            // Engine-internal AI_DEFAULTS in PhaseStopProfile are NOT checked
-            // here — they're for the AI's own combat logic.
-            if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
+            // Engine-internal AI defaults are NOT checked here. They are for the
+            // AI's own combat logic, not the client's opponent-turn stops.
+            if (priorityPolicy.shouldStopForOpponent(isAiTurn, phase)) {
                 sink.sendRealGameState(bridge)
                 return LoopSignal.EXIT // client will respond via onPerformAction
             }

@@ -11,24 +11,19 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import leyline.bridge.forge.PlayerController
+import leyline.bridge.coord.PriorityPolicyRuntime
+import leyline.bridge.coord.PrioritySettingsCommand
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.AutoPassReason
-import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.SeatId
 import leyline.game.GamePlayback
 import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
-import leyline.match.AutoPassEngine
-import leyline.match.CombatHandler
-import leyline.match.NumericInputHandler
-import leyline.match.OptionalActionHandler
-import leyline.match.TargetingHandler
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.aiPlayer
@@ -143,7 +138,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
@@ -173,7 +168,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true, hasLegalAction = true)
+            val decision = engine.checkHumanActions(game, hasLegalAction = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -233,7 +228,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             (decision as PriorityDecision.Skip).reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -242,8 +237,8 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — full control grants priority even with pass-only actions") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
-            val autoPassState = ClientAutoPassState()
-            autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
+            val priorityPolicy = PriorityPolicyRuntime()
+            priorityPolicy.submitAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -256,10 +251,10 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
-                    autoPassState = autoPassState,
+                    priorityPolicy = priorityPolicy,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -270,8 +265,8 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             game.phaseHandler.devModeSet(PhaseType.MAIN1, game.aiPlayer)
             game.phaseHandler.onStackResolved()
-            val autoPassState = ClientAutoPassState()
-            autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
+            val priorityPolicy = PriorityPolicyRuntime()
+            priorityPolicy.submitAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -284,10 +279,10 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
-                    autoPassState = autoPassState,
+                    priorityPolicy = priorityPolicy,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = true, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -298,8 +293,14 @@ class AutoPassEngineTest :
 
         test("checkHumanActions — client autoPass + pass-only → Skip(ClientAutoPass)") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
-            val autoPassState = ClientAutoPassState()
-            autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
+            val priorityPolicy = PriorityPolicyRuntime()
+            priorityPolicy.submit(
+                PrioritySettingsCommand(
+                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
+                    humanPlayerId = null,
+                    opponentPlayerId = null,
+                ),
+            )
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -312,10 +313,10 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
-                    autoPassState = autoPassState,
+                    priorityPolicy = priorityPolicy,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.ClientAutoPass
@@ -329,8 +330,14 @@ class AutoPassEngineTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
-            val autoPassState = ClientAutoPassState()
-            autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
+            val priorityPolicy = PriorityPolicyRuntime()
+            priorityPolicy.submit(
+                PrioritySettingsCommand(
+                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
+                    humanPlayerId = null,
+                    opponentPlayerId = null,
+                ),
+            )
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -343,10 +350,10 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
-                    autoPassState = autoPassState,
+                    priorityPolicy = priorityPolicy,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = true)
+            val decision = engine.checkHumanActions(game, hasLegalAction = true)
 
             assertSoftly {
                 decision.shouldBeInstanceOf<PriorityDecision.Grant>().phase shouldBe "MAIN1"
@@ -371,7 +378,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = false)
+            val decision = engine.checkHumanActions(game, hasLegalAction = false)
 
             decision.shouldBeInstanceOf<PriorityDecision.Skip>().reason shouldBe AutoPassReason.OnlyPassActions
         }
@@ -397,7 +404,7 @@ class AutoPassEngineTest :
                     ctx = ops.ctx,
                 )
 
-            val decision = engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = true)
+            val decision = engine.checkHumanActions(game, hasLegalAction = true)
 
             val grant = decision.shouldBeInstanceOf<PriorityDecision.Grant>()
             grant.phase shouldBe "MAIN1"
@@ -422,14 +429,14 @@ class AutoPassEngineTest :
                 )
 
             val appender = ListAppender<ILoggingEvent>().apply { start() }
-            val logger = LoggerFactory.getLogger(AutoPassEngine::class.java) as Logger
+            val logger = LoggerFactory.getLogger(PriorityPolicyRuntime::class.java) as Logger
             val previousLevel = logger.level
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(game, isAiTurn = false, hasLegalAction = false)
+                engine.checkHumanActions(game, hasLegalAction = false)
                 appender.list.single().formattedMessage shouldBe
-                    "event=priority_decision source=session phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
+                    "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
             } finally {
                 logger.detachAppender(appender)
                 logger.level = previousLevel
@@ -437,7 +444,7 @@ class AutoPassEngineTest :
             }
         }
 
-        test("AI turn skip does not log a session decision") {
+        test("AI turn skip logs one runtime decision") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
@@ -454,13 +461,14 @@ class AutoPassEngineTest :
                 )
 
             val appender = ListAppender<ILoggingEvent>().apply { start() }
-            val logger = LoggerFactory.getLogger(AutoPassEngine::class.java) as Logger
+            val logger = LoggerFactory.getLogger(PriorityPolicyRuntime::class.java) as Logger
             val previousLevel = logger.level
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                engine.checkHumanActions(game, isAiTurn = true, hasLegalAction = false)
-                appender.list.size shouldBe 0
+                engine.checkHumanActions(game, hasLegalAction = false)
+                appender.list.single().formattedMessage shouldBe
+                    "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Skip(OnlyPassActions)"
             } finally {
                 logger.detachAppender(appender)
                 logger.level = previousLevel
@@ -468,17 +476,17 @@ class AutoPassEngineTest :
             }
         }
 
-        test("PlayerController logs structured engine decisions") {
-            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+        test("runtime logs structured priority decisions") {
+            val (bridge, game, _) = startWithBoard { _, _, _ -> }
             val appender = ListAppender<ILoggingEvent>().apply { start() }
-            val logger = LoggerFactory.getLogger(PlayerController::class.java) as Logger
+            val logger = LoggerFactory.getLogger(PriorityPolicyRuntime::class.java) as Logger
             val previousLevel = logger.level
             logger.level = Level.INFO
             logger.addAppender(appender)
             try {
-                bridge.humanController!!.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
+                bridge.priorityPolicy.recordDecision(game, PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
                 appender.list.single().formattedMessage shouldBe
-                    "event=priority_decision source=engine phase=MAIN1 turn=1 decision=Skip(SmartPhaseSkip)"
+                    "event=priority_decision source=runtime phase=MAIN1 turn=1 decision=Skip(SmartPhaseSkip)"
             } finally {
                 logger.detachAppender(appender)
                 logger.level = previousLevel
@@ -545,8 +553,8 @@ class AutoPassEngineTest :
         test("autoPassAndAdvance — full control grants priority on empty board") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val pending = openPriorityWindow(bridge)
-            val autoPassState = ClientAutoPassState()
-            autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
+            val priorityPolicy = PriorityPolicyRuntime()
+            priorityPolicy.submitAutoPassPriority(AutoPassPriority.No_a099)
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -559,7 +567,7 @@ class AutoPassEngineTest :
                     optionalActionHandler = OptionalActionHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     numericInputHandler = NumericInputHandler(sink = ops, counters = ops, ctx = ops.ctx),
                     ctx = ops.ctx,
-                    autoPassState = autoPassState,
+                    priorityPolicy = priorityPolicy,
                 )
 
             engine.autoPassAndAdvance()

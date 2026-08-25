@@ -8,12 +8,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks which phases a player should stop at for priority.
  * Reset on new game/puzzle load; no persistence in v1.
  *
- * Used by engine-side [leyline.bridge.forge.PlayerController] for own-turn phase gating.
- * Separate from [ClientAutoPassState.opponentStops] which drives session-layer
- * opponent-turn stops — see that class for why the split exists.
+ * Used by [leyline.bridge.coord.PriorityPolicyRuntime] for own-turn phase gating.
+ * Separate from [ClientAutoPassState.opponentStops] which represents explicit
+ * opponent-turn stops submitted by the client.
  *
- * Thread safety: mutations happen on the session thread under `sessionLock`.
- * Engine thread reads via [isEnabled] — callers must ensure happens-before.
+ * Thread safety: the policy runtime serializes mutations and engine reads this
+ * value through its decision methods.
  */
 class PhaseStopProfile private constructor(
     private val stops: MutableMap<Int, MutableSet<PhaseType>>,

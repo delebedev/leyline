@@ -12,11 +12,11 @@ import leyline.testkit.stop
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Integration tests for client SetSettingsReq → PhaseStopProfile wiring.
+ * Integration tests for client SetSettingsReq → runtime-owned phase-stop wiring.
  *
  * Verifies that toggling stops in the client settings message updates the
- * [PhaseStopProfile] on [GameBridge], which in turn controls where the
- * engine stops during the auto-pass loop.
+ * priority runtime, which in turn controls where the engine stops during the
+ * auto-pass loop.
  */
 class ClientSettingsTest :
     SessionTest({
@@ -45,19 +45,19 @@ class ClientSettingsTest :
                 .setStatus(status)
                 .build()
 
-        session("enabling Upkeep stop via Team scope updates the profile") {
-            val profile = bridge.phaseStopProfile!!
+        session("enabling Upkeep stop via Team scope updates the runtime") {
+            val policy = bridge.priorityPolicy
             val humanId = human.id
 
             // Default: Upkeep is NOT enabled for human
-            profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeFalse()
+            policy.isPhaseStopped(humanId, PhaseType.UPKEEP).shouldBeFalse()
 
             // Send settings with Upkeep = Set for Team scope
             sendSettings(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set))
 
             assertSoftly {
-                profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
+                policy.isPhaseStopped(humanId, PhaseType.UPKEEP).shouldBeTrue()
+                policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
                         PhaseType.UPKEEP,
                         PhaseType.MAIN1,
@@ -68,19 +68,19 @@ class ClientSettingsTest :
             }
         }
 
-        session("disabling Main1 stop via Team scope updates the profile") {
-            val profile = bridge.phaseStopProfile!!
+        session("disabling Main1 stop via Team scope updates the runtime") {
+            val policy = bridge.priorityPolicy
             val humanId = human.id
 
             // Default: Main1 IS enabled for human
-            profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
+            policy.isPhaseStopped(humanId, PhaseType.MAIN1).shouldBeTrue()
 
             // Send settings with PrecombatMainPhase = Clear for Team scope
             sendSettings(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe))
 
             assertSoftly {
-                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeFalse()
-                profile.getEnabled(humanId) shouldBe
+                policy.isPhaseStopped(humanId, PhaseType.MAIN1).shouldBeFalse()
+                policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
                         PhaseType.COMBAT_DECLARE_ATTACKERS,
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
@@ -90,7 +90,7 @@ class ClientSettingsTest :
         }
 
         session("multiple stops can be toggled in a single settings message") {
-            val profile = bridge.phaseStopProfile!!
+            val policy = bridge.priorityPolicy
             val humanId = human.id
 
             // Enable Draw, disable Main2
@@ -100,10 +100,10 @@ class ClientSettingsTest :
             )
 
             assertSoftly {
-                profile.isEnabled(humanId, PhaseType.DRAW).shouldBeTrue()
-                profile.isEnabled(humanId, PhaseType.MAIN2).shouldBeFalse()
-                profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
+                policy.isPhaseStopped(humanId, PhaseType.DRAW).shouldBeTrue()
+                policy.isPhaseStopped(humanId, PhaseType.MAIN2).shouldBeFalse()
+                policy.isPhaseStopped(humanId, PhaseType.MAIN1).shouldBeTrue()
+                policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
                         PhaseType.DRAW,
                         PhaseType.MAIN1,
@@ -114,29 +114,29 @@ class ClientSettingsTest :
         }
 
         session("opponents scope does not affect human") {
-            val profile = bridge.phaseStopProfile!!
+            val policy = bridge.priorityPolicy
             val humanId = human.id
 
-            val before = profile.getEnabled(humanId)
+            val before = policy.enabledPhaseStops(humanId)
 
             // Send Opponents-only stop change
             sendSettings(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set))
 
-            val after = profile.getEnabled(humanId)
+            val after = policy.enabledPhaseStops(humanId)
             after shouldBe before
         }
 
         session("AnyPlayer scope applies to human") {
-            val profile = bridge.phaseStopProfile!!
+            val policy = bridge.priorityPolicy
             val humanId = human.id
 
-            profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeFalse()
+            policy.isPhaseStopped(humanId, PhaseType.END_OF_TURN).shouldBeFalse()
 
             sendSettings(stop(StopType.EndStep_ad1f, SettingScope.AnyPlayer, SettingStatus.Set))
 
             assertSoftly {
-                profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeTrue()
-                profile.getEnabled(humanId) shouldBe
+                policy.isPhaseStopped(humanId, PhaseType.END_OF_TURN).shouldBeTrue()
+                policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
                         PhaseType.MAIN1,
                         PhaseType.COMBAT_DECLARE_ATTACKERS,

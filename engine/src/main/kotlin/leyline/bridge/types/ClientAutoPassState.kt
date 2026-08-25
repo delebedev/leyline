@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Tracks client auto-pass settings from [SettingsMessage] and [PerformActionResp].
  *
- * Updated on each `SetSettingsReq` and `PerformActionResp`. Accessed from session
- * thread (MatchSession) and read from AutoPassEngine on the same thread.
+ * Updated by [leyline.bridge.coord.PriorityPolicyRuntime] from immutable
+ * settings/priority commands. Readers consume decisions through that runtime.
  *
  * **Why separate from [PhaseStopProfile]?** AI_DEFAULTS in PhaseStopProfile exist so
  * the Forge engine's combat system works. If `advanceOrWait` checked the profile

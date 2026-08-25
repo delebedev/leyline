@@ -2,8 +2,7 @@ package leyline.match
 
 import forge.game.player.GameLossReason
 import leyline.bridge.coord.GameOverIntent
-import leyline.bridge.types.ClientAutoPassState
-import leyline.bridge.types.PhaseStopProfile
+import leyline.bridge.coord.PrioritySettingsCommand
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.domain.service.MatchCoordinator
@@ -12,7 +11,6 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.bundle.markIfPrompt
-import leyline.game.mapping.StopTypeMapping
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -71,8 +69,6 @@ class MatchSession(
             connection.clientSettings = value
         }
 
-    val autoPassState: ClientAutoPassState get() = connection.autoPassState
-
     private val sessionLock get() = connection.sessionLock
     private val autoAdvanceExecutor =
         Executors.newSingleThreadExecutor { r ->
@@ -104,10 +100,6 @@ class MatchSession(
     val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "MatchSession requires non-null game" }, gameBridge)
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
-
-    init {
-        gameBridge.humanController?.setAutoPassState(autoPassState)
-    }
 
     /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
     val combatHandler =
@@ -150,7 +142,7 @@ class MatchSession(
             optionalActionHandler = optionalActionHandler,
             numericInputHandler = numericInputHandler,
             ctx = ctx,
-            autoPassState = autoPassState,
+            priorityPolicy = gameBridge.priorityPolicy,
         )
     val actionPerformer =
         ActionPerformer(
@@ -159,7 +151,7 @@ class MatchSession(
             matchRecorder = recorder,
             targetingHandler = targetingHandler,
             autoPassEngine = autoPassEngine,
-            autoPassState = autoPassState,
+            priorityPolicy = gameBridge.priorityPolicy,
             ctx = ctx,
         )
 
@@ -212,7 +204,7 @@ class MatchSession(
     /**
      * Replace this session with a fresh one bound to a hot-swapped puzzle game.
      *
-     * The connection (sink, identity, settings, autoPassState, sessionLock) and
+     * The connection (sink, identity, settings, sessionLock) and
      * the bridge instance survive — only the `Game` inside the bridge changes,
      * and a new MatchSession is built with handlers ctx-bound to the new game.
      *
@@ -390,7 +382,7 @@ class MatchSession(
             sendGameOver(ResultReason.Concede)
         }
 
-    /** Handle SetSettingsReq: merge settings, apply stops to PhaseStopProfile, echo response. */
+    /** Handle SetSettingsReq: submit immutable policy input, then echo the response. */
     override fun onSettings(greMsg: ClientToGREMessage) =
         synchronized(sessionLock) {
             val reqSettings = greMsg.setSettingsReq
@@ -404,16 +396,14 @@ class MatchSession(
             // Merge incoming delta into accumulated clientSettings (client sends only changed fields).
             clientSettings = mergeSettings(clientSettings, incoming)
 
-            // Apply stop changes to the live PhaseStopProfile so the engine
-            // respects client's phase ladder toggles — both Team and Opponents scopes.
-            applyStopsToProfile(incoming)
-
-            // Track autoPassOption / stackAutoPassOption for priority decisions.
-            autoPassState.update(incoming)
-            log.debug(
-                "MatchSession: autoPassOption={} stackAutoPassOption={}",
-                autoPassState.autoPassOption,
-                autoPassState.stackAutoPassOption,
+            val humanPlayerId = gameBridge.getPlayer(seatId)?.id
+            val opponentPlayerId = gameBridge.getPlayer(seatId.opponent)?.id
+            gameBridge.priorityPolicy.submit(
+                PrioritySettingsCommand(
+                    settings = incoming,
+                    humanPlayerId = humanPlayerId,
+                    opponentPlayerId = opponentPlayerId,
+                ),
             )
 
             val (msg, nextMsgId) =
@@ -427,76 +417,6 @@ class MatchSession(
             ProtoDump.dump(msg, "SettingsResp")
             sink.sendRaw(msg)
         }
-
-    /**
-     * Map client [SettingsMessage] stops + transientStops to [PhaseStopProfile] updates.
-     *
-     * Team scope → human player's own-turn stops.
-     * Opponents scope → AI player's turn stops (seat math: if human=1, AI=2).
-     *
-     * TransientStops have the same [Stop] shape; v1 treats them as persistent
-     * (no one-shot consume yet).
-     */
-    private fun applyStopsToProfile(settings: SettingsMessage) {
-        val bridge = gameBridge
-        val profile = bridge.phaseStopProfile ?: return
-        val humanPlayer = bridge.getPlayer(seatId) ?: return
-        val aiSeatId = seatId.opponent
-        val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
-
-        // Honor clear-all flags even when no explicit stops present
-        if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
-            profile.clearAll(humanPlayer.id)
-            profile.clearAll(aiPlayer.id)
-            autoPassState.clearOpponentStops()
-            log.debug("MatchSession: clearAll — clearAllStops={} clearAllYields={}", settings.clearAllStops, settings.clearAllYields)
-        }
-
-        // Combine stops + transientStops (same proto shape)
-        val allStops = settings.stopsList + settings.transientStopsList
-        if (allStops.isEmpty()) return
-
-        // Apply per-scope
-        applyStopsForPlayer(allStops, SettingScope.Team_ac6e, humanPlayer.id, profile)
-        applyStopsForPlayer(allStops, SettingScope.Opponents, aiPlayer.id, profile)
-
-        // Mirror Opponents-scope stops into ClientAutoPassState for session-layer
-        // opponent-turn check (separate from engine-internal AI_DEFAULTS).
-        val opponentEnabled = StopTypeMapping.parseStops(allStops, SettingScope.Opponents)
-        val opponentDisabled =
-            allStops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-        for (phase in opponentEnabled) autoPassState.setOpponentStop(phase, true)
-        for (phase in opponentDisabled) autoPassState.setOpponentStop(phase, false)
-
-        log.debug(
-            "MatchSession: applied stops — human={} ai={}",
-            profile.getEnabled(humanPlayer.id).map { it.name },
-            profile.getEnabled(aiPlayer.id).map { it.name },
-        )
-    }
-
-    /** Apply Set/Clear stops matching [scope] to the given player in [profile]. */
-    private fun applyStopsForPlayer(
-        stops: List<Stop>,
-        scope: SettingScope,
-        playerId: Int,
-        profile: PhaseStopProfile,
-    ) {
-        val enabled = StopTypeMapping.parseStops(stops, scope)
-        val disabled =
-            stops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-
-        for (phase in enabled) profile.setEnabled(playerId, phase, true)
-        for (phase in disabled) profile.setEnabled(playerId, phase, false)
-    }
 
     /**
      * Merge incoming settings delta into accumulated settings.
