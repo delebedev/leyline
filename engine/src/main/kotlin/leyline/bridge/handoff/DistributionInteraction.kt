@@ -25,8 +25,10 @@ data class DistributionWindowValue(
 ) {
     init {
         require(targets.size >= 2) { "Distribution requires at least two targets" }
-        require(amount > targets.size) { "Distribution amount must exceed target count" }
         require(minPerTarget >= 1) { "Distribution requires a positive minimum" }
+        require(amount.toLong() > minPerTarget.toLong() * targets.size) {
+            "Distribution amount must exceed the minimum for every target"
+        }
         require(targets.distinct().size == targets.size) { "Distribution targets must be distinct" }
     }
 
@@ -50,7 +52,6 @@ class DistributionInteractionTimeoutException : RuntimeException("Distribution i
 
 interface DistributionInteractionRuntime {
     fun awaitDistribution(
-        request: PromptRequest,
         window: DistributionWindowValue,
         timeoutMs: Long?,
     ): DistributionInteractionResult

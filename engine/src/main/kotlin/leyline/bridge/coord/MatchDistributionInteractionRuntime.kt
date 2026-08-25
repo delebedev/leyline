@@ -5,7 +5,6 @@ import leyline.bridge.handoff.DistributionInteractionRuntime
 import leyline.bridge.handoff.DistributionInteractionTimeoutException
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
-import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedDistributionInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
@@ -50,7 +49,6 @@ internal class MatchDistributionInteractionRuntime(
     internal var beforeTimeoutClaim: (() -> Unit)? = null
 
     override fun awaitDistribution(
-        request: PromptRequest,
         window: DistributionWindowValue,
         timeoutMs: Long?,
     ): DistributionInteractionResult = await(publish(window), timeoutMs)

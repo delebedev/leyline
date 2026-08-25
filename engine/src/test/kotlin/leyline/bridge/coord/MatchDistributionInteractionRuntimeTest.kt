@@ -10,12 +10,7 @@ import leyline.bridge.handoff.DistributionInteractionResult
 import leyline.bridge.handoff.DistributionRouteKind
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
-import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.PromptSemantic
-import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PromptCandidateKind
-import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.Board
@@ -63,21 +58,6 @@ class MatchDistributionInteractionRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val request =
-                PromptRequest(
-                    promptType = "distribution",
-                    message = "Deal damage",
-                    options = options.map { it.name },
-                    min = options.size,
-                    max = options.size,
-                    defaultIndex = 0,
-                    candidateRefs =
-                        options.mapIndexed { index, card ->
-                            PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Hand.name)
-                        },
-                    route = ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationDamage, DistributionRouteKind.Damage),
-                    sourceEntityId = source.id,
-                )
             val window =
                 DistributionWindowValue(
                     kind = DistributionRouteKind.Damage,
@@ -91,7 +71,7 @@ class MatchDistributionInteractionRuntimeTest :
             val result = AtomicReference<DistributionInteractionResult>()
             val finished = CountDownLatch(1)
             Thread {
-                result.set(coordinator.distribution.awaitDistribution(request, window, 3_000))
+                result.set(coordinator.distribution.awaitDistribution(window, 3_000))
                 finished.countDown()
             }.start()
 
@@ -135,17 +115,6 @@ class MatchDistributionInteractionRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val request =
-                PromptRequest(
-                    promptType = "distribution",
-                    message = "Put counters",
-                    options = options.map { it.name },
-                    min = options.size,
-                    max = options.size,
-                    defaultIndex = 0,
-                    route = ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationCounters, DistributionRouteKind.Counters),
-                    sourceEntityId = source.id,
-                )
             val window =
                 DistributionWindowValue(
                     kind = DistributionRouteKind.Counters,
@@ -156,7 +125,7 @@ class MatchDistributionInteractionRuntimeTest :
                     sourceForgeAbilityId = 7,
                     sourceIsSpell = true,
                 )
-            Thread { coordinator.distribution.awaitDistribution(request, window, 3_000) }.start()
+            Thread { coordinator.distribution.awaitDistribution(window, 3_000) }.start()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             var published = coordinator.distribution.current()
             while (published == null && System.nanoTime() < deadline) {
@@ -191,17 +160,6 @@ class MatchDistributionInteractionRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val request =
-                PromptRequest(
-                    promptType = "distribution",
-                    message = "Deal damage",
-                    options = options.map { it.name },
-                    min = options.size,
-                    max = options.size,
-                    defaultIndex = 0,
-                    route = ResolvedPromptRoute.Distribution(PromptSemantic.DividedAllocationDamage, DistributionRouteKind.Damage),
-                    sourceEntityId = source.id,
-                )
             val window =
                 DistributionWindowValue(
                     kind = DistributionRouteKind.Damage,
@@ -212,7 +170,7 @@ class MatchDistributionInteractionRuntimeTest :
                     sourceForgeAbilityId = 7,
                     sourceIsSpell = true,
                 )
-            Thread { coordinator.distribution.awaitDistribution(request, window, 3_000) }.start()
+            Thread { coordinator.distribution.awaitDistribution(window, 3_000) }.start()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             var published = coordinator.distribution.current()
             while (published == null && System.nanoTime() < deadline) {
@@ -266,20 +224,6 @@ class MatchDistributionInteractionRuntimeTest :
             Thread {
                 result.set(
                     coordinator.distribution.awaitDistribution(
-                        PromptRequest(
-                            promptType = "distribution",
-                            message = "Deal damage",
-                            options = listOf(option.name, "Player"),
-                            min = 2,
-                            max = 2,
-                            defaultIndex = 0,
-                            route =
-                                ResolvedPromptRoute.Distribution(
-                                    PromptSemantic.DividedAllocationDamage,
-                                    DistributionRouteKind.Damage,
-                                ),
-                            sourceEntityId = source.id,
-                        ),
                         window,
                         3_000,
                     ),
@@ -314,31 +258,48 @@ class MatchDistributionInteractionRuntimeTest :
         }
 
         test("distribution window rejects fewer than two targets or a fully constrained total") {
-            shouldThrow<IllegalArgumentException> {
-                DistributionWindowValue(
-                    kind = DistributionRouteKind.Damage,
-                    targets = listOf(DistributionTargetRef.Card(ForgeCardId(10))),
-                    amount = 3,
-                    minPerTarget = 1,
-                    sourceForgeCardId = 20,
-                    sourceForgeAbilityId = 30,
-                    sourceIsSpell = true,
-                )
-            }
-            shouldThrow<IllegalArgumentException> {
-                DistributionWindowValue(
-                    kind = DistributionRouteKind.Counters,
-                    targets =
-                        listOf(
-                            DistributionTargetRef.Card(ForgeCardId(10)),
-                            DistributionTargetRef.Card(ForgeCardId(11)),
-                        ),
-                    amount = 2,
-                    minPerTarget = 1,
-                    sourceForgeCardId = 20,
-                    sourceForgeAbilityId = 30,
-                    sourceIsSpell = true,
-                )
+            assertSoftly {
+                shouldThrow<IllegalArgumentException> {
+                    DistributionWindowValue(
+                        kind = DistributionRouteKind.Damage,
+                        targets = listOf(DistributionTargetRef.Card(ForgeCardId(10))),
+                        amount = 3,
+                        minPerTarget = 1,
+                        sourceForgeCardId = 20,
+                        sourceForgeAbilityId = 30,
+                        sourceIsSpell = true,
+                    )
+                }
+                shouldThrow<IllegalArgumentException> {
+                    DistributionWindowValue(
+                        kind = DistributionRouteKind.Counters,
+                        targets =
+                            listOf(
+                                DistributionTargetRef.Card(ForgeCardId(10)),
+                                DistributionTargetRef.Card(ForgeCardId(11)),
+                            ),
+                        amount = 2,
+                        minPerTarget = 1,
+                        sourceForgeCardId = 20,
+                        sourceForgeAbilityId = 30,
+                        sourceIsSpell = true,
+                    )
+                }
+                shouldThrow<IllegalArgumentException> {
+                    DistributionWindowValue(
+                        kind = DistributionRouteKind.Damage,
+                        targets =
+                            listOf(
+                                DistributionTargetRef.Card(ForgeCardId(10)),
+                                DistributionTargetRef.Card(ForgeCardId(11)),
+                            ),
+                        amount = 4,
+                        minPerTarget = 2,
+                        sourceForgeCardId = 20,
+                        sourceForgeAbilityId = 30,
+                        sourceIsSpell = true,
+                    )
+                }
             }
         }
     })

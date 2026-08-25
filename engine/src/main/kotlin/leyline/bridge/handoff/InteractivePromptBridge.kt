@@ -450,7 +450,7 @@ class InteractivePromptBridge(
         val runtime = checkNotNull(runtimeBindings.distribution) { "Distribution runtime is not registered" }
         val startMs = System.currentTimeMillis()
         return try {
-            val result = runtime.awaitDistribution(request, window, timeoutMs)
+            val result = runtime.awaitDistribution(window, timeoutMs)
             record(
                 request,
                 if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
