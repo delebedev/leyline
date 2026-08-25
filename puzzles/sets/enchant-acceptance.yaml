@@ -1,0 +1,36 @@
+name: enchant-acceptance
+description: Headless acceptance for generic Aura Enchant targeting, attachment, and cleanup.
+scenarios:
+  - id: pacifism-attachment-cleanup
+    puzzle: enchant-pacifism-lifecycle
+    run: cast Pacifism on Grizzly Bears, then Bolt the enchanted creature
+    expect: Pacifism attaches to Grizzly Bears and both cards reach the graveyard after the creature leaves
+    steps:
+      - expect:
+          action: { type: cast, card: Pacifism }
+      - cast: Pacifism
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: PlayerSelectingTargets
+            - annotation_seen: PlayerSubmittedTargets
+            - annotation_seen: TargetSpec
+            - annotation_seen: AttachmentCreated
+            - annotation_seen: Attachment
+            - zone_contains: { side: ours, zone: battlefield, card: Pacifism }
+            - zone_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Pacifism }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Pacifism }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - persistent_annotation_absent: Attachment
+            - stack_empty: true

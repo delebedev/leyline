@@ -13,11 +13,13 @@ import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
@@ -624,6 +626,15 @@ private class ScenarioRun(
             is AnnotationSeenInPhaseCondition ->
                 ConditionResult(annotationSeenInPhase(condition.type, condition.phase), "annotations=${annotationTypesByPhase()}")
 
+            is PersistentAnnotationAbsentCondition -> {
+                val expected = AnnotationType.valueOf(condition.type)
+                val active = activePersistentAnnotations()
+                ConditionResult(
+                    active.none { expected in it.typeList },
+                    "persistent=${active.flatMap { it.typeList }.distinct()}",
+                )
+            }
+
             StackEmptyCondition ->
                 ConditionResult(
                     harness.game().stackZone.size() == 0,
@@ -687,6 +698,27 @@ private class ScenarioRun(
                             } == true
                     }
             }
+    }
+
+    private fun activePersistentAnnotations(): List<AnnotationInfo> {
+        val active = linkedMapOf<Int, AnnotationInfo>()
+        harness.allMessages
+            .filter { it.hasGameStateMessage() }
+            .forEach { message ->
+                val gsm = message.gameStateMessage
+                when (gsm.type) {
+                    GameStateType.Full -> {
+                        active.clear()
+                        gsm.persistentAnnotationsList.forEach { active[it.id] = it }
+                    }
+                    GameStateType.Diff -> {
+                        gsm.diffDeletedPersistentAnnotationIdsList.forEach(active::remove)
+                        gsm.persistentAnnotationsList.forEach { active[it.id] = it }
+                    }
+                    else -> Unit
+                }
+            }
+        return active.values.toList()
     }
 
     private fun annotationSeenInPhase(

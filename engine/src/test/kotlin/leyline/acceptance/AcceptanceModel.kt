@@ -281,6 +281,12 @@ data class AnnotationSeenCondition(
     override val label: String = "annotation $type${if (details.isEmpty()) "" else " $details"} seen"
 }
 
+data class PersistentAnnotationAbsentCondition(
+    val type: String,
+) : AcceptanceCondition {
+    override val label: String = "persistent annotation $type absent"
+}
+
 data class AnnotationSeenInPhaseCondition(
     val type: String,
     val phase: String,

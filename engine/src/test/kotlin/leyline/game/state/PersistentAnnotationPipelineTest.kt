@@ -161,6 +161,64 @@ class PersistentAnnotationPipelineTest :
             result.deletedIds shouldBe listOf(3)
         }
 
+        test("computeBatchRemovesAttachmentAfterAuraZoneTransferRealloc") {
+            val attachment =
+                AnnotationBuilder
+                    .attachment(auraIid = 111.iid, targetIid = 108.iid)
+                    .toBuilder()
+                    .setId(3)
+                    .build()
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(3 to attachment),
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = emptyList(),
+                            detachedForgeCardIds = listOf(ForgeCardId(1)),
+                        ),
+                    // The detach event observes the post-transfer id 125.
+                    resolveInstanceId = { InstanceId(125) },
+                    // The attachment row still names the pre-transfer id 111.
+                    resolveForgeCardId = { iid -> if (iid.value == 111) ForgeCardId(1) else null },
+                )
+
+            result.allAnnotations.shouldBeEmpty()
+            result.deletedIds shouldBe listOf(3)
+        }
+
+        test("computeBatchKeepsAttachmentForDifferentDetachedAura") {
+            val attachment =
+                AnnotationBuilder
+                    .attachment(auraIid = 111.iid, targetIid = 108.iid)
+                    .toBuilder()
+                    .setId(3)
+                    .build()
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(3 to attachment),
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = emptyList(),
+                            detachedForgeCardIds = listOf(ForgeCardId(2)),
+                        ),
+                    resolveInstanceId = { InstanceId(125) },
+                    resolveForgeCardId = { iid -> if (iid.value == 111) ForgeCardId(1) else null },
+                )
+
+            result.allAnnotations shouldBe listOf(attachment)
+            result.deletedIds.shouldBeEmpty()
+        }
+
         test("computeBatchRemovesStackEnteredZoneThisTurnOnResolve") {
             val stackAnn =
                 AnnotationBuilder

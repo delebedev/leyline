@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Cast Pacifism, attach it to an opposing creature, then remove that creature so the Aura is cleaned up.
+# Forcing: Four untapped lands pay for Pacifism and Lightning Bolt; one opposing Grizzly Bears is the only legal Aura target and removal target.
+# AI behavior: The opponent has no hand and one creature, so the scripted human line has no opponent decisions before the assertions.
+# Failure modes:
+#   WIN   = Pacifism resolves attached, then both the creature and illegal Aura reach their owner's graveyards.
+#   LOSE  = target selection, Aura attachment, Bolt removal, or state-based cleanup is missing.
+#   TIMEOUT = a cast, target prompt, resolution, or cleanup horizon does not complete.
+# Card roles:
+#   Pacifism — representative Enchant Aura; its static effect makes the attachment meaningful.
+#   Lightning Bolt — deterministic post-attachment creature removal.
+#   Grizzly Bears — one legal opposing creature target and removal target.
+#   Plains/Mountain — deterministic mana for both spells.
+# Protocol path: Cast, SelectTargetsReq, PlayerSelectingTargets, PlayerSubmittedTargets, TargetSpec, ResolutionStart/Complete, AttachmentCreated, persistent Attachment, ZoneTransfer, and Aura SBA cleanup.
+
+[metadata]
+Name:Enchant Pacifism Lifecycle
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Cast Pacifism on Grizzly Bears, then Bolt the enchanted creature and verify Aura state-based cleanup.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains;Mountain;Mountain
+humanhand=Pacifism|Set:ANB;Lightning Bolt
+humanlibrary=Plains
+aibattlefield=Grizzly Bears
+ailibrary=Forest
