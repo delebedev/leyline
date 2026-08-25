@@ -15,7 +15,7 @@ Puzzle-backed deterministic acceptance tests for `MatchFlowHarness`.
 
 ## Current durable patterns
 
-- One gameplay intent per step: `cast`, `activate`, `choose`, `target`, `block`, `attack`, `attack_all`, `turn_face_up`, `optional_action`.
+- One gameplay intent per step: `cast`, `activate`, `choose`, `target`, `targets`, `distribute`, `block`, `attack`, `attack_all`, `turn_face_up`, `optional_action`.
 - Cast/activate execution should consume the live `ActionsAvailableReq` row, not re-derive from zone state. Disturb proved that zone-name lookup is the wrong abstraction.
 - Keep prompt responses separate from the initiating action. `cast` does not implicitly target; `choose` does not implicitly resolve.
 - Use `expect: annotation_seen` for transient effects that should not require lasting board state, such as token creation or counter placement during resolution.

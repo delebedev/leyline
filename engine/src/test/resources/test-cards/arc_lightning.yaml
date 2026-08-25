@@ -1,0 +1,8 @@
+name: "Arc Lightning"
+grpId: 58131
+titleId: 0
+abilities:
+  - id: 95066
+    textId: 0
+    category: 4
+expansionCode: "KTK"

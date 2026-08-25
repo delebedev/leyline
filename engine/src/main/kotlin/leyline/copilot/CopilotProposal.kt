@@ -45,6 +45,8 @@ data class CopilotProposal(
     val manaTypes: List<ManaTypeChoice> = emptyList(),
     /** Chosen numeric value for `numeric`. */
     val numericValue: Int? = null,
+    /** Fixed-total per-target amounts for `distribution`. */
+    val distribution: List<DistributionAmount> = emptyList(),
     /** Accept (true) or decline (false) for `optional_action`. */
     val accept: Boolean? = null,
     /** Casting-time-option id for `optional_cost`. */
@@ -79,4 +81,10 @@ data class BlockAssignment(
 data class ManaTypeChoice(
     val ctoId: Int,
     val color: String,
+)
+
+@Serializable
+data class DistributionAmount(
+    val instanceId: Int,
+    val amount: Int,
 )

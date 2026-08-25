@@ -242,6 +242,7 @@ class PlayerController(
     private var activeSpellSourceId: Int? = null
     private var activeSourceIsSpell: Boolean = false
     private var activeStackTargetingAbility: SpellAbility? = null
+    private var activeDividedAllocationAbility: SpellAbility? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -271,7 +272,19 @@ class PlayerController(
                 currentStackTargetPromptId = {
                     activeStackTargetingAbility?.let(targetingCoordinator::effectiveTargetPromptId)
                 },
+                playerSeatOf = { target ->
+                    if (target.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                },
+                playerViewSeatOf = { target ->
+                    game.players
+                        .firstOrNull { it.id == target.id }
+                        ?.let {
+                            if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                        }
+                },
                 stackTargetCandidate = ::stackTargetCandidate,
+                currentDividedAllocationAbility = { activeDividedAllocationAbility },
+                beforeDividedAllocation = targetingCoordinator::recordCompletedTargetSpec,
             ),
         )
     }
@@ -926,13 +939,20 @@ class PlayerController(
         activeStackTargetingAbility =
             currentAbility
                 .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val previousDividedAllocationAbility = activeDividedAllocationAbility
+        activeDividedAllocationAbility = currentAbility
         val chosen =
             try {
                 super.chooseTargetsFor(currentAbility)
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
+                activeDividedAllocationAbility = previousDividedAllocationAbility
             }
-        if (chosen) targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        if (chosen) {
+            targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        } else {
+            targetingCoordinator.discardCompletedTargetSpec(currentAbility)
+        }
         return chosen
     }
 
@@ -986,15 +1006,21 @@ class PlayerController(
         activeStackTargetingAbility =
             ability
                 .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val previousDividedAllocationAbility = activeDividedAllocationAbility
+        activeDividedAllocationAbility = ability
         val selected =
             try {
                 super.chooseNewTargetsFor(ability, filter, optional)
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
+                activeDividedAllocationAbility = previousDividedAllocationAbility
             }
         if (selected != null) {
             val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
             targetingCoordinator.recordCompletedTargetSpec(targetAbility)
+        } else {
+            val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
+            targetingCoordinator.discardCompletedTargetSpec(targetAbility)
         }
         return selected
     }

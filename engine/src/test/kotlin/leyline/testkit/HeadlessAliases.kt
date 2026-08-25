@@ -87,6 +87,8 @@ fun selectNResp(ids: List<Int>): ClientToGREMessage = leyline.tooling.headless.s
 
 fun orderResp(ids: List<Int>): ClientToGREMessage = leyline.tooling.headless.orderResp(ids)
 
+fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage = leyline.tooling.headless.distributionResp(amounts)
+
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage = leyline.tooling.headless.searchResp(itemsFound)
 
 fun castingTimeOptionsResp(

@@ -139,6 +139,8 @@ private class ScenarioRun(
             is StaticChoiceStep -> staticChoice(step)
             is OptionalActionStep -> respondToOptionalAction(step)
             is TargetStep -> target(step.target)
+            is TargetsStep -> targets(step.targets)
+            is DistributeStep -> distribute(step)
             is SelectCostStep -> selectCost(step)
             is SelectCardStep -> selectCard(step)
             is SelectCardsStep -> selectCards(step)
@@ -279,6 +281,21 @@ private class ScenarioRun(
 
     private fun selectCard(step: SelectCardStep) = selectCards(SelectCardsStep(step.side, step.zone, listOf(step.card)))
 
+    private fun distribute(step: DistributeStep) {
+        val prompt = latestPromptMessage()
+        require(prompt?.hasDistributionReq() == true) {
+            "$context expected latest prompt DistributionReq"
+        }
+        val amounts =
+            step.assignments.map { assignment ->
+                resolveCardInZone(assignment.side, AcceptanceZone.Battlefield, assignment.card) to assignment.amount
+            }
+        require(amounts.map { it.first }.toSet() == prompt.distributionReq.targetIdsList.toSet()) {
+            "$context assignments ${amounts.map { it.first }} do not match DistributionReq targets ${prompt.distributionReq.targetIdsList}"
+        }
+        harness.respondToDistribution(amounts)
+    }
+
     private fun selectCards(step: SelectCardsStep) {
         val prompt = latestPromptMessage()
         require(prompt?.hasSelectNReq() == true) {
@@ -399,6 +416,15 @@ private class ScenarioRun(
             "$context expected latest prompt SelectTargetsReq; actual=${latestPromptNameWithId() ?: "none"}"
         }
         harness.selectTargets(listOf(resolveTargetInstanceId(target)))
+    }
+
+    private fun targets(targets: List<AcceptanceTargetSpec>) {
+        require(latestPromptMatches("SelectTargetsReq")) {
+            "$context expected latest prompt SelectTargetsReq; actual=${latestPromptNameWithId() ?: "none"}"
+        }
+        val targetIds = targets.map(::resolveTargetInstanceId)
+        harness.selectTargetsIterative(targetIds)
+        harness.submitTargets()
     }
 
     private fun block(step: BlockStep) {

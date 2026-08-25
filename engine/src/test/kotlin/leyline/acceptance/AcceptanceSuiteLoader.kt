@@ -73,6 +73,16 @@ object AcceptanceSuiteLoader {
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "target" -> TargetStep(parseTarget(value, "$context.target"))
+            "targets" ->
+                TargetsStep(
+                    value.asList("$context.targets").mapIndexed {
+                        targetIndex,
+                        target,
+                        ->
+                        parseTarget(target, "$context.targets[$targetIndex]")
+                    },
+                )
+            "distribute" -> parseDistribute(value, "$context.distribute")
             "select_cost" -> parseSelectCost(value, "$context.select_cost")
             "select_card" -> parseSelectCard(value, "$context.select_card")
             "select_cards" -> parseSelectCards(value, "$context.select_cards")
@@ -238,6 +248,22 @@ object AcceptanceSuiteLoader {
         val map = raw.asMap(context)
         return OptionalActionStep(accept = map.requiredBoolean("accept", context))
     }
+
+    private fun parseDistribute(
+        raw: Any?,
+        context: String,
+    ): DistributeStep =
+        DistributeStep(
+            raw.asList(context).mapIndexed { index, item ->
+                val assignmentContext = "$context[$index]"
+                val map = item.asMap(assignmentContext)
+                DistributionAssignment(
+                    side = AcceptanceSide.parse(map.requiredString("side", assignmentContext)),
+                    card = map.requiredString("card", assignmentContext),
+                    amount = map.requiredInt("amount", assignmentContext),
+                )
+            },
+        )
 
     private fun parseBlock(
         raw: Any?,

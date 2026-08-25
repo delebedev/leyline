@@ -30,6 +30,10 @@ internal class PendingTargetStore {
         if (versions.isNotEmpty()) entries.removeIf { it.version in versions }
     }
 
+    fun removeIf(predicate: (InteractivePromptBridge.PendingTarget) -> Boolean) {
+        entries.removeIf { predicate(it.spec) }
+    }
+
     fun clear() {
         entries.clear()
     }

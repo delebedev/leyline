@@ -2,6 +2,7 @@ package leyline.copilot
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -106,5 +107,25 @@ class DefaultDecisionsTest :
 
             DefaultDecisions.castingTimeOptions(prompt) shouldBe
                 SimDecision.AlternateCost(ctoId = 2, optionIndex = 1)
+        }
+
+        test("distribution default preserves the full total when the remainder exceeds target count") {
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.DistributionReq_695e)
+                    .setDistributionReq(
+                        DistributionReq
+                            .newBuilder()
+                            .setMinAmount(7)
+                            .setMaxAmount(7)
+                            .setMinPerTarget(1)
+                            .addTargetIds(10)
+                            .addTargetIds(11),
+                    ).build()
+
+            val decision = DefaultDecisions.distribution(prompt).shouldBeInstanceOf<SimDecision.Distribution>()
+            decision.amountsByInstanceId.values.sum() shouldBe 7
+            decision.amountsByInstanceId shouldBe mapOf(10 to 6, 11 to 1)
         }
     })

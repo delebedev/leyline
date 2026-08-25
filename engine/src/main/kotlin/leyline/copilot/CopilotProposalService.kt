@@ -69,9 +69,10 @@ class CopilotProposalService(
 
             GREMessageType.NumericInputReq_695e -> advisedProposal(prompt)
 
-            GREMessageType.DistributionReq_695e -> advisedProposal(prompt)
+            GREMessageType.DistributionReq_695e -> proposalFor(DefaultDecisions.distribution(prompt), prompt)
 
-            GREMessageType.PayCostsReq_695e -> advisedProposal(prompt)
+            GREMessageType.PayCostsReq_695e ->
+                advisedProposal(prompt)
 
             // Scry/surveil ordering: keep everything on top (always legal, moves
             // nothing) — enough to never stall the loop on this family.

@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Arc Lightning assigns a fixed total of three damage across two legal creature targets.
+# Forcing: Both opposing creatures must receive damage, so the cast reaches the divided-allocation prompt.
+# AI behavior: The human acts in Main1 and the opponent has no decisions before resolution.
+# Failure modes:
+#   WIN = both allocations were accepted and both opposing creatures died.
+#   LOSE = the spell failed to resolve through the requested allocation.
+#   TIMEOUT = the distribution prompt was not answered or did not resume Forge.
+# Card roles:
+#   Arc Lightning — produces the fixed-total DistributionReq.
+#   Coral Merfolk — receives one damage and survives only if allocation is wrong.
+#   Savannah Lions — receives two damage and survives only if allocation is wrong.
+# Protocol path: ActionsAvailableReq -> SelectTargetsReq -> DistributionReq -> TargetSpec update -> resolution.
+[metadata]
+Name:Distribution Arc Lightning
+Goal:Win
+Turns:1
+Difficulty:Tutorial
+Description:Divide Arc Lightning's three damage across two creatures and resolve both assignments.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Arc Lightning
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain
+aibattlefield=Coral Merfolk;Savannah Lions
+ailibrary=Mountain

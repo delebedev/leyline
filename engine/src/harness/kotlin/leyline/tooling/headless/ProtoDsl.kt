@@ -317,6 +317,18 @@ fun orderResp(ids: List<Int>): ClientToGREMessage =
         )
     }
 
+/** Respond to a fixed-total DistributionReq with one amount per target. */
+fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage =
+    clientMessage(ClientMessageType.DistributionResp_097b) {
+        setDistributionResp(
+            DistributionResp.newBuilder().apply {
+                amounts.forEach { (instanceId, amount) ->
+                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                }
+            },
+        )
+    }
+
 /** [SearchResp] — respond to a library/search prompt with selected instanceIds. */
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
     clientMessage(ClientMessageType.SearchResp_097b) {
