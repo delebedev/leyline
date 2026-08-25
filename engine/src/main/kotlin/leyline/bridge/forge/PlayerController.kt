@@ -136,8 +136,9 @@ import java.util.function.Predicate
  * controller only supplies Forge's callback surface and delegates decisions to
  * the runtime owner.
  *
- * Coordinators read and write these through [OwnerContext]; external callers use
- * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
+ * Coordinators receive the callback surface through [OwnerContext]. The priority
+ * coordinator receives [PriorityPolicyRuntime] explicitly because policy state is
+ * not part of that handoff. Prompt side-effects (reveal lifecycle, legend-rule
  * victims, searched-to-hand cards, optional-cost stash) flow through the typed
  * [leyline.bridge.handoff.PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
  * resolved" flag lives on [leyline.bridge.types.PrioritySignal].
@@ -206,8 +207,6 @@ class PlayerController(
     interactionRuntime: BlockingInteractionRuntime,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
-    override val priorityPolicy: PriorityPolicyRuntime = priorityPolicy
-
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
     private val numericInputGate = NumericInputGate(actionBridge, interactionRuntime)
     private val spellExecutor = SpellExecutor(game, player, bridge)

@@ -1,7 +1,6 @@
 package leyline.bridge.handoff
 
 import forge.game.card.Card
-import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.types.ForgeCardId
 
 /**
@@ -21,9 +20,6 @@ import leyline.bridge.types.ForgeCardId
  * decide what belongs here vs. on the class vs. on [InteractivePromptBridge].
  */
 interface OwnerContext {
-    /** Runtime owner of priority policy and settings state. */
-    val priorityPolicy: PriorityPolicyRuntime
-
     /** Invoke the `onStateChanged` callback so the session layer can ship updated state. */
     fun notifyStateChanged()
 }

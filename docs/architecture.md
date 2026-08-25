@@ -118,9 +118,10 @@ inventory. Exact Forge objects remain behind bounded runtime tables; client
 responses carry correlation values that resolve those retained handles.
 
 `GameBridge.priorityPolicy` owns priority presentation policy and client settings
-state. Match sessions submit immutable settings and priority values to it, then
-drain or deliver the committed result. The engine runtime is the only source of
-Visible, SyncOnly, Skip, auto-pass, stop, and full-control decisions.
+state. Match sessions submit immutable `SettingsMessage` values to it, while
+priority coordinators and the mechanical match pump consume its classifications.
+The engine runtime is the only source of Visible, SyncOnly, Skip, auto-pass, stop,
+and full-control decisions.
 
 Three owners sit beneath that boundary and are each the only implementation of
 their contract. `CoordinatorCutInstaller` performs the single-batch cut

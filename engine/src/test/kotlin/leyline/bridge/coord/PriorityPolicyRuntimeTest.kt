@@ -28,27 +28,24 @@ class PriorityPolicyRuntimeTest :
             val runtime = PriorityPolicyRuntime()
             runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
             runtime.submit(
-                PrioritySettingsCommand(
-                    settings =
-                        settingsMessage {
-                            addStops(
-                                Stop
-                                    .newBuilder()
-                                    .setStopType(StopType.UpkeepStep)
-                                    .setAppliesTo(SettingScope.Team_ac6e)
-                                    .setStatus(SettingStatus.Set)
-                                    .build(),
-                            )
-                            addStops(
-                                Stop
-                                    .newBuilder()
-                                    .setStopType(StopType.BeginCombatStep)
-                                    .setAppliesTo(SettingScope.Opponents)
-                                    .setStatus(SettingStatus.Set)
-                                    .build(),
-                            )
-                        },
-                ),
+                settingsMessage {
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.UpkeepStep)
+                            .setAppliesTo(SettingScope.Team_ac6e)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.BeginCombatStep)
+                            .setAppliesTo(SettingScope.Opponents)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                },
             )
 
             assertSoftly {
@@ -68,11 +65,7 @@ class PriorityPolicyRuntimeTest :
 
         test("full control and auto-pass values are decided by the runtime") {
             val runtime = PriorityPolicyRuntime()
-            runtime.submit(
-                PrioritySettingsCommand(
-                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                ),
-            )
+            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             runtime.shouldAutoPass() shouldBe true
 
             runtime.submitAutoPassPriority(AutoPassPriority.No_a099)
@@ -91,19 +84,16 @@ class PriorityPolicyRuntimeTest :
             ownSkip.reason.shouldBeInstanceOf<AutoPassReason.PhaseNotStopped>().phase shouldBe "DRAW"
 
             runtime.submit(
-                PrioritySettingsCommand(
-                    settings =
-                        settingsMessage {
-                            addStops(
-                                Stop
-                                    .newBuilder()
-                                    .setStopType(StopType.UpkeepStep)
-                                    .setAppliesTo(SettingScope.Opponents)
-                                    .setStatus(SettingStatus.Set)
-                                    .build(),
-                            )
-                        },
-                ),
+                settingsMessage {
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.UpkeepStep)
+                            .setAppliesTo(SettingScope.Opponents)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                },
             )
             assertSoftly {
                 runtime.classifyPriorityWindow(observation(isOwnTurn = false, phase = PhaseType.UPKEEP)) shouldBe
@@ -138,11 +128,7 @@ class PriorityPolicyRuntimeTest :
         test("classification carries the runtime auto-resolve value") {
             val runtime = PriorityPolicyRuntime()
             runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-            runtime.submit(
-                PrioritySettingsCommand(
-                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                ),
-            )
+            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
 
             runtime.classifyPriorityWindow(observation(stackEmpty = false)) shouldBe
                 PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = true)

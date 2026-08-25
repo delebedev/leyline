@@ -1,5 +1,6 @@
 package leyline.architecture
 
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
@@ -111,6 +112,35 @@ class RuntimeBoundaryTest :
                     bridge shouldContain "p.windowRuntime.isVisible("
                 }
             }
+        }
+
+        test("priority settings state has one production owner") {
+            val policyRuntime = "leyline.bridge.coord.PriorityPolicyRuntime"
+            val policyStateTypes =
+                listOf(
+                    "leyline.bridge.types.ClientAutoPassState",
+                    "leyline.bridge.types.PhaseStopProfile",
+                )
+            val policyState = named(policyStateTypes)
+            val policyRuntimeAndState = named(listOf(policyRuntime) + policyStateTypes)
+
+            classes()
+                .that()
+                .haveFullyQualifiedName(policyRuntime)
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching(policyState)
+                .because("the runtime must own both mutable priority policy places")
+                .check(classes)
+
+            noClasses()
+                .that()
+                .haveNameNotMatching(policyRuntimeAndState)
+                .should()
+                .dependOnClassesThat()
+                .haveNameMatching(policyState)
+                .because("only PriorityPolicyRuntime may construct or mutate priority settings state")
+                .check(classes)
         }
     })
 

@@ -15,11 +15,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.Stop
 
-/** Immutable command submitted by a protocol adapter to the priority runtime. */
-data class PrioritySettingsCommand(
-    val settings: SettingsMessage,
-)
-
 /** Engine facts required for one atomic priority-policy classification. */
 internal data class PriorityWindowObservation(
     val isOwnTurn: Boolean,
@@ -47,7 +42,7 @@ internal sealed interface PriorityWindowDecision {
 /**
  * The sole owner of client priority policy and its mutable settings state.
  *
- * Protocol heads submit [PrioritySettingsCommand] values. The engine reads
+ * Protocol heads submit immutable [SettingsMessage] values. The engine reads
  * decisions from this runtime; it never reconstructs policy from client
  * messages or maintains a second settings state.
  */
@@ -78,22 +73,22 @@ class PriorityPolicyRuntime {
     fun enabledPhaseStops(playerId: Int) = synchronized(stateLock) { phaseStopProfile?.getEnabled(playerId) ?: emptySet() }
 
     /** Apply one immutable settings delta. Only this owner mutates policy state. */
-    fun submit(command: PrioritySettingsCommand) {
+    fun submit(settings: SettingsMessage) {
         synchronized(stateLock) {
-            autoPassState.update(command.settings)
+            autoPassState.update(settings)
             val profile = phaseStopProfile
             val humanId = humanPlayerId
             val opponentId = opponentPlayerId
 
-            if (command.settings.clearAllStops == SettingStatus.Set ||
-                command.settings.clearAllYields == SettingStatus.Set
+            if (settings.clearAllStops == SettingStatus.Set ||
+                settings.clearAllYields == SettingStatus.Set
             ) {
                 humanId?.let { profile?.clearAll(it) }
                 opponentId?.let { profile?.clearAll(it) }
                 autoPassState.clearOpponentStops()
             }
 
-            val allStops = command.settings.stopsList + command.settings.transientStopsList
+            val allStops = settings.stopsList + settings.transientStopsList
             if (profile != null) {
                 if (humanId != null) applyStopsForPlayer(allStops, SettingScope.Team_ac6e, humanId, profile)
                 if (opponentId != null) applyStopsForPlayer(allStops, SettingScope.Opponents, opponentId, profile)

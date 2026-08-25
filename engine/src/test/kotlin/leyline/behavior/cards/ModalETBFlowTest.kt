@@ -10,7 +10,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.coord.PrioritySettingsCommand
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -309,19 +308,16 @@ class ModalETBFlowTest :
             }
 
             bridge.priorityPolicy.submit(
-                PrioritySettingsCommand(
-                    settings =
-                        settingsMessage {
-                            addStops(
-                                Stop
-                                    .newBuilder()
-                                    .setStopType(StopType.EndStep_ad1f)
-                                    .setAppliesTo(SettingScope.Team_ac6e)
-                                    .setStatus(SettingStatus.Set)
-                                    .build(),
-                            )
-                        },
-                ),
+                settingsMessage {
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.EndStep_ad1f)
+                            .setAppliesTo(SettingScope.Team_ac6e)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                },
             )
             passUntil(maxPasses = 30) {
                 allMessages

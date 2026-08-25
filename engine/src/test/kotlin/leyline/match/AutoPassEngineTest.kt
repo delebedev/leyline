@@ -12,7 +12,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.coord.PriorityPolicyRuntime
-import leyline.bridge.coord.PrioritySettingsCommand
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionState
@@ -294,11 +293,7 @@ class AutoPassEngineTest :
         test("checkHumanActions — client autoPass + pass-only → Skip(ClientAutoPass)") {
             val (bridge, game, counter) = startWithBoard { _, _, _ -> }
             val priorityPolicy = PriorityPolicyRuntime()
-            priorityPolicy.submit(
-                PrioritySettingsCommand(
-                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                ),
-            )
+            priorityPolicy.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
@@ -329,11 +324,7 @@ class AutoPassEngineTest :
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
             val priorityPolicy = PriorityPolicyRuntime()
-            priorityPolicy.submit(
-                PrioritySettingsCommand(
-                    settings = settingsMessage { autoPassOption = AutoPassOption.ResolveAll },
-                ),
-            )
+            priorityPolicy.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = SessionTraceOps(gameBridge = bridge, counter = counter)
             val engine =
                 AutoPassEngine(
