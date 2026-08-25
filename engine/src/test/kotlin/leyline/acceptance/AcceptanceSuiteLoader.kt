@@ -318,8 +318,6 @@ object AcceptanceSuiteLoader {
             "prompt" -> parsePrompt(value, "$context.prompt")
             "annotation_seen" -> parseAnnotationSeen(value, "$context.annotation_seen")
             "annotation_seen_in_phase" -> parseAnnotationSeenInPhase(value, "$context.annotation_seen_in_phase")
-            "persistent_annotation_absent" ->
-                PersistentAnnotationAbsentCondition(value.asString("$context.persistent_annotation_absent"))
             "stack_empty" -> {
                 require(value.asBoolean("$context.stack_empty")) { "$context.stack_empty only supports true" }
                 StackEmptyCondition
