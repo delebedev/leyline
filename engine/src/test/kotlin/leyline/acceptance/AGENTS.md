@@ -5,6 +5,7 @@ Puzzle-backed deterministic acceptance tests for `MatchFlowHarness`.
 - Scenario suites live under `puzzles/sets/*.yaml` next to their `.pzl` files.
 - For direct puzzle-state limits, read `../../../../../../docs/puzzle-harness.md`.
 - Keep `steps` backend-neutral: game intent only, no UI coordinates or client gestures.
+- Do not add acceptance assertions for internal projection or conformance invariants; prove those in focused contract tests.
 - This package interprets scenario steps through `MatchFlowHarness`; the live-client smoke runner consumes the same YAML.
 - Forge AI may solve a puzzle upstream or advise an autonomous run. It is not the acceptance executor.
 - Simclient is the synthetic discovery and fixed-seed proof lane. It does not replace a YAML acceptance contract.

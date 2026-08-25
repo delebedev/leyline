@@ -385,7 +385,12 @@ object PersistentAnnotationStore {
         // 4. Detached auras
         for (forgeCardId in mechanicResult.detachedForgeCardIds) {
             val auraIid = resolveInstanceId(forgeCardId).value
-            val annId = findByAura(active, auraIid)
+            // A zone transfer may reallocate the Aura's instance id before the
+            // detach event is projected. Match the persistent row through the
+            // retired id's Forge identity when the current id misses.
+            val annId =
+                findByAura(active, auraIid)
+                    ?: findByAuraForgeId(active, forgeCardId, resolveForgeCardId)
             if (annId != null) {
                 active.remove(annId)
                 deletions.add(annId)
@@ -510,6 +515,17 @@ object PersistentAnnotationStore {
             .firstOrNull { (_, ann) ->
                 ann.typeList.any { it == AnnotationType.Attachment } &&
                     ann.affectorId == auraIid
+            }?.key
+
+    private fun findByAuraForgeId(
+        active: Map<Int, AnnotationInfo>,
+        auraForgeId: ForgeCardId,
+        resolveForgeCardId: (InstanceId) -> ForgeCardId?,
+    ): Int? =
+        active.entries
+            .firstOrNull { (_, ann) ->
+                ann.typeList.any { it == AnnotationType.Attachment } &&
+                    resolveForgeCardId(InstanceId(ann.affectorId)) == auraForgeId
             }?.key
 
     /**
