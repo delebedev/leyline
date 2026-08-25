@@ -16,6 +16,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.game.generator.PuzzleLibrary
 import leyline.infra.ListMessageSink
 import leyline.infra.MatchOutput
 import leyline.match.ConnectionState
@@ -97,11 +98,11 @@ class PuzzleHandlerTest :
             try {
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { temp.absolutePath },
+                        puzzleIdentity = { temp.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        temp.parentFile,
+                        PuzzleLibrary(temp.parentFile),
                     )
                 val (channel, ctx) = channelCtx()
 
@@ -161,11 +162,11 @@ class PuzzleHandlerTest :
             try {
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { temp.absolutePath },
+                        puzzleIdentity = { temp.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        temp.parentFile,
+                        PuzzleLibrary(temp.parentFile),
                     )
 
                 val sink1 = ListMessageSink()
@@ -245,11 +246,11 @@ class PuzzleHandlerTest :
                 val sink = ListMessageSink()
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { temp.absolutePath },
+                        puzzleIdentity = { temp.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        temp.parentFile,
+                        PuzzleLibrary(temp.parentFile),
                     )
                 val (channel, ctx) = channelCtx()
 
@@ -291,14 +292,14 @@ class PuzzleHandlerTest :
             val sink = ListMessageSink()
             val temp = tempPuzzleFile("match-config")
             try {
-                configRegistry.put(RuntimeMatchConfig(matchId = "web-gre-puzzle", puzzle = temp.absolutePath))
+                configRegistry.put(RuntimeMatchConfig(matchId = "web-gre-puzzle", puzzle = temp.nameWithoutExtension))
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { matchId -> configRegistry.get(matchId)?.puzzle },
+                        puzzleIdentity = { matchId -> configRegistry.get(matchId)?.puzzle },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        temp.parentFile,
+                        PuzzleLibrary(temp.parentFile),
                     )
                 val (channel, ctx) = channelCtx()
 

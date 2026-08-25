@@ -1,40 +1,40 @@
 package leyline.match
 
-import forge.gamemodes.puzzle.Puzzle
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markPrompts
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
-import java.io.File
 
 /**
  * Puzzle mode delegate — routed by per-match runtime config or `puzzle-<name>`
- * match IDs. When [puzzlePath] returns a non-null path for a matchId, that file
- * is loaded; otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
+ * match IDs. When [puzzleIdentity] returns a non-null identity for a matchId,
+ * the library resolves it; otherwise the matchId naming convention resolves
+ * `data/puzzles/<name>.pzl`.
  *
- * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
- * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
- * card data. This is enforced inside [loadPuzzleForMatch], not at construction time,
- * so the handler can be created eagerly without triggering Forge class loading.
+ * **Ordering constraint:** localization is initialized by [PuzzleSource] before
+ * any Forge puzzle construction, so this handler can be created eagerly.
  */
 class PuzzleHandler(
-    private val puzzlePath: (String) -> String?,
+    private val puzzleIdentity: (String) -> String?,
     private val cardRepository: CardRepository,
     private val registry: MatchRegistry,
     private val engineSettings: EngineSettings,
-    private val puzzlesDir: File,
+    private val puzzleLibrary: PuzzleLibrary,
+    private val puzzleDefinition: (String) -> PuzzleDefinition? = { null },
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
-    fun isPuzzleMatch(matchId: String): Boolean = puzzlePath(matchId) != null || matchId.startsWith("puzzle-")
+    fun isPuzzleMatch(matchId: String): Boolean =
+        puzzleIdentity(matchId) != null || puzzleDefinition(matchId) != null || matchId.startsWith("puzzle-")
 
     /**
      * Get or create the [GameBridge] for a puzzle match. Loads the puzzle file
@@ -111,30 +111,13 @@ class PuzzleHandler(
     }
 
     /**
-     * Load puzzle: prefer the configured path/name, else the matchId convention.
-     * The configured value may be an absolute path or a bare puzzle name
-     * (e.g. `stock-up`) — bare names resolve to `puzzles/<name>.pzl` under the
-     * resolved puzzle root.
+     * Load a configured identity or inline definition. Match loading receives
+     * no filesystem path; the library owns identity-to-content resolution.
      */
-    private fun loadPuzzleForMatch(matchId: String): Puzzle {
-        // Puzzle constructor triggers GameState.<clinit> which needs localization
-        GameBootstrap.initializeLocalization()
-
-        val name = puzzlePath(matchId) ?: matchId.removePrefix("puzzle-")
-        val file =
-            resolvePuzzleFile(name)
-                ?: error("Puzzle not found: $name (looked in ${puzzlesDir.absolutePath})")
-        return PuzzleSource.loadFromFile(file.absolutePath)
-    }
-
-    /** First existing candidate: as-given absolute path, with `.pzl`, then under the resolved puzzle root. */
-    private fun resolvePuzzleFile(name: String): File? {
-        val withPzl = if (name.endsWith(".pzl")) name else "$name.pzl"
-
-        return listOf(
-            File(name).takeIf { it.isAbsolute },
-            File(puzzlesDir, name),
-            File(puzzlesDir, withPzl),
-        ).firstOrNull { it != null && it.isFile }
+    private fun loadPuzzleForMatch(matchId: String): forge.gamemodes.puzzle.Puzzle {
+        val definition =
+            puzzleDefinition(matchId)
+                ?: puzzleLibrary.require(puzzleIdentity(matchId) ?: matchId.removePrefix("puzzle-"))
+        return PuzzleSource.load(definition)
     }
 }

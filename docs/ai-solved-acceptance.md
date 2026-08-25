@@ -48,7 +48,7 @@ smoke-scoped config overrides, and active-server checkout preflight.
 
 1. Write a focused `.pzl` with a deterministic board and one intended line.
 2. Run it through the Forge-AI solver to prove the puzzle is rules-solvable.
-3. Convert the compact solution facts into existing acceptance YAML under `puzzles/sets/*.yaml`.
+3. Convert the compact solution facts into existing acceptance YAML under `data/puzzles/sets/*.yaml`.
 4. Run `just test-acceptance`, or target one suite/scenario with the current
    `:engine:testAcceptance` Gradle properties.
 5. Fix bridge, prompt, action, or engine behavior until the scripted suite is green.

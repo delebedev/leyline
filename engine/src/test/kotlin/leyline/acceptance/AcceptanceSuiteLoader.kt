@@ -20,7 +20,7 @@ object AcceptanceSuiteLoader {
 
     private fun resolveSuitePath(name: String): Path {
         val fileName = if (name.endsWith(".yaml")) name else "$name.yaml"
-        return AcceptancePaths.resolve("puzzles/sets/$fileName", notFoundMessage = "suite not found: $fileName")
+        return AcceptancePaths.resolve("data/puzzles/sets/$fileName", notFoundMessage = "suite not found: $fileName")
     }
 
     /** Every suite YAML in the acceptance suite catalog, for static validation of the full set. */
@@ -30,12 +30,12 @@ object AcceptanceSuiteLoader {
         }
 
     private fun suiteSetsDirectory(): Path =
-        AcceptancePaths.resolve("puzzles/sets", notFoundMessage = "suite sets directory not found", exists = Files::isDirectory)
+        AcceptancePaths.resolve("data/puzzles/sets", notFoundMessage = "suite sets directory not found", exists = Files::isDirectory)
 
     /** Whether a scenario's `puzzle` reference resolves to an existing fixture. */
     internal fun puzzleExists(puzzle: String): Boolean {
         val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
-        return AcceptancePaths.resolveOrNull("puzzles/$fileName") != null
+        return AcceptancePaths.resolveOrNull("data/puzzles/$fileName") != null
     }
 
     private fun parseScenario(

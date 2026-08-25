@@ -98,14 +98,14 @@ abstract class BoardTest(
     /**
      * Start a game from an inline puzzle definition — no mulligan, no turn advancement.
      *
-     * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+     * @param puzzleText inline `.pzl` content (see `data/puzzles/` for format)
      */
     fun startPuzzleAtMain1(
         puzzleText: String,
         engineSettings: EngineSettings = EngineSettings(),
     ): Board = trackResult(Board.startPuzzleAtMain1(puzzleText, engineSettings))
 
-    /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
+    /** Convenience: load a puzzle from a shared identity path or test-private resource. */
     fun startPuzzleAtMain1FromResource(resourcePath: String): Board = trackResult(Board.startPuzzleAtMain1FromResource(resourcePath))
 
     private fun trackResult(result: Board): Board {

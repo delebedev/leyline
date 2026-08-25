@@ -14,7 +14,7 @@ import java.util.PriorityQueue
  *
  * The pipeline already builds annotations in correct order by construction.
  * This enforcer is a safety net against regressions, exercised by puzzle
- * fixtures under `puzzles/` and the unit suite in
+ * fixtures under `data/puzzles/` and the unit suite in
  * `engine/src/test/kotlin/leyline/game/`.
  *
  * Adding a new rule: implement [OrderRule] as a `data object` and add it to

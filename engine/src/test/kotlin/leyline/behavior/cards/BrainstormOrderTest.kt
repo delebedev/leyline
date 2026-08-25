@@ -21,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class BrainstormOrderTest :
     SessionTest({
-        session("Brainstorm emits OrderReq for chosen top-library cards", puzzleFile = "puzzles/brainstorm-order.pzl") {
+        session("Brainstorm emits OrderReq for chosen top-library cards", puzzleFile = "data/puzzles/brainstorm-order.pzl") {
             val selectReq = castSpellUntilSelectNReq("Brainstorm")
             val selectMsg = allMessages.last { it.hasSelectNReq() }
             val selectedIids = selectReq.idsList.take(2)
@@ -102,7 +102,7 @@ class BrainstormOrderTest :
                         ),
                 )
             try {
-                h.connectAndKeepPuzzle("puzzles/brainstorm-order.pzl")
+                h.connectAndKeepPuzzle("data/puzzles/brainstorm-order.pzl")
                 val selectReq = h.castSpellUntilSelectNReq("Brainstorm")
                 val selectMsg = h.allMessages.last { it.hasSelectNReq() }
                 val defaultName =

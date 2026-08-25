@@ -57,7 +57,7 @@ object WebOpenApi {
             Endpoint("/gre", "get", responses = statuses("101")),
             Endpoint("/api/auth/me", "get", response = ref("AuthView")),
             Endpoint("/api/auth/guest", "post", response = ref("AuthView")),
-            Endpoint("/api/puzzles", "get", response = arrayRef("PuzzleSummaryView")),
+            Endpoint("/api/challenges", "get", response = arrayRef("ChallengeSummary")),
             Endpoint("/api/auth/request-code", "post", request = ref("RequestLoginCodeRequest"), responses = statuses("204")),
             Endpoint(
                 "/api/auth/verify",
@@ -209,7 +209,7 @@ object WebOpenApi {
             component("LimitedSetView", serializer<LimitedSetView>())
             component("LimitedSetArchetypeView", serializer<LimitedSetArchetypeView>())
             component("AuthView", serializer<AuthView>())
-            component("PuzzleSummaryView", serializer<PuzzleSummaryView>())
+            component("ChallengeSummary", serializer<ChallengeSummary>())
             component("RequestLoginCodeRequest", serializer<RequestLoginCodeRequest>())
             component("VerifyLoginCodeRequest", serializer<VerifyLoginCodeRequest>())
             component("LoginResponse", serializer<LoginResponse>())

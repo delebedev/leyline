@@ -18,7 +18,7 @@ class DistributionReqSessionTest :
     SessionTest({
         session(
             "Arc Lightning allocation resolves uneven damage and updates TargetSpec in place",
-            puzzleFile = "puzzles/distribution-arc-lightning.pzl",
+            puzzleFile = "data/puzzles/distribution-arc-lightning.pzl",
         ) {
             val merfolkIid = ai.battlefield.iid("Coral Merfolk")
             val lionsIid = ai.battlefield.iid("Savannah Lions")

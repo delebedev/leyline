@@ -93,6 +93,7 @@ private fun buildDebugServer(
     port = port,
     bindAddress = bindAddress,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
+    puzzleLibrary = server.puzzleLibrary,
     runtimePuzzle = server.runtimePuzzle,
     cardRepositoryProvider = { server.cardRepo },
     aiDeckOverride = server.aiDeckOverride,

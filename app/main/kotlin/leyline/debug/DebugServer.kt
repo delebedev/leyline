@@ -5,12 +5,13 @@ import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.PuzzleDefinition
 import leyline.copilot.CopilotProposalService
 import leyline.domain.json.productionJson
 import leyline.game.bundle.BundleBuilder
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
@@ -46,6 +47,7 @@ class DebugServer(
     private val sessionProvider: (() -> MatchSession?)? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
+    private val puzzleLibrary: PuzzleLibrary = PuzzleLibrary(File("data/puzzles")),
     /** Card repository for session-less consults (`POST /api/copilot-consult`). */
     private val cardRepositoryProvider: (() -> leyline.game.data.CardRepository)? = null,
     /** One-shot seat-2 (AI) deck override by name — set via POST /api/ai-deck, consumed per match. */
@@ -490,14 +492,14 @@ class DebugServer(
             return
         }
 
-        val puzzlePath =
+        val puzzleDefinition =
             if (fileParam != null) {
-                resolvePuzzleFile(fileParam) ?: run {
+                puzzleLibrary.find(fileParam) ?: run {
                     respond(
                         ex,
                         404,
                         "text/plain",
-                        "Puzzle not found: $fileParam (checked engine test resources, root puzzles/, and classpath)",
+                        "Puzzle not found: $fileParam in the configured puzzle library",
                     )
                     return
                 }
@@ -505,15 +507,15 @@ class DebugServer(
                 null
             }
 
-        if (puzzlePath != null) {
-            runtimePuzzle?.set(puzzlePath)
+        if (puzzleDefinition != null) {
+            runtimePuzzle?.set(puzzleDefinition.identity)
         }
 
         val session = sessionProvider?.invoke()
         val bridge = session?.gameBridge
 
         if (session != null && bridge != null) {
-            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex) ?: return
+            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzleDefinition, ex) ?: return
             respond(ex, 200, "text/plain", label)
         } else {
             if (fileParam != null) {
@@ -530,15 +532,13 @@ class DebugServer(
         bridge: GameBridge,
         body: String,
         fileParam: String?,
-        puzzlePath: String?,
+        puzzleDefinition: PuzzleDefinition?,
         ex: HttpExchange,
     ): String? {
-        GameBootstrap.initializeLocalization()
-
         val puzzle =
             when {
                 body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
-                puzzlePath != null -> PuzzleSource.loadFromFile(puzzlePath)
+                puzzleDefinition != null -> PuzzleSource.load(puzzleDefinition)
                 else -> {
                     respond(ex, 400, "text/plain", "Unexpected state")
                     return null
@@ -606,20 +606,6 @@ class DebugServer(
                 "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
                     .also { log.info(it) }
         }
-    }
-
-    /** Resolve a puzzle file name to an absolute path. Checks test resources, root puzzles/, then classpath. */
-    private fun resolvePuzzleFile(name: String): String? {
-        val testRes = File("engine/src/test/resources/puzzles", "$name.pzl")
-        if (testRes.exists()) return testRes.absolutePath
-
-        val rootPuzzles = File("puzzles", "$name.pzl")
-        if (rootPuzzles.exists()) return rootPuzzles.absolutePath
-
-        val resource = javaClass.classLoader.getResource("puzzles/$name.pzl")
-        if (resource != null && resource.protocol == "file") return File(resource.toURI()).absolutePath
-
-        return null
     }
 
     // --- Helpers ---

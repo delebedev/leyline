@@ -6,6 +6,7 @@ import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.infra.MatchOutput
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
@@ -15,12 +16,12 @@ import java.io.File
 class MatchHandler(
     private val registry: MatchRegistry,
     private val engineSettings: EngineSettings = EngineSettings(),
-    private val puzzlesDir: File = File("src/test/resources/puzzles"),
+    private val puzzlesDir: File = File("data/puzzles"),
     private val coordinator: MatchCoordinator? = null,
     private val cardRepository: CardRepository,
     private val debugSink: MatchDebugSink? = null,
     private val recorderFactory: (() -> MatchRecorder)? = null,
-    private val puzzlePath: () -> String? = { null },
+    private val puzzleIdentity: () -> String? = { null },
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     private val aiDeckNameOverride: () -> String? = { null },
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
@@ -42,12 +43,12 @@ class MatchHandler(
                         }
                     },
                 engineSettings = engineSettings,
-                puzzlesDir = puzzlesDir,
+                puzzleLibrary = PuzzleLibrary(puzzlesDir),
                 coordinator = coordinator,
                 cardRepository = cardRepository,
                 debugSink = debugSink,
                 recorderFactory = recorderFactory,
-                puzzlePath = puzzlePath,
+                puzzleIdentity = puzzleIdentity,
                 runtimeMatchConfigs = runtimeMatchConfigs,
                 aiDeckNameOverride = aiDeckNameOverride,
             )

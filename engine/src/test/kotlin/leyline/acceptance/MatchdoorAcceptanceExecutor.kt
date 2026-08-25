@@ -55,7 +55,7 @@ class MatchdoorAcceptanceExecutor(
 
 private fun readPuzzleText(puzzle: String): String {
     val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
-    return Files.readString(AcceptancePaths.resolve("puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
+    return Files.readString(AcceptancePaths.resolve("data/puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
 }
 
 private val OUR_SEAT = SeatId(1)

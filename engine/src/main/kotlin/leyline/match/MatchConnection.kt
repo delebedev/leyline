@@ -2,6 +2,7 @@ package leyline.match
 
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckCards
@@ -10,6 +11,7 @@ import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.infra.MatchOutputMessageSink
@@ -17,7 +19,6 @@ import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.io.File
 
 /**
  * Transport-neutral GRE match connection — routes parsed match-service messages into the engine.
@@ -29,11 +30,12 @@ import java.io.File
  * Mulligan and puzzle sub-flows are extracted into [MulliganHandler] / [PuzzleHandler]
  * to keep this class a thin message-routing layer.
  */
+@Suppress("LongParameterList")
 class MatchConnection(
     private val registry: MatchRegistry,
     private val output: MatchOutput,
     private val engineSettings: EngineSettings,
-    private val puzzlesDir: File,
+    private val puzzleLibrary: PuzzleLibrary,
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
@@ -42,8 +44,10 @@ class MatchConnection(
     private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session action recorders. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
-    /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
-    private val puzzlePath: () -> String? = { null },
+    /** Runtime puzzle identity supplier — non-null activates puzzle mode. */
+    private val puzzleIdentity: () -> String? = { null },
+    /** Runtime inline puzzle definition supplier for product challenge launches. */
+    private val puzzleDefinition: () -> PuzzleDefinition? = { null },
     /** MatchId-keyed runtime config for web/native clients. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
@@ -121,7 +125,15 @@ class MatchConnection(
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(::resolvePuzzlePath, cardRepository, registry, engineSettings, puzzlesDir)
+    private val puzzleHandler =
+        PuzzleHandler(
+            ::resolvePuzzleIdentity,
+            cardRepository,
+            registry,
+            engineSettings,
+            puzzleLibrary,
+            ::resolvePuzzleDefinition,
+        )
 
     private val connectFlow =
         MatchConnectFlow(
@@ -147,11 +159,14 @@ class MatchConnection(
         debugSink?.sessionProvider = { session as? MatchSession }
     }
 
-    private fun resolvePuzzlePath(matchId: String): String? {
+    private fun resolvePuzzleIdentity(matchId: String): String? {
         val config = runtimeMatchConfigs?.get(matchId)
         if (config != null) return config.puzzle?.takeIf { it.isNotBlank() }
-        return puzzlePath()
+        return puzzleIdentity()
     }
+
+    private fun resolvePuzzleDefinition(matchId: String): PuzzleDefinition? =
+        runtimeMatchConfigs?.get(matchId)?.puzzleDefinition ?: puzzleDefinition()
 
     private fun resolveRuntimeMatchConfig(): RuntimeMatchConfig? = runtimeMatchConfigs?.get(matchId)
 

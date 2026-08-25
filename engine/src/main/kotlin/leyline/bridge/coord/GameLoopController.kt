@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
  * which handles: prepareAllZones → draw → mulligan → opening hand actions →
  * SBAs → triggers → startFirstTurn → mainGameLoop.
  *
- * For puzzles/sandbox, [startFromCurrentState] resumes from pre-initialized state.
+ * For data/puzzles/sandbox, [startFromCurrentState] resumes from pre-initialized state.
  *
  * Lifecycle:
  * 1. [start] launches a daemon thread that calls `match.startGame(game)`

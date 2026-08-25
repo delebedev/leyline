@@ -31,6 +31,7 @@ import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchmakingService
 import leyline.game.data.CardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.persistence.SqlitePlayerStore
 import leyline.native.frontdoor.FrontDoorBootstrapData
@@ -88,6 +89,7 @@ class LeylineServer(
 
     // --- Debug infrastructure (wired in start()) ---
     val debugSink = DebugSinkAdapter()
+    val puzzleLibrary = PuzzleLibrary(puzzlesDir)
 
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
@@ -287,7 +289,7 @@ class LeylineServer(
                 coordinator = coordinator,
                 cardRepository = cardRepo,
                 debugSink = debugSink,
-                puzzlePath = { runtimePuzzle.get() },
+                puzzleIdentity = { runtimePuzzle.get() },
                 runtimeMatchConfigs = runtimeMatchConfigs,
                 aiDeckNameOverride = { aiDeckOverride.getAndSet(null) },
             )

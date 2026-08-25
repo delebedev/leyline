@@ -34,7 +34,7 @@ mix Board and Integration tests in one file.
   no single production owner.
 - `mechanics/<keyword>/` owns mechanic action and lifecycle coverage.
 - `behavior/<category>/<concept>/` owns protocol theses; `behavior/cards/`
-  owns card-text behavior; `behavior/puzzles/` owns puzzle plumbing.
+  owns card-text behavior; `behavior/data/puzzles/` owns puzzle plumbing.
 - `testkit/` owns test-only bases, matchers, probes, and message helpers.
 
 A new file earns its own existence only if it holds two or more substantive

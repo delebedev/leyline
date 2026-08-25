@@ -23,6 +23,7 @@ import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.AppMatchCoordinator
 import leyline.infra.persistence.SqlitePlayerStore
 import leyline.web.AuthRateLimitConfig
+import leyline.web.ChallengeCatalog
 import leyline.web.DEV_WEB_AUTH_SECRET
 import leyline.web.DevEmailSender
 import leyline.web.DirectWebGreEngineSession
@@ -101,10 +102,12 @@ fun main(args: Array<String>) {
     val coordinator = AppMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val relay = InProcessWebGreRelay()
     val runtimeMatches = RuntimeMatchConfigRegistry()
+    val challengeCatalog = ChallengeCatalog.default()
     val launcher =
         WebRuntimeMatchLauncher(
             engineSettings = engineSettings,
             puzzlesDir = paths.puzzlesDir,
+            challengeCatalog = challengeCatalog,
             coordinator = coordinator,
             cardRepo = cardRepo,
             runtimeMatches = runtimeMatches,
@@ -139,7 +142,7 @@ fun main(args: Array<String>) {
                         ),
                     fixedLoginCode = web.loginCode.takeIf { it.isNotBlank() },
                 ),
-            puzzleCatalogDir = paths.puzzlesDir,
+            challengeCatalog = challengeCatalog,
             sealedSets = {
                 SealedPoolGenerator.supportedSets().map {
                     LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
@@ -153,6 +156,7 @@ fun main(args: Array<String>) {
 private class WebRuntimeMatchLauncher(
     private val engineSettings: EngineSettings,
     private val puzzlesDir: File,
+    private val challengeCatalog: ChallengeCatalog,
     private val coordinator: AppMatchCoordinator,
     private val cardRepo: CardRepository,
     private val runtimeMatches: RuntimeMatchConfigRegistry,
@@ -163,6 +167,11 @@ private class WebRuntimeMatchLauncher(
         request: GreStartRequest,
     ): DraftPlayResponse {
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
+        val challenge =
+            request.challengeId?.let { challengeId ->
+                require(request.puzzle == null) { "challengeId and puzzle are mutually exclusive" }
+                challengeCatalog.find(challengeId) ?: error("unknown challenge: $challengeId")
+            }
         // Watch requests may arrive without decklists; an AI-vs-AI match still
         // needs two decks, so blank spectator seats fall back to defaults.
         val spectator = request.spectatorMode == true
@@ -175,6 +184,7 @@ private class WebRuntimeMatchLauncher(
                 seat2 = seat2Text?.let(DeckSource::ForgeText),
                 gameVariant = request.gameVariant,
                 puzzle = request.puzzle,
+                puzzleDefinition = challenge?.puzzle,
                 spectatorMode = request.spectatorMode,
             ),
         )

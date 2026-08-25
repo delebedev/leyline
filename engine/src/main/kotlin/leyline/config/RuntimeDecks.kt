@@ -13,9 +13,27 @@ data class RuntimeMatchConfig(
     val seat2: DeckSource? = null,
     /** Forge variant for a runtime-started match; null keeps the configured default. */
     val gameVariant: String? = null,
+    /** Configured puzzle identity. This is never a filesystem path. */
     val puzzle: String? = null,
+    /** Inline challenge definition, resolved before the match loading seam. */
+    val puzzleDefinition: PuzzleDefinition? = null,
     val spectatorMode: Boolean? = null,
-)
+) {
+    init {
+        require(puzzle == null || puzzleDefinition == null) { "puzzle and puzzleDefinition are mutually exclusive" }
+        val identity = puzzle?.trim()?.removeSuffix(".pzl")
+        require(
+            identity == null ||
+                (
+                    identity.isNotEmpty() &&
+                        identity != "." &&
+                        identity != ".." &&
+                        '/' !in identity &&
+                        '\\' !in identity
+                ),
+        ) { "puzzle must be a configured-root identity, not a filesystem path: $puzzle" }
+    }
+}
 
 @Serializable
 data class RuntimeMatchLaunchResponse(

@@ -84,6 +84,7 @@ fun registerEngineTest(
     configure: Test.() -> Unit,
 ) = tasks.register<Test>(name) {
     configureTestDefaults()
+    systemProperty("leyline.content.root", rootProject.projectDir.absolutePath)
     testClassesDirs = sourceSets["test"].output.classesDirs
     classpath = sourceSets["test"].runtimeClasspath
     configure()
@@ -130,7 +131,7 @@ registerEngineTest("testAcceptance") {
     (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
     (project.findProperty("acceptanceScry") as String?)?.let { systemProperty("acceptance.scry", it) }
     maxParallelForks = 1
-    inputs.dir(rootProject.layout.projectDirectory.dir("puzzles"))
+    inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
 }
 
 registerEngineTest("testSimClient") {

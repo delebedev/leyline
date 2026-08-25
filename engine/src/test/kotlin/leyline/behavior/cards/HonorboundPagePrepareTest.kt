@@ -102,7 +102,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "Prepared state: persistent Designation + exile copy projection",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -163,7 +163,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "GrpIdResolver.resolve on prepared copy returns by-name grpId, not 0",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -179,7 +179,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "Cast-from-exile: action accepted + resolveGrpId by name (no strict-mode crash)",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -197,7 +197,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "GainDesignation transient + Stack→Battlefield Resolve land in the same GSM",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -243,7 +243,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "LoseDesignation transient fires when the prepared copy is cast",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()
@@ -365,7 +365,7 @@ class HonorboundPagePrepareTest :
 
         session(
             "Exile copy uniqueAbilities reflect the spell face, not the source creature",
-            puzzleFile = "puzzles/honorbound-page-prepare.pzl",
+            puzzleFile = "data/puzzles/honorbound-page-prepare.pzl",
         ) {
             castSpellByName("Honorbound Page")
             passUntilResolved()

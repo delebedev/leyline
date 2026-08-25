@@ -33,7 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class LearnLessonTest :
     SessionTest({
-        val learnPuzzle = "puzzles/learn-cram-session.pzl"
+        val learnPuzzle = "data/puzzles/learn-cram-session.pzl"
 
         session("Learn emits SelectNReq with sideboard Lesson candidate", puzzleFile = learnPuzzle) {
             val req = castSpellUntilSelectNReq("Cram Session")

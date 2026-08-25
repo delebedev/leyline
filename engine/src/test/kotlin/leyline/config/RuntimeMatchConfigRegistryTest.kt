@@ -63,7 +63,7 @@ class RuntimeMatchConfigRegistryTest :
 
         test("removes configs independently") {
             val registry = RuntimeMatchConfigRegistry()
-            registry.put(RuntimeMatchConfig(matchId = "one", puzzle = "/tmp/one.pzl"))
+            registry.put(RuntimeMatchConfig(matchId = "one", puzzle = "one"))
             val two = registry.put(RuntimeMatchConfig(matchId = "two", seat1 = DeckSource.ForgeText("1 Mountain")))
 
             assertSoftly {

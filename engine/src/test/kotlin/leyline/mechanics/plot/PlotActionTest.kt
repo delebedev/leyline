@@ -29,7 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * sitting in Exile with the Plotted designation. That state can't be
  * programmatically synthesized without driving the action, so this file
  * focuses on the hand activation. The exile-cast leg is empirically verified
- * via `puzzles/plot-railway-brawler.pzl` + bot-match.
+ * via `data/puzzles/plot-railway-brawler.pzl` + bot-match.
  *
  * Card: Railway Brawler (Sorcery 4G, Plot {3}{G}).
  */

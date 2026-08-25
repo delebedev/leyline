@@ -41,6 +41,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.CollationPool
@@ -94,29 +95,26 @@ class WebRoutesTest :
             }
         }
 
-        test("lists puzzles publicly without auth") {
+        test("lists catalog challenges publicly without auth") {
             withWeb(
                 json,
-                puzzleCatalog = {
-                    listOf(
-                        PuzzleSummaryView(
-                            filename = "stock-up",
-                            name = "Stock Up",
-                            goal = "Win",
-                            turns = 4,
-                            difficulty = "Tutorial",
-                            description = "Cast Stock Up.",
+                challengeCatalog =
+                    ChallengeCatalog(
+                        listOf(
+                            ChallengeDefinition(
+                                ChallengeSummary(challengeId = "stock-up", name = "Stock Up"),
+                                PuzzleDefinition("stock-up", ""),
+                            ),
                         ),
-                    )
-                },
+                    ),
             ) {
-                val response = client.get("/api/puzzles")
+                val response = client.get("/api/challenges")
                 val body = json.parseToJsonElement(response.bodyAsText()).jsonArray
 
                 assertSoftly {
                     response.status shouldBe HttpStatusCode.OK
                     body.size shouldBe 1
-                    body[0].jsonObject["filename"]?.jsonPrimitive?.content shouldBe "stock-up"
+                    body[0].jsonObject["challengeId"]?.jsonPrimitive?.content shouldBe "stock-up"
                     body[0].jsonObject["name"]?.jsonPrimitive?.content shouldBe "Stock Up"
                 }
             }
@@ -186,7 +184,7 @@ class WebRoutesTest :
         test("mints a guest session that can start a catalog puzzle") {
             withWeb(
                 json,
-                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+                challengeCatalog = challengeCatalog("stock-up"),
             ) {
                 val guest = client.post("/api/auth/guest")
                 val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
@@ -199,7 +197,7 @@ class WebRoutesTest :
                 val start =
                     client.post("/api/gre/start") {
                         auth(cookie)
-                        jsonBody("""{"puzzle":"stock-up"}""")
+                        jsonBody("""{"challengeId":"stock-up"}""")
                     }
 
                 assertSoftly {
@@ -237,14 +235,14 @@ class WebRoutesTest :
         test("gre start tolerates unknown client fields") {
             withWeb(
                 json,
-                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+                challengeCatalog = challengeCatalog("stock-up"),
             ) {
                 val guest = client.post("/api/auth/guest")
                 val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
                 val start =
                     client.post("/api/gre/start") {
                         auth(cookie)
-                        jsonBody("""{"puzzle":"stock-up","gameType":"puzzle","unknownClientField":true}""")
+                        jsonBody("""{"challengeId":"stock-up","gameType":"puzzle","unknownClientField":true}""")
                     }
 
                 start.status shouldBe HttpStatusCode.OK
@@ -271,14 +269,14 @@ class WebRoutesTest :
         test("guest session cannot supply a match id for a catalog puzzle") {
             withWeb(
                 json,
-                puzzleCatalog = { listOf(puzzleSummary("stock-up")) },
+                challengeCatalog = challengeCatalog("stock-up"),
             ) {
                 val guest = client.post("/api/auth/guest")
                 val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(";")
                 val start =
                     client.post("/api/gre/start") {
                         auth(cookie)
-                        jsonBody("""{"puzzle":"stock-up","matchId":"match-1"}""")
+                        jsonBody("""{"challengeId":"stock-up","matchId":"match-1"}""")
                     }
 
                 assertSoftly {
@@ -506,7 +504,7 @@ class WebRoutesTest :
                 val login = login()
                 val matchId = "crash-me"
                 val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
-                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "/no/such/puzzle.pzl"))
+                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "no-such-puzzle"))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
                     DirectWebGreEngineSession(
                         EngineSettings(),
@@ -594,8 +592,9 @@ class WebRoutesTest :
             val configs = RuntimeMatchConfigRegistry()
             val matchA = "web-engine-a"
             val matchB = "web-engine-b"
-            configs.put(RuntimeMatchConfig(matchId = matchA, puzzle = puzzle.absolutePath))
-            configs.put(RuntimeMatchConfig(matchId = matchB, puzzle = puzzle.absolutePath))
+            val definition = PuzzleDefinition("web-engine-isolation", puzzle.readText())
+            configs.put(RuntimeMatchConfig(matchId = matchA, puzzleDefinition = definition))
+            configs.put(RuntimeMatchConfig(matchId = matchB, puzzleDefinition = definition))
             val framesA = CopyOnWriteArrayList<ByteArray>()
             val framesB = CopyOnWriteArrayList<ByteArray>()
             val closedA = AtomicBoolean(false)
@@ -981,10 +980,14 @@ private fun JsonObject.seatName(seat: String): String {
     return seatObject.getValue("name").jsonPrimitive.content
 }
 
-private fun puzzleSummary(filename: String) =
-    PuzzleSummaryView(
-        filename = filename,
-        name = filename,
+private fun challengeCatalog(vararg challengeIds: String) =
+    ChallengeCatalog(
+        challengeIds.map { challengeId ->
+            ChallengeDefinition(
+                ChallengeSummary(challengeId = challengeId, name = challengeId),
+                PuzzleDefinition(challengeId, ""),
+            )
+        },
     )
 
 private fun spectatorDeck(
@@ -1008,7 +1011,7 @@ private const val TEST_EVENT = "QuickDraft_FDN_20260223"
 
 private fun withWeb(
     json: Json,
-    puzzleCatalog: () -> List<PuzzleSummaryView> = { emptyList() },
+    challengeCatalog: ChallengeCatalog = ChallengeCatalog(emptyList()),
     block: suspend WebFixture.() -> Unit,
 ) {
     testApplication {
@@ -1026,7 +1029,7 @@ private fun withWeb(
             }
         val services =
             WebServices(
-                puzzleCatalog = puzzleCatalog,
+                challengeCatalog = challengeCatalog,
                 draftService = DraftService(repos.draft, StaticDraftDriver(), courseService),
                 courseService = courseService,
                 decks = repos.deck,

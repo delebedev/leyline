@@ -46,7 +46,7 @@
                 }
             }
         },
-        "/api/puzzles": {
+        "/api/challenges": {
             "get": {
                 "responses": {
                     "200": {
@@ -56,7 +56,7 @@
                                 "schema": {
                                     "type": "array",
                                     "items": {
-                                        "$ref": "#/components/schemas/PuzzleSummaryView"
+                                        "$ref": "#/components/schemas/ChallengeSummary"
                                     }
                                 }
                             }
@@ -844,6 +844,10 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "challengeId": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "puzzle": {
                         "type": "string",
                         "nullable": true
@@ -1259,34 +1263,18 @@
                 },
                 "additionalProperties": false
             },
-            "PuzzleSummaryView": {
+            "ChallengeSummary": {
                 "type": "object",
                 "properties": {
-                    "filename": {
+                    "challengeId": {
                         "type": "string"
                     },
                     "name": {
                         "type": "string"
-                    },
-                    "goal": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "turns": {
-                        "type": "integer",
-                        "nullable": true
-                    },
-                    "difficulty": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "description": {
-                        "type": "string",
-                        "nullable": true
                     }
                 },
                 "required": [
-                    "filename",
+                    "challengeId",
                     "name"
                 ],
                 "additionalProperties": false

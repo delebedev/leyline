@@ -9,6 +9,7 @@ import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.testkit.TestCardRegistry
@@ -161,7 +162,12 @@ class PuzzleMatchDoorFlowTest :
             val temp = tempPuzzleFile()
 
             try {
-                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = temp.absolutePath))
+                runtimeMatchConfigs.put(
+                    RuntimeMatchConfig(
+                        matchId = matchId,
+                        puzzleDefinition = PuzzleDefinition(temp.nameWithoutExtension, temp.readText()),
+                    ),
+                )
                 val handler =
                     MatchHandler(
                         registry = registry,
@@ -199,7 +205,7 @@ class PuzzleMatchDoorFlowTest :
             }
         }
 
-        test("a bare puzzle name in the runtime match config resolves against the puzzles directory") {
+        test("a configured puzzle identity resolves against the library root") {
             val registry = MatchRegistry()
             val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
             val matchId = "web-puzzle-name-1"
@@ -247,7 +253,12 @@ class PuzzleMatchDoorFlowTest :
             val temp = tempPuzzleFile()
 
             try {
-                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = temp.absolutePath))
+                runtimeMatchConfigs.put(
+                    RuntimeMatchConfig(
+                        matchId = matchId,
+                        puzzleDefinition = PuzzleDefinition(temp.nameWithoutExtension, temp.readText()),
+                    ),
+                )
                 val handler =
                     MatchHandler(
                         registry = registry,
