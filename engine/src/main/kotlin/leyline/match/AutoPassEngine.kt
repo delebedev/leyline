@@ -197,7 +197,7 @@ class AutoPassEngine(
                 bridge = ctx.bridge,
                 seatId = counters.seatId,
                 betweenBatches = { pacing.paceDelay(1) },
-                beforeDrain = ::suppressPassOnlyAiPriorityPresentation,
+                beforeDrain = { ctx.bridge.cutCoordinator.suppressPassOnlyAiPriority(counters.seatId) },
             )
         log.debug("drainPlayback: drained committed coordinator feed")
         // Do NOT snapshot current engine state here — the playback diffs represent
@@ -206,19 +206,6 @@ class AutoPassEngine(
         // causing subsequent diffs to omit new objects (drawn cards) that the client
         // hasn't received yet. The next buildDiff() call will advance the cursor correctly.
         return outcome
-    }
-
-    private fun suppressPassOnlyAiPriorityPresentation() {
-        val bridge = ctx.bridge
-        val game = ctx.game
-        val human = bridge.getPlayer(counters.seatId) ?: return
-        if (game.phaseHandler.playerTurn == human) return
-        val pending = bridge.seat(counters.seatId).action.getPending() ?: return
-        if (pending.state.kind != leyline.bridge.handoff.PendingActionKind.PRIORITY) return
-        val hasLegalAction = bridge.cutCoordinator.hasMeaningfulPriorityAction(pending.actionId)
-        if (priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction)) {
-            bridge.cutCoordinator.suppressPriorityPresentation(pending.actionId)
-        }
     }
 
     /**

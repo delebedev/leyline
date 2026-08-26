@@ -13,7 +13,7 @@ Rules for documenting a codebase that bridges a complex rules engine to an exter
 
 The hardest thing to re-derive is *why* a design split exists. Put that in the KDoc of the class at the split point — not in a standalone doc someone has to know exists.
 
-A class header explaining why `ClientAutoPassState` is separate from `PhaseStopProfile` is a decision record that lives exactly where a reader needs it. A standalone ADR in `docs/decisions/` saying the same thing is a copy that rots.
+A class header explaining why a runtime owns mutable policy state is a decision record that lives exactly where a reader needs it. A standalone ADR in `docs/decisions/` saying the same thing is a copy that rots.
 
 **Good:** `"Owns combat independently so MatchSession remains a protocol dispatcher."` on `CombatHandler`. Read the class, understand the boundary.
 

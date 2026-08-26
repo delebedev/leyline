@@ -1,5 +1,7 @@
 package leyline.architecture
 
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.assertions.assertSoftly
@@ -9,6 +11,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
+import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
 import java.nio.file.Files
 
@@ -114,32 +117,40 @@ class RuntimeBoundaryTest :
             }
         }
 
-        test("priority settings state has one production owner") {
+        test("opponent priority suppression stays behind the coordinator") {
+            val autoPassEngine = "leyline.match.AutoPassEngine"
+            val cutCoordinator = "leyline.bridge.coord.MatchCutCoordinator"
             val policyRuntime = "leyline.bridge.coord.PriorityPolicyRuntime"
-            val policyStateTypes =
-                listOf(
-                    "leyline.bridge.types.ClientAutoPassState",
-                    "leyline.bridge.types.PhaseStopProfile",
-                )
-            val policyState = named(policyStateTypes)
-            val policyRuntimeAndState = named(listOf(policyRuntime) + policyStateTypes)
-
-            classes()
-                .that()
-                .haveFullyQualifiedName(policyRuntime)
-                .should()
-                .dependOnClassesThat()
-                .haveNameMatching(policyState)
-                .because("the runtime must own both mutable priority policy places")
-                .check(classes)
 
             noClasses()
                 .that()
-                .haveNameNotMatching(policyRuntimeAndState)
+                .haveFullyQualifiedName(autoPassEngine)
                 .should()
-                .dependOnClassesThat()
-                .haveNameMatching(policyState)
-                .because("only PriorityPolicyRuntime may construct or mutate priority settings state")
+                .callMethodWhere(
+                    methodCall(cutCoordinator, "suppressPriorityPresentation", "mutate priority visibility")
+                        .or(methodCall(policyRuntime, "shouldSuppressOpponentPresentation", "classify opponent priority")),
+                ).because("the pump delegates exact-window suppression to the engine coordinator")
+                .check(classes)
+
+            classes()
+                .that()
+                .haveFullyQualifiedName(autoPassEngine)
+                .should()
+                .callMethodWhere(methodCall(cutCoordinator, "suppressPassOnlyAiPriority", "suppress one exact AI window"))
+                .because("the pump requests one coordinator operation before draining")
+                .check(classes)
+
+            classes()
+                .that()
+                .haveFullyQualifiedName(cutCoordinator)
+                .should()
+                .callMethodWhere(
+                    methodCall(
+                        "leyline.bridge.coord.MatchActionWindowRuntime",
+                        "suppressPriorityPresentation",
+                        "mutate priority visibility",
+                    ),
+                ).because("the coordinator owns the action-window visibility mutation")
                 .check(classes)
         }
     })
@@ -161,3 +172,11 @@ private val forgeCoupledMatchClasses =
         "leyline.match.SpectatorSession",
         "leyline.match.TargetingHandler",
     )
+
+private fun methodCall(
+    owner: String,
+    name: String,
+    description: String,
+) = object : DescribedPredicate<JavaMethodCall>(description) {
+    override fun test(call: JavaMethodCall): Boolean = call.targetOwner.name == owner && kotlinName(call.target.name) == name
+}

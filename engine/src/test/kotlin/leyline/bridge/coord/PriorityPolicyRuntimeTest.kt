@@ -11,6 +11,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.types.AutoPassReason
 import leyline.testkit.settingsMessage
+import leyline.testkit.stop
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
@@ -24,7 +25,7 @@ class PriorityPolicyRuntimeTest :
 
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
-        test("immutable settings command updates the runtime-owned stops") {
+        test("settings update the runtime-owned stops") {
             val runtime = PriorityPolicyRuntime()
             runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
             runtime.submit(
@@ -60,6 +61,97 @@ class PriorityPolicyRuntimeTest :
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
                         PhaseType.MAIN2,
                     )
+            }
+        }
+
+        test("installing a new game resets phase stops but keeps settings") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
+            runtime.submit(settingsMessage { addStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set)) })
+
+            runtime.installPhaseStops(humanPlayerId = 10, opponentPlayerId = 20)
+
+            assertSoftly {
+                runtime.isPhaseStopped(1, PhaseType.UPKEEP) shouldBe false
+                runtime.isPhaseStopped(10, PhaseType.UPKEEP) shouldBe false
+                runtime.isPhaseStopped(20, PhaseType.COMBAT_BEGIN) shouldBe true
+                runtime.shouldAutoPass() shouldBe true
+            }
+        }
+
+        test("submit accumulates stops and returns the authoritative settings") {
+            val runtime = PriorityPolicyRuntime()
+            val first = settingsMessage { addStops(stop(StopType.PostcombatMainPhase, SettingScope.Opponents, SettingStatus.Set)) }
+            val second = settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) }
+
+            runtime.submit(first)
+            val authoritative = runtime.submit(second)
+
+            authoritative.stopsList.map { it.stopType }.toSet() shouldBe
+                setOf(StopType.PostcombatMainPhase, StopType.EndStep_ad1f)
+        }
+
+        test("submit replaces a stop by type and scope") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.submit(settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) })
+
+            val authoritative =
+                runtime.submit(
+                    settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe)) },
+                )
+
+            authoritative.stopsCount shouldBe 1
+            authoritative.stopsList.single().status shouldBe SettingStatus.Clear_a3fe
+        }
+
+        test("submit accumulates transient stops") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.submit(settingsMessage { addTransientStops(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set)) })
+
+            val authoritative =
+                runtime.submit(settingsMessage { addTransientStops(stop(StopType.DrawStep, SettingScope.Opponents, SettingStatus.Set)) })
+
+            authoritative.transientStopsCount shouldBe 2
+        }
+
+        test("submit preserves a scalar when the delta is None") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
+
+            val authoritative =
+                runtime.submit(settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) })
+
+            authoritative.autoPassOption shouldBe AutoPassOption.ResolveAll
+        }
+
+        test("submit updates a scalar when the delta is non-None") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
+
+            val authoritative = runtime.submit(settingsMessage { autoPassOption = AutoPassOption.FullControl })
+
+            authoritative.autoPassOption shouldBe AutoPassOption.FullControl
+        }
+
+        test("submit keeps stop scopes independent") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.submit(
+                settingsMessage {
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Team_ac6e, SettingStatus.Set))
+                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                },
+            )
+
+            val authoritative =
+                runtime.submit(
+                    settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe)) },
+                )
+
+            assertSoftly {
+                authoritative.stopsCount shouldBe 2
+                authoritative.stopsList.first { it.appliesTo == SettingScope.Team_ac6e }.status shouldBe SettingStatus.Set
+                authoritative.stopsList.first { it.appliesTo == SettingScope.Opponents }.status shouldBe SettingStatus.Clear_a3fe
             }
         }
 

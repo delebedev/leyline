@@ -60,13 +60,6 @@ class MatchSession(
             connection.playerId = value
         }
 
-    /** Client SetSettingsReq state — delegate; mutable on connection. */
-    var clientSettings: SettingsMessage?
-        get() = connection.clientSettings
-        set(value) {
-            connection.clientSettings = value
-        }
-
     private val sessionLock get() = connection.sessionLock
     private val autoAdvanceExecutor =
         Executors.newSingleThreadExecutor { r ->
@@ -391,67 +384,19 @@ class MatchSession(
                 incoming.transientStopsCount,
             )
 
-            // Merge incoming delta into accumulated clientSettings (client sends only changed fields).
-            clientSettings = mergeSettings(clientSettings, incoming)
-
-            gameBridge.priorityPolicy.submit(incoming)
+            val settings = gameBridge.priorityPolicy.submit(incoming)
 
             val (msg, nextMsgId) =
                 HandshakeMessages.settingsResp(
                     seatId,
                     counter.currentMsgId(),
                     counter.currentGsId(),
-                    clientSettings,
+                    settings,
                 )
             counter.setMsgId(nextMsgId)
             ProtoDump.dump(msg, "SettingsResp")
             sink.sendRaw(msg)
         }
-
-    /**
-     * Merge incoming settings delta into accumulated settings.
-     * Stops keyed by (stopType, appliesTo) — incoming overrides existing.
-     * Clear status marks a stop as disabled but does not remove it from the set.
-     */
-    companion object {
-        fun mergeSettings(
-            existing: SettingsMessage?,
-            incoming: SettingsMessage,
-        ): SettingsMessage {
-            if (existing == null) return incoming
-            val merged = existing.toBuilder()
-
-            // Merge stops: build a map keyed by (stopType, appliesTo), incoming overrides existing
-            val stopMap = linkedMapOf<Pair<Int, Int>, Stop>()
-            for (stop in existing.stopsList) {
-                stopMap[stop.stopType.number to stop.appliesTo.number] = stop
-            }
-            for (stop in incoming.stopsList) {
-                stopMap[stop.stopType.number to stop.appliesTo.number] = stop
-            }
-            merged.clearStops().addAllStops(stopMap.values)
-
-            // Merge transientStops the same way
-            val transMap = linkedMapOf<Pair<Int, Int>, Stop>()
-            for (stop in existing.transientStopsList) {
-                transMap[stop.stopType.number to stop.appliesTo.number] = stop
-            }
-            for (stop in incoming.transientStopsList) {
-                transMap[stop.stopType.number to stop.appliesTo.number] = stop
-            }
-            merged.clearTransientStops().addAllTransientStops(transMap.values)
-
-            // Merge scalar fields only when incoming has non-default values
-            if (incoming.autoPassOption != AutoPassOption.None_a465) {
-                merged.autoPassOption = incoming.autoPassOption
-            }
-            if (incoming.stackAutoPassOption != AutoPassOption.None_a465) {
-                merged.stackAutoPassOption = incoming.stackAutoPassOption
-            }
-
-            return merged.build()
-        }
-    }
 
     // --- Sending helpers ---
 
