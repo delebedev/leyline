@@ -211,7 +211,10 @@ open class CombatHandler(
      * declare attackers phase. This submits an empty attacker list to the engine,
      * which passes combat entirely (no attacks, skip to post-combat main).
      */
-    fun onCancelAttackers(autoPass: () -> Unit) {
+    fun onCancelAttackers(
+        gameStateId: Int,
+        autoPass: () -> Unit,
+    ) {
         val bridge = ctx.bridge
         val seatBridge = bridge.seat(counters.seatId)
         val pending =
@@ -230,11 +233,16 @@ open class CombatHandler(
             }
         }
 
-        bridge.cutCoordinator.submitDeclaredAction(
-            pending.actionId,
-            responseGameStateId = checkNotNull(pending.promptGameStateId),
-            confirmation,
-        )
+        val submitted =
+            bridge.cutCoordinator.submitDeclaredAction(
+                pending.actionId,
+                responseGameStateId = gameStateId,
+                confirmation,
+            )
+        if (!submitted) {
+            log.warn("CombatHandler: CancelActionReq did not match current attacker window")
+            return
+        }
         bridge.awaitPriority()
         autoPass()
     }

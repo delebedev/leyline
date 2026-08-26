@@ -361,7 +361,7 @@ class MatchSession(
         synchronized(sessionLock) {
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.hasPendingAttackers()) {
-                combatHandler.onCancelAttackers { autoPassEngine.autoPassAndAdvance() }
+                combatHandler.onCancelAttackers(greMsg.gameStateId) { autoPassEngine.autoPassAndAdvance() }
                 return
             }
             targetingHandler.onCancelAction(greMsg) { autoPassEngine.autoPassAndAdvance() }

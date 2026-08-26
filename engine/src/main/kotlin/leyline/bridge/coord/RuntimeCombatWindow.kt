@@ -143,9 +143,7 @@ internal class RuntimeCombatWindow(
                             val target =
                                 when (selection.damageRecipient.type) {
                                     DamageRecType.Player_a0e5 ->
-                                        Target.Player(
-                                            ForgePlayerId(selection.damageRecipient.playerSystemSeatId),
-                                        )
+                                        playerBySeatId[selection.damageRecipient.playerSystemSeatId]?.let(Target::Player)
                                     DamageRecType.PlanesWalker ->
                                         targetCardByInstanceId[selection.damageRecipient.planeswalkerInstanceId]?.let(Target::Card)
                                     else -> null

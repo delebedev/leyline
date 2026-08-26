@@ -20,7 +20,6 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -49,6 +48,7 @@ internal class MatchCutCoordinator(
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val gameOver = MatchGameOverRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
+    internal val deferredCast = DeferredCastWindowRuntime(this, actions)
     internal val prompts = MatchPromptRuntimeSet(this)
 
     // Read-only views; [prompts] remains the sole lifecycle owner.
@@ -148,46 +148,6 @@ internal class MatchCutCoordinator(
         confirmation: (() -> GREToClientMessage)? = null,
     ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, confirmation)
 
-    internal fun publishDeferredHybrid(
-        claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-        promptColors: List<ManaColor>,
-        paymentColors: List<ManaColor>,
-    ) = actions.publishDeferredHybrid(claim, promptGameStateId, ctoIds, promptColors, paymentColors)
-
-    internal fun publishDeferredOptional(
-        claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ) = actions.publishDeferredOptional(claim, promptGameStateId, ctoIds)
-
-    internal fun publishDeferredOptional(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ): Boolean = actions.publishDeferredOptional(receipt, promptGameStateId, ctoIds)
-
-    internal fun publishDeferredAlternate(
-        claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ) = actions.publishDeferredAlternate(claim, promptGameStateId, ctoIds)
-
-    internal fun admitDeferredCastResponse(
-        response: MatchActionWindowRuntime.DeferredCastResponse,
-    ): MatchActionWindowRuntime.DeferredCastAdmission = actions.admitDeferredCastResponse(response)
-
-    internal fun deferredCostPlan(receipt: MatchActionWindowRuntime.DeferredCastReceipt) = actions.deferredCostPlan(receipt)
-
-    internal fun completeDeferred(receipt: MatchActionWindowRuntime.DeferredCastReceipt): Boolean = actions.completeDeferred(receipt)
-
-    internal fun hasDeferredCastPrompt(): Boolean = actions.hasDeferredCastPrompt()
-
-    internal fun discardDeferredCastPrompt() = actions.discardDeferredCastPrompt()
-
-    internal fun cancelDeferredCast(): Boolean = actions.cancelDeferredCast()
-
     fun currentBlockingInteraction(): PublishedBlockingInteraction? = interactions.current()
 
     fun submitOptionalAnswer(
@@ -207,12 +167,6 @@ internal class MatchCutCoordinator(
         gameStateId: Int,
         value: Int,
     ): Boolean = interactions.submitNumeric(interactionId, gameStateId, value)
-
-    fun submitDamageAnswer(
-        interactionId: String,
-        gameStateId: Int,
-        assignments: List<DamageAssignmentValue>,
-    ): Boolean = interactions.submitDamage(interactionId, gameStateId, assignments)
 
     fun submitDamageCommand(
         interactionId: String,
@@ -268,6 +222,7 @@ internal class MatchCutCoordinator(
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
             terminal.reset()
             actions.reset()
+            deferredCast.discard()
             prompts.reset()
         }
     }

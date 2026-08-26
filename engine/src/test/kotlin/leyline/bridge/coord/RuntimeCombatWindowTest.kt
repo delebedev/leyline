@@ -7,6 +7,8 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 
@@ -60,6 +62,19 @@ class RuntimeCombatWindowTest :
                 handles.nextBlockers(DeclarationAnswer.Blockers.of(mapOf(201 to 999))).shouldBeNull()
                 handles.resolveDeclaration(PendingActionKind.PRIORITY).shouldBeNull()
             }
+        }
+
+        test("resolved player recipients use the retained Forge player identity") {
+            val handles = handles()
+            val answer =
+                DeclarationAnswer.Attackers.of(
+                    attackerInstanceIds = listOf(101),
+                    defenderByAttacker = mapOf(101 to DeclarationAnswer.Target.Player(2)),
+                )
+            handles.replaceAttackers(checkNotNull(handles.nextAttackers(answer)))
+
+            val declaration = handles.resolveDeclaration(PendingActionKind.DECLARE_ATTACKERS) as PlayerAction.DeclareAttackers
+            declaration.defenderByAttacker shouldBe mapOf(ForgeCardId(11) to Target.Player(ForgePlayerId(200)))
         }
     }) {
     companion object {

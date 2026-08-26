@@ -10,55 +10,16 @@ import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 
 /** Runtime action catalogs and exact presentation ownership beneath [MatchCutCoordinator]. */
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
-) {
-    internal data class DeferredCastOptionResponse(
-        val ctoId: Int,
-        val manaColor: ManaColor?,
-    )
-
-    internal data class DeferredCastResponse(
-        val gameStateId: Int,
-        val ctoId: Int,
-        val selectedCtoId: Int?,
-        val options: List<DeferredCastOptionResponse>,
-    )
-
-    internal class DeferredCastReceipt internal constructor(
-        internal val actionId: String,
-        internal val token: Long,
-    )
-
-    internal enum class DeferredCastRejection {
-        Stale,
-        Duplicate,
-        WrongOption,
-    }
-
-    internal sealed interface DeferredCastAdmission {
-        data class Rejected(
-            val reason: DeferredCastRejection,
-        ) : DeferredCastAdmission
-
-        data object Optional : DeferredCastAdmission
-
-        data class Hybrid(
-            val receipt: DeferredCastReceipt,
-        ) : DeferredCastAdmission
-
-        data object Alternate : DeferredCastAdmission
-    }
-
+) : DeferredCastActionOwner {
     // Written under the coordinator feed lock; read lock-free by the engine wait
     // adapter and session threads asking whether a window is still open.
     private val actionWindows = ConcurrentHashMap<String, RuntimeActionWindow>()
-    private val deferred = DeferredCastWindowRuntime(owner, this)
     private var nextActionToken = 1L
 
     internal var beforeEnqueue: (() -> Unit)? = null
@@ -85,48 +46,17 @@ internal class MatchActionWindowRuntime(
 
     fun bridge(seatId: SeatId): GameActionBridge.ActionWindowRuntime = CoordinatorActionWindowBridge(this, seatId)
 
-    internal fun publishDeferredHybrid(
-        claim: ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-        promptColors: List<ManaColor>,
-        paymentColors: List<ManaColor>,
-    ) = deferred.publishHybrid(claim, promptGameStateId, ctoIds, promptColors, paymentColors)
-
-    internal fun publishDeferredOptional(
-        claim: ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ) = deferred.publishOptional(claim, promptGameStateId, ctoIds)
-
-    internal fun publishDeferredOptional(
-        receipt: DeferredCastReceipt,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ): Boolean = deferred.publishOptional(receipt, promptGameStateId, ctoIds)
-
-    internal fun publishDeferredAlternate(
-        claim: ActionClaim,
-        promptGameStateId: Int,
-        ctoIds: List<Int>,
-    ) = deferred.publishAlternate(claim, promptGameStateId, ctoIds)
-
-    internal fun deferredCostPlan(receipt: DeferredCastReceipt) = deferred.deferredCostPlan(receipt)
-
-    internal fun hasDeferredCastPrompt(): Boolean = deferred.hasPrompt()
-
-    internal fun discardDeferredCastPrompt() = deferred.discard()
-
-    internal fun admitDeferredCastResponse(response: DeferredCastResponse): DeferredCastAdmission = deferred.admit(response)
-
-    internal fun completeDeferred(receipt: DeferredCastReceipt): Boolean = deferred.complete(receipt)
-
-    internal fun cancelDeferredCast(): Boolean = deferred.cancel()
-
-    internal fun isDeferredClaim(claim: ActionClaim): Boolean =
+    override fun isDeferredClaim(claim: ActionClaim): Boolean =
         actionWindows[claim.actionId]?.status == ActionWindowStatus.Claimed(ActionClaimKind.Deferred, claim.token)
 
-    internal fun seatFor(actionId: String): SeatId = checkNotNull(actionWindows[actionId]?.seatId)
+    override fun seatFor(actionId: String): SeatId = checkNotNull(actionWindows[actionId]?.seatId)
+
+    override fun completeDeferredClaim(
+        claim: ActionClaim,
+        childToken: Long?,
+    ): Boolean = complete(claim, childToken)
+
+    override fun reopenDeferredClaim(claim: ActionClaim): Boolean = reopenClaim(claim)
 
     /**
      * The engine and client see a window only while it is
@@ -507,7 +437,6 @@ internal class MatchActionWindowRuntime(
         synchronized(owner.feedLock) {
             actionWindows.values.forEach { it.selections.clear() }
             actionWindows.clear()
-            deferred.discard()
         }
     }
 
@@ -638,7 +567,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun close(actionId: String) {
         synchronized(owner.feedLock) {
-            deferred.close(actionId)
+            owner.deferredCast.close(actionId)
             actionWindows.remove(actionId)?.selections?.clear()
         }
     }

@@ -1,5 +1,10 @@
 package leyline.match
 
+import leyline.bridge.coord.DeferredCastAdmission
+import leyline.bridge.coord.DeferredCastOptionResponse
+import leyline.bridge.coord.DeferredCastReceipt
+import leyline.bridge.coord.DeferredCastRejection
+import leyline.bridge.coord.DeferredCastResponse
 import leyline.bridge.coord.MatchActionWindowRuntime
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import org.slf4j.LoggerFactory
@@ -19,7 +24,8 @@ internal class DeferredCastCostInteractionHandler(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ): Boolean {
-        if (!ctx.bridge.cutCoordinator.hasDeferredCastPrompt()) return false
+        val deferredCast = ctx.bridge.cutCoordinator.deferredCast
+        if (!deferredCast.hasPrompt()) return false
         val resp = greMsg.castingTimeOptionsResp
         val optionResponses =
             if (resp.castingTimeOptionRespsCount > 0) {
@@ -28,8 +34,8 @@ internal class DeferredCastCostInteractionHandler(
                 listOf(resp.castingTimeOptionResp)
             }
         val admission =
-            ctx.bridge.cutCoordinator.admitDeferredCastResponse(
-                MatchActionWindowRuntime.DeferredCastResponse(
+            deferredCast.admit(
+                DeferredCastResponse(
                     gameStateId = greMsg.gameStateId,
                     ctoId = resp.castingTimeOptionResp?.ctoId ?: 0,
                     selectedCtoId =
@@ -39,7 +45,7 @@ internal class DeferredCastCostInteractionHandler(
                             ?.firstOrNull(),
                     options =
                         optionResponses.map { option ->
-                            MatchActionWindowRuntime.DeferredCastOptionResponse(
+                            DeferredCastOptionResponse(
                                 ctoId = option.ctoId,
                                 manaColor = option.selectManaTypeResp.takeIf { option.hasSelectManaTypeResp() }?.manaColor,
                             )
@@ -47,10 +53,10 @@ internal class DeferredCastCostInteractionHandler(
                 ),
             )
         when (admission) {
-            is MatchActionWindowRuntime.DeferredCastAdmission.Rejected -> {
+            is DeferredCastAdmission.Rejected -> {
                 ResponseEnvelopeGuard.reject(
                     greMsg,
-                    if (admission.reason == MatchActionWindowRuntime.DeferredCastRejection.Stale) {
+                    if (admission.reason == DeferredCastRejection.Stale) {
                         FailureReason.ReqRespMismatch
                     } else {
                         FailureReason.InvalidOptionSelection
@@ -59,19 +65,19 @@ internal class DeferredCastCostInteractionHandler(
                     sink,
                 )
             }
-            is MatchActionWindowRuntime.DeferredCastAdmission.Optional -> {
+            is DeferredCastAdmission.Optional -> {
                 bridgeAfterDeferredResponse(autoPass)
             }
-            is MatchActionWindowRuntime.DeferredCastAdmission.Hybrid -> {
-                val plan = ctx.bridge.cutCoordinator.deferredCostPlan(admission.receipt)
+            is DeferredCastAdmission.Hybrid -> {
+                val plan = deferredCast.deferredCostPlan(admission.receipt)
                 if (plan != null && checkOptionalCosts(admission.receipt, plan, preserveHybridStash = true)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent after hybrid mana type")
                 } else {
-                    check(ctx.bridge.cutCoordinator.completeDeferred(admission.receipt)) { "Deferred hybrid action claim did not complete" }
+                    check(deferredCast.complete(admission.receipt)) { "Deferred hybrid action claim did not complete" }
                     bridgeAfterDeferredResponse(autoPass)
                 }
             }
-            is MatchActionWindowRuntime.DeferredCastAdmission.Alternate -> {
+            is DeferredCastAdmission.Alternate -> {
                 bridgeAfterDeferredResponse(autoPass)
             }
         }
@@ -100,7 +106,7 @@ internal class DeferredCastCostInteractionHandler(
                 manaCost = hybrid.manaCost,
             )
         val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        ctx.bridge.cutCoordinator.publishDeferredHybrid(
+        ctx.bridge.cutCoordinator.deferredCast.publishHybrid(
             claim = actionClaim,
             promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
             ctoIds = ctoIds,
@@ -118,20 +124,23 @@ internal class DeferredCastCostInteractionHandler(
         preserveHybridStash: Boolean = false,
     ): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
+        val deferredCast = ctx.bridge.cutCoordinator.deferredCast
         return publishOptionalCosts(plan, preserveHybridStash) { gameStateId, ctoIds ->
-            ctx.bridge.cutCoordinator.publishDeferredOptional(actionClaim, gameStateId, ctoIds)
+            deferredCast.publishOptional(actionClaim, gameStateId, ctoIds)
             true
         }
     }
 
     private fun checkOptionalCosts(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
+        receipt: DeferredCastReceipt,
         plan: leyline.bridge.handoff.DeferredCastCostPlan,
         preserveHybridStash: Boolean,
-    ): Boolean =
-        publishOptionalCosts(plan, preserveHybridStash) { gameStateId, ctoIds ->
-            ctx.bridge.cutCoordinator.publishDeferredOptional(receipt, gameStateId, ctoIds)
+    ): Boolean {
+        val deferredCast = ctx.bridge.cutCoordinator.deferredCast
+        return publishOptionalCosts(plan, preserveHybridStash) { gameStateId, ctoIds ->
+            deferredCast.publishOptional(receipt, gameStateId, ctoIds)
         }
+    }
 
     private fun publishOptionalCosts(
         plan: leyline.bridge.handoff.DeferredCastCostPlan,
@@ -177,7 +186,7 @@ internal class DeferredCastCostInteractionHandler(
                 optionPromptIds = if (optionPromptIds.all { it != null }) optionPromptIds.filterNotNull() else emptyList(),
             )
         val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        ctx.bridge.cutCoordinator.publishDeferredAlternate(
+        ctx.bridge.cutCoordinator.deferredCast.publishAlternate(
             claim = actionClaim,
             promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
             ctoIds = ctoIds,

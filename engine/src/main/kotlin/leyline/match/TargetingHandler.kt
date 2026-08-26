@@ -47,7 +47,9 @@ class TargetingHandler(
 
     /** Clear targeting state for puzzle hot-swap. */
     fun reset() {
-        ctx.bridge.cutCoordinator.discardDeferredCastPrompt()
+        ctx.bridge.cutCoordinator
+            .deferredCast
+            .discard()
     }
 
     /**
@@ -239,8 +241,8 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        if (ctx.bridge.cutCoordinator.hasDeferredCastPrompt()) {
-            cancelDeferredCast(autoPass)
+        if (bridge.cutCoordinator.deferredCast.hasPrompt()) {
+            cancelDeferredCast(greMsg.gameStateId, autoPass)
             return
         }
 
@@ -299,8 +301,15 @@ class TargetingHandler(
         return true
     }
 
-    private fun cancelDeferredCast(autoPass: () -> Unit) {
-        check(ctx.bridge.cutCoordinator.cancelDeferredCast()) { "Deferred action claim did not reopen" }
+    private fun cancelDeferredCast(
+        gameStateId: Int,
+        autoPass: () -> Unit,
+    ) {
+        val deferredCast = ctx.bridge.cutCoordinator.deferredCast
+        if (!deferredCast.cancel(gameStateId)) {
+            log.warn("TargetingHandler: CancelActionReq did not match current deferred cast window")
+            return
+        }
         log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
         autoPass()
     }
@@ -392,7 +401,7 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val modal = bridge.cutCoordinator.modalChoices.current()
         if (modal == null) {
-            if (bridge.cutCoordinator.hasDeferredCastPrompt()) {
+            if (bridge.cutCoordinator.deferredCast.hasPrompt()) {
                 error("deferred cast-cost handler did not consume the response")
             }
             log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")

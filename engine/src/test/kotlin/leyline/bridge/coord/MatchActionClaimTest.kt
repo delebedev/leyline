@@ -186,6 +186,7 @@ class MatchActionClaimTest :
                     """.trimIndent(),
                 )
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val deferred = board.bridge.cutCoordinator.deferredCast
             val cast =
                 board.bridge.cutCoordinator
                     .drain(SeatId(1))
@@ -199,33 +200,74 @@ class MatchActionClaimTest :
                     .shouldNotBeNull()
                     .actionClaim
             val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
-            board.bridge.cutCoordinator.publishDeferredOptional(claim, 700, List(optionalCount) { it + 1 })
+            deferred.publishOptional(claim, 700, List(optionalCount) { it + 1 })
 
             val wrongWindow =
-                board.bridge.cutCoordinator.admitDeferredCastResponse(
-                    MatchActionWindowRuntime.DeferredCastResponse(699, 0, null, emptyList()),
+                deferred.admit(
+                    DeferredCastResponse(699, 0, null, emptyList()),
                 )
-            wrongWindow.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
-            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe true
+            wrongWindow.shouldBeInstanceOf<DeferredCastAdmission.Rejected>()
+            deferred.hasPrompt() shouldBe true
 
             val wrongOption =
-                board.bridge.cutCoordinator.admitDeferredCastResponse(
-                    MatchActionWindowRuntime.DeferredCastResponse(700, 999, null, emptyList()),
+                deferred.admit(
+                    DeferredCastResponse(700, 999, null, emptyList()),
                 )
-            wrongOption.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
-            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe true
+            wrongOption.shouldBeInstanceOf<DeferredCastAdmission.Rejected>()
+            deferred.hasPrompt() shouldBe true
 
             val accepted =
-                board.bridge.cutCoordinator.admitDeferredCastResponse(
-                    MatchActionWindowRuntime.DeferredCastResponse(700, 0, null, emptyList()),
+                deferred.admit(
+                    DeferredCastResponse(700, 0, null, emptyList()),
                 )
-            accepted.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Optional>()
-            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe false
+            accepted.shouldBeInstanceOf<DeferredCastAdmission.Optional>()
+            deferred.hasPrompt() shouldBe false
             val duplicate =
-                board.bridge.cutCoordinator.admitDeferredCastResponse(
-                    MatchActionWindowRuntime.DeferredCastResponse(700, 0, null, emptyList()),
+                deferred.admit(
+                    DeferredCastResponse(700, 0, null, emptyList()),
                 )
-            duplicate.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
-            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe false
+            duplicate.shouldBeInstanceOf<DeferredCastAdmission.Rejected>()
+            deferred.hasPrompt() shouldBe false
+        }
+
+        test("deferred cancellation requires the exact prompt game state") {
+            val board =
+                startPuzzleAtMain1(
+                    puzzle
+                        .replace("humanhand=Forest", "humanhand=Burst Lightning")
+                        .replace("humanbattlefield=Forest", "humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain")
+                        .replace("humanlibrary=Forest", "humanlibrary=Mountain"),
+                )
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val deferred = board.bridge.cutCoordinator.deferredCast
+            val cast =
+                board.bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .first { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .first { it.actionType == ActionType.Cast }
+            val claim =
+                board.bridge.cutCoordinator
+                    .claimPriorityResponse(pending.actionId, checkNotNull(pending.promptGameStateId), cast, defer = true)
+                    .shouldNotBeNull()
+                    .actionClaim
+            val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
+            deferred.publishOptional(claim, 700, List(optionalCount) { it + 1 })
+
+            assertSoftly {
+                deferred.cancel(699) shouldBe false
+                deferred.hasPrompt() shouldBe true
+                board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
+
+                deferred.cancel(700) shouldBe true
+                deferred.hasPrompt() shouldBe false
+            }
+            val reopenedActionId =
+                board.bridge
+                    .actionBridge(SeatId(1))
+                    .getPending()
+                    ?.actionId
+            reopenedActionId shouldBe pending.actionId
         }
     })
