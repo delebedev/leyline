@@ -11,8 +11,10 @@ import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionTimeoutException
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.TargetingWindowMaterializer
 import leyline.game.snapshot.BoundCard
+import leyline.game.state.ProjectionState
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -138,49 +140,49 @@ internal class MatchTargetingInteractionRuntime(
     ): TargetingWindow {
         owner.beforePublicationLock?.invoke()
         val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        check(window == null) { "A targeting interaction is already pending" }
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val prepared =
-                            try {
-                                feed.builder.prepareTargetingWindow(game, owner.counter, value, transientSourceCard)
-                            } catch (ex: Exception) {
-                                owner.fail(ex)
-                            }
-                        publishPrepared(feed, prepared)
-                        val projection = prepared.transition?.nextState ?: owner.bridge.projectionStateSnapshot()
-                        val published =
-                            PublishedTargetingInteraction(
-                                UUID.randomUUID().toString(),
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                value.targetIndex,
-                                kind,
-                            )
-                        val created =
-                            TargetingWindow(
-                                interactionId = published.interactionId,
-                                value = value,
-                                targetingAbility = targetingAbility,
-                                entitiesByOptionIndex = capture.resolveEntities(value),
-                                stackAbilitiesByOptionIndex = capture.resolveStackAbilities(value),
-                                instanceIdByOptionIndex = capture.resolveInstanceIds(value, projection),
-                                sourceInstanceId =
-                                    value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
-                                exchange =
-                                    InteractiveCommandExchange(
-                                        deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
-                                        nextDeliveryToken = nextDeliveryToken::incrementAndGet,
-                                        replyOf = TargetingCommand::reply,
-                                    ),
-                                published = published,
-                            )
-                        window = created
-                        created
-                    }
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    val prior = owner.bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    check(window == null) { "A targeting interaction is already pending" }
+                    val feed = owner.feed(owner.humanSeat)
+                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                    val prepared =
+                        try {
+                            feed.builder.prepareTargetingWindow(game, planner, value, transientSourceCard)
+                        } catch (ex: Exception) {
+                            owner.fail(ex)
+                        }
+                    publishPrepared(feed, prior, planner, prepared)
+                    val projection = prepared.transition?.nextState ?: owner.bridge.projectionStateSnapshot()
+                    val published =
+                        PublishedTargetingInteraction(
+                            UUID.randomUUID().toString(),
+                            checkNotNull(prepared.bundle.actionGameStateId),
+                            value.targetIndex,
+                            kind,
+                        )
+                    val created =
+                        TargetingWindow(
+                            interactionId = published.interactionId,
+                            value = value,
+                            targetingAbility = targetingAbility,
+                            entitiesByOptionIndex = capture.resolveEntities(value),
+                            stackAbilitiesByOptionIndex = capture.resolveStackAbilities(value),
+                            instanceIdByOptionIndex = capture.resolveInstanceIds(value, projection),
+                            sourceInstanceId =
+                                value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
+                            exchange =
+                                InteractiveCommandExchange(
+                                    deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },
+                                    nextDeliveryToken = nextDeliveryToken::incrementAndGet,
+                                    replyOf = TargetingCommand::reply,
+                                ),
+                            published = published,
+                        )
+                    window = created
+                    created
                 }
             }
         owner.bridge.prioritySignal.signal()
@@ -242,32 +244,32 @@ internal class MatchTargetingInteractionRuntime(
                 selected,
             )
         val prepared =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        val current =
-                            matching(pending.interactionId, command.gameStateId, requireIdle = false)
-                                ?: owner.fail(IllegalStateException("Targeting window changed during re-prompt"))
-                        val feed = owner.feed(owner.humanSeat)
-                        val value =
-                            try {
-                                feed.builder.prepareTargetingRePrompt(
-                                    owner.counter,
-                                    owner.bridge.projectionStateSnapshot(),
-                                    pending.value,
-                                    selected,
-                                    legal,
-                                )
-                            } catch (ex: Exception) {
-                                owner.fail(ex)
-                            }
-                        publishPrepared(feed, value)
-                        current.published =
-                            current.published.copy(gameStateId = checkNotNull(value.bundle.actionGameStateId))
-                        beginDelivery(current, command, completed = false)
-                        value
-                    }
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    val prior = owner.bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    val current =
+                        matching(pending.interactionId, command.gameStateId, requireIdle = false)
+                            ?: owner.fail(IllegalStateException("Targeting window changed during re-prompt"))
+                    val feed = owner.feed(owner.humanSeat)
+                    val value =
+                        try {
+                            feed.builder.prepareTargetingRePrompt(
+                                planner,
+                                prior,
+                                pending.value,
+                                selected,
+                                legal,
+                            )
+                        } catch (ex: Exception) {
+                            owner.fail(ex)
+                        }
+                    publishPrepared(feed, prior, planner, value)
+                    current.published =
+                        current.published.copy(gameStateId = checkNotNull(value.bundle.actionGameStateId))
+                    beginDelivery(current, command, completed = false)
+                    value
                 }
             }
         check(prepared.bundle.messages.isNotEmpty())
@@ -278,27 +280,27 @@ internal class MatchTargetingInteractionRuntime(
         pending: TargetingWindow,
         command: TargetingCommand,
     ) {
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    matching(pending.interactionId, commandGameStateId(command), requireIdle = false)
-                        ?: owner.fail(IllegalStateException("Targeting window changed during submit"))
-                    val feed = owner.feed(owner.humanSeat)
-                    val prepared =
-                        try {
-                            feed.builder.prepareTargetingSubmit(
-                                owner.counter,
-                                owner.bridge.projectionStateSnapshot(),
-                                pending.sourceInstanceId,
-                                owner.humanSeat,
-                            )
-                        } catch (ex: Exception) {
-                            owner.fail(ex)
-                        }
-                    publishPrepared(feed, prepared)
-                    beginDelivery(pending, command, completed = true)
-                }
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                matching(pending.interactionId, commandGameStateId(command), requireIdle = false)
+                    ?: owner.fail(IllegalStateException("Targeting window changed during submit"))
+                val feed = owner.feed(owner.humanSeat)
+                val prepared =
+                    try {
+                        feed.builder.prepareTargetingSubmit(
+                            planner,
+                            prior,
+                            pending.sourceInstanceId,
+                            owner.humanSeat,
+                        )
+                    } catch (ex: Exception) {
+                        owner.fail(ex)
+                    }
+                publishPrepared(feed, prior, planner, prepared)
+                beginDelivery(pending, command, completed = true)
             }
         }
         awaitDelivery(pending, completed = true)
@@ -394,10 +396,12 @@ internal class MatchTargetingInteractionRuntime(
 
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
         prepared: TargetingWindowMaterializer.Prepared,
     ) = owner.cutInstaller.install(
         feed,
-        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        PreparedCut.prepare(prior, planner, prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
         CutInstallHooks(beforeInstall = beforeInstall),
     ) { ex -> owner.fail(ex) }
 

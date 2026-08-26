@@ -21,7 +21,7 @@ System shape lives in
 | Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
 | Runtime delivery observer | One per live human `MatchConnection` | Waits for coordinator feed notifications, then enters `sessionLock` to drain |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
-| Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
+| Sink caller | Observes committed prompt metadata and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
 Engine confinement makes a live read physically stable only on the engine
 thread. It does not make an event callback a safe projection boundary: callbacks
@@ -50,10 +50,10 @@ cut before replacing its correlated prompt state.
 
 ### Lock order
 
-Frame producers that need all three monitors acquire them in this order:
+Frame producers that need both monitors acquire them in this order:
 
 ```text
-MessageCounter -> GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
+GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
 ```
 
 Drainers take only `feedLock`. Event subscribers requesting a future cut take
@@ -153,10 +153,19 @@ Projection and delivery have separate timelines:
 Never use a viewer cursor as client-awareness state. If behavior depends on
 delivery, represent delivery explicitly.
 
-One bridge owns one `ProjectionState` and one shared `MessageCounter` across its
-builders. Failed publication may leave identifier gaps, but no producer rewinds
-the sequence. Producers must still enter the same ordered publication/delivery
-path; atomic allocation does not order independently delivered batches.
+One bridge owns one committed `ProjectionState`. Each cut forks a private
+`LogicalSequencePlanner` from that state, assigns its output ordinal, and carries
+the resulting value in the prepared transition. Installation commits logical
+identifiers, emission horizons, projection, identities, acknowledgements, and
+owned output in one ordered boundary.
+
+Committed identifiers and output ordinals increase monotonically and are never
+rewound. Failed materialization, failed enqueue before installation, stale
+transitions, and abandoned preparation commit nothing, so they consume no
+identifier or ordinal. A delivery failure after installation does not rewind or
+reuse the installed allocation. Sessions, transports, and sinks may read the
+committed horizons needed for admission or prompt handling, but cannot allocate
+or catch up logical sequence or output order.
 
 Interactive sends drain older committed playback before delivering a caller's
 newer batch. A producer that bypasses that funnel can expose output out of order.

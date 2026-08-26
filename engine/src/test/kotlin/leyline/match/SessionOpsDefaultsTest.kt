@@ -5,7 +5,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -18,7 +17,6 @@ class SessionOpsDefaultsTest :
             object : SessionOps {
                 override val seatId = SeatId(1)
                 override val matchId = "test-match"
-                override var counter = MessageCounter()
 
                 override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
 

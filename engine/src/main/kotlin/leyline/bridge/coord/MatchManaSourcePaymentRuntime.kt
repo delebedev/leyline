@@ -15,6 +15,7 @@ import leyline.bridge.handoff.PublishedManaSourcePaymentInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.PromptMaterializationDiagnostic
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.data.KeywordAbilityIds
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -297,58 +298,58 @@ internal class MatchManaSourcePaymentRuntime(
         beforePrepare: () -> Unit = {},
         onPublished: (Publication) -> Unit,
     ): Publication =
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val feed = owner.feed(owner.humanSeat)
-                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                    val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
-                    val prepared =
-                        try {
-                            beforePrepare()
-                            feed.builder.prepareManaSourcePayment(game, owner.counter, value)
-                        } catch (ex: Exception) {
-                            owner.failPrompt(ex, diagnostic = diagnostic)
-                        }
-                    val published =
-                        PublishedManaSourcePaymentInteraction(
-                            interactionId,
-                            checkNotNull(prepared.bundle.actionGameStateId),
-                            value.kind,
-                        )
-                    val exact =
-                        PendingPromptCut(
-                            interactionId,
-                            published.gameStateId,
-                            value,
-                            prepared.bundle.messages,
-                            prepared.transition,
-                        )
-                    val projection = prepared.transition.nextState
-                    val optionEntries =
-                        value.candidates.map { candidate ->
-                            val instanceId =
-                                projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                    ?: owner.failPrompt(
-                                        IllegalStateException("Mana-source candidate ${candidate.forgeCardId.value} was not projected"),
-                                        exact,
-                                    )
-                            instanceId to candidate.originalOptionIndex
-                        }
-                    val optionByInstanceId = optionEntries.toMap()
-                    if (optionByInstanceId.size != optionEntries.size) {
-                        owner.failPrompt(IllegalStateException("Mana-source candidates have ambiguous client identities"), exact)
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val feed = owner.feed(owner.humanSeat)
+                val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
+                val prepared =
+                    try {
+                        beforePrepare()
+                        feed.builder.prepareManaSourcePayment(game, planner, value)
+                    } catch (ex: Exception) {
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
-                    val publication = Publication(published, exact, optionByInstanceId)
-                    owner.cutInstaller.install(
-                        feed,
-                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
-                        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
-                        onInstalled = { onPublished(publication) },
-                    ) { ex -> owner.failPrompt(ex, exact) }
-                    publication
+                val published =
+                    PublishedManaSourcePaymentInteraction(
+                        interactionId,
+                        checkNotNull(prepared.bundle.actionGameStateId),
+                        value.kind,
+                    )
+                val exact =
+                    PendingPromptCut(
+                        interactionId,
+                        published.gameStateId,
+                        value,
+                        prepared.bundle.messages,
+                        prepared.transition,
+                    )
+                val projection = prepared.transition.nextState
+                val optionEntries =
+                    value.candidates.map { candidate ->
+                        val instanceId =
+                            projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
+                                ?: owner.failPrompt(
+                                    IllegalStateException("Mana-source candidate ${candidate.forgeCardId.value} was not projected"),
+                                    exact,
+                                )
+                        instanceId to candidate.originalOptionIndex
+                    }
+                val optionByInstanceId = optionEntries.toMap()
+                if (optionByInstanceId.size != optionEntries.size) {
+                    owner.failPrompt(IllegalStateException("Mana-source candidates have ambiguous client identities"), exact)
                 }
+                val publication = Publication(published, exact, optionByInstanceId)
+                owner.cutInstaller.install(
+                    feed,
+                    PreparedCut.prepare(prior, planner, prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                    CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+                    onInstalled = { onPublished(publication) },
+                ) { ex -> owner.failPrompt(ex, exact) }
+                publication
             }
         }
 

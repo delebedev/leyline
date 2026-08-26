@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -130,15 +129,10 @@ internal fun deliverCommittedCoordinatorBatches(
 }
 
 /**
- * Session identity and the shared protocol counter.
- *
- * `counter` is a `var` so sessions can adopt a peer's counter when paired —
- * e.g. the Familiar seat shares the human seat's [MessageCounter] via the
- * bridge.
+ * Session identity. Logical protocol allocation remains inside tentative runtime cuts.
  */
 interface SessionCounters {
     val seatId: SeatId
-    var counter: MessageCounter
 }
 
 /**

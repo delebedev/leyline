@@ -23,7 +23,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
@@ -252,7 +252,7 @@ class GameBridgeTest :
             val result =
                 BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
             val messages = result.messages
 
@@ -372,7 +372,7 @@ class GameBridgeTest :
             val result =
                 BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
 
             assertSoftly {
@@ -458,7 +458,7 @@ class GameBridgeTest :
             val result =
                 BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
 
             var prevGsId = 0
@@ -521,7 +521,7 @@ class GameBridgeTest :
             val result =
                 BundleBuilder(b, "test-match", 1).postAction(
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
             val gs = result.messages.first().gameStateMessage
 

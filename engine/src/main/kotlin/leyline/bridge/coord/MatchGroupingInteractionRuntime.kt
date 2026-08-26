@@ -164,14 +164,14 @@ internal class MatchGroupingInteractionRuntime(
         kernel.publish(
             duplicateMessage = "A Grouping interaction is already pending",
             ensureEmptyLocked = { check(finalization == null) { "A Grouping interaction is already active" } },
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         beforeMaterialize?.invoke()
                         feed.builder.prepareGroupingWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
                         )
                     } catch (ex: Exception) {

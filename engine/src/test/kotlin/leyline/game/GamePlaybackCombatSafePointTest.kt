@@ -12,7 +12,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.state.GameBridge
@@ -274,7 +274,7 @@ private fun setOpenFrame(
 private data class CombatPlaybackFixture(
     val bridge: GameBridge,
     val playback: GamePlayback,
-    val counterBefore: MessageCounter.Snapshot,
+    val counterBefore: LogicalSequenceState,
     val choiceVersion: Long,
     val earthbendVersion: Long,
 )

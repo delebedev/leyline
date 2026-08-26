@@ -113,13 +113,13 @@ internal class MatchCardSelectInteractionRuntime(
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "A CardSelect interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareCardSelectWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
                         )
                     } catch (ex: Exception) {

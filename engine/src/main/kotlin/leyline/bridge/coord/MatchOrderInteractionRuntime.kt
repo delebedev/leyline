@@ -95,13 +95,13 @@ internal class MatchOrderInteractionRuntime(
     private fun publish(initial: OrderWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "An Order interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareOrderWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
                         )
                     } catch (ex: Exception) {

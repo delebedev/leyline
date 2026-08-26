@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.LogicalSequencePlanner
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -20,48 +21,48 @@ internal class MatchSyncOnlyRuntime(
         pending: GameActionBridge.PendingAction,
     ) {
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                    val feed = owner.feed(seatId)
-                    val prepared =
-                        try {
-                            beforeMaterialization?.invoke()
-                            val phaseMessages =
-                                if (pending.state.synchronizationPresentation == SynchronizationPresentation.PhaseTransition) {
-                                    feed.builder
-                                        .preparePhaseTransitionDiff(
-                                            game,
-                                            owner.counter,
-                                            priorityActions = ActionsAvailableReq.getDefaultInstance(),
-                                            includePriorityPrompt = false,
-                                        ).bundle.messages
-                                } else {
-                                    emptyList()
-                                }
-                            feed.builder
-                                .prepareStateOnlyDiff(game, owner.counter)
-                                .let { it to phaseMessages }
-                        } catch (ex: Exception) {
-                            owner.fail(ex)
-                        }
-                    val (state, phaseMessages) = prepared
-                    val messages =
-                        if (phaseMessages.isEmpty()) {
-                            state.bundle.messages
-                        } else {
-                            phaseMessages + coalescePhaseAnnotations(state.bundle.messages)
-                        }
-                    owner.cutInstaller.install(
-                        feed,
-                        PreparedCut(messages, state.transition, state.closesPlaybackFrame),
-                        CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
-                    ) { ex -> owner.fail(ex) }
-                    feed.requestedCut = null
-                    owner.actions.markSynchronizationPublished(seatId, pending.actionId, messages)
-                }
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                val feed = owner.feed(seatId)
+                val prepared =
+                    try {
+                        beforeMaterialization?.invoke()
+                        val phaseMessages =
+                            if (pending.state.synchronizationPresentation == SynchronizationPresentation.PhaseTransition) {
+                                feed.builder
+                                    .preparePhaseTransitionDiff(
+                                        game,
+                                        planner,
+                                        priorityActions = ActionsAvailableReq.getDefaultInstance(),
+                                        includePriorityPrompt = false,
+                                    ).bundle.messages
+                            } else {
+                                emptyList()
+                            }
+                        feed.builder
+                            .prepareStateOnlyDiff(game, planner)
+                            .let { it to phaseMessages }
+                    } catch (ex: Exception) {
+                        owner.fail(ex)
+                    }
+                val (state, phaseMessages) = prepared
+                val messages =
+                    if (phaseMessages.isEmpty()) {
+                        state.bundle.messages
+                    } else {
+                        phaseMessages + coalescePhaseAnnotations(state.bundle.messages)
+                    }
+                owner.cutInstaller.install(
+                    feed,
+                    PreparedCut.prepare(prior, planner, messages, state.transition, state.closesPlaybackFrame),
+                    CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
+                ) { ex -> owner.fail(ex) }
+                feed.requestedCut = null
+                owner.actions.markSynchronizationPublished(seatId, pending.actionId, messages)
             }
         }
     }

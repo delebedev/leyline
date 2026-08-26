@@ -191,6 +191,39 @@ class RuntimeBoundaryTest :
             }
         }
 
+        test("transport and session code cannot allocate logical sequence or output order") {
+            val roots =
+                listOf(
+                    EngineArchitecture.sourceRoot.resolve("leyline/match"),
+                    EngineArchitecture.sourceRoot.resolve("leyline/infra"),
+                )
+            val forbidden =
+                listOf(
+                    "MessageCounter",
+                    "LogicalSequencePlanner",
+                    "nextGsId(",
+                    "nextMsgId(",
+                    "setGsId(",
+                    "setMsgId(",
+                    "allocateOutputOrdinal(",
+                )
+            val violations = mutableListOf<String>()
+            roots.filter(Files::exists).forEach { root ->
+                Files.walk(root).use { stream ->
+                    stream
+                        .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                        .forEach { file ->
+                            val source = Files.readString(file)
+                            forbidden.filter(source::contains).forEach { token ->
+                                violations += "${EngineArchitecture.sourceRoot.relativize(file)}: $token"
+                            }
+                        }
+                }
+            }
+
+            violations.shouldBeEmpty()
+        }
+
         test("accumulated settings state has one runtime owner") {
             // Inspect declared fields rather than all dependencies: protocol
             // heads and builders may handle immutable SettingsMessage values,

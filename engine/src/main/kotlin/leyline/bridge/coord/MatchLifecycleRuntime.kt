@@ -4,7 +4,8 @@ import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.LifecycleMessageMaterializer
-import leyline.game.bundle.markIfPrompt
+import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -27,6 +28,12 @@ internal class MatchLifecycleRuntime(
         val deliveryBoundaryMsgId: Int,
     )
 
+    data class FullStatePublication(
+        val gameStateId: Int,
+        val objectCount: Int,
+        val zoneCount: Int,
+    )
+
     private data class PreparedPuzzleInitial(
         val kind: PendingActionKind,
         val messages: LifecycleMessageMaterializer.LifecycleMessages,
@@ -44,178 +51,187 @@ internal class MatchLifecycleRuntime(
         seatId: SeatId,
         includeStartingPlayerPrompt: Boolean,
         seedProjectionCursor: Boolean,
-    ): Int {
-        owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared =
-                        prepare {
-                            val deck =
-                                GsmBuilder.buildDeckMessage(
-                                    owner.bridge.getDeckGrpIds(seatId),
-                                    owner.bridge.getCommanderGrpIds(seatId),
-                                )
-                            LifecycleMessageMaterializer.initialBundle(
-                                seatId,
-                                owner.matchId,
-                                owner.counter.currentMsgId(),
-                                gsId,
-                                deck,
-                                owner.bridge,
-                                dieRollWinner = owner.bridge.dieRollWinner,
-                                includeStartingPlayerPrompt = includeStartingPlayerPrompt,
-                                seedProjectionCursor = seedProjectionCursor,
-                            )
-                        }
-                    install(seatId, gsId, prepared)
-                    gsId
+    ): Int =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared =
+                prepare {
+                    val deck =
+                        GsmBuilder.buildDeckMessage(
+                            owner.bridge.getDeckGrpIds(seatId),
+                            owner.bridge.getCommanderGrpIds(seatId),
+                        )
+                    LifecycleMessageMaterializer.initialBundle(
+                        seatId,
+                        owner.matchId,
+                        planner.currentMsgId(),
+                        gameStateId,
+                        deck,
+                        owner.bridge,
+                        dieRollWinner = owner.bridge.dieRollWinner,
+                        includeStartingPlayerPrompt = includeStartingPlayerPrompt,
+                        seedProjectionCursor = seedProjectionCursor,
+                    )
                 }
-            }
+            install(seatId, prior, planner, prepared)
+            gameStateId
         }
-    }
 
     fun publishDealHand(
         seatId: SeatId,
         deletedInstanceIds: List<Int> = emptyList(),
-    ): Int {
-        owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared =
-                        prepare {
-                            LifecycleMessageMaterializer.dealHand(
-                                owner.counter.currentMsgId(),
-                                gsId,
-                                owner.bridge,
-                                seatId,
-                                deletedInstanceIds,
-                            )
-                        }
-                    install(seatId, gsId, prepared)
-                    gsId
+    ): Int =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.dealHand(
+                        planner.currentMsgId(),
+                        gameStateId,
+                        owner.bridge,
+                        seatId,
+                        deletedInstanceIds,
+                    )
                 }
-            }
+            install(seatId, prior, planner, prepared)
+            gameStateId
         }
-    }
 
-    fun publishDealHandMulligan(seatId: SeatId): Int {
-        owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared =
-                        prepare {
-                            LifecycleMessageMaterializer.dealHandMulliganSeat2(
-                                owner.counter.currentMsgId(),
-                                gsId,
-                                owner.bridge,
-                            )
-                        }
-                    install(seatId, gsId, prepared)
-                    gsId
+    fun publishDealHandMulligan(seatId: SeatId): Int =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.dealHandMulliganSeat2(
+                        planner.currentMsgId(),
+                        gameStateId,
+                        owner.bridge,
+                    )
                 }
-            }
+            install(seatId, prior, planner, prepared)
+            gameStateId
         }
-    }
 
     fun publishMulliganRequest(
         seatId: SeatId,
         mulliganCount: Int,
         numCards: Int,
-    ): Int {
-        owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared =
-                        prepare {
-                            LifecycleMessageMaterializer.mulliganReqSeat1(
-                                owner.counter.currentMsgId(),
-                                gsId,
-                                owner.bridge,
-                                mulliganCount,
-                                numCards,
-                            )
-                        }
-                    install(seatId, gsId, prepared)
-                    gsId
+    ): Int =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.mulliganReqSeat1(
+                        planner.currentMsgId(),
+                        gameStateId,
+                        owner.bridge,
+                        mulliganCount,
+                        numCards,
+                    )
                 }
-            }
+            install(seatId, prior, planner, prepared)
+            gameStateId
         }
-    }
 
     fun publishPuzzleInitial(
         seatId: SeatId,
         actionId: String,
-    ): PuzzleInitialPublication {
-        owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared = prepare { preparePuzzleInitial(seatId, actionId, gsId) }
-                    install(seatId, gsId, prepared.messages, prepared.replaces.orEmpty(), actionId.takeIf { prepared.replaces != null })
-                    PuzzleInitialPublication(
-                        gameStateId = gsId,
-                        kind = prepared.kind,
-                        deliveryBoundaryMsgId = prepared.messages.nextMsgId,
-                    )
-                }
-            }
+    ): PuzzleInitialPublication =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared = prepare { preparePuzzleInitial(seatId, actionId, gameStateId, planner) }
+            install(
+                seatId,
+                prior,
+                planner,
+                prepared.messages,
+                prepared.replaces.orEmpty(),
+                actionId.takeIf { prepared.replaces != null },
+            )
+            PuzzleInitialPublication(
+                gameStateId = gameStateId,
+                kind = prepared.kind,
+                deliveryBoundaryMsgId = prepared.messages.nextMsgId,
+            )
         }
-    }
 
     fun publishPuzzleReplacement(
         seatId: SeatId,
         deletedInstanceIds: List<Int>,
         actionId: String,
-    ): PuzzleReplacementPublication {
+    ): PuzzleReplacementPublication =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prepared = prepare { preparePuzzleReplacement(seatId, deletedInstanceIds, actionId, gameStateId, planner) }
+            install(
+                seatId,
+                prior,
+                planner,
+                prepared.messages,
+                prepared.replaces.orEmpty(),
+                actionId.takeIf { prepared.replaces != null },
+            )
+            PuzzleReplacementPublication(
+                gameStateId = gameStateId,
+                objectCount = prepared.objectCount,
+                zoneCount = prepared.zoneCount,
+            )
+        }
+
+    fun publishFullState(seatId: SeatId): FullStatePublication =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val full = owner.feed(seatId).builder.prepareFullState(checkNotNull(owner.bridge.getGame()), gameStateId)
+            val messages =
+                listOf(
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.GameStateMessage_695e)
+                        .setMsgId(planner.nextMsgId())
+                        .setGameStateId(gameStateId)
+                        .addSystemSeatIds(seatId.value)
+                        .setGameStateMessage(full.result.gsm)
+                        .build(),
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.ActionsAvailableReq_695e)
+                        .setMsgId(planner.nextMsgId())
+                        .setGameStateId(gameStateId)
+                        .addSystemSeatIds(seatId.value)
+                        .setActionsAvailableReq(full.result.actions)
+                        .setPrompt(Prompt.newBuilder().setPromptId(leyline.game.mapping.PromptIds.PASS_PRIORITY).build())
+                        .build(),
+                )
+            owner.cutInstaller.install(
+                owner.feed(seatId),
+                PreparedCut.prepare(prior, planner, messages, full.transition, closesPlaybackFrame = false),
+                onFailure = owner::fail,
+            )
+            FullStatePublication(gameStateId, full.result.gsm.gameObjectsCount, full.result.gsm.zonesCount)
+        }
+
+    private inline fun <T> withPlan(
+        seatId: SeatId,
+        block: (ProjectionState, LogicalSequencePlanner, Int) -> T,
+    ): T {
         owner.registerViewer(seatId)
-        return synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val gsId = owner.counter.nextGsId()
-                    val prepared = prepare { preparePuzzleReplacement(seatId, deletedInstanceIds, actionId, gsId) }
-                    install(seatId, gsId, prepared.messages, prepared.replaces.orEmpty(), actionId.takeIf { prepared.replaces != null })
-                    PuzzleReplacementPublication(
-                        gameStateId = gsId,
-                        objectCount = prepared.objectCount,
-                        zoneCount = prepared.zoneCount,
-                    )
-                }
+        return synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                block(prior, planner, planner.nextGsId())
             }
         }
     }
 
     private fun install(
         seatId: SeatId,
-        gameStateId: Int,
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
         prepared: LifecycleMessageMaterializer.LifecycleMessages,
         replaces: List<GREToClientMessage> = emptyList(),
         synchronizationActionId: String? = null,
     ) {
-        owner.counter.setMsgId(prepared.nextMsgId)
+        planner.setMsgId(prepared.nextMsgId)
         owner.cutInstaller.install(
             feed = owner.feed(seatId),
-            cut = PreparedCut(prepared.messages, prepared.transition, closesPlaybackFrame = false),
+            cut = PreparedCut.prepare(prior, planner, prepared.messages, prepared.transition, closesPlaybackFrame = false),
             replaces = replaces,
             onInstalled = {
-                owner.counter.markGameStateGsId(gameStateId)
-                prepared.messages.forEach {
-                    markIfPrompt(owner.counter, it.type, it.gameStateId, it.msgId)
-                }
                 synchronizationActionId?.let { owner.actions.markSynchronizationPublished(seatId, it, prepared.messages) }
             },
             onFailure = owner::fail,
@@ -233,13 +249,14 @@ internal class MatchLifecycleRuntime(
         seatId: SeatId,
         actionId: String,
         gameStateId: Int,
+        planner: LogicalSequencePlanner,
     ): PreparedPuzzleInitial {
         val pending = checkNotNull(owner.bridge.actionBridge(seatId).exactPending(actionId))
         val initial =
             LifecycleMessageMaterializer.puzzleInitialBundle(
                 seatId,
                 owner.matchId,
-                owner.counter.currentMsgId(),
+                planner.currentMsgId(),
                 gameStateId,
                 owner.bridge,
             )
@@ -255,13 +272,13 @@ internal class MatchLifecycleRuntime(
                 ),
             )
         }
-        owner.counter.setMsgId(initial.nextMsgId)
-        val synchronization = prepareSynchronization(seatId, actionId, checkNotNull(initial.transition))
+        planner.setMsgId(initial.nextMsgId)
+        val synchronization = prepareSynchronization(seatId, actionId, checkNotNull(initial.transition), planner)
         return PreparedPuzzleInitial(
             pending.state.kind,
             LifecycleMessageMaterializer.lifecycleMessages(
                 initial.messages + synchronization.messages,
-                owner.counter.currentMsgId(),
+                planner.currentMsgId(),
                 synchronization.transition,
             ),
             synchronization.replaces,
@@ -273,6 +290,7 @@ internal class MatchLifecycleRuntime(
         deletedInstanceIds: List<Int>,
         actionId: String,
         gameStateId: Int,
+        planner: LogicalSequencePlanner,
     ): PreparedPuzzleReplacement {
         val pending = checkNotNull(owner.bridge.actionBridge(seatId).exactPending(actionId))
         val full = owner.feed(seatId).builder.prepareFullState(checkNotNull(owner.bridge.getGame()), gameStateId)
@@ -285,17 +303,17 @@ internal class MatchLifecycleRuntime(
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(owner.counter.currentMsgId())
+                .setMsgId(planner.currentMsgId())
                 .setGameStateId(gameStateId)
                 .addSystemSeatIds(seatId.value)
                 .setGameStateMessage(gsm)
                 .build()
         if (pending.state.kind == PendingActionKind.SYNC_ONLY) {
-            val synchronization = prepareSynchronization(seatId, actionId, full.transition)
+            val synchronization = prepareSynchronization(seatId, actionId, full.transition, planner)
             return PreparedPuzzleReplacement(
                 LifecycleMessageMaterializer.lifecycleMessages(
                     listOf(state) + synchronization.messages,
-                    owner.counter.currentMsgId(),
+                    planner.currentMsgId(),
                     synchronization.transition,
                 ),
                 synchronization.replaces,
@@ -308,7 +326,7 @@ internal class MatchLifecycleRuntime(
             GREToClientMessage
                 .newBuilder()
                 .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(owner.counter.currentMsgId() + 1)
+                .setMsgId(planner.currentMsgId() + 1)
                 .setGameStateId(gameStateId)
                 .addSystemSeatIds(seatId.value)
                 .setActionsAvailableReq(actions)
@@ -317,7 +335,7 @@ internal class MatchLifecycleRuntime(
         return PreparedPuzzleReplacement(
             LifecycleMessageMaterializer.lifecycleMessages(
                 listOf(state, request),
-                owner.counter.currentMsgId() + 2,
+                planner.currentMsgId() + 2,
                 full.transition,
             ),
             objectCount = full.result.gsm.gameObjectsCount,
@@ -335,6 +353,7 @@ internal class MatchLifecycleRuntime(
         seatId: SeatId,
         actionId: String,
         lifecycleTransition: ProjectionTransition,
+        planner: LogicalSequencePlanner,
     ): PreparedSynchronization {
         val phase =
             owner
@@ -342,7 +361,7 @@ internal class MatchLifecycleRuntime(
                 .builder
                 .preparePhaseTransitionDiff(
                     checkNotNull(owner.bridge.getGame()),
-                    owner.counter,
+                    planner,
                     priorityActions = ActionsAvailableReq.getDefaultInstance(),
                     includePriorityPrompt = false,
                     priorProjection = lifecycleTransition.nextState,

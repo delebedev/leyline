@@ -12,6 +12,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.opponent
 import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
+import leyline.game.bundle.LogicalSequencePlanner
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -82,7 +83,7 @@ internal class MatchBlockingInteractionRuntime(
         timeoutMs: Long?,
         defaultOnTimeout: Boolean,
     ): Boolean {
-        val pending = publish(interaction) { feed, game -> feed.builder.optionalInteractionBundle(game, owner.counter, interaction) }
+        val pending = publish(interaction) { feed, game, planner -> feed.builder.optionalInteractionBundle(game, planner, interaction) }
         return try {
             (await(pending, timeoutMs ?: 45_000L) as Answer.Optional).accepted
         } catch (_: TimeoutException) {
@@ -96,7 +97,7 @@ internal class MatchBlockingInteractionRuntime(
         interaction: BlockingInteraction.Numeric,
         timeoutMs: Long?,
     ): Int {
-        val pending = publish(interaction) { feed, _ -> feed.builder.numericInteractionBundle(owner.counter, interaction) }
+        val pending = publish(interaction) { feed, _, planner -> feed.builder.numericInteractionBundle(planner, interaction) }
         return try {
             (await(pending, timeoutMs ?: 45_000L) as Answer.Numeric).value
         } catch (_: TimeoutException) {
@@ -121,8 +122,8 @@ internal class MatchBlockingInteractionRuntime(
         val cards = (listOf(attacker) + blockers).associateBy { ForgeCardId(it.id) }
         val toughness = blockers.associate { ForgeCardId(it.id) to maxOf(0, it.netToughness - it.damage) }
         val pending =
-            publish(interaction, cards, ForgeCardId(attacker.id)) { feed, _ ->
-                feed.builder.damageInteractionBundle(owner.counter, interaction, toughness)
+            publish(interaction, cards, ForgeCardId(attacker.id)) { feed, _, planner ->
+                feed.builder.damageInteractionBundle(planner, interaction, toughness)
             }
         return try {
             val answer = await(pending, timeoutMs ?: 45_000L) as Answer.Damage
@@ -162,32 +163,38 @@ internal class MatchBlockingInteractionRuntime(
         gameStateId: Int,
         accepted: Boolean,
     ): Boolean =
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    val pending = matching(interactionId, gameStateId) ?: return false
-                    val optional = pending.published.interaction as? BlockingInteraction.Optional ?: return false
-                    optional.commanderReturn?.let { context ->
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val prepared =
-                            try {
-                                owner.feed(owner.humanSeat).builder.commanderPromptCleanup(
-                                    game,
-                                    owner.counter,
-                                    context,
-                                    owner.beforeCommanderCleanupMaterialization,
-                                )
-                            } catch (ex: Exception) {
-                                owner.fail(ex)
-                            }
-                        owner.cutInstaller.install(
-                            owner.feed(owner.humanSeat),
-                            PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
-                            CutInstallHooks(beforeInstall = owner.beforeCommanderCleanupInstall),
-                        ) { ex -> owner.fail(ex) }
-                    }
-                    pending.future.complete(Answer.Optional(accepted))
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                val pending = matching(interactionId, gameStateId) ?: return false
+                val optional = pending.published.interaction as? BlockingInteraction.Optional ?: return false
+                optional.commanderReturn?.let { context ->
+                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                    val prior = owner.bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    val prepared =
+                        try {
+                            owner.feed(owner.humanSeat).builder.commanderPromptCleanup(
+                                game,
+                                planner,
+                                context,
+                                owner.beforeCommanderCleanupMaterialization,
+                            )
+                        } catch (ex: Exception) {
+                            owner.fail(ex)
+                        }
+                    owner.cutInstaller.install(
+                        owner.feed(owner.humanSeat),
+                        PreparedCut.prepare(
+                            prior,
+                            planner,
+                            prepared.bundle.messages,
+                            prepared.transition,
+                            prepared.closesPlaybackFrame,
+                        ),
+                        CutInstallHooks(beforeInstall = owner.beforeCommanderCleanupInstall),
+                    ) { ex -> owner.fail(ex) }
                 }
+                pending.future.complete(Answer.Optional(accepted))
             }
         }
 
@@ -202,69 +209,73 @@ internal class MatchBlockingInteractionRuntime(
         gameStateId: Int,
         commands: List<DamageAssignmentCommand>,
     ): Boolean =
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    val pending = matching(interactionId, gameStateId) ?: return false
-                    if (commands.map { it.attackerInstanceId }.distinct().size != commands.size) return false
-                    val assignments =
-                        commands.map { command ->
-                            val attacker = pending.damageAttackerByInstanceId[command.attackerInstanceId] ?: return false
-                            val expectedTotal = pending.damageExpectedTotalByAttacker[command.attackerInstanceId]
-                            if (expectedTotal != null &&
-                                command.totalDamage != 0 &&
-                                command.totalDamage != expectedTotal
-                            ) {
-                                return false
-                            }
-                            if (command.assignments
-                                    .map { it.targetInstanceId }
-                                    .distinct()
-                                    .size != command.assignments.size
-                            ) {
-                                return false
-                            }
-                            val resolved =
-                                command.assignments
-                                    .map { row ->
-                                        val instanceId = row.targetInstanceId
-                                        val amount = row.assignedDamage
-                                        if (amount < 0) return false
-                                        val blocker =
-                                            if (instanceId in pending.damageDefenderInstanceIds) {
-                                                null
-                                            } else {
-                                                if (
-                                                    instanceId !in
-                                                    pending.damageBlockerInstanceIdsByAttacker[command.attackerInstanceId].orEmpty()
-                                                ) {
-                                                    return false
-                                                }
-                                                pending.damageBlockerByInstanceId[instanceId] ?: return false
-                                            }
-                                        blocker to amount
-                                    }.toMap()
-                                    .toMutableMap()
-                            val assigned = resolved.values.sum()
-                            val expected = expectedTotal?.takeIf { command.totalDamage == 0 || command.totalDamage == it }
-                            if (expected != null && assigned > expected) return false
-                            if (expected != null && assigned < expected) {
-                                if (pending.damageHasTrampleByAttacker[command.attackerInstanceId] != true ||
-                                    pending.damageHasDefenderByAttacker[command.attackerInstanceId] != true
-                                ) {
-                                    return false
-                                }
-                                val overflow = expected - assigned
-                                if (resolved.containsKey(null)) return false
-                                resolved[null] = overflow
-                            }
-                            DamageAssignmentValue(attacker, resolved)
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                val pending = matching(interactionId, gameStateId) ?: return false
+                if (commands.map { it.attackerInstanceId }.distinct().size != commands.size) return false
+                val assignments =
+                    commands.map { command ->
+                        val attacker = pending.damageAttackerByInstanceId[command.attackerInstanceId] ?: return false
+                        val expectedTotal = pending.damageExpectedTotalByAttacker[command.attackerInstanceId]
+                        if (expectedTotal != null &&
+                            command.totalDamage != 0 &&
+                            command.totalDamage != expectedTotal
+                        ) {
+                            return false
                         }
-                    val feed = owner.feed(owner.humanSeat)
-                    feed.queue.add(feed.builder.damageAssignmentConfirmation(owner.counter).messages)
-                    owner.signalDelivery()
-                    pending.future.complete(Answer.Damage(assignments))
-                }
+                        if (command.assignments
+                                .map { it.targetInstanceId }
+                                .distinct()
+                                .size != command.assignments.size
+                        ) {
+                            return false
+                        }
+                        val resolved =
+                            command.assignments
+                                .map { row ->
+                                    val instanceId = row.targetInstanceId
+                                    val amount = row.assignedDamage
+                                    if (amount < 0) return false
+                                    val blocker =
+                                        if (instanceId in pending.damageDefenderInstanceIds) {
+                                            null
+                                        } else {
+                                            if (
+                                                instanceId !in
+                                                pending.damageBlockerInstanceIdsByAttacker[command.attackerInstanceId].orEmpty()
+                                            ) {
+                                                return false
+                                            }
+                                            pending.damageBlockerByInstanceId[instanceId] ?: return false
+                                        }
+                                    blocker to amount
+                                }.toMap()
+                                .toMutableMap()
+                        val assigned = resolved.values.sum()
+                        val expected = expectedTotal?.takeIf { command.totalDamage == 0 || command.totalDamage == it }
+                        if (expected != null && assigned > expected) return false
+                        if (expected != null && assigned < expected) {
+                            if (pending.damageHasTrampleByAttacker[command.attackerInstanceId] != true ||
+                                pending.damageHasDefenderByAttacker[command.attackerInstanceId] != true
+                            ) {
+                                return false
+                            }
+                            val overflow = expected - assigned
+                            if (resolved.containsKey(null)) return false
+                            resolved[null] = overflow
+                        }
+                        DamageAssignmentValue(attacker, resolved)
+                    }
+                val feed = owner.feed(owner.humanSeat)
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val confirmation = feed.builder.damageAssignmentConfirmation(planner).messages
+                owner.cutInstaller.install(
+                    feed,
+                    PreparedCut.prepare(prior, planner, confirmation, projection = null, closesPlaybackFrame = false),
+                    onFailure = owner::fail,
+                )
+                pending.future.complete(Answer.Damage(assignments))
             }
         }
 
@@ -287,85 +298,91 @@ internal class MatchBlockingInteractionRuntime(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
         damageAttackerId: ForgeCardId? = null,
-        build: (MatchCutCoordinator.ViewerFeed, Game) -> BlockingInteractionMaterializer.Prepared,
+        build: (MatchCutCoordinator.ViewerFeed, Game, LogicalSequencePlanner) -> BlockingInteractionMaterializer.Prepared,
     ): Window {
         owner.beforePublicationLock?.invoke()
         val pending =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        check(window == null) { "A blocking interaction is already pending" }
-                        val feed = owner.feed(owner.humanSeat)
-                        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                        val prepared =
-                            try {
-                                build(feed, game).also { afterMaterialization?.invoke() }
-                            } catch (ex: Exception) {
-                                owner.fail(ex)
-                            }
-                        val published =
-                            PublishedBlockingInteraction(
-                                UUID.randomUUID().toString(),
-                                checkNotNull(prepared.bundle.actionGameStateId),
-                                interaction,
-                            )
-                        val exact =
-                            PendingPromptCut(
-                                published.interactionId,
-                                published.gameStateId,
-                                interaction,
-                                prepared.bundle.messages,
-                                prepared.transition,
-                            )
-                        val damage = interaction as? BlockingInteraction.Damage
-                        val combat = game.phaseHandler.combat
-                        val combatAttackers = combat?.attackers?.toList().orEmpty()
-                        val combatBlockers = combat?.getAllBlockers()?.toList().orEmpty()
-                        val combatCards =
-                            (combatAttackers + combatBlockers).associateBy { ForgeCardId(it.id) }
-                        val allCards = combatCards + damageCards
-                        val attackerForgeIds =
-                            (combatAttackers.map { ForgeCardId(it.id) } + damageAttackerId).filterNotNull().distinct()
-                        val blockersByForgeId =
-                            (combatBlockers.map { ForgeCardId(it.id) } + damageCards.keys)
-                                .filter { it !in attackerForgeIds }
-                                .distinct()
-                        val attackerInstanceIds =
-                            attackerForgeIds.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId }
-                        val damageBlockerInstanceIdsByAttacker =
-                            blockerInstanceIdsByAttacker(
-                                combat,
-                                combatCards,
-                                damageCards,
-                                damageAttackerId,
-                                attackerInstanceIds,
-                            )
-                        val damageRules = damageRules(attackerInstanceIds, damageAttackerId, damage, combat, combatCards)
-                        val defenderInstanceIds =
-                            if (damage?.hasDefender == true) setOf(owner.humanSeat.opponent.value) else emptySet()
-                        val created =
-                            Window(
-                                published,
-                                exact,
-                                CompletableFuture(),
-                                allCards,
-                                attackerInstanceIds,
-                                blockersByForgeId.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId },
-                                damageBlockerInstanceIdsByAttacker,
-                                defenderInstanceIds,
-                                damageRules.expectedTotalByAttacker,
-                                damageRules.hasTrampleByAttacker,
-                                damageRules.hasDefenderByAttacker,
-                            )
-                        owner.cutInstaller.install(
-                            feed,
-                            PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
-                            CutInstallHooks(beforeInstall = beforeInstall),
-                        ) { ex -> owner.fail(ex, exact) }
-                        window = created
-                        created
-                    }
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    check(window == null) { "A blocking interaction is already pending" }
+                    val feed = owner.feed(owner.humanSeat)
+                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                    val prior = owner.bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    val prepared =
+                        try {
+                            build(feed, game, planner).also { afterMaterialization?.invoke() }
+                        } catch (ex: Exception) {
+                            owner.fail(ex)
+                        }
+                    val published =
+                        PublishedBlockingInteraction(
+                            UUID.randomUUID().toString(),
+                            checkNotNull(prepared.bundle.actionGameStateId),
+                            interaction,
+                        )
+                    val exact =
+                        PendingPromptCut(
+                            published.interactionId,
+                            published.gameStateId,
+                            interaction,
+                            prepared.bundle.messages,
+                            prepared.transition,
+                        )
+                    val damage = interaction as? BlockingInteraction.Damage
+                    val combat = game.phaseHandler.combat
+                    val combatAttackers = combat?.attackers?.toList().orEmpty()
+                    val combatBlockers = combat?.getAllBlockers()?.toList().orEmpty()
+                    val combatCards =
+                        (combatAttackers + combatBlockers).associateBy { ForgeCardId(it.id) }
+                    val allCards = combatCards + damageCards
+                    val attackerForgeIds =
+                        (combatAttackers.map { ForgeCardId(it.id) } + damageAttackerId).filterNotNull().distinct()
+                    val blockersByForgeId =
+                        (combatBlockers.map { ForgeCardId(it.id) } + damageCards.keys)
+                            .filter { it !in attackerForgeIds }
+                            .distinct()
+                    val attackerInstanceIds =
+                        attackerForgeIds.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId }
+                    val damageBlockerInstanceIdsByAttacker =
+                        blockerInstanceIdsByAttacker(
+                            combat,
+                            combatCards,
+                            damageCards,
+                            damageAttackerId,
+                            attackerInstanceIds,
+                        )
+                    val damageRules = damageRules(attackerInstanceIds, damageAttackerId, damage, combat, combatCards)
+                    val defenderInstanceIds =
+                        if (damage?.hasDefender == true) setOf(owner.humanSeat.opponent.value) else emptySet()
+                    val created =
+                        Window(
+                            published,
+                            exact,
+                            CompletableFuture(),
+                            allCards,
+                            attackerInstanceIds,
+                            blockersByForgeId.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId },
+                            damageBlockerInstanceIdsByAttacker,
+                            defenderInstanceIds,
+                            damageRules.expectedTotalByAttacker,
+                            damageRules.hasTrampleByAttacker,
+                            damageRules.hasDefenderByAttacker,
+                        )
+                    owner.cutInstaller.install(
+                        feed,
+                        PreparedCut.prepare(
+                            prior,
+                            planner,
+                            prepared.bundle.messages,
+                            prepared.transition,
+                            prepared.closesPlaybackFrame,
+                        ),
+                        CutInstallHooks(beforeInstall = beforeInstall),
+                    ) { ex -> owner.fail(ex, exact) }
+                    window = created
+                    created
                 }
             }
         owner.bridge.prioritySignal.signal()

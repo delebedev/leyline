@@ -237,9 +237,11 @@ viewer baseline records the latest installed projection, not client
 acknowledgement. Delivery cannot repair, reorder, or recompile a committed
 batch. When code needs delivery awareness, it tracks that fact explicitly.
 
-Gameplay state identifiers and message identifiers come from the match's shared
-`MessageCounter`. Allocation alone does not define delivery order: all producers
-must join the coordinator/session ordering contract documented in
+Logical identifiers, emission horizons, and the committed output ordinal live
+in `ProjectionState`. A coordinator cut forks a private planner from that value,
+then installs the resulting sequence, projection, identities, acknowledgements,
+and owned output together. Transport reads committed horizons but cannot advance
+them. The ordering contract is documented in
 [`bridge-threading.md`](bridge-threading.md).
 
 ## Decision map

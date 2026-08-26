@@ -1,6 +1,8 @@
 package leyline.bridge.coord
 
 import forge.game.Game
+import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.UUID
@@ -116,24 +118,24 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
 
     fun publish(
         duplicateMessage: String,
-        prepare: (String, MatchCutCoordinator.ViewerFeed, Game?) -> SinglePromptPublication<W>,
+        prepare: (String, MatchCutCoordinator.ViewerFeed, Game?, LogicalSequencePlanner) -> SinglePromptPublication<W>,
         ensureEmptyLocked: () -> Unit = {},
     ): W {
         owner.beforePublicationLock?.invoke()
         val created =
-            synchronized(owner.counter) {
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) {
-                        owner.ensureOpen()
-                        windows.ensureEmptyLocked(duplicateMessage)
-                        ensureEmptyLocked()
-                        val feed = owner.feed(owner.humanSeat)
-                        val interactionId = UUID.randomUUID().toString()
-                        val publication = prepare(interactionId, feed, owner.bridge.getGame())
-                        publishPrepared(feed, publication)
-                        windows.installLocked(publication.window)
-                        publication.window
-                    }
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    windows.ensureEmptyLocked(duplicateMessage)
+                    ensureEmptyLocked()
+                    val feed = owner.feed(owner.humanSeat)
+                    val prior = owner.bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    val interactionId = UUID.randomUUID().toString()
+                    val publication = prepare(interactionId, feed, owner.bridge.getGame(), planner)
+                    publishPrepared(feed, prior, planner, publication)
+                    windows.installLocked(publication.window)
+                    publication.window
                 }
             }
         owner.bridge.prioritySignal.signal()
@@ -159,10 +161,12 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
 
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
         publication: SinglePromptPublication<W>,
     ) = owner.cutInstaller.install(
         feed,
-        PreparedCut(publication.messages, publication.transition, publication.closesPlaybackFrame),
+        PreparedCut.prepare(prior, planner, publication.messages, publication.transition, publication.closesPlaybackFrame),
         CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
     ) { ex -> publicationFailure(ex, publication.window) }
 }

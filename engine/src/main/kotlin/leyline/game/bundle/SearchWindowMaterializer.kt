@@ -23,7 +23,7 @@ internal class SearchWindowMaterializer(
     fun initial(
         stateMessages: List<GREToClientMessage>,
         requestGameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: SearchWindowValue,

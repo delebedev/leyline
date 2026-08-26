@@ -12,9 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Handles targeting-related client messages.
  *
- * Protocol sequencing uses the shared
- * [MessageCounter][leyline.game.bundle.MessageCounter] via `counters.counter` —
- * no seeding or syncing needed.
+ * Response admission reads the committed prompt horizon through [SessionCounters].
  */
 class TargetingHandler(
     private val sink: GreMessageSink,

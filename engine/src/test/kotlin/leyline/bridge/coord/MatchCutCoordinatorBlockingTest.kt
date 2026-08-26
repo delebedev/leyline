@@ -6,7 +6,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -159,7 +158,7 @@ class MatchCutCoordinatorBlockingTest :
             }
         }
 
-        test("initial interaction materialization failure leaves an unpublished id gap and emits nothing") {
+        test("initial interaction materialization failure consumes no ids and emits nothing") {
             val board = startPuzzleAtMain1(puzzle)
             board.bridge.cutCoordinator.drain(SeatId(1))
             val sourceId =
@@ -170,7 +169,6 @@ class MatchCutCoordinatorBlockingTest :
                         .first()
                         .id,
                 )
-            val counter = board.counter.snapshot()
             val projection = board.bridge.projectionStateSnapshot()
             board.bridge.cutCoordinator.afterBlockingMaterialization = { error("materialization failed") }
             val failure = AtomicReference<Throwable>()
@@ -187,7 +185,6 @@ class MatchCutCoordinatorBlockingTest :
 
             assertSoftly {
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
-                board.counter.currentMsgId() shouldBeGreaterThan counter.currentMsgId
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.bridge.cutCoordinator.drain(SeatId(1)) shouldBe emptyList()
                 board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe null
@@ -240,7 +237,7 @@ class MatchCutCoordinatorBlockingTest :
             val exact = checkNotNull(pending)
             exact.interaction shouldBe interaction
             board.bridge.cutCoordinator.drain(SeatId(1))
-            val counter = board.counter.snapshot()
+            val sequence = board.bridge.committedSequence()
             board.bridge.projectionStateSnapshot().limboInstanceIds shouldContain promptInstanceId
             val beforeCompeting = board.bridge.projectionStateSnapshot()
             val competing =
@@ -261,8 +258,8 @@ class MatchCutCoordinatorBlockingTest :
 
             assertSoftly {
                 waiter.isAlive shouldBe false
-                board.counter.currentMsgId() shouldBeGreaterThan counter.currentMsgId
                 board.bridge.projectionStateSnapshot() shouldBe competing
+                board.bridge.committedSequence() shouldBe sequence
                 board.bridge.cutCoordinator.drain(SeatId(1)) shouldBe emptyList()
                 failure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
             }

@@ -4,7 +4,6 @@ import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
-import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
@@ -52,7 +51,6 @@ class PuzzleHandler(
                         promptFailsafeMs = engineSettings.promptFailsafeMs,
                         runtimeHorizonMode = RuntimeHorizonMode.Observed,
                         engineSettings = engineSettings,
-                        messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
                 Match(matchId, bridge).also {

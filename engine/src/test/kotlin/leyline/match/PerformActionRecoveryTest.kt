@@ -41,9 +41,10 @@ class PerformActionRecoveryTest :
             val committed = board.bundleBuilder().stateOnlyDiff(board.game, board.counter).messages
             bridge.cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), committed)
             val committedRevision = bridge.projectionStateSnapshot().revision
-            val nextGameStateId = board.counter.currentGsId()
+            val nextGameStateId = bridge.committedSequence().currentGsId
 
-            session.counter.markPromptMsgId(7)
+            val state = bridge.projectionStateSnapshot()
+            bridge.replaceProjectionStateForTest(state.copy(sequence = state.sequence.copy(lastPromptMsgId = 7)))
             session.onPerformAction(
                 performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass }
                     .toBuilder()
@@ -62,7 +63,7 @@ class PerformActionRecoveryTest :
                 content.pendingMessageCount shouldBe 0
                 bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe false
                 bridge.projectionStateSnapshot().revision shouldBe committedRevision
-                board.counter.currentGsId() shouldBe nextGameStateId
+                bridge.committedSequence().currentGsId shouldBe nextGameStateId
             }
         }
     })

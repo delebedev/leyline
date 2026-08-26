@@ -143,7 +143,7 @@ class MatchCutCoordinatorTest :
                 .drain(SeatId(1))
                 .shouldNotBeEmpty()
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             val priorPromptGsId = pending.promptGameStateId
 
             shouldThrow<IllegalStateException> {
@@ -152,7 +152,7 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.counter.snapshot() shouldBe priorCounter
+                board.bridge.committedSequence() shouldBe priorSequence
                 pending.promptGameStateId shouldBe priorPromptGsId
             }
         }
@@ -179,17 +179,8 @@ class MatchCutCoordinatorTest :
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
-            val residualMsgId = AtomicReference<Int>()
+            val priorSequence = board.bridge.committedSequence()
             board.bridge.cutCoordinator.beforeActionEnqueue = {
-                Thread {
-                    val id = board.counter.nextMsgId()
-                    board.counter.markPromptMsgId(id)
-                    residualMsgId.set(id)
-                }.also {
-                    it.start()
-                    it.join()
-                }
                 error("delivery unavailable")
             }
 
@@ -202,9 +193,7 @@ class MatchCutCoordinatorTest :
             assertSoftly {
                 failure.cause?.message shouldBe "delivery unavailable"
                 board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.counter.currentMsgId() shouldBeGreaterThan priorCounter.currentMsgId
-                board.counter.currentMsgId() shouldBeGreaterThan residualMsgId.get() - 1
-                board.counter.lastPromptMsgId() shouldBe residualMsgId.get()
+                board.bridge.committedSequence() shouldBe priorSequence
                 board.bridge.cutCoordinator.failure() shouldBe failure
                 board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
                 pending.promptGameStateId.shouldBeNull()
@@ -406,7 +395,7 @@ class MatchCutCoordinatorTest :
         test("phase replacement stale install rolls back new output and terminalizes") {
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             val competing =
                 board.bridge
                     .projectionStateSnapshot()
@@ -423,7 +412,8 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 board.bridge.projectionStateSnapshot() shouldBe competing
-                board.counter.currentMsgId() shouldBeGreaterThan priorCounter.currentMsgId
+                board.bridge.committedSequence() shouldBe competing.sequence
+                board.bridge.committedSequence().currentMsgId shouldBe priorSequence.currentMsgId
                 board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .flatten()
@@ -435,7 +425,7 @@ class MatchCutCoordinatorTest :
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             board.bridge.cutCoordinator.afterActionInstall = { error("acknowledgement unavailable") }
 
             shouldThrow<PlaybackTerminalFailure> {
@@ -448,7 +438,7 @@ class MatchCutCoordinatorTest :
                     .failure()
                     .shouldNotBeNull()
                 board.bridge.projectionStateSnapshot().revision shouldBeGreaterThan priorProjection.revision
-                board.counter.snapshot().currentMsgId shouldBeGreaterThan priorCounter.currentMsgId
+                board.bridge.committedSequence().currentMsgId shouldBeGreaterThan priorSequence.currentMsgId
                 board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .flatten()
@@ -604,6 +594,26 @@ class MatchCutCoordinatorTest :
                     .last()
                     .single()
                     .setSettingsResp.settings shouldBe settings
+            }
+        }
+
+        test("delivery failure after installation does not rewind or reuse committed allocation") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val prior = board.bridge.committedSequence()
+
+            coordinator.publishSettings(SeatId(1), SettingsMessage.getDefaultInstance())
+            val installed = board.bridge.committedSequence()
+            coordinator.drain(SeatId(1)).single()
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.failDelivery(IllegalStateException("sink unavailable"))
+            }
+
+            assertSoftly {
+                installed.currentMsgId shouldBeGreaterThan prior.currentMsgId
+                installed.committedOutputOrdinal shouldBe prior.committedOutputOrdinal + 1
+                board.bridge.committedSequence() shouldBe installed
             }
         }
 

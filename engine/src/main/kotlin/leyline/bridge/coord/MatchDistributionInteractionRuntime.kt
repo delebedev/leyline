@@ -107,13 +107,13 @@ internal class MatchDistributionInteractionRuntime(
     private fun publish(initial: DistributionWindowValue): Window =
         kernel.publish(
             duplicateMessage = "A Distribution interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
                 val prepared =
                     try {
                         feed.builder.prepareDistributionWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial,
                         )
                     } catch (ex: Exception) {

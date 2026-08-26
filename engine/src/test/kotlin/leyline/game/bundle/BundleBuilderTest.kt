@@ -24,7 +24,7 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.RequestBuilder
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
@@ -107,7 +107,7 @@ class BundleBuilderTest :
 
             val msg =
                 BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 2)
-                    .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
+                    .queuedGameState(gs, LogicalSequencePlanner(initialGsId = 42, initialMsgId = 9))
 
             assertSoftly {
                 msg.type shouldBe GREMessageType.QueuedGameStateMessage
@@ -117,7 +117,7 @@ class BundleBuilderTest :
         }
 
         test("coinFlipPromptMessages emits promptId 46 notification") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 20)
             val messages =
                 pureBB().coinFlipPromptMessages(
                     events =
@@ -504,7 +504,7 @@ class BundleBuilderTest :
 
         @Suppress("WeakAssertionOnly")
         test("edictalPass sends server-forced Pass action") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result = pureBB().edictalPass(counter = counter)
 
             result.messages.size shouldBe 1
@@ -520,8 +520,8 @@ class BundleBuilderTest :
         }
 
         test("echo diff prevGsId uses last emitted GSM instead of gsId adjacency") {
-            val counter = MessageCounter(initialGsId = 7, initialMsgId = 0)
-            counter.markGameStateGsId(7)
+            val counter =
+                LogicalSequencePlanner(LogicalSequenceState(currentGsId = 7, currentMsgId = 0, lastGameStateGsId = 7))
             counter.nextGsId() // prompt-only interleave
 
             val echo = pureBB().buildEchoDiffGsm(counter)
@@ -533,7 +533,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle produces 3 GSM diffs + IntermissionReq") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,
@@ -577,7 +577,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle gsIds are strictly ascending") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,
@@ -595,7 +595,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle prevGameStateId chains correctly") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 2,
@@ -612,7 +612,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle with Concede reason") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,

@@ -8,7 +8,7 @@ import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
@@ -37,7 +37,7 @@ class MatchLifecycleRuntimeTest :
         fun syncPuzzleBridge(): GameBridge =
             GameBridge(
                 runtimeHorizonMode = RuntimeHorizonMode.Observed,
-                messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
+                initialSequence = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0).snapshot(),
                 cardRepository = TestCardRegistry.repo,
             ).also { bridge ->
                 useBridge(bridge)
@@ -98,7 +98,7 @@ class MatchLifecycleRuntimeTest :
         test("startup preparation failure terminalizes without publication") {
             val bridge =
                 GameBridge(
-                    messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
+                    initialSequence = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0).snapshot(),
                     cardRepository = TestCardRegistry.repo,
                 )
             useBridge(bridge)
@@ -215,6 +215,32 @@ class MatchLifecycleRuntimeTest :
             }
         }
 
+        test("manual full state commits its sequence and owned output through lifecycle publication") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val prior = board.bridge.committedSequence()
+
+            val publication = coordinator.lifecycle.publishFullState(SeatId(1))
+
+            val owned = coordinator.feed(SeatId(1)).queue.single()
+            assertSoftly {
+                owned.ordinal shouldBe prior.committedOutputOrdinal + 1
+                owned.messages.map { it.type } shouldBe
+                    listOf(GREMessageType.GameStateMessage_695e, GREMessageType.ActionsAvailableReq_695e)
+                publication.gameStateId shouldBe owned.messages.first().gameStateId
+                publication.objectCount shouldBe
+                    owned.messages
+                        .first()
+                        .gameStateMessage.gameObjectsCount
+                publication.zoneCount shouldBe
+                    owned.messages
+                        .first()
+                        .gameStateMessage.zonesCount
+                board.bridge.committedSequence().committedOutputOrdinal shouldBe owned.ordinal
+            }
+        }
+
         test("stale synchronization replacement restores its prior batch") {
             val bridge = syncPuzzleBridge()
             val coordinator = bridge.cutCoordinator
@@ -232,7 +258,7 @@ class MatchLifecycleRuntimeTest :
             assertSoftly {
                 feed.queue.toList() shouldBe priorBatches
                 bridge.projectionStateSnapshot() shouldBe competingProjection
-                feed.queue.flatten().none { it.hasActionsAvailableReq() } shouldBe true
+                feed.queue.flatMap { it.messages }.none { it.hasActionsAvailableReq() } shouldBe true
             }
         }
     })

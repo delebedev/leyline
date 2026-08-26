@@ -31,7 +31,7 @@ internal class GroupingWindowMaterializer(
     fun prepare(
         gameState: GameStateMessage,
         gameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: GroupingWindowValue,

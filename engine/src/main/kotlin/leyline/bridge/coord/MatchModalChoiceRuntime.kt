@@ -12,6 +12,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedModalChoiceInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.ModalChoiceWindowMaterializer
 import java.util.concurrent.CompletableFuture
 
@@ -126,7 +127,7 @@ internal class MatchModalChoiceRuntime(
 
     /** Release Forge after its response was accepted, then remove synthetic trigger state. */
     fun releaseAfterEngineResume(token: ModalChoiceCleanupToken): Boolean =
-        synchronized(owner.counter) {
+        synchronized(owner.bridge.projectionBuildLock) {
             synchronized(owner.feedLock) {
                 val receipt = cleanupReceipts.remove(token.interactionId) ?: return false
                 queueCleanupLocked(receipt)
@@ -161,13 +162,13 @@ internal class MatchModalChoiceRuntime(
     private fun publish(initial: ModalChoiceWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "A ModalChoice interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareModalChoiceWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
                         )
                     } catch (ex: Exception) {
@@ -217,7 +218,7 @@ internal class MatchModalChoiceRuntime(
             timeoutException = { error("ModalChoice timeout should complete with a default") },
             beforeTimeoutClaim = beforeTimeoutClaim,
             timeoutClaim = { claim ->
-                synchronized(owner.counter) {
+                synchronized(owner.bridge.projectionBuildLock) {
                     synchronized(owner.feedLock) { claim() }
                 }
             },
@@ -267,11 +268,15 @@ internal class MatchModalChoiceRuntime(
     private fun queueCleanupLocked(receipt: CleanupReceipt) {
         if (!receipt.triggered) return
         val feed = owner.feed(owner.humanSeat)
-        val cleanup = ModalChoiceWindowMaterializer(owner.humanSeat.value).cleanup(owner.counter, receipt.sourceInstanceId)
+        val prior = owner.bridge.projectionStateSnapshot()
+        val planner = LogicalSequencePlanner(prior.sequence)
+        val cleanup = ModalChoiceWindowMaterializer(owner.humanSeat.value).cleanup(planner, receipt.sourceInstanceId)
         try {
-            feed.beforeBatchEnqueue?.invoke(0, listOf(cleanup))
-            feed.queue.add(listOf(cleanup))
-            owner.signalDelivery()
+            owner.cutInstaller.install(
+                feed,
+                PreparedCut.prepare(prior, planner, listOf(cleanup), projection = null, closesPlaybackFrame = false),
+                onFailure = { ex -> owner.failPrompt(ex, pending = receipt.cut) },
+            )
         } catch (ex: Exception) {
             owner.failPrompt(ex, pending = receipt.cut)
         }

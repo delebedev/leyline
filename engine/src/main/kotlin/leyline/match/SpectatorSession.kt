@@ -3,8 +3,6 @@ package leyline.match
 import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -20,9 +18,7 @@ class SpectatorSession(
     val sink: MessageSink,
     val gameBridge: GameBridge,
     val playerId: String = "spectator",
-    override var counter: MessageCounter = gameBridge.messageCounter,
 ) : SessionOps {
-    private val bundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
     private var gameOverSent = false
 
     @Volatile private var closed = false
@@ -75,12 +71,7 @@ class SpectatorSession(
         return sent
     }
 
-    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        for (m in messages) {
-            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-        }
-        sink.send(messages)
-    }
+    override fun sendBundledGRE(messages: List<GREToClientMessage>) = sink.send(messages)
 
     override fun sendRealGameState(
         bridge: GameBridge,
@@ -91,7 +82,7 @@ class SpectatorSession(
     private fun sendLegacySpectatorState(revealForSeat: Int?) {
         for (batch in gameBridge.cutCoordinator.drain(seatId)) sendBundledGRE(batch)
         val game = gameBridge.getGame() ?: return
-        sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
+        sendBundledGRE(gameBridge.cutCoordinator.materializeLegacySpectatorState(seatId, game, revealForSeat))
     }
 
     override fun sendGameOver(reason: ResultReason) {

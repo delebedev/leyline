@@ -122,13 +122,13 @@ internal class MatchRevealChoiceInteractionRuntime(
     private fun publish(initial: RevealChoiceWindowCapture.Initial): Window =
         kernel.publish(
             duplicateMessage = "A RevealChoice interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
                 val prepared =
                     try {
                         feed.builder.prepareRevealChoiceWindow(
                             game ?: failInitial(IllegalStateException("Game unavailable"), initial),
-                            owner.counter,
+                            planner,
                             initial.value,
                         )
                     } catch (ex: Exception) {

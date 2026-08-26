@@ -14,7 +14,7 @@ import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
@@ -29,7 +29,6 @@ import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SetSettingsResp
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CancellationException
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Owns journal close, exact cuts, projection install, committed viewer feeds,
@@ -38,13 +37,12 @@ import java.util.concurrent.ConcurrentLinkedQueue
 internal class MatchCutCoordinator(
     internal val bridge: GameBridge,
     internal val matchId: String,
-    internal val counter: MessageCounter,
     private val delayMultiplier: Double,
 ) : BlockingInteractionRuntime {
     internal data class ViewerFeed(
         val seatId: SeatId,
         val builder: BundleBuilder,
-        val queue: ConcurrentLinkedQueue<List<GREToClientMessage>> = ConcurrentLinkedQueue(),
+        val queue: ArrayDeque<CommittedOutputBatch> = ArrayDeque(),
         var requestedCut: PlaybackCutRequest? = null,
         var pendingCut: PendingCut? = null,
         var beforeBatchEnqueue: ((Int, List<GREToClientMessage>) -> Unit)? = null,
@@ -99,29 +97,29 @@ internal class MatchCutCoordinator(
         settings: SettingsMessage?,
     ) {
         registerViewer(seatId)
-        synchronized(counter) {
-            synchronized(bridge.projectionBuildLock) {
-                synchronized(feedLock) {
-                    ensureOpen()
-                    val msgId = counter.currentMsgId()
-                    val response = SetSettingsResp.newBuilder()
-                    settings?.let(response::setSettings)
-                    val message =
-                        GREToClientMessage
-                            .newBuilder()
-                            .setType(GREMessageType.SetSettingsResp_695e)
-                            .addSystemSeatIds(seatId.value)
-                            .setMsgId(msgId)
-                            .setGameStateId(counter.currentGsId())
-                            .setSetSettingsResp(response)
-                            .build()
-                    counter.setMsgId(msgId + 1)
-                    cutInstaller.install(
-                        feed(seatId),
-                        PreparedCut(listOf(message), transition = null, closesPlaybackFrame = false),
-                        onFailure = ::fail,
-                    )
-                }
+        synchronized(bridge.projectionBuildLock) {
+            synchronized(feedLock) {
+                ensureOpen()
+                val prior = bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val msgId = planner.currentMsgId()
+                val response = SetSettingsResp.newBuilder()
+                settings?.let(response::setSettings)
+                val message =
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.SetSettingsResp_695e)
+                        .addSystemSeatIds(seatId.value)
+                        .setMsgId(msgId)
+                        .setGameStateId(planner.currentGsId())
+                        .setSetSettingsResp(response)
+                        .build()
+                planner.setMsgId(msgId + 1)
+                cutInstaller.install(
+                    feed(seatId),
+                    PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                    onFailure = ::fail,
+                )
             }
         }
     }
@@ -133,40 +131,40 @@ internal class MatchCutCoordinator(
         reason: FailureReason,
     ) {
         registerViewer(seatId)
-        synchronized(counter) {
-            synchronized(bridge.projectionBuildLock) {
-                synchronized(feedLock) {
-                    ensureOpen()
-                    val message =
-                        GREToClientMessage
-                            .newBuilder()
-                            .setType(GREMessageType.IllegalRequest)
-                            .setMsgId(counter.nextMsgId())
-                            .setGameStateId(counter.currentGsId())
-                            .addSystemSeatIds(invalid.systemSeatId)
-                            .setPrompt(
-                                Prompt
-                                    .newBuilder()
-                                    .setPromptId(3)
-                                    .addParameters(
-                                        PromptParameter
-                                            .newBuilder()
-                                            .setParameterName("FailureReason")
-                                            .setType(ParameterType.Number)
-                                            .setNumberValue(reason.number),
-                                    ),
-                            ).setIllegalRequestMessage(
-                                IllegalRequestMessage
-                                    .newBuilder()
-                                    .setInvalidMessage(invalid)
-                                    .setReason(reason),
-                            ).build()
-                    cutInstaller.install(
-                        feed(seatId),
-                        PreparedCut(listOf(message), transition = null, closesPlaybackFrame = false),
-                        onFailure = ::fail,
-                    )
-                }
+        synchronized(bridge.projectionBuildLock) {
+            synchronized(feedLock) {
+                ensureOpen()
+                val prior = bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val message =
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.IllegalRequest)
+                        .setMsgId(planner.nextMsgId())
+                        .setGameStateId(planner.currentGsId())
+                        .addSystemSeatIds(invalid.systemSeatId)
+                        .setPrompt(
+                            Prompt
+                                .newBuilder()
+                                .setPromptId(3)
+                                .addParameters(
+                                    PromptParameter
+                                        .newBuilder()
+                                        .setParameterName("FailureReason")
+                                        .setType(ParameterType.Number)
+                                        .setNumberValue(reason.number),
+                                ),
+                        ).setIllegalRequestMessage(
+                            IllegalRequestMessage
+                                .newBuilder()
+                                .setInvalidMessage(invalid)
+                                .setReason(reason),
+                        ).build()
+                cutInstaller.install(
+                    feed(seatId),
+                    PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                    onFailure = ::fail,
+                )
             }
         }
     }
@@ -327,67 +325,76 @@ internal class MatchCutCoordinator(
     ) {
         val game = bridge.getGame()
         val request =
-            synchronized(counter) {
-                synchronized(bridge.projectionBuildLock) {
-                    synchronized(feedLock) {
-                        ensureOpen()
-                        val feed = feed(seatId)
-                        val request = feed.requestedCut ?: return
-                        if (request.boundary != boundary) return
-                        if (game == null) {
-                            failPlayback(
-                                IllegalStateException("Game unavailable"),
-                                diagnostic = MaterializationDiagnostic(request, null),
-                            )
-                        }
-                        val events =
-                            try {
-                                bridge.closeBundleFrame(seatId.value)
-                            } catch (ex: Exception) {
-                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
-                            }
-                        val pending =
-                            try {
-                                PendingCut(
-                                    request,
-                                    feed.builder.materializePlaybackCut(
-                                        game,
-                                        counter,
-                                        PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
-                                    ),
-                                )
-                            } catch (ex: Exception) {
-                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
-                            }
-                        feed.pendingCut = pending
-                        val prepared =
-                            try {
-                                feed.builder.compilePlaybackCut(pending.projection)
-                            } catch (ex: Exception) {
-                                failPlayback(ex, pending = pending)
-                            }
-                        val enqueued = mutableListOf<List<GREToClientMessage>>()
-                        try {
-                            prepared.batches.forEachIndexed { index, batch ->
-                                feed.beforeBatchEnqueue?.invoke(index, batch)
-                                feed.queue.add(batch)
-                                enqueued += batch
-                            }
-                        } catch (ex: Exception) {
-                            removeEnqueuedBatches(feed, enqueued)
-                            failPlayback(ex, pending = pending)
-                        }
-                        var installed = false
-                        try {
-                            bridge.commitProjection(prepared.transition) { installed = true }
-                            feed.pendingCut = null
-                            feed.requestedCut = null
-                        } catch (ex: Exception) {
-                            if (!installed) removeEnqueuedBatches(feed, enqueued)
-                            failPlayback(ex, pending = pending)
-                        }
-                        request
+            synchronized(bridge.projectionBuildLock) {
+                synchronized(feedLock) {
+                    ensureOpen()
+                    val feed = feed(seatId)
+                    val prior = bridge.projectionStateSnapshot()
+                    val planner = LogicalSequencePlanner(prior.sequence)
+                    val request = feed.requestedCut ?: return
+                    if (request.boundary != boundary) return
+                    if (game == null) {
+                        failPlayback(
+                            IllegalStateException("Game unavailable"),
+                            diagnostic = MaterializationDiagnostic(request, null),
+                        )
                     }
+                    val events =
+                        try {
+                            bridge.closeBundleFrame(seatId.value)
+                        } catch (ex: Exception) {
+                            failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
+                        }
+                    val pending =
+                        try {
+                            PendingCut(
+                                request,
+                                feed.builder.materializePlaybackCut(
+                                    game,
+                                    planner,
+                                    PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
+                                ),
+                            )
+                        } catch (ex: Exception) {
+                            failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
+                        }
+                    feed.pendingCut = pending
+                    val prepared =
+                        try {
+                            feed.builder.compilePlaybackCut(pending.projection)
+                        } catch (ex: Exception) {
+                            failPlayback(ex, pending = pending)
+                        }
+                    val cut =
+                        PreparedCut.prepare(
+                            prior,
+                            planner,
+                            prepared.batches.flatten(),
+                            prepared.transition,
+                            closesPlaybackFrame = true,
+                        )
+                    val enqueued = mutableListOf<CommittedOutputBatch>()
+                    try {
+                        prepared.batches.forEachIndexed { index, batch ->
+                            feed.beforeBatchEnqueue?.invoke(index, batch)
+                            val committed = CommittedOutputBatch(cut.outputOrdinal, index, batch)
+                            feed.queue.add(committed)
+                            enqueued += committed
+                        }
+                    } catch (ex: Exception) {
+                        removeEnqueuedBatches(feed, enqueued)
+                        failPlayback(ex, pending = pending)
+                    }
+                    var installed = false
+                    try {
+                        bridge.commitProjection(cut.transition) { installed = true }
+                        feed.pendingCut = null
+                        feed.requestedCut = null
+                    } catch (ex: Exception) {
+                        if (!installed) removeEnqueuedBatches(feed, enqueued)
+                        failPlayback(ex, pending = pending)
+                    }
+                    request
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
@@ -399,6 +406,19 @@ internal class MatchCutCoordinator(
         synchronized(feedLock) { feeds[seatId]?.requestedCut = null }
     }
 
+    /** Residual single-view compilation owned here until viewer folding migrates. */
+    fun materializeLegacySpectatorState(
+        seatId: SeatId,
+        game: forge.game.Game,
+        revealForSeat: Int?,
+    ): List<GREToClientMessage> =
+        synchronized(bridge.projectionBuildLock) {
+            synchronized(feedLock) {
+                val planner = LogicalSequencePlanner(bridge.projectionStateSnapshot().sequence)
+                feed(seatId).builder.stateOnlyDiff(game, planner, revealForSeat).messages
+            }
+        }
+
     fun drain(
         seatId: SeatId,
         beforeMsgId: Int? = null,
@@ -408,17 +428,17 @@ internal class MatchCutCoordinator(
             val queue = feeds[seatId]?.queue ?: return emptyList()
             buildList {
                 while (true) {
-                    val batch = queue.peek() ?: break
+                    val batch = queue.firstOrNull() ?: break
                     if (beforeMsgId != null) {
-                        val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
-                        val firstGsId = batch.firstGameStateId()
+                        val firstMsgId = batch.messages.firstOrNull()?.msgId ?: Int.MAX_VALUE
+                        val firstGsId = batch.messages.firstGameStateId()
                         if (maxGsId != 0 && firstGsId != null) {
                             if (firstGsId >= maxGsId) break
                         } else if (firstMsgId >= beforeMsgId) {
                             break
                         }
                     }
-                    add(queue.poll() ?: break)
+                    add(queue.removeFirstOrNull()?.messages ?: break)
                 }
             }
         }
@@ -444,7 +464,10 @@ internal class MatchCutCoordinator(
         seatId: SeatId,
         batch: List<GREToClientMessage>,
     ) {
-        synchronized(feedLock) { feed(seatId).queue.add(batch) }
+        synchronized(feedLock) {
+            val feed = feed(seatId)
+            feed.queue.add(CommittedOutputBatch(TEST_OUTPUT_ORDINAL, 0, batch))
+        }
         deliverySignal.signal()
     }
 
@@ -456,17 +479,22 @@ internal class MatchCutCoordinator(
 
     internal fun removeOwnedBatch(
         feed: ViewerFeed,
-        batch: List<GREToClientMessage>,
-    ): Boolean {
-        val iterator = feed.queue.iterator()
-        while (iterator.hasNext()) {
-            if (iterator.next() === batch) {
-                iterator.remove()
-                return true
-            }
-        }
-        return false
+        batch: CommittedOutputBatch,
+    ): Boolean = feed.queue.remove(batch)
+
+    internal fun takeOwnedBatch(
+        feed: ViewerFeed,
+        messages: List<GREToClientMessage>,
+    ): CommittedOutputBatch? {
+        val batch = feed.queue.firstOrNull { it.messages === messages } ?: return null
+        feed.queue.remove(batch)
+        return batch
     }
+
+    internal fun removeOwnedBatch(
+        feed: ViewerFeed,
+        messages: List<GREToClientMessage>,
+    ): Boolean = takeOwnedBatch(feed, messages) != null
 
     internal fun fail(
         cause: Throwable,
@@ -497,10 +525,14 @@ internal class MatchCutCoordinator(
 
     private fun removeEnqueuedBatches(
         feed: ViewerFeed,
-        enqueued: List<List<GREToClientMessage>>,
+        enqueued: List<CommittedOutputBatch>,
     ) {
         enqueued.forEach { removeOwnedBatch(feed, it) }
     }
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
+
+    private companion object {
+        const val TEST_OUTPUT_ORDINAL = -1L
+    }
 }

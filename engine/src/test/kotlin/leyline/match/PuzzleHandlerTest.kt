@@ -99,7 +99,7 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(session, "puzzle-bolt-face", 1)
                 val gre = sink.messages
                 val actionPrompt = gre.last { it.hasActionsAvailableReq() }
-                session.counter.lastPromptMsgId() shouldBe actionPrompt.msgId
+                session.gameBridge.committedSequence().lastPromptMsgId shouldBe actionPrompt.msgId
 
                 session.onPerformAction(
                     ClientToGREMessage

@@ -202,7 +202,7 @@ internal class MatchOneShotPayCostsRuntime(
     private fun publishSelect(initial: OneShotPayCostsWindowCapture.Initial): SelectWindow =
         selectKernel.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
                 val window = OneShotPayCostsWindow.Select(initial.value)
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
@@ -216,7 +216,7 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 val prepared =
                     try {
-                        feed.builder.prepareOneShotPayCosts(resolved, owner.counter, initial.value)
+                        feed.builder.prepareOneShotPayCosts(resolved, planner, initial.value)
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
@@ -259,14 +259,14 @@ internal class MatchOneShotPayCostsRuntime(
     private fun publishGather(initial: GatherCountersWindowCapture.Initial): GatherWindow =
         gatherKernel.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
                 val value = initial.value
                 val window = OneShotPayCostsWindow.GatherCounters(value)
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
                 val prepared =
                     try {
-                        feed.builder.prepareGatherCounters(resolved, owner.counter, value)
+                        feed.builder.prepareGatherCounters(resolved, planner, value)
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }

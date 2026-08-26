@@ -8,7 +8,6 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
-import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleLibrary
 import leyline.game.state.GameBridge
@@ -322,10 +321,10 @@ class MatchConnection(
         return s
     }
 
-    /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
-    private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
+    /** Create and register a read-only familiar session. */
+    private fun createAndRegisterFamiliarSession(): FamiliarSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
-        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
+        val s = FamiliarSession(SeatId(seatId), matchId, sink)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
@@ -396,11 +395,11 @@ class MatchConnection(
         block: () -> Unit,
     ) {
         val activeSession = session ?: return
-        val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, activeSession.counter)
+        val bridge = registry.getMatch(matchId)?.bridge ?: return
+        val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, bridge.committedSequence(), bridge.responseAcceptance)
         if (failure == null) {
             block()
         } else {
-            val bridge = registry.getMatch(matchId)?.bridge ?: return
             bridge.cutCoordinator.publishIllegalRequest(activeSession.seatId, greMsg, failure)
             deliverCommittedCoordinatorBatches(activeSession, bridge, activeSession.seatId)
         }

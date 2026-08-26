@@ -13,8 +13,7 @@ import kotlin.collections.iterator
 /**
  * Handles combat-related client messages.
  *
- * Protocol sequencing uses the shared [MessageCounter][leyline.game.bundle.MessageCounter]
- * via `counters.counter` — no seeding or syncing needed.
+ * Reads committed prompt horizons from the match runtime.
  */
 open class CombatHandler(
     private val sink: GreMessageSink,
@@ -46,12 +45,12 @@ open class CombatHandler(
         label: String,
     ): Boolean {
         val clientGsId = greMsg.gameStateId
-        if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
+        if (clientGsId != 0 && clientGsId < ctx.bridge.committedSequence().lastPromptGsId) {
             log.debug(
                 "CombatHandler: stale {} gsId={} (lastPrompt={}), ignoring",
                 label,
                 clientGsId,
-                counters.counter.lastPromptGsId(),
+                ctx.bridge.committedSequence().lastPromptGsId,
             )
             return true
         }
@@ -306,8 +305,7 @@ open class CombatHandler(
      *
      * The engine thread may have captured AI actions (via [GamePlayback])
      * between the last drain and now, queuing messages with new gsIds.
-     * With the shared MessageCounter, no counter syncing is needed — just
-     * drain and send.
+     * Drain and send the already committed batches.
      */
     private fun drainPendingPlayback() {
         val playback = ctx.bridge.playbackFor(counters.seatId) ?: return

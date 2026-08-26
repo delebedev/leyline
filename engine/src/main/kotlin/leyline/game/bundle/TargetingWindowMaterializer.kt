@@ -38,7 +38,7 @@ internal class TargetingWindowMaterializer(
     fun initial(
         gameState: GameStateMessage,
         gameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: TargetingWindowValue,
@@ -61,7 +61,7 @@ internal class TargetingWindowMaterializer(
     }
 
     fun rePrompt(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         window: TargetingWindowValue,
         selectedOptionIndices: Set<Int>,
@@ -92,7 +92,7 @@ internal class TargetingWindowMaterializer(
     }
 
     fun submit(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         prior: ProjectionState,
         sourceInstanceId: InstanceId?,
         casterSeatId: leyline.bridge.types.SeatId,

@@ -4,6 +4,8 @@ import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -212,22 +214,20 @@ internal class DeferredCastWindowRuntime(
         }
 
     fun cancel(promptGameStateId: Int): Boolean =
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    val pending = prompt ?: return@synchronized false
-                    if (pending.promptGameStateId != promptGameStateId || !actions.isDeferredClaim(pending.actionClaim)) {
-                        return@synchronized false
-                    }
-                    val claim = pending.actionClaim
-                    prompt = null
-                    claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
-                    owner.bridge
-                        .seat(actions.seatFor(claim.actionId))
-                        .prompt.journal
-                        .clearHybridManaStash()
-                    actions.reopenDeferredClaim(claim)
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                val pending = prompt ?: return@synchronized false
+                if (pending.promptGameStateId != promptGameStateId || !actions.isDeferredClaim(pending.actionClaim)) {
+                    return@synchronized false
                 }
+                val claim = pending.actionClaim
+                prompt = null
+                claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
+                owner.bridge
+                    .seat(actions.seatFor(claim.actionId))
+                    .prompt.journal
+                    .clearHybridManaStash()
+                actions.reopenDeferredClaim(claim)
             }
         }
 
@@ -324,17 +324,17 @@ internal class DeferredCastWindowRuntime(
 
     private fun publishClaimed(publication: Publication) {
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    checkClaim(publication.claim)
-                    validate(publication)
-                    val seatId = actions.seatFor(publication.claim.actionId)
-                    owner.registerViewer(seatId)
-                    val feed = owner.feed(seatId)
-                    prepareAndInstallLocked(feed, publication)
-                }
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                checkClaim(publication.claim)
+                validate(publication)
+                val seatId = actions.seatFor(publication.claim.actionId)
+                owner.registerViewer(seatId)
+                val feed = owner.feed(seatId)
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                prepareAndInstallLocked(feed, publication, prior, planner)
             }
         }
     }
@@ -349,20 +349,20 @@ internal class DeferredCastWindowRuntime(
             if (adoptedHybrid(receipt) == null) return false
         }
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val pending = adoptedHybrid(receipt) ?: return false
-                    checkClaim(pending.actionClaim)
-                    val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
-                    validate(publication)
-                    val seatId = actions.seatFor(pending.actionClaim.actionId)
-                    owner.registerViewer(seatId)
-                    val feed = owner.feed(seatId)
-                    prepareAndInstallLocked(feed, publication)
-                    return true
-                }
+        synchronized(owner.bridge.projectionBuildLock) {
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                val pending = adoptedHybrid(receipt) ?: return false
+                checkClaim(pending.actionClaim)
+                val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
+                validate(publication)
+                val seatId = actions.seatFor(pending.actionClaim.actionId)
+                owner.registerViewer(seatId)
+                val feed = owner.feed(seatId)
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                prepareAndInstallLocked(feed, publication, prior, planner)
+                return true
             }
         }
     }
@@ -402,8 +402,10 @@ internal class DeferredCastWindowRuntime(
     private fun prepareAndInstallLocked(
         feed: MatchCutCoordinator.ViewerFeed,
         publication: Publication,
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
     ) {
-        val prepared = materialize(feed, publication.request)
+        val prepared = materialize(feed, publication.request, planner)
         val gameStateId = checkNotNull(prepared.bundle.actionGameStateId)
         val nextPrompt =
             when (publication) {
@@ -426,16 +428,17 @@ internal class DeferredCastWindowRuntime(
                     Prompt.AlternateCostChoice(publication.claim, gameStateId, publication.ctoIds.zip(tokens).toMap())
                 }
             }
-        install(feed, prepared, nextPrompt, publication)
+        install(feed, prepared, nextPrompt, publication, prior, planner)
     }
 
     private fun materialize(
         feed: MatchCutCoordinator.ViewerFeed,
         request: CastingTimeOptionsReq,
+        planner: LogicalSequencePlanner,
     ) = try {
         beforeMaterialization?.invoke()
         val game = owner.bridge.getGame() ?: error("Game unavailable")
-        feed.builder.prepareCastingTimeOptions(game, owner.counter, request)
+        feed.builder.prepareCastingTimeOptions(game, planner, request)
     } catch (ex: Exception) {
         owner.fail(ex)
     }
@@ -445,9 +448,11 @@ internal class DeferredCastWindowRuntime(
         prepared: BundleBuilder.ActionWindowPrepared,
         nextPrompt: Prompt,
         publication: Publication,
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
     ) = owner.cutInstaller.install(
         feed,
-        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        PreparedCut.prepare(prior, planner, prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
         CutInstallHooks(beforeInstall = beforeInstall),
         onInstalled = {
             prompt = nextPrompt

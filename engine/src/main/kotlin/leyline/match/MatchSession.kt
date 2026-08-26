@@ -5,9 +5,7 @@ import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.PROMPT_GRE_TYPES
-import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -21,10 +19,6 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * Delegates combat flows to [CombatHandler] and targeting to [TargetingHandler].
  * Owns the [sessionLock], message sending, and Familiar mirroring.
  *
- * Protocol sequencing uses a shared [MessageCounter] — same instance is passed
- * to [GamePlayback][leyline.game.GamePlayback]. No seeding or
- * syncing needed.
- *
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
  */
@@ -32,7 +26,6 @@ class MatchSession(
     val connection: ConnectionState,
     override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
-    override var counter: MessageCounter = gameBridge.messageCounter,
 ) : GameOps {
     data class PuzzleReplacementResult(
         val gameStateId: Int,
@@ -149,7 +142,7 @@ class MatchSession(
             matchConnection?.stopRuntimeDeliveryObserver()
             close()
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
-            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
+            val replacement = MatchSession(connection, gameBridge, paceDelayMs)
             registry.registerSession(matchId, seatId, replacement)
             // Update the per-channel handler so future inbound GRE messages dispatch
             // to the new session. Without this, MatchHandler keeps a stale reference
@@ -169,6 +162,13 @@ class MatchSession(
         drainCoordinatorBarrier(this, gameBridge, seatId)
         return PuzzleReplacementResult(published.gameStateId, published.objectCount, published.zoneCount)
     }
+
+    fun injectFullState(): PuzzleReplacementResult =
+        synchronized(sessionLock) {
+            val published = gameBridge.cutCoordinator.lifecycle.publishFullState(seatId)
+            drainCoordinatorFeed()
+            PuzzleReplacementResult(published.gameStateId, published.objectCount, published.zoneCount)
+        }
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
@@ -288,7 +288,7 @@ class MatchSession(
         block: (completedActionId: String?) -> Unit,
     ): Unit =
         synchronized(sessionLock) {
-            val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, counter)
+            val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, gameBridge.committedSequence(), gameBridge.responseAcceptance)
             if (failure == null) {
                 block(gameBridge.actionBridge(seatId).getPending()?.actionId)
             } else {
@@ -440,11 +440,7 @@ class MatchSession(
     /**
      * Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer.
      *
-     * Sink-boundary auto-mark: every outgoing prompt-bearing GRE bumps
-     * [MessageCounter.lastPromptGsId] before leaving so staleness predicates
-     * pick up the new horizon automatically. Direct-builder bypasses
-     * (handshake messages, MulliganReq, GroupReq from GsmBuilder) get the
-     * same treatment as bundle-built messages — the funnel guarantees it.
+     * Logical identity and prompt horizons are already committed before this sink runs.
      */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         val firstMsgId = messages.firstOrNull()?.msgId
@@ -467,8 +463,6 @@ class MatchSession(
         mirror: Boolean = true,
     ) {
         for (m in messages) {
-            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-            markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
             if (m.type in PROMPT_GRE_TYPES) {
                 lastPrompt = m
                 autopush?.onPrompt(m)
