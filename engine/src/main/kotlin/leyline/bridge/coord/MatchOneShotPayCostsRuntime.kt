@@ -202,8 +202,10 @@ internal class MatchOneShotPayCostsRuntime(
     private fun publishSelect(initial: OneShotPayCostsWindowCapture.Initial): SelectWindow =
         selectKernel.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
-            prepare = { interactionId, feed, game, planner ->
+            prepare = { interactionId, _, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
+                val routes = owner.viewerRoutes()
+                val playerRoute = routes.single { it.viewer.role == leyline.game.state.ProjectionViewerRole.Player }
                 val window = OneShotPayCostsWindow.Select(initial.value)
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
                 if (initial.value.kind == PayCostsRouteKind.CollectEvidence) {
@@ -216,14 +218,15 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 val prepared =
                     try {
-                        feed.builder.prepareOneShotPayCosts(resolved, planner, initial.value)
+                        playerRoute.builder.prepareOneShotPayCosts(resolved, planner, initial.value, routes)
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val player = prepared.player
                 val published =
                     PublishedOneShotPayCostsInteraction(
                         interactionId,
-                        checkNotNull(prepared.bundle.actionGameStateId),
+                        checkNotNull(player.bundle.actionGameStateId),
                         selectKind = initial.value.kind,
                     )
                 val exact =
@@ -231,10 +234,10 @@ internal class MatchOneShotPayCostsRuntime(
                         interactionId,
                         published.gameStateId,
                         window,
-                        prepared.bundle.messages,
-                        prepared.transition,
+                        player.bundle.messages,
+                        player.transition,
                     )
-                val projection = prepared.transition.nextState
+                val projection = player.transition.nextState
                 val optionEntries =
                     initial.value.candidates.map { candidate ->
                         val instanceId =
@@ -248,9 +251,10 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 SinglePromptPublication(
                     SelectWindow(published, initial.value, exact, initial.handlesByOption, optionByInstanceId),
-                    prepared.bundle.messages,
-                    prepared.transition,
-                    prepared.closesPlaybackFrame,
+                    player.bundle.messages,
+                    player.transition,
+                    player.closesPlaybackFrame,
+                    prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
             ensureEmptyLocked = { gatherWindows.ensureEmptyLocked(DUPLICATE_MESSAGE) },
@@ -259,21 +263,24 @@ internal class MatchOneShotPayCostsRuntime(
     private fun publishGather(initial: GatherCountersWindowCapture.Initial): GatherWindow =
         gatherKernel.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
-            prepare = { interactionId, feed, game, planner ->
+            prepare = { interactionId, _, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
+                val routes = owner.viewerRoutes()
+                val playerRoute = routes.single { it.viewer.role == leyline.game.state.ProjectionViewerRole.Player }
                 val value = initial.value
                 val window = OneShotPayCostsWindow.GatherCounters(value)
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, window)
                 val prepared =
                     try {
-                        feed.builder.prepareGatherCounters(resolved, planner, value)
+                        playerRoute.builder.prepareGatherCounters(resolved, planner, value, routes)
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val player = prepared.player
                 val published =
                     PublishedOneShotPayCostsInteraction(
                         interactionId,
-                        checkNotNull(prepared.bundle.actionGameStateId),
+                        checkNotNull(player.bundle.actionGameStateId),
                         windowKind = OneShotPayCostsWindowKind.GatherCounters,
                     )
                 val exact =
@@ -281,10 +288,10 @@ internal class MatchOneShotPayCostsRuntime(
                         interactionId,
                         published.gameStateId,
                         window,
-                        prepared.bundle.messages,
-                        prepared.transition,
+                        player.bundle.messages,
+                        player.transition,
                     )
-                val projection = prepared.transition.nextState
+                val projection = player.transition.nextState
                 val sourceEntries =
                     value.sources.map { source ->
                         val instanceId =
@@ -301,9 +308,10 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 SinglePromptPublication(
                     GatherWindow(published, value, exact, initial.handlesBySourceId, sourceByInstanceId),
-                    prepared.bundle.messages,
-                    prepared.transition,
-                    prepared.closesPlaybackFrame,
+                    player.bundle.messages,
+                    player.transition,
+                    player.closesPlaybackFrame,
+                    prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
             ensureEmptyLocked = { selectWindows.ensureEmptyLocked(DUPLICATE_MESSAGE) },

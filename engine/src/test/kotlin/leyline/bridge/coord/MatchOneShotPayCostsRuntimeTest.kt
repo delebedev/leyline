@@ -22,6 +22,7 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -32,6 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -96,6 +98,63 @@ class MatchOneShotPayCostsRuntimeTest :
                 published = coordinator.oneShotPayCosts.current()
             }
             return checkNotNull(published)
+        }
+
+        test("initial PayCosts keeps Player bytes and gives observers projected state only") {
+            data class Published(
+                val player: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+                val observer: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+            )
+
+            fun publish(withObserver: Boolean): Published {
+                val board = startPuzzleAtMain1(puzzle.replace("humanlibrary=Mountain", "humanhand=Mountain\nhumanlibrary=Mountain"))
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                if (withObserver) coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+                val cards = candidates(board)
+                val source =
+                    board.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Forest" }
+                val finished = CountDownLatch(1)
+                Thread {
+                    coordinator.oneShotPayCosts.awaitPayment(
+                        request(cards, PayCostsRouteKind.Sacrifice, source.id),
+                        cards,
+                        3_000,
+                    )
+                    finished.countDown()
+                }.start()
+
+                val interaction = awaitPublished(coordinator)
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
+                coordinator.oneShotPayCosts.cancel(interaction.interactionId, interaction.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                return Published(player, observer)
+            }
+
+            val playerOnly = publish(withObserver = false)
+            val withObserver = publish(withObserver = true)
+
+            assertSoftly {
+                withObserver.player.map { it.toByteArray().toList() } shouldBe
+                    playerOnly.player.map { it.toByteArray().toList() }
+                withObserver.player.any { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer.size shouldBe 1
+                withObserver.observer.single().hasGameStateMessage() shouldBe true
+                withObserver.observer.none { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldBe emptyList()
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.gameObjectsList
+                    .none { it.visibility == Visibility.Private } shouldBe true
+            }
         }
 
         test("all seven routes publish one atomic state and PayCosts cut and resolve exact option") {

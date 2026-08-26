@@ -9,13 +9,17 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
+import leyline.game.PlaybackCutReason
+import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.awaitFreshPending
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class MatchActionClaimTest :
     BoardTest({
@@ -258,6 +262,83 @@ class MatchActionClaimTest :
             deferred.hasPrompt() shouldBe false
         }
 
+        test("deferred CastingTimeOptions keeps Player bytes and gives observers projected state only") {
+            data class Published(
+                val player: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+                val observer: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+            )
+
+            fun publish(withObserver: Boolean): Published {
+                val board =
+                    startPuzzleAtMain1(
+                        """
+                        [metadata]
+                        Name:deferred viewer projection
+                        Goal:Win
+                        Turns:1
+
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanhand=Burst Lightning;Mountain
+                        humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+                        humanlibrary=Mountain
+                        aibattlefield=Forest
+                        ailibrary=Forest
+                        """.trimIndent(),
+                    )
+                val coordinator = board.bridge.cutCoordinator
+                val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+                val cast =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .first { it.hasActionsAvailableReq() }
+                        .actionsAvailableReq.actionsList
+                        .first { it.actionType == ActionType.Cast }
+                if (withObserver) coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+                val claim =
+                    coordinator
+                        .claimPriorityResponse(pending.actionId, checkNotNull(pending.promptGameStateId), cast, defer = true)
+                        .shouldNotBeNull()
+                        .actionClaim
+                val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
+                coordinator.deferredCast.publishOptional(
+                    claim,
+                    CastingTimeOptionsReq.getDefaultInstance(),
+                    List(optionalCount) { it + 1 },
+                )
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
+                val gameStateId = player.single { it.hasCastingTimeOptionsReq() }.gameStateId
+                coordinator.deferredCast.cancel(gameStateId) shouldBe true
+                return Published(player, observer)
+            }
+
+            val playerOnly = publish(withObserver = false)
+            val withObserver = publish(withObserver = true)
+
+            assertSoftly {
+                withObserver.player.map { it.toByteArray().toList() } shouldBe
+                    playerOnly.player.map { it.toByteArray().toList() }
+                withObserver.player.any { it.hasCastingTimeOptionsReq() } shouldBe true
+                withObserver.observer.size shouldBe 1
+                withObserver.observer.single().hasGameStateMessage() shouldBe true
+                withObserver.observer.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldBe emptyList()
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.gameObjectsList
+                    .none { it.visibility == Visibility.Private } shouldBe true
+            }
+        }
+
         test("deferred cancellation requires the exact prompt game state") {
             val board =
                 startPuzzleAtMain1(
@@ -348,6 +429,54 @@ class MatchActionClaimTest :
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 coordinator.deferredCast.hasPrompt() shouldBe false
                 coordinator.failure().shouldNotBeNull()
+            }
+        }
+
+        test("deferred observer enqueue failure rolls back every feed and leaves the claim unpublished") {
+            val board =
+                startPuzzleAtMain1(
+                    puzzle
+                        .replace("humanhand=Forest", "humanhand=Burst Lightning")
+                        .replace("humanbattlefield=Forest", "humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain")
+                        .replace("humanlibrary=Forest", "humanlibrary=Mountain"),
+                )
+            val coordinator = board.bridge.cutCoordinator
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val cast =
+                coordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .first { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .first { it.actionType == ActionType.Cast }
+            coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+            val claim =
+                coordinator
+                    .claimPriorityResponse(pending.actionId, checkNotNull(pending.promptGameStateId), cast, defer = true)
+                    .shouldNotBeNull()
+                    .actionClaim
+            val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
+            val playbackRequest = PlaybackCutRequest(PlaybackCutReason.PhaseChanged, 0, false)
+            coordinator.feed(SeatId(1)).requestedCut = playbackRequest
+            val priorProjection = board.bridge.projectionStateSnapshot()
+            val priorSequence = board.bridge.committedSequence()
+            coordinator.setBeforeBatchEnqueue(SeatId(2)) { _, _ -> error("observer feed unavailable") }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.deferredCast.publishOptional(
+                    claim,
+                    CastingTimeOptionsReq.getDefaultInstance(),
+                    List(optionalCount) { it + 1 },
+                )
+            }
+
+            assertSoftly {
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
+                coordinator.drain(SeatId(2)).shouldBeEmpty()
+                board.bridge.projectionStateSnapshot() shouldBe priorProjection
+                board.bridge.committedSequence() shouldBe priorSequence
+                coordinator.feed(SeatId(1)).requestedCut shouldBe playbackRequest
+                coordinator.deferredCast.hasPrompt() shouldBe false
             }
         }
     })

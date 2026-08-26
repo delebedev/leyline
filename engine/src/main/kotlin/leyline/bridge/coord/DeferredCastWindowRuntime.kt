@@ -331,10 +331,10 @@ internal class DeferredCastWindowRuntime(
                 validate(publication)
                 val seatId = actions.seatFor(publication.claim.actionId)
                 owner.registerViewer(seatId)
-                val feed = owner.feed(seatId)
+                val routes = owner.viewerRoutes()
                 val prior = owner.bridge.projectionStateSnapshot()
                 val planner = LogicalSequencePlanner(prior.sequence)
-                prepareAndInstallLocked(feed, publication, prior, planner)
+                prepareAndInstallLocked(routes, publication, prior, planner)
             }
         }
     }
@@ -358,10 +358,10 @@ internal class DeferredCastWindowRuntime(
                 validate(publication)
                 val seatId = actions.seatFor(pending.actionClaim.actionId)
                 owner.registerViewer(seatId)
-                val feed = owner.feed(seatId)
+                val routes = owner.viewerRoutes()
                 val prior = owner.bridge.projectionStateSnapshot()
                 val planner = LogicalSequencePlanner(prior.sequence)
-                prepareAndInstallLocked(feed, publication, prior, planner)
+                prepareAndInstallLocked(routes, publication, prior, planner)
                 return true
             }
         }
@@ -400,13 +400,14 @@ internal class DeferredCastWindowRuntime(
     }
 
     private fun prepareAndInstallLocked(
-        feed: MatchCutCoordinator.ViewerFeed,
+        routes: List<BundleBuilder.ViewerRoute>,
         publication: Publication,
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
     ) {
-        val prepared = materialize(feed, publication.request, planner)
-        val gameStateId = checkNotNull(prepared.bundle.actionGameStateId)
+        val prepared = materialize(routes, publication.request, planner)
+        val player = prepared.player
+        val gameStateId = checkNotNull(player.bundle.actionGameStateId)
         val nextPrompt =
             when (publication) {
                 is Publication.Hybrid ->
@@ -428,45 +429,54 @@ internal class DeferredCastWindowRuntime(
                     Prompt.AlternateCostChoice(publication.claim, gameStateId, publication.ctoIds.zip(tokens).toMap())
                 }
             }
-        install(feed, prepared, nextPrompt, publication, prior, planner)
+        install(prepared, nextPrompt, publication, prior, planner)
     }
 
     private fun materialize(
-        feed: MatchCutCoordinator.ViewerFeed,
+        routes: List<BundleBuilder.ViewerRoute>,
         request: CastingTimeOptionsReq,
         planner: LogicalSequencePlanner,
-    ) = try {
-        beforeMaterialization?.invoke()
-        val game = owner.bridge.getGame() ?: error("Game unavailable")
-        feed.builder.prepareCastingTimeOptions(game, planner, request)
-    } catch (ex: Exception) {
-        owner.fail(ex)
-    }
+    ): BundleBuilder.PreparedViewerCut<BundleBuilder.ActionWindowPrepared> =
+        try {
+            beforeMaterialization?.invoke()
+            val game = owner.bridge.getGame() ?: error("Game unavailable")
+            val playerRoute = routes.single { it.viewer.role == leyline.game.state.ProjectionViewerRole.Player }
+            playerRoute.builder.prepareCastingTimeOptions(game, planner, request, routes)
+        } catch (ex: Exception) {
+            owner.fail(ex)
+        }
 
     private fun install(
-        feed: MatchCutCoordinator.ViewerFeed,
-        prepared: BundleBuilder.ActionWindowPrepared,
+        prepared: BundleBuilder.PreparedViewerCut<BundleBuilder.ActionWindowPrepared>,
         nextPrompt: Prompt,
         publication: Publication,
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
-    ) = owner.cutInstaller.install(
-        feed,
-        PreparedCut.prepare(prior, planner, prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
-        CutInstallHooks(beforeInstall = beforeInstall),
-        onInstalled = {
-            prompt = nextPrompt
-            when (publication) {
-                is Publication.Hybrid ->
-                    owner.bridge
-                        .seat(actions.seatFor(publication.claim.actionId))
-                        .prompt.journal
-                        .clearHybridManaStash()
-                is Publication.Optional -> clearCostStashes(publication.claim, publication.clearHybridStash)
-                is Publication.Alternate -> Unit
-            }
-        },
-    ) { ex -> owner.fail(ex) }
+    ) {
+        owner.cutInstaller.install(
+            PreparedCut.prepareForViewers(
+                prior = prior,
+                planner = planner,
+                outputs = prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                projection = prepared.transition,
+                closesPlaybackFrame = prepared.closesPlaybackFrame,
+                playbackOwnerSeatId = owner.humanSeat.takeIf { prepared.closesPlaybackFrame },
+            ),
+            CutInstallHooks(beforeInstall = beforeInstall),
+            onInstalled = {
+                prompt = nextPrompt
+                when (publication) {
+                    is Publication.Hybrid ->
+                        owner.bridge
+                            .seat(actions.seatFor(publication.claim.actionId))
+                            .prompt.journal
+                            .clearHybridManaStash()
+                    is Publication.Optional -> clearCostStashes(publication.claim, publication.clearHybridStash)
+                    is Publication.Alternate -> Unit
+                }
+            },
+        ) { ex -> owner.fail(ex) }
+    }
 
     private fun clearCostStashes(
         claim: MatchActionWindowRuntime.ActionClaim,

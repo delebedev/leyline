@@ -1803,22 +1803,28 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
-    ): ManaSourcePaymentMaterializer.Prepared {
-        val input =
-            frameInput(
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<ManaSourcePaymentMaterializer.Prepared> {
+        val frame =
+            prepareViewerPromptProjection(
                 game,
                 counter,
-                revealForSeat = null,
-                eventsOverride = null,
-            ) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
-        return manaSourcePayments.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+                routes,
+                updateType = { _, _ -> GameStateUpdate.Send },
+            )
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                manaSourcePayments.prepare(
+                    gameState = gsm,
+                    gameStateId = gameStateId,
+                    counter = counter,
+                    projection = transition.nextState,
+                    transition = transition,
+                    window = window,
+                )
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1827,40 +1833,29 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.OneShotPayCostsWindowValue,
-    ): PreparedPayCostsCut {
-        val input =
-            frameInput(
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<PreparedPayCostsCut> {
+        val frame =
+            prepareViewerPromptProjection(
                 game,
                 counter,
-                revealForSeat = null,
-                eventsOverride = null,
-            ) { _, _ -> GameStateUpdate.Send }
-        val supplements =
-            when (val source = window.promptSource) {
-                is leyline.bridge.handoff.PayCostsPromptSourceValue.StackAbility ->
-                    listOf(
-                        ProjectionSupplement.PreStackAbility(
-                            forgeAbilityId = source.forgeAbilityId,
-                            sourceForgeCardId = source.sourceForgeCardId,
-                            abilityGrpId = source.abilityGrpId,
-                            sourceCardGrpId = source.sourceCardGrpId,
-                            ownerSeatId = SeatId(source.ownerSeatId),
-                            controllerSeatId = SeatId(source.controllerSeatId),
-                            targetForgeCardIds = source.targetForgeCardIds,
-                        ),
-                    )
-                is leyline.bridge.handoff.PayCostsPromptSourceValue.StackCard,
-                null,
-                -> emptyList()
-            }
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
-        return oneShotPayCosts.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+                routes,
+                intent = ViewerProjectionIntent.of(payCostsSupplements(window)),
+                updateType = { _, _ -> GameStateUpdate.Send },
+            )
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                oneShotPayCosts.prepare(
+                    gameState = gsm,
+                    gameStateId = gameStateId,
+                    counter = counter,
+                    projection = transition.nextState,
+                    transition = transition,
+                    window = window,
+                )
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1869,37 +1864,64 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.GatherCountersWindowValue,
-    ): PreparedPayCostsCut {
-        val input =
-            frameInput(
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<PreparedPayCostsCut> {
+        val source = window.promptSource
+        val frame =
+            prepareViewerPromptProjection(
                 game,
                 counter,
-                revealForSeat = null,
-                eventsOverride = null,
-            ) { _, _ -> GameStateUpdate.Send }
-        val source = window.promptSource
-        val supplements =
-            listOf(
-                ProjectionSupplement.PreStackAbility(
-                    forgeAbilityId = source.forgeAbilityId,
-                    sourceForgeCardId = source.sourceForgeCardId,
-                    abilityGrpId = source.abilityGrpId,
-                    sourceCardGrpId = source.sourceCardGrpId,
-                    ownerSeatId = SeatId(source.ownerSeatId),
-                    controllerSeatId = SeatId(source.controllerSeatId),
-                    targetForgeCardIds = source.targetForgeCardIds,
-                ),
+                routes,
+                intent =
+                    ViewerProjectionIntent.of(
+                        listOf(
+                            ProjectionSupplement.PreStackAbility(
+                                forgeAbilityId = source.forgeAbilityId,
+                                sourceForgeCardId = source.sourceForgeCardId,
+                                abilityGrpId = source.abilityGrpId,
+                                sourceCardGrpId = source.sourceCardGrpId,
+                                ownerSeatId = SeatId(source.ownerSeatId),
+                                controllerSeatId = SeatId(source.controllerSeatId),
+                                targetForgeCardIds = source.targetForgeCardIds,
+                            ),
+                        ),
+                    ),
+                updateType = { _, _ -> GameStateUpdate.Send },
             )
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
-        return gatherCounters.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                gatherCounters.prepare(
+                    gameState = gsm,
+                    gameStateId = gameStateId,
+                    counter = counter,
+                    projection = transition.nextState,
+                    transition = transition,
+                    window = window,
+                )
+            },
+            { it.bundle.messages },
         )
     }
+
+    private fun payCostsSupplements(window: leyline.bridge.handoff.OneShotPayCostsWindowValue): List<ProjectionSupplement> =
+        when (val source = window.promptSource) {
+            is leyline.bridge.handoff.PayCostsPromptSourceValue.StackAbility ->
+                listOf(
+                    ProjectionSupplement.PreStackAbility(
+                        forgeAbilityId = source.forgeAbilityId,
+                        sourceForgeCardId = source.sourceForgeCardId,
+                        abilityGrpId = source.abilityGrpId,
+                        sourceCardGrpId = source.sourceCardGrpId,
+                        ownerSeatId = SeatId(source.ownerSeatId),
+                        controllerSeatId = SeatId(source.controllerSeatId),
+                        targetForgeCardIds = source.targetForgeCardIds,
+                    ),
+                )
+            is leyline.bridge.handoff.PayCostsPromptSourceValue.StackCard,
+            null,
+            -> emptyList()
+        }
 
     private fun targetingSupplements(
         window: TargetingWindowValue,
@@ -2043,18 +2065,26 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         req: CastingTimeOptionsReq,
-    ): ActionWindowPrepared {
-        val input =
-            frameInput(
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<ActionWindowPrepared> {
+        val frame =
+            prepareViewerPromptProjection(
                 game,
                 counter,
-                revealForSeat = null,
-                eventsOverride = null,
-            ) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
-        val gsResult = diff.result
+                routes,
+                updateType = { _, _ -> GameStateUpdate.Send },
+            )
+        val player = frame.fold.viewers[frame.playerIndex].result
+        val diff =
+            FrameDiff(
+                gameStateId = frame.gameStateId,
+                snap = player.projectionSnapshot,
+                result = player,
+                events = frame.playerInput.events,
+                previousSnap = frame.playerInput.previousSnapshot,
+            )
         val gsBuilder =
-            gsResult.gsm
+            player.gsm
                 .toBuilder()
                 .setPendingMessageCount(1)
 
@@ -2066,10 +2096,18 @@ class BundleBuilder(
                 it.allowCancel = AllowCancel.Abort
                 it.allowUndo = true
             }.copy(actionGameStateId = diff.gameStateId)
-        return ActionWindowPrepared(
-            bundle = bundle,
-            transition = diff.result.transition,
-            closesPlaybackFrame = input.closesPlaybackFrame,
+        val prepared =
+            ActionWindowPrepared(
+                bundle = bundle,
+                transition = frame.fold.transition,
+                closesPlaybackFrame = frame.closesPlaybackFrame,
+            )
+        return PreparedViewerCut(
+            player = prepared,
+            viewers = frame.outputs(prepared.bundle.messages),
+            transition = frame.fold.transition,
+            closesPlaybackFrame = frame.closesPlaybackFrame,
+            gameStateId = frame.gameStateId,
         )
     }
 

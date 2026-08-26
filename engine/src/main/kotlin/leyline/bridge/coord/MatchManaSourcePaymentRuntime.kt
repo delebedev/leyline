@@ -303,20 +303,22 @@ internal class MatchManaSourcePaymentRuntime(
                 owner.ensureOpen()
                 val prior = owner.bridge.projectionStateSnapshot()
                 val planner = LogicalSequencePlanner(prior.sequence)
-                val feed = owner.feed(owner.humanSeat)
                 val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+                val routes = owner.viewerRoutes()
+                val playerRoute = routes.single { it.viewer.role == leyline.game.state.ProjectionViewerRole.Player }
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
                 val prepared =
                     try {
                         beforePrepare()
-                        feed.builder.prepareManaSourcePayment(game, planner, value)
+                        playerRoute.builder.prepareManaSourcePayment(game, planner, value, routes)
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val player = prepared.player
                 val published =
                     PublishedManaSourcePaymentInteraction(
                         interactionId,
-                        checkNotNull(prepared.bundle.actionGameStateId),
+                        checkNotNull(player.bundle.actionGameStateId),
                         value.kind,
                     )
                 val exact =
@@ -324,10 +326,10 @@ internal class MatchManaSourcePaymentRuntime(
                         interactionId,
                         published.gameStateId,
                         value,
-                        prepared.bundle.messages,
-                        prepared.transition,
+                        player.bundle.messages,
+                        player.transition,
                     )
-                val projection = prepared.transition.nextState
+                val projection = player.transition.nextState
                 val optionEntries =
                     value.candidates.map { candidate ->
                         val instanceId =
@@ -344,8 +346,14 @@ internal class MatchManaSourcePaymentRuntime(
                 }
                 val publication = Publication(published, exact, optionByInstanceId)
                 owner.cutInstaller.install(
-                    feed,
-                    PreparedCut.prepare(prior, planner, prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                    PreparedCut.prepareForViewers(
+                        prior = prior,
+                        planner = planner,
+                        outputs = prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                        projection = prepared.transition,
+                        closesPlaybackFrame = prepared.closesPlaybackFrame,
+                        playbackOwnerSeatId = owner.humanSeat.takeIf { prepared.closesPlaybackFrame },
+                    ),
                     CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
                     onInstalled = { onPublished(publication) },
                 ) { ex -> owner.failPrompt(ex, exact) }
