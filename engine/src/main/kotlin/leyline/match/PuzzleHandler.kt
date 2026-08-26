@@ -81,7 +81,11 @@ class PuzzleHandler(
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
         val publication = bridge.cutCoordinator.lifecycle.publishPuzzleInitial(SeatId(seatId), pending.actionId)
         Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
-        session.deliverLifecycle(bridge, beforeMsgId = publication.deliveryBoundaryMsgId)
+        if (publication.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
+            session.deliverRuntimeHorizon()
+        } else {
+            session.deliverLifecycle(bridge, beforeMsgId = publication.deliveryBoundaryMsgId)
+        }
         if (publication.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_ATTACKERS ||
             publication.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS
         ) {

@@ -5,9 +5,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelInboundHandlerAdapter
-import io.netty.channel.embedded.EmbeddedChannel
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.infra.ListMessageSink
@@ -15,21 +12,11 @@ import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 
 class MulliganHandlerTest :
     BoardTest({
-
-        fun channelCtx(): Pair<EmbeddedChannel, ChannelHandlerContext> {
-            val probe = object : ChannelInboundHandlerAdapter() {}
-            val channel = EmbeddedChannel(probe)
-            return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
-        }
-
-        fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
-            generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
 
         data class SessionFixture(
             val session: MatchSession,

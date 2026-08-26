@@ -81,6 +81,17 @@ internal class MatchActionWindowRuntime(
         actionWindows[actionId] = synchronizationActionWindow(seatId, actionId).copy(publishedBatch = publishedBatch)
     }
 
+    internal fun synchronizationBatch(actionId: String): List<GREToClientMessage> {
+        val window = actionWindows[actionId] ?: error("No synchronization window $actionId")
+        check(window.status == ActionWindowStatus.Published && window.publishedBatch.isNotEmpty()) {
+            "Synchronization window $actionId is no longer pending"
+        }
+        check(owner.feed(window.seatId).queue.lastOrNull() === window.publishedBatch) {
+            "Synchronization window $actionId is already visible"
+        }
+        return window.publishedBatch
+    }
+
     internal fun claimTimeout(
         pending: GameActionBridge.PendingAction,
         cause: TimeoutException,

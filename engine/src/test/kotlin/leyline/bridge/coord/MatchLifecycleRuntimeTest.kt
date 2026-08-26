@@ -34,6 +34,17 @@ class MatchLifecycleRuntimeTest :
             ailibrary=Island
             """.trimIndent()
 
+        fun syncPuzzleBridge(): GameBridge =
+            GameBridge(
+                runtimeHorizonMode = RuntimeHorizonMode.Observed,
+                messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
+                cardRepository = TestCardRegistry.repo,
+            ).also { bridge ->
+                useBridge(bridge)
+                bridge.startPuzzle(PuzzleSource.loadFromText(puzzle.replace("ActivePlayer=Human", "ActivePlayer=AI")))
+                TestCardRegistry.registerPuzzleCards(checkNotNull(bridge.getGame()))
+            }
+
         test("startup lifecycle batches commit in one coordinator order") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val coordinator = bridge.cutCoordinator
@@ -81,6 +92,31 @@ class MatchLifecycleRuntimeTest :
             assertSoftly {
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 bridge.projectionStateSnapshot() shouldBe prior
+            }
+        }
+
+        test("startup preparation failure terminalizes without publication") {
+            val bridge =
+                GameBridge(
+                    messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
+                    cardRepository = TestCardRegistry.repo,
+                )
+            useBridge(bridge)
+            val coordinator = bridge.cutCoordinator
+            val prior = bridge.projectionStateSnapshot()
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishInitial(
+                    SeatId(1),
+                    includeStartingPlayerPrompt = true,
+                    seedProjectionCursor = false,
+                )
+            }
+
+            assertSoftly {
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
+                bridge.projectionStateSnapshot() shouldBe prior
+                shouldThrow<PlaybackTerminalFailure> { coordinator.lifecycle.publishDealHand(SeatId(1)) }
             }
         }
 
@@ -135,15 +171,7 @@ class MatchLifecycleRuntimeTest :
         }
 
         test("puzzle replacement preserves a synchronization horizon after full state") {
-            val bridge =
-                GameBridge(
-                    runtimeHorizonMode = RuntimeHorizonMode.Observed,
-                    messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
-                    cardRepository = TestCardRegistry.repo,
-                )
-            useBridge(bridge)
-            bridge.startPuzzle(PuzzleSource.loadFromText(puzzle.replace("ActivePlayer=Human", "ActivePlayer=AI")))
-            TestCardRegistry.registerPuzzleCards(checkNotNull(bridge.getGame()))
+            val bridge = syncPuzzleBridge()
             val coordinator = bridge.cutCoordinator
             val pending =
                 checkNotNull(
@@ -156,16 +184,55 @@ class MatchLifecycleRuntimeTest :
 
             coordinator.lifecycle.publishPuzzleReplacement(SeatId(1), emptyList(), pending.actionId)
 
-            val batches = coordinator.drain(SeatId(1))
+            val batch = coordinator.drain(SeatId(1)).single()
             assertSoftly {
-                batches.first().single().type shouldBe GREMessageType.GameStateMessage_695e
-                batches.drop(1).flatten().none { it.hasActionsAvailableReq() } shouldBe true
+                batch.first().type shouldBe GREMessageType.GameStateMessage_695e
+                batch.count { it.hasGameStateMessage() } shouldBe 4
+                batch.none { it.hasActionsAvailableReq() } shouldBe true
                 bridge
                     .seat(SeatId(1))
                     .action
                     .getPending()
                     ?.state
                     ?.kind shouldBe PendingActionKind.SYNC_ONLY
+            }
+        }
+
+        test("puzzle startup publishes full state and synchronization transition as one cut") {
+            val bridge = syncPuzzleBridge()
+            val coordinator = bridge.cutCoordinator
+            val pending = checkNotNull(bridge.seat(SeatId(1)).action.getPending())
+            val priorRevision = bridge.projectionStateSnapshot().revision
+
+            coordinator.lifecycle.publishPuzzleInitial(SeatId(1), pending.actionId)
+
+            val batch = coordinator.drain(SeatId(1)).single()
+            assertSoftly {
+                batch.first().type shouldBe GREMessageType.ConnectResp_695e
+                batch.count { it.hasGameStateMessage() } shouldBe 4
+                batch.none { it.hasActionsAvailableReq() } shouldBe true
+                bridge.projectionStateSnapshot().revision shouldBe priorRevision + 1
+            }
+        }
+
+        test("stale synchronization replacement restores its prior batch") {
+            val bridge = syncPuzzleBridge()
+            val coordinator = bridge.cutCoordinator
+            val pending = checkNotNull(bridge.seat(SeatId(1)).action.getPending())
+            val feed = coordinator.feed(SeatId(1))
+            val priorBatches = feed.queue.toList()
+            val priorProjection = bridge.projectionStateSnapshot()
+            val competingProjection = priorProjection.copy(revision = priorProjection.revision + 1)
+            feed.beforeBatchEnqueue = { _, _ -> bridge.replaceProjectionStateForTest(competingProjection) }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishPuzzleReplacement(SeatId(1), emptyList(), pending.actionId)
+            }
+
+            assertSoftly {
+                feed.queue.toList() shouldBe priorBatches
+                bridge.projectionStateSnapshot() shouldBe competingProjection
+                feed.queue.flatten().none { it.hasActionsAvailableReq() } shouldBe true
             }
         }
     })

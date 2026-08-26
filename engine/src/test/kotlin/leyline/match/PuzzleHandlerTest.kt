@@ -8,9 +8,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelInboundHandlerAdapter
-import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PendingActionKind
@@ -20,7 +17,6 @@ import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.game.generator.PuzzleLibrary
 import leyline.infra.ListMessageSink
-import leyline.infra.MatchOutput
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -31,8 +27,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.io.File
 
@@ -45,28 +39,6 @@ class PuzzleHandlerTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
         }
-
-        fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> = msg.greToClientEvent.greToClientMessagesList
-
-        fun outbound(channel: EmbeddedChannel): List<MatchServiceToClientMessage> =
-            generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }.toList()
-
-        fun channelCtx(): Pair<EmbeddedChannel, ChannelHandlerContext> {
-            val probe = object : ChannelInboundHandlerAdapter() {}
-            val channel = EmbeddedChannel(probe)
-            return channel to (channel.pipeline().context(probe) as ChannelHandlerContext)
-        }
-
-        fun output(ctx: ChannelHandlerContext) =
-            object : MatchOutput {
-                override fun send(message: MatchServiceToClientMessage) {
-                    ctx.writeAndFlush(message)
-                }
-
-                override fun close() {
-                    ctx.close()
-                }
-            }
 
         fun tempPuzzleFile(
             name: String,
@@ -110,8 +82,6 @@ class PuzzleHandlerTest :
                         EngineSettings(),
                         PuzzleLibrary(temp.parentFile),
                     )
-                val (channel, _) = channelCtx()
-
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-bolt-face")
                 val session =
                     MatchSession(
@@ -155,14 +125,13 @@ class PuzzleHandlerTest :
                     sink.messages.none { it.type == GREMessageType.IllegalRequest } shouldBe true
                     session.gameBridge shouldBeSameInstanceAs bridge
                 }
-                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()
             }
         }
 
-        test("opponent-turn puzzle start leaves a synchronization horizon to runtime delivery") {
+        test("opponent-turn puzzle start releases its synchronization horizon through runtime delivery") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
             val temp = tempPuzzleFile("opponent-turn", activePlayer = "AI", humanHand = "")
@@ -175,7 +144,6 @@ class PuzzleHandlerTest :
                         EngineSettings(),
                         PuzzleLibrary(temp.parentFile),
                     )
-                val (channel, _) = channelCtx()
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-opponent-turn")
                 val session =
                     MatchSession(
@@ -200,9 +168,8 @@ class PuzzleHandlerTest :
                         .action
                         .getPending()
                         ?.state
-                        ?.kind shouldBe PendingActionKind.SYNC_ONLY
+                        ?.kind shouldNotBe PendingActionKind.SYNC_ONLY
                 }
-                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()
@@ -284,7 +251,6 @@ class PuzzleHandlerTest :
                         gameBridge = first,
                         paceDelayMs = 0,
                     )
-                val (channel1, _) = channelCtx()
                 handler.sendPuzzleInitialBundle(session1, "puzzle-lands-only", 1)
 
                 val sink2 = ListMessageSink()
@@ -301,7 +267,6 @@ class PuzzleHandlerTest :
                         gameBridge = second,
                         paceDelayMs = 0,
                     )
-                val (channel2, _) = channelCtx()
                 handler.sendPuzzleInitialBundle(session2, "puzzle-lands-only", 1)
 
                 assertSoftly {
@@ -310,8 +275,6 @@ class PuzzleHandlerTest :
                     sink1.messages.map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
                     sink2.messages.map { it.type }.last() shouldBe GREMessageType.ActionsAvailableReq_695e
                 }
-                channel1.close()
-                channel2.close()
                 first.shutdown()
             } finally {
                 temp.delete()
@@ -353,8 +316,6 @@ class PuzzleHandlerTest :
                         EngineSettings(),
                         PuzzleLibrary(temp.parentFile),
                     )
-                val (channel, _) = channelCtx()
-
                 handler.isPuzzleMatch("puzzle-cli-puzzle").shouldBeTrue()
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-cli-puzzle")
                 val session =
@@ -380,7 +341,6 @@ class PuzzleHandlerTest :
                         .gameStateMessage.gameInfo.matchID shouldBe "puzzle-cli-puzzle"
                     bridge.isPuzzle.shouldBeTrue()
                 }
-                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()
@@ -402,8 +362,6 @@ class PuzzleHandlerTest :
                         EngineSettings(),
                         PuzzleLibrary(temp.parentFile),
                     )
-                val (channel, _) = channelCtx()
-
                 handler.isPuzzleMatch("web-gre-puzzle").shouldBeTrue()
                 handler.isPuzzleMatch("web-gre-constructed").shouldBeFalse()
                 val bridge = handler.getOrCreatePuzzleBridge("web-gre-puzzle")
@@ -430,7 +388,6 @@ class PuzzleHandlerTest :
                         .gameStateMessage.gameInfo.matchID shouldBe "web-gre-puzzle"
                     bridge.isPuzzle.shouldBeTrue()
                 }
-                channel.close()
                 bridge.shutdown()
             } finally {
                 temp.delete()

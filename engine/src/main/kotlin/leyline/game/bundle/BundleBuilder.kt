@@ -875,17 +875,17 @@ class BundleBuilder(
         counter: MessageCounter,
         priorityActions: ActionsAvailableReq? = null,
         includePriorityPrompt: Boolean = true,
+        priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
     ): ActionWindowPrepared {
-        val prior = bridge.projectionStateSnapshot()
         val (result, next) =
-            bridge.editProjection(prior) {
+            bridge.editProjection(priorProjection) {
                 buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt)
             }
         val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
         return ActionWindowPrepared(
             result.bundle,
             ProjectionTransition(
-                expectedRevision = prior.revision,
+                expectedRevision = priorProjection.revision,
                 nextState =
                     next.copy(
                         viewerCursors =
