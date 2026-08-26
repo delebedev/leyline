@@ -507,6 +507,10 @@ class BundleBuilder(
                 counter = counter,
                 routes = routes,
                 intent = intent,
+                intentForViewer =
+                    { viewer ->
+                        intent.takeIf { viewer.role == ProjectionViewerRole.Player } ?: ViewerProjectionIntent.EMPTY
+                    },
                 updateType =
                     when (kind) {
                         PendingActionKind.PRIORITY -> ::resolveFrameUpdateType
@@ -1485,6 +1489,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         routes: List<ViewerRoute>,
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+        intentForViewer: (ProjectionViewer) -> ViewerProjectionIntent = { intent },
         promptFacts: PromptProjectionFacts? = null,
         revealPlayerCards: Boolean = false,
         requirePlayer: Boolean = true,
@@ -1511,7 +1516,7 @@ class BundleBuilder(
                         updateType = updateType(observation.frame.snapshot, observation.frame.events),
                         revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role == ProjectionViewerRole.Player },
                     ),
-                    intent,
+                    intentForViewer(viewer),
                     role = viewer.role,
                 )
             }
