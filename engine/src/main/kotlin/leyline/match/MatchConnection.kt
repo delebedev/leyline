@@ -50,6 +50,8 @@ class MatchConnection(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
+    /** Optional setup after puzzle loading and before its runtime loop starts. */
+    internal val beforePuzzleRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
     private var runtimeDeliveryObserver: MatchRuntimeDeliveryObserver? = null
@@ -131,6 +133,7 @@ class MatchConnection(
             engineSettings,
             puzzleLibrary,
             ::resolvePuzzleDefinition,
+            beforePuzzleRuntimeStart,
         )
 
     private val connectFlow =

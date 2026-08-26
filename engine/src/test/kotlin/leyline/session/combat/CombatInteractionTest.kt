@@ -405,9 +405,6 @@ class CombatInteractionTest :
             val lifeBefore = ai.life
             val startTurn = turn()
 
-            // Advance from Main1 to combat
-            passPriority()
-
             // Declare attack with haste creature (Raging Goblin, 1/1)
             declareAttackers(listOf(attackerIid))
 
@@ -515,9 +512,6 @@ class CombatInteractionTest :
         ) {
             val attackerIid = setupSingleAttacker()
 
-            // Advance to combat
-            passPriority()
-
             declareAttackers(listOf(attackerIid))
 
             // Pass through combat — damage happens during these passes
@@ -620,7 +614,6 @@ class CombatInteractionTest :
                 .single()
                 .addIntrinsicKeyword("First Strike")
 
-            passPriority()
             declareAttackers(listOf(attackerIid))
             passThroughCombat(turn())
 
@@ -658,7 +651,6 @@ class CombatInteractionTest :
                 .single()
                 .addIntrinsicKeyword("Double Strike")
 
-            passPriority()
             declareAttackers(listOf(attackerIid))
             passThroughCombat(turn())
 
@@ -706,16 +698,10 @@ class CombatInteractionTest :
             castSpellByName("Raging Goblin").shouldBeTrue()
             passPriority() // resolve
 
-            // End human turn → AI turn (casts Raging Goblin) → back to human
-            passPriority()
-
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 1
             val iid = creatures.first().first
             val startTurn = turn()
-
-            // Advance to combat
-            passPriority()
 
             // Declare attack
             val combatMsgs =
@@ -748,8 +734,7 @@ class CombatInteractionTest :
 
             val allMsgs =
                 after {
-                    // Pass to combat → declare attack → resolve combat
-                    passPriority()
+                    // Declare attack, then resolve combat.
                     declareAttackers(listOf(attackerIid))
                     passThroughCombat(startTurn)
                 }.messages
@@ -770,8 +755,6 @@ class CombatInteractionTest :
         ) {
             val attackerIid = setupSingleAttacker()
 
-            // Advance to combat — DeclareAttackersReq emitted
-            passPriority()
             allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Send iterative toggle (DeclareAttackersResp only, no Submit)
@@ -827,7 +810,6 @@ class CombatInteractionTest :
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            passPriority()
             toggleAttackers(listOf(attackerIid))
             drainSink()
 
@@ -846,7 +828,6 @@ class CombatInteractionTest :
             aiScript = singleAttackerAiScript,
         ) {
             val attackerIid = setupSingleAttacker()
-            passPriority()
             val before = messageSnapshot()
 
             send(
@@ -872,7 +853,6 @@ class CombatInteractionTest :
         ) {
             val attackerIid = setupSingleAttacker()
 
-            passPriority() // advance to combat
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Select with an explicit damage recipient.
@@ -894,7 +874,6 @@ class CombatInteractionTest :
         ) {
             val attackerIid = setupSingleAttacker()
 
-            passPriority() // advance to combat
             allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Toggle ON
@@ -957,9 +936,6 @@ class CombatInteractionTest :
             val lifeBefore = ai.life
             val startTurn = turn()
 
-            // Advance from Main1 to combat
-            passPriority()
-
             // Verify DeclareAttackersReq was sent with our creature
             val daReq = checkNotNull(allMessages.lastOrNull { it.hasDeclareAttackersReq() }) { "Should receive DeclareAttackersReq" }
             val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
@@ -997,9 +973,6 @@ class CombatInteractionTest :
             val lifeBefore = ai.life
             val startTurn = turn()
 
-            // Advance from Main1 to combat
-            passPriority()
-
             // Verify DeclareAttackersReq was sent
             allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
@@ -1022,9 +995,6 @@ class CombatInteractionTest :
             aiScript = singleAttackerAiScript,
         ) {
             setupSingleAttacker()
-
-            // Advance to combat
-            passPriority()
 
             // Verify we got DeclareAttackersReq
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()

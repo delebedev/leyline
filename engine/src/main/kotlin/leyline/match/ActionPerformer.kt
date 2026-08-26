@@ -142,7 +142,7 @@ internal class ActionPerformer(
                 }
             }
 
-            continuation.awaitHorizon()
+            continuation.awaitClientVisibleHorizon(ignoredActionId = pending.actionId)
         } catch (ex: Exception) {
             acceptedClaim?.let { ctx.bridge.cutCoordinator.failActionClaim(it, ex) }
             ctx.bridge.cutCoordinator.fail(ex)

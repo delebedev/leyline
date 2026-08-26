@@ -11,12 +11,11 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 internal class MatchFlowCombatDriver(
     private val seatId: SeatId,
     private val bridge: () -> GameBridge,
-    private val submit: (ClientToGREMessage) -> Unit,
+    private val submit: (ClientToGREMessage, String, (GREToClientMessage) -> Boolean) -> Unit,
     private val messageSnapshot: () -> Int,
     private val messagesSince: (Int) -> List<GREToClientMessage>,
     private val submitWithGsId: (ClientToGREMessage) -> ClientToGREMessage,
-    private val drainSink: () -> Unit,
-    private val awaitClientOutput: () -> Unit,
+    private val awaitClientOutput: (String, (GREToClientMessage) -> Boolean) -> Unit,
 ) {
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
@@ -44,11 +43,11 @@ internal class MatchFlowCombatDriver(
                     damageRecipients = damageRecipients,
                 ),
             ),
+            "attacker selection",
+            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
         )
-        drainSink()
 
-        submit(submitWithGsId(submitAttackersReq(seatId.value)))
-        drainSink()
+        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration") { false }
     }
 
     fun declareNoAttackers() {
@@ -70,8 +69,9 @@ internal class MatchFlowCombatDriver(
                     damageRecipients = recipients,
                 ),
             ),
+            "attacker selection",
+            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
         )
-        drainSink()
         return messagesSince(snap)
     }
 
@@ -79,29 +79,30 @@ internal class MatchFlowCombatDriver(
         val snap = messageSnapshot()
         submit(
             submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)),
+            "attacker selection",
+            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
         )
-        drainSink()
         return messagesSince(snap)
     }
 
     fun submitAttackers() {
-        submit(submitWithGsId(submitAttackersReq(seatId.value)))
-        drainSink()
+        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration") { false }
     }
 
     fun declareAllAttackers() {
         submit(
             submitWithGsId(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2)),
+            "attacker selection",
+            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
         )
-        drainSink()
     }
 
     fun declareBlockers(assignments: Map<Int, Int>) {
-        submit(submitWithGsId(declareBlockersResp(assignments)))
-        drainSink()
+        submit(submitWithGsId(declareBlockersResp(assignments)), "blocker selection") {
+            it.hasGameStateMessage() || it.hasDeclareBlockersReq()
+        }
 
-        submit(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
     }
 
     fun declareNoBlockers() {
@@ -112,17 +113,17 @@ internal class MatchFlowCombatDriver(
                 ?.state
                 ?.kind
         if (pendingKind != leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS) {
-            awaitClientOutput()
+            awaitClientOutput("client output") { true }
             return
         }
-        submit(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
     }
 
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        submit(submitWithGsId(declareBlockersResp(assignments)))
-        drainSink()
+        submit(submitWithGsId(declareBlockersResp(assignments)), "blocker selection") {
+            it.hasGameStateMessage() || it.hasDeclareBlockersReq()
+        }
         return messagesSince(snap)
     }
 
@@ -130,19 +131,18 @@ internal class MatchFlowCombatDriver(
         val snap = messageSnapshot()
         submit(
             submitWithGsId(declareBlockersRespDeselect(blockerInstanceId)),
+            "blocker selection",
+            { it.hasGameStateMessage() || it.hasDeclareBlockersReq() },
         )
-        drainSink()
         return messagesSince(snap)
     }
 
     fun submitBlockers() {
-        submit(submitWithGsId(submitBlockersReq(seatId.value)))
-        drainSink()
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
     }
 
     fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
-        submit(submitWithGsId(assignDamageResp(assigners)))
-        drainSink()
+        submit(submitWithGsId(assignDamageResp(assigners)), "damage assignment") { false }
     }
 
     private fun defaultDamageRecipients(attackerInstanceIds: List<Int>): Map<Int, DamageRecipient> =

@@ -31,6 +31,7 @@ class PuzzleHandler(
     private val engineSettings: EngineSettings,
     private val puzzleLibrary: PuzzleLibrary,
     private val puzzleDefinition: (String) -> PuzzleDefinition? = { null },
+    private val beforeRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
@@ -60,7 +61,11 @@ class PuzzleHandler(
                     )
                 Match(matchId, bridge).also {
                     val puzzle = loadPuzzleForMatch(matchId)
-                    bridge.startPuzzle(puzzle, seed = engineSettings.seed)
+                    bridge.startPuzzle(
+                        puzzle,
+                        seed = engineSettings.seed,
+                        beforeRuntimeStart = beforeRuntimeStart?.let { hook -> { hook(bridge) } },
+                    )
                 }
             }
         return match.bridge

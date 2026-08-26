@@ -1506,6 +1506,36 @@ class GameBridge(
         seed: Long? = null,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
         beforeRuntimeStart: ((Game) -> Unit)? = null,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed,
+        aiControllerFactory,
+        beforeRuntimeStart,
+        startRuntime = true,
+    )
+
+    /** Initialize a disposable puzzle snapshot without launching an autonomous game loop. */
+    internal fun startStaticPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        beforeRuntimeStart: (Game) -> Unit,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed = null,
+        aiControllerFactory = null,
+        beforeRuntimeStart,
+        startRuntime = false,
+    )
+
+    private fun startPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        seed: Long?,
+        aiControllerFactory: ((Game, Player) -> ForgePlayerController)?,
+        beforeRuntimeStart: ((Game) -> Unit)?,
+        startRuntime: Boolean,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
@@ -1584,6 +1614,8 @@ class GameBridge(
         }
 
         registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
+
+        if (!startRuntime) return
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =

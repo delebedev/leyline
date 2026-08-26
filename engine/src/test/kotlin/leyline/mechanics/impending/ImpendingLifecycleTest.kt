@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.detailInt
@@ -46,7 +47,7 @@ class ImpendingLifecycleTest :
 
             val snap = messageSnapshot()
             castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
-            passUntilResolved(maxPasses = 12)
+            advanceToFirstImpendingTick()
 
             val cto =
                 messagesSince(snap)
@@ -73,7 +74,7 @@ class ImpendingLifecycleTest :
                 bridge.cardRepository.findKeywordAbilityGrpId(overlordGrpId, KeywordAbilityIds.IMPENDING)!!
 
             castSpellByName("Overlord of the Mistmoors", alternativeGrpId = impendingAbilityGrpId).shouldBeTrue()
-            passUntilResolved(maxPasses = 12)
+            advanceToFirstImpendingTick()
 
             val removed =
                 allMessages
@@ -128,3 +129,14 @@ class ImpendingLifecycleTest :
             }
         }
     })
+
+private fun MatchFlowHarness.advanceToFirstImpendingTick() {
+    passUntilResolved(maxPasses = 12)
+    passUntil(maxPasses = 20) {
+        human
+            .getZone(ZoneType.Battlefield)
+            .cards
+            .firstOrNull { it.name == "Overlord of the Mistmoors" }
+            ?.getCounters(CounterEnumType.TIME) == 3
+    }
+}

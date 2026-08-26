@@ -373,13 +373,7 @@ class BundleBuilder(
                 counter,
                 revealForSeat = revealForSeat,
                 eventsOverride = null,
-            ) { snap, events ->
-                if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
-                    GameStateUpdate.SendHiFi
-                } else {
-                    StateMapper.resolveUpdateType(snap, seatId)
-                }
-            }
+            ) { snap, events -> resolveFrameUpdateType(snap, events) }
         val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
         val intent =
             ViewerProjectionIntent.of(
@@ -491,8 +485,8 @@ class BundleBuilder(
         counter: MessageCounter,
     ): ActionWindowPrepared {
         val input =
-            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
-                StateMapper.resolveUpdateType(snap, seatId)
+            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, events ->
+                resolveFrameUpdateType(snap, events)
             }
         val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
         val intent =
@@ -523,6 +517,16 @@ class BundleBuilder(
             closesPlaybackFrame = true,
         )
     }
+
+    private fun resolveFrameUpdateType(
+        snap: GsmSnapshot,
+        events: FrameEventLog,
+    ): GameStateUpdate =
+        if (isTurnOrTriggerDraw(events.events, snap, snap.phase.activePlayer)) {
+            GameStateUpdate.SendHiFi
+        } else {
+            StateMapper.resolveUpdateType(snap, seatId)
+        }
 
     internal fun materializePlaybackCut(
         game: Game,

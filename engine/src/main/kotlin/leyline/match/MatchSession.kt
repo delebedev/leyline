@@ -161,7 +161,7 @@ class MatchSession(
         synchronized(sessionLock) {
             if (!preparePuzzleStart()) return@synchronized
 
-            runtimeContinuation.awaitHorizon()
+            runtimeContinuation.awaitClientVisibleHorizon()
         }
 
     internal fun preparePuzzleStart(): Boolean {

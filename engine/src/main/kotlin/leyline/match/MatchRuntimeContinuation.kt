@@ -61,12 +61,15 @@ internal class MatchRuntimeContinuation(
     }
 
     /** Deliver the first bound horizon, including any engine-owned sync barriers. */
-    fun awaitClientVisibleHorizon(timeoutMs: Long = bridge.priorityWaitMs) {
+    fun awaitClientVisibleHorizon(
+        ignoredActionId: String? = null,
+        timeoutMs: Long = bridge.priorityWaitMs,
+    ) {
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
         if (!bridge.cutCoordinator.hasCommittedBatches(seatId)) {
-            if (bridge.actionBridge(seatId).getPending() == null &&
-                (System.nanoTime() >= deadline || !awaitNextSeatHorizon(deadline))
-            ) {
+            val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
+            val awaited = bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId)
+            if (System.nanoTime() >= deadline || !awaited) {
                 sendGameOverIfTerminal()
                 return
             }
