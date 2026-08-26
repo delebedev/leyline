@@ -18,6 +18,9 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.GamePlayback
+import leyline.game.PlaybackCutReason
+import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.LogicalSequenceState
@@ -27,7 +30,7 @@ import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
- * Generic single-batch cut transaction owned by [CoordinatorCutInstaller].
+ * Coordinator cut transaction owned by [CoordinatorCutInstaller].
  *
  * Every runtime family routes its publication through this one implementation,
  * so the enqueue/commit/rollback/acknowledge invariants are proven once here.
@@ -122,6 +125,58 @@ class CoordinatorCutInstallerTest :
             }
 
             prior.sequence shouldBe LogicalSequenceState(currentGsId = 6, currentMsgId = 11)
+        }
+
+        test("multi-batch install commits one ordinal and acknowledges once in stable order") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            GamePlayback(board.bridge, 1)
+            val feed = coordinator.feed(SeatId(1))
+            feed.requestedCut = PlaybackCutRequest(PlaybackCutReason.PhaseChanged, 0, false)
+            val prior = board.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val first =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateId(planner.nextGsId())
+                    .setMsgId(planner.nextMsgId())
+                    .build()
+            val second =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateId(planner.nextGsId())
+                    .setMsgId(planner.nextMsgId())
+                    .build()
+            val batches = listOf(listOf(first), listOf(second))
+            val cut = PreparedCut.prepare(prior, planner, batches.flatten(), projection = null, closesPlaybackFrame = true)
+            val indexes = mutableListOf<Int>()
+            var installedCallbacks = 0
+            feed.beforeBatchEnqueue = { index, _ -> indexes += index }
+
+            synchronized(board.bridge.projectionBuildLock) {
+                synchronized(coordinator.feedLock) {
+                    coordinator.cutInstaller.install(
+                        feed = feed,
+                        cut = cut,
+                        batches = batches,
+                        onInstalled = { installedCallbacks += 1 },
+                        onFailure = { throw it },
+                    )
+                }
+            }
+
+            val owned = synchronized(coordinator.feedLock) { feed.queue.toList() }
+            assertSoftly {
+                indexes shouldContainExactly listOf(0, 1)
+                owned.map { it.batchIndex } shouldContainExactly listOf(0, 1)
+                owned.map { it.ordinal } shouldContainExactly listOf(cut.outputOrdinal, cut.outputOrdinal)
+                owned.map { it.messages } shouldContainExactly batches
+                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
+                board.bridge.committedSequence().committedOutputOrdinal shouldBe cut.outputOrdinal
+                feed.requestedCut.shouldBeNull()
+                installedCallbacks shouldBe 1
+            }
         }
 
         test("materialization and enqueue failures publish nothing and preserve unrelated output") {

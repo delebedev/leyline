@@ -73,7 +73,7 @@ class RuntimeBoundaryTest :
             // queue append and a projection commit in one class, which reads as two
             // unrelated call edges in the class model. MatchSearchInteractionRuntime
             // commits a projection without appending a batch and is not an owner.
-            val owners = setOf("CoordinatorCutInstaller.kt", "MatchCutCoordinator.kt")
+            val owners = setOf("CoordinatorCutInstaller.kt")
             val coordRoot = EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord")
             val installers = mutableSetOf<String>()
             Files.walk(coordRoot).use { stream ->

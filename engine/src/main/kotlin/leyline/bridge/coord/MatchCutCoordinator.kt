@@ -373,32 +373,20 @@ internal class MatchCutCoordinator(
                             prepared.transition,
                             closesPlaybackFrame = true,
                         )
-                    val enqueued = mutableListOf<CommittedOutputBatch>()
-                    try {
-                        prepared.batches.forEachIndexed { index, batch ->
-                            feed.beforeBatchEnqueue?.invoke(index, batch)
-                            val committed = CommittedOutputBatch(cut.outputOrdinal, index, batch)
-                            feed.queue.add(committed)
-                            enqueued += committed
-                        }
-                    } catch (ex: Exception) {
-                        removeEnqueuedBatches(feed, enqueued)
-                        failPlayback(ex, pending = pending)
-                    }
-                    var installed = false
-                    try {
-                        bridge.commitProjection(cut.transition) { installed = true }
-                        feed.pendingCut = null
-                        feed.requestedCut = null
-                    } catch (ex: Exception) {
-                        if (!installed) removeEnqueuedBatches(feed, enqueued)
-                        failPlayback(ex, pending = pending)
-                    }
+                    cutInstaller.install(
+                        feed = feed,
+                        cut = cut,
+                        batches = prepared.batches,
+                        onInstalled = {
+                            feed.pendingCut = null
+                            feed.requestedCut = null
+                        },
+                        onFailure = { failPlayback(it, pending = pending) },
+                    )
                     request
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
-        deliverySignal.signal()
         bridge.prioritySignal.signal()
     }
 
@@ -521,13 +509,6 @@ internal class MatchCutCoordinator(
 
     internal fun retainPendingCut(pending: PendingCut) {
         feeds.values.firstOrNull { it.pendingCut === pending }?.pendingCut = pending
-    }
-
-    private fun removeEnqueuedBatches(
-        feed: ViewerFeed,
-        enqueued: List<CommittedOutputBatch>,
-    ) {
-        enqueued.forEach { removeOwnedBatch(feed, it) }
     }
 
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId

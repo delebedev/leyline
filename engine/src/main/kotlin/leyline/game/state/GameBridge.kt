@@ -1678,7 +1678,11 @@ class GameBridge(
         selectedAdditionalCostGrpIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
-            projectionState = ProjectionState.initial(projectionState.identities.nextInstanceId)
+            projectionState =
+                ProjectionState.initial(
+                    startInstanceId = projectionState.identities.nextInstanceId,
+                    sequence = projectionState.sequence,
+                )
         }
 
         // Drain bridge state from previous game

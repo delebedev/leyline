@@ -7,7 +7,7 @@ import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
- * Prepared output and projection transition for one single-batch coordinator cut.
+ * Prepared output and projection transition for one coordinator cut.
  *
  * Logical sequence and output order are part of [transition]. Discarding this value
  * consumes neither; installation commits both with projection and identity state.
@@ -70,10 +70,10 @@ internal data class CutInstallHooks(
 )
 
 /**
- * Sole implementation of the single-batch coordinator cut transaction.
+ * Sole implementation of the coordinator cut transaction.
  *
  * Runs while the caller already holds the projection-build and feed locks. It
- * owns enqueue ordering, projection commit, rollback of its own batch
+ * owns enqueue ordering, projection commit, rollback of its own batches
  * before install, playback acknowledgement, and typed failure handoff.
  *
  * It allocates no protocol messages, signals no priority, awaits no response,
@@ -89,8 +89,9 @@ internal class CoordinatorCutInstaller(
      *
      * [replaces], when nonempty, is retired after the new batch is enqueued and
      * restored if projection installation fails. A failure before the projection
-     * transition installs removes only this batch; competing state and unrelated queued output are untouched. When the
-     * transition did not install, [onRollback] runs after the batch is withdrawn
+     * transition installs removes only this cut's batches; competing state and
+     * unrelated queued output are untouched. When the transition did not install,
+     * [onRollback] runs after the cut's batches are withdrawn
      * so the caller can undo side effects it owns alongside the cut. Any failure
      * is handed to [onFailure] so the family can attach its exact cut.
      */
@@ -98,20 +99,27 @@ internal class CoordinatorCutInstaller(
         feed: MatchCutCoordinator.ViewerFeed,
         cut: PreparedCut,
         hooks: CutInstallHooks = CutInstallHooks(),
+        batches: List<List<GREToClientMessage>> = listOf(cut.messages),
         replaces: List<GREToClientMessage> = emptyList(),
         onInstalled: (() -> Unit)? = null,
         onRollback: (() -> Unit)? = null,
         onFailure: (Throwable) -> Nothing,
     ) {
-        val batch = CommittedOutputBatch(cut.outputOrdinal, 0, cut.messages)
-        var enqueued = false
+        check(batches.flatten() == cut.messages) { "Installed batches must contain the prepared cut messages in order" }
+        val committedBatches =
+            batches.mapIndexed { index, messages ->
+                CommittedOutputBatch(cut.outputOrdinal, index, messages)
+            }
+        val enqueued = mutableListOf<CommittedOutputBatch>()
         var replaced: CommittedOutputBatch? = null
         var installed = false
         try {
             hooks.beforeEnqueue?.invoke()
-            feed.beforeBatchEnqueue?.invoke(0, batch.messages)
-            feed.queue.add(batch)
-            enqueued = true
+            committedBatches.forEach { batch ->
+                feed.beforeBatchEnqueue?.invoke(batch.batchIndex, batch.messages)
+                feed.queue.add(batch)
+                enqueued += batch
+            }
             if (replaces.isNotEmpty()) {
                 replaced = owner.takeOwnedBatch(feed, replaces)
                 check(replaced != null) { "Replaced coordinator batch is already visible" }
@@ -124,7 +132,7 @@ internal class CoordinatorCutInstaller(
             owner.signalDelivery()
         } catch (ex: Exception) {
             if (!installed) {
-                if (enqueued) owner.removeOwnedBatch(feed, batch)
+                enqueued.forEach { owner.removeOwnedBatch(feed, it) }
                 replaced?.let(feed.queue::addFirst)
                 onRollback?.invoke()
             }
