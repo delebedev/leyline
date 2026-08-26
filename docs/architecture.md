@@ -154,8 +154,9 @@ lifecycle state. The action runtime retains executable offers and the exact
 combat identities published with each declaration window. Session handlers
 submit immutable client-domain values; the runtime resolves and claims the
 retained handles. Deferred cast-cost responses use the same action claim rather
-than a session-owned lookup table. `InteractiveCommandExchange` owns the
-cross-thread command handshake that iterative targeting and mana-source
+than a session-owned lookup table. The deferred runtime also owns casting-time
+prompt materialization and committed publication. `InteractiveCommandExchange`
+owns the cross-thread command handshake that iterative targeting and mana-source
 payment windows share.
 
 `SpectatorSession` retains the independent `stateOnlyDiff` projection and raw

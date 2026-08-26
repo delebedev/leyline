@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
@@ -36,8 +35,6 @@ class FamiliarSession(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) {}
-
-    override fun sendBundle(result: BundleBuilder.BundleResult) {}
 
     override fun sendGameOver(reason: ResultReason) {}
 

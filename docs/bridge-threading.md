@@ -44,6 +44,9 @@ exact action and game-state correlation, resolves the retained executable or
 combat handle, and atomically claims it. `MatchBlockingInteractionRuntime`
 performs the equivalent client-instance lookup for damage assignments. Session
 code does not rebuild these responses from the live Forge graph.
+`DeferredCastWindowRuntime` validates the retained action claim, materializes
+casting-time prompts with the viewer feed builder, and installs their complete
+cut before replacing its correlated prompt state.
 
 ### Lock order
 

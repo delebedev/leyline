@@ -5,7 +5,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -27,8 +26,6 @@ class SessionOpsDefaultsTest :
                     bridge: GameBridge,
                     revealForSeat: Int?,
                 ) {}
-
-                override fun sendBundle(result: BundleBuilder.BundleResult) {}
 
                 override fun sendGameOver(reason: ResultReason) {}
             }

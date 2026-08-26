@@ -10,7 +10,6 @@ import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.SynchronizationContinuation
-import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.testkit.TestActionWindowRuntime
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -210,8 +209,6 @@ private class BarrierSink(
         bridge: GameBridge,
         revealForSeat: Int?,
     ) = Unit
-
-    override fun sendBundle(result: BundleBuilder.BundleResult) = Unit
 
     override fun sendGameOver(reason: ResultReason) = Unit
 }

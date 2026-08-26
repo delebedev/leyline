@@ -5,7 +5,6 @@ import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.bundle.markIfPrompt
@@ -78,8 +77,6 @@ class MatchSession(
      */
     val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "MatchSession requires non-null game" }, gameBridge)
 
-    override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
-
     /** Sub-handlers for combat, targeting, and routed interaction flows. */
     val combatHandler =
         CombatHandler(
@@ -91,7 +88,6 @@ class MatchSession(
         TargetingHandler(
             sink = this,
             counters = this,
-            bundles = this,
             ctx = ctx,
         )
     val optionalActionHandler =
@@ -375,15 +371,6 @@ class MatchSession(
         synchronized(sessionLock) {
             runtimeContinuation.deliverHorizon()
         }
-
-    /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
-    override fun sendBundle(result: BundleBuilder.BundleResult) {
-        for (gre in result.messages) {
-            if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
-            if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
-        }
-        sendBundledGRE(result.messages)
-    }
 
     private fun drainCoordinatorFeed() {
         drainCoordinatorBarrier(this, gameBridge, seatId)

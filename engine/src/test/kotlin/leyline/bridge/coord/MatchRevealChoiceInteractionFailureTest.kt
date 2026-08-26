@@ -20,7 +20,6 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.match.GreMessageSink
 import leyline.match.drainOneCoordinatorBarrier
@@ -338,8 +337,6 @@ class MatchRevealChoiceInteractionFailureTest :
                     bridge: GameBridge,
                     revealForSeat: Int?,
                 ) = Unit
-
-                override fun sendBundle(result: BundleBuilder.BundleResult) = Unit
 
                 override fun sendGameOver(reason: ResultReason) = Unit
             }

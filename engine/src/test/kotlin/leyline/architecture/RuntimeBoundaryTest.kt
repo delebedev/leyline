@@ -230,8 +230,15 @@ class RuntimeBoundaryTest :
                 }
                 withClue("deferred admission must hide prompt catalogs and claim completion from the session") {
                     val deferred = Files.readString(sessionRoot.resolve("DeferredCastCostInteractionHandler.kt"))
-                    listOf("DeferredCastPrompt.", "currentDeferredCastPrompt", "completeActionClaim(", "failActionClaim(")
-                        .forEach { deferred shouldNotContain it }
+                    listOf(
+                        "DeferredCastPrompt.",
+                        "currentDeferredCastPrompt",
+                        "completeActionClaim(",
+                        "failActionClaim(",
+                        "BundleBuilder",
+                        "sendBundledGRE(",
+                        "commitProjection(",
+                    ).forEach { deferred shouldNotContain it }
                 }
                 withClue("damage admission must preserve raw rows until the runtime resolves retained handles") {
                     val combat = Files.readString(sessionRoot.resolve("CombatHandler.kt"))

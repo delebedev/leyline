@@ -19,7 +19,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
     companion object {
@@ -41,7 +40,6 @@ class TargetingHandler(
         DeferredCastCostInteractionHandler(
             sink = sink,
             counters = counters,
-            bundles = bundles,
             ctx = ctx,
         )
 
