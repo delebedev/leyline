@@ -11,6 +11,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.optionalCostResp
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -129,6 +130,16 @@ class OptionalCostInteractionTest :
             cast.expectNoSelectTargetsReq()
 
             after { declineKicker() }.expectOneSelectTargetsReq()
+        }
+
+        session("invalid and stale optional responses leave the exact prompt answerable", puzzle = burstState) {
+            after { castSpellByName("Burst Lightning").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val promptGameStateId = allMessages.last { it.hasCastingTimeOptionsReq() }.gameStateId
+            val stale = optionalCostResp(999).toBuilder().setGameStateId(promptGameStateId - 1).build()
+            submit(stale)
+            submit(optionalCostResp(999))
+
+            after { declineKicker() }.expectOneSelectTargetsReq().targetsList shouldHaveSize 1
         }
 
         session("cancel optional cost prompt returns to priority without orphaning cast", puzzle = burstState) {

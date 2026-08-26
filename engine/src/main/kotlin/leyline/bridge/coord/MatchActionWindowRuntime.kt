@@ -18,37 +18,51 @@ import java.util.concurrent.TimeoutException
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
 ) {
-    internal sealed interface DeferredCastPrompt {
-        val actionClaim: ActionClaim
-        val promptGameStateId: Int
+    internal data class DeferredCastOptionResponse(
+        val ctoId: Int,
+        val manaColor: ManaColor?,
+    )
+
+    internal data class DeferredCastResponse(
+        val gameStateId: Int,
+        val ctoId: Int,
+        val selectedCtoId: Int?,
+        val options: List<DeferredCastOptionResponse>,
+    )
+
+    internal class DeferredCastReceipt internal constructor(
+        internal val actionId: String,
+        internal val token: Long,
+    )
+
+    internal enum class DeferredCastRejection {
+        Stale,
+        Duplicate,
+        WrongOption,
+    }
+
+    internal sealed interface DeferredCastAdmission {
+        data class Rejected(
+            val reason: DeferredCastRejection,
+        ) : DeferredCastAdmission
 
         data class Optional(
-            override val actionClaim: ActionClaim,
-            override val promptGameStateId: Int,
-            val costCtoIds: List<Int>,
-            val additionalCostGrpIdsByCtoId: Map<Int, Int>,
-            val keywordCostsByCtoId: Map<Int, String>,
-        ) : DeferredCastPrompt
+            val receipt: DeferredCastReceipt,
+        ) : DeferredCastAdmission
 
-        data class HybridManaType(
-            override val actionClaim: ActionClaim,
-            override val promptGameStateId: Int,
-            val ctoIds: List<Int>,
-            val promptColors: List<ManaColor>,
-            val paymentColors: List<ManaColor>,
-        ) : DeferredCastPrompt
+        data class Hybrid(
+            val receipt: DeferredCastReceipt,
+        ) : DeferredCastAdmission
 
-        data class AlternateCostChoice(
-            override val actionClaim: ActionClaim,
-            override val promptGameStateId: Int,
-            val runtimeTokensByCtoId: Map<Int, Long>,
-        ) : DeferredCastPrompt
+        data class Alternate(
+            val receipt: DeferredCastReceipt,
+        ) : DeferredCastAdmission
     }
 
     // Written under the coordinator feed lock; read lock-free by the engine wait
     // adapter and session threads asking whether a window is still open.
     private val actionWindows = ConcurrentHashMap<String, RuntimeActionWindow>()
-    private val deferredCastPrompts = mutableMapOf<String, DeferredCastPrompt>()
+    private val deferred = DeferredCastWindowRuntime(owner, this)
     private var nextActionToken = 1L
 
     internal var beforeEnqueue: (() -> Unit)? = null
@@ -75,20 +89,56 @@ internal class MatchActionWindowRuntime(
 
     fun bridge(seatId: SeatId): GameActionBridge.ActionWindowRuntime = CoordinatorActionWindowBridge(this, seatId)
 
-    internal fun installDeferredCastPrompt(prompt: DeferredCastPrompt) =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val actionId = prompt.actionClaim.actionId
-            check(actionWindows[actionId]?.status == ActionWindowStatus.Claimed(ActionClaimKind.Deferred, prompt.actionClaim.token)) {
-                "Deferred cast prompt is not owned by its action claim"
-            }
-            deferredCastPrompts[actionId] = prompt
-        }
+    internal fun publishDeferredHybrid(
+        claim: ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+        promptColors: List<ManaColor>,
+        paymentColors: List<ManaColor>,
+    ) = deferred.publishHybrid(claim, promptGameStateId, ctoIds, promptColors, paymentColors)
 
-    internal fun currentDeferredCastPrompt(): DeferredCastPrompt? =
-        synchronized(owner.feedLock) { deferredCastPrompts.values.firstOrNull() }
+    internal fun publishDeferredOptional(
+        claim: ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ) = deferred.publishOptional(claim, promptGameStateId, ctoIds)
 
-    internal fun clearDeferredCastPrompt(actionId: String) = synchronized(owner.feedLock) { deferredCastPrompts.remove(actionId) }
+    internal fun publishDeferredOptional(
+        receipt: DeferredCastReceipt,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ): Boolean = deferred.publishOptional(receipt, promptGameStateId, ctoIds)
+
+    internal fun publishDeferredAlternate(
+        claim: ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ) = deferred.publishAlternate(claim, promptGameStateId, ctoIds)
+
+    internal fun deferredCostPlan(receipt: DeferredCastReceipt) = deferred.deferredCostPlan(receipt)
+
+    internal fun hasDeferredCastPrompt(): Boolean = deferred.hasPrompt()
+
+    internal fun discardDeferredCastPrompt() = deferred.discard()
+
+    internal fun admitDeferredCastResponse(response: DeferredCastResponse): DeferredCastAdmission = deferred.admit(response)
+
+    internal fun completeDeferred(
+        receipt: DeferredCastReceipt,
+        childToken: Long? = null,
+    ): Boolean = deferred.complete(receipt, childToken)
+
+    internal fun failDeferred(
+        receipt: DeferredCastReceipt,
+        cause: Throwable,
+    ): Nothing = deferred.fail(receipt, cause)
+
+    internal fun cancelDeferredCast(): Boolean = deferred.cancel()
+
+    internal fun isDeferredClaim(claim: ActionClaim): Boolean =
+        actionWindows[claim.actionId]?.status == ActionWindowStatus.Claimed(ActionClaimKind.Deferred, claim.token)
+
+    internal fun seatFor(actionId: String): SeatId = checkNotNull(actionWindows[actionId]?.seatId)
 
     /**
      * The engine and client see a window only while it is
@@ -160,8 +210,7 @@ internal class MatchActionWindowRuntime(
 
     fun hasLegalAttackers(actionId: String): Boolean =
         synchronized(owner.feedLock) {
-            actionWindows[actionId]?.combat?.attackerByInstanceId?.isNotEmpty() ==
-                true
+            actionWindows[actionId]?.combat?.hasLegalAttackers() == true
         }
 
     fun legalBlockerCount(actionId: String): Int = synchronized(owner.feedLock) { actionWindows[actionId]?.legalBlockerCount ?: 0 }
@@ -178,17 +227,24 @@ internal class MatchActionWindowRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val window = actionWindows[claim.actionId] ?: return false
-            if (window.status != ActionWindowStatus.Claimed(claim.kind, claim.token)) return false
-            val completionToken = childToken ?: claim.token
-            if (childToken != null) {
-                val selection = window.deferredChildSelections[childToken] ?: return false
-                window.selections[childToken] = selection
-            }
-            val completed = owner.bridge.actionBridge(window.seatId).submitRuntimeToken(claim.actionId, completionToken)
-            if (completed) window.status = ActionWindowStatus.Completed
-            completed
+            completeDeferredLocked(claim, childToken)
         }
+
+    private fun completeDeferredLocked(
+        claim: ActionClaim,
+        childToken: Long?,
+    ): Boolean {
+        val window = actionWindows[claim.actionId] ?: return false
+        if (window.status != ActionWindowStatus.Claimed(claim.kind, claim.token)) return false
+        val completionToken = childToken ?: claim.token
+        if (childToken != null) {
+            val selection = window.deferredChildSelections[childToken] ?: return false
+            window.selections[childToken] = selection
+        }
+        val completed = owner.bridge.actionBridge(window.seatId).submitRuntimeToken(claim.actionId, completionToken)
+        if (completed) window.status = ActionWindowStatus.Completed
+        return completed
+    }
 
     @Suppress("UNUSED_PARAMETER")
     fun failClaim(
@@ -246,15 +302,13 @@ internal class MatchActionWindowRuntime(
                         PendingActionKind.DECLARE_ATTACKERS -> {
                             val attackers = answer as? DeclarationAnswer.Attackers ?: return false
                             val next = combat.nextAttackers(attackers) ?: return false
-                            combat.attackers.clear()
-                            combat.attackers.putAll(next)
+                            combat.replaceAttackers(next)
                             check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_ATTACKERS))
                         }
                         PendingActionKind.DECLARE_BLOCKERS -> {
                             val blockers = answer as? DeclarationAnswer.Blockers ?: return false
                             val next = combat.nextBlockers(blockers) ?: return false
-                            combat.blockers.clear()
-                            combat.blockers.putAll(next)
+                            combat.replaceBlockers(next)
                             check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_BLOCKERS))
                         }
                         PendingActionKind.PRIORITY,
@@ -298,14 +352,14 @@ internal class MatchActionWindowRuntime(
                         feed.builder.prepareEchoAttackers(
                             game,
                             owner.counter,
-                            combat.attackers.keys.toList(),
+                            combat.selectedAttackerInstanceIds(),
                             window.legalAttackerIds,
-                            combat.attackers.mapValues { it.value.alternativeGrpId },
-                            combat.attackers.mapValues { it.value.damageRecipient },
+                            combat.selectedAttackAlternatives(),
+                            combat.selectedDamageRecipients(),
                             window.presentationActions,
                         )
                     PendingActionKind.DECLARE_BLOCKERS ->
-                        feed.builder.prepareEchoBlockers(game, owner.counter, combat.blockers, window.presentationActions)
+                        feed.builder.prepareEchoBlockers(game, owner.counter, combat.selectedBlockAssignments(), window.presentationActions)
                     PendingActionKind.PRIORITY,
                     PendingActionKind.SYNC_ONLY,
                     -> return false
@@ -465,7 +519,7 @@ internal class MatchActionWindowRuntime(
         synchronized(owner.feedLock) {
             actionWindows.values.forEach { it.selections.clear() }
             actionWindows.clear()
-            deferredCastPrompts.clear()
+            deferred.discard()
         }
     }
 
@@ -596,7 +650,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun close(actionId: String) {
         synchronized(owner.feedLock) {
-            deferredCastPrompts.remove(actionId)
+            deferred.close(actionId)
             actionWindows.remove(actionId)?.selections?.clear()
         }
     }

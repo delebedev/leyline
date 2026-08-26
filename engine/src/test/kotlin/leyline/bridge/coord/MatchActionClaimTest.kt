@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
@@ -161,5 +162,65 @@ class MatchActionClaimTest :
                 second shouldBeSameInstanceAs first
                 board.bridge.cutCoordinator.failure() shouldBeSameInstanceAs first
             }
+        }
+
+        test("deferred admission owns exact correlation and retires duplicate responses") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:deferred admission
+                    Goal:Win
+                    Turns:1
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Burst Lightning
+                    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+                    humanlibrary=Mountain
+                    aibattlefield=Forest
+                    ailibrary=Forest
+                    """.trimIndent(),
+                )
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val cast =
+                board.bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .first { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .first { it.actionType == ActionType.Cast }
+            val claim =
+                board.bridge.cutCoordinator
+                    .claimPriorityResponse(pending.actionId, checkNotNull(pending.promptGameStateId), cast, defer = true)
+                    .shouldNotBeNull()
+                    .actionClaim
+            val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
+            board.bridge.cutCoordinator.publishDeferredOptional(claim, 700, List(optionalCount) { it + 1 })
+
+            val wrongWindow =
+                board.bridge.cutCoordinator.admitDeferredCastResponse(
+                    MatchActionWindowRuntime.DeferredCastResponse(699, 0, null, emptyList()),
+                )
+            wrongWindow.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
+            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe true
+
+            val wrongOption =
+                board.bridge.cutCoordinator.admitDeferredCastResponse(
+                    MatchActionWindowRuntime.DeferredCastResponse(700, 999, null, emptyList()),
+                )
+            wrongOption.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
+            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe true
+
+            val accepted =
+                board.bridge.cutCoordinator.admitDeferredCastResponse(
+                    MatchActionWindowRuntime.DeferredCastResponse(700, 0, null, emptyList()),
+                )
+            val receipt = accepted.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Optional>().receipt
+            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe false
+            board.bridge.cutCoordinator.completeDeferred(receipt) shouldBe false
         }
     })

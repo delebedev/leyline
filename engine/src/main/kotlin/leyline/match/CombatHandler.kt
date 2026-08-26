@@ -4,9 +4,9 @@ import forge.game.phase.PhaseType
 import leyline.DevCheck
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.DamageAssignmentCommand
+import leyline.bridge.handoff.DamageAssignmentRow
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.opponent
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -461,26 +461,17 @@ open class CombatHandler(
         val assignmentValues = mutableListOf<DamageAssignmentCommand>()
 
         for (assigner in resp.assignersList) {
-            val damageMap = linkedMapOf<Int, Int>()
-            for (assignment in assigner.assignmentsList) {
-                val instanceId = assignment.instanceId.takeUnless { it == counters.seatId.opponent.value } ?: 0
-                damageMap[instanceId] = assignment.assignedDamage
-            }
-
-            // Fallback: if client omits defender slot, compute overflow implicitly.
-            val assignedToBlockers = damageMap.values.sum()
-            val overflow = assigner.totalDamage - assignedToBlockers
-            if (overflow > 0 && 0 !in damageMap) {
-                damageMap[0] = overflow
-            }
             log.info(
-                "CombatHandler: damageMap={} overflow={} total={}",
-                damageMap.entries.joinToString { "${it.key.takeIf { id -> id != 0 } ?: "DEFENDER"} → ${it.value}" },
-                overflow,
+                "CombatHandler: damage rows={} total={}",
+                assigner.assignmentsList.map { "${it.instanceId} → ${it.assignedDamage}" },
                 assigner.totalDamage,
             )
-
-            assignmentValues += DamageAssignmentCommand(assigner.instanceId, damageMap)
+            assignmentValues +=
+                DamageAssignmentCommand(
+                    attackerInstanceId = assigner.instanceId,
+                    assignments = assigner.assignmentsList.map { DamageAssignmentRow(it.instanceId, it.assignedDamage) },
+                    totalDamage = assigner.totalDamage,
+                )
         }
 
         log.info(

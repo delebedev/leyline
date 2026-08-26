@@ -102,5 +102,12 @@ sealed interface DeclarationAnswer {
 /** Immutable client-domain damage response; the blocking runtime resolves card handles. */
 data class DamageAssignmentCommand(
     val attackerInstanceId: Int,
-    val assignments: Map<Int, Int>,
+    val assignments: List<DamageAssignmentRow>,
+    val totalDamage: Int,
+)
+
+/** One raw client row. Duplicate rows remain visible until the runtime validates them. */
+data class DamageAssignmentRow(
+    val targetInstanceId: Int,
+    val assignedDamage: Int,
 )

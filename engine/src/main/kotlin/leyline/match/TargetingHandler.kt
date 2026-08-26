@@ -47,11 +47,7 @@ class TargetingHandler(
 
     /** Clear targeting state for puzzle hot-swap. */
     fun reset() {
-        ctx.bridge.cutCoordinator.currentDeferredCastPrompt()?.let {
-            ctx.bridge.cutCoordinator.clearDeferredCastPrompt(
-                it.actionClaim.actionId,
-            )
-        }
+        ctx.bridge.cutCoordinator.discardDeferredCastPrompt()
     }
 
     /**
@@ -243,12 +239,8 @@ class TargetingHandler(
         autoPass: () -> Unit,
     ) {
         val bridge = ctx.bridge
-        val deferredClaim =
-            ctx.bridge.cutCoordinator
-                .currentDeferredCastPrompt()
-                ?.actionClaim
-        if (deferredClaim != null) {
-            cancelDeferredCast(deferredClaim, autoPass)
+        if (ctx.bridge.cutCoordinator.hasDeferredCastPrompt()) {
+            cancelDeferredCast(autoPass)
             return
         }
 
@@ -307,17 +299,8 @@ class TargetingHandler(
         return true
     }
 
-    private fun cancelDeferredCast(
-        actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim,
-        autoPass: () -> Unit,
-    ) {
-        ctx.bridge.cutCoordinator.clearDeferredCastPrompt(actionClaim.actionId)
-        actionClaim.deferredCostPlan?.sourceCardId?.let { ctx.bridge.setSelectedSpellGrpId(it, null) }
-        ctx.bridge
-            .seat(counters.seatId)
-            .prompt.journal
-            .clearHybridManaStash()
-        check(ctx.bridge.cutCoordinator.reopenActionClaim(actionClaim)) { "Deferred action claim did not reopen" }
+    private fun cancelDeferredCast(autoPass: () -> Unit) {
+        check(ctx.bridge.cutCoordinator.cancelDeferredCast()) { "Deferred action claim did not reopen" }
         log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
         autoPass()
     }
@@ -409,17 +392,11 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val modal = bridge.cutCoordinator.modalChoices.current()
         if (modal == null) {
-            when (val pending = bridge.cutCoordinator.currentDeferredCastPrompt()) {
-                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.AlternateCostChoice,
-                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.Optional,
-                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.HybridManaType,
-                -> error("deferred cast-cost handler did not consume ${pending::class.simpleName}")
-
-                else -> {
-                    log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")
-                    DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no modal or deferred-cost window" }
-                }
+            if (bridge.cutCoordinator.hasDeferredCastPrompt()) {
+                error("deferred cast-cost handler did not consume the response")
             }
+            log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")
+            DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no modal or deferred-cost window" }
             return
         }
         val chosenGrpIds = greMsg.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList

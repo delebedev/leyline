@@ -8,6 +8,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.opponent
 import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
 import java.util.UUID
@@ -55,6 +56,10 @@ internal class MatchBlockingInteractionRuntime(
         val damageCards: Map<ForgeCardId, Card> = emptyMap(),
         val damageAttackerByInstanceId: Map<Int, ForgeCardId> = emptyMap(),
         val damageBlockerByInstanceId: Map<Int, ForgeCardId> = emptyMap(),
+        val damageDefenderInstanceIds: Set<Int> = emptySet(),
+        val damageExpectedTotal: Int? = null,
+        val damageHasTrample: Boolean = false,
+        val damageHasDefender: Boolean = false,
     )
 
     private var window: Window? = null
@@ -213,20 +218,43 @@ internal class MatchBlockingInteractionRuntime(
                     val assignments =
                         commands.map { command ->
                             val attacker = pending.damageAttackerByInstanceId[command.attackerInstanceId] ?: return false
+                            if (pending.damageExpectedTotal != null &&
+                                command.totalDamage != 0 &&
+                                command.totalDamage != pending.damageExpectedTotal
+                            ) {
+                                return false
+                            }
+                            if (command.assignments
+                                    .map { it.targetInstanceId }
+                                    .distinct()
+                                    .size != command.assignments.size
+                            ) {
+                                return false
+                            }
                             val resolved =
                                 command.assignments
-                                    .map { (instanceId, amount) ->
+                                    .map { row ->
+                                        val instanceId = row.targetInstanceId
+                                        val amount = row.assignedDamage
                                         if (amount < 0) return false
                                         val blocker =
-                                            if (instanceId ==
-                                                0
-                                            ) {
+                                            if (instanceId in pending.damageDefenderInstanceIds) {
                                                 null
                                             } else {
                                                 pending.damageBlockerByInstanceId[instanceId] ?: return false
                                             }
                                         blocker to amount
                                     }.toMap()
+                                    .toMutableMap()
+                            val assigned = resolved.values.sum()
+                            val expected = pending.damageExpectedTotal?.takeIf { command.totalDamage == 0 || command.totalDamage == it }
+                            if (expected != null && assigned > expected) return false
+                            if (expected != null && assigned < expected) {
+                                if (!pending.damageHasTrample || !pending.damageHasDefender) return false
+                                val overflow = expected - assigned
+                                if (resolved.containsKey(null)) return false
+                                resolved[null] = overflow
+                            }
                             DamageAssignmentValue(attacker, resolved)
                         }
                     val feed = owner.feed(owner.humanSeat)
@@ -288,6 +316,9 @@ internal class MatchBlockingInteractionRuntime(
                             )
                         val attacker = damageAttackerId?.let { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId }
                         val blockersByForgeId = damageCards.keys.filter { it != damageAttackerId }
+                        val damage = interaction as? BlockingInteraction.Damage
+                        val defenderInstanceIds =
+                            if (damage?.hasDefender == true) setOf(owner.humanSeat.opponent.value) else emptySet()
                         val created =
                             Window(
                                 published,
@@ -296,6 +327,10 @@ internal class MatchBlockingInteractionRuntime(
                                 damageCards,
                                 attacker?.let { mapOf(it) }.orEmpty(),
                                 blockersByForgeId.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId },
+                                defenderInstanceIds,
+                                damage?.damageDealt,
+                                damage?.hasTrample ?: false,
+                                damage?.hasDefender ?: false,
                             )
                         owner.cutInstaller.install(
                             feed,

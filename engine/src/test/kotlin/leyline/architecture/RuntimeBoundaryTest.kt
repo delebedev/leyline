@@ -194,6 +194,16 @@ class RuntimeBoundaryTest :
                         }
                     }
                 }
+                withClue("deferred admission must hide prompt catalogs and claim completion from the session") {
+                    val deferred = Files.readString(sessionRoot.resolve("DeferredCastCostInteractionHandler.kt"))
+                    listOf("DeferredCastPrompt.", "currentDeferredCastPrompt", "completeActionClaim(", "failActionClaim(")
+                        .forEach { deferred shouldNotContain it }
+                }
+                withClue("damage admission must preserve raw rows until the runtime resolves retained handles") {
+                    val combat = Files.readString(sessionRoot.resolve("CombatHandler.kt"))
+                    listOf("DamageAssignmentValue(", "opponent.value", "damageMap")
+                        .forEach { combat shouldNotContain it }
+                }
                 withClue("the action runtime must retain the identities removed from session code") {
                     runtime shouldContain "getForgeCardId("
                     runtime shouldContain "getPlayer("

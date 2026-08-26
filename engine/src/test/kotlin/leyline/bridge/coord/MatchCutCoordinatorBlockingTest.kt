@@ -14,6 +14,7 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.DamageAssignmentCommand
+import leyline.bridge.handoff.DamageAssignmentRow
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
@@ -340,13 +341,31 @@ class MatchCutCoordinatorBlockingTest :
                 board.bridge.cutCoordinator.submitDamageCommand(
                     published.interactionId,
                     published.gameStateId,
-                    listOf(DamageAssignmentCommand(Int.MAX_VALUE, emptyMap())),
+                    listOf(DamageAssignmentCommand(Int.MAX_VALUE, emptyList(), 0)),
                 ) shouldBe false
                 board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe published
-                board.bridge.cutCoordinator.submitDamageAnswer(
+                val attackerInstanceId = board.bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+                val blockerInstanceId = board.bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
+                board.bridge.cutCoordinator.submitDamageCommand(
+                    published.interactionId,
+                    published.gameStateId - 1,
+                    listOf(DamageAssignmentCommand(attackerInstanceId, listOf(DamageAssignmentRow(blockerInstanceId, 2)), 2)),
+                ) shouldBe false
+                board.bridge.cutCoordinator.submitDamageCommand(
                     published.interactionId,
                     published.gameStateId,
-                    listOf(DamageAssignmentValue(ForgeCardId(attacker.id), mapOf(ForgeCardId(blocker.id) to 2))),
+                    listOf(
+                        DamageAssignmentCommand(
+                            attackerInstanceId,
+                            listOf(DamageAssignmentRow(blockerInstanceId, 1), DamageAssignmentRow(blockerInstanceId, 1)),
+                            2,
+                        ),
+                    ),
+                ) shouldBe false
+                board.bridge.cutCoordinator.submitDamageCommand(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(DamageAssignmentCommand(attackerInstanceId, listOf(DamageAssignmentRow(blockerInstanceId, 2)), 2)),
                 ) shouldBe true
             }
             engine.join(3_000)

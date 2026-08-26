@@ -20,6 +20,7 @@ import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -147,11 +148,53 @@ internal class MatchCutCoordinator(
         confirmation: (() -> GREToClientMessage)? = null,
     ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, confirmation)
 
-    internal fun installDeferredCastPrompt(prompt: MatchActionWindowRuntime.DeferredCastPrompt) = actions.installDeferredCastPrompt(prompt)
+    internal fun publishDeferredHybrid(
+        claim: MatchActionWindowRuntime.ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+        promptColors: List<ManaColor>,
+        paymentColors: List<ManaColor>,
+    ) = actions.publishDeferredHybrid(claim, promptGameStateId, ctoIds, promptColors, paymentColors)
 
-    internal fun currentDeferredCastPrompt(): MatchActionWindowRuntime.DeferredCastPrompt? = actions.currentDeferredCastPrompt()
+    internal fun publishDeferredOptional(
+        claim: MatchActionWindowRuntime.ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ) = actions.publishDeferredOptional(claim, promptGameStateId, ctoIds)
 
-    internal fun clearDeferredCastPrompt(actionId: String) = actions.clearDeferredCastPrompt(actionId)
+    internal fun publishDeferredOptional(
+        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ): Boolean = actions.publishDeferredOptional(receipt, promptGameStateId, ctoIds)
+
+    internal fun publishDeferredAlternate(
+        claim: MatchActionWindowRuntime.ActionClaim,
+        promptGameStateId: Int,
+        ctoIds: List<Int>,
+    ) = actions.publishDeferredAlternate(claim, promptGameStateId, ctoIds)
+
+    internal fun admitDeferredCastResponse(
+        response: MatchActionWindowRuntime.DeferredCastResponse,
+    ): MatchActionWindowRuntime.DeferredCastAdmission = actions.admitDeferredCastResponse(response)
+
+    internal fun deferredCostPlan(receipt: MatchActionWindowRuntime.DeferredCastReceipt) = actions.deferredCostPlan(receipt)
+
+    internal fun completeDeferred(
+        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
+        childToken: Long? = null,
+    ): Boolean = actions.completeDeferred(receipt, childToken)
+
+    internal fun failDeferred(
+        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
+        cause: Throwable,
+    ): Nothing = actions.failDeferred(receipt, cause)
+
+    internal fun hasDeferredCastPrompt(): Boolean = actions.hasDeferredCastPrompt()
+
+    internal fun discardDeferredCastPrompt() = actions.discardDeferredCastPrompt()
+
+    internal fun cancelDeferredCast(): Boolean = actions.cancelDeferredCast()
 
     fun currentBlockingInteraction(): PublishedBlockingInteraction? = interactions.current()
 

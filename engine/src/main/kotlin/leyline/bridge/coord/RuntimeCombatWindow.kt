@@ -26,8 +26,28 @@ internal class RuntimeCombatHandles(
     val playerBySeatId: Map<Int, ForgePlayerId>,
     val defaultDefender: ForgePlayerId?,
 ) {
-    val attackers = linkedMapOf<Int, RuntimeAttackerSelection>()
-    val blockers = linkedMapOf<Int, Int>()
+    private val attackers = linkedMapOf<Int, RuntimeAttackerSelection>()
+    private val blockers = linkedMapOf<Int, Int>()
+
+    fun hasLegalAttackers(): Boolean = attackerByInstanceId.isNotEmpty()
+
+    fun replaceAttackers(next: Map<Int, RuntimeAttackerSelection>) {
+        attackers.clear()
+        attackers.putAll(next)
+    }
+
+    fun replaceBlockers(next: Map<Int, Int>) {
+        blockers.clear()
+        blockers.putAll(next)
+    }
+
+    fun selectedAttackerInstanceIds(): List<Int> = attackers.keys.toList()
+
+    fun selectedAttackAlternatives(): Map<Int, Int> = attackers.mapValues { it.value.alternativeGrpId }
+
+    fun selectedDamageRecipients(): Map<Int, DamageRecipient> = attackers.mapValues { it.value.damageRecipient }
+
+    fun selectedBlockAssignments(): Map<Int, Int> = blockers.toMap()
 
     @Suppress("ReturnCount")
     fun nextAttackers(answer: DeclarationAnswer.Attackers): Map<Int, RuntimeAttackerSelection>? {
