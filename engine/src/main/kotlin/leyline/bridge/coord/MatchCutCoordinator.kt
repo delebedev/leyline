@@ -180,15 +180,7 @@ internal class MatchCutCoordinator(
 
     internal fun deferredCostPlan(receipt: MatchActionWindowRuntime.DeferredCastReceipt) = actions.deferredCostPlan(receipt)
 
-    internal fun completeDeferred(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
-        childToken: Long? = null,
-    ): Boolean = actions.completeDeferred(receipt, childToken)
-
-    internal fun failDeferred(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
-        cause: Throwable,
-    ): Nothing = actions.failDeferred(receipt, cause)
+    internal fun completeDeferred(receipt: MatchActionWindowRuntime.DeferredCastReceipt): Boolean = actions.completeDeferred(receipt)
 
     internal fun hasDeferredCastPrompt(): Boolean = actions.hasDeferredCastPrompt()
 

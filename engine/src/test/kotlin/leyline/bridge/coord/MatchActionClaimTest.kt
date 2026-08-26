@@ -219,8 +219,13 @@ class MatchActionClaimTest :
                 board.bridge.cutCoordinator.admitDeferredCastResponse(
                     MatchActionWindowRuntime.DeferredCastResponse(700, 0, null, emptyList()),
                 )
-            val receipt = accepted.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Optional>().receipt
+            accepted.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Optional>()
             board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe false
-            board.bridge.cutCoordinator.completeDeferred(receipt) shouldBe false
+            val duplicate =
+                board.bridge.cutCoordinator.admitDeferredCastResponse(
+                    MatchActionWindowRuntime.DeferredCastResponse(700, 0, null, emptyList()),
+                )
+            duplicate.shouldBeInstanceOf<MatchActionWindowRuntime.DeferredCastAdmission.Rejected>()
+            board.bridge.cutCoordinator.hasDeferredCastPrompt() shouldBe false
         }
     })

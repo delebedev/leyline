@@ -46,17 +46,13 @@ internal class MatchActionWindowRuntime(
             val reason: DeferredCastRejection,
         ) : DeferredCastAdmission
 
-        data class Optional(
-            val receipt: DeferredCastReceipt,
-        ) : DeferredCastAdmission
+        data object Optional : DeferredCastAdmission
 
         data class Hybrid(
             val receipt: DeferredCastReceipt,
         ) : DeferredCastAdmission
 
-        data class Alternate(
-            val receipt: DeferredCastReceipt,
-        ) : DeferredCastAdmission
+        data object Alternate : DeferredCastAdmission
     }
 
     // Written under the coordinator feed lock; read lock-free by the engine wait
@@ -123,15 +119,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun admitDeferredCastResponse(response: DeferredCastResponse): DeferredCastAdmission = deferred.admit(response)
 
-    internal fun completeDeferred(
-        receipt: DeferredCastReceipt,
-        childToken: Long? = null,
-    ): Boolean = deferred.complete(receipt, childToken)
-
-    internal fun failDeferred(
-        receipt: DeferredCastReceipt,
-        cause: Throwable,
-    ): Nothing = deferred.fail(receipt, cause)
+    internal fun completeDeferred(receipt: DeferredCastReceipt): Boolean = deferred.complete(receipt)
 
     internal fun cancelDeferredCast(): Boolean = deferred.cancel()
 

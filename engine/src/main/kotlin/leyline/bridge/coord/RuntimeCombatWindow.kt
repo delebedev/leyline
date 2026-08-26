@@ -19,12 +19,12 @@ internal data class RuntimeAttackerSelection(
 
 /** Exact engine identities retained when a combat window is published. */
 internal class RuntimeCombatWindow(
-    val attackerByInstanceId: Map<Int, ForgeCardId>,
-    val legalAlternativesByAttacker: Map<Int, Set<Int>>,
-    val blockerByInstanceId: Map<Int, ForgeCardId>,
-    val targetCardByInstanceId: Map<Int, ForgeCardId>,
-    val playerBySeatId: Map<Int, ForgePlayerId>,
-    val defaultDefender: ForgePlayerId?,
+    private val attackerByInstanceId: Map<Int, ForgeCardId>,
+    private val legalAlternativesByAttacker: Map<Int, Set<Int>>,
+    private val blockerByInstanceId: Map<Int, ForgeCardId>,
+    private val targetCardByInstanceId: Map<Int, ForgeCardId>,
+    private val playerBySeatId: Map<Int, ForgePlayerId>,
+    private val defaultDefender: ForgePlayerId?,
 ) {
     private val attackers = linkedMapOf<Int, RuntimeAttackerSelection>()
     private val blockers = linkedMapOf<Int, Int>()

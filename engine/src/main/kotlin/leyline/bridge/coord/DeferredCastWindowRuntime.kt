@@ -41,7 +41,7 @@ internal class DeferredCastWindowRuntime(
         ) : Prompt
     }
 
-    private val prompts = mutableMapOf<String, Prompt>()
+    private var prompt: Prompt? = null
 
     fun publishHybrid(
         claim: MatchActionWindowRuntime.ActionClaim,
@@ -52,7 +52,7 @@ internal class DeferredCastWindowRuntime(
     ) = synchronized(owner.feedLock) {
         owner.ensureOpen()
         checkClaim(claim)
-        prompts[claim.actionId] =
+        prompt =
             Prompt.HybridManaType(claim, promptGameStateId, ctoIds.toList(), promptColors.toList(), paymentColors.toList())
     }
 
@@ -68,8 +68,13 @@ internal class DeferredCastWindowRuntime(
         ctoIds: List<Int>,
     ): Boolean =
         synchronized(owner.feedLock) {
-            val pending = prompts[receipt.actionId] as? Prompt.HybridManaType ?: return@synchronized false
-            if (!pending.adopted || pending.actionClaim.token != receipt.token) return@synchronized false
+            val pending = prompt as? Prompt.HybridManaType ?: return@synchronized false
+            if (!pending.adopted ||
+                pending.actionClaim.actionId != receipt.actionId ||
+                pending.actionClaim.token != receipt.token
+            ) {
+                return@synchronized false
+            }
             installOptional(pending.actionClaim, promptGameStateId, ctoIds)
             true
         }
@@ -88,32 +93,37 @@ internal class DeferredCastWindowRuntime(
                 ?.map { it.runtimeToken }
                 .orEmpty()
         check(tokens.size == ctoIds.size) { "Deferred alternate-cost catalog no longer matches the action plan" }
-        prompts[claim.actionId] = Prompt.AlternateCostChoice(claim, promptGameStateId, ctoIds.zip(tokens).toMap())
+        prompt = Prompt.AlternateCostChoice(claim, promptGameStateId, ctoIds.zip(tokens).toMap())
     }
 
     fun deferredCostPlan(receipt: MatchActionWindowRuntime.DeferredCastReceipt): DeferredCastCostPlan? =
         synchronized(owner.feedLock) {
-            prompts[receipt.actionId]
-                ?.takeIf { it.actionClaim.token == receipt.token && it.adopted }
-                ?.actionClaim
-                ?.deferredCostPlan
+            val pending = prompt ?: return@synchronized null
+            if (pending.actionClaim.actionId != receipt.actionId ||
+                pending.actionClaim.token != receipt.token ||
+                !pending.adopted
+            ) {
+                return@synchronized null
+            }
+            pending.actionClaim.deferredCostPlan
         }
 
-    fun hasPrompt(): Boolean = synchronized(owner.feedLock) { prompts.isNotEmpty() }
+    fun hasPrompt(): Boolean = synchronized(owner.feedLock) { prompt != null }
 
-    fun discard() = synchronized(owner.feedLock) { prompts.clear() }
+    fun discard() = synchronized(owner.feedLock) { prompt = null }
 
     fun close(actionId: String) {
-        synchronized(owner.feedLock) { prompts.remove(actionId) }
+        synchronized(owner.feedLock) {
+            if (prompt?.actionClaim?.actionId == actionId) prompt = null
+        }
     }
 
     fun admit(response: MatchActionWindowRuntime.DeferredCastResponse): MatchActionWindowRuntime.DeferredCastAdmission =
         synchronized(owner.feedLock) {
             val pending =
-                prompts.values.firstOrNull()
-                    ?: return@synchronized MatchActionWindowRuntime.DeferredCastAdmission.Rejected(
-                        MatchActionWindowRuntime.DeferredCastRejection.Stale,
-                    )
+                prompt ?: return@synchronized MatchActionWindowRuntime.DeferredCastAdmission.Rejected(
+                    MatchActionWindowRuntime.DeferredCastRejection.Stale,
+                )
             if (response.gameStateId != pending.promptGameStateId) {
                 return@synchronized MatchActionWindowRuntime.DeferredCastAdmission.Rejected(
                     MatchActionWindowRuntime.DeferredCastRejection.Stale,
@@ -126,35 +136,31 @@ internal class DeferredCastWindowRuntime(
             }
             val receipt = MatchActionWindowRuntime.DeferredCastReceipt(pending.actionClaim.actionId, pending.actionClaim.token)
             when (pending) {
-                is Prompt.Optional -> admitOptional(pending, response, receipt)
+                is Prompt.Optional -> admitOptional(pending, response)
                 is Prompt.HybridManaType -> admitHybrid(pending, response, receipt)
-                is Prompt.AlternateCostChoice -> admitAlternate(pending, response, receipt)
+                is Prompt.AlternateCostChoice -> admitAlternate(pending, response)
             }
         }
 
-    fun complete(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
-        childToken: Long? = null,
-    ): Boolean =
+    fun complete(receipt: MatchActionWindowRuntime.DeferredCastReceipt): Boolean =
         synchronized(owner.feedLock) {
-            val pending = prompts[receipt.actionId] ?: return@synchronized false
-            if (!pending.adopted || pending.actionClaim.token != receipt.token) return@synchronized false
-            actions.complete(pending.actionClaim, childToken).also { if (it) prompts.remove(receipt.actionId) }
+            val pending = prompt ?: return@synchronized false
+            if (!pending.adopted ||
+                pending.actionClaim.actionId != receipt.actionId ||
+                pending.actionClaim.token != receipt.token
+            ) {
+                return@synchronized false
+            }
+            actions.complete(pending.actionClaim).also { if (it) prompt = null }
         }
-
-    @Suppress("UNUSED_PARAMETER")
-    fun fail(
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
-        cause: Throwable,
-    ): Nothing = synchronized(owner.feedLock) { owner.fail(cause) }
 
     fun cancel(): Boolean =
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
                 synchronized(owner.feedLock) {
-                    val pending = prompts.values.firstOrNull() ?: return@synchronized false
+                    val pending = prompt ?: return@synchronized false
                     val claim = pending.actionClaim
-                    prompts.remove(claim.actionId)
+                    prompt = null
                     claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
                     owner.bridge
                         .seat(actions.seatFor(claim.actionId))
@@ -168,7 +174,6 @@ internal class DeferredCastWindowRuntime(
     private fun admitOptional(
         pending: Prompt.Optional,
         response: MatchActionWindowRuntime.DeferredCastResponse,
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
     ): MatchActionWindowRuntime.DeferredCastAdmission {
         val chosen = response.ctoId
         val accepted = chosen != 0 && chosen in pending.costCtoIds
@@ -190,8 +195,8 @@ internal class DeferredCastWindowRuntime(
         }
         if (decisions.isNotEmpty()) seatBridge.prompt.journal.record(PromptSideEffect.KeywordCostStash(decisions))
         check(actions.complete(pending.actionClaim)) { "Deferred optional action claim did not complete" }
-        prompts.remove(pending.actionClaim.actionId)
-        return MatchActionWindowRuntime.DeferredCastAdmission.Optional(receipt)
+        prompt = null
+        return MatchActionWindowRuntime.DeferredCastAdmission.Optional
     }
 
     private fun admitHybrid(
@@ -221,7 +226,6 @@ internal class DeferredCastWindowRuntime(
     private fun admitAlternate(
         pending: Prompt.AlternateCostChoice,
         response: MatchActionWindowRuntime.DeferredCastResponse,
-        receipt: MatchActionWindowRuntime.DeferredCastReceipt,
     ): MatchActionWindowRuntime.DeferredCastAdmission {
         val selected = response.selectedCtoId ?: response.ctoId
         val runtimeToken =
@@ -231,8 +235,8 @@ internal class DeferredCastWindowRuntime(
                 )
         pending.adopted = true
         check(actions.complete(pending.actionClaim, runtimeToken)) { "Deferred alternate action claim did not complete" }
-        prompts.remove(pending.actionClaim.actionId)
-        return MatchActionWindowRuntime.DeferredCastAdmission.Alternate(receipt)
+        prompt = null
+        return MatchActionWindowRuntime.DeferredCastAdmission.Alternate
     }
 
     private fun installOptional(
@@ -248,7 +252,7 @@ internal class DeferredCastWindowRuntime(
                 ?.entries
                 .orEmpty()
         check(entries.size == ctoIds.size) { "Deferred optional-cost catalog no longer matches the action plan" }
-        prompts[claim.actionId] =
+        prompt =
             Prompt.Optional(
                 claim,
                 promptGameStateId,
