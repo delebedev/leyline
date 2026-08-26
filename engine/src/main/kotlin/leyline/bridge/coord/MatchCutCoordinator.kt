@@ -6,7 +6,6 @@ import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GameActionBridge
-import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
@@ -108,23 +107,7 @@ internal class MatchCutCoordinator(
         includePriorityPrompt: Boolean = true,
     ): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId, includePriorityPrompt)
 
-    fun hasMeaningfulPriorityAction(actionId: String): Boolean = actions.hasMeaningfulAction(actionId)
-
-    internal fun isPassOnlyPriority(actionId: String): Boolean = actions.isPassOnlyPriority(actionId)
-
     fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
-
-    /** Suppress one pass-only AI priority window before its committed feed is drained. */
-    fun suppressPassOnlyAiPriority(seatId: SeatId): Boolean {
-        val human = bridge.getPlayer(seatId) ?: return false
-        val game = bridge.getGame() ?: return false
-        if (game.phaseHandler.playerTurn == human) return false
-        val pending = bridge.seat(seatId).action.getPending() ?: return false
-        if (pending.state.kind != PendingActionKind.PRIORITY) return false
-        val hasLegalAction = hasMeaningfulPriorityAction(pending.actionId)
-        if (!bridge.priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction)) return false
-        return suppressPriorityPresentation(pending.actionId)
-    }
 
     fun claimPriorityResponse(
         actionId: String,
@@ -248,7 +231,6 @@ internal class MatchCutCoordinator(
             ensureOpen()
             bridge.closeBundleFrame(seatId.value)
             feed(seatId).requestedCut = null
-            bridge.actionBridge(seatId).forceNextWindowVisible()
         }
     }
 
@@ -355,9 +337,6 @@ internal class MatchCutCoordinator(
         }
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
-
-    /** Continue a coordinator-classified pass-only priority window. */
-    internal fun continuePassOnly(actionId: String): Boolean = actions.continuePassOnly(actionId)
 
     internal fun signalDelivery() {
         deliverySignal.signal()

@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.handoff.ModalChoiceCleanupToken
-import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 
@@ -43,27 +42,10 @@ internal class MatchRuntimeContinuation(
             if (!awaitNextSeatHorizon(deadline)) return
             bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(result.cleanup)
             deliverHorizon()
+            return
         }
-        continueUntilVisible(deadline)
-    }
-
-    private fun continueUntilVisible(deadline: Long) {
-        while (true) {
-            if (bridge.gameIsOver()) {
-                sendGameOverIfTerminal()
-                return
-            }
-            if (bridge.hasPendingNonActionInteraction()) return
-            val pending = bridge.actionBridge(seatId).getPending()
-            if (pending != null && pending.state.kind != PendingActionKind.SYNC_ONLY) {
-                if (!bridge.cutCoordinator.isPassOnlyPriority(pending.actionId)) return
-                check(bridge.cutCoordinator.continuePassOnly(pending.actionId)) {
-                    "Non-visible runtime horizon changed before continuation"
-                }
-            }
-            if (!awaitCommittedFeed(deadline)) return
-            deliverHorizon()
-        }
+        if (!awaitNextSeatHorizon(deadline)) return
+        deliverHorizon()
     }
 
     private fun awaitNextSeatHorizon(deadline: Long): Boolean {
@@ -78,53 +60,18 @@ internal class MatchRuntimeContinuation(
         return true
     }
 
-    private fun awaitCommittedFeed(deadline: Long): Boolean {
-        while (true) {
-            if (bridge.cutCoordinator.hasCommittedBatches(seatId)) return true
-            if (bridge.gameIsOver()) {
-                sendGameOverIfTerminal()
-                return false
-            }
-            val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
-            if (System.nanoTime() >= deadline || !bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs)) {
-                sendGameOverIfTerminal()
-                return false
-            }
-            return true
-        }
-    }
-
-    /** Wait through engine-owned synchronization horizons until a client window exists. */
+    /** Deliver the first bound horizon, including any engine-owned sync barriers. */
     fun awaitClientVisibleHorizon(timeoutMs: Long = bridge.priorityWaitMs) {
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
-        while (true) {
-            val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
-            if (!bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs)) {
+        if (!bridge.cutCoordinator.hasCommittedBatches(seatId)) {
+            if (bridge.actionBridge(seatId).getPending() == null &&
+                (System.nanoTime() >= deadline || !awaitNextSeatHorizon(deadline))
+            ) {
                 sendGameOverIfTerminal()
                 return
             }
-            deliverHorizon()
-            val pending = bridge.actionBridge(seatId).getPending()
-            if (pending == null || bridge.gameIsOver()) return
-            if (pending.state.kind != PendingActionKind.SYNC_ONLY) {
-                if (!bridge.cutCoordinator.isPassOnlyPriority(pending.actionId)) return
-                check(bridge.cutCoordinator.continuePassOnly(pending.actionId)) {
-                    "Non-visible runtime horizon changed before continuation"
-                }
-            }
-            if (System.nanoTime() >= deadline) return
         }
-    }
-
-    /** Bind the initial feed and let the coordinator-owned pass-only window continue. */
-    fun bindInitialHorizon(actionId: String) {
-        val visible = bridge.cutCoordinator.hasMeaningfulPriorityAction(actionId)
-        bridge.cutCoordinator.replaceWithPhaseTransition(actionId, includePriorityPrompt = visible)
-        if (!visible && bridge.cutCoordinator.isPassOnlyPriority(actionId)) {
-            check(bridge.cutCoordinator.continuePassOnly(actionId)) {
-                "Initial runtime horizon changed before the coordinator could continue it"
-            }
-        }
+        deliverHorizon()
     }
 
     fun deliverHorizon() {

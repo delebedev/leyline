@@ -35,10 +35,11 @@ traffic.
 MatchConnection exposes submitGREMessage(ClientToGREMessage). It uses the same
 processGREMessage routing table as receive without recreating an outer service
 message. Each accepted response is handled under the session lock, where its
-handler performs one MatchRuntimeContinuation wait. The continuation drains
-committed coordinator batches and releases exact state-only barriers only after
-delivery. This is server publication completion. It is not client
-acknowledgement, and it does not classify or schedule engine progression.
+handler performs one MatchRuntimeContinuation wait and drains the exact
+released horizon. The continuation releases exact state-only barriers only
+after delivery. The observer drains later horizons after the handler returns.
+This is server publication completion. It is not client acknowledgement, and
+it does not classify or schedule engine progression.
 
 Each live human connection arms one MatchRuntimeDeliveryObserver after its
 initial client-owned horizon is bound. The observer waits on coordinator feed

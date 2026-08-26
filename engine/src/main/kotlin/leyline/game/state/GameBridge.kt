@@ -1321,7 +1321,8 @@ class GameBridge(
             loopController?.throwIfFailed()
             val g = game
             if (g != null && g.isGameOver) return false
-            if (actionBridge.getPending()?.actionId != ignoredActionId || hasPendingNonActionInteraction()) return true
+            val pending = actionBridge.getPending()
+            if ((pending != null && pending.actionId != ignoredActionId) || hasPendingNonActionInteraction()) return true
             val remaining = deadline - System.currentTimeMillis()
             if (remaining <= 0) return false
             prioritySignal.awaitSignal(remaining)

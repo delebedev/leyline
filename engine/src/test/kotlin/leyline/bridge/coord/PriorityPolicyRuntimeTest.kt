@@ -192,7 +192,7 @@ class PriorityPolicyRuntimeTest :
                     PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
                 runtime.classifyPriorityWindow(observation(stackEmpty = false)) shouldBe
                     PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = false)
-                runtime.classifyPriorityWindow(observation()) shouldBe
+                runtime.classifyPriorityWindow(observation(isOwnTurn = false, phase = PhaseType.DRAW)) shouldBe
                     PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
                 runtime.classifyPriorityWindow(observation(hasMeaningfulAction = true)) shouldBe
                     PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
@@ -215,6 +215,27 @@ class PriorityPolicyRuntimeTest :
 
             runtime.classifyPriorityWindow(observation(phase = PhaseType.DRAW)) shouldBe
                 PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+        }
+
+        test("an intentional phase stop keeps a pass-only window visible") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+
+            runtime.classifyPriorityWindow(observation(phase = PhaseType.MAIN1)) shouldBe
+                PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+        }
+
+        test("ordinary pass-only continuation still skips") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+
+            runtime.classifyPriorityWindow(
+                observation(
+                    isOwnTurn = false,
+                    phase = PhaseType.MAIN2,
+                    continuation = SynchronizationContinuation.RequireVisible,
+                ),
+            ) shouldBe PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
         }
 
         test("classification carries the runtime auto-resolve value") {

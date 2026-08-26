@@ -130,11 +130,12 @@ Each live human `MatchConnection` owns one runtime delivery observer. The
 observer waits for committed coordinator feed notifications and uses the same
 session lock and continuation drain path for horizons that arise after an
 inbound handler returns, including prompt timeouts, playback, and terminal
-delivery. Synchronous handlers wait on the priority/runtime horizon and leave
-the committed-feed notification to this observer, so each horizon has one
-delivery owner. It never submits actions or chooses progression policy, and its
-generation is invalidated on teardown or puzzle replacement before a new
-observer is armed.
+delivery. An inbound handler drains the horizon it released while holding the
+session lock; the observer drains horizons published after that handler returns.
+The lock serializes those delivery claims, while the observer's feed
+notification remains its exclusive wake-up source. It never submits actions or
+chooses progression policy, and its generation is invalidated on teardown or
+puzzle replacement before a new observer is armed.
 
 Three owners sit beneath that boundary and are each the only implementation of
 their contract. `CoordinatorCutInstaller` performs the single-batch cut

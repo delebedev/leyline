@@ -48,12 +48,12 @@ class VehicleCrewPuzzleTest :
                 """.trimIndent(),
         ) {
             assertSoftly {
-                // Auto-pass should stop at Main1 when crew ability is available
+                // Runtime priority policy should stop at Main1 when crew ability is available
                 phase() shouldBe "MAIN1"
 
                 activateAbility("Brute Suit").shouldBeTrue()
 
-                // Pass priority until game over — auto-pass handles combat
+                // Pass priority until game over — engine runtime handles combat
                 passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
 
                 isGameOver().shouldBeTrue()

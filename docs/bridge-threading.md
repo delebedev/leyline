@@ -75,12 +75,13 @@ Every live human `MatchConnection` arms one
 `MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.
 It waits on the coordinator's delivery feed, enters the same session lock,
 drains committed batches, and terminalizes after delivery when the horizon is
-game-over. This observer is the only feed consumer for a prompt timeout or
-engine-generated playback horizon after the inbound handler has returned;
-synchronous handlers wait on the priority/runtime horizon and never race that
-feed. Teardown invalidates the observer generation. Puzzle replacement arms a
-new generation only after its initial bundle and horizon are delivered. It
-never submits an engine action or makes priority decisions.
+game-over. An inbound handler drains the exact horizon released by its accepted
+response under that same lock; the observer owns horizons published after the
+handler returns. These claims cannot race, and the observer is the only
+consumer of the delivery notification. Teardown invalidates the observer
+generation. Puzzle replacement arms a new generation only after its initial
+bundle and horizon are delivered. It never submits an engine action or makes
+priority decisions.
 
 ### Current exceptions
 

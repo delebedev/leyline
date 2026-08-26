@@ -122,12 +122,6 @@ class MatchSession(
             log.info("MatchSession: waiting for engine to reach priority after keep")
 
             bridge.awaitPriority()
-
-            // The priority presentation is still coordinator-owned and unpublished.
-            // Replace it before draining the feed so prior AI batches retain their
-            // order and the replacement receives the next shared game-state id.
-            val pending = checkNotNull(bridge.seat(seatId).action.getPending()) { "Initial priority window was not published" }
-            runtimeContinuation.bindInitialHorizon(pending.actionId)
             drainCoordinatorFeed()
 
             runtimeContinuation.awaitClientVisibleHorizon()

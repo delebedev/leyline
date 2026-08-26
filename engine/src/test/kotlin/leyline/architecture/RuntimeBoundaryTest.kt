@@ -151,6 +151,11 @@ class RuntimeBoundaryTest :
                 }
                 continuation shouldContain "drainCoordinatorBarrier"
                 continuation shouldContain "awaitSeatHorizonWithTimeout"
+                continuation shouldNotContain "ENGINE_PASS_TOKEN"
+                continuation shouldNotContain "BundleBuilder.shouldAutoPass"
+                continuation shouldNotContain "submitRuntimeToken"
+                continuation shouldNotContain "continuePassOnly"
+                continuation shouldNotContain "isPassOnlyPriority"
             }
         }
 

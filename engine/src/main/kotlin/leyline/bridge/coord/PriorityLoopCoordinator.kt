@@ -79,7 +79,6 @@ class PriorityLoopCoordinator(
         var forceVisibleAfterMana = false
         while (true) {
             val priorityCandidates = PriorityActionCandidates.query(game, player)
-            val forceVisible = actionBridge.consumeForceNextWindowVisible()
             val continuation = actionBridge.consumeSynchronizationContinuation()
             val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
             val decision =
@@ -90,7 +89,7 @@ class PriorityLoopCoordinator(
                         smartPhaseSkip = smartPhaseSkip,
                         promptJustResolved = promptJustResolved,
                         stackEmpty = game.stack.isEmpty,
-                        forceVisible = forceVisible || forceVisibleAfterMana,
+                        forceVisible = forceVisibleAfterMana,
                         continuation = continuation,
                         hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
                     ),
