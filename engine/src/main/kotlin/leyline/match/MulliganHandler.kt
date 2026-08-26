@@ -36,33 +36,36 @@ class MulliganHandler(
     private val matchId get() = matchIdProvider()
     private val seatId: SeatId get() = seatIdProvider()
 
-    /** Handle ChooseStartingPlayerResp — triggers mulligan flow or skip-mulligan. */
-    fun onChooseStartingPlayer() {
-        // ChooseStartingPlayerResp may arrive on any seat's channel (often seat 2).
-        // Check puzzle mode via registry; don't require MatchSession locally.
+    /** Progress the automatic Familiar startup once both seats have live sessions. */
+    fun startFamiliarIfReady() {
         val match = registry.getMatch(matchId)
         if (match?.bridge?.isPuzzle == true) {
-            log.info("Match Door GRE: ignoring ChooseStartingPlayerResp for puzzle")
             return
         }
 
+        val bridge = match?.bridge ?: return
+        val playerConnection = registry.getConnection(matchId, bridge.seating.humanSeat) ?: return
+        val familiarConnection = registry.getConnection(matchId, bridge.seating.familiarSeat) ?: return
+        if (playerConnection.session !is MatchSession || familiarConnection.session !is FamiliarSession) return
+        if (!bridge.cutCoordinator.lifecycle.claimFamiliarStartup()) return
+
+        familiarConnection.mulliganHandler.publishFamiliarStartup(playerConnection, bridge)
+    }
+
+    private fun publishFamiliarStartup(
+        playerConnection: MatchConnection,
+        bridge: GameBridge,
+    ) {
         if (engineSettings.skipMulligan) {
             log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
-            // Send DealHand on this seat's channel — use handler's session (may be FamiliarSession)
-            sendDealHandViaConnection(session, match?.bridge)
-            val seat1Connection = registry.getConnection(matchId, SeatId(1))
-            seat1Connection?.mulliganHandler?.sendDealHandPublic()
-            seat1Connection?.session?.onMulliganKeep()
+            sendDealHandViaConnection(session, bridge)
+            playerConnection.mulliganHandler.sendDealHandPublic()
+            playerConnection.session?.onMulliganKeep()
         } else {
             log.info("Match Door GRE: seat {} chose starting player", seatId.value)
             sendDealHandAndMulligan()
-            val seat1Connection = registry.getConnection(matchId, SeatId(1))
-            if (seat1Connection != null) {
-                seat1Connection.mulliganHandler.sendDealHandPublic()
-                seat1Connection.mulliganHandler.sendMulliganReq()
-            } else {
-                log.warn("Match Door: seat 1 peer not found for matchId={}", matchId)
-            }
+            playerConnection.mulliganHandler.sendDealHandPublic()
+            playerConnection.mulliganHandler.sendMulliganReq()
         }
     }
 

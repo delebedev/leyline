@@ -22,6 +22,7 @@ internal class MatchLifecycleRuntime(
     )
 
     private var initialPublication: InitialPublication? = null
+    private var familiarStartupClaimed = false
 
     data class PuzzleReplacementPublication(
         val gameStateId: Int,
@@ -119,6 +120,17 @@ internal class MatchLifecycleRuntime(
             }
         }
     }
+
+    /** Claim the automatic Familiar startup transition once both match seats are connected. */
+    fun claimFamiliarStartup(): Boolean =
+        synchronized(owner.bridge.projectionBuildLock) {
+            if (familiarStartupClaimed) {
+                false
+            } else {
+                familiarStartupClaimed = true
+                true
+            }
+        }
 
     fun publishDealHand(
         seatId: SeatId,

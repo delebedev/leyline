@@ -367,8 +367,8 @@ class MatchConnection(
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
-            ClientMessageType.ChooseStartingPlayerResp_097b ->
-                withConnectionOwnedResponse(greMsg) { mulliganHandler.onChooseStartingPlayer() }
+            // Startup is server-owned. Legacy responses are inert and cannot replay it.
+            ClientMessageType.ChooseStartingPlayerResp_097b -> {}
 
             ClientMessageType.MulliganResp_097b ->
                 withConnectionOwnedResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
@@ -476,7 +476,7 @@ class MatchConnection(
         )
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         s.deliverLifecycle(bridge)
-        if (isFamiliar && !isSpectatorMode()) mulliganHandler.onChooseStartingPlayer()
+        if (!isSpectatorMode()) mulliganHandler.startFamiliarIfReady()
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {
