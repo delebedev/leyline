@@ -130,6 +130,68 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("token attachment source hydrates as a Forge attachment") {
+            val tokenGrpId = 990_002
+            val tokenIid = 201
+            val targetIid = 202
+            val targetGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            TestCardRegistry.repo.register(tokenGrpId, "Wicked Role")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(tokenIid)
+                            .setGrpId(tokenGrpId)
+                            .setType(GameObjectType.Token)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Enchantment)
+                            .addSubtypes(SubType.Aura)
+                            .addSubtypes(SubType.Role),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(targetIid)
+                            .setGrpId(targetGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(301)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(tokenIid)
+                            .addAffectedIds(targetIid),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val game = hydrated.bridge.getGame().shouldNotBeNull()
+                val tokenCards = game.players[0].getZone(ForgeZoneType.Battlefield).cards
+                val targetCards = game.players[1].getZone(ForgeZoneType.Battlefield).cards
+                val token = tokenCards.single { it.name == "Wicked Role" }
+                val target = targetCards.single { it.name == "Grizzly Bears" }
+
+                token.isToken shouldBe true
+                token.isAttachment shouldBe true
+                token.entityAttachedTo shouldBe target
+                hydrated.fidelity.features
+                    .first { it.feature == "attachments" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         test("face-down card uses public characteristics without requiring its hidden identity") {
             val battlefieldZoneId = 7
             val faceDownIid = 201
