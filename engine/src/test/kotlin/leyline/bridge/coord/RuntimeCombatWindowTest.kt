@@ -64,7 +64,7 @@ class RuntimeCombatWindowTest :
     }) {
     companion object {
         private fun handles() =
-            RuntimeCombatHandles(
+            RuntimeCombatWindow(
                 attackerByInstanceId = mapOf(101 to ForgeCardId(11), 102 to ForgeCardId(12)),
                 legalAlternativesByAttacker = mapOf(101 to setOf(0, 7), 102 to setOf(0)),
                 blockerByInstanceId = mapOf(201 to ForgeCardId(21)),

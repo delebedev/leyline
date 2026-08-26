@@ -18,7 +18,7 @@ internal data class RuntimeAttackerSelection(
 )
 
 /** Exact engine identities retained when a combat window is published. */
-internal class RuntimeCombatHandles(
+internal class RuntimeCombatWindow(
     val attackerByInstanceId: Map<Int, ForgeCardId>,
     val legalAlternativesByAttacker: Map<Int, Set<Int>>,
     val blockerByInstanceId: Map<Int, ForgeCardId>,
@@ -178,7 +178,7 @@ internal class RuntimeCombatHandles(
             owner: MatchCutCoordinator,
             game: Game,
             messages: List<GREToClientMessage>,
-        ): RuntimeCombatHandles? {
+        ): RuntimeCombatWindow? {
             val attackersReq = messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
             val blockersReq = messages.firstOrNull { it.hasDeclareBlockersReq() }?.declareBlockersReq
             if (attackersReq == null && blockersReq == null) return null
@@ -234,7 +234,7 @@ internal class RuntimeCombatHandles(
                 active?.let { activePlayer ->
                     players.values.firstOrNull { it.value != activePlayer.id }
                 }
-            return RuntimeCombatHandles(
+            return RuntimeCombatWindow(
                 attackerByInstanceId = attackerIds.associateWith(cardByInstanceId::getValue),
                 legalAlternativesByAttacker = legalAlternatives,
                 blockerByInstanceId = blockerIds.associateWith(cardByInstanceId::getValue),

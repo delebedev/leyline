@@ -583,7 +583,7 @@ internal class MatchActionWindowRuntime(
                                 materializeDeferredCost = { _, offer ->
                                     DeferredCastCostPlanMaterializer.materialize(owner.bridge, offer) { nextActionToken++ }
                                 },
-                            ).copy(combat = RuntimeCombatHandles.capture(owner, game, messages))
+                            ).copy(combat = RuntimeCombatWindow.capture(owner, game, messages))
                         } catch (ex: Exception) {
                             nextActionToken = tokenBefore
                             owner.fail(ex)
