@@ -13,7 +13,6 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.ProjectionState
@@ -62,14 +61,14 @@ internal class BlockingInteractionMaterializer(
         }
 
     fun snapshotOptional(
-        compiled: StateProjectionCompiler.Result,
         stateMessages: List<GREToClientMessage>,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
+        transition: ProjectionTransition,
     ): Prepared {
         val sourceId =
             interaction.sourceId?.let {
-                compiled.transition.nextState.identities.forgeIdToInstanceId[it]
+                transition.nextState.identities.forgeIdToInstanceId[it]
                     ?.value
             }
                 ?: error("Optional interaction requires a source")
@@ -96,7 +95,7 @@ internal class BlockingInteractionMaterializer(
                     ),
                 actionGameStateId = link.gsId,
             ),
-            compiled.transition,
+            transition,
             closesPlaybackFrame = true,
         )
     }

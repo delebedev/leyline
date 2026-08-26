@@ -12,6 +12,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.opponent
 import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
+import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -83,7 +84,10 @@ internal class MatchBlockingInteractionRuntime(
         timeoutMs: Long?,
         defaultOnTimeout: Boolean,
     ): Boolean {
-        val pending = publish(interaction) { feed, game, planner -> feed.builder.optionalInteractionBundle(game, planner, interaction) }
+        val pending =
+            publish(interaction) { feed, _, planner ->
+                feed.builder.generalOptionalInteractionBundle(planner, interaction)
+            }
         return try {
             (await(pending, timeoutMs ?: 45_000L) as Answer.Optional).accepted
         } catch (_: TimeoutException) {
@@ -294,6 +298,7 @@ internal class MatchBlockingInteractionRuntime(
         }
     }
 
+    @Suppress("LongMethod") // One lock-scoped publication owns blocking-window metadata and installation.
     private fun publish(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
@@ -310,9 +315,16 @@ internal class MatchBlockingInteractionRuntime(
                     val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                     val prior = owner.bridge.projectionStateSnapshot()
                     val planner = LogicalSequencePlanner(prior.sequence)
+                    var viewerPrepared: BundleBuilder.PreparedViewerCut<BlockingInteractionMaterializer.Prepared>? = null
                     val prepared =
                         try {
-                            build(feed, game, planner).also { afterMaterialization?.invoke() }
+                            viewerPrepared =
+                                (interaction as? BlockingInteraction.Optional)
+                                    ?.takeIf { it.commanderReturn != null || it.forceSnapshotBeforePrompt }
+                                    ?.let { optional ->
+                                        feed.builder.optionalInteractionBundle(game, planner, optional, owner.viewerRoutes())
+                                    }
+                            (viewerPrepared?.player ?: build(feed, game, planner)).also { afterMaterialization?.invoke() }
                         } catch (ex: Exception) {
                             owner.fail(ex)
                         }
@@ -370,17 +382,37 @@ internal class MatchBlockingInteractionRuntime(
                             damageRules.hasTrampleByAttacker,
                             damageRules.hasDefenderByAttacker,
                         )
-                    owner.cutInstaller.install(
-                        feed,
-                        PreparedCut.prepare(
-                            prior,
-                            planner,
-                            prepared.bundle.messages,
-                            prepared.transition,
-                            prepared.closesPlaybackFrame,
-                        ),
-                        CutInstallHooks(beforeInstall = beforeInstall),
-                    ) { ex -> owner.fail(ex, exact) }
+                    val cut =
+                        if (viewerPrepared == null) {
+                            PreparedCut.prepare(
+                                prior,
+                                planner,
+                                prepared.bundle.messages,
+                                prepared.transition,
+                                prepared.closesPlaybackFrame,
+                            )
+                        } else {
+                            PreparedCut.prepareForViewers(
+                                prior,
+                                planner,
+                                viewerPrepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                                viewerPrepared.transition,
+                                viewerPrepared.closesPlaybackFrame,
+                                playbackOwnerSeatId = owner.humanSeat.takeIf { viewerPrepared.closesPlaybackFrame },
+                            )
+                        }
+                    if (viewerPrepared == null) {
+                        owner.cutInstaller.install(
+                            feed,
+                            cut,
+                            CutInstallHooks(beforeInstall = beforeInstall),
+                        ) { ex -> owner.fail(ex, exact) }
+                    } else {
+                        owner.cutInstaller.install(
+                            cut,
+                            CutInstallHooks(beforeInstall = beforeInstall),
+                        ) { ex -> owner.fail(ex, exact) }
+                    }
                     window = created
                     created
                 }

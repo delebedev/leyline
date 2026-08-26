@@ -140,7 +140,6 @@ internal class MatchSearchInteractionRuntime(
                 val created = Window(published, value, exact, optionByInstanceId)
                 SinglePromptPublication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },

@@ -4,7 +4,6 @@ import forge.game.Game
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -102,11 +101,14 @@ internal class SinglePromptWindowState<W : SinglePromptWindow<R, C>, C, R>(
 /** Prepared output and exact pending cut for one single-window publication. */
 internal data class SinglePromptPublication<W>(
     val window: W,
-    val messages: List<GREToClientMessage>,
     val transition: ProjectionTransition,
     val closesPlaybackFrame: Boolean,
-    val viewerOutputs: List<PreparedViewerOutput> = emptyList(),
-)
+    val viewerOutputs: List<PreparedViewerOutput>,
+) {
+    init {
+        require(viewerOutputs.isNotEmpty()) { "A single prompt publication requires viewer output" }
+    }
+}
 
 /** Owns the shared publication transaction for settled single-window prompts. */
 internal class SinglePromptRuntimeKernel<W, C, R>(
@@ -134,7 +136,7 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
                     val planner = LogicalSequencePlanner(prior.sequence)
                     val interactionId = UUID.randomUUID().toString()
                     val publication = prepare(interactionId, feed, owner.bridge.getGame(), planner)
-                    publishPrepared(feed, prior, planner, publication)
+                    publishPrepared(prior, planner, publication)
                     windows.installLocked(publication.window)
                     publication.window
                 }
@@ -161,35 +163,22 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
         )
 
     private fun publishPrepared(
-        feed: MatchCutCoordinator.ViewerFeed,
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
         publication: SinglePromptPublication<W>,
     ) {
         val cut =
-            if (publication.viewerOutputs.isEmpty()) {
-                PreparedCut.prepare(prior, planner, publication.messages, publication.transition, publication.closesPlaybackFrame)
-            } else {
-                PreparedCut.prepareForViewers(
-                    prior,
-                    planner,
-                    publication.viewerOutputs,
-                    publication.transition,
-                    publication.closesPlaybackFrame,
-                    playbackOwnerSeatId = owner.humanSeat.takeIf { publication.closesPlaybackFrame },
-                )
-            }
-        if (publication.viewerOutputs.isEmpty()) {
-            owner.cutInstaller.install(
-                feed,
-                cut,
-                CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
-            ) { ex -> publicationFailure(ex, publication.window) }
-        } else {
-            owner.cutInstaller.install(
-                cut,
-                CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
-            ) { ex -> publicationFailure(ex, publication.window) }
-        }
+            PreparedCut.prepareForViewers(
+                prior,
+                planner,
+                publication.viewerOutputs,
+                publication.transition,
+                publication.closesPlaybackFrame,
+                playbackOwnerSeatId = owner.humanSeat.takeIf { publication.closesPlaybackFrame },
+            )
+        owner.cutInstaller.install(
+            cut,
+            CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+        ) { ex -> publicationFailure(ex, publication.window) }
     }
 }

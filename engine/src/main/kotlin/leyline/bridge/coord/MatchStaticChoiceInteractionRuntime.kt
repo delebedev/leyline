@@ -127,7 +127,6 @@ internal class MatchStaticChoiceInteractionRuntime(
                 val created = Window(published, initial, exact, optionByValue)
                 SinglePromptPublication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },

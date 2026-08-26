@@ -138,7 +138,6 @@ internal class MatchOrderInteractionRuntime(
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
                 SinglePromptPublication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },

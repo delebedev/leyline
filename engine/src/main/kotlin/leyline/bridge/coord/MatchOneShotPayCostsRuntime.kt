@@ -251,7 +251,6 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 SinglePromptPublication(
                     SelectWindow(published, initial.value, exact, initial.handlesByOption, optionByInstanceId),
-                    player.bundle.messages,
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
@@ -308,7 +307,6 @@ internal class MatchOneShotPayCostsRuntime(
                 }
                 SinglePromptPublication(
                     GatherWindow(published, value, exact, initial.handlesBySourceId, sourceByInstanceId),
-                    player.bundle.messages,
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
