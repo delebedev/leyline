@@ -11,7 +11,6 @@ import io.netty.channel.embedded.EmbeddedChannel
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.infra.ListMessageSink
-import leyline.infra.MatchOutput
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -63,23 +62,11 @@ class MulliganHandlerTest :
             seatId: SeatId,
             session: MatchSession,
             registry: MatchRegistry = session.registry,
-            ctx: ChannelHandlerContext? = null,
         ): MulliganHandler =
             MulliganHandler(
                 EngineSettings(),
                 registry,
                 sessionProvider = { session },
-                outputProvider = {
-                    object : MatchOutput {
-                        override fun send(message: MatchServiceToClientMessage) {
-                            ctx?.writeAndFlush(message)
-                        }
-
-                        override fun close() {
-                            ctx?.close()
-                        }
-                    }
-                },
                 matchIdProvider = { session.matchId },
                 seatIdProvider = { seatId },
             )
@@ -121,13 +108,12 @@ class MulliganHandlerTest :
                     repeat(7) { addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
-            val (session, _) = sessionFor(SeatId(1), registry, bridge)
-            val (channel, ctx) = channelCtx()
-            val mulligan = handler(SeatId(1), session, registry, ctx)
+            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
+            val mulligan = handler(SeatId(1), session, registry)
 
             mulligan.sendMulliganReq(reportedMulliganCount = 1, numCards = 6)
 
-            val messages = outbound(channel).flatMap { it.greToClientEvent.greToClientMessagesList }
+            val messages = sink.messages
             assertSoftly {
                 messages shouldHaveSize 3
                 messages.map { it.type } shouldBe
@@ -152,13 +138,12 @@ class MulliganHandlerTest :
                     repeat(7) { addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
                 }
             val registry = MatchRegistry()
-            val (session, _) = sessionFor(SeatId(1), registry, bridge)
-            val (channel, ctx) = channelCtx()
-            val mulligan = handler(SeatId(1), session, registry, ctx)
+            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
+            val mulligan = handler(SeatId(1), session, registry)
 
             mulligan.sendDealHandPublic()
 
-            val messages = outbound(channel).flatMap { it.greToClientEvent.greToClientMessagesList }
+            val messages = sink.messages
             assertSoftly {
                 messages shouldHaveSize 1
                 messages.single().type shouldBe GREMessageType.GameStateMessage_695e

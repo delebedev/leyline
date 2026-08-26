@@ -90,11 +90,10 @@ observer notification.
 
 ### Current exceptions
 
-Mulligan still drives a pre-game engine interaction outside `sessionLock`.
-Puzzle replacement can install fresh projection state through its lifecycle
-boundary. Residual output builders still share counters and sequencing with
-coordinator-backed output. These are explicit migration seams, not patterns for
-new entry points.
+Mulligan still drives a pre-game engine interaction outside `sessionLock`, but
+its gameplay output commits through the coordinator lifecycle runtime. Residual
+output builders still share counters and sequencing with coordinator-backed
+output. These are explicit migration seams, not patterns for new entry points.
 
 ## Publication before signalling
 

@@ -24,7 +24,7 @@ The implemented milestone provides:
   handles retained behind immutable client-facing values.
 
 Explicit remaining work includes `GameBridge` orchestration, the secondary
-live-state action-construction path, mulligan and lifecycle/terminal output,
+live-state action-construction path, terminal and residual lifecycle output,
 `MatchSession` convergence, and atomic multi-view compilation. These are not
 requirements for treating the functional projection and prompt-ownership
 milestone as implemented.
@@ -139,7 +139,7 @@ The implemented milestone is visible in current types:
 - `MatchCutCoordinator` now owns journal close, immutable cut materialization,
   compilation, projection commit, and viewer feed publication for migrated
   playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting,
-  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed (including hidden-library Dig resolution, complete chooser-visible card resolution, and Learn), static-enum, and reveal-backed SelectN windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
+  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed (including hidden-library Dig resolution, complete chooser-visible card resolution, and Learn), static-enum, and reveal-backed SelectN windows, all PayCosts windows, Optional, Numeric, and Damage blocking interactions, plus startup, mulligan, and puzzle lifecycle output. Safe direct
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
@@ -162,8 +162,8 @@ The implemented milestone is visible in current types:
   optional-empty or required stable-prefix synchronous default. Candidate-free
   Generic choices use the same explicit synchronous policy, while non-library
   ordering returns its input without allocating a prompt. Modal choice now has
-  a coordinator-owned runtime; mulligan, lifecycle output, and multi-view
-  compilation remain outside the coordinator boundary.
+  a coordinator-owned runtime; terminal and residual lifecycle output and
+  multi-view compilation remain outside the coordinator boundary.
 
 The current milestone completes blocking prompt-response ownership, including
 the residual card compatibility path. It does not claim whole-runtime

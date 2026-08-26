@@ -8,11 +8,12 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.mapping.PromptIds
-import leyline.protocol.HandshakeMessages
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
+import leyline.game.bundle.LifecycleMessageMaterializer as HandshakeMessages
+import leyline.protocol.HandshakeMessages as ProtocolHandshakeMessages
 
 /**
  * Structural tests for pre-mulligan handshake messages produced by [HandshakeMessages].
@@ -201,7 +202,7 @@ class DealHandConformanceTest :
                     ).setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
                     .build()
 
-            val (msg, nextMsgId) = HandshakeMessages.settingsResp(SeatId(1), 9, 2, settings)
+            val (msg, nextMsgId) = ProtocolHandshakeMessages.settingsResp(SeatId(1), 9, 2, settings)
             val messages = greMessages(msg)
 
             messages.size shouldBe 1
@@ -216,7 +217,7 @@ class DealHandConformanceTest :
         }
 
         test("settingsResp with null settings produces empty resp") {
-            val (msg, nextMsgId) = HandshakeMessages.settingsResp(SeatId(2), 8, 2, null)
+            val (msg, nextMsgId) = ProtocolHandshakeMessages.settingsResp(SeatId(2), 8, 2, null)
             val messages = greMessages(msg)
 
             messages.size shouldBe 1

@@ -36,6 +36,12 @@ class MatchSession(
     val paceDelayMs: Long = 200L,
     override var counter: MessageCounter = gameBridge.messageCounter,
 ) : GameOps {
+    data class PuzzleReplacementResult(
+        val gameStateId: Int,
+        val objectCount: Int,
+        val zoneCount: Int,
+    )
+
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
     override val seatId: SeatId get() = connection.seatId
@@ -156,6 +162,15 @@ class MatchSession(
             registry.getConnection(matchId, seatId)?.session = replacement
             replacement to deletedIds
         }
+
+    /** Commit and deliver the replacement puzzle's initial state and action horizon. */
+    fun publishPuzzleReplacement(deletedInstanceIds: List<Int>): PuzzleReplacementResult {
+        gameBridge.awaitPriority()
+        val pending = checkNotNull(gameBridge.seat(seatId).action.getPending()) { "Puzzle replacement has no pending priority window" }
+        val published = gameBridge.cutCoordinator.lifecycle.publishPuzzleReplacement(seatId, deletedInstanceIds, pending.actionId)
+        deliverLifecycle(gameBridge)
+        return PuzzleReplacementResult(published.gameStateId, published.objectCount, published.zoneCount)
+    }
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
@@ -459,7 +474,14 @@ class MatchSession(
         sendBundledGREDirect(messages)
     }
 
-    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
+    internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) {
+        sendBundledGREDirect(messages, mirror = false)
+    }
+
+    private fun sendBundledGREDirect(
+        messages: List<GREToClientMessage>,
+        mirror: Boolean = true,
+    ) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
@@ -470,7 +492,7 @@ class MatchSession(
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)
-        mirrorToFamiliar(messages)
+        if (mirror) mirrorToFamiliar(messages)
     }
 
     fun close() {

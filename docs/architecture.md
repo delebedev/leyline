@@ -115,7 +115,8 @@ flowchart LR
 `GameBridge` is the engine shell's composition root.
 `MatchCutCoordinator` owns journal close, immutable pending cuts, projection
 installation, viewer feeds, prompt/action lifetimes, game-over lifecycle
-publication, and terminal failure for migrated paths. `MatchPromptRuntimeSet` owns the match's prompt-runtime
+publication, startup and mulligan lifecycle publication, puzzle replacement,
+and terminal failure for migrated paths. `MatchPromptRuntimeSet` owns the match's prompt-runtime
 inventory. Exact Forge objects remain behind bounded runtime tables; client
 responses carry correlation values that resolve those retained handles.
 
@@ -155,8 +156,7 @@ than a session-owned lookup table. `InteractiveCommandExchange` owns the
 cross-thread command handshake that iterative targeting and mana-source
 payment windows share.
 
-Not every lifecycle path has converged on that owner. Mulligan and residual
-session-owned output retain explicit handoff contracts.
+Residual session-owned output retains explicit handoff contracts.
 [`bridge-threading.md`](bridge-threading.md) is authoritative for those current
 exceptions and their lock order.
 

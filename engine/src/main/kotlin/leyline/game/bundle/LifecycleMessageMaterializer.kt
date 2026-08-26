@@ -1,0 +1,480 @@
+package leyline.game.bundle
+
+import leyline.bridge.types.SeatId
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.PlayerMapper
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.StateProjectionCompiler
+import leyline.game.mapping.ViewerProjectionIntent
+import leyline.game.snapshot.GsmSnapshot
+import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionTransition
+import leyline.game.state.ViewerProjectionCursor
+import wotc.mtgo.gre.external.messaging.Messages.*
+
+/** Pure startup, deal, mulligan, and puzzle lifecycle materialization. */
+@Suppress("LargeClass") // one lifecycle sequence and its wire helpers
+object LifecycleMessageMaterializer {
+    internal data class LifecycleMessages(
+        val message: MatchServiceToClientMessage,
+        val nextMsgId: Int,
+        val transition: ProjectionTransition? = null,
+    ) {
+        val messages: List<GREToClientMessage> get() = message.greToClientEvent.greToClientMessagesList
+    }
+
+    internal fun lifecycleMessages(
+        messages: List<GREToClientMessage>,
+        nextMsgId: Int,
+        transition: ProjectionTransition?,
+    ): LifecycleMessages = LifecycleMessages(wrapGre(*messages.toTypedArray()), nextMsgId, transition)
+
+    internal fun puzzleActionsReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: SeatId,
+        actions: ActionsAvailableReq,
+    ): LifecycleMessages {
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.ActionsAvailableReq_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setActionsAvailableReq(actions)
+                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                .build()
+        return LifecycleMessages(wrapGre(gre), msgId + 1)
+    }
+
+    /**
+     * Initial GRE bundle — built dynamically.
+     * Seat 1: ConnectResp + DieRollResults + GameState
+     * Seat 2: DieRollResults + GameState + ChooseStartingPlayerReq
+     *
+     * @param dieRollWinner which seat wins the die roll (1 or 2, default 2)
+     */
+    internal fun initialBundle(
+        seatId: SeatId,
+        matchId: String,
+        msgIdStart: Int,
+        gameStateId: Int,
+        deckMessage: DeckMessage,
+        bridge: GameBridge,
+        dieRollWinner: Int = 2,
+        includeStartingPlayerPrompt: Boolean = true,
+        seedProjectionCursor: Boolean = false,
+    ): LifecycleMessages {
+        var msgId = msgIdStart
+        val messages = mutableListOf<GREToClientMessage>()
+
+        // Wire sequencing (Arena protocol contract): the first-connecting seat (1)
+        // receives ConnectResp; the second (2) receives ChooseStartingPlayerReq.
+        // These literals are NOT role checks — they reflect the match-handshake
+        // sequence that Arena dictates, independent of which seat is human-controlled.
+        // Role-scoped decisions use `Seating` (see `GameBridge.seating`).
+        if (seatId == SeatId(1)) {
+            // ConnectResp with deck + default settings
+            messages.add(buildConnectResp(msgId++, seatId, deckMessage))
+        }
+
+        // DieRollResults (both seats see this)
+        messages.add(buildDieRollResults(msgId++, dieRollWinner))
+
+        // Full initial GameState
+        val shouldSendStartingPlayerPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
+        val pendingCount = if (shouldSendStartingPlayerPrompt) 1 else 0 // ChooseStartingPlayerReq follows
+        val priorProjection = bridge.projectionStateSnapshot()
+        val (snapshotAndGsm, nextProjection) =
+            bridge.editProjection(priorProjection) { editor ->
+                val initSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, matchId, 0)
+                val initialGsm =
+                    GsmBuilder.buildInitialGameState(
+                        matchId,
+                        gameStateId,
+                        bridge,
+                        initSnap,
+                        pendingCount,
+                        seatId.value,
+                        includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                    )
+                if (seedProjectionCursor) {
+                    editor.viewerCursors[0] = ViewerProjectionCursor(previousSnapshot = initSnap)
+                }
+                initSnap to initialGsm
+            }
+        val transition = ProjectionTransition(priorProjection.revision, nextProjection)
+        val gsm = snapshotAndGsm.second
+        messages.add(
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build(),
+        )
+
+        if (shouldSendStartingPlayerPrompt) {
+            // ChooseStartingPlayerReq
+            messages.add(
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ChooseStartingPlayerReq_695e)
+                    .addSystemSeatIds(seatId.value)
+                    .setMsgId(msgId++)
+                    .setGameStateId(gameStateId)
+                    .setChooseStartingPlayerReq(
+                        ChooseStartingPlayerReq
+                            .newBuilder()
+                            .setTeamType(TeamType.Individual)
+                            .addSystemSeatIds(2)
+                            .addSystemSeatIds(1),
+                    ).build(),
+            )
+        }
+
+        return LifecycleMessages(wrapGre(*messages.toTypedArray()), msgId, transition)
+    }
+
+    /** DealHand for seat 1 (no MulliganReq) — built from game state. */
+
+    /** DealHand only (no MulliganReq) for the given seat. */
+    internal fun dealHand(
+        msgId: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+        seatId: SeatId,
+        diffDeletedInstanceIds: List<Int> = emptyList(),
+    ): LifecycleMessages {
+        val (gsm, transition) =
+            project(bridge) {
+                val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+            }
+        val gre =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
+        return LifecycleMessages(wrapGre(gre), msgId + 1, transition)
+    }
+
+    /** DealHand + MulliganReq bundled for seat 2 — built from game state. */
+    internal fun dealHandMulliganSeat2(
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): LifecycleMessages {
+        var msgId = msgIdStart
+        val (gsm, transition) =
+            project(bridge) {
+                val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GsmBuilder
+                    .buildDealHand(bridge, gameStateId, 2, deal2Snap)
+                    .toBuilder()
+                    .setPendingMessageCount(1)
+                    .build()
+            }
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(2)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 2)
+        return LifecycleMessages(wrapGre(greGsm, greMull), msgId, transition)
+    }
+
+    /**
+     * MulliganReq sequence for seat 1: GameState(decision=1) + PromptReq + MulliganReq.
+     */
+    internal fun mulliganReqSeat1(
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+        mulliganCount: Int = 0,
+        numCards: Int = 7,
+    ): LifecycleMessages {
+        var msgId = msgIdStart
+
+        // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
+        val (gsm, transition) =
+            project(bridge) {
+                val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                GameStateMessage
+                    .newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gameStateId)
+                    .addPlayers(
+                        PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
+                    ).setTurnInfo(
+                        TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
+                    ).setPendingMessageCount(2)
+                    .setPrevGameStateId(gameStateId - 1)
+                    .addAllTimers(PlayerMapper.buildTimers())
+                    .setUpdate(GameStateUpdate.SendAndRecord)
+                    .build()
+            }
+        val greGsm =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(1)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
+
+        // 2) PromptReq: "who's going first" notification (promptId=37, PlayerId→seat 2)
+        val grePrompt =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.PromptReq)
+                .addSystemSeatIds(2)
+                .addSystemSeatIds(1)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setPrompt(
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.STARTING_PLAYER)
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("PlayerId")
+                                .setType(ParameterType.Reference_a14a)
+                                .setReference(
+                                    Reference
+                                        .newBuilder()
+                                        .setType(ReferenceType.PlayerSeatId)
+                                        .setId(2),
+                                ),
+                        ),
+                ).build()
+
+        // 3) MulliganReq for seat 1
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
+
+        return LifecycleMessages(wrapGre(greGsm, grePrompt, greMull), msgId, transition)
+    }
+
+    /**
+     * Puzzle initial bundle — ConnectResp + Full GSM with stage=Play and
+     * all zones populated from the live game state. No DieRoll, no mulligan.
+     *
+     * pendingMessageCount=1 because ActionsAvailableReq follows immediately.
+     */
+    internal fun puzzleInitialBundle(
+        seatId: SeatId,
+        matchId: String,
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): LifecycleMessages {
+        var msgId = msgIdStart
+        val messages = mutableListOf<GREToClientMessage>()
+
+        // Role gate: only the human seat gets a ConnectResp handshake.
+        if (seatId == bridge.seating.humanSeat) {
+            val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
+            messages.add(buildConnectResp(msgId++, seatId, deck))
+        }
+
+        // Full GSM built from live game state (stage=Play, cards in zones)
+        val priorProjection = bridge.projectionStateSnapshot()
+        val input =
+            StateFrameInputCapture(bridge, matchId, seatId.value).capture(
+                game = bridge.getGame()!!,
+                gameStateId = gameStateId,
+                revealForSeat = null,
+                events = StateFrameInputCapture.Events.CloseBundleFrame,
+                priorProjectionOverride = priorProjection,
+                includePreviousSnapshot = false,
+            ) { _, _ -> GameStateUpdate.SendAndRecord }
+        val snap = input.state.snapshot
+        val fullResult =
+            StateProjectionCompiler.compileOneViewer(
+                environment = bridge.stateProjectionEnvironment,
+                input = input.state,
+                prior = input.priorProjection,
+                intent = ViewerProjectionIntent.EMPTY,
+            )
+        val transition = fullResult.transition
+        val tentative = transition.nextState.copy(revision = transition.expectedRevision)
+        val (actions, nextProjection) =
+            bridge.editProjection(tentative) {
+                ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
+            }
+        val preparedTransition = transition.copy(nextState = nextProjection)
+        val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)
+
+        messages.add(
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build(),
+        )
+
+        return LifecycleMessages(wrapGre(*messages.toTypedArray()), msgId, preparedTransition)
+    }
+
+    // --- private helpers ---
+
+    private fun <T> project(
+        bridge: GameBridge,
+        block: () -> T,
+    ): Pair<T, ProjectionTransition> {
+        val prior = bridge.projectionStateSnapshot()
+        val (result, next) = bridge.editProjection(prior) { block() }
+        return result to ProjectionTransition(prior.revision, next)
+    }
+
+    /** DieRollResults — [winner] seat rolls higher, random d20 values.
+     *  Uses [forge.util.MyRandom] so a seeded game produces deterministic rolls. */
+    private fun buildDieRollResults(
+        msgId: Int,
+        winner: Int = 2,
+    ): GREToClientMessage {
+        // Generate random d20 values; ensure winner > loser (re-roll on tie).
+        // MyRandom.getRandom() respects the seed set in GameBridge.start().
+        val rng = forge.util.MyRandom.getRandom()
+        var high: Int
+        var low: Int
+        do {
+            high = rng.nextInt(20) + 1
+            low = rng.nextInt(20) + 1
+        } while (high <= low)
+        val seat1Roll = if (winner == 1) high else low
+        val seat2Roll = if (winner == 2) high else low
+        return GREToClientMessage
+            .newBuilder()
+            .setType(GREMessageType.DieRollResultsResp_695e)
+            .addSystemSeatIds(winner)
+            .addSystemSeatIds(if (winner == 1) 2 else 1)
+            .setMsgId(msgId)
+            .setDieRollResultsResp(
+                DieRollResultsResp
+                    .newBuilder()
+                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(1).setRollValue(seat1Roll))
+                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(2).setRollValue(seat2Roll)),
+            ).build()
+    }
+
+    /** ConnectResp — success + deck + default settings + version info. */
+    private fun buildConnectResp(
+        msgId: Int,
+        seatId: SeatId,
+        deckMessage: DeckMessage,
+    ): GREToClientMessage =
+        GREToClientMessage
+            .newBuilder()
+            .setType(GREMessageType.ConnectResp_695e)
+            .addSystemSeatIds(seatId.value)
+            .setMsgId(msgId)
+            .setConnectResp(
+                ConnectResp
+                    .newBuilder()
+                    .setStatus(ConnectionStatus.Success_aa9e)
+                    .setProtoVer(ProtoVersion.PersistentAnnotations)
+                    .setSettings(defaultSettings())
+                    .setDeckMessage(deckMessage)
+                    .setGrpVersion(
+                        Version
+                            .newBuilder()
+                            .setMajorVersion(56)
+                            .setMinorVersion(10)
+                            .setBuildVersion(1),
+                    ).setGreVersion(
+                        Version
+                            .newBuilder()
+                            .setMajorVersion(56)
+                            .setMinorVersion(10)
+                            .setBuildVersion(1),
+                    ),
+            ).build()
+
+    /** Default stop settings matching the expected initial configuration. */
+    internal fun defaultSettings(): SettingsMessage {
+        // (StopType, Team status, Opponents status)
+        val stopDefs =
+            listOf(
+                Triple(StopType.UpkeepStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.DrawStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.PrecombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                Triple(StopType.BeginCombatStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.DeclareAttackersStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.DeclareBlockersStep, SettingStatus.Set, SettingStatus.Set),
+                Triple(StopType.CombatDamageStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.EndCombatStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                Triple(StopType.PostcombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                Triple(StopType.EndStep_ad1f, SettingStatus.Clear_a3fe, SettingStatus.Set),
+                Triple(StopType.FirstStrikeDamageStep, SettingStatus.Set, SettingStatus.Set),
+            )
+        val builder = SettingsMessage.newBuilder()
+        for ((type, teamStatus, oppStatus) in stopDefs) {
+            builder.addStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Team_ac6e)
+                    .setStatus(teamStatus),
+            )
+            builder.addStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Opponents)
+                    .setStatus(oppStatus),
+            )
+            // Transient stops — all Clear
+            builder.addTransientStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Team_ac6e)
+                    .setStatus(SettingStatus.Clear_a3fe),
+            )
+            builder.addTransientStops(
+                Stop
+                    .newBuilder()
+                    .setStopType(type)
+                    .setAppliesTo(SettingScope.Opponents)
+                    .setStatus(SettingStatus.Clear_a3fe),
+            )
+        }
+        builder
+            .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+            .setGraveyardOrder(OrderingType.OrderArbitraryAlways)
+            .setManaSelectionType(ManaSelectionType.Auto_a88a)
+            .setDefaultAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+            .setSmartStopsSetting(SmartStopsSetting.Enable_a188)
+            .setAutoTapStopsSetting(AutoTapStopsSetting.Enable_ac12)
+            .setAutoOptionalPaymentCancellationSetting(Setting.Enable_a20a)
+            .setStackAutoPassOption(AutoPassOption.Clear_a465)
+        return builder.build()
+    }
+
+    /** Wrap one or more GRE messages into a MatchServiceToClientMessage. */
+    private fun wrapGre(vararg messages: GREToClientMessage): MatchServiceToClientMessage {
+        val event = GreToClientEvent.newBuilder()
+        for (msg in messages) event.addGreToClientMessages(msg)
+        return MatchServiceToClientMessage
+            .newBuilder()
+            .setGreToClientEvent(event)
+            .build()
+    }
+}
