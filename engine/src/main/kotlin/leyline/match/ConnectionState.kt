@@ -30,8 +30,4 @@ class ConnectionState(
      * so concurrent inbound messages can't race the swap.
      */
     val sessionLock = Any()
-
-    /** Set after the initial client-owned bundle has bound its first horizon. */
-    @Volatile
-    var runtimeDeliveryReady: Boolean = false
 }

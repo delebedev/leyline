@@ -50,6 +50,11 @@ data class PublishedModalChoiceInteraction(
     val sourceInstanceId: Int,
 )
 
+/** Immutable cleanup claim held until the engine has resumed past a response. */
+data class ModalChoiceCleanupToken(
+    val interactionId: String,
+)
+
 /** Exact result returned to Forge after a modal response is accepted. */
 data class ModalChoiceInteractionResult(
     val optionIndices: List<Int>,

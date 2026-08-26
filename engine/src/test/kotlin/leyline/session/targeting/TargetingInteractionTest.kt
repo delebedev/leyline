@@ -52,8 +52,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * mechanic: single-target creature (Giant Growth), player-targeted burn (Lightning
  * Bolt), two-phase protocol, and multi-group fight (Bite Down).
  *
- * The #92 auto-resolve regression test is parked here pending an AutoPass
- * consolidation file — see the TODO near the test.
+ * The #92 auto-resolve regression test remains here pending a shared
+ * runtime-horizon fixture — see the TODO near the test.
  */
 class TargetingInteractionTest :
     SessionTest({
@@ -741,10 +741,10 @@ class TargetingInteractionTest :
             }
         }
 
-        // ─── Auto-resolve regression #92 ───────────────────────────────────────
+        // ─── Runtime-horizon regression #92 ────────────────────────────────────
 
-        // TODO: Relocate to an AutoPass consolidation file when one exists —
-        // this test is about handlePostCastPrompt / auto-resolve, not targeting.
+        // TODO: Relocate to a shared runtime-horizon fixture when one exists —
+        // this test is about handlePostCastPrompt / auto-resolution, not targeting.
         session(
             "#92 — non-targeted spell does not prompt Resolve while on stack",
             puzzle = """

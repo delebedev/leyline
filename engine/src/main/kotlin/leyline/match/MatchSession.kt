@@ -114,8 +114,7 @@ class MatchSession(
     // --- Public entry points (called by MatchHandler) ---
 
     /**
-     * After keep: wait for engine to reach priority, send real game state bundle.
-     * Then auto-pass through phases where only Pass is available.
+     * After keep: bind the first client-owned horizon and arm autonomous delivery.
      */
     override fun onMulliganKeep() =
         synchronized(sessionLock) {
@@ -128,13 +127,12 @@ class MatchSession(
             // Replace it before draining the feed so prior AI batches retain their
             // order and the replacement receives the next shared game-state id.
             val pending = checkNotNull(bridge.seat(seatId).action.getPending()) { "Initial priority window was not published" }
-            val humanTurn = ctx.game.phaseHandler.playerTurn == bridge.getPlayer(seatId)
-            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId, includePriorityPrompt = humanTurn)
+            runtimeContinuation.bindInitialHorizon(pending.actionId)
             drainCoordinatorFeed()
 
-            runtimeContinuation.awaitHorizon()
-            connection.runtimeDeliveryReady = true
-            gameBridge.cutCoordinator.signalDelivery()
+            runtimeContinuation.awaitClientVisibleHorizon()
+            registry.getConnection(matchId, seatId)?.armRuntimeDeliveryObserver()
+            Unit
         }
 
     /**
@@ -153,7 +151,6 @@ class MatchSession(
         synchronized(sessionLock) {
             val matchConnection = registry.getConnection(matchId, seatId)
             matchConnection?.stopRuntimeDeliveryObserver()
-            connection.runtimeDeliveryReady = false
             close()
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
@@ -163,7 +160,6 @@ class MatchSession(
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
             registry.getConnection(matchId, seatId)?.session = replacement
-            matchConnection?.restartRuntimeDeliveryObserver()
             replacement to deletedIds
         }
 
@@ -233,19 +229,19 @@ class MatchSession(
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onSelectTargets(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onSelectTargets(greMsg))
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onSubmitTargets(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onSubmitTargets(greMsg))
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onSelectN(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onSelectN(greMsg))
         }
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
@@ -260,7 +256,7 @@ class MatchSession(
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onEffectCost(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onEffectCost(greMsg))
         }
 
     override fun onGroupResp(greMsg: ClientToGREMessage) =
@@ -271,13 +267,13 @@ class MatchSession(
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onCastingTimeOptions(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onCastingTimeOptions(greMsg))
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            if (targetingHandler.onSearchResp(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onSearchResp(greMsg))
         }
 
     private fun withValidResponse(
@@ -287,6 +283,10 @@ class MatchSession(
         synchronized(sessionLock) {
             if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
         }
+
+    private fun awaitHandlerResult(result: HandlerResult) {
+        if (result.resumes) runtimeContinuation.awaitHorizon(result)
+    }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -302,7 +302,7 @@ class MatchSession(
                 if (combatHandler.onCancelAttackers(greMsg.gameStateId)) runtimeContinuation.awaitHorizon()
                 return
             }
-            if (targetingHandler.onCancelAction(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
+            awaitHandlerResult(targetingHandler.onCancelAction(greMsg))
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
@@ -360,7 +360,7 @@ class MatchSession(
     /** Await the next engine-owned horizon without submitting an action first. */
     fun awaitRuntimeHorizon(timeoutMs: Long = gameBridge.priorityWaitMs) =
         synchronized(sessionLock) {
-            runtimeContinuation.awaitHorizon(timeoutMs)
+            runtimeContinuation.awaitHorizon(timeoutMs = timeoutMs)
         }
 
     internal fun deliverRuntimeHorizon() =

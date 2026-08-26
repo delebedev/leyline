@@ -108,8 +108,7 @@ class PuzzleHandler(
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)
-        session.connection.runtimeDeliveryReady = true
-        bridge.cutCoordinator.signalDelivery()
+        registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
     }
 
     /**

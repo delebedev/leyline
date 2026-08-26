@@ -591,6 +591,7 @@ class DebugServer(
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))
         newSession.awaitRuntimeHorizon()
+        newSession.registry.getConnection(newSession.matchId, newSession.seatId)?.armRuntimeDeliveryObserver()
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=$gsId " +

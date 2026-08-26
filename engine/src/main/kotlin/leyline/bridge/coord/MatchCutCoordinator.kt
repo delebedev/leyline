@@ -110,6 +110,8 @@ internal class MatchCutCoordinator(
 
     fun hasMeaningfulPriorityAction(actionId: String): Boolean = actions.hasMeaningfulAction(actionId)
 
+    internal fun isPassOnlyPriority(actionId: String): Boolean = actions.isPassOnlyPriority(actionId)
+
     fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
 
     /** Suppress one pass-only AI priority window before its committed feed is drained. */
@@ -353,6 +355,9 @@ internal class MatchCutCoordinator(
         }
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
+
+    /** Continue a coordinator-classified pass-only priority window. */
+    internal fun continuePassOnly(actionId: String): Boolean = actions.continuePassOnly(actionId)
 
     internal fun signalDelivery() {
         deliverySignal.signal()

@@ -60,6 +60,7 @@ internal class ActionPerformer(
             val paymentResult = targetingHandler.tryHandlePayCostsPerformAction(greMsg)
             when (paymentResult) {
                 HandlerResult.Resume -> continuation.awaitHorizon()
+                is HandlerResult.ResumeAfterEngineResume -> continuation.awaitHorizon(paymentResult)
                 HandlerResult.Waiting -> Unit
                 HandlerResult.NotHandled -> Unit
             }

@@ -40,10 +40,11 @@ committed coordinator batches and releases exact state-only barriers only after
 delivery. This is server publication completion. It is not client
 acknowledgement, and it does not classify or schedule engine progression.
 
-Each live human connection starts one MatchRuntimeDeliveryObserver. The observer
-waits on coordinator feed notifications and enters the same session delivery
-path for horizons published after an inbound handler returns. It stops on
-teardown and restarts around puzzle hot-swap.
+Each live human connection arms one MatchRuntimeDeliveryObserver after its
+initial client-owned horizon is bound. The observer waits on coordinator feed
+notifications and enters the same session delivery path for horizons published
+after an inbound handler returns. It stops by generation on teardown or puzzle
+replacement, and a replacement is armed only after its initial output is bound.
 
 MatchFlowHarness owns a MatchConnection and a MatchOutput adapter. Its gameplay
 helpers build ClientToGREMessage values and submit them through the connection.

@@ -71,7 +71,7 @@ class MatchFlowHarnessTest :
             // Pass priority to end turn
             h.passPriority()
 
-            // After auto-pass through AI turn, should be back at human's turn
+            // The runtime continuation returns after the AI turn at the next human horizon.
             val missingAfterTurn = h.accumulator.actionInstanceIdsMissingFromObjects()
             assertSoftly {
                 h.isGameOver().shouldBeFalse()
@@ -135,7 +135,7 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             assertSoftly {
-                // After connectAndKeep + autoPass, we should have valid state
+                // connectAndKeep completes through the first client-owned horizon.
                 h.isGameOver().shouldBeFalse()
 
                 h.accumulator.assertConsistent("after AI-first connect")
@@ -175,7 +175,7 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             assertSoftly {
-                // After connectAndKeep, AI went first and we auto-passed through
+                // After connectAndKeep, the engine-owned continuation crossed the AI turn.
                 h.isGameOver().shouldBeFalse()
 
                 // Validate full gsId chain from game start

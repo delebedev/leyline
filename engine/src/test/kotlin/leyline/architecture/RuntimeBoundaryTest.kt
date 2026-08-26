@@ -150,7 +150,7 @@ class RuntimeBoundaryTest :
                     withClue("bridge runtime must not retain $name") { bridge shouldNotContain name }
                 }
                 continuation shouldContain "drainCoordinatorBarrier"
-                continuation shouldContain "awaitPriorityWithTimeout"
+                continuation shouldContain "awaitSeatHorizonWithTimeout"
             }
         }
 
@@ -170,7 +170,7 @@ class RuntimeBoundaryTest :
                 observer shouldNotContain "prioritySignal"
                 observer shouldNotContain "submitGREMessage"
                 observer shouldNotContain "awaitPriority"
-                connection shouldContain "startRuntimeDeliveryObserver()"
+                connection shouldContain "armRuntimeDeliveryObserver()"
                 connection shouldContain "stopRuntimeDeliveryObserver()"
                 coordinator shouldContain "internal val deliverySignal"
             }

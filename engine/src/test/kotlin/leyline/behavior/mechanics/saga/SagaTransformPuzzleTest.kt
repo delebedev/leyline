@@ -49,7 +49,7 @@ class SagaTransformPuzzleTest :
                 Goal:Survive
                 Turns:6
                 Difficulty:Easy
-                Description:Cast Tribute to Horobi, auto-advance through 3 chapters, observe final-chapter exile-return transform.
+                Description:Cast Tribute to Horobi, follow runtime horizons through 3 chapters, observe final-chapter exile-return transform.
 
                 [state]
                 ActivePlayer=Human
@@ -99,7 +99,7 @@ class SagaTransformPuzzleTest :
 
                 harness.castSpellByName("Tribute to Horobi").shouldBeTrue()
 
-                // Auto-advance until the transform lands or the game ends.
+                // Follow engine-owned runtime horizons until the transform lands or the game ends.
                 var transformed = false
                 repeat(8) {
                     if (harness.isGameOver()) return@repeat

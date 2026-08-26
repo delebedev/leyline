@@ -1309,6 +1309,25 @@ class GameBridge(
         }
     }
 
+    /** Wait for this seat's next committed action or routed interaction horizon. */
+    fun awaitSeatHorizonWithTimeout(
+        seatId: SeatId,
+        timeoutMs: Long,
+        ignoredActionId: String? = null,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        val actionBridge = seat(seatId).action
+        while (true) {
+            loopController?.throwIfFailed()
+            val g = game
+            if (g != null && g.isGameOver) return false
+            if (actionBridge.getPending()?.actionId != ignoredActionId || hasPendingNonActionInteraction()) return true
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) return false
+            prioritySignal.awaitSignal(remaining)
+        }
+    }
+
     /**
      * Block until the engine reaches a priority stop, an interactive prompt
      * is pending, or the game ends.

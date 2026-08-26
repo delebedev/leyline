@@ -79,8 +79,8 @@ class DiscardInteractionTest :
                     .cards
                     .filter { it.name == "Mountain" } shouldHaveSize 1
 
-                // Original hand cards consumed (auto-pass may already have carried
-                // the game into the next turn's draw step, adding library cards)
+                // Original hand cards consumed (runtime continuation may already have
+                // carried the game into the next turn's draw step, adding library cards)
                 human
                     .getZone(ForgeZoneType.Hand)
                     .cards
@@ -288,7 +288,7 @@ class DiscardInteractionTest :
 
             respondToSelectN(listOf(req.idsList.first()))
 
-            // Cleanup enforced 8 → 7; auto-pass may then carry into the next
+            // Cleanup enforced 8 → 7; runtime continuation may then carry into the next
             // turn's draw step (7 + 1 drawn). Either depth is legitimate —
             // the enforcement itself is proven by the graveyard count below.
             human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8

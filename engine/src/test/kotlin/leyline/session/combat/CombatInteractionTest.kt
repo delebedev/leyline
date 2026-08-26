@@ -1066,8 +1066,8 @@ class CombatInteractionTest :
             allMessages.count { it.hasDeclareAttackersReq() } shouldBe 1
 
             // Attack. After submit, engine processes AI blockers → COMBAT_DAMAGE →
-            // WPC.assignCombatDamage blocks on dedicated future →
-            // auto-pass detects via checkPendingDamageAssignment → sends AssignDamageReq
+            // WPC.assignCombatDamage blocks on dedicated future; the runtime horizon
+            // resumes through checkPendingDamageAssignment and sends AssignDamageReq.
             declareAttackers(listOf(dreadmawIid))
             submitAttackers()
 
@@ -1157,7 +1157,7 @@ class CombatInteractionTest :
         // ─── Zero-blocker runtime continuation ───────────────────────────────
 
         session(
-            "zero blockers auto-advances without DeclareBlockersReq",
+            "zero blockers continue through the next engine horizon without DeclareBlockersReq",
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -1194,7 +1194,7 @@ class CombatInteractionTest :
         // Puzzle: AI's turn at COMBAT_DECLARE_ATTACKERS. AI has a Raging Goblin
         // marked |Attacking|Tapped. Human has Burst Lightning + untapped Mountain.
         // The client should get an ActionsAvailableReq for the instant instead
-        // of silently auto-passing through combat damage.
+        // of silently continuing through combat damage.
         session(
             "AI combat grants priority when human has castable instant",
             puzzle =

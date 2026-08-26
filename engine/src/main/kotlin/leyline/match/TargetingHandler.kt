@@ -222,14 +222,14 @@ class TargetingHandler(
         gameStateId: Int,
     ): HandlerResult {
         val bridge = ctx.bridge
-        if (!bridge.cutCoordinator.modalChoices.cancel(modal.interactionId, gameStateId)) {
+        val cleanup = bridge.cutCoordinator.modalChoices.cancelAndClaim(modal.interactionId, gameStateId)
+        if (cleanup == null) {
             log.warn("TargetingHandler: CancelActionReq did not match current modal window")
             DevCheck.failOnAutoPass { "CancelActionReq did not match current modal window" }
             return HandlerResult.Waiting
         }
         log.info("TargetingHandler: CancelActionReq — cancelling modal choice")
-        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
-        return HandlerResult.Resume
+        return HandlerResult.ResumeAfterEngineResume(cleanup)
     }
 
     private fun cancelDeferredCast(gameStateId: Int): HandlerResult {
@@ -323,14 +323,14 @@ class TargetingHandler(
             return HandlerResult.Waiting
         }
         val chosenGrpIds = greMsg.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList
-        if (!bridge.cutCoordinator.modalChoices.submit(modal.interactionId, greMsg.gameStateId, chosenGrpIds)) {
+        val cleanup = bridge.cutCoordinator.modalChoices.submitAndClaim(modal.interactionId, greMsg.gameStateId, chosenGrpIds)
+        if (cleanup == null) {
             log.warn("TargetingHandler: CastingTimeOptionsResp did not match current modal window")
             DevCheck.failOnAutoPass { "CastingTimeOptionsResp did not match current modal window" }
             return HandlerResult.Waiting
         }
         log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={}", chosenGrpIds)
-        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
-        return HandlerResult.Resume
+        return HandlerResult.ResumeAfterEngineResume(cleanup)
     }
 
     internal fun checkHybridManaTypeOptions(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =

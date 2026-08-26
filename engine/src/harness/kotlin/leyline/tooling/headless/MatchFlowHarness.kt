@@ -239,7 +239,7 @@ class MatchFlowHarness(
      * Board state is defined declaratively — no multi-turn setup loops.
      *
      * @param aiScript optional scripted actions for the AI — installed before
-     *                 auto-pass runs so the AI follows the script on its first turn.
+     *                 the first engine-owned runtime horizon is delivered.
      */
     fun connectAndKeepPuzzleText(
         puzzleText: String,
@@ -379,8 +379,8 @@ class MatchFlowHarness(
      *             first land in hand, which is shuffle-dependent — and shuffle
      *             order shifts with upstream forge edition data because
      *             PaperCard.hashCode is printing-specific. A wrong-coloured
-     *             land then makes the follow-up spell uncastable, autoPass
-     *             advances through phases unblocked, and the turn counter
+     *             land then makes the follow-up spell uncastable, runtime
+     *             continuation advances through phases unblocked, and the turn counter
      *             skips past T1 before the test asserts.
      */
     fun playLand(name: String? = null): Boolean {
@@ -630,7 +630,7 @@ class MatchFlowHarness(
      * Pass priority until the stack is empty. Use after cast + target to resolve.
      *
      * Always passes at least once: the stack may already be empty before the
-     * action's effect lands, because auto-pass can resolve it during
+     * action's effect lands, because the engine can resolve it during
      * `selectTargets` / `drainSink`.
      */
     fun passUntilResolved(maxPasses: Int = 10) {

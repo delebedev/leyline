@@ -119,7 +119,7 @@ class ScryETBFlowTest :
             val groupReq = castSpellUntilGroupReq("Wall of Runes")
 
             // Resolution annotations are deferred until after the GroupReq interaction:
-            // auto-pass detects the pending scry prompt and sends GroupReq directly,
+            // the runtime continuation detects the pending scry prompt and sends GroupReq directly,
             // deferring the resolution state diff. Resolve to release them.
             val cardIds = groupReq.instanceIdsList
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)

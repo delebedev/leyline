@@ -71,12 +71,15 @@ single continuation wait drains committed batches in order and acknowledges
 each exact `SYNC_ONLY` barrier only after successful delivery. A response that
 only updates an iterative prompt returns without releasing the engine.
 
-Every live human `MatchConnection` also starts one
-`MatchRuntimeDeliveryObserver`. It waits on the coordinator's delivery feed,
-enters the same session lock, drains committed batches, and terminalizes after
-delivery when the horizon is game-over. This observer is the only path for a
-prompt timeout or engine-generated playback horizon after the inbound handler
-has returned. It is stopped on teardown and restarted on puzzle hot-swap. It
+Every live human `MatchConnection` arms one
+`MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.
+It waits on the coordinator's delivery feed, enters the same session lock,
+drains committed batches, and terminalizes after delivery when the horizon is
+game-over. This observer is the only feed consumer for a prompt timeout or
+engine-generated playback horizon after the inbound handler has returned;
+synchronous handlers wait on the priority/runtime horizon and never race that
+feed. Teardown invalidates the observer generation. Puzzle replacement arms a
+new generation only after its initial bundle and horizon are delivered. It
 never submits an engine action or makes priority decisions.
 
 ### Current exceptions

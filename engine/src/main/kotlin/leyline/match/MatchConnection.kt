@@ -53,6 +53,7 @@ class MatchConnection(
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
     private var runtimeDeliveryObserver: MatchRuntimeDeliveryObserver? = null
+    private var runtimeDeliveryGeneration: MatchRuntimeDeliveryGeneration? = null
 
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
@@ -192,22 +193,24 @@ class MatchConnection(
         (session as? MatchSession)?.awaitRuntimeHorizon(timeoutMs)
     }
 
-    internal fun restartRuntimeDeliveryObserver() {
+    /** Arm delivery after the initial client-owned horizon has been bound. */
+    fun armRuntimeDeliveryObserver() {
         stopRuntimeDeliveryObserver()
-        startRuntimeDeliveryObserver()
-    }
-
-    private fun startRuntimeDeliveryObserver() {
         val active = session as? MatchSession ?: return
+        val generation = MatchRuntimeDeliveryGeneration()
+        runtimeDeliveryGeneration = generation
         runtimeDeliveryObserver =
             MatchRuntimeDeliveryObserver(
-                sessionProvider = { session as? MatchSession },
+                session = active,
                 seatId = active.seatId,
+                generation = generation,
             ).also { it.start() }
     }
 
     internal fun stopRuntimeDeliveryObserver() {
+        runtimeDeliveryGeneration?.invalidate()
         runtimeDeliveryObserver?.stop()
+        runtimeDeliveryGeneration = null
         runtimeDeliveryObserver = null
     }
 
@@ -321,7 +324,6 @@ class MatchConnection(
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
-        startRuntimeDeliveryObserver()
         return s
     }
 

@@ -36,7 +36,7 @@ private val HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE =
  *
  * Before the fix, the session-owned progression loop at the
  * SEND_STATE human-turn + pass-only branch emitted a state-only diff and
- * `return`ed without auto-passing the engine's pending
+ * `return`ed without continuing the engine's pending
  * [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay] action. The
  * client received a state-only diff (non-actionable) and never responded, so
  * [leyline.bridge.handoff.GameActionBridge.awaitAction] hung until [bridgeTimeoutMs].

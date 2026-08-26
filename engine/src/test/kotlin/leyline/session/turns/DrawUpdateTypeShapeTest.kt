@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  * emitted with [GameStateUpdate.SendHiFi]. Spell-driven Main1 draws continue
  * to use [GameStateUpdate.SendAndRecord] (covered by the bundle unit tests).
  */
-// TierPlacementCheck: the auto-pass that drives AI turn 1 → human turn 2 is
+// TierPlacementCheck: runtime continuation that drives AI turn 1 → human turn 2 is
 // precisely the session-level behavior under test — the bundle needs to
 // observe a real turn-boundary draw event delivered by the engine's EventBus,
 // not a synthetic one. Subsystem-tier helpers (buildActions / stateOnlyDiff)

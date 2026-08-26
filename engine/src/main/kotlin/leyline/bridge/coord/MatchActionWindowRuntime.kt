@@ -139,6 +139,27 @@ internal class MatchActionWindowRuntime(
             actionWindows[actionId]?.actions?.let { !BundleBuilder.shouldAutoPass(it) } ?: false
         }
 
+    /** The priority coordinator may continue only a published pass-only priority window. */
+    internal fun isPassOnlyPriority(actionId: String): Boolean =
+        synchronized(owner.feedLock) {
+            val window = actionWindows[actionId] ?: return false
+            val pending = owner.bridge.actionBridge(window.seatId).getPending() ?: return false
+            pending.actionId == actionId &&
+                pending.state.kind == PendingActionKind.PRIORITY &&
+                BundleBuilder.shouldAutoPass(window.actions)
+        }
+
+    /** Continue a coordinator-classified pass-only priority window. */
+    internal fun continuePassOnly(actionId: String): Boolean =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val window = actionWindows[actionId] ?: return false
+            val pending = owner.bridge.actionBridge(window.seatId).getPending() ?: return false
+            if (pending.actionId != actionId || pending.state.kind != PendingActionKind.PRIORITY) return false
+            if (!BundleBuilder.shouldAutoPass(window.actions)) return false
+            owner.bridge.actionBridge(window.seatId).submitRuntimeToken(pending.actionId, GameActionBridge.ENGINE_PASS_TOKEN)
+        }
+
     fun complete(
         claim: ActionClaim,
         childToken: Long? = null,
