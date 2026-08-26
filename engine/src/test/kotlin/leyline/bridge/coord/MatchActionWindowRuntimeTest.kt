@@ -105,8 +105,8 @@ class MatchActionWindowRuntimeTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.registerViewers(
                 listOf(
-                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
                     ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
                 ),
             )
             val pending =
