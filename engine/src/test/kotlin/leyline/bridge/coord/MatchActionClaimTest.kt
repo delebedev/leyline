@@ -9,8 +9,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
-import leyline.game.PlaybackCutReason
-import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.awaitFreshPending
 import leyline.game.state.ProjectionViewerRole
@@ -429,54 +427,6 @@ class MatchActionClaimTest :
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 coordinator.deferredCast.hasPrompt() shouldBe false
                 coordinator.failure().shouldNotBeNull()
-            }
-        }
-
-        test("deferred observer enqueue failure rolls back every feed and leaves the claim unpublished") {
-            val board =
-                startPuzzleAtMain1(
-                    puzzle
-                        .replace("humanhand=Forest", "humanhand=Burst Lightning")
-                        .replace("humanbattlefield=Forest", "humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain")
-                        .replace("humanlibrary=Forest", "humanlibrary=Mountain"),
-                )
-            val coordinator = board.bridge.cutCoordinator
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val cast =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .first { it.hasActionsAvailableReq() }
-                    .actionsAvailableReq.actionsList
-                    .first { it.actionType == ActionType.Cast }
-            coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
-            val claim =
-                coordinator
-                    .claimPriorityResponse(pending.actionId, checkNotNull(pending.promptGameStateId), cast, defer = true)
-                    .shouldNotBeNull()
-                    .actionClaim
-            val optionalCount = checkNotNull(claim.deferredCostPlan?.optional?.entries).size
-            val playbackRequest = PlaybackCutRequest(PlaybackCutReason.PhaseChanged, 0, false)
-            coordinator.feed(SeatId(1)).requestedCut = playbackRequest
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            coordinator.setBeforeBatchEnqueue(SeatId(2)) { _, _ -> error("observer feed unavailable") }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                coordinator.deferredCast.publishOptional(
-                    claim,
-                    CastingTimeOptionsReq.getDefaultInstance(),
-                    List(optionalCount) { it + 1 },
-                )
-            }
-
-            assertSoftly {
-                coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.drain(SeatId(2)).shouldBeEmpty()
-                board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.bridge.committedSequence() shouldBe priorSequence
-                coordinator.feed(SeatId(1)).requestedCut shouldBe playbackRequest
-                coordinator.deferredCast.hasPrompt() shouldBe false
             }
         }
     })

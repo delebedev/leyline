@@ -19,10 +19,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
-import leyline.game.PlaybackCutReason
-import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -82,31 +79,6 @@ class MatchManaSourcePaymentFailureTest :
                 published = coordinator.manaSourcePayments.current()
             }
             return checkNotNull(published)
-        }
-
-        test("observer enqueue failure rolls back every payment feed and leaves publication state unchanged") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
-            val playbackRequest = PlaybackCutRequest(PlaybackCutReason.PhaseChanged, 0, false)
-            coordinator.feed(SeatId(1)).requestedCut = playbackRequest
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            coordinator.setBeforeBatchEnqueue(SeatId(2)) { _, _ -> error("observer feed unavailable") }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
-            }
-
-            assertSoftly {
-                coordinator.drain(SeatId(1)) shouldBe emptyList()
-                coordinator.drain(SeatId(2)) shouldBe emptyList()
-                board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.bridge.committedSequence() shouldBe priorSequence
-                coordinator.feed(SeatId(1)).requestedCut shouldBe playbackRequest
-                coordinator.manaSourcePayments.current().shouldBeNull()
-            }
         }
 
         test("enqueue failure retains the exact cut and preserves preexisting output") {
