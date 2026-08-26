@@ -242,6 +242,57 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("battlefield card keeps visible dynamic characteristics") {
+            val grpId = TestCardRegistry.ensureCardRegistered("Impact Tremors")
+            val instanceId = 201
+            val battlefieldZoneId = 7
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(battlefieldZoneId).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(instanceId)
+                            .setGrpId(grpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Creature)
+                            .addCardTypes(CardType.Enchantment)
+                            .addSubtypes(SubType.Beast)
+                            .setPower(Int32Value.newBuilder().setValue(7))
+                            .setToughness(Int32Value.newBuilder().setValue(7)),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val card =
+                    hydrated.bridge
+                        .getGame()
+                        .shouldNotBeNull()
+                        .players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single()
+
+                card.type.isCreature shouldBe true
+                card.type.isEnchantment shouldBe true
+                card.type.hasSubtype("Beast") shouldBe true
+                card.netPower shouldBe 7
+                card.netToughness shouldBe 7
+                hydrated.fidelity.features
+                    .first { it.feature == "characteristics" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         test("attacker and committed blocker hydrate into Forge combat") {
             val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
             val blockerGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
