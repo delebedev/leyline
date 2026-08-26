@@ -37,8 +37,7 @@ class DealHandConformanceTest :
                     repeat(7) { addCard("Plains", human, ZoneType.Hand) }
                     repeat(53) { addCard("Plains", human, ZoneType.Library) }
                 }
-            val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = SeatId(1))
-            val messages = greMessages(msg)
+            val (messages, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = SeatId(1))
 
             messages.size shouldBe 1
             nextMsgId shouldBe 7
@@ -75,8 +74,7 @@ class DealHandConformanceTest :
                     repeat(7) { addCard("Plains", ai, ZoneType.Hand) }
                     repeat(53) { addCard("Plains", ai, ZoneType.Library) }
                 }
-            val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
-            val messages = greMessages(msg)
+            val (messages, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
 
             messages.size shouldBe 2
             nextMsgId shouldBe 8
@@ -103,8 +101,7 @@ class DealHandConformanceTest :
 
         test("mulliganReqSeat1: 3 msgs (thin Diff + PromptReq + MulliganReq)") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
-            val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
-            val messages = greMessages(msg)
+            val (messages, nextMsgId) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
 
             messages.size shouldBe 3
             nextMsgId shouldBe 13
@@ -141,8 +138,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(1)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), Board.TEST_MATCH_ID, 2, 1, deck, b)
-            val messages = greMessages(msg)
+            val (messages, nextMsgId) = HandshakeMessages.initialBundle(SeatId(1), Board.TEST_MATCH_ID, 2, 1, deck, b)
 
             assertSoftly {
                 messages.size shouldBe 3
@@ -165,8 +161,7 @@ class DealHandConformanceTest :
         test("initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(SeatId(2)))
-            val (msg, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), Board.TEST_MATCH_ID, 3, 1, deck, b)
-            val messages = greMessages(msg)
+            val (messages, nextMsgId) = HandshakeMessages.initialBundle(SeatId(2), Board.TEST_MATCH_ID, 3, 1, deck, b)
 
             assertSoftly {
                 messages.size shouldBe 3

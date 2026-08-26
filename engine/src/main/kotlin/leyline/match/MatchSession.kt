@@ -145,9 +145,10 @@ class MatchSession(
      * Held under [connection.sessionLock] so concurrent inbound messages can't
      * interleave with the swap.
      *
-     * @return Pair of (new session, ids the client should delete from its view).
+     * The replacement session publishes its initial lifecycle batch before this
+     * method releases the connection lock.
      */
-    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
+    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): PuzzleReplacementResult =
         synchronized(sessionLock) {
             val matchConnection = registry.getConnection(matchId, seatId)
             matchConnection?.stopRuntimeDeliveryObserver()
@@ -159,16 +160,18 @@ class MatchSession(
             // to the new session. Without this, MatchHandler keeps a stale reference
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
-            registry.getConnection(matchId, seatId)?.session = replacement
-            replacement to deletedIds
+            matchConnection?.session = replacement
+            replacement.publishPuzzleReplacement(deletedIds).also {
+                matchConnection?.armRuntimeDeliveryObserver()
+            }
         }
 
     /** Commit and deliver the replacement puzzle's initial state and action horizon. */
-    fun publishPuzzleReplacement(deletedInstanceIds: List<Int>): PuzzleReplacementResult {
+    private fun publishPuzzleReplacement(deletedInstanceIds: List<Int>): PuzzleReplacementResult {
         gameBridge.awaitPriority()
         val pending = checkNotNull(gameBridge.seat(seatId).action.getPending()) { "Puzzle replacement has no pending priority window" }
         val published = gameBridge.cutCoordinator.lifecycle.publishPuzzleReplacement(seatId, deletedInstanceIds, pending.actionId)
-        deliverLifecycle(gameBridge)
+        drainCoordinatorBarrier(this, gameBridge, seatId)
         return PuzzleReplacementResult(published.gameStateId, published.objectCount, published.zoneCount)
     }
 

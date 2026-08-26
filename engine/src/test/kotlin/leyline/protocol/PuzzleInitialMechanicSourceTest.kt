@@ -41,7 +41,7 @@ class PuzzleInitialMechanicSourceTest :
                 .single()
                 .isTrigger shouldBe true
 
-            val (bundle, _) =
+            val (messages, _) =
                 LifecycleMessageMaterializer.puzzleInitialBundle(
                     seatId = SeatId(1),
                     matchId = Board.TEST_MATCH_ID,
@@ -50,7 +50,7 @@ class PuzzleInitialMechanicSourceTest :
                     bridge = board.bridge,
                 )
             val gsm =
-                bundle.greToClientEvent.greToClientMessagesList
+                messages
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
             val created = gsm.annotationsList.single { AnnotationType.AbilityInstanceCreated in it.typeList }

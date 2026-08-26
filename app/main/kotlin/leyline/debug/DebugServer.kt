@@ -542,9 +542,7 @@ class DebugServer(
                 }
             }
 
-        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
-        val published = newSession.publishPuzzleReplacement(deletedIds)
-        newSession.registry.getConnection(newSession.matchId, newSession.seatId)?.armRuntimeDeliveryObserver()
+        val published = session.replaceForPuzzle(puzzle)
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=${published.gameStateId} " +

@@ -12,22 +12,20 @@ import leyline.game.state.ProjectionTransition
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.*
 
-/** Pure startup, deal, mulligan, and puzzle lifecycle materialization. */
+/** Materializes tentative startup, deal, mulligan, and puzzle lifecycle batches. */
 @Suppress("LargeClass") // one lifecycle sequence and its wire helpers
 object LifecycleMessageMaterializer {
     internal data class LifecycleMessages(
-        val message: MatchServiceToClientMessage,
+        val messages: List<GREToClientMessage>,
         val nextMsgId: Int,
         val transition: ProjectionTransition? = null,
-    ) {
-        val messages: List<GREToClientMessage> get() = message.greToClientEvent.greToClientMessagesList
-    }
+    )
 
     internal fun lifecycleMessages(
         messages: List<GREToClientMessage>,
         nextMsgId: Int,
         transition: ProjectionTransition?,
-    ): LifecycleMessages = LifecycleMessages(wrapGre(*messages.toTypedArray()), nextMsgId, transition)
+    ): LifecycleMessages = LifecycleMessages(messages, nextMsgId, transition)
 
     internal fun puzzleActionsReq(
         msgId: Int,
@@ -45,7 +43,7 @@ object LifecycleMessageMaterializer {
                 .setActionsAvailableReq(actions)
                 .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 .build()
-        return LifecycleMessages(wrapGre(gre), msgId + 1)
+        return LifecycleMessages(listOf(gre), msgId + 1)
     }
 
     /**
@@ -136,7 +134,7 @@ object LifecycleMessageMaterializer {
             )
         }
 
-        return LifecycleMessages(wrapGre(*messages.toTypedArray()), msgId, transition)
+        return LifecycleMessages(messages, msgId, transition)
     }
 
     /** DealHand for seat 1 (no MulliganReq) — built from game state. */
@@ -163,7 +161,7 @@ object LifecycleMessageMaterializer {
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
                 .build()
-        return LifecycleMessages(wrapGre(gre), msgId + 1, transition)
+        return LifecycleMessages(listOf(gre), msgId + 1, transition)
     }
 
     /** DealHand + MulliganReq bundled for seat 2 — built from game state. */
@@ -192,7 +190,7 @@ object LifecycleMessageMaterializer {
                 .setGameStateMessage(gsm)
                 .build()
         val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 2)
-        return LifecycleMessages(wrapGre(greGsm, greMull), msgId, transition)
+        return LifecycleMessages(listOf(greGsm, greMull), msgId, transition)
     }
 
     /**
@@ -265,7 +263,7 @@ object LifecycleMessageMaterializer {
         // 3) MulliganReq for seat 1
         val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
 
-        return LifecycleMessages(wrapGre(greGsm, grePrompt, greMull), msgId, transition)
+        return LifecycleMessages(listOf(greGsm, grePrompt, greMull), msgId, transition)
     }
 
     /**
@@ -329,7 +327,7 @@ object LifecycleMessageMaterializer {
                 .build(),
         )
 
-        return LifecycleMessages(wrapGre(*messages.toTypedArray()), msgId, preparedTransition)
+        return LifecycleMessages(messages, msgId, preparedTransition)
     }
 
     // --- private helpers ---
@@ -466,15 +464,5 @@ object LifecycleMessageMaterializer {
             .setAutoOptionalPaymentCancellationSetting(Setting.Enable_a20a)
             .setStackAutoPassOption(AutoPassOption.Clear_a465)
         return builder.build()
-    }
-
-    /** Wrap one or more GRE messages into a MatchServiceToClientMessage. */
-    private fun wrapGre(vararg messages: GREToClientMessage): MatchServiceToClientMessage {
-        val event = GreToClientEvent.newBuilder()
-        for (msg in messages) event.addGreToClientMessages(msg)
-        return MatchServiceToClientMessage
-            .newBuilder()
-            .setGreToClientEvent(event)
-            .build()
     }
 }

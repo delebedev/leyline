@@ -24,7 +24,7 @@ The implemented milestone provides:
   handles retained behind immutable client-facing values.
 
 Explicit remaining work includes `GameBridge` orchestration, the secondary
-live-state action-construction path, terminal and residual lifecycle output,
+live-state action-construction path, remaining terminal and residual lifecycle output,
 `MatchSession` convergence, and atomic multi-view compilation. These are not
 requirements for treating the functional projection and prompt-ownership
 milestone as implemented.
@@ -162,7 +162,7 @@ The implemented milestone is visible in current types:
   optional-empty or required stable-prefix synchronous default. Candidate-free
   Generic choices use the same explicit synchronous policy, while non-library
   ordering returns its input without allocating a prompt. Modal choice now has
-  a coordinator-owned runtime; terminal and residual lifecycle output and
+  a coordinator-owned runtime; remaining terminal and residual lifecycle output and
   multi-view compilation remain outside the coordinator boundary.
 
 The current milestone completes blocking prompt-response ownership, including

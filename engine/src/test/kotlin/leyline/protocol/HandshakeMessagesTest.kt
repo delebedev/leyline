@@ -54,7 +54,7 @@ class HandshakeMessagesTest :
                     dieRollWinner = winner,
                 )
             val dieRoll =
-                bundle.message.greToClientEvent.greToClientMessagesList
+                bundle.messages
                     .first { it.type == GREMessageType.DieRollResultsResp_695e }
                     .dieRollResultsResp
             return dieRoll.playerDieRollsList.associate { it.systemSeatId to it.rollValue }
@@ -105,7 +105,7 @@ class HandshakeMessagesTest :
                     seedProjectionCursor = true,
                 )
 
-            val messages = bundle.message.greToClientEvent.greToClientMessagesList
+            val messages = bundle.messages
             assertSoftly {
                 messages.map { it.type } shouldBe
                     listOf(GREMessageType.DieRollResultsResp_695e, GREMessageType.GameStateMessage_695e)
@@ -149,9 +149,9 @@ class HandshakeMessagesTest :
         }
 
         test("puzzle actions request carries pass-priority prompt") {
-            val (message, nextMsgId) =
+            val (messages, nextMsgId) =
                 LifecycleMessageMaterializer.puzzleActionsReq(7, 5, SeatId(1), ActionMapper.passOnlyActions())
-            val gre = message.greToClientEvent.greToClientMessagesList.single()
+            val gre = messages.single()
 
             assertSoftly {
                 nextMsgId shouldBe 8

@@ -7,7 +7,12 @@ internal fun SessionOps.deliverLifecycle(
     bridge: GameBridge,
     beforeMsgId: Int? = null,
 ) {
-    bridge.cutCoordinator.drain(seatId, beforeMsgId = beforeMsgId).forEach { batch ->
-        if (this is MatchSession) sendLifecycleGRE(batch) else sendBundledGRE(batch)
+    val batches = bridge.cutCoordinator.drain(seatId, beforeMsgId = beforeMsgId)
+    try {
+        batches.forEach { batch ->
+            if (this is MatchSession) sendLifecycleGRE(batch) else sendBundledGRE(batch)
+        }
+    } catch (ex: Exception) {
+        bridge.cutCoordinator.failDelivery(ex)
     }
 }

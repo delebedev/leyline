@@ -4,9 +4,15 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.bundle.MessageCounter
+import leyline.game.generator.PuzzleSource
+import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
+import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 class MatchLifecycleRuntimeTest :
@@ -125,6 +131,41 @@ class MatchLifecycleRuntimeTest :
             assertSoftly {
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 board.bridge.projectionStateSnapshot() shouldBe prior
+            }
+        }
+
+        test("puzzle replacement preserves a synchronization horizon after full state") {
+            val bridge =
+                GameBridge(
+                    runtimeHorizonMode = RuntimeHorizonMode.Observed,
+                    messageCounter = MessageCounter(initialGsId = 20, initialMsgId = 0),
+                    cardRepository = TestCardRegistry.repo,
+                )
+            useBridge(bridge)
+            bridge.startPuzzle(PuzzleSource.loadFromText(puzzle.replace("ActivePlayer=Human", "ActivePlayer=AI")))
+            TestCardRegistry.registerPuzzleCards(checkNotNull(bridge.getGame()))
+            val coordinator = bridge.cutCoordinator
+            val pending =
+                checkNotNull(
+                    bridge
+                        .seat(SeatId(1))
+                        .action
+                        .getPending(),
+                )
+            pending.state.kind shouldBe PendingActionKind.SYNC_ONLY
+
+            coordinator.lifecycle.publishPuzzleReplacement(SeatId(1), emptyList(), pending.actionId)
+
+            val batches = coordinator.drain(SeatId(1))
+            assertSoftly {
+                batches.first().single().type shouldBe GREMessageType.GameStateMessage_695e
+                batches.drop(1).flatten().none { it.hasActionsAvailableReq() } shouldBe true
+                bridge
+                    .seat(SeatId(1))
+                    .action
+                    .getPending()
+                    ?.state
+                    ?.kind shouldBe PendingActionKind.SYNC_ONLY
             }
         }
     })

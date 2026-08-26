@@ -207,8 +207,17 @@ internal class MatchLifecycleRuntime(
                 synchronized(owner.feedLock) {
                     owner.ensureOpen()
                     val gsId = owner.counter.nextGsId()
+                    val pending =
+                        checkNotNull(owner.bridge.actionBridge(seatId).exactPending(actionId)) {
+                            "Puzzle action window is no longer pending"
+                        }
                     val prepared = owner.feed(seatId).builder.prepareFullState(checkNotNull(owner.bridge.getGame()), gsId)
-                    val actions = owner.bridge.bindInitialPuzzleHorizon(actionId, gsId)
+                    val actions =
+                        if (pending.state.kind == PendingActionKind.SYNC_ONLY) {
+                            null
+                        } else {
+                            checkNotNull(owner.bridge.bindInitialPuzzleHorizon(actionId, gsId))
+                        }
                     val gsm =
                         prepared.result.gsm
                             .toBuilder()
@@ -249,6 +258,9 @@ internal class MatchLifecycleRuntime(
                             prepared.transition,
                         ),
                     )
+                    if (pending.state.kind == PendingActionKind.SYNC_ONLY) {
+                        owner.bridge.bindInitialPuzzleHorizon(actionId, gsId)
+                    }
                     PuzzleReplacementPublication(
                         gameStateId = gsId,
                         objectCount = prepared.result.gsm.gameObjectsCount,

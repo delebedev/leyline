@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
@@ -192,7 +193,8 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(session, "puzzle-opponent-turn", 1)
 
                 assertSoftly {
-                    outbound(channel).flatMap(::greMessages).none { it.hasActionsAvailableReq() } shouldBe true
+                    sink.messages.any { it.hasGameStateMessage() } shouldBe true
+                    sink.messages.none { it.hasActionsAvailableReq() } shouldBe true
                     bridge
                         .seat(SeatId(1))
                         .action
@@ -204,6 +206,54 @@ class PuzzleHandlerTest :
                 bridge.shutdown()
             } finally {
                 temp.delete()
+            }
+        }
+
+        test("opponent-turn puzzle replacement advances through its synchronization horizon") {
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val initial = tempPuzzleFile("replacement-initial")
+            val replacement = tempPuzzleFile("replacement-opponent-turn", activePlayer = "AI", humanHand = "")
+            try {
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { initial.absolutePath },
+                        TestCardRegistry.repo,
+                        registry,
+                        EngineSettings(),
+                        initial.parentFile,
+                    )
+                val bridge = handler.getOrCreatePuzzleBridge("puzzle-replacement")
+                val session =
+                    MatchSession(
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-replacement",
+                                sink = sink,
+                                registry = registry,
+                            ),
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
+                handler.sendPuzzleInitialBundle(session, "puzzle-replacement", 1)
+                val initialMessageCount = sink.messages.size
+
+                session.replaceForPuzzle(PuzzleSource.loadFromFile(replacement.absolutePath))
+
+                assertSoftly {
+                    bridge
+                        .seat(SeatId(1))
+                        .action
+                        .getPending()
+                        ?.state
+                        ?.kind shouldNotBe PendingActionKind.SYNC_ONLY
+                    sink.messages.drop(initialMessageCount).any { it.hasGameStateMessage() } shouldBe true
+                }
+                bridge.shutdown()
+            } finally {
+                initial.delete()
+                replacement.delete()
             }
         }
 
