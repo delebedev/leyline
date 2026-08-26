@@ -34,25 +34,28 @@ internal class MatchRuntimeContinuation(
     private var terminalDelivered = false
 
     fun awaitHorizon(
+        completedActionId: String?,
         result: HandlerResult = HandlerResult.Resume,
         timeoutMs: Long = bridge.priorityWaitMs,
     ) {
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
         if (result is HandlerResult.ResumeAfterEngineResume) {
-            if (!awaitNextSeatHorizon(deadline)) return
+            if (!awaitNextSeatHorizon(deadline, completedActionId)) return
             bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(result.cleanup)
             deliverHorizon()
             return
         }
-        if (!awaitNextSeatHorizon(deadline)) return
+        if (!awaitNextSeatHorizon(deadline, completedActionId)) return
         deliverHorizon()
     }
 
-    private fun awaitNextSeatHorizon(deadline: Long): Boolean {
+    private fun awaitNextSeatHorizon(
+        deadline: Long,
+        completedActionId: String?,
+    ): Boolean {
         val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
-        val responseActionId = bridge.actionBridge(seatId).getPending()?.actionId
         if (System.nanoTime() >= deadline ||
-            !bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId = responseActionId)
+            !bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId = completedActionId)
         ) {
             sendGameOverIfTerminal()
             return false

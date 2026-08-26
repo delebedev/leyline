@@ -186,100 +186,105 @@ class MatchSession(
      * and context resolver.
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            actionPerformer.perform(greMsg)
+        withValidResponse(greMsg) { completedActionId ->
+            actionPerformer.perform(greMsg, completedActionId)
         }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (combatHandler.onDeclareAttackers(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (combatHandler.onDeclareAttackers(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (combatHandler.onDeclareBlockers(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (combatHandler.onDeclareBlockers(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (combatHandler.onAssignDamage(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (combatHandler.onAssignDamage(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (optionalActionHandler.onOptionalActionResp(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (optionalActionHandler.onOptionalActionResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle NumericInputResp — delegates to [NumericInputHandler]. */
     override fun onNumericInputResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (numericInputHandler.onNumericInputResp(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (numericInputHandler.onNumericInputResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onSelectTargets(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onSelectTargets(greMsg), completedActionId)
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onSubmitTargets(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onSubmitTargets(greMsg), completedActionId)
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onSelectN(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onSelectN(greMsg), completedActionId)
         }
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (orderInteractionHandler.onOrderResp(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (orderInteractionHandler.onOrderResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     override fun onDistributionResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (distributionInteractionHandler.onDistributionResp(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (distributionInteractionHandler.onDistributionResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onEffectCost(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onEffectCost(greMsg), completedActionId)
         }
 
     override fun onGroupResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            if (groupingInteractionHandler.onGroupResp(greMsg)) runtimeContinuation.awaitHorizon()
+        withValidResponse(greMsg) { completedActionId ->
+            if (groupingInteractionHandler.onGroupResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onCastingTimeOptions(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onCastingTimeOptions(greMsg), completedActionId)
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) {
-            awaitHandlerResult(targetingHandler.onSearchResp(greMsg))
+        withValidResponse(greMsg) { completedActionId ->
+            awaitHandlerResult(targetingHandler.onSearchResp(greMsg), completedActionId)
         }
 
     private fun withValidResponse(
         greMsg: ClientToGREMessage,
-        block: () -> Unit,
+        block: (completedActionId: String?) -> Unit,
     ): Unit =
         synchronized(sessionLock) {
-            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
+            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) {
+                block(gameBridge.actionBridge(seatId).getPending()?.actionId)
+            }
         }
 
-    private fun awaitHandlerResult(result: HandlerResult) {
-        if (result.resumes) runtimeContinuation.awaitHorizon(result)
+    private fun awaitHandlerResult(
+        result: HandlerResult,
+        completedActionId: String?,
+    ) {
+        if (result.resumes) runtimeContinuation.awaitHorizon(completedActionId, result)
     }
 
     /**
@@ -291,12 +296,15 @@ class MatchSession(
      */
     override fun onCancelAction(greMsg: ClientToGREMessage): Unit =
         synchronized(sessionLock) {
+            val completedActionId = gameBridge.actionBridge(seatId).getPending()?.actionId
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.hasPendingAttackers()) {
-                if (combatHandler.onCancelAttackers(greMsg.gameStateId)) runtimeContinuation.awaitHorizon()
+                if (combatHandler.onCancelAttackers(greMsg.gameStateId)) {
+                    runtimeContinuation.awaitHorizon(completedActionId)
+                }
                 return
             }
-            awaitHandlerResult(targetingHandler.onCancelAction(greMsg))
+            awaitHandlerResult(targetingHandler.onCancelAction(greMsg), completedActionId)
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */

@@ -29,6 +29,7 @@ import leyline.infra.MatchOutput
 import leyline.infra.MessageSink
 import leyline.match.MatchConnection
 import leyline.match.MatchRegistry
+import leyline.match.MatchSession
 import leyline.match.isGameplayResponse
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.nio.file.Path
@@ -538,34 +539,7 @@ class MatchFlowHarness(
     private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     /** Advance one exact priority or state-only synchronization stop. */
-    fun passPriority() {
-        drainSink()
-        val pending = bridge.actionBridge(seatId).getPending()
-        if (pending?.state?.kind == PendingActionKind.SYNC_ONLY) {
-            val epoch = localOutput.snapshot()
-            val messageStart = messageSnapshot()
-            awaitNamedOutput(epoch, messageStart, "synchronization successor") { message ->
-                successorHorizonVisible(pending.actionId, message)
-            }
-            return
-        }
-        check(
-            pending?.state?.kind != PendingActionKind.DECLARE_ATTACKERS &&
-                pending?.state?.kind != PendingActionKind.DECLARE_BLOCKERS,
-        ) { "A declaration horizon requires a declaration response, not a priority pass" }
-        val pass =
-            allMessages
-                .asReversed()
-                .firstOrNull {
-                    it.hasActionsAvailableReq() &&
-                        (pending == null || it.gameStateId == pending.promptGameStateId)
-                }?.actionsAvailableReq
-                ?.actionsList
-                ?.singleOrNull { it.actionType == ActionType.Pass }
-                ?: accumulator.actions?.actionsList?.singleOrNull { it.actionType == ActionType.Pass }
-                ?: Action.newBuilder().setActionType(ActionType.Pass).build()
-        submitAndAwaitClientResult(submitWithGsId(performAction(pass)), "priority pass")
-    }
+    fun passPriority() = passPriorityUntil(messageSnapshot(), "priority horizon")
 
     /** Submit an offered action without rebuilding or dropping action fields. */
     fun submitAction(action: Action) {
@@ -744,19 +718,130 @@ class MatchFlowHarness(
         description: String,
         expected: (GREToClientMessage) -> Boolean = { it.type in PROMPT_GRE_TYPES },
         autoRespond: Boolean = true,
+    ) = awaitClientOperation(
+        description,
+        response = {
+            submitWithGsId(
+                message
+                    .toBuilder()
+                    .clearGameStateId()
+                    .clearRespId()
+                    .build(),
+            )
+        },
+        expected = expected,
+        autoRespond = autoRespond,
+    )
+
+    private fun awaitClientOperation(
+        description: String,
+        complete: () -> Boolean = { false },
+        response: () -> ClientToGREMessage?,
+        expected: (GREToClientMessage) -> Boolean = { false },
+        continueAfterSubmit: Boolean = false,
+        autoRespond: Boolean = true,
     ) {
-        collectSinkMessages()
-        val previousActionId = bridge.actionBridge(seatId).getPending()?.actionId
-        val epoch = localOutput.snapshot()
-        val messageStart = messageSnapshot()
-        localConnection.submitGREMessage(message)
-        awaitNamedOutput(epoch, messageStart, description) { response ->
-            expected(response) ||
-                successorHorizonVisible(previousActionId, response) ||
-                (isGameOver() && response.hasGameStateMessage())
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (true) {
+            var epoch = 0L
+            var messageStart = 0
+            var previousActionId: String? = null
+            var submitted = false
+            var completed = false
+            withSessionLock {
+                collectSinkMessages()
+                if (complete()) {
+                    completed = true
+                    return@withSessionLock
+                }
+                previousActionId = bridge.actionBridge(seatId).getPending()?.actionId
+                epoch = localOutput.snapshot()
+                messageStart = messageSnapshot()
+                response()?.let {
+                    localConnection.submitGREMessage(it)
+                    submitted = true
+                }
+            }
+            if (completed) return
+            if (submitted && !continueAfterSubmit) {
+                awaitNamedOutput(epoch, messageStart, description) { message ->
+                    expected(message) ||
+                        successorHorizonVisible(previousActionId, message) ||
+                        (isGameOver() && message.hasGameStateMessage())
+                }
+                if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
+                return
+            }
+            val remainingNanos = deadline - System.nanoTime()
+            check(
+                remainingNanos > 0 && localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
+            ) { "Timed out waiting for $description" }
         }
-        if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
     }
+
+    private fun submitTargetingResponse(
+        description: String,
+        buildResponse: (GREToClientMessage) -> ClientToGREMessage,
+        expected: (GREToClientMessage) -> Boolean = { false },
+    ) = awaitClientOperation(
+        description,
+        response = {
+            val current = bridge.cutCoordinator.targeting.current()
+            val prompt =
+                allMessages.asReversed().firstOrNull {
+                    it.hasSelectTargetsReq() && it.gameStateId == current?.gameStateId
+                }
+            prompt?.let {
+                buildResponse(it)
+                    .toBuilder()
+                    .setGameStateId(it.gameStateId)
+                    .setRespId(it.msgId)
+                    .build()
+            }
+        },
+        expected = expected,
+    )
+
+    private fun passPriorityUntil(
+        messageStart: Int,
+        description: String,
+        expectedPrompt: ((GREToClientMessage) -> Boolean)? = null,
+    ) = awaitClientOperation(
+        description,
+        complete = { expectedPrompt != null && messagesSince(messageStart).any(expectedPrompt) },
+        response = {
+            if (bridge.hasPendingNonActionInteraction()) {
+                check(expectedPrompt != null) { "The current prompt requires its typed response, not a priority pass" }
+                return@awaitClientOperation null
+            }
+            val pending = bridge.actionBridge(seatId).getPending()
+            when (pending?.state?.kind) {
+                PendingActionKind.SYNC_ONLY -> null
+                PendingActionKind.DECLARE_ATTACKERS, PendingActionKind.DECLARE_BLOCKERS ->
+                    error("A declaration horizon requires a declaration response, not a priority pass")
+                PendingActionKind.PRIORITY -> {
+                    val prompt =
+                        allMessages.asReversed().firstOrNull {
+                            it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId
+                        }
+                    val pass = prompt?.actionsAvailableReq?.actionsList?.singleOrNull { it.actionType == ActionType.Pass }
+                    if (pass == null) {
+                        null
+                    } else {
+                        performAction(pass)
+                            .toBuilder()
+                            .setGameStateId(prompt.gameStateId)
+                            .setRespId(prompt.msgId)
+                            .build()
+                    }
+                }
+                else -> null
+            }
+        },
+        expected = { expectedPrompt == null && it.type in PROMPT_GRE_TYPES },
+        continueAfterSubmit = expectedPrompt != null,
+        autoRespond = false,
+    )
 
     private fun successorHorizonVisible(
         previousActionId: String?,
@@ -764,6 +849,11 @@ class MatchFlowHarness(
     ): Boolean {
         val successor = bridge.actionBridge(seatId).getPending() ?: return false
         return successor.actionId != previousActionId && pendingHorizonVisible(successor, listOf(message))
+    }
+
+    private inline fun <T> withSessionLock(block: () -> T): T {
+        val session = localConnection.session as? MatchSession ?: error("Match session is not connected")
+        return synchronized(session.connection.sessionLock) { block() }
     }
 
     private fun awaitNamedOutput(
@@ -1008,10 +1098,10 @@ class MatchFlowHarness(
         require(targetGroups.isNotEmpty()) { "targetGroups must not be empty" }
         targetGroups.forEach { (targetIdx, targetInstanceIds) ->
             val before = allMessages.size
-            submitAndAwaitClientResult(
-                submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx)),
+            submitTargetingResponse(
                 "target selection",
-                { it.hasSelectTargetsReq() },
+                { selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx) },
+                GREToClientMessage::hasSelectTargetsReq,
             )
             // Each iterative response echoes a fresh prompt. This helper owns
             // those intermediate prompts so the caller only sees the final
@@ -1021,7 +1111,10 @@ class MatchFlowHarness(
                 if (msg.hasSelectTargetsReq()) consumedPromptMsgIds += msg.msgId
             }
         }
-        submitAndAwaitClientResult(submitWithGsId(submitTargetsReq()), "target submission")
+        submitTargetingResponse(
+            "target submission",
+            { submitTargetsReq() },
+        )
     }
 
     /** Prompt msgIds answered inside a multi-phase responder; drained by the caller. */
@@ -1036,10 +1129,16 @@ class MatchFlowHarness(
      * Use to inspect the echo-back re-prompt before confirming.
      */
     fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        submitAndAwaitClientResult(
-            submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())),
+        submitTargetingResponse(
             "target selection",
-            { it.hasSelectTargetsReq() },
+            {
+                val targetIdx =
+                    it.selectTargetsReq.targetsList
+                        .singleOrNull()
+                        ?.targetIdx ?: 1
+                selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx)
+            },
+            GREToClientMessage::hasSelectTargetsReq,
         )
     }
 
@@ -1056,7 +1155,10 @@ class MatchFlowHarness(
 
     /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {
-        submitAndAwaitClientResult(submitWithGsId(submitTargetsReq()), "target submission")
+        submitTargetingResponse(
+            "target submission",
+            { submitTargetsReq() },
+        )
     }
 
     /** Cancel a pending targeting action (backs out of spell cast). */
@@ -1227,33 +1329,44 @@ class MatchFlowHarness(
 
     fun castSpellUntilSelectNReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
-    ): SelectNReq {
-        val before = messageSnapshot()
-        check(castSpellByName(cardName)) { "Could not cast $cardName" }
-        if (messagesSince(before).none { it.hasSelectNReq() }) {
-            advanceAfterCast()
-        }
-        return messagesSince(before).asReversed().firstNotNullOfOrNull { msg ->
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
+    ): SelectNReq =
+        castSpellUntilPriorityPrompt(cardName, "SelectNReq", advanceAfterCast) { msg ->
             if (msg.hasSelectNReq()) msg.selectNReq else null
-        } ?: error("Expected SelectNReq after casting $cardName")
-    }
+        }
 
     fun castSpellUntilOrderReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
     ): OrderReq =
-        castSpellUntil(cardName, promptName = "OrderReq", advanceAfterCast = advanceAfterCast) { msg ->
+        castSpellUntilPriorityPrompt(cardName, "OrderReq", advanceAfterCast) { msg ->
             if (msg.hasOrderReq()) msg.orderReq else null
         }
 
     fun castSpellUntilCastingTimeOptionsReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
     ): CastingTimeOptionsReq =
-        castSpellUntil(cardName, promptName = "CastingTimeOptionsReq", advanceAfterCast = advanceAfterCast) { msg ->
+        castSpellUntilPriorityPrompt(cardName, "CastingTimeOptionsReq", advanceAfterCast) { msg ->
             if (msg.hasCastingTimeOptionsReq()) msg.castingTimeOptionsReq else null
         }
+
+    private fun <T> castSpellUntilPriorityPrompt(
+        cardName: String,
+        promptName: String,
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)?,
+        extract: (GREToClientMessage) -> T?,
+    ): T {
+        val messageStart = messageSnapshot()
+        check(castSpellByName(cardName)) { "Could not cast $cardName" }
+        if (advanceAfterCast == null) {
+            passPriorityUntil(messageStart, promptName) { extract(it) != null }
+        } else {
+            advanceAfterCast()
+        }
+        return messagesSince(messageStart).asReversed().firstNotNullOfOrNull(extract)
+            ?: error("Expected $promptName after casting $cardName")
+    }
 
     /**
      * Activate a non-mana ability on a battlefield card by name and ability index.
@@ -1840,8 +1953,8 @@ private class SinkMatchOutput(
         sink.sendRaw(message)
         if (!message.hasGreToClientEvent()) return
         val greMessages = message.greToClientEvent.greToClientMessagesList
-        sink.send(greMessages)
         synchronized(monitor) {
+            sink.send(greMessages)
             deliveredEpoch++
             monitor.notifyAll()
         }

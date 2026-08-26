@@ -33,7 +33,10 @@ internal class ActionPerformer(
      * advance the engine to the next priority stop.
      */
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
-    fun perform(greMsg: ClientToGREMessage) {
+    fun perform(
+        greMsg: ClientToGREMessage,
+        completedActionId: String?,
+    ) {
         var acceptedClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim? = null
         try {
             val bridge = ctx.bridge
@@ -59,8 +62,8 @@ internal class ActionPerformer(
 
             val paymentResult = targetingHandler.tryHandlePayCostsPerformAction(greMsg)
             when (paymentResult) {
-                HandlerResult.Resume -> continuation.awaitHorizon()
-                is HandlerResult.ResumeAfterEngineResume -> continuation.awaitHorizon(paymentResult)
+                HandlerResult.Resume -> continuation.awaitHorizon(completedActionId)
+                is HandlerResult.ResumeAfterEngineResume -> continuation.awaitHorizon(completedActionId, paymentResult)
                 HandlerResult.Waiting -> Unit
                 HandlerResult.NotHandled -> Unit
             }
@@ -142,7 +145,7 @@ internal class ActionPerformer(
                 }
             }
 
-            continuation.awaitClientVisibleHorizon(ignoredActionId = pending.actionId)
+            continuation.awaitClientVisibleHorizon(ignoredActionId = completedActionId)
         } catch (ex: Exception) {
             acceptedClaim?.let { ctx.bridge.cutCoordinator.failActionClaim(it, ex) }
             ctx.bridge.cutCoordinator.fail(ex)
