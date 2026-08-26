@@ -26,6 +26,7 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.AbilityDefinitionRef
@@ -152,6 +153,17 @@ class GameBridge(
         actionId: String,
         gameStateId: Int,
     ): ActionsAvailableReq = cutCoordinator.bindInitialActionWindow(actionId, gameStateId)
+
+    /** Bind a client-owned puzzle horizon, or preserve a state-only barrier for runtime delivery. */
+    fun bindInitialPuzzleHorizon(
+        actionId: String,
+        gameStateId: Int,
+    ): ActionsAvailableReq? {
+        val pending = actionBridge(seating.humanSeat).exactPending(actionId) ?: error("Puzzle action window is no longer pending")
+        if (pending.state.kind != PendingActionKind.SYNC_ONLY) return bindInitialActionWindow(actionId, gameStateId)
+        cutCoordinator.replaceWithPhaseTransition(actionId, includePriorityPrompt = false)
+        return null
+    }
 
     /** Immutable reference data shared by every projection path for this match. */
     internal val stateProjectionEnvironment by lazy { StateProjectionEnvironmentCapture.from(this) }

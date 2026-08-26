@@ -100,12 +100,11 @@ class PuzzleHandler(
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
-            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId, includePriorityPrompt = false)
+        val actions = bridge.bindInitialPuzzleHorizon(pending.actionId, gsId)
+        if (actions == null) {
             registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
             return
         }
-        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
 
         // Expose the request only after its executable catalog is installed.
         val (actionsMsg, nextMsgId2) =

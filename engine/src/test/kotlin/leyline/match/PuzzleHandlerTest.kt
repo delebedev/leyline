@@ -12,6 +12,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
@@ -71,7 +72,11 @@ class PuzzleHandlerTest :
                 }
             }
 
-        fun tempPuzzleFile(name: String): File =
+        fun tempPuzzleFile(
+            name: String,
+            activePlayer: String = "Human",
+            humanHand: String = "Lightning Bolt",
+        ): File =
             File.createTempFile("leyline-$name-", ".pzl").apply {
                 writeText(
                     """
@@ -83,12 +88,12 @@ class PuzzleHandlerTest :
                     Description:$name.
 
                     [state]
-                    ActivePlayer=Human
+                    ActivePlayer=$activePlayer
                     ActivePhase=Main1
                     HumanLife=20
                     AILife=3
 
-                    humanhand=Lightning Bolt
+                    humanhand=$humanHand
                     humanbattlefield=Mountain
                     humanlibrary=Mountain
                     ailibrary=Mountain
@@ -153,6 +158,52 @@ class PuzzleHandlerTest :
                     gre.first { it.hasGameStateMessage() }.gameStateMessage.actionsCount shouldBe 4
                     sink.messages.none { it.type == GREMessageType.IllegalRequest } shouldBe true
                     session.gameBridge shouldBeSameInstanceAs bridge
+                }
+                channel.close()
+                bridge.shutdown()
+            } finally {
+                temp.delete()
+            }
+        }
+
+        test("opponent-turn puzzle start leaves a synchronization horizon to runtime delivery") {
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val temp = tempPuzzleFile("opponent-turn", activePlayer = "AI", humanHand = "")
+            try {
+                val handler =
+                    PuzzleHandler(
+                        puzzlePath = { temp.absolutePath },
+                        TestCardRegistry.repo,
+                        registry,
+                        EngineSettings(),
+                        temp.parentFile,
+                    )
+                val (channel, ctx) = channelCtx()
+                val bridge = handler.getOrCreatePuzzleBridge("puzzle-opponent-turn")
+                val session =
+                    MatchSession(
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-opponent-turn",
+                                sink = sink,
+                                registry = registry,
+                            ),
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
+
+                handler.sendPuzzleInitialBundle(output(ctx), session, "puzzle-opponent-turn", 1)
+
+                assertSoftly {
+                    outbound(channel).flatMap(::greMessages).none { it.hasActionsAvailableReq() } shouldBe true
+                    bridge
+                        .seat(SeatId(1))
+                        .action
+                        .getPending()
+                        ?.state
+                        ?.kind shouldBe PendingActionKind.SYNC_ONLY
                 }
                 channel.close()
                 bridge.shutdown()

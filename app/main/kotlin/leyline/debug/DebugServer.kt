@@ -556,7 +556,7 @@ class DebugServer(
 
         val game = bridge.getGame()!!
         val full = BundleBuilder(bridge, newSession.matchId, newSession.seatId.value).fullState(game, gsId)
-        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
+        val actions = bridge.bindInitialPuzzleHorizon(pending.actionId, gsId)
 
         val gsmWithDeletes =
             if (deletedIds.isNotEmpty()) {
@@ -579,17 +579,19 @@ class DebugServer(
                 .build()
 
         val greActions =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(counter.nextMsgId())
-                .setGameStateId(gsId)
-                .addSystemSeatIds(newSession.seatId.value)
-                .setActionsAvailableReq(actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
+            actions?.let {
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ActionsAvailableReq_695e)
+                    .setMsgId(counter.nextMsgId())
+                    .setGameStateId(gsId)
+                    .addSystemSeatIds(newSession.seatId.value)
+                    .setActionsAvailableReq(it)
+                    .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                    .build()
+            }
 
-        newSession.sendBundledGRE(listOf(greGsm, greActions))
+        newSession.sendBundledGRE(listOfNotNull(greGsm, greActions))
         newSession.registry.getConnection(newSession.matchId, newSession.seatId)?.armRuntimeDeliveryObserver()
 
         return if (fileParam != null) {
