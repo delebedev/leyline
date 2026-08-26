@@ -1,6 +1,5 @@
 package leyline.bridge.coord
 
-import forge.game.Game
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionKind
@@ -10,17 +9,46 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
-import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 
 /** Runtime action catalogs and exact presentation ownership beneath [MatchCutCoordinator]. */
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
 ) {
+    internal sealed interface DeferredCastPrompt {
+        val actionClaim: ActionClaim
+        val promptGameStateId: Int
+
+        data class Optional(
+            override val actionClaim: ActionClaim,
+            override val promptGameStateId: Int,
+            val costCtoIds: List<Int>,
+            val additionalCostGrpIdsByCtoId: Map<Int, Int>,
+            val keywordCostsByCtoId: Map<Int, String>,
+        ) : DeferredCastPrompt
+
+        data class HybridManaType(
+            override val actionClaim: ActionClaim,
+            override val promptGameStateId: Int,
+            val ctoIds: List<Int>,
+            val promptColors: List<ManaColor>,
+            val paymentColors: List<ManaColor>,
+        ) : DeferredCastPrompt
+
+        data class AlternateCostChoice(
+            override val actionClaim: ActionClaim,
+            override val promptGameStateId: Int,
+            val runtimeTokensByCtoId: Map<Int, Long>,
+        ) : DeferredCastPrompt
+    }
+
     // Written under the coordinator feed lock; read lock-free by the engine wait
     // adapter and session threads asking whether a window is still open.
-    private val actionWindows = java.util.concurrent.ConcurrentHashMap<String, RuntimeActionWindow>()
-    private val declaredActions = mutableMapOf<String, PlayerAction>()
+    private val actionWindows = ConcurrentHashMap<String, RuntimeActionWindow>()
+    private val deferredCastPrompts = mutableMapOf<String, DeferredCastPrompt>()
     private var nextActionToken = 1L
 
     internal var beforeEnqueue: (() -> Unit)? = null
@@ -47,6 +75,21 @@ internal class MatchActionWindowRuntime(
 
     fun bridge(seatId: SeatId): GameActionBridge.ActionWindowRuntime = CoordinatorActionWindowBridge(this, seatId)
 
+    internal fun installDeferredCastPrompt(prompt: DeferredCastPrompt) =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val actionId = prompt.actionClaim.actionId
+            check(actionWindows[actionId]?.status == ActionWindowStatus.Claimed(ActionClaimKind.Deferred, prompt.actionClaim.token)) {
+                "Deferred cast prompt is not owned by its action claim"
+            }
+            deferredCastPrompts[actionId] = prompt
+        }
+
+    internal fun currentDeferredCastPrompt(): DeferredCastPrompt? =
+        synchronized(owner.feedLock) { deferredCastPrompts.values.firstOrNull() }
+
+    internal fun clearDeferredCastPrompt(actionId: String) = synchronized(owner.feedLock) { deferredCastPrompts.remove(actionId) }
+
     /**
      * The engine and client see a window only while it is
      * [ActionWindowStatus.Published]. Read without the feed lock: the engine wait
@@ -71,7 +114,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun claimTimeout(
         pending: GameActionBridge.PendingAction,
-        cause: java.util.concurrent.TimeoutException,
+        cause: TimeoutException,
     ): Boolean {
         beforeTimeoutClaim?.invoke()
         return synchronized(owner.feedLock) {
@@ -79,7 +122,6 @@ internal class MatchActionWindowRuntime(
             if (window?.status != ActionWindowStatus.Published) return@synchronized false
             val claimed = pending.future.completeExceptionally(cause)
             if (claimed) {
-                declaredActions.remove(pending.actionId)
                 actionWindows.remove(pending.actionId)?.selections?.clear()
             }
             claimed
@@ -88,7 +130,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun claimSynchronizationTimeout(
         pending: GameActionBridge.PendingAction,
-        cause: java.util.concurrent.TimeoutException,
+        cause: TimeoutException,
     ): Boolean {
         beforeSynchronizationTimeoutClaim?.invoke()
         return synchronized(owner.feedLock) {
@@ -115,6 +157,12 @@ internal class MatchActionWindowRuntime(
         }
 
     fun legalAttackerIds(actionId: String): List<Int> = synchronized(owner.feedLock) { actionWindows[actionId]?.legalAttackerIds.orEmpty() }
+
+    fun hasLegalAttackers(actionId: String): Boolean =
+        synchronized(owner.feedLock) {
+            actionWindows[actionId]?.combat?.attackerByInstanceId?.isNotEmpty() ==
+                true
+        }
 
     fun legalBlockerCount(actionId: String): Int = synchronized(owner.feedLock) { actionWindows[actionId]?.legalBlockerCount ?: 0 }
 
@@ -176,29 +224,97 @@ internal class MatchActionWindowRuntime(
             }
         }
 
-    fun updateAttackers(
+    fun updateDeclaration(
         actionId: String,
-        selectedAttackerIds: List<Int>,
-        allLegalAttackerIds: List<Int>,
-        selectedAttackAlternatives: Map<Int, Int>,
-        selectedDamageRecipients: Map<Int, DamageRecipient>,
-    ) = updatePresentation(actionId, PendingActionKind.DECLARE_ATTACKERS) { feed, game, window ->
-        feed.builder.prepareEchoAttackers(
-            game,
-            owner.counter,
-            selectedAttackerIds,
-            allLegalAttackerIds,
-            selectedAttackAlternatives,
-            selectedDamageRecipients,
-            window.presentationActions,
-        )
-    }
+        responseGameStateId: Int,
+        answer: DeclarationAnswer,
+    ): Boolean =
+        synchronized(owner.counter) {
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    val window = actionWindows[actionId] ?: return false
+                    val pending = owner.bridge.actionBridge(window.seatId).getPending() ?: return false
+                    if (pending.actionId != actionId ||
+                        window.status != ActionWindowStatus.Published ||
+                        responseGameStateId != window.promptGameStateId
+                    ) {
+                        return false
+                    }
+                    val combat = window.combat ?: return false
+                    when (pending.state.kind) {
+                        PendingActionKind.DECLARE_ATTACKERS -> {
+                            val attackers = answer as? DeclarationAnswer.Attackers ?: return false
+                            val next = combat.nextAttackers(attackers) ?: return false
+                            combat.attackers.clear()
+                            combat.attackers.putAll(next)
+                            check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_ATTACKERS))
+                        }
+                        PendingActionKind.DECLARE_BLOCKERS -> {
+                            val blockers = answer as? DeclarationAnswer.Blockers ?: return false
+                            val next = combat.nextBlockers(blockers) ?: return false
+                            combat.blockers.clear()
+                            combat.blockers.putAll(next)
+                            check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_BLOCKERS))
+                        }
+                        PendingActionKind.PRIORITY,
+                        PendingActionKind.SYNC_ONLY,
+                        -> return false
+                    }
+                    true
+                }
+            }
+        }
 
-    fun updateBlockers(
-        actionId: String,
-        blockAssignments: Map<Int, Int>,
-    ) = updatePresentation(actionId, PendingActionKind.DECLARE_BLOCKERS) { feed, game, window ->
-        feed.builder.prepareEchoBlockers(game, owner.counter, blockAssignments, window.presentationActions)
+    fun republishDeclaration(actionId: String): Boolean =
+        synchronized(owner.counter) {
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    val window = actionWindows[actionId] ?: return false
+                    val pending = owner.bridge.actionBridge(window.seatId).getPending() ?: return false
+                    if (pending.actionId != actionId ||
+                        pending.state.kind !in setOf(PendingActionKind.DECLARE_ATTACKERS, PendingActionKind.DECLARE_BLOCKERS) ||
+                        window.status != ActionWindowStatus.Published ||
+                        window.combat == null
+                    ) {
+                        return false
+                    }
+                    publishDeclarationPresentation(window, pending.state.kind)
+                }
+            }
+        }
+
+    private fun publishDeclarationPresentation(
+        window: RuntimeActionWindow,
+        kind: PendingActionKind,
+    ): Boolean {
+        val combat = window.combat ?: return false
+        val feed = owner.feed(window.seatId)
+        val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+        val prepared =
+            try {
+                when (kind) {
+                    PendingActionKind.DECLARE_ATTACKERS ->
+                        feed.builder.prepareEchoAttackers(
+                            game,
+                            owner.counter,
+                            combat.attackers.keys.toList(),
+                            window.legalAttackerIds,
+                            combat.attackers.mapValues { it.value.alternativeGrpId },
+                            combat.attackers.mapValues { it.value.damageRecipient },
+                            window.presentationActions,
+                        )
+                    PendingActionKind.DECLARE_BLOCKERS ->
+                        feed.builder.prepareEchoBlockers(game, owner.counter, combat.blockers, window.presentationActions)
+                    PendingActionKind.PRIORITY,
+                    PendingActionKind.SYNC_ONLY,
+                    -> return false
+                }
+            } catch (ex: Exception) {
+                owner.fail(ex)
+            }
+        publishPresentation(feed, window, prepared)
+        return true
     }
 
     fun bindInitial(
@@ -308,7 +424,6 @@ internal class MatchActionWindowRuntime(
     fun submitDeclaration(
         actionId: String,
         responseGameStateId: Int,
-        answer: DeclarationAnswer,
         confirmation: (() -> GREToClientMessage)? = null,
     ): Boolean =
         synchronized(owner.counter) {
@@ -316,31 +431,15 @@ internal class MatchActionWindowRuntime(
                 synchronized(owner.feedLock) {
                     owner.ensureOpen()
                     val window = actionWindows[actionId] ?: return false
-                    if (responseGameStateId != 0 && responseGameStateId != window.promptGameStateId) return false
-                    val action =
-                        when (answer) {
-                            is DeclarationAnswer.Attackers ->
-                                PlayerAction.DeclareAttackers(
-                                    answer.attackerIds,
-                                    answer.attackAlternativeByAttacker,
-                                    answer.defender,
-                                    answer.defenderByAttacker,
-                                )
-                            is DeclarationAnswer.Blockers -> PlayerAction.DeclareBlockers(answer.blockAssignments)
-                        }
-                    val expected =
-                        if (answer is DeclarationAnswer.Attackers) {
-                            PendingActionKind.DECLARE_ATTACKERS
-                        } else {
-                            PendingActionKind.DECLARE_BLOCKERS
-                        }
                     val pending = owner.bridge.actionBridge(window.seatId).getPending() ?: return false
                     if (pending.actionId != actionId ||
-                        pending.state.kind != expected ||
-                        window.status != ActionWindowStatus.Published
+                        pending.state.kind !in setOf(PendingActionKind.DECLARE_ATTACKERS, PendingActionKind.DECLARE_BLOCKERS) ||
+                        window.status != ActionWindowStatus.Published ||
+                        responseGameStateId != window.promptGameStateId
                     ) {
                         return false
                     }
+                    val action = window.combat?.resolveDeclaration(pending.state.kind) ?: return false
                     val confirmationMessage =
                         try {
                             confirmation?.invoke()
@@ -349,7 +448,6 @@ internal class MatchActionWindowRuntime(
                         }
                     val token = nextActionToken++
                     window.status = ActionWindowStatus.Claimed(ActionClaimKind.Immediate, token)
-                    declaredActions[actionId] = action
                     window.selections[token] =
                         RuntimeActionSelection(
                             GameActionBridge.ActionOffer(Action.getDefaultInstance(), action),
@@ -367,40 +465,13 @@ internal class MatchActionWindowRuntime(
         synchronized(owner.feedLock) {
             actionWindows.values.forEach { it.selections.clear() }
             actionWindows.clear()
-            declaredActions.clear()
+            deferredCastPrompts.clear()
         }
     }
 
     fun reset() {
         terminate()
         nextActionToken = 1L
-    }
-
-    private fun updatePresentation(
-        actionId: String,
-        expectedKind: PendingActionKind,
-        build: (MatchCutCoordinator.ViewerFeed, Game, RuntimeActionWindow) -> BundleBuilder.ActionWindowPrepared,
-    ) {
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    val window = actionWindows[actionId] ?: error("No action window $actionId")
-                    val pending = owner.bridge.actionBridge(window.seatId).getPending()
-                    check(pending?.actionId == actionId && pending.state.kind == expectedKind) {
-                        "Action window $actionId is not $expectedKind"
-                    }
-                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                    val feed = owner.feed(window.seatId)
-                    val prepared =
-                        try {
-                            build(feed, game, window)
-                        } catch (ex: Exception) {
-                            owner.fail(ex)
-                        }
-                    publishPresentation(feed, window, prepared)
-                }
-            }
-        }
     }
 
     internal fun publish(
@@ -458,7 +529,7 @@ internal class MatchActionWindowRuntime(
                                 materializeDeferredCost = { _, offer ->
                                     DeferredCastCostPlanMaterializer.materialize(owner.bridge, offer) { nextActionToken++ }
                                 },
-                            )
+                            ).copy(combat = RuntimeCombatHandles.capture(owner, game, messages))
                         } catch (ex: Exception) {
                             nextActionToken = tokenBefore
                             owner.fail(ex)
@@ -517,7 +588,6 @@ internal class MatchActionWindowRuntime(
     ): PlayerAction? =
         synchronized(owner.feedLock) {
             if (submission.token == GameActionBridge.ENGINE_PASS_TOKEN) return PlayerAction.PassPriority
-            declaredActions.remove(pending.actionId)?.let { return it }
             val selection = actionWindows[pending.actionId]?.selections?.remove(submission.token) ?: return null
             val command = selection.offer.command
             if (command is PlayerAction.CastSpell) owner.bridge.setSelectedSpellGrpId(command.cardId, selection.offer.spellGrpId)
@@ -526,7 +596,7 @@ internal class MatchActionWindowRuntime(
 
     internal fun close(actionId: String) {
         synchronized(owner.feedLock) {
-            declaredActions.remove(actionId)
+            deferredCastPrompts.remove(actionId)
             actionWindows.remove(actionId)?.selections?.clear()
         }
     }

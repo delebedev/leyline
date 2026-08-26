@@ -15,8 +15,6 @@ internal class DeferredCastCostInteractionHandler(
     private val counters: SessionCounters,
     private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
-    private val getPendingInteraction: () -> PendingClientInteraction?,
-    private val setPendingInteraction: (PendingClientInteraction?) -> Unit,
 ) {
     private val log = LoggerFactory.getLogger(DeferredCastCostInteractionHandler::class.java)
 
@@ -24,19 +22,28 @@ internal class DeferredCastCostInteractionHandler(
         greMsg: ClientToGREMessage,
         autoPass: () -> Unit,
     ): Boolean {
-        when (val pending = getPendingInteraction()) {
-            is PendingClientInteraction.AlternateCostChoice -> {
-                setPendingInteraction(null)
+        when (val pending = ctx.bridge.cutCoordinator.currentDeferredCastPrompt()) {
+            is MatchActionWindowRuntime.DeferredCastPrompt.AlternateCostChoice -> {
+                if (greMsg.gameStateId != pending.promptGameStateId) {
+                    ResponseEnvelopeGuard.reject(greMsg, FailureReason.ReqRespMismatch, counters.counter, sink)
+                    return true
+                }
                 withClaim(pending.actionClaim) { complete -> onAlternateCostChoiceResponse(greMsg, pending, autoPass, complete) }
                 return true
             }
-            is PendingClientInteraction.OptionalCost -> {
-                setPendingInteraction(null)
+            is MatchActionWindowRuntime.DeferredCastPrompt.Optional -> {
+                if (greMsg.gameStateId != pending.promptGameStateId) {
+                    ResponseEnvelopeGuard.reject(greMsg, FailureReason.ReqRespMismatch, counters.counter, sink)
+                    return true
+                }
                 withClaim(pending.actionClaim) { complete -> onOptionalCostResponse(greMsg, pending, autoPass, complete) }
                 return true
             }
-            is PendingClientInteraction.HybridManaType -> {
-                setPendingInteraction(null)
+            is MatchActionWindowRuntime.DeferredCastPrompt.HybridManaType -> {
+                if (greMsg.gameStateId != pending.promptGameStateId) {
+                    ResponseEnvelopeGuard.reject(greMsg, FailureReason.ReqRespMismatch, counters.counter, sink)
+                    return true
+                }
                 withClaim(pending.actionClaim) { complete -> onHybridManaTypeResponse(greMsg, pending, autoPass, complete) }
                 return true
             }
@@ -61,16 +68,17 @@ internal class DeferredCastCostInteractionHandler(
                 hybridColors = hybrid.promptColors,
                 manaCost = hybrid.manaCost,
             )
-        setPendingInteraction(
-            PendingClientInteraction.HybridManaType(
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        ctx.bridge.cutCoordinator.installDeferredCastPrompt(
+            MatchActionWindowRuntime.DeferredCastPrompt.HybridManaType(
                 actionClaim = actionClaim,
+                promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
                 ctoIds = ctoIds,
                 promptColors = hybrid.promptColors,
                 paymentColors = hybrid.paymentColors,
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} grpId=${plan.grpId}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -109,16 +117,17 @@ internal class DeferredCastCostInteractionHandler(
                         ?.let { costCtoIds[index] to it }
                 }.toMap()
 
-        setPendingInteraction(
-            PendingClientInteraction.OptionalCost(
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        ctx.bridge.cutCoordinator.installDeferredCastPrompt(
+            MatchActionWindowRuntime.DeferredCastPrompt.Optional(
                 actionClaim = actionClaim,
+                promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
                 costCtoIds = costCtoIds,
                 additionalCostGrpIdsByCtoId = additionalCostGrpIdMap,
                 keywordCostsByCtoId = keywordCtoIdMap,
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} grpId=${plan.grpId}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -137,14 +146,15 @@ internal class DeferredCastCostInteractionHandler(
                 optionCount = alternate.choices.size,
                 optionPromptIds = if (optionPromptIds.all { it != null }) optionPromptIds.filterNotNull() else emptyList(),
             )
-        setPendingInteraction(
-            PendingClientInteraction.AlternateCostChoice(
+        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
+        ctx.bridge.cutCoordinator.installDeferredCastPrompt(
+            MatchActionWindowRuntime.DeferredCastPrompt.AlternateCostChoice(
                 actionClaim = actionClaim,
+                promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
                 runtimeTokensByCtoId = ctoIds.mapIndexed { index, ctoId -> ctoId to alternate.choices[index].runtimeToken }.toMap(),
             ),
         )
 
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} grpId=${plan.grpId}")
         sink.sendBundledGRE(result.messages)
         return true
@@ -162,13 +172,18 @@ internal class DeferredCastCostInteractionHandler(
 
     private fun onOptionalCostResponse(
         greMsg: ClientToGREMessage,
-        pending: PendingClientInteraction.OptionalCost,
+        pending: MatchActionWindowRuntime.DeferredCastPrompt.Optional,
         autoPass: () -> Unit,
         complete: (Long?) -> Unit,
     ) {
         val bridge = ctx.bridge
         val chosenCtoId = greMsg.castingTimeOptionsResp.castingTimeOptionResp?.ctoId ?: 0
         val accepted = chosenCtoId != 0 && chosenCtoId in pending.costCtoIds
+        val valid = chosenCtoId == 0 || accepted || chosenCtoId in pending.keywordCostsByCtoId
+        if (!valid) {
+            ResponseEnvelopeGuard.reject(greMsg, FailureReason.InvalidOptionSelection, counters.counter, sink)
+            return
+        }
         val isOptionalCostPick = accepted && chosenCtoId !in pending.keywordCostsByCtoId
         val acceptedIndices = if (isOptionalCostPick) listOf(chosenCtoId - 1) else emptyList()
 
@@ -201,7 +216,7 @@ internal class DeferredCastCostInteractionHandler(
 
     private fun onHybridManaTypeResponse(
         greMsg: ClientToGREMessage,
-        pending: PendingClientInteraction.HybridManaType,
+        pending: MatchActionWindowRuntime.DeferredCastPrompt.HybridManaType,
         autoPass: () -> Unit,
         complete: (Long?) -> Unit,
     ) {
@@ -215,6 +230,10 @@ internal class DeferredCastCostInteractionHandler(
             } else {
                 listOf(resp.castingTimeOptionResp)
             }
+        if (optionResponses.any { it.ctoId != 0 && it.ctoId !in pending.ctoIds }) {
+            ResponseEnvelopeGuard.reject(greMsg, FailureReason.InvalidOptionSelection, counters.counter, sink)
+            return
+        }
         val byCtoId = optionResponses.associateBy { it.ctoId }
         val promptChoices =
             pending.ctoIds.mapIndexed { index, ctoId ->
@@ -247,7 +266,7 @@ internal class DeferredCastCostInteractionHandler(
 
     private fun onAlternateCostChoiceResponse(
         greMsg: ClientToGREMessage,
-        pending: PendingClientInteraction.AlternateCostChoice,
+        pending: MatchActionWindowRuntime.DeferredCastPrompt.AlternateCostChoice,
         autoPass: () -> Unit,
         complete: (Long?) -> Unit,
     ) {
@@ -266,7 +285,6 @@ internal class DeferredCastCostInteractionHandler(
                 chosenCtoId,
                 pending.runtimeTokensByCtoId.keys,
             )
-            setPendingInteraction(pending)
             ResponseEnvelopeGuard.reject(greMsg, FailureReason.InvalidOptionSelection, counters.counter, sink)
             return
         }
@@ -283,6 +301,7 @@ internal class DeferredCastCostInteractionHandler(
         try {
             block { childToken ->
                 check(ctx.bridge.cutCoordinator.completeActionClaim(claim, childToken)) { "Deferred action claim did not complete" }
+                ctx.bridge.cutCoordinator.clearDeferredCastPrompt(claim.actionId)
                 completed = true
             }
         } catch (ex: Exception) {

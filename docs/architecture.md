@@ -129,8 +129,13 @@ transaction — enqueue, projection commit, rollback of an uninstalled batch, an
 playback acknowledgement — for every runtime family.
 `MatchActionWindowRuntime` is the sole authority on action-window lifecycle;
 `GameActionBridge` is the engine-thread wait adapter and keeps no competing
-lifecycle state. `InteractiveCommandExchange` owns the cross-thread command
-handshake that iterative targeting and mana-source payment windows share.
+lifecycle state. The action runtime retains executable offers and the exact
+combat identities published with each declaration window. Session handlers
+submit immutable client-domain values; the runtime resolves and claims the
+retained handles. Deferred cast-cost responses use the same action claim rather
+than a session-owned lookup table. `InteractiveCommandExchange` owns the
+cross-thread command handshake that iterative targeting and mana-source
+payment windows share.
 
 Not every lifecycle path has converged on that owner. Mulligan and residual
 session-owned output retain explicit handoff contracts.

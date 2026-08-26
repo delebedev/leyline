@@ -43,16 +43,15 @@ class TargetingHandler(
             counters = counters,
             bundles = bundles,
             ctx = ctx,
-            getPendingInteraction = { pendingInteraction },
-            setPendingInteraction = { pendingInteraction = it },
         )
-
-    @Volatile
-    private var pendingInteraction: PendingClientInteraction? = null
 
     /** Clear targeting state for puzzle hot-swap. */
     fun reset() {
-        pendingInteraction = null
+        ctx.bridge.cutCoordinator.currentDeferredCastPrompt()?.let {
+            ctx.bridge.cutCoordinator.clearDeferredCastPrompt(
+                it.actionClaim.actionId,
+            )
+        }
     }
 
     /**
@@ -245,13 +244,9 @@ class TargetingHandler(
     ) {
         val bridge = ctx.bridge
         val deferredClaim =
-            when (val interaction = pendingInteraction) {
-                is PendingClientInteraction.OptionalCost -> interaction.actionClaim
-                is PendingClientInteraction.AlternateCostChoice -> interaction.actionClaim
-                is PendingClientInteraction.HybridManaType -> interaction.actionClaim
-                null,
-                -> null
-            }
+            ctx.bridge.cutCoordinator
+                .currentDeferredCastPrompt()
+                ?.actionClaim
         if (deferredClaim != null) {
             cancelDeferredCast(deferredClaim, autoPass)
             return
@@ -316,7 +311,7 @@ class TargetingHandler(
         actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim,
         autoPass: () -> Unit,
     ) {
-        pendingInteraction = null
+        ctx.bridge.cutCoordinator.clearDeferredCastPrompt(actionClaim.actionId)
         actionClaim.deferredCostPlan?.sourceCardId?.let { ctx.bridge.setSelectedSpellGrpId(it, null) }
         ctx.bridge
             .seat(counters.seatId)
@@ -414,10 +409,10 @@ class TargetingHandler(
         val bridge = ctx.bridge
         val modal = bridge.cutCoordinator.modalChoices.current()
         if (modal == null) {
-            when (val pending = pendingInteraction) {
-                is PendingClientInteraction.AlternateCostChoice,
-                is PendingClientInteraction.OptionalCost,
-                is PendingClientInteraction.HybridManaType,
+            when (val pending = bridge.cutCoordinator.currentDeferredCastPrompt()) {
+                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.AlternateCostChoice,
+                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.Optional,
+                is leyline.bridge.coord.MatchActionWindowRuntime.DeferredCastPrompt.HybridManaType,
                 -> error("deferred cast-cost handler did not consume ${pending::class.simpleName}")
 
                 else -> {

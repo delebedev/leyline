@@ -2,6 +2,7 @@ package leyline.bridge.coord
 
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
+import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GameActionBridge
@@ -18,7 +19,6 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
-import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -84,26 +84,17 @@ internal class MatchCutCoordinator(
 
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
 
+    fun hasLegalAttackers(actionId: String): Boolean = actions.hasLegalAttackers(actionId)
+
     fun legalBlockerCount(actionId: String): Int = actions.legalBlockerCount(actionId)
 
-    fun updateAttackerPresentation(
+    fun updateDeclaration(
         actionId: String,
-        selectedAttackerIds: List<Int>,
-        allLegalAttackerIds: List<Int>,
-        selectedAttackAlternatives: Map<Int, Int>,
-        selectedDamageRecipients: Map<Int, DamageRecipient>,
-    ) = actions.updateAttackers(
-        actionId,
-        selectedAttackerIds,
-        allLegalAttackerIds,
-        selectedAttackAlternatives,
-        selectedDamageRecipients,
-    )
+        responseGameStateId: Int,
+        answer: DeclarationAnswer,
+    ): Boolean = actions.updateDeclaration(actionId, responseGameStateId, answer)
 
-    fun updateBlockerPresentation(
-        actionId: String,
-        blockAssignments: Map<Int, Int>,
-    ) = actions.updateBlockers(actionId, blockAssignments)
+    fun republishDeclaration(actionId: String): Boolean = actions.republishDeclaration(actionId)
 
     fun bindInitialActionWindow(
         actionId: String,
@@ -153,9 +144,14 @@ internal class MatchCutCoordinator(
     fun submitDeclaredAction(
         actionId: String,
         responseGameStateId: Int,
-        answer: DeclarationAnswer,
         confirmation: (() -> GREToClientMessage)? = null,
-    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, answer, confirmation)
+    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, confirmation)
+
+    internal fun installDeferredCastPrompt(prompt: MatchActionWindowRuntime.DeferredCastPrompt) = actions.installDeferredCastPrompt(prompt)
+
+    internal fun currentDeferredCastPrompt(): MatchActionWindowRuntime.DeferredCastPrompt? = actions.currentDeferredCastPrompt()
+
+    internal fun clearDeferredCastPrompt(actionId: String) = actions.clearDeferredCastPrompt(actionId)
 
     fun currentBlockingInteraction(): PublishedBlockingInteraction? = interactions.current()
 
@@ -182,6 +178,12 @@ internal class MatchCutCoordinator(
         gameStateId: Int,
         assignments: List<DamageAssignmentValue>,
     ): Boolean = interactions.submitDamage(interactionId, gameStateId, assignments)
+
+    fun submitDamageCommand(
+        interactionId: String,
+        gameStateId: Int,
+        assignments: List<DamageAssignmentCommand>,
+    ): Boolean = interactions.submitDamageCommand(interactionId, gameStateId, assignments)
 
     override fun awaitOptional(
         interaction: BlockingInteraction.Optional,

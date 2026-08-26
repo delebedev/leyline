@@ -360,7 +360,7 @@ class MatchSession(
     override fun onCancelAction(greMsg: ClientToGREMessage): Unit =
         synchronized(sessionLock) {
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
-            if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
+            if (combatHandler.hasPendingAttackers()) {
                 combatHandler.onCancelAttackers { autoPassEngine.autoPassAndAdvance() }
                 return
             }

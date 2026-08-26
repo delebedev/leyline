@@ -6,6 +6,7 @@ import forge.game.card.Card
 import forge.game.card.CardCollectionView
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
+import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.types.ForgeCardId
 import leyline.game.PendingPromptCut
 import leyline.game.bundle.BlockingInteractionMaterializer
@@ -52,6 +53,8 @@ internal class MatchBlockingInteractionRuntime(
         val cut: PendingPromptCut<BlockingInteraction>,
         val future: CompletableFuture<Answer>,
         val damageCards: Map<ForgeCardId, Card> = emptyMap(),
+        val damageAttackerByInstanceId: Map<Int, ForgeCardId> = emptyMap(),
+        val damageBlockerByInstanceId: Map<Int, ForgeCardId> = emptyMap(),
     )
 
     private var window: Window? = null
@@ -105,7 +108,7 @@ internal class MatchBlockingInteractionRuntime(
         val cards = (listOf(attacker) + blockers).associateBy { ForgeCardId(it.id) }
         val toughness = blockers.associate { ForgeCardId(it.id) to maxOf(0, it.netToughness - it.damage) }
         val pending =
-            publish(interaction, cards) { feed, _ ->
+            publish(interaction, cards, ForgeCardId(attacker.id)) { feed, _ ->
                 feed.builder.damageInteractionBundle(owner.counter, interaction, toughness)
             }
         return try {
@@ -197,6 +200,42 @@ internal class MatchBlockingInteractionRuntime(
             }
         }
 
+    fun submitDamageCommand(
+        interactionId: String,
+        gameStateId: Int,
+        commands: List<DamageAssignmentCommand>,
+    ): Boolean =
+        synchronized(owner.counter) {
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    val pending = matching(interactionId, gameStateId) ?: return false
+                    if (commands.map { it.attackerInstanceId }.distinct().size != commands.size) return false
+                    val assignments =
+                        commands.map { command ->
+                            val attacker = pending.damageAttackerByInstanceId[command.attackerInstanceId] ?: return false
+                            val resolved =
+                                command.assignments
+                                    .map { (instanceId, amount) ->
+                                        if (amount < 0) return false
+                                        val blocker =
+                                            if (instanceId ==
+                                                0
+                                            ) {
+                                                null
+                                            } else {
+                                                pending.damageBlockerByInstanceId[instanceId] ?: return false
+                                            }
+                                        blocker to amount
+                                    }.toMap()
+                            DamageAssignmentValue(attacker, resolved)
+                        }
+                    val feed = owner.feed(owner.humanSeat)
+                    feed.queue.add(feed.builder.damageAssignmentConfirmation(owner.counter).messages)
+                    pending.future.complete(Answer.Damage(assignments))
+                }
+            }
+        }
+
     override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             window?.future?.completeExceptionally(cause)
@@ -215,6 +254,7 @@ internal class MatchBlockingInteractionRuntime(
     private fun publish(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
+        damageAttackerId: ForgeCardId? = null,
         build: (MatchCutCoordinator.ViewerFeed, Game) -> BlockingInteractionMaterializer.Prepared,
     ): Window {
         owner.beforePublicationLock?.invoke()
@@ -246,7 +286,17 @@ internal class MatchBlockingInteractionRuntime(
                                 prepared.bundle.messages,
                                 prepared.transition,
                             )
-                        val created = Window(published, exact, CompletableFuture(), damageCards)
+                        val attacker = damageAttackerId?.let { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId }
+                        val blockersByForgeId = damageCards.keys.filter { it != damageAttackerId }
+                        val created =
+                            Window(
+                                published,
+                                exact,
+                                CompletableFuture(),
+                                damageCards,
+                                attacker?.let { mapOf(it) }.orEmpty(),
+                                blockersByForgeId.associate { forgeId -> owner.bridge.getOrAllocInstanceId(forgeId).value to forgeId },
+                            )
                         owner.cutInstaller.install(
                             feed,
                             PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
@@ -307,9 +357,7 @@ internal class MatchBlockingInteractionRuntime(
     ): Window? {
         val pending = window ?: return null
         if (pending.future.isDone) return null
-        if (pending.published.interactionId != interactionId ||
-            (gameStateId != 0 && pending.published.gameStateId != gameStateId)
-        ) {
+        if (pending.published.interactionId != interactionId || pending.published.gameStateId != gameStateId) {
             return null
         }
         return pending

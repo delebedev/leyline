@@ -13,6 +13,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
+import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
@@ -335,11 +336,19 @@ class MatchCutCoordinatorBlockingTest :
                     .shouldNotBeNull()
             check(drainReturned.await(3, TimeUnit.SECONDS))
             drained.get().flatten().any { it.hasAssignDamageReq() } shouldBe true
-            board.bridge.cutCoordinator.submitDamageAnswer(
-                published.interactionId,
-                published.gameStateId,
-                listOf(DamageAssignmentValue(ForgeCardId(attacker.id), mapOf(ForgeCardId(blocker.id) to 2))),
-            ) shouldBe true
+            assertSoftly {
+                board.bridge.cutCoordinator.submitDamageCommand(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(DamageAssignmentCommand(Int.MAX_VALUE, emptyMap())),
+                ) shouldBe false
+                board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe published
+                board.bridge.cutCoordinator.submitDamageAnswer(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(DamageAssignmentValue(ForgeCardId(attacker.id), mapOf(ForgeCardId(blocker.id) to 2))),
+                ) shouldBe true
+            }
             engine.join(3_000)
             board.bridge.cutCoordinator.beforeBlockingInstall = null
 

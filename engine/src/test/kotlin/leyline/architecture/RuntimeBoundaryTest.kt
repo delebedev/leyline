@@ -9,8 +9,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
 import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
@@ -167,6 +169,36 @@ class RuntimeBoundaryTest :
                 .haveFullyQualifiedName("leyline.bridge.coord.PriorityPolicyRuntime")
                 .because("only the priority runtime may retain accumulated client settings")
                 .check(classes)
+        }
+
+        test("response handlers do not reconstruct Forge identities") {
+            val sessionRoot = EngineArchitecture.sourceRoot.resolve("leyline/match")
+            val migratedHandlers =
+                listOf(
+                    "ActionPerformer.kt",
+                    "CombatHandler.kt",
+                    "DeferredCastCostInteractionHandler.kt",
+                    "ManaSourcePaymentHandler.kt",
+                    "TargetingHandler.kt",
+                )
+            val forbiddenReads = listOf("getForgeCardId(", "getInstanceIdMap(", "getPlayer(", ".players", "findCard(")
+            val runtime = Files.readString(sessionRoot.resolve("../bridge/coord/RuntimeCombatWindow.kt"))
+
+            assertSoftly {
+                migratedHandlers shouldHaveSize 5
+                migratedHandlers.forEach { name ->
+                    val source = Files.readString(sessionRoot.resolve(name))
+                    forbiddenReads.forEach { read ->
+                        withClue("$name must submit client values; it must not perform $read") {
+                            source shouldNotContain read
+                        }
+                    }
+                }
+                withClue("the action runtime must retain the identities removed from session code") {
+                    runtime shouldContain "getForgeCardId("
+                    runtime shouldContain "getPlayer("
+                }
+            }
         }
     })
 
