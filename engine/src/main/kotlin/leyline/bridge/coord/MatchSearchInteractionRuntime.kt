@@ -104,16 +104,18 @@ internal class MatchSearchInteractionRuntime(
             duplicateMessage = "A search interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareSearchWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published = PublishedSearchInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
                     PendingPromptCut(
@@ -141,6 +143,7 @@ internal class MatchSearchInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

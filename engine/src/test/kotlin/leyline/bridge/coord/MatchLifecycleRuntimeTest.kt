@@ -11,6 +11,8 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -48,13 +50,18 @@ class MatchLifecycleRuntimeTest :
         test("startup lifecycle batches commit in one coordinator order") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val coordinator = bridge.cutCoordinator
+            coordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             coordinator.drain(SeatId(1))
             val priorRevision = bridge.projectionStateSnapshot().revision
 
             coordinator.lifecycle.publishInitial(
                 SeatId(1),
                 includeStartingPlayerPrompt = true,
-                seedProjectionCursor = false,
             )
             coordinator.lifecycle.publishDealHand(SeatId(1))
 
@@ -73,6 +80,23 @@ class MatchLifecycleRuntimeTest :
             }
         }
 
+        test("repeated startup delivery reuses the installed viewer batch") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val coordinator = bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+
+            val gameStateId = coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+            val installed = coordinator.drain(SeatId(1)).single()
+            val committed = bridge.projectionStateSnapshot()
+
+            coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true) shouldBe gameStateId
+
+            assertSoftly {
+                coordinator.drain(SeatId(1)).single() shouldBe installed
+                bridge.projectionStateSnapshot() shouldBe committed
+            }
+        }
+
         test("failed startup install publishes no batch or projection baseline") {
             val (bridge, _, _) = startWithBoard { _, _, _ -> }
             val coordinator = bridge.cutCoordinator
@@ -85,7 +109,6 @@ class MatchLifecycleRuntimeTest :
                 coordinator.lifecycle.publishInitial(
                     SeatId(1),
                     includeStartingPlayerPrompt = true,
-                    seedProjectionCursor = false,
                 )
             }
 
@@ -104,12 +127,12 @@ class MatchLifecycleRuntimeTest :
             useBridge(bridge)
             val coordinator = bridge.cutCoordinator
             val prior = bridge.projectionStateSnapshot()
+            coordinator.registerViewers(listOf(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player)))
 
             shouldThrow<PlaybackTerminalFailure> {
                 coordinator.lifecycle.publishInitial(
                     SeatId(1),
                     includeStartingPlayerPrompt = true,
-                    seedProjectionCursor = false,
                 )
             }
 

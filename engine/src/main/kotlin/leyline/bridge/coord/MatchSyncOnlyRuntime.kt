@@ -28,6 +28,7 @@ internal class MatchSyncOnlyRuntime(
                 val planner = LogicalSequencePlanner(prior.sequence)
                 val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                 val feed = owner.feed(seatId)
+                val routes = owner.viewerRoutes()
                 val prepared =
                     try {
                         beforeMaterialization?.invoke()
@@ -44,21 +45,36 @@ internal class MatchSyncOnlyRuntime(
                                 emptyList()
                             }
                         feed.builder
-                            .prepareStateOnlyDiff(game, planner)
+                            .prepareStateOnlyDiff(game, planner, routes)
                             .let { it to phaseMessages }
                     } catch (ex: Exception) {
                         owner.fail(ex)
                     }
                 val (state, phaseMessages) = prepared
-                val messages =
-                    if (phaseMessages.isEmpty()) {
-                        state.bundle.messages
-                    } else {
-                        phaseMessages + coalescePhaseAnnotations(state.bundle.messages)
+                val outputs =
+                    state.viewers.map { output ->
+                        val messages = output.batches.flatten()
+                        PreparedViewerOutput(
+                            output.seatId,
+                            listOf(
+                                if (output.seatId == seatId && phaseMessages.isNotEmpty()) {
+                                    phaseMessages + coalescePhaseAnnotations(messages)
+                                } else {
+                                    messages
+                                },
+                            ),
+                        )
                     }
+                val messages = outputs.single { it.seatId == seatId }.batches.single()
                 owner.cutInstaller.install(
-                    feed,
-                    PreparedCut.prepare(prior, planner, messages, state.transition, state.closesPlaybackFrame),
+                    PreparedCut.prepareForViewers(
+                        prior,
+                        planner,
+                        outputs,
+                        state.transition,
+                        state.closesPlaybackFrame,
+                        playbackOwnerSeatId = seatId,
+                    ),
                     CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
                 ) { ex -> owner.fail(ex) }
                 feed.requestedCut = null

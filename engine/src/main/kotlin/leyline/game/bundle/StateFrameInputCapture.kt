@@ -2,7 +2,7 @@ package leyline.game.bundle
 
 import forge.game.Game
 import leyline.game.event.FrameEventLog
-import leyline.game.event.SnapDeltaSynthesizer
+import leyline.game.mapping.CapturedStateFrame
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionEnvironment
 import leyline.game.snapshot.GsmSnapshot
@@ -29,6 +29,12 @@ internal class StateFrameInputCapture(
     /** One immutable observation and the projection baseline used with it. */
     internal data class Materialized(
         val state: StateFrameInput,
+        val priorProjection: ProjectionState,
+        val closesPlaybackFrame: Boolean,
+    )
+
+    internal data class Observation(
+        val frame: CapturedStateFrame,
         val priorProjection: ProjectionState,
         val closesPlaybackFrame: Boolean,
     )
@@ -63,6 +69,41 @@ internal class StateFrameInputCapture(
         effectFactsOverride: EffectProjectionFacts? = null,
         updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
     ): Materialized {
+        val observation =
+            captureNeutral(
+                game = game,
+                gameStateId = gameStateId,
+                revealForSeat = revealForSeat,
+                events = events,
+                priorProjectionOverride = priorProjectionOverride,
+                promptFactsOverride = promptFactsOverride,
+                effectFactsOverride = effectFactsOverride,
+            )
+        val priorProjection = observation.priorProjection
+        val previousSnapshot =
+            if (!includePreviousSnapshot) {
+                null
+            } else {
+                previousSnapshotOverride ?: priorProjection.viewerCursors[leyline.bridge.types.SeatId(viewingSeatId)]?.previousSnapshot
+            }
+        val state =
+            observation.frame.forViewer(
+                viewingSeatId,
+                previousSnapshot,
+                updateType(observation.frame.snapshot, observation.frame.events),
+            )
+        return Materialized(state, priorProjection, observation.closesPlaybackFrame)
+    }
+
+    fun captureNeutral(
+        game: Game,
+        gameStateId: Int,
+        revealForSeat: Int?,
+        events: Events,
+        priorProjectionOverride: ProjectionState? = null,
+        promptFactsOverride: PromptProjectionFacts? = null,
+        effectFactsOverride: EffectProjectionFacts? = null,
+    ): Observation {
         val priorProjection = priorProjectionOverride ?: bridge.projectionStateSnapshot()
         val (snapshot, projectionBaseline) =
             bridge.editProjection(priorProjection) {
@@ -73,20 +114,9 @@ internal class StateFrameInputCapture(
                 Events.CloseBundleFrame -> bridge.closeBundleFrame(viewingSeatId)
                 is Events.Supplied -> events.log
             }
-        val previousSnapshot =
-            if (!includePreviousSnapshot) {
-                null
-            } else {
-                previousSnapshotOverride ?: priorProjection.viewerCursors[0]?.previousSnapshot
-            }
-        val normalizedEvents =
-            FrameEventLog(
-                events = closedEvents.events + previousSnapshot?.let { SnapDeltaSynthesizer.synthesize(it, snapshot) }.orEmpty(),
-                zoneMoves = closedEvents.zoneMoves,
-            )
-        bridge.invalidateAbilityRegistries(normalizedEvents.events)
+        bridge.invalidateAbilityRegistries(closedEvents.events)
         val effectFacts = effectFactsOverride ?: bridge.materializeEffectProjectionFacts()
-        val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, normalizedEvents.events)
+        val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, closedEvents.events)
         val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge)
         val promptFacts = promptFactsOverride ?: bridge.materializePromptProjectionFacts()
         val persistentFeedFacts =
@@ -96,16 +126,13 @@ internal class StateFrameInputCapture(
                 bridge,
                 environmentOverride ?: bridge.stateProjectionEnvironment,
             )
-        return Materialized(
-            state =
-                StateFrameInput(
+        return Observation(
+            frame =
+                CapturedStateFrame(
                     gameStateId = gameStateId,
                     snapshot = snapshot,
-                    previousSnapshot = previousSnapshot,
-                    events = normalizedEvents,
+                    events = closedEvents,
                     promptFacts = promptFacts,
-                    updateType = updateType(snapshot, normalizedEvents),
-                    viewingSeatId = viewingSeatId,
                     revealForSeat = revealForSeat,
                     effectFacts = effectFacts,
                     mechanicSourceFacts = mechanicSourceFacts,

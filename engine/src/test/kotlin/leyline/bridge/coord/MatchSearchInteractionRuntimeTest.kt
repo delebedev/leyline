@@ -212,7 +212,7 @@ class MatchSearchInteractionRuntimeTest :
                 baseline.set(
                     board.bridge
                         .projectionStateSnapshot()
-                        .viewerCursors[0]
+                        .viewerCursors[SeatId(1)]
                         ?.previousSnapshot,
                 )
                 resetObserved.countDown()

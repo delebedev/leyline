@@ -493,6 +493,7 @@ class MatchCutCoordinatorTest :
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
+            board.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(board.bridge, 1)
             val collector = checkNotNull(board.bridge.eventCollector)
             collector.closeFrame()
@@ -526,7 +527,7 @@ class MatchCutCoordinatorTest :
             val pendingIndex = messages.indexOfFirst { it.hasGameStateMessage() && !it.gameStateMessage.hasGameInfo() }
             assertSoftly {
                 gameOverIndex shouldBeGreaterThan pendingIndex
-                messages.count { it.hasGameStateMessage() } shouldBe 5
+                messages.count { it.hasGameStateMessage() } shouldBe 4
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 board.bridge.hasPendingEvents().shouldBeFalse()
             }
@@ -534,6 +535,7 @@ class MatchCutCoordinatorTest :
 
         test("game-over materialization and install failures are terminal without an owned orphan") {
             val materializationBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            materializationBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(materializationBoard.bridge, 1)
             val existing =
                 listOf(
@@ -558,6 +560,7 @@ class MatchCutCoordinatorTest :
             }
 
             val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            installBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(installBoard.bridge, 1)
             installBoard.bridge.cutCoordinator.gameOver.beforeInstall = { error("game-over install failed") }
             val installFailure =

@@ -9,6 +9,7 @@ import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionTransition
+import leyline.game.state.ProjectionViewer
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -19,6 +20,11 @@ object LifecycleMessageMaterializer {
         val messages: List<GREToClientMessage>,
         val nextMsgId: Int,
         val transition: ProjectionTransition? = null,
+    )
+
+    internal data class ViewerLifecycleMessages(
+        val viewers: List<Pair<SeatId, List<GREToClientMessage>>>,
+        val transition: ProjectionTransition,
     )
 
     internal fun lifecycleMessages(
@@ -98,7 +104,7 @@ object LifecycleMessageMaterializer {
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
                     )
                 if (seedProjectionCursor) {
-                    editor.viewerCursors[0] = ViewerProjectionCursor(previousSnapshot = initSnap)
+                    editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = initSnap)
                 }
                 initSnap to initialGsm
             }
@@ -135,6 +141,78 @@ object LifecycleMessageMaterializer {
         }
 
         return LifecycleMessages(messages, msgId, transition)
+    }
+
+    /** Prepare one initial projection revision for the fixed viewer roster. */
+    internal fun initialBundles(
+        viewers: List<ProjectionViewer>,
+        matchId: String,
+        gameStateId: Int,
+        planner: LogicalSequencePlanner,
+        bridge: GameBridge,
+        dieRollWinner: Int = 2,
+        includeStartingPlayerPrompt: Boolean = true,
+    ): ViewerLifecycleMessages {
+        require(viewers.isNotEmpty()) { "Initial lifecycle requires a viewer roster" }
+        val connectMsgId = planner.nextMsgId()
+        val dieRollMsgId = planner.nextMsgId()
+        val gameStateMsgId = planner.nextMsgId()
+        val startingPlayerMsgId = planner.nextMsgId()
+        val prior = bridge.projectionStateSnapshot()
+        val (messages, next) =
+            bridge.editProjection(prior) { editor ->
+                val snapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, matchId, 0)
+                viewers.map { viewer ->
+                    val seatId = viewer.seatId
+                    val shouldPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
+                    val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
+                    val gsm =
+                        GsmBuilder.buildInitialGameState(
+                            matchId,
+                            gameStateId,
+                            bridge,
+                            snapshot,
+                            pendingMessageCount = if (shouldPrompt) 1 else 0,
+                            viewingSeatId = seatId.value,
+                            includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                        )
+                    editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = snapshot)
+                    val output =
+                        buildList {
+                            if (seatId == SeatId(1)) add(buildConnectResp(connectMsgId, seatId, deck))
+                            add(buildDieRollResults(dieRollMsgId, dieRollWinner))
+                            add(
+                                GREToClientMessage
+                                    .newBuilder()
+                                    .setType(GREMessageType.GameStateMessage_695e)
+                                    .addSystemSeatIds(seatId.value)
+                                    .setMsgId(gameStateMsgId)
+                                    .setGameStateId(gameStateId)
+                                    .setGameStateMessage(gsm)
+                                    .build(),
+                            )
+                            if (shouldPrompt) {
+                                add(
+                                    GREToClientMessage
+                                        .newBuilder()
+                                        .setType(GREMessageType.ChooseStartingPlayerReq_695e)
+                                        .addSystemSeatIds(seatId.value)
+                                        .setMsgId(startingPlayerMsgId)
+                                        .setGameStateId(gameStateId)
+                                        .setChooseStartingPlayerReq(
+                                            ChooseStartingPlayerReq
+                                                .newBuilder()
+                                                .setTeamType(TeamType.Individual)
+                                                .addSystemSeatIds(2)
+                                                .addSystemSeatIds(1),
+                                        ).build(),
+                                )
+                            }
+                        }
+                    seatId to output
+                }
+            }
+        return ViewerLifecycleMessages(messages, ProjectionTransition(prior.revision, next))
     }
 
     /** DealHand for seat 1 (no MulliganReq) — built from game state. */

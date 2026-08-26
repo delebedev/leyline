@@ -145,9 +145,9 @@ delivery when needed. It does not wait on an engine horizon or consume the
 observer's feed notification.
 
 Three owners sit beneath that boundary and are each the only implementation of
-their contract. `CoordinatorCutInstaller` performs the single-batch cut
-transaction — enqueue, projection commit, rollback of an uninstalled batch, and
-playback acknowledgement — for every runtime family.
+their contract. `CoordinatorCutInstaller` performs the cut transaction — ordered
+viewer enqueue, projection commit, rollback of uninstalled batches, and playback
+acknowledgement — for every runtime family.
 `MatchActionWindowRuntime` is the sole authority on action-window lifecycle;
 `GameActionBridge` is the engine-thread wait adapter and keeps no competing
 lifecycle state. The action runtime retains executable offers and the exact
@@ -159,10 +159,10 @@ prompt materialization and committed publication. `InteractiveCommandExchange`
 owns the cross-thread command handshake that iterative targeting and mana-source
 payment windows share.
 
-`SpectatorSession` retains the independent `stateOnlyDiff` projection and raw
-completion output. `FamiliarSession` only copies already-allocated human-seat
-messages. [`bridge-threading.md`](bridge-threading.md) is authoritative for the
-remaining exception and its lock order.
+Player and observer sessions drain their own coordinator-committed feeds.
+`SpectatorSession` sends raw completion only after draining the committed terminal
+cut. [`bridge-threading.md`](bridge-threading.md) is authoritative for the lock
+order.
 
 ## Interaction cuts
 

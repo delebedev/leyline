@@ -93,9 +93,9 @@ class MatchModalChoiceRuntimeTest :
                     board
                         .bridge
                         .projectionStateSnapshot()
-                        .viewerCursors[1]
+                        .viewerCursors[SeatId(1)]
                         ?.previousSnapshot
-                        ?: projectionBefore.viewerCursors[1]?.previousSnapshot
+                        ?: projectionBefore.viewerCursors[SeatId(1)]?.previousSnapshot
                 committedBaseline?.stack?.entries?.none { it.forgeAbilityId == sa.id } ?: true shouldBe true
                 coordinator.modalChoices.submit(published.interactionId, published.gameStateId, listOf(optionGrpIds[1])) shouldBe
                     true

@@ -12,9 +12,12 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.LifecycleMessageMaterializer
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.util.Random
@@ -93,19 +96,22 @@ class HandshakeMessagesTest :
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 1L)
+            val planner = LogicalSequencePlanner(b.projectionStateSnapshot().sequence)
             val bundle =
-                LifecycleMessageMaterializer.initialBundle(
-                    seatId = SeatId(2),
+                LifecycleMessageMaterializer.initialBundles(
+                    viewers =
+                        listOf(
+                            ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
+                            ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                        ),
                     matchId = "test",
-                    msgIdStart = 1,
                     gameStateId = 1,
-                    deckMessage = DeckMessage.getDefaultInstance(),
+                    planner = planner,
                     bridge = b,
                     includeStartingPlayerPrompt = false,
-                    seedProjectionCursor = true,
                 )
 
-            val messages = bundle.messages
+            val messages = bundle.viewers.single { it.first == SeatId(2) }.second
             assertSoftly {
                 messages.map { it.type } shouldBe
                     listOf(GREMessageType.DieRollResultsResp_695e, GREMessageType.GameStateMessage_695e)
@@ -113,10 +119,9 @@ class HandshakeMessagesTest :
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
-                bundle.transition
-                    ?.nextState
-                    ?.viewerCursors
-                    ?.get(0)
+                bundle.transition.nextState.viewerCursors[SeatId(1)]
+                    ?.previousSnapshot shouldNotBe null
+                bundle.transition.nextState.viewerCursors[SeatId(2)]
                     ?.previousSnapshot shouldNotBe null
             }
         }
@@ -136,13 +141,16 @@ class HandshakeMessagesTest :
                             b.cutCoordinator.lifecycle.publishInitial(
                                 seat,
                                 includeStartingPlayerPrompt = true,
-                                seedProjectionCursor = false,
                             )
                         }
                     }
                 start.countDown()
-                bundles.map { it.get(10, TimeUnit.SECONDS) }.size shouldBe 2
-                b.projectionStateSnapshot().revision shouldBe beforeRevision + 2
+                assertSoftly {
+                    bundles.map { it.get(10, TimeUnit.SECONDS) }.distinct().size shouldBe 1
+                    b.projectionStateSnapshot().revision shouldBe beforeRevision + 1
+                    b.cutCoordinator.drain(SeatId(1)).size shouldBe 1
+                    b.cutCoordinator.drain(SeatId(2)).size shouldBe 1
+                }
             } finally {
                 pool.shutdownNow()
             }

@@ -4,6 +4,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.infra.MessageSink
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -15,6 +17,12 @@ class GameOverDeliveryTest :
         test("lifecycle delivery failure terminalizes the coordinator") {
             val bridge = startWithBoard { _, _, _ -> }.bridge
             val registry = MatchRegistry()
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             val failure = IllegalStateException("lifecycle sink failed")
             val session =
                 MatchSession(
@@ -35,6 +43,12 @@ class GameOverDeliveryTest :
         test("MatchSession game-over delivery failure terminalizes before raw completion") {
             val bridge = startWithBoard { _, _, _ -> }.bridge
             val registry = MatchRegistry()
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             val failure = IllegalStateException("match sink failed")
             val session =
                 MatchSession(
@@ -54,6 +68,12 @@ class GameOverDeliveryTest :
         test("SpectatorSession game-over delivery failure terminalizes the coordinator") {
             val bridge = startWithBoard { _, _, _ -> }.bridge
             val failure = IllegalStateException("spectator sink failed")
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             val session = SpectatorSession(SeatId(1), MATCH_ID, failingSink(failure), bridge)
 
             try {

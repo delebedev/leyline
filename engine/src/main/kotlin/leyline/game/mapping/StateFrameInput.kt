@@ -34,3 +34,49 @@ data class StateFrameInput(
     /** Time-sensitive observations used only by persistent-feed projection. */
     val persistentFeedFacts: PersistentFeedFacts,
 )
+
+/** Viewer-neutral observation read once at an engine safe point. */
+data class CapturedStateFrame(
+    val gameStateId: Int,
+    val snapshot: GsmSnapshot,
+    val events: FrameEventLog,
+    val promptFacts: PromptProjectionFacts,
+    val revealForSeat: Int?,
+    val effectFacts: EffectProjectionFacts,
+    val mechanicSourceFacts: MechanicSourceFacts,
+    val abilityExhaustionFacts: AbilityExhaustionFacts,
+    val persistentFeedFacts: PersistentFeedFacts,
+) {
+    fun forViewer(
+        viewingSeatId: Int,
+        previousSnapshot: GsmSnapshot?,
+        updateType: GameStateUpdate,
+        revealForSeat: Int? = this.revealForSeat,
+    ): StateFrameInput {
+        val normalizedEvents =
+            FrameEventLog(
+                events =
+                    events.events +
+                        previousSnapshot
+                            ?.let {
+                                leyline.game.event.SnapDeltaSynthesizer
+                                    .synthesize(it, snapshot)
+                            }.orEmpty(),
+                zoneMoves = events.zoneMoves,
+            )
+        return StateFrameInput(
+            gameStateId = gameStateId,
+            snapshot = snapshot,
+            previousSnapshot = previousSnapshot,
+            events = normalizedEvents,
+            promptFacts = promptFacts,
+            updateType = updateType,
+            viewingSeatId = viewingSeatId,
+            revealForSeat = revealForSeat,
+            effectFacts = effectFacts,
+            mechanicSourceFacts = mechanicSourceFacts,
+            abilityExhaustionFacts = abilityExhaustionFacts,
+            persistentFeedFacts = persistentFeedFacts,
+        )
+    }
+}

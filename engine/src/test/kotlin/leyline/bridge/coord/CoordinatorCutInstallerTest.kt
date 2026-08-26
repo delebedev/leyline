@@ -127,6 +127,54 @@ class CoordinatorCutInstallerTest :
             prior.sequence shouldBe LogicalSequenceState(currentGsId = 6, currentMsgId = 11)
         }
 
+        test("all-view install rolls back a first feed when the second feed enqueue fails") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            coordinator.registerViewer(SeatId(2))
+            val prior = board.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val msgId = planner.nextMsgId()
+            val player =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(msgId)
+                    .addSystemSeatIds(1)
+                    .build()
+            val observer =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(msgId)
+                    .addSystemSeatIds(2)
+                    .build()
+            val cut =
+                PreparedCut.prepareForViewers(
+                    prior,
+                    planner,
+                    listOf(
+                        PreparedViewerOutput(SeatId(1), listOf(listOf(player))),
+                        PreparedViewerOutput(SeatId(2), listOf(listOf(observer))),
+                    ),
+                    projection = null,
+                    closesPlaybackFrame = false,
+                )
+            coordinator.setBeforeBatchEnqueue(SeatId(2)) { _, _ -> error("observer feed unavailable") }
+
+            shouldThrow<IllegalStateException> {
+                synchronized(board.bridge.projectionBuildLock) {
+                    synchronized(coordinator.feedLock) {
+                        coordinator.cutInstaller.install(cut, onFailure = { throw it })
+                    }
+                }
+            }
+
+            assertSoftly {
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
+                coordinator.drain(SeatId(2)).shouldBeEmpty()
+                board.bridge.projectionStateSnapshot() shouldBe prior
+            }
+        }
+
         test("multi-batch install commits one ordinal and acknowledges once in stable order") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator

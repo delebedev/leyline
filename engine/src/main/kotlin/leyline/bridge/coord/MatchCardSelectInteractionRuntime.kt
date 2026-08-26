@@ -115,16 +115,18 @@ internal class MatchCardSelectInteractionRuntime(
             duplicateMessage = "A CardSelect interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareCardSelectWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedCardSelectInteraction(
                         interactionId,
@@ -157,6 +159,7 @@ internal class MatchCardSelectInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

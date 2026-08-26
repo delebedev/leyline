@@ -17,6 +17,8 @@ internal data class PreparedCut(
     val transition: ProjectionTransition,
     val outputOrdinal: Long,
     val closesPlaybackFrame: Boolean,
+    val viewerOutputs: List<PreparedViewerOutput> = emptyList(),
+    val playbackOwnerSeatId: leyline.bridge.types.SeatId? = null,
 ) {
     companion object {
         fun prepare(
@@ -52,14 +54,37 @@ internal data class PreparedCut(
                 )
             return PreparedCut(messages, transition, ordinal, closesPlaybackFrame)
         }
+
+        fun prepareForViewers(
+            prior: ProjectionState,
+            planner: LogicalSequencePlanner,
+            outputs: List<PreparedViewerOutput>,
+            projection: ProjectionTransition?,
+            closesPlaybackFrame: Boolean,
+            playbackOwnerSeatId: leyline.bridge.types.SeatId? = null,
+        ): PreparedCut {
+            require(outputs.isNotEmpty()) { "A viewer cut must contain output" }
+            require(outputs.map { it.seatId }.distinct().size == outputs.size) { "A viewer may appear only once per cut" }
+            val messages = outputs.flatMap { it.batches.flatten() }
+            return prepare(prior, planner, messages, projection, closesPlaybackFrame).copy(
+                viewerOutputs = outputs,
+                playbackOwnerSeatId = playbackOwnerSeatId,
+            )
+        }
     }
 }
+
+internal data class PreparedViewerOutput(
+    val seatId: leyline.bridge.types.SeatId,
+    val batches: List<List<GREToClientMessage>>,
+)
 
 /** One installed batch with the logical order assigned by its transition. */
 internal data class CommittedOutputBatch(
     val ordinal: Long,
     val batchIndex: Int,
     val messages: List<GREToClientMessage>,
+    val viewerIndex: Int = 0,
 )
 
 /** Family-owned observation points around one installation. Test seams only. */
@@ -104,36 +129,86 @@ internal class CoordinatorCutInstaller(
         onInstalled: (() -> Unit)? = null,
         onRollback: (() -> Unit)? = null,
         onFailure: (Throwable) -> Nothing,
+    ) = installOutputs(
+        cut = cut,
+        outputs = listOf(PreparedViewerOutput(feed.seatId, batches)),
+        replaces = mapOf(feed.seatId to replaces).filterValues { it.isNotEmpty() },
+        hooks = hooks,
+        playbackOwnerSeatId = feed.seatId.takeIf { cut.closesPlaybackFrame },
+        onInstalled = onInstalled,
+        onRollback = onRollback,
+        onFailure = onFailure,
+    )
+
+    fun install(
+        cut: PreparedCut,
+        hooks: CutInstallHooks = CutInstallHooks(),
+        onInstalled: (() -> Unit)? = null,
+        onRollback: (() -> Unit)? = null,
+        onFailure: (Throwable) -> Nothing,
+    ) = installOutputs(
+        cut = cut,
+        outputs = cut.viewerOutputs,
+        replaces = emptyMap(),
+        hooks = hooks,
+        playbackOwnerSeatId = cut.playbackOwnerSeatId,
+        onInstalled = onInstalled,
+        onRollback = onRollback,
+        onFailure = onFailure,
+    )
+
+    private fun installOutputs(
+        cut: PreparedCut,
+        outputs: List<PreparedViewerOutput>,
+        replaces: Map<leyline.bridge.types.SeatId, List<GREToClientMessage>>,
+        hooks: CutInstallHooks,
+        playbackOwnerSeatId: leyline.bridge.types.SeatId?,
+        onInstalled: (() -> Unit)?,
+        onRollback: (() -> Unit)?,
+        onFailure: (Throwable) -> Nothing,
     ) {
-        check(batches.flatten() == cut.messages) { "Installed batches must contain the prepared cut messages in order" }
+        require(outputs.isNotEmpty()) { "Installed cut must contain output" }
+        val installedMessages = outputs.flatMap { it.batches.flatten() }
+        check(installedMessages == cut.messages) { "Installed batches must contain the prepared cut messages in order" }
         val committedBatches =
-            batches.mapIndexed { index, messages ->
-                CommittedOutputBatch(cut.outputOrdinal, index, messages)
+            outputs.flatMapIndexed { viewerIndex, output ->
+                val feed = owner.feed(output.seatId)
+                output.batches.mapIndexed { batchIndex, messages ->
+                    feed to
+                        CommittedOutputBatch(
+                            ordinal = cut.outputOrdinal,
+                            batchIndex = batchIndex,
+                            messages = messages,
+                            viewerIndex = viewerIndex,
+                        )
+                }
             }
-        val enqueued = mutableListOf<CommittedOutputBatch>()
-        var replaced: CommittedOutputBatch? = null
+        val enqueued = mutableListOf<Pair<MatchCutCoordinator.ViewerFeed, CommittedOutputBatch>>()
+        val replaced = mutableListOf<Pair<MatchCutCoordinator.ViewerFeed, CommittedOutputBatch>>()
         var installed = false
         try {
             hooks.beforeEnqueue?.invoke()
-            committedBatches.forEach { batch ->
+            committedBatches.forEach { (feed, batch) ->
                 feed.beforeBatchEnqueue?.invoke(batch.batchIndex, batch.messages)
                 feed.queue.add(batch)
-                enqueued += batch
+                enqueued += feed to batch
             }
-            if (replaces.isNotEmpty()) {
-                replaced = owner.takeOwnedBatch(feed, replaces)
-                check(replaced != null) { "Replaced coordinator batch is already visible" }
+            replaces.forEach { (seatId, messages) ->
+                val feed = owner.feed(seatId)
+                val batch = owner.takeOwnedBatch(feed, messages)
+                check(batch != null) { "Replaced coordinator batch is already visible" }
+                replaced += feed to batch
             }
             hooks.beforeInstall?.invoke()
             owner.bridge.commitProjection(cut.transition) { installed = true }
             hooks.afterInstall?.invoke()
-            if (cut.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
+            playbackOwnerSeatId?.let(owner.bridge::acknowledgePlaybackFrame)
             onInstalled?.invoke()
             owner.signalDelivery()
         } catch (ex: Exception) {
             if (!installed) {
-                enqueued.forEach { owner.removeOwnedBatch(feed, it) }
-                replaced?.let(feed.queue::addFirst)
+                enqueued.forEach { (feed, batch) -> owner.removeOwnedBatch(feed, batch) }
+                replaced.asReversed().forEach { (feed, batch) -> feed.queue.addFirst(batch) }
                 onRollback?.invoke()
             }
             onFailure(ex)

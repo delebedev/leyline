@@ -97,16 +97,18 @@ internal class MatchStaticChoiceInteractionRuntime(
             duplicateMessage = "A StaticChoice interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareStaticChoiceWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             initial,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedStaticChoiceInteraction(
                         interactionId,
@@ -128,6 +130,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

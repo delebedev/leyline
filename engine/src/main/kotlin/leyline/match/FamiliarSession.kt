@@ -19,13 +19,18 @@ class FamiliarSession(
     override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
+    val gameBridge: GameBridge? = null,
 ) : SessionOps {
     override fun sendBundledGRE(messages: List<GREToClientMessage>) = sink.send(messages)
 
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) {}
+    ) = deliverCommitted()
+
+    internal fun deliverCommitted() {
+        gameBridge?.let { deliverCommittedCoordinatorBatches(this, it, seatId) }
+    }
 
     override fun sendGameOver(reason: ResultReason) {}
 

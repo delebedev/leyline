@@ -65,8 +65,8 @@ internal class SearchWindowMaterializer(
 
     fun resetBaseline(prior: ProjectionState): ProjectionTransition {
         val editor = prior.editor()
-        val cursor = editor.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
-        editor.viewerCursors[0] = cursor.copy(previousSnapshot = null)
+        val cursor = editor.viewerCursors[seatId] ?: leyline.game.state.ViewerProjectionCursor()
+        editor.viewerCursors[seatId] = cursor.copy(previousSnapshot = null)
         return ProjectionTransition(prior.revision, editor.freeze())
     }
 
