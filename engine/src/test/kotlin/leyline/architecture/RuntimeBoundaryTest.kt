@@ -3,6 +3,7 @@ package leyline.architecture
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
@@ -151,6 +152,20 @@ class RuntimeBoundaryTest :
                         "mutate priority visibility",
                     ),
                 ).because("the coordinator owns the action-window visibility mutation")
+                .check(classes)
+        }
+
+        test("accumulated settings state has one runtime owner") {
+            // Inspect declared fields rather than all dependencies: protocol
+            // heads and builders may handle immutable SettingsMessage values,
+            // but only the runtime may retain one across requests.
+            fields()
+                .that()
+                .haveRawType("wotc.mtgo.gre.external.messaging.Messages\$SettingsMessage")
+                .should()
+                .beDeclaredInClassesThat()
+                .haveFullyQualifiedName("leyline.bridge.coord.PriorityPolicyRuntime")
+                .because("only the priority runtime may retain accumulated client settings")
                 .check(classes)
         }
     })
