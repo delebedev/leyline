@@ -437,6 +437,25 @@ class MatchCutCoordinatorBlockingTest :
 
             val attackerInstanceIds = attackers.map { board.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val blockerInstanceIds = blockers.map { board.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+            assertSoftly {
+                board.bridge.cutCoordinator.submitDamageCommand(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(
+                        DamageAssignmentCommand(
+                            attackerInstanceIds[0],
+                            listOf(DamageAssignmentRow(blockerInstanceIds[1], 2)),
+                            2,
+                        ),
+                        DamageAssignmentCommand(
+                            attackerInstanceIds[1],
+                            listOf(DamageAssignmentRow(blockerInstanceIds[0], 2)),
+                            2,
+                        ),
+                    ),
+                ) shouldBe false
+                board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe published
+            }
             board.bridge.cutCoordinator.submitDamageCommand(
                 published.interactionId,
                 published.gameStateId,
