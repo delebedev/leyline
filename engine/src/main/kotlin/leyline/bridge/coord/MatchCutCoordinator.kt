@@ -43,6 +43,7 @@ internal class MatchCutCoordinator(
     )
 
     internal val feedLock = Any()
+    internal val deliverySignal = MatchDeliverySignal()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
@@ -214,6 +215,7 @@ internal class MatchCutCoordinator(
     fun shutdown(cause: Throwable = CancellationException("Match projection coordinator shut down")) {
         synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
+        deliverySignal.signal()
         bridge.prioritySignal.signal()
     }
 
@@ -318,6 +320,7 @@ internal class MatchCutCoordinator(
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
+        deliverySignal.signal()
         bridge.prioritySignal.signal()
     }
 
@@ -351,6 +354,10 @@ internal class MatchCutCoordinator(
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
 
+    internal fun signalDelivery() {
+        deliverySignal.signal()
+    }
+
     fun failure(): PlaybackTerminalFailure? = terminal.current()
 
     fun setBeforeBatchEnqueue(
@@ -367,6 +374,7 @@ internal class MatchCutCoordinator(
         batch: List<GREToClientMessage>,
     ) {
         synchronized(feedLock) { feed(seatId).queue.add(batch) }
+        deliverySignal.signal()
     }
 
     internal fun feed(seatId: SeatId): ViewerFeed = feeds[seatId] ?: error("No projection feed registered for seat ${seatId.value}")

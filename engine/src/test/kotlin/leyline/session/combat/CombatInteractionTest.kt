@@ -77,7 +77,7 @@ private val TRAMPLE_DAMAGE_ASSIGN_PUZZLE =
 
 /**
  * Raging Goblin (haste) + Mountain enables turn-1 combat without multi-turn
- * advancement — autoPassAndAdvance overshoots turns when stretched further.
+ * advancement — exact horizon delivery keeps this setup at turn one.
  */
 // LargeClass: attacker-side tests share three setup helpers; splitting
 // further fragments them.
@@ -1154,7 +1154,7 @@ class CombatInteractionTest :
             isGameOver().shouldBeFalse()
         }
 
-        // ─── Zero-blocker auto-advance ────────────────────────────────────────
+        // ─── Zero-blocker runtime continuation ───────────────────────────────
 
         session(
             "zero blockers auto-advances without DeclareBlockersReq",
@@ -1178,7 +1178,8 @@ class CombatInteractionTest :
                 ),
         ) {
             after {
-                // Pass through human turn into AI combat → combat auto-advances
+                // Pass through human turn into AI combat; the engine publishes
+                // the next combat horizon without a synthetic pass loop.
                 passPriority()
                 passThroughCombat()
             }.expectNoDeclareBlockersReq()

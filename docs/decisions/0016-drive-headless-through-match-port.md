@@ -25,20 +25,25 @@ payload. Sending every gameplay response through receive would add an
 unnecessary serialize-and-parse cycle.
 
 A gameplay response releases the engine, which publishes the next runtime
-horizon or terminal state. An in-process caller needs a bounded completion point
-before it reads emitted output.
+horizon or terminal state. The connection's session handler owns the single
+continuation wait for that response. A long-lived connection observer delivers
+later horizons that arise from timeout or engine-owned playback without inbound
+traffic.
 
 ## Decision
 
 MatchConnection exposes submitGREMessage(ClientToGREMessage). It uses the same
 processGREMessage routing table as receive without recreating an outer service
-message.
+message. Each accepted response is handled under the session lock, where its
+handler performs one MatchRuntimeContinuation wait. The continuation drains
+committed coordinator batches and releases exact state-only barriers only after
+delivery. This is server publication completion. It is not client
+acknowledgement, and it does not classify or schedule engine progression.
 
-After dispatch, submitGREMessage waits on MatchRuntimeContinuation. The
-continuation observes the engine signal, drains committed coordinator batches,
-and releases exact state-only barriers only after delivery. This is server
-publication completion. It is not client acknowledgement, and it does not
-classify or schedule engine progression.
+Each live human connection starts one MatchRuntimeDeliveryObserver. The observer
+waits on coordinator feed notifications and enters the same session delivery
+path for horizons published after an inbound handler returns. It stops on
+teardown and restarts around puzzle hot-swap.
 
 MatchFlowHarness owns a MatchConnection and a MatchOutput adapter. Its gameplay
 helpers build ClientToGREMessage values and submit them through the connection.
@@ -58,8 +63,8 @@ route can fail the existing engine tests instead of being masked by a second
 dispatcher.
 
 Callers can read output after the submitted input reaches its next engine
-horizon. Drivers can use the same horizon wait for timeout recovery and
-engine-generated playback without sending an inbound message.
+horizon. Timeout recovery and engine-generated playback are delivered by the
+connection observer without an inbound message.
 
 The harness stays in engine because its useful boundary includes engine state.
 A public consumer module should be introduced only with an adopter whose

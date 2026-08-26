@@ -216,13 +216,6 @@ class TargetingInteractionTest :
                 }.shouldBeTrue()
                 val promptGsId = h.allMessages.last { it.hasSelectTargetsReq() }.gameStateId
 
-                // The prompt timeout signals the runtime horizon; the harness
-                // observes that horizon explicitly because no client response is
-                // needed to resume the engine.
-                h.bridge.prioritySignal.awaitSignal(1_000) shouldBe true
-                h.awaitRuntimeHorizon()
-                h.drainSink()
-
                 assertSoftly {
                     waitFor(timeoutMs = 20_000L) {
                         h.drainSink()

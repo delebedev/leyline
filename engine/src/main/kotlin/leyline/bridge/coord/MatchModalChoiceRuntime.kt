@@ -256,6 +256,7 @@ internal class MatchModalChoiceRuntime(
         try {
             feed.beforeBatchEnqueue?.invoke(0, listOf(cleanup))
             feed.queue.add(listOf(cleanup))
+            owner.signalDelivery()
         } catch (ex: Exception) {
             owner.failPrompt(ex, pending = receipt.cut)
         }

@@ -19,6 +19,7 @@ System shape lives in
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
 | Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Runtime delivery observer | One per live human `MatchConnection` | Waits for coordinator feed notifications, then enters `sessionLock` to drain |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
@@ -65,16 +66,18 @@ must remain protected as one publication boundary.
 ### Runtime horizons
 
 `MatchRuntimeContinuation` is the transport seam for one engine horizon.
-`MatchConnection.submitGREMessage` dispatches the immutable response and waits
-for that horizon before returning. The continuation waits on the bridge signal,
-drains committed batches in order, and acknowledges each exact `SYNC_ONLY`
-barrier only after successful delivery. A response that only updates an
-iterative prompt returns without releasing the engine.
+Accepted responses are validated and submitted by `MatchSession`; the handler's
+single continuation wait drains committed batches in order and acknowledges
+each exact `SYNC_ONLY` barrier only after successful delivery. A response that
+only updates an iterative prompt returns without releasing the engine.
 
-The same wait is available to an in-process driver that observes a timeout or
-engine-generated playback notification without sending a response. It is a
-mechanical wait on coordinator state; session code does not classify phases,
-choose priority policy, or schedule progression work.
+Every live human `MatchConnection` also starts one
+`MatchRuntimeDeliveryObserver`. It waits on the coordinator's delivery feed,
+enters the same session lock, drains committed batches, and terminalizes after
+delivery when the horizon is game-over. This observer is the only path for a
+prompt timeout or engine-generated playback horizon after the inbound handler
+has returned. It is stopped on teardown and restarted on puzzle hot-swap. It
+never submits an engine action or makes priority decisions.
 
 ### Current exceptions
 
@@ -94,14 +97,14 @@ sequenceDiagram
     participant E as Engine thread
     participant C as MatchCutCoordinator
     participant P as Projection core
-    participant S as PrioritySignal
-    participant M as MatchSession
+    participant S as DeliverySignal
+    participant M as MatchRuntimeDeliveryObserver
 
     E->>C: publish immutable interaction window
     C->>P: compile tentative transition
     P-->>C: messages + next projection state
     C->>C: install and enqueue under feedLock
-    C->>S: signal
+    C->>S: signal after commit
     E->>E: block on exact window
     S-->>M: observer wakes
     M->>C: drain committed batch

@@ -70,6 +70,7 @@ internal class CoordinatorCutInstaller(
             hooks.afterInstall?.invoke()
             if (cut.closesPlaybackFrame) owner.bridge.acknowledgePlaybackFrame(feed.seatId)
             onInstalled?.invoke()
+            owner.signalDelivery()
         } catch (ex: Exception) {
             if (!installed) {
                 if (enqueued) owner.removeOwnedBatch(feed, batch)

@@ -133,6 +133,8 @@ class MatchSession(
             drainCoordinatorFeed()
 
             runtimeContinuation.awaitHorizon()
+            connection.runtimeDeliveryReady = true
+            gameBridge.cutCoordinator.signalDelivery()
         }
 
     /**
@@ -149,6 +151,9 @@ class MatchSession(
      */
     fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
         synchronized(sessionLock) {
+            val matchConnection = registry.getConnection(matchId, seatId)
+            matchConnection?.stopRuntimeDeliveryObserver()
+            connection.runtimeDeliveryReady = false
             close()
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
@@ -158,6 +163,7 @@ class MatchSession(
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
             registry.getConnection(matchId, seatId)?.session = replacement
+            matchConnection?.restartRuntimeDeliveryObserver()
             replacement to deletedIds
         }
 
@@ -355,6 +361,11 @@ class MatchSession(
     fun awaitRuntimeHorizon(timeoutMs: Long = gameBridge.priorityWaitMs) =
         synchronized(sessionLock) {
             runtimeContinuation.awaitHorizon(timeoutMs)
+        }
+
+    internal fun deliverRuntimeHorizon() =
+        synchronized(sessionLock) {
+            runtimeContinuation.deliverHorizon()
         }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */

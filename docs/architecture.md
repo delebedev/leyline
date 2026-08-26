@@ -126,6 +126,13 @@ stop, and full-control decisions. `MatchRuntimeContinuation` only waits for the
 published horizon, drains committed batches, and releases exact sync barriers
 after delivery.
 
+Each live human `MatchConnection` owns one runtime delivery observer. The
+observer waits for committed coordinator feed notifications and uses the same
+session lock and continuation drain path for horizons that arise after an
+inbound handler returns, including prompt timeouts, playback, and terminal
+delivery. It never submits actions or chooses progression policy, and it stops
+on teardown or puzzle replacement.
+
 Three owners sit beneath that boundary and are each the only implementation of
 their contract. `CoordinatorCutInstaller` performs the single-batch cut
 transaction — enqueue, projection commit, rollback of an uninstalled batch, and

@@ -52,7 +52,7 @@ class PerformActionRecoveryTest :
             )
 
             // The state-only resync emits content + echo GSMs and no action request.
-            // autoPassAndAdvance would iterate phases, emitting multiple bundles.
+            // Runtime continuation emits only the committed state-only bundle.
             val gsms = sink.messages.filter { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
             val content = gsms.first().gameStateMessage

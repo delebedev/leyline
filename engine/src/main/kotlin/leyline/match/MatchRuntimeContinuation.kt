@@ -28,6 +28,10 @@ internal class MatchRuntimeContinuation(
             sendGameOverIfTerminal()
             return
         }
+        deliverHorizon()
+    }
+
+    fun deliverHorizon() {
         drainCoordinatorBarrier(sink, bridge, seatId)
         sendGameOverIfTerminal()
     }

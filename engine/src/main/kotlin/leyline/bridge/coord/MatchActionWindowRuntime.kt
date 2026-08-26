@@ -363,6 +363,7 @@ internal class MatchActionWindowRuntime(
                     }
                 }
             feed.queue.add(stateOnly)
+            owner.signalDelivery()
             actionWindows[actionId] = window.copy(publishedBatch = stateOnly)
             true
         }
@@ -387,6 +388,7 @@ internal class MatchActionWindowRuntime(
                     if (owner.bridge.engineSettings.timer) {
                         val timer = owner.feed(window.seatId).builder.timerStop(owner.counter)
                         owner.feed(window.seatId).queue.add(timer.messages)
+                        owner.signalDelivery()
                     }
                     PriorityResponseClaim(offer.sourceCardId(), ActionClaim(actionId, token, kind, window.deferredCostPlans[token]))
                 }
@@ -425,7 +427,10 @@ internal class MatchActionWindowRuntime(
                             GameActionBridge.ActionOffer(Action.getDefaultInstance(), action),
                             Action.getDefaultInstance(),
                         )
-                    confirmationMessage?.let { owner.feed(window.seatId).queue.add(listOf(it)) }
+                    confirmationMessage?.let {
+                        owner.feed(window.seatId).queue.add(listOf(it))
+                        owner.signalDelivery()
+                    }
                     val completed = owner.bridge.actionBridge(window.seatId).submitRuntimeToken(actionId, token)
                     if (completed) window.status = ActionWindowStatus.Completed
                     completed

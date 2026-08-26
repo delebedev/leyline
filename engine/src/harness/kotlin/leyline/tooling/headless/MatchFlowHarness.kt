@@ -650,14 +650,8 @@ class MatchFlowHarness(
     /**
      * Keep passing until a target turn is reached (or game over / max iterations).
      *
-     * TODO(multi-turn-overshoot): A single [passPriority] call triggers
-     *  [MatchSession.autoPassAndAdvance] which loops up to 50 times, auto-passing
-     *  every phase where only Pass is available. This means one call can skip
-     *  entire turns — e.g. with seed 42, land + creature + resolve + pass jumps
-     *  from turn 1 to turn 3. Tests that need exact turn control should use haste
-     *  creatures (turn-1 combat) or assert turn >= N instead of turn == N. A proper
-     *  fix would be to add a turn-boundary stop in autoPassAndAdvance so the client
-     *  always gets priority at the start of each new turn.
+     * Each pass response reaches one engine-owned horizon. This helper submits
+     * those responses until the observed game state reaches the requested turn.
      */
     fun passUntilTurn(
         targetTurn: Int,

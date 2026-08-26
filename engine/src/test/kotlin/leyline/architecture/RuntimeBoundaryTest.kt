@@ -154,6 +154,28 @@ class RuntimeBoundaryTest :
             }
         }
 
+        test("post-handler horizons have one transport delivery observer") {
+            val observer = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeDeliveryObserver.kt"))
+            val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
+            val coordinator = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord/MatchCutCoordinator.kt"))
+
+            assertSoftly {
+                listOf(
+                    observer.contains("deliverySignal"),
+                    observer.contains("deliverRuntimeHorizon"),
+                    coordinator.contains("internal val deliverySignal"),
+                ).count { it } shouldBe 3
+                observer shouldContain "deliverySignal"
+                observer shouldContain "deliverRuntimeHorizon"
+                observer shouldNotContain "prioritySignal"
+                observer shouldNotContain "submitGREMessage"
+                observer shouldNotContain "awaitPriority"
+                connection shouldContain "startRuntimeDeliveryObserver()"
+                connection shouldContain "stopRuntimeDeliveryObserver()"
+                coordinator shouldContain "internal val deliverySignal"
+            }
+        }
+
         test("accumulated settings state has one runtime owner") {
             // Inspect declared fields rather than all dependencies: protocol
             // heads and builders may handle immutable SettingsMessage values,
