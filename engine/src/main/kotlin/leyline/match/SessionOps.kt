@@ -49,29 +49,43 @@ internal data class DrainOutcome(
     val progressed: Boolean get() = sent || synchronization == SynchronizationDrain.Completed
 }
 
-/** Deliver committed batches, then release at most the synchronization stop observed at entry. */
+/** Deliver committed batches, then release each exact synchronization stop observed at the boundary. */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
     bridge: GameBridge,
     seatId: SeatId,
     betweenBatches: () -> Unit = {},
     beforeDrain: () -> Unit = {},
-): DrainOutcome =
-    drainOneCoordinatorBarrier(
-        sink = sink,
-        synchronizationActionId =
-            bridge
-                .actionBridge(seatId)
-                .getPending()
-                ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
-                ?.actionId,
-        drainCommitted = { bridge.cutCoordinator.drain(seatId) },
-        completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
-        awaitNext = bridge::awaitPriority,
-        failDelivery = bridge.cutCoordinator::failDelivery,
-        betweenBatches = betweenBatches,
-        beforeDrain = beforeDrain,
-    )
+): DrainOutcome {
+    var outcome = DrainOutcome(sent = false)
+    while (true) {
+        val step =
+            drainOneCoordinatorBarrier(
+                sink = sink,
+                synchronizationActionId =
+                    bridge
+                        .actionBridge(seatId)
+                        .getPending()
+                        ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
+                        ?.actionId,
+                drainCommitted = { bridge.cutCoordinator.drain(seatId) },
+                completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
+                awaitNext = bridge::awaitPriority,
+                failDelivery = bridge.cutCoordinator::failDelivery,
+                betweenBatches = betweenBatches,
+                beforeDrain = beforeDrain,
+            )
+        outcome =
+            DrainOutcome(
+                sent = outcome.sent || step.sent,
+                synchronization = step.synchronization,
+                synchronizationActionId = step.synchronizationActionId,
+            )
+        if (step.synchronization != SynchronizationDrain.Completed) return outcome
+        val pending = bridge.actionBridge(seatId).getPending()
+        if (pending?.state?.kind != leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) return outcome
+    }
+}
 
 @org.jetbrains.annotations.VisibleForTesting
 internal fun drainOneCoordinatorBarrier(
@@ -149,11 +163,6 @@ interface BundleBuilderHolder {
     val bundleBuilder: BundleBuilder
 }
 
-/** Engine pacing (AI turn delay, etc.). */
-interface Pacing {
-    fun paceDelay(multiplier: Int)
-}
-
 /**
  * Inbound client-action dispatch surface.
  *
@@ -227,7 +236,6 @@ interface ActionReceiver {
 interface SessionOps :
     GreMessageSink,
     SessionCounters,
-    Pacing,
     ActionReceiver {
     val recorder: MatchRecorder? get() = null
     val matchId: String

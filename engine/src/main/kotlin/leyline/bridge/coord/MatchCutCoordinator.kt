@@ -309,9 +309,6 @@ internal class MatchCutCoordinator(
                             bridge.commitProjection(prepared.transition) { installed = true }
                             feed.pendingCut = null
                             feed.requestedCut = null
-                            if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                            }
                         } catch (ex: Exception) {
                             if (!installed) removeEnqueuedBatches(feed, enqueued)
                             failPlayback(ex, pending = pending)
@@ -321,7 +318,7 @@ internal class MatchCutCoordinator(
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
-        bridge.playbackDrainRequester?.invoke()
+        bridge.prioritySignal.signal()
     }
 
     fun acknowledgeExternalFrame(seatId: SeatId) {

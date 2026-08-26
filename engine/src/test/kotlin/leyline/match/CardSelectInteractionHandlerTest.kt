@@ -118,19 +118,15 @@ class CardSelectInteractionHandlerTest :
                     .flatten()
                     .single { it.hasSelectNReq() }
                     .selectNReq.idsList[1]
-            var autoPassed = false
-
             CardSelectInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
                 .tryHandleEffectCost(
                     effectCostResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                ) { autoPassed = true }
-                .shouldBeTrue()
+                ).shouldBeTrue()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().optionIndices shouldBe listOf(1)
                 (result.get().handles.single() === handles[1]) shouldBe true
-                autoPassed shouldBe true
                 coordinator.cardSelect
                     .current()
                     .shouldBeNull()
@@ -187,32 +183,29 @@ class CardSelectInteractionHandlerTest :
                         .flatten()
                         .single { it.hasSelectNReq() }
                         .selectNReq.idsList[1]
-                var autoPassed = false
                 val handler = CardSelectInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
 
                 val effectHandled =
                     handler.tryHandleEffectCost(
                         effectCostResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                    ) { autoPassed = true }
+                    )
 
                 assertSoftly {
                     effectHandled shouldBe true
                     finished.count shouldBe 1L
-                    autoPassed shouldBe false
                     coordinator.cardSelect.current() shouldBe exact
                 }
 
                 val selectNHandled =
                     handler.tryHandleSelectN(
                         selectNResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                    ) { autoPassed = true }
+                    )
 
                 assertSoftly {
                     selectNHandled shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get().optionIndices shouldBe listOf(1)
                     (result.get().handles.single() === handles[1]) shouldBe true
-                    autoPassed shouldBe true
                     coordinator.cardSelect
                         .current()
                         .shouldBeNull()

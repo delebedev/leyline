@@ -26,6 +26,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.testkit.BoardTest
@@ -203,8 +204,8 @@ class TargetingCoordinatorTest :
 
         test("legend rule timeout keeps the configured default and records the other victim") {
             val cards = legendCards()
-            var timedOut = false
-            val bridge = testPromptBridge(cardSelectRuntime = timingOutCardSelect()).also { it.timeoutListener = { timedOut = true } }
+            val signal = PrioritySignal()
+            val bridge = testPromptBridge(cardSelectRuntime = timingOutCardSelect(), prioritySignal = signal)
             val coordinator = TargetingCoordinator(bridge, testSeating)
 
             val chosen =
@@ -218,7 +219,7 @@ class TargetingCoordinatorTest :
 
             assertSoftly {
                 chosen shouldBeSameInstanceAs cards[0]
-                timedOut shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 bridge.journal.consumeLegendVictim(ForgeCardId(cards[0].id)) shouldBe false
                 bridge.journal.consumeLegendVictim(ForgeCardId(cards[1].id)) shouldBe true
                 bridge.history.single().outcome shouldBe PromptCallStatus.TIMEOUT
@@ -350,8 +351,11 @@ private fun abilitySub(
 
 private val testSeating = Seating(humanSeat = SeatId(1), familiarSeat = SeatId(2))
 
-private fun testPromptBridge(cardSelectRuntime: CardSelectInteractionRuntime? = null): InteractivePromptBridge =
-    InteractivePromptBridge(timeoutMs = 1, strict = false).also { bridge ->
+private fun testPromptBridge(
+    cardSelectRuntime: CardSelectInteractionRuntime? = null,
+    prioritySignal: PrioritySignal? = null,
+): InteractivePromptBridge =
+    InteractivePromptBridge(timeoutMs = 1, prioritySignal = prioritySignal, strict = false).also { bridge ->
         bridge.runtimeBindings =
             leyline.bridge.handoff.PromptRuntimeBindings(
                 cardSelect = cardSelectRuntime,

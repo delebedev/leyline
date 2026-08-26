@@ -38,7 +38,7 @@ private val MULTI_BLOCKER_AI_SCRIPT =
  * DO NOT call passPriority() after declareNoAttackers() to "advance" —
  * it submits Pass to the COMBAT_DECLARE_BLOCKERS pending (= no blockers)
  * and skips the entire DeclareBlockersReq flow. Use advanceToPhase +
- * triggerAutoPass instead, as below.
+ * awaitRuntimeHorizon instead, as below.
  */
 private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
@@ -59,7 +59,7 @@ private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     // DeclareBlockersReq before any action is submitted.
     if (allMessages.none { it.hasDeclareBlockersReq() }) {
         advanceToPhase("COMBAT_DECLARE_BLOCKERS")
-        triggerAutoPass()
+        awaitRuntimeHorizon()
         drainSink()
     }
 
@@ -252,11 +252,8 @@ class BlockerDeclarationInteractionTest :
             """,
             turns = 1,
         ) {
-            // checkCombatPhase runs again during the priority window that follows
-            // a blocker submission, so without the pendingBlockersSent latch it
-            // re-sends the request and the client stalls waiting on a prompt it
-            // already answered. declareNoBlockers drives autoPassAndAdvance
-            // internally, so any re-entry fires inside this synchronous call.
+            advanceToPhase("COMBAT_DECLARE_BLOCKERS")
+            awaitRuntimeHorizon()
             declareNoBlockers()
 
             allMessages.count { it.hasDeclareBlockersReq() } shouldBe 1

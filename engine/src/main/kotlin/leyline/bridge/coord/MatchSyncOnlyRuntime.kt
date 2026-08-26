@@ -15,7 +15,6 @@ internal class MatchSyncOnlyRuntime(
         seatId: SeatId,
         pending: GameActionBridge.PendingAction,
     ) {
-        var requestAutoAdvance = false
         owner.beforePublicationLock?.invoke()
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
@@ -37,15 +36,7 @@ internal class MatchSyncOnlyRuntime(
                     ) { ex -> owner.fail(ex) }
                     feed.requestedCut = null
                     owner.actions.markSynchronizationPublished(seatId, pending.actionId)
-                    requestAutoAdvance = owner.bridge.consumePromptTimeoutNeedsAutoAdvance()
                 }
-            }
-        }
-        if (requestAutoAdvance) {
-            try {
-                owner.bridge.autoAdvanceRequester?.invoke("prompt timeout synchronization queued")
-            } catch (ex: Exception) {
-                owner.fail(ex)
             }
         }
     }

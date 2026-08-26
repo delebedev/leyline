@@ -101,12 +101,14 @@ committed cuts and interaction windows.
 ```mermaid
 flowchart LR
     H["Protocol head"] -->|"parsed message or answer"| S["MatchSession"]
-    S --> C["MatchCutCoordinator"]
+    S --> R["MatchRuntimeContinuation"]
+    R --> C["MatchCutCoordinator"]
     C --> A["Forge adapter"]
     A --> F["Forge game"]
     F -->|"callback or safe point"| A
     A -->|"immutable facts and retained handles"| C
-    C -->|"committed batch"| S
+    C -->|"committed batch"| R
+    R -->|"delivered batch"| S
     S -->|"delivery"| H
 ```
 
@@ -118,10 +120,11 @@ inventory. Exact Forge objects remain behind bounded runtime tables; client
 responses carry correlation values that resolve those retained handles.
 
 `GameBridge.priorityPolicy` owns priority presentation policy and client settings
-state. Match sessions submit immutable `SettingsMessage` values to it, while
-priority coordinators and the mechanical match pump consume its classifications.
-The engine runtime is the only source of Visible, SyncOnly, Skip, auto-pass, stop,
-and full-control decisions.
+state. Match sessions submit immutable `SettingsMessage` values to it. The
+priority coordinator is the only source of Visible, SyncOnly, Skip, auto-pass,
+stop, and full-control decisions. `MatchRuntimeContinuation` only waits for the
+published horizon, drains committed batches, and releases exact sync barriers
+after delivery.
 
 Three owners sit beneath that boundary and are each the only implementation of
 their contract. `CoordinatorCutInstaller` performs the single-batch cut

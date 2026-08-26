@@ -117,6 +117,7 @@ class MatchFlowHarness(
             messagesSince = { snapshot -> messageLog.since(snapshot) },
             submitWithGsId = { msg -> submitWithGsId(msg) },
             drainSink = { drainSink() },
+            awaitRuntimeHorizon = { localConnection.awaitRuntimeHorizon() },
         )
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
@@ -285,7 +286,6 @@ class MatchFlowHarness(
             puzzleLibrary = leyline.game.generator.PuzzleLibrary(Path.of("data/puzzles")),
             cardRepository = repo,
             runtimeMatchConfigs = runtimeConfigs,
-            deferGameplayAdvance = false,
         )
 
     private fun authenticateAndConnect(
@@ -322,7 +322,6 @@ class MatchFlowHarness(
                     .toByteString(),
             ),
         )
-        connection.awaitQuiescence()
     }
 
     private fun serviceMessage(
@@ -678,16 +677,9 @@ class MatchFlowHarness(
         advanceUntil(maxPasses) { isGameOver() || turn() > startTurn }
     }
 
-    /**
-     * Trigger autoPassAndAdvance directly — without submitting an action first.
-     *
-     * Use when the engine is already blocked at a combat phase (e.g.
-     * COMBAT_DECLARE_BLOCKERS) and you need CombatHandler to send the
-     * prompt message. Calling [passPriority] would submit Pass to the
-     * combat pending, which is not what you want.
-     */
-    fun triggerAutoPass() {
-        matchSession().triggerAutoPass()
+    /** Await and deliver the next engine-owned horizon. */
+    fun awaitRuntimeHorizon() {
+        localConnection.awaitRuntimeHorizon()
     }
 
     /**
@@ -706,11 +698,11 @@ class MatchFlowHarness(
         return controller
     }
 
-    // --- Phase-precise advancement (bridge-level, no AutoPassEngine) ---
+    // --- Phase-precise advancement (bridge-level) ---
 
     /**
      * Advance to a specific phase via bridge — one PassPriority at a time.
-     * No AutoPassEngine involvement, no phase overshoot.
+     * No session policy is involved, so there is no phase overshoot.
      */
     fun advanceToPhase(
         phase: String,
@@ -1380,7 +1372,7 @@ class MatchFlowHarness(
      * submit we make will trigger
      * `WARN ActionPerformer: PerformActionResp but no pending action` and a
      * spurious state resync. Use as a guard before submitting an action
-     * in long-running drivers (simclient) where the auto-pass loop frequently
+     * in long-running drivers (simclient) where runtime horizons frequently
      * advances past priority windows between observe and submit.
      */
     fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
@@ -1416,10 +1408,9 @@ class MatchFlowHarness(
      * 0 pre-handshake or before any prompt has been received.
      *
      * Walks [allMessages] in reverse — that's the harness's view of what
-     * the "client" has seen. Deliberately does not consult
-     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
-     * shared mutable state advanced from the engine thread, so reading it
-     * races against in-flight emissions.
+     * the "client" has seen. For an action response, the coordinator's exact
+     * pending window is authoritative because another seat may have advanced
+     * the shared message counter in the meantime.
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
@@ -1442,7 +1433,8 @@ class MatchFlowHarness(
     internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage {
         val prompt = messageLog.latestPrompt() ?: return msg
         val builder = msg.toBuilder()
-        if (msg.gameStateId == 0) builder.gameStateId = prompt.gameStateId
+        val pendingActionGsId = bridge.actionBridge(seatId).getPending()?.promptGameStateId
+        if (msg.gameStateId == 0) builder.gameStateId = pendingActionGsId ?: prompt.gameStateId
         if (msg.respId == 0 && msg.type in leyline.match.CORRELATED_CLIENT_MESSAGE_TYPES) {
             builder.respId = prompt.msgId
         }

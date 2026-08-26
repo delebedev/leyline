@@ -26,7 +26,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.EnumSet
-import java.util.concurrent.atomic.AtomicBoolean
 
 class GamePlaybackCombatSafePointTest :
     BoardTest({
@@ -233,34 +232,6 @@ class GamePlaybackCombatSafePointTest :
                     fixture.earthbendVersion
             }
             fixture.bridge.diffListener = null
-        }
-
-        test("post-install failure retains all batches and committed acknowledgements without replay") {
-            val fixture = setup()
-            val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
-            timeoutField.isAccessible = true
-            (timeoutField.get(fixture.bridge) as AtomicBoolean).set(true)
-            fixture.bridge.autoAdvanceRequester = { error("post-install failure") }
-
-            val thrown = shouldThrow<PlaybackTerminalFailure> { fixture.playback.onCombatEndedCompleted() }
-            val batches = fixture.playback.drainQueue()
-
-            assertSoftly {
-                thrown.cause?.message shouldBe "post-install failure"
-                batches shouldHaveSize 3
-                fixture.bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .snapshotChoiceResults()
-                    .shouldBeEmpty()
-                fixture.bridge
-                    .materializeEffectProjectionFacts()
-                    .pendingEarthbendResolutions
-                    .shouldBeEmpty()
-                shouldThrow<PlaybackTerminalFailure> { fixture.playback.onCombatEndedCompleted() } shouldBe thrown
-                fixture.playback.drainQueue().shouldBeEmpty()
-            }
-            fixture.bridge.autoAdvanceRequester = null
         }
     })
 

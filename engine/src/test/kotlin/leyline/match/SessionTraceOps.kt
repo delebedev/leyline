@@ -31,8 +31,6 @@ class SessionTraceOps(
     val sentGRE = mutableListOf<List<GREToClientMessage>>()
     val sentRealGameState = mutableListOf<GameBridge>()
     val sentGameOver = mutableListOf<ResultReason>()
-    val paceDelays = mutableListOf<Int>()
-
     val sendRealGameStateCount: Int get() = sentRealGameState.size
     val sendGameOverCount: Int get() = sentGameOver.size
 
@@ -53,9 +51,5 @@ class SessionTraceOps(
 
     override fun sendGameOver(reason: ResultReason) {
         sentGameOver.add(reason)
-    }
-
-    override fun paceDelay(multiplier: Int) {
-        paceDelays.add(multiplier)
     }
 }

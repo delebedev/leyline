@@ -80,13 +80,16 @@ interface EventDrain {
 }
 
 /**
- * Read-only view of [GameBridge] for [leyline.match.AutoPassEngine].
+ * Read-only view of [GameBridge] for runtime-owned continuation.
  *
  * Extends [PlayerLookup] (getGame, getPlayer) and adds the priority/playback
- * surface needed by the auto-pass loop. Extracted so AutoPassEngine can be
+ * surface needed by runtime continuation. Extracted so session handlers can be
  * unit-tested with a stub instead of a full GameBridge + Forge engine.
  */
-interface AutoPassView : PlayerLookup {
+interface RuntimePriorityView : PlayerLookup {
+    /** True when the engine has reached its terminal horizon. */
+    fun gameIsOver(): Boolean = getGame()?.isGameOver == true
+
     /** Per-seat action playback queue, when this seat has one. */
     fun playbackFor(seatId: SeatId): GamePlayback?
 

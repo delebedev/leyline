@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Verifies that toggling stops in the client settings message updates the
  * priority runtime, which in turn controls where the engine stops during the
- * auto-pass loop.
+ * runtime continuation.
  */
 class ClientSettingsTest :
     SessionTest({

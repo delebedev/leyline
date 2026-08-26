@@ -17,6 +17,7 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -394,13 +395,12 @@ class MatchOneShotPayCostsRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single { it.name == "Forest" }
-            val autoAdvance = CountDownLatch(1)
+            val signal = PrioritySignal()
             val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
             val finished = CountDownLatch(1)
             val bridge =
-                InteractivePromptBridge(timeoutMs = 25).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
                 result.set(
@@ -418,7 +418,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().optionIndices shouldContainExactly listOf(1)
                 (result.get().handles.single() === cards[1]) shouldBe true
-                autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.oneShotPayCosts
                     .current()
                     .shouldBeNull()

@@ -8,8 +8,8 @@ read_when:
 # Bridge Threading
 
 This document owns cross-class constraints that the type system does not yet
-express. It describes the current implementation, including transitional
-session and delivery ownership. System shape lives in
+express. It describes the current implementation and delivery ownership.
+System shape lives in
 [`architecture.md`](architecture.md); durable direction and rationale live in
 [ADR 0015](decisions/0015-functional-core-imperative-shell.md).
 
@@ -18,7 +18,7 @@ session and delivery ownership. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web/in-process input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
@@ -62,22 +62,25 @@ pending window must not block behind a publication in progress.
 A queue type is not a transaction. The close/build/install/enqueue operation
 must remain protected as one publication boundary.
 
-### In-process completion
+### Runtime horizons
 
-`MatchConnection.submitGREMessage` waits for deferred session work scheduled by
-that input before returning. It submits a barrier to the session's single-thread
-executor and repeats when completed work scheduled another task. The barrier is
-never awaited while holding `sessionLock`.
+`MatchRuntimeContinuation` is the transport seam for one engine horizon.
+`MatchConnection.submitGREMessage` dispatches the immutable response and waits
+for that horizon before returning. The continuation waits on the bridge signal,
+drains committed batches in order, and acknowledges each exact `SYNC_ONLY`
+barrier only after successful delivery. A response that only updates an
+iterative prompt returns without releasing the engine.
 
-This boundary means output caused by the submitted input is available to an
-in-process caller. It does not mean a client acknowledged delivery, and it does
-not include work started later by a timer or another entrant.
+The same wait is available to an in-process driver that observes a timeout or
+engine-generated playback notification without sending a response. It is a
+mechanical wait on coordinator state; session code does not classify phases,
+choose priority policy, or schedule progression work.
 
 ### Current exceptions
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`.
-Puzzle replacement can install fresh projection state from its own executor.
-Residual output builders still share counters and sequencing with
+Puzzle replacement can install fresh projection state through its lifecycle
+boundary. Residual output builders still share counters and sequencing with
 coordinator-backed output. These are explicit migration seams, not patterns for
 new entry points.
 

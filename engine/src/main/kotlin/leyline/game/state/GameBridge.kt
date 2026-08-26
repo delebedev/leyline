@@ -60,7 +60,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -79,6 +78,7 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * through commit is serialized per bridge; engine-thread lifecycle writes must
  * not overlap that boundary.
  */
+@Suppress("LargeClass")
 class GameBridge(
     /** Stable match identifier for cut compilation and outbound envelopes. */
     private val matchId: String = "forge-match-1",
@@ -97,7 +97,7 @@ class GameBridge(
     val cardProto: CardProtoBuilder = CardProtoBuilder(cardRepository),
 ) : IdMapping,
     PlayerLookup,
-    AutoPassView,
+    RuntimePriorityView,
     ZoneTracking,
     AnnotationIds,
     EventDrain {
@@ -349,13 +349,6 @@ class GameBridge(
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
 
-    @Volatile
-    var autoAdvanceRequester: ((String) -> Unit)? = null
-
-    @Volatile
-    var playbackDrainRequester: (() -> Unit)? = null
-    private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
-
     init {
         configureInteractiveSeat(SeatId(1))
     }
@@ -373,7 +366,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -428,8 +420,6 @@ class GameBridge(
             seat(SeatId(viewingSeatId)).drainReveals()
         }
 
-    fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
-
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
      * Used by tests that need an extra passive seat without AI wiring.
@@ -445,7 +435,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)

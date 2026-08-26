@@ -590,20 +590,16 @@ class DebugServer(
                 .build()
 
         newSession.sendBundledGRE(listOf(greGsm, greActions))
-        val advanced = BundleBuilder.shouldAutoPass(actions)
-        if (advanced) {
-            newSession.triggerAutoPass()
-        }
-        val advancedSuffix = if (advanced) " + advanced" else ""
+        newSession.awaitRuntimeHorizon()
 
         return if (fileParam != null) {
             "Puzzle '$fileParam' set + injected gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
+                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
                     .also { log.info(it) }
         } else {
             val meta = PuzzleSource.parseMetadata(body)
             "Injected puzzle '${meta.name}' gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
+                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
                     .also { log.info(it) }
         }
     }

@@ -16,19 +16,12 @@ import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
-import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Game orchestration session — thin dispatcher for post-mulligan game logic.
  *
- * Delegates combat flows to [CombatHandler], targeting to [TargetingHandler],
- * and the auto-pass loop to [AutoPassEngine]. Owns the [sessionLock], message
- * sending, and Familiar mirroring.
+ * Delegates combat flows to [CombatHandler] and targeting to [TargetingHandler].
+ * Owns the [sessionLock], message sending, and Familiar mirroring.
  *
  * Protocol sequencing uses a shared [MessageCounter] — same instance is passed
  * to [GamePlayback][leyline.game.GamePlayback]. No seeding or
@@ -42,7 +35,6 @@ class MatchSession(
     override val gameBridge: GameBridge,
     val paceDelayMs: Long = 200L,
     override var counter: MessageCounter = gameBridge.messageCounter,
-    private val deferNetworkAdvance: Boolean = false,
 ) : GameOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -61,14 +53,6 @@ class MatchSession(
         }
 
     private val sessionLock get() = connection.sessionLock
-    private val autoAdvanceExecutor =
-        Executors.newSingleThreadExecutor { r ->
-            Thread(r, "match-autoadvance-${matchId.take(8)}-${seatId.value}").apply { isDaemon = true }
-        }
-    private val autoAdvanceRequested = AtomicBoolean(false)
-    private val autoAdvanceRunning = AtomicBoolean(false)
-    private val autoAdvanceClosed = AtomicBoolean(false)
-    private val pendingDeferredWork = AtomicInteger(0)
 
     @Volatile
     private var lastPrompt: GREToClientMessage? = null
@@ -80,8 +64,7 @@ class MatchSession(
         if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null
     }
 
-    private val autoAdvanceRequest: (String) -> Unit = { reason -> requestAutoAdvance(reason) }
-    private val playbackDrainRequest: () -> Unit = { requestPlaybackDrain() }
+    private val runtimeContinuation = MatchRuntimeContinuation(this, gameBridge, seatId)
 
     /**
      * Game + bridge bound at construction. MatchSession is per-game; on
@@ -92,12 +75,11 @@ class MatchSession(
 
     override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
 
-    /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
+    /** Sub-handlers for combat, targeting, and routed interaction flows. */
     val combatHandler =
         CombatHandler(
             sink = this,
             counters = this,
-            pacing = this,
             ctx = ctx,
         )
     val targetingHandler =
@@ -109,47 +91,25 @@ class MatchSession(
         )
     val optionalActionHandler =
         OptionalActionHandler(
-            sink = this,
-            counters = this,
             ctx = ctx,
         )
     val numericInputHandler =
         NumericInputHandler(
-            sink = this,
-            counters = this,
             ctx = ctx,
         )
     private val orderInteractionHandler = OrderInteractionHandler(ctx)
     private val distributionInteractionHandler = DistributionInteractionHandler(ctx)
     private val groupingInteractionHandler = GroupingInteractionHandler(ctx)
-    val autoPassEngine =
-        AutoPassEngine(
-            sink = this,
-            counters = this,
-            bundles = this,
-            pacing = this,
-            combatHandler = combatHandler,
-            targetingHandler = targetingHandler,
-            optionalActionHandler = optionalActionHandler,
-            numericInputHandler = numericInputHandler,
-            ctx = ctx,
-            priorityPolicy = gameBridge.priorityPolicy,
-        )
-    val actionPerformer =
+    internal val actionPerformer =
         ActionPerformer(
             sink = this,
             counters = this,
             matchRecorder = recorder,
             targetingHandler = targetingHandler,
-            autoPassEngine = autoPassEngine,
             priorityPolicy = gameBridge.priorityPolicy,
             ctx = ctx,
+            continuation = runtimeContinuation,
         )
-
-    init {
-        gameBridge.autoAdvanceRequester = autoAdvanceRequest
-        gameBridge.playbackDrainRequester = playbackDrainRequest
-    }
 
     // --- Public entry points (called by MatchHandler) ---
 
@@ -172,24 +132,7 @@ class MatchSession(
             bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId, includePriorityPrompt = humanTurn)
             drainCoordinatorFeed()
 
-            // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance()
-        }
-
-    /**
-     * Puzzle start: seed snapshot, enter auto-pass loop.
-     * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
-     * — the puzzle initial bundle already sent a Full GSM with the board state.
-     */
-
-    /**
-     * Trigger autoPassAndAdvance without submitting an action first.
-     * Used by tests when the engine is already at a combat phase and
-     * CombatHandler needs to send the prompt (DeclareBlockersReq).
-     */
-    fun triggerAutoPass() =
-        synchronized(sessionLock) {
-            autoPassEngine.autoPassAndAdvance()
+            runtimeContinuation.awaitHorizon()
         }
 
     /**
@@ -208,7 +151,7 @@ class MatchSession(
         synchronized(sessionLock) {
             close()
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
-            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter, deferNetworkAdvance)
+            val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter)
             registry.registerSession(matchId, seatId, replacement)
             // Update the per-channel handler so future inbound GRE messages dispatch
             // to the new session. Without this, MatchHandler keeps a stale reference
@@ -222,8 +165,7 @@ class MatchSession(
         synchronized(sessionLock) {
             if (!preparePuzzleStart()) return@synchronized
 
-            // Auto-pass through phases where human has no real actions
-            autoPassEngine.autoPassAndAdvance()
+            runtimeContinuation.awaitHorizon()
         }
 
     internal fun preparePuzzleStart(): Boolean {
@@ -255,81 +197,81 @@ class MatchSession(
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     override fun onDeclareAttackers(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            combatHandler.onDeclareAttackers(greMsg) { advanceAfterAttackersSubmitted() }
+            if (combatHandler.onDeclareAttackers(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     override fun onDeclareBlockers(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            combatHandler.onDeclareBlockers(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (combatHandler.onDeclareBlockers(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle AssignDamageResp — delegates to [CombatHandler]. */
     override fun onAssignDamage(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            combatHandler.onAssignDamage(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (combatHandler.onAssignDamage(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            optionalActionHandler.onOptionalActionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (optionalActionHandler.onOptionalActionResp(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle NumericInputResp — delegates to [NumericInputHandler]. */
     override fun onNumericInputResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            numericInputHandler.onNumericInputResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (numericInputHandler.onNumericInputResp(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSelectTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onSelectTargets(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSubmitTargets(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onSubmitTargets(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
     override fun onSelectN(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSelectN(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onSelectN(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     override fun onOrderResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            orderInteractionHandler.onOrderResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (orderInteractionHandler.onOrderResp(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     override fun onDistributionResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            distributionInteractionHandler.onDistributionResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (distributionInteractionHandler.onDistributionResp(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onEffectCost(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onEffectCost(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     override fun onGroupResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            groupingInteractionHandler.onGroupResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (groupingInteractionHandler.onGroupResp(greMsg)) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
     override fun onCastingTimeOptions(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onCastingTimeOptions(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onCastingTimeOptions(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) {
-            targetingHandler.onSearchResp(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onSearchResp(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     private fun withValidResponse(
@@ -339,16 +281,6 @@ class MatchSession(
         synchronized(sessionLock) {
             if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) block()
         }
-
-    private fun advanceAfterAttackersSubmitted() {
-        val requester = gameBridge.autoAdvanceRequester
-        if (deferNetworkAdvance && requester != null) {
-            requester("attackers submitted")
-            return
-        }
-        gameBridge.awaitPriority()
-        autoPassEngine.autoPassAndAdvance()
-    }
 
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
@@ -361,10 +293,10 @@ class MatchSession(
         synchronized(sessionLock) {
             // During combat declaration, cancel means "pass combat" (submit empty attackers).
             if (combatHandler.hasPendingAttackers()) {
-                combatHandler.onCancelAttackers(greMsg.gameStateId) { autoPassEngine.autoPassAndAdvance() }
+                if (combatHandler.onCancelAttackers(greMsg.gameStateId)) runtimeContinuation.awaitHorizon()
                 return
             }
-            targetingHandler.onCancelAction(greMsg) { autoPassEngine.autoPassAndAdvance() }
+            if (targetingHandler.onCancelAction(greMsg) == HandlerResult.Resume) runtimeContinuation.awaitHorizon()
         }
 
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
@@ -418,6 +350,12 @@ class MatchSession(
     }
 
     override fun sendPriorityState(bridge: GameBridge) = drainCoordinatorFeed()
+
+    /** Await the next engine-owned horizon without submitting an action first. */
+    fun awaitRuntimeHorizon(timeoutMs: Long = gameBridge.priorityWaitMs) =
+        synchronized(sessionLock) {
+            runtimeContinuation.awaitHorizon(timeoutMs)
+        }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
@@ -528,92 +466,7 @@ class MatchSession(
         mirrorToFamiliar(messages)
     }
 
-    private fun requestAutoAdvance(reason: String) {
-        if (autoAdvanceClosed.get()) return
-        autoAdvanceRequested.set(true)
-        if (!autoAdvanceRunning.compareAndSet(false, true)) return
-
-        val accepted =
-            executeDeferred {
-                try {
-                    do {
-                        autoAdvanceRequested.set(false)
-                        synchronized(sessionLock) {
-                            if (autoAdvanceClosed.get() || gameBridge.getGame() == null) return@synchronized
-                            log.debug("MatchSession: auto-advance pump ({})", reason)
-                            autoPassEngine.autoPassAndAdvance()
-                        }
-                    } while (autoAdvanceRequested.get())
-                } catch (t: Throwable) {
-                    log.warn("MatchSession: auto-advance pump failed: {}", t.message, t)
-                } finally {
-                    autoAdvanceRunning.set(false)
-                    if (autoAdvanceRequested.get()) requestAutoAdvance("reschedule")
-                }
-            }
-        if (!accepted) autoAdvanceRunning.set(false)
-    }
-
-    private fun requestPlaybackDrain() {
-        if (autoAdvanceClosed.get()) return
-        executeDeferred {
-            try {
-                synchronized(sessionLock) {
-                    if (autoAdvanceClosed.get() || gameBridge.getGame() == null) return@synchronized
-                    drainCoordinatorFeed()
-                }
-            } catch (t: Throwable) {
-                log.warn("MatchSession: playback drain failed: {}", t.message, t)
-            }
-        }
-    }
-
-    private fun executeDeferred(block: () -> Unit): Boolean {
-        pendingDeferredWork.incrementAndGet()
-        return try {
-            autoAdvanceExecutor.execute {
-                try {
-                    block()
-                } finally {
-                    pendingDeferredWork.decrementAndGet()
-                }
-            }
-            true
-        } catch (_: RejectedExecutionException) {
-            pendingDeferredWork.decrementAndGet()
-            false
-        }
-    }
-
-    /** Wait until deferred auto-advance and playback work caused by prior input has completed. */
-    internal fun awaitQuiescence(timeoutMs: Long) {
-        require(timeoutMs > 0) { "timeoutMs must be positive" }
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
-
-        while (true) {
-            val remainingNanos = deadline - System.nanoTime()
-            if (remainingNanos <= 0) throw TimeoutException("Match session did not become quiescent within ${timeoutMs}ms")
-
-            try {
-                autoAdvanceExecutor.submit {}.get(remainingNanos, TimeUnit.NANOSECONDS)
-            } catch (_: RejectedExecutionException) {
-                return
-            }
-
-            if (pendingDeferredWork.get() == 0 && !autoAdvanceRequested.get() && !autoAdvanceRunning.get()) return
-        }
-    }
-
     fun close() {
-        autoAdvanceClosed.set(true)
-        autoAdvanceRequested.set(false)
-        if (gameBridge.autoAdvanceRequester === autoAdvanceRequest) {
-            gameBridge.autoAdvanceRequester = null
-        }
-        if (gameBridge.playbackDrainRequester === playbackDrainRequest) {
-            gameBridge.playbackDrainRequester = null
-        }
-        autoAdvanceExecutor.shutdownNow()
         autopush?.shutdown()
     }
 
@@ -645,12 +498,6 @@ class MatchSession(
                 builder.build()
             }
         peer.sink.send(mirrored)
-    }
-
-    /** Pacing delay — skipped when paceDelayMs == 0 (tests). */
-    override fun paceDelay(multiplier: Int) {
-        val delay = paceDelayMs * multiplier
-        if (delay > 0) Thread.sleep(delay)
     }
 }
 

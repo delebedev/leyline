@@ -10,26 +10,19 @@ internal class CardSelectInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(CardSelectInteractionHandler::class.java)
 
-    fun tryHandleSelectN(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean = submit(greMsg, greMsg.selectNResp.idsList, autoPass, ctx.bridge.cutCoordinator.cardSelect::submitSelectN)
+    fun tryHandleSelectN(greMsg: ClientToGREMessage): Boolean =
+        submit(greMsg, greMsg.selectNResp.idsList, ctx.bridge.cutCoordinator.cardSelect::submitSelectN)
 
-    fun tryHandleEffectCost(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean =
+    fun tryHandleEffectCost(greMsg: ClientToGREMessage): Boolean =
         submit(
             greMsg,
             greMsg.effectCostResp.costSelection.idsList,
-            autoPass,
             ctx.bridge.cutCoordinator.cardSelect::submitEffectCost,
         )
 
     private fun submit(
         greMsg: ClientToGREMessage,
         selectedInstanceIds: List<Int>,
-        autoPass: () -> Unit,
         submitSelection: (String, Int, List<Int>) -> Boolean,
     ): Boolean {
         val runtime = ctx.bridge.cutCoordinator.cardSelect
@@ -39,8 +32,6 @@ internal class CardSelectInteractionHandler(
             DevCheck.failOnAutoPass { "CardSelect response did not match the current interaction" }
             return true
         }
-        ctx.bridge.awaitPriority()
-        autoPass()
         return true
     }
 }

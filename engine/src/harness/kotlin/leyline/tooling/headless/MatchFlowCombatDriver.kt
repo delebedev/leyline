@@ -16,6 +16,7 @@ internal class MatchFlowCombatDriver(
     private val messagesSince: (Int) -> List<GREToClientMessage>,
     private val submitWithGsId: (ClientToGREMessage) -> ClientToGREMessage,
     private val drainSink: () -> Unit,
+    private val awaitRuntimeHorizon: () -> Unit,
 ) {
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
@@ -104,6 +105,17 @@ internal class MatchFlowCombatDriver(
     }
 
     fun declareNoBlockers() {
+        val pendingKind =
+            bridge()
+                .actionBridge(seatId)
+                .getPending()
+                ?.state
+                ?.kind
+        if (pendingKind != leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS) {
+            awaitRuntimeHorizon()
+            drainSink()
+            return
+        }
         submit(submitWithGsId(submitBlockersReq(seatId.value)))
         drainSink()
     }

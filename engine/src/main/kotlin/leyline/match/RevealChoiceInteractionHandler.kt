@@ -10,19 +10,14 @@ internal class RevealChoiceInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(RevealChoiceInteractionHandler::class.java)
 
-    fun tryHandleSelectN(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
+    fun tryHandleSelectN(greMsg: ClientToGREMessage): Boolean {
         val runtime = ctx.bridge.cutCoordinator.revealChoices
         val pending = runtime.current() ?: return false
         if (!runtime.submit(pending.interactionId, greMsg.gameStateId, greMsg.selectNResp.idsList)) {
             log.warn("RevealChoice response did not match the current interaction")
             DevCheck.failOnAutoPass { "RevealChoice response did not match the current interaction" }
-            return true
+            return false
         }
-        ctx.bridge.awaitPriority()
-        autoPass()
         return true
     }
 }

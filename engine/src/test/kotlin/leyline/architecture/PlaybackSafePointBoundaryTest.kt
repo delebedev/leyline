@@ -101,7 +101,6 @@ class PlaybackSafePointBoundaryTest :
                 .haveNameMatching(
                     named(
                         "leyline.match.ActionPerformer",
-                        "leyline.match.AutoPassEngine",
                         "leyline.match.CombatHandler",
                         "leyline.match.NumericInputHandler",
                         "leyline.match.OptionalActionHandler",

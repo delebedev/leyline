@@ -13,6 +13,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.codes.DetailKeys
@@ -324,17 +325,16 @@ class MatchStaticChoiceInteractionRuntimeTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val case = cases.single { it.kind == StaticChoiceKind.Color }
-            var timedOut = false
+            val signal = PrioritySignal()
             val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal, strict = false).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
                 }
             val result = prompt.requestStaticChoice(request(board, case, source = null, defaultIndex = 1))
 
             assertSoftly {
                 result shouldContainExactly listOf(1)
-                timedOut shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.staticChoices
                     .current()
                     .shouldBeNull()

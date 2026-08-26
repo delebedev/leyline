@@ -126,7 +126,7 @@ fun awaitFreshPending(
 
 /**
  * Advance the engine to a phase matching [predicate] by submitting one
- * PassPriority at a time via the bridge. No AutoPassEngine involvement —
+ * PassPriority at a time via the bridge. No session progression policy —
  * each pass is a single engine step, so there is no phase overshoot.
  *
  * Returns the [GameActionBridge.PendingAction] at the target phase

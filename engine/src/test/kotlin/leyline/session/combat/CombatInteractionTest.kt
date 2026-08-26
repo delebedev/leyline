@@ -830,7 +830,7 @@ class CombatInteractionTest :
             passPriority()
             toggleAttackers(listOf(attackerIid))
 
-            triggerAutoPass()
+            awaitRuntimeHorizon()
 
             val prompt = allMessages.last { it.hasDeclareAttackersReq() }
             prompt.declareAttackersReq.attackersList

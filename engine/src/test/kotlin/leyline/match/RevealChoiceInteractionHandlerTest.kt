@@ -88,19 +88,15 @@ class RevealChoiceInteractionHandlerTest :
                     .flatten()
                     .single { it.hasSelectNReq() }
                     .selectNReq.idsList[1]
-            var autoPassed = false
-
             RevealChoiceInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
                 .tryHandleSelectN(
                     selectNResp(listOf(selectedId)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                ) { autoPassed = true }
-                .shouldBeTrue()
+                ).shouldBeTrue()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().optionIndices shouldBe listOf(1)
                 (result.get().handles.single() === handles[1]) shouldBe true
-                autoPassed shouldBe true
                 coordinator.revealChoices
                     .current()
                     .shouldBeNull()

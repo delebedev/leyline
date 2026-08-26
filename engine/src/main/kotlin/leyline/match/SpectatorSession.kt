@@ -111,6 +111,4 @@ class SpectatorSession(
         deliverCommittedCoordinatorBatches(this, gameBridge, seatId)
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
-
-    override fun paceDelay(multiplier: Int) {}
 }

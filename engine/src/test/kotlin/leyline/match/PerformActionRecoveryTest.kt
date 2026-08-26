@@ -14,7 +14,7 @@ import leyline.testkit.performAction
  * Regression: stale duplicate PerformActionResp packets can arrive after the
  * original action already consumed the pending bridge action. Recovery drains
  * the coordinator's committed state-only bundle, without exposing unbound actions or re-entering the
- * auto-pass loop (which would spin through phases and emit many messages).
+ * runtime continuation (which would otherwise spin through phases and emit many messages).
  */
 class PerformActionRecoveryTest :
     BoardTest({

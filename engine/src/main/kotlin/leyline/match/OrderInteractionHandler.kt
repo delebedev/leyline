@@ -10,23 +10,19 @@ internal class OrderInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(OrderInteractionHandler::class.java)
 
-    fun onOrderResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    fun onOrderResp(greMsg: ClientToGREMessage): Boolean {
         val runtime = ctx.bridge.cutCoordinator.order
         val pending = runtime.current()
         if (pending == null) {
             log.warn("OrderResp did not match a published Order interaction")
             DevCheck.failOnAutoPass { "OrderResp did not match a published Order interaction" }
-            return
+            return false
         }
         if (!runtime.submit(pending.interactionId, greMsg.gameStateId, greMsg.orderResp.idsList)) {
             log.warn("OrderResp did not match the current Order interaction")
             DevCheck.failOnAutoPass { "OrderResp did not match the current Order interaction" }
-            return
+            return false
         }
-        ctx.bridge.awaitPriority()
-        autoPass()
+        return true
     }
 }

@@ -13,6 +13,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedCardSelectInteraction
 import leyline.bridge.handoff.ResolutionAbilityShape
 import leyline.bridge.handoff.ResolutionRouteInput
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -115,15 +116,14 @@ class MatchCardSelectInteractionTimeoutTest :
                             ),
                         sourceEntityId = source(board).id.takeIf { case.sourceRequired },
                     )
-                var timedOut = false
+                val signal = PrioritySignal()
                 val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
                 coordinator.cardSelect.beforeTimeoutClaim = {
                     publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
                 }
                 val prompt =
-                    InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                    InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal, strict = false).also {
                         it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                        it.timeoutListener = { timedOut = true }
                     }
 
                 val result = prompt.requestCardSelect(request, handles)
@@ -134,7 +134,7 @@ class MatchCardSelectInteractionTimeoutTest :
                 assertSoftly {
                     result.optionIndices shouldContainExactly listOf(0)
                     (result.handles.single() === handles[0]) shouldBe true
-                    timedOut shouldBe true
+                    signal.awaitSignal(3_000) shouldBe true
                     coordinator.cardSelect
                         .current()
                         .shouldBeNull()

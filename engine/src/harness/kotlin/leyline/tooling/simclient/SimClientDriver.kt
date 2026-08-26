@@ -303,28 +303,28 @@ class SimClientDriver(
         // auto-passed past whatever priority window produced our last observed
         // prompt. Submitting now triggers
         // `WARN ActionPerformer: PerformActionResp but no pending action`.
-        // Drain instead so the auto-pass loop's outbound messages flush and we
+        // Drain instead so the runtime horizon's outbound messages flush and we
         // pick up the next real prompt on the next iteration.
         if (!harness.hasPendingAction()) {
             if (prompt != null) {
                 promptLedger.retire(prompt, "no-pending")
                 attemptLedger.markNoPending("pre-submit:${prompt.type.name}")
             }
-            return triggerAutoPassAndDrain()
+            return awaitRuntimeHorizonAndDrain()
         }
         val active =
             prompt ?: run {
-                if (harness.isAiTurn()) return triggerAutoPassAndDrain()
+                if (harness.isAiTurn()) return awaitRuntimeHorizonAndDrain()
                 harness.passPriority()
                 return true
             }
         return respondToPrompt(active)
     }
 
-    private fun triggerAutoPassAndDrain(): Boolean {
+    private fun awaitRuntimeHorizonAndDrain(): Boolean {
         val before = harness.allMessages.size
         val autoPassT0 = System.nanoTime()
-        runCatching { harness.triggerAutoPass() }
+        runCatching { harness.awaitRuntimeHorizon() }
         harness.drainSink()
         recordAutoPass(elapsedMsSince(autoPassT0))
         return harness.allMessages.size > before

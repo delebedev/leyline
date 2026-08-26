@@ -34,7 +34,7 @@ private val HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE =
  * Regression test for the priority-handoff hang during combat resolution on
  * the human's turn.
  *
- * Before the fix, [leyline.match.AutoPassEngine.autoPassAndAdvance] at the
+ * Before the fix, the session-owned progression loop at the
  * SEND_STATE human-turn + pass-only branch emitted a state-only diff and
  * `return`ed without auto-passing the engine's pending
  * [leyline.bridge.forge.PlayerController.chooseSpellAbilityToPlay] action. The
@@ -50,7 +50,7 @@ private val HUMAN_COMBAT_PRIORITY_HANDOFF_PUZZLE =
  * before the bridge timeout recovers. With the fix, combat resolves in
  * <100ms and AI life drops to 19.
  */
-// Session-tier: exercises the full MatchSession + AutoPassEngine loop.
+// Session-tier: exercises the full MatchSession + runtime continuation.
 @Suppress("TierPlacementCheck")
 class HumanCombatPriorityHandoffTest :
     SessionTest({
@@ -78,7 +78,7 @@ class HumanCombatPriorityHandoffTest :
 
             // If the bug were present, the engine would block in awaitAction at
             // COMBAT_DECLARE_BLOCKERS after AI declared blocks; damage never applies
-            // within the 3s test timeout. With the fix, the auto-pass loop falls
+            // within the 3s test timeout. With the fix, the runtime continuation falls
             // through to advanceOrWait and Raging Goblin (1/1) resolves unblocked.
             ai.life shouldBe 19
         }

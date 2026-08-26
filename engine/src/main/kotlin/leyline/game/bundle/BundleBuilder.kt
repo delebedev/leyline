@@ -691,19 +691,18 @@ class BundleBuilder(
 
     /**
      * True when the only action available is Pass (no Cast, Play, Activate).
-     * Used by [AutoPassEngine] on the session thread to skip empty priority
+     * Used by the coordinator runtime to skip empty priority
      * points — mainly on the opponent's turn.
      *
-     * This is the **session-side** layer of a two-layer auto-pass system:
+     * This is the protocol-shape check used by the runtime policy:
      *
      * 1. **Engine-side** — [leyline.bridge.PriorityActionCandidates.hasLegalNonManaAction] runs
      *    inside [PlayerController.chooseSpellAbilityToPlay] on the engine
      *    thread, own-turn only. When false, the engine auto-passes before the
      *    bridge round-trip even happens. The session thread never sees it.
      *
-     * 2. **Session-side** (this) — checks the proto action list we already
-     *    built. Covers opponent-turn priority and any case the engine-side
-     *    skip didn't fire. No redundant Game queries needed.
+     * The coordinator applies this check to the immutable action list it is
+     * about to publish. Session code does not invoke it to drive progression.
      *
      * Stateless — lives in [Companion] so callers don't need an instance.
      */

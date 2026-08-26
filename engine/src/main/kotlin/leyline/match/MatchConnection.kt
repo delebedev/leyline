@@ -50,8 +50,6 @@ class MatchConnection(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
-    /** Run post-response advancement inline for in-process callers. */
-    private val deferGameplayAdvance: Boolean = true,
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
 
@@ -186,8 +184,8 @@ class MatchConnection(
     }
 
     /**
-     * Submit one parsed gameplay message and wait for deferred session work caused
-     * by that message to publish its output. Connection setup still enters through
+     * Submit one parsed gameplay message and wait for the engine horizon caused by
+     * that message to publish its output. Connection setup still enters through
      * [receive], where the outer service envelope establishes match identity.
      */
     fun submitGREMessage(
@@ -195,12 +193,12 @@ class MatchConnection(
         timeoutMs: Long = 15_000L,
     ) {
         processGREMessage(greMsg)
-        awaitQuiescence(timeoutMs)
+        awaitRuntimeHorizon(timeoutMs)
     }
 
-    /** Wait for all deferred session work scheduled before this call to finish. */
-    fun awaitQuiescence(timeoutMs: Long = 15_000L) {
-        (session as? MatchSession)?.awaitQuiescence(timeoutMs)
+    /** Wait for the next engine horizon and deliver its committed output. */
+    fun awaitRuntimeHorizon(timeoutMs: Long = 15_000L) {
+        (session as? MatchSession)?.awaitRuntimeHorizon(timeoutMs)
     }
 
     private fun handleMatchAuth(msg: ClientToMatchServiceMessage) {
@@ -308,7 +306,6 @@ class MatchConnection(
                 connection = connection,
                 gameBridge = bridge,
                 paceDelayMs = engineSettings.paceDelayMs,
-                deferNetworkAdvance = deferGameplayAdvance,
             )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
