@@ -16,6 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.card.CounterType as ForgeCounterType
 
@@ -216,6 +217,7 @@ object SnapshotHydration {
                     .singleOrNull()
                     ?.name
                     ?.substringBefore('_')
+            val keywords = if (SubType.Role in obj.subtypesList) "Enchant:Creature" else ""
             return buildString {
                 append("t:").append(name.replace(',', ' '))
                 append(",P:").append(obj.power.value)
@@ -223,7 +225,7 @@ object SnapshotHydration {
                 append(",Cost:0")
                 color?.let { append(",Color:").append(it) }
                 append(",Types:").append(types.joinToString("-"))
-                append(",Keywords:,Image:")
+                append(",Keywords:").append(keywords).append(",Image:")
             }
         }
 
