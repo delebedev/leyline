@@ -83,6 +83,11 @@ generation. Puzzle replacement arms a new generation only after its initial
 bundle and horizon are delivered. It never submits an engine action or makes
 priority decisions.
 
+In-process harness callers wait only for named client output when observer
+delivery is asynchronous. That wait observes sink completion; it does not
+wait on an engine horizon, release a synchronization barrier, or consume the
+observer notification.
+
 ### Current exceptions
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`.

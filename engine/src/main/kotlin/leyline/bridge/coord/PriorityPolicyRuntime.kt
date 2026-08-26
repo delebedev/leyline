@@ -147,13 +147,9 @@ class PriorityPolicyRuntime {
             val opponentStop =
                 !observation.isOwnTurn &&
                     observation.phase?.let { it in opponentStops } == true
-            val passOnlyCombatPhase =
-                observation.phase == PhaseType.COMBAT_DECLARE_ATTACKERS ||
-                    observation.phase == PhaseType.COMBAT_DECLARE_BLOCKERS
             val intentionalPhaseStop =
                 ownTurnStopped &&
-                    observation.stackEmpty &&
-                    !(passOnlyCombatPhase && !observation.hasMeaningfulAction)
+                    observation.stackEmpty
             val mode =
                 priorityWindowMode(
                     fullControl = fullControl,

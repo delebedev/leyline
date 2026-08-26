@@ -27,6 +27,7 @@ import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -86,6 +87,8 @@ class GameBridge(
     private val bridgeTimeoutMs: Long? = null,
     /** Timeout for client-visible prompts. Null waits indefinitely. */
     private val promptFailsafeMs: Long? = DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS,
+    /** Whether runtime horizons are observed and delivered outside the engine loop. */
+    private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     /** Playtest config — controls AI speed, die roll, etc. */
     val engineSettings: EngineSettings = EngineSettings(),
     /** Shared protocol counter for GRE message sequencing.
@@ -967,6 +970,7 @@ class GameBridge(
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
                 priorityPolicy = priorityPolicy,
+                runtimeHorizonMode = runtimeHorizonMode,
                 interactionRuntime = cutCoordinator,
             )
         humanController = controller
@@ -1570,6 +1574,7 @@ class GameBridge(
                     actionBridge = actionBridge(controlledSeat),
                     mulliganBridge = mulliganBridge(controlledSeat),
                     priorityPolicy = priorityPolicy,
+                    runtimeHorizonMode = runtimeHorizonMode,
                     interactionRuntime = cutCoordinator,
                 )
             humanController = controller

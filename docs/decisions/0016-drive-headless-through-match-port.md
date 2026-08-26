@@ -55,6 +55,10 @@ The harness remains engine-aware. Its current callers need GameBridge probes,
 fixture setup, and focused lifecycle controls. Direct MatchSession calls remain
 only for synchronous advancement and controls with no client message.
 
+When a harness helper needs to observe output published asynchronously, it
+waits for the named client-visible message or sink delivery. It never consumes
+the runtime horizon or delivery notification directly.
+
 Registry and test helpers no longer expose MatchSession or GameBridge merely to
 submit gameplay responses.
 

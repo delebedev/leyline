@@ -137,6 +137,10 @@ notification remains its exclusive wake-up source. It never submits actions or
 chooses progression policy, and its generation is invalidated on teardown or
 puzzle replacement before a new observer is armed.
 
+In-process harness code observes named client output after asynchronous
+delivery when needed. It does not wait on an engine horizon or consume the
+observer's feed notification.
+
 Three owners sit beneath that boundary and are each the only implementation of
 their contract. `CoordinatorCutInstaller` performs the single-batch cut
 transaction — enqueue, projection commit, rollback of an uninstalled batch, and

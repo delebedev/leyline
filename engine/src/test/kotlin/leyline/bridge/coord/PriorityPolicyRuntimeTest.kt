@@ -217,12 +217,18 @@ class PriorityPolicyRuntimeTest :
                 PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
         }
 
-        test("an intentional phase stop keeps a pass-only window visible") {
+        test("configured phase stops keep pass-only windows visible") {
             val runtime = PriorityPolicyRuntime()
             runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
 
-            runtime.classifyPriorityWindow(observation(phase = PhaseType.MAIN1)) shouldBe
-                PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+            listOf(
+                PhaseType.MAIN1,
+                PhaseType.COMBAT_DECLARE_ATTACKERS,
+                PhaseType.COMBAT_DECLARE_BLOCKERS,
+            ).forEach { phase ->
+                runtime.classifyPriorityWindow(observation(phase = phase)) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+            }
         }
 
         test("ordinary pass-only continuation still skips") {

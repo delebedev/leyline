@@ -141,6 +141,7 @@ fun advanceTo(
     maxPasses: Int = 50,
     timeoutMs: Long = 15_000,
     predicate: (phase: String, turn: Int) -> Boolean,
+    onSynchronization: (() -> Unit)? = null,
 ): GameActionBridge.PendingAction {
     val game = b.getGame() ?: error("Game was not initialised")
     var lastId: String? = null
@@ -150,9 +151,7 @@ fun advanceTo(
                 ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
         if (predicate(pending.state.phase, pending.state.turn)) return pending
         if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
-            val delivered = checkNotNull(b.playback) { "SyncOnly requires a registered playback feed" }.drainQueue()
-            check(delivered.isNotEmpty()) { "SyncOnly must commit its state batch before engine resume" }
-            check(b.actionBridge(SeatId(1)).completeSyncPass(pending.actionId))
+            checkNotNull(onSynchronization) { "SyncOnly advancement requires a delivery observer" }()
             lastId = pending.actionId
             return@repeat
         }
@@ -179,7 +178,7 @@ fun advanceToPhase(
     phase: String,
     turn: Int? = null,
     maxPasses: Int = 50,
-) = advanceTo(b, maxPasses) { p, t -> p == phase && (turn == null || t == turn) }
+) = advanceTo(b, maxPasses, predicate = { p, t -> p == phase && (turn == null || t == turn) })
 
 /** Advance to COMBAT_DECLARE_ATTACKERS. */
 fun advanceToCombat(

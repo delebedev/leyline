@@ -829,8 +829,7 @@ class CombatInteractionTest :
             val attackerIid = setupSingleAttacker()
             passPriority()
             toggleAttackers(listOf(attackerIid))
-
-            awaitRuntimeHorizon()
+            drainSink()
 
             val prompt = allMessages.last { it.hasDeclareAttackersReq() }
             prompt.declareAttackersReq.attackersList
@@ -1069,7 +1068,8 @@ class CombatInteractionTest :
             // WPC.assignCombatDamage blocks on dedicated future; the runtime horizon
             // resumes through checkPendingDamageAssignment and sends AssignDamageReq.
             declareAttackers(listOf(dreadmawIid))
-            submitAttackers()
+            passPriority()
+            passPriority()
 
             // AssignDamageReq should be in messages (sent before session lock released)
             val assignReq = allMessages.lastOrNull { it.hasAssignDamageReq() }
@@ -1179,7 +1179,7 @@ class CombatInteractionTest :
         ) {
             after {
                 // Pass through human turn into AI combat; the engine publishes
-                // the next combat horizon without a synthetic pass loop.
+                // the next combat horizon without caller-side progression.
                 passPriority()
                 passThroughCombat()
             }.expectNoDeclareBlockersReq()

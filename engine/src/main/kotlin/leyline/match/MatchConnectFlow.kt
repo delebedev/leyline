@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.config.EngineSettings
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
@@ -73,6 +74,7 @@ internal class MatchConnectFlow(
                         matchId = attempt.matchId,
                         bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
                         promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        runtimeHorizonMode = RuntimeHorizonMode.Observed,
                         engineSettings = engineSettings,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,

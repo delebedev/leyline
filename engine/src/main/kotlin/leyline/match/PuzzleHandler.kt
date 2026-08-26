@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
@@ -52,6 +53,7 @@ class PuzzleHandler(
                         matchId = matchId,
                         bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
                         promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        runtimeHorizonMode = RuntimeHorizonMode.Observed,
                         engineSettings = engineSettings,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
@@ -93,6 +95,11 @@ class PuzzleHandler(
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
+        if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
+            bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId, includePriorityPrompt = false)
+            registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
+            return
+        }
         val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
 
         // Expose the request only after its executable catalog is installed.
@@ -108,6 +115,11 @@ class PuzzleHandler(
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)
+        if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_ATTACKERS ||
+            pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS
+        ) {
+            check(bridge.cutCoordinator.republishDeclaration(pending.actionId))
+        }
         registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
     }
 

@@ -27,10 +27,10 @@ import leyline.infra.MatchOutput
 import leyline.infra.MessageSink
 import leyline.match.MatchConnection
 import leyline.match.MatchRegistry
-import leyline.match.MatchSession
 import leyline.match.isGameplayResponse
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 /**
  * Test harness driving a real match through [MatchConnection].
@@ -117,7 +117,7 @@ class MatchFlowHarness(
             messagesSince = { snapshot -> messageLog.since(snapshot) },
             submitWithGsId = { msg -> submitWithGsId(msg) },
             drainSink = { drainSink() },
-            awaitRuntimeHorizon = { localConnection.awaitRuntimeHorizon() },
+            awaitClientOutput = { awaitNextClientOutput() },
         )
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
@@ -129,6 +129,7 @@ class MatchFlowHarness(
     private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
     private lateinit var localConnection: MatchConnection
+    private lateinit var localOutput: SinkMatchOutput
     private var familiarConnection: MatchConnection? = null
 
     lateinit var bridge: GameBridge
@@ -180,9 +181,10 @@ class MatchFlowHarness(
         GameBootstrap.initializeCardDatabase(quiet = true)
         val repo = cardRepositoryForConstructedDecks()
         val runtimeConfigs = runtimeConfigs(puzzle = null)
-        localConnection = newConnection(repo, runtimeConfigs, effectiveSink)
+        localOutput = SinkMatchOutput(effectiveSink)
+        localConnection = newConnection(repo, runtimeConfigs, localOutput)
         val familiarSink = ListMessageSink()
-        familiarConnection = newConnection(repo, runtimeConfigs, familiarSink)
+        familiarConnection = newConnection(repo, runtimeConfigs, SinkMatchOutput(familiarSink))
 
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         authenticateAndConnect(checkNotNull(familiarConnection), opponentSeatId.value, "headless-player_Familiar")
@@ -208,6 +210,8 @@ class MatchFlowHarness(
         drainSink()
 
         val mulliganPrompt = allMessages.last { it.type == GREMessageType.MulliganReq_aa0d }
+        val outputEpoch = localOutput.snapshot()
+        val outputStart = messageSnapshot()
         localConnection.submitGREMessage(
             ClientToGREMessage
                 .newBuilder()
@@ -219,7 +223,9 @@ class MatchFlowHarness(
                 .build(),
         )
         drainSink()
-
+        if (messagesSince(outputStart).none { it.hasActionsAvailableReq() }) {
+            awaitNamedOutput(outputEpoch, outputStart, "initial match horizon") { it.hasActionsAvailableReq() }
+        }
         if (aiScript != null) installScriptedAi(aiScript)
     }
 
@@ -254,11 +260,35 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         val repo = cardRepositoryForPuzzle()
-        localConnection = newConnection(repo, runtimeConfigs(PuzzleSource.definitionFromText(puzzleText, matchId)), effectiveSink)
+        localOutput = SinkMatchOutput(effectiveSink)
+        localConnection =
+            newConnection(
+                repo,
+                runtimeConfigs(PuzzleSource.definitionFromText(puzzleText, matchId)),
+                localOutput,
+            )
+        val outputEpoch = localOutput.snapshot()
+        val outputStart = messageSnapshot()
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         bindEngineHandles()
         if (aiScript != null) installScriptedAi(aiScript)
         drainSink()
+        val pendingKind =
+            bridge
+                .actionBridge(seatId)
+                .getPending()
+                ?.state
+                ?.kind
+        awaitNamedOutput(outputEpoch, outputStart, "initial puzzle prompt") { message ->
+            when (pendingKind) {
+                PendingActionKind.DECLARE_ATTACKERS -> message.hasDeclareAttackersReq()
+                PendingActionKind.DECLARE_BLOCKERS -> message.hasDeclareBlockersReq()
+                PendingActionKind.PRIORITY -> message.hasActionsAvailableReq()
+                PendingActionKind.SYNC_ONLY,
+                null,
+                -> message.hasActionsAvailableReq() || message.hasDeclareAttackersReq() || message.hasDeclareBlockersReq()
+            }
+        }
     }
 
     private fun runtimeConfigs(puzzle: leyline.config.PuzzleDefinition?): RuntimeMatchConfigRegistry =
@@ -277,11 +307,11 @@ class MatchFlowHarness(
     private fun newConnection(
         repo: CardRepository,
         runtimeConfigs: RuntimeMatchConfigRegistry,
-        outputSink: MessageSink,
+        output: MatchOutput,
     ): MatchConnection =
         MatchConnection(
             registry = registry,
-            output = SinkMatchOutput(outputSink),
+            output = output,
             engineSettings = effectiveMatchConfig,
             puzzleLibrary = leyline.game.generator.PuzzleLibrary(Path.of("data/puzzles")),
             cardRepository = repo,
@@ -339,8 +369,6 @@ class MatchFlowHarness(
         gameRef = checkNotNull(bridge.getGame())
         cacheSeatPlayers()
     }
-
-    private fun matchSession(): MatchSession = localConnection.session as? MatchSession ?: error("No active match session")
 
     private fun cardRepositoryForConstructedDecks(): CardRepository =
         if (cardRepositoryOverride != null) {
@@ -499,8 +527,9 @@ class MatchFlowHarness(
         }
         val pending = bridge.actionBridge(seatId).getPending()
         if (pending?.state?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
-            matchSession().sendPriorityState(bridge)
-            drainSink()
+            val epoch = localOutput.snapshot()
+            val messageStart = messageSnapshot()
+            awaitNamedOutput(epoch, messageStart, "synchronization delivery") { it.hasGameStateMessage() }
             return
         }
         localConnection.submitGREMessage(submitWithGsId(performAction { actionType = ActionType.Pass }))
@@ -671,9 +700,33 @@ class MatchFlowHarness(
         advanceUntil(maxPasses) { isGameOver() || turn() > startTurn }
     }
 
-    /** Await and deliver the next engine-owned horizon. */
-    fun awaitRuntimeHorizon() {
-        localConnection.awaitRuntimeHorizon()
+    internal fun awaitNextClientOutput() {
+        val epoch = localOutput.snapshot()
+        val messageStart = messageSnapshot()
+        awaitNamedOutput(epoch, messageStart, "client output") { true }
+    }
+
+    private fun awaitNamedOutput(
+        epoch: Long,
+        messageStart: Int,
+        description: String,
+        predicate: (GREToClientMessage) -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        var deliveredEpoch = epoch
+        drainSink()
+        while (messagesSince(messageStart).none(predicate)) {
+            val remainingNanos = deadline - System.nanoTime()
+            if (remainingNanos <= 0 ||
+                !localOutput.awaitAfter(deliveredEpoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1)
+            ) {
+                drainSink()
+                check(messagesSince(messageStart).any(predicate)) { "Timed out waiting for $description" }
+                return
+            }
+            deliveredEpoch = localOutput.snapshot()
+            drainSink()
+        }
     }
 
     /**
@@ -701,16 +754,57 @@ class MatchFlowHarness(
     fun advanceToPhase(
         phase: String,
         turn: Int? = null,
-    ) = leyline.game.advanceToPhase(bridge, phase, turn)
+    ): leyline.bridge.handoff.GameActionBridge.PendingAction {
+        drainSink()
+        val pendingAtStart = bridge.actionBridge(seatId).getPending()
+        val messageStart = messageLog.snapshot()
+        var epoch = localOutput.snapshot()
+        val pending =
+            leyline.game.advanceTo(
+                bridge,
+                predicate = { currentPhase, currentTurn -> currentPhase == phase && (turn == null || currentTurn == turn) },
+                onSynchronization = {
+                    val synchronizationStart = messageSnapshot()
+                    awaitNamedOutput(epoch, synchronizationStart, "synchronization delivery") { it.hasGameStateMessage() }
+                    epoch = localOutput.snapshot()
+                },
+            )
+        drainSink()
+        val alreadyVisible =
+            pendingHorizonVisible(pending, allMessages.subList(0, messageStart)) &&
+                (pending.state.kind != PendingActionKind.SYNC_ONLY || pendingAtStart?.actionId == pending.actionId)
+        if (!alreadyVisible && !pendingHorizonVisible(pending, messagesSince(messageStart))) {
+            awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
+                pendingHorizonVisible(pending, listOf(message))
+            }
+        }
+        return pending
+    }
+
+    private fun pendingHorizonVisible(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messages: List<GREToClientMessage>,
+    ): Boolean {
+        val gameStateId = pending.promptGameStateId
+        return messages.asReversed().any { message ->
+            (pending.state.kind == PendingActionKind.SYNC_ONLY || message.gameStateId == gameStateId) &&
+                when (pending.state.kind) {
+                    PendingActionKind.PRIORITY -> message.hasActionsAvailableReq()
+                    PendingActionKind.DECLARE_ATTACKERS -> message.hasDeclareAttackersReq()
+                    PendingActionKind.DECLARE_BLOCKERS -> message.hasDeclareBlockersReq()
+                    PendingActionKind.SYNC_ONLY -> message.hasGameStateMessage()
+                }
+        }
+    }
 
     /** Advance to Main1 via bridge. */
-    fun advanceToMain1() = leyline.game.advanceToMain1(bridge)
+    fun advanceToMain1() = advanceToPhase("MAIN1")
 
     /** Advance to COMBAT_DECLARE_ATTACKERS via bridge. */
-    fun advanceToCombat(turn: Int? = null) = leyline.game.advanceToCombat(bridge, turn)
+    fun advanceToCombat(turn: Int? = null) = advanceToPhase("COMBAT_DECLARE_ATTACKERS", turn)
 
     /** Advance to MAIN2 via bridge. */
-    fun advanceToMain2(turn: Int? = null) = leyline.game.advanceToMain2(bridge, turn)
+    fun advanceToMain2(turn: Int? = null) = advanceToPhase("MAIN2", turn)
 
     // --- Combat helpers ---
 
@@ -1494,10 +1588,12 @@ class MatchFlowHarness(
     }
 
     private fun collectSinkMessages() {
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        synchronized(sink) {
+            allMessages.addAll(sink.messages)
+            allRawMessages.addAll(sink.rawMessages)
+            accumulator.processAll(sink.messages)
+            sink.clear()
+        }
     }
 
     internal fun drainSink() {
@@ -1653,12 +1749,36 @@ class MatchFlowHarness(
 private class SinkMatchOutput(
     private val sink: MessageSink,
 ) : MatchOutput {
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    private val monitor = java.lang.Object()
+    private var deliveredEpoch = 0L
+
     override fun send(message: MatchServiceToClientMessage) {
         sink.sendRaw(message)
-        if (message.hasGreToClientEvent()) {
-            sink.send(message.greToClientEvent.greToClientMessagesList)
+        if (!message.hasGreToClientEvent()) return
+        sink.send(message.greToClientEvent.greToClientMessagesList)
+        synchronized(monitor) {
+            deliveredEpoch++
+            monitor.notifyAll()
         }
     }
 
     override fun close() = Unit
+
+    fun snapshot(): Long = synchronized(monitor) { deliveredEpoch }
+
+    fun awaitAfter(
+        epoch: Long,
+        timeoutMs: Long = 5_000L,
+    ): Boolean {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        synchronized(monitor) {
+            while (deliveredEpoch <= epoch) {
+                val remainingNanos = deadline - System.nanoTime()
+                if (remainingNanos <= 0) return false
+                TimeUnit.NANOSECONDS.timedWait(monitor, remainingNanos)
+            }
+            return true
+        }
+    }
 }

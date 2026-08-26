@@ -17,7 +17,9 @@ import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.SynchronizationContinuation
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ForgeCardId
@@ -43,6 +45,7 @@ class PriorityLoopCoordinator(
     private val player: Player,
     private val actionBridge: GameActionBridge,
     private val priorityPolicy: PriorityPolicyRuntime,
+    private val runtimeHorizonMode: RuntimeHorizonMode,
     private val smartPhaseSkip: Boolean,
     private val spellExecutor: SpellExecutor,
     interactionRuntime: BlockingInteractionRuntime,
@@ -95,15 +98,19 @@ class PriorityLoopCoordinator(
                     ),
                 )
             forceVisibleAfterMana = false
-            val present =
+            val skipped = decision is PriorityWindowDecision.Skip
+            if (skipped) {
+                priorityPolicy.recordDecision(game, PriorityDecision.Skip(decision.reason))
+            }
+            var mode =
                 when (decision) {
-                    is PriorityWindowDecision.Present -> decision
-                    is PriorityWindowDecision.Skip -> {
-                        priorityPolicy.recordDecision(game, PriorityDecision.Skip(decision.reason))
-                        return null
-                    }
+                    is PriorityWindowDecision.Present -> decision.mode
+                    is PriorityWindowDecision.Skip -> PriorityWindowMode.SyncOnly
                 }
-            val mode = present.mode
+            if (mode == PriorityWindowMode.SyncOnly && runtimeHorizonMode == RuntimeHorizonMode.Direct) {
+                if (skipped) return null
+                mode = PriorityWindowMode.Visible
+            }
             owner.notifyStateChanged()
 
             val state =
@@ -113,12 +120,18 @@ class PriorityLoopCoordinator(
                     activePlayerId = handler.playerTurn?.id ?: -1,
                     priorityPlayerId = player.id,
                     kind = if (mode == PriorityWindowMode.SyncOnly) PendingActionKind.SYNC_ONLY else PendingActionKind.PRIORITY,
+                    synchronizationPresentation =
+                        if (skipped) SynchronizationPresentation.PhaseTransition else SynchronizationPresentation.StateOnly,
                     synchronizationContinuation =
-                        synchronizationContinuation(
-                            mode = mode,
-                            stackEmpty = game.stack.isEmpty,
-                            autoResolve = present.autoResolve,
-                        ),
+                        if (skipped) {
+                            SynchronizationContinuation.Reevaluate
+                        } else {
+                            synchronizationContinuation(
+                                mode = mode,
+                                stackEmpty = game.stack.isEmpty,
+                                autoResolve = (decision as PriorityWindowDecision.Present).autoResolve,
+                            )
+                        },
                 )
             val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })
             actionBridge.armSynchronizationContinuation(state.synchronizationContinuation)

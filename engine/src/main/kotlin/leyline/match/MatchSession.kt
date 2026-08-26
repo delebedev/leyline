@@ -351,12 +351,6 @@ class MatchSession(
 
     override fun sendPriorityState(bridge: GameBridge) = drainCoordinatorFeed()
 
-    /** Await the next engine-owned horizon without submitting an action first. */
-    fun awaitRuntimeHorizon(timeoutMs: Long = gameBridge.priorityWaitMs) =
-        synchronized(sessionLock) {
-            runtimeContinuation.awaitHorizon(timeoutMs = timeoutMs)
-        }
-
     internal fun deliverRuntimeHorizon() =
         synchronized(sessionLock) {
             runtimeContinuation.deliverHorizon()

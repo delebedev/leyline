@@ -188,11 +188,6 @@ class MatchConnection(
     /** Submit one parsed gameplay message through the connection-owned session. */
     fun submitGREMessage(greMsg: ClientToGREMessage) = processGREMessage(greMsg)
 
-    /** Wait for the next engine horizon and deliver its committed output. */
-    fun awaitRuntimeHorizon(timeoutMs: Long = 15_000L) {
-        (session as? MatchSession)?.awaitRuntimeHorizon(timeoutMs)
-    }
-
     /** Arm delivery after the initial client-owned horizon has been bound. */
     fun armRuntimeDeliveryObserver() {
         stopRuntimeDeliveryObserver()

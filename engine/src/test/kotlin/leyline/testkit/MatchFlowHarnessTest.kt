@@ -14,11 +14,10 @@ import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
-import leyline.game.awaitFreshPending
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -289,8 +288,9 @@ class MatchFlowHarnessTest :
             val oldPending = actionBridge.getPending().shouldNotBeNull()
             oldPending.promptGameStateId shouldBe oldPromptGsId
 
-            h.bridge.submitTestAction(oldPending.actionId, PlayerAction.PassPriority)
-            val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
+            h.passPriority()
+            val nextPending = actionBridge.getPending().shouldNotBeNull()
+            nextPending.actionId shouldNotBe oldPending.actionId
             val nextPromptGsId = nextPending.promptGameStateId.shouldNotBeNull()
             nextPromptGsId shouldBeGreaterThan oldPromptGsId
 

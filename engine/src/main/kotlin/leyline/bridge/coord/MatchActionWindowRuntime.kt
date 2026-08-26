@@ -76,8 +76,9 @@ internal class MatchActionWindowRuntime(
     internal fun markSynchronizationPublished(
         seatId: SeatId,
         actionId: String,
+        publishedBatch: List<GREToClientMessage>,
     ) {
-        actionWindows[actionId] = synchronizationActionWindow(seatId, actionId)
+        actionWindows[actionId] = synchronizationActionWindow(seatId, actionId).copy(publishedBatch = publishedBatch)
     }
 
     internal fun claimTimeout(

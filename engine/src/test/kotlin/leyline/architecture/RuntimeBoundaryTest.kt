@@ -139,14 +139,24 @@ class RuntimeBoundaryTest :
 
         test("session progression is owned by engine runtime continuation") {
             val session = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchSession.kt"))
+            val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
             val bridge = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/game/state/GameBridge.kt"))
             val continuation = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeContinuation.kt"))
-            val forbidden = listOf("Executor", "requestAutoAdvance", "autoAdvanceRequester", "playbackDrainRequester", "awaitQuiescence")
+            val forbidden =
+                listOf(
+                    "Executor",
+                    "requestAutoAdvance",
+                    "autoAdvanceRequester",
+                    "playbackDrainRequester",
+                    "awaitQuiescence",
+                    "awaitRuntimeHorizon",
+                )
 
             assertSoftly {
-                forbidden shouldHaveSize 5
+                forbidden shouldHaveSize 6
                 forbidden.forEach { name ->
                     withClue("session runtime must not retain $name") { session shouldNotContain name }
+                    withClue("connection runtime must not retain $name") { connection shouldNotContain name }
                     withClue("bridge runtime must not retain $name") { bridge shouldNotContain name }
                 }
                 continuation shouldContain "drainCoordinatorBarrier"
