@@ -1,6 +1,7 @@
 package leyline.match
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
@@ -63,6 +64,49 @@ class GameOverDeliveryTest :
             } finally {
                 session.close()
             }
+        }
+
+        test("MatchSession drains Familiar terminal output before raw completion") {
+            val bridge = startWithBoard { _, _, _ -> }.bridge
+            val registry = MatchRegistry()
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
+            val deliveries = mutableListOf<String>()
+            val playerSink =
+                object : MessageSink {
+                    override fun send(messages: List<GREToClientMessage>) {
+                        deliveries += "player"
+                    }
+
+                    override fun sendRaw(msg: MatchServiceToClientMessage) {
+                        deliveries += "raw"
+                    }
+                }
+            val familiarSink =
+                object : MessageSink {
+                    override fun send(messages: List<GREToClientMessage>) {
+                        deliveries += "familiar"
+                    }
+
+                    override fun sendRaw(msg: MatchServiceToClientMessage) = error("Familiar sends no raw completion")
+                }
+            val session =
+                MatchSession(
+                    connection = ConnectionState(SeatId(1), MATCH_ID, playerSink, registry),
+                    gameBridge = bridge,
+                    paceDelayMs = 0,
+                )
+            val familiar = FamiliarSession(SeatId(2), MATCH_ID, familiarSink, bridge)
+            registry.registerSession(MATCH_ID, SeatId(1), session)
+            registry.registerSession(MATCH_ID, SeatId(2), familiar)
+
+            session.sendGameOver(ResultReason.Concede)
+
+            deliveries shouldContainExactly listOf("player", "familiar", "raw")
         }
 
         test("SpectatorSession game-over delivery failure terminalizes the coordinator") {

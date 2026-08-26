@@ -115,11 +115,7 @@ internal class MatchConnectFlow(
         match: Match,
     ) {
         // The game is already running (started at match creation). Both connections
-        // send their initial bundle: seat 2 (familiar) carries the
-        // ChooseStartingPlayerReq handshake the client needs to leave the connecting
-        // state and render — a bare room-state no-op left it on a blank board.
-        // onChooseStartingPlayerResp is spectator-safe (deals hands;
-        // SpectatorSession.onMulliganKeep is a no-op). Only the primary streams.
+        // drain their initial observer batches. Only the primary streams gameplay.
         val spectator = createSpectatorSession(match.bridge)
         sendRoomState()
         sendInitialBundle()

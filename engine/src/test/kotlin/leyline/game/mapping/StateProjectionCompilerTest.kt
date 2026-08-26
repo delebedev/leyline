@@ -27,6 +27,7 @@ import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
@@ -90,7 +91,7 @@ class StateProjectionCompilerTest :
                     prior,
                     listOf(
                         StateProjectionCompiler.ViewerInput(player, actions = ActionsAvailableReq.getDefaultInstance()),
-                        StateProjectionCompiler.ViewerInput(observer),
+                        StateProjectionCompiler.ViewerInput(observer, role = ProjectionViewerRole.Observer),
                     ),
                 )
 
@@ -120,7 +121,7 @@ class StateProjectionCompilerTest :
             }
         }
 
-        test("shared Full and Diff plans preserve each private hand only for its owner") {
+        test("Observer role redacts seat-private objects in Full and Diff") {
             val playerCard = ForgeCardId(10)
             val observerCard = ForgeCardId(20)
             val initial = privateHandsSnapshot(1, playerCard, observerCard, "Player card", "Observer card")
@@ -131,16 +132,15 @@ class StateProjectionCompilerTest :
                     prior,
                     listOf(
                         StateProjectionCompiler.ViewerInput(compilerInput(initial).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(initial).copy(viewingSeatId = 2)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.Observer,
+                        ),
                     ),
                 )
             val playerId =
                 full.transition.nextState.identities.forgeIdToInstanceId
                     .getValue(playerCard)
-                    .value
-            val observerId =
-                full.transition.nextState.identities.forgeIdToInstanceId
-                    .getValue(observerCard)
                     .value
             val changed = privateHandsSnapshot(2, playerCard, observerCard, "Player changed", "Observer changed")
             val diff =
@@ -149,7 +149,10 @@ class StateProjectionCompilerTest :
                     full.transition.nextState,
                     listOf(
                         StateProjectionCompiler.ViewerInput(compilerInput(changed, initial).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(changed, initial).copy(viewingSeatId = 2)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(changed, initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.Observer,
+                        ),
                     ),
                 )
 
@@ -159,13 +162,21 @@ class StateProjectionCompilerTest :
                     .map { it.instanceId } shouldContainExactly listOf(playerId)
                 full.viewers[1]
                     .result.gsm.gameObjectsList
-                    .map { it.instanceId } shouldContainExactly listOf(observerId)
+                    .map { it.instanceId } shouldContainExactly emptyList()
                 diff.viewers[0]
                     .result.gsm.gameObjectsList
                     .map { it.instanceId } shouldContainExactly listOf(playerId)
                 diff.viewers[1]
                     .result.gsm.gameObjectsList
-                    .map { it.instanceId } shouldContainExactly listOf(observerId)
+                    .map { it.instanceId } shouldContainExactly emptyList()
+                full.viewers[1]
+                    .result.gsm.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly emptyList()
+                diff.viewers[1]
+                    .result.gsm.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly emptyList()
             }
         }
 

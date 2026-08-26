@@ -529,6 +529,7 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         routes: List<ViewerRoute>,
+        phaseTransition: Boolean = false,
     ): PreparedViewerCut<Unit> {
         val pending = bridge.projectionStateSnapshot().viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
         val intent =
@@ -547,6 +548,10 @@ class BundleBuilder(
                 updateType = ::resolveFrameUpdateType,
             )
         val contentMsgId = counter.nextMsgId()
+        val echoLink = counter.nextGameStateLink().takeIf { phaseTransition }
+        val echoMsgId = counter.nextMsgId().takeIf { phaseTransition }
+        val commitLink = counter.nextGameStateLink().takeIf { phaseTransition }
+        val commitMsgId = counter.nextMsgId().takeIf { phaseTransition }
         val outputs =
             routes.mapIndexed { index, route ->
                 val (viewer, builder) = route
@@ -554,14 +559,59 @@ class BundleBuilder(
                     frame.fold.viewers[index]
                         .result.gsm
                 val messages =
-                    listOf(
-                        builder.makeGRE(GREMessageType.GameStateMessage_695e, frame.gameStateId, contentMsgId) {
-                            it.gameStateMessage = state
-                        },
-                    )
+                    if (phaseTransition) {
+                        builder.phaseTransitionStateMessages(
+                            state,
+                            contentMsgId,
+                            checkNotNull(echoLink),
+                            checkNotNull(echoMsgId),
+                            checkNotNull(commitLink),
+                            checkNotNull(commitMsgId),
+                        )
+                    } else {
+                        listOf(
+                            builder.makeGRE(GREMessageType.GameStateMessage_695e, frame.gameStateId, contentMsgId) {
+                                it.gameStateMessage = state
+                            },
+                        )
+                    }
                 ViewerBatches(viewer.seatId, listOf(messages))
             }
         return PreparedViewerCut(Unit, outputs, frame.fold.transition, frame.closesPlaybackFrame, frame.gameStateId)
+    }
+
+    private fun phaseTransitionStateMessages(
+        state: GameStateMessage,
+        contentMsgId: Int,
+        echoLink: LogicalSequencePlanner.GameStateLink,
+        echoMsgId: Int,
+        commitLink: LogicalSequencePlanner.GameStateLink,
+        commitMsgId: Int,
+    ): List<GREToClientMessage> {
+        val contentState = state.toBuilder().setUpdate(GameStateUpdate.SendHiFi).build()
+        val commitState =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(commitLink.gsId)
+                .setPrevGameStateId(commitLink.prevGsId)
+                .setTurnInfo(state.turnInfo)
+                .addAllAnnotations(
+                    state.annotationsList
+                        .filter { AnnotationType.PhaseOrStepModified in it.typeList }
+                        .takeLast(1),
+                ).addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
+        return listOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, contentMsgId) {
+                it.gameStateMessage = contentState
+            },
+            buildEchoDiffGsm(echoLink, echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId),
+            makeGRE(GREMessageType.GameStateMessage_695e, commitLink.gsId, commitMsgId) {
+                it.gameStateMessage = commitState
+            },
+        )
     }
 
     private fun resolveFrameUpdateType(

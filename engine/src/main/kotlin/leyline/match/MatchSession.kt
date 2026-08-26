@@ -411,6 +411,7 @@ class MatchSession(
             ),
         )
         deliverCommittedCoordinatorBatches(this, bridge, seatId)
+        drainFamiliarFeed()
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen

@@ -92,7 +92,7 @@ class HandshakeMessagesTest :
             first shouldBe second
         }
 
-        test("initial bundle can suppress starting-player prompt for spectator seats") {
+        test("initial bundle omits response requests for Observer seats") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 1L)
@@ -108,7 +108,7 @@ class HandshakeMessagesTest :
                     gameStateId = 1,
                     planner = planner,
                     bridge = b,
-                    includeStartingPlayerPrompt = false,
+                    includeStartingPlayerPrompt = true,
                 )
 
             val messages = bundle.viewers.single { it.first == SeatId(2) }.second

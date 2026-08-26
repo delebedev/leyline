@@ -779,6 +779,7 @@ object StateMapper {
         priorProjection: ProjectionState,
         editor: ProjectionState.Editor,
         actions: ActionsAvailableReq? = null,
+        includePrivateObjects: Boolean = true,
     ): Draft =
         buildDiffInternal(
             prev = input.previousSnapshot,
@@ -799,6 +800,7 @@ object StateMapper {
             editor = editor,
             priorProjection = priorProjection,
             sharedDraft = shared,
+            includePrivateObjects = includePrivateObjects,
         )
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
@@ -821,10 +823,11 @@ object StateMapper {
         editor: ProjectionState.Editor,
         priorProjection: ProjectionState,
         sharedDraft: Draft? = null,
+        includePrivateObjects: Boolean = true,
     ): Draft {
         if (prev == null) {
             // First bundle — Full GSM with one complete transition.
-            return sharedDraft?.forViewer(viewingSeatId) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -853,7 +856,7 @@ object StateMapper {
         // contents (matches the protocol shape Arena uses for cycling /
         // tutor searches).
         if (revealForSeat != null) {
-            return sharedDraft?.forViewer(viewingSeatId) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -1122,29 +1125,41 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return Draft(
-            gsm = built,
-            projectionSnapshot = projectedCur,
-            output = fullResult.output,
-            firstAnnotationId = fullResult.firstAnnotationId,
-            idResolver = fullResult.idResolver,
-            objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
-        )
+        val draft =
+            Draft(
+                gsm = built,
+                projectionSnapshot = projectedCur,
+                output = fullResult.output,
+                firstAnnotationId = fullResult.firstAnnotationId,
+                idResolver = fullResult.idResolver,
+                objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
+            )
+        return if (includePrivateObjects) draft else draft.forViewer(viewingSeatId, includePrivateObjects = false)
     }
 
-    private fun Draft.forViewer(viewingSeatId: Int): Draft {
-        if (viewingSeatId == 0) return this
+    private fun Draft.forViewer(
+        viewingSeatId: Int,
+        includePrivateObjects: Boolean,
+    ): Draft {
+        if (viewingSeatId == 0 && includePrivateObjects) return this
         val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
         val visibleObjects =
             gsm.gameObjectsList.filter { obj ->
-                obj.visibility != Visibility.Private || viewingSeatId in obj.viewersList
+                obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
             }
         val projected =
             gsm
                 .toBuilder()
                 .clearZones()
-                .addAllZones(gsm.zonesList.map { redactOpponentSideboardZone(it, opponentSideboardZoneId) })
-                .clearGameObjects()
+                .addAllZones(
+                    gsm.zonesList.map { zone ->
+                        if (!includePrivateObjects && zone.visibility == Visibility.Private) {
+                            zone.toBuilder().clearObjectInstanceIds().build()
+                        } else {
+                            redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                        }
+                    },
+                ).clearGameObjects()
                 .addAllGameObjects(visibleObjects)
                 .build()
         return copy(gsm = projected)

@@ -476,6 +476,7 @@ class MatchConnection(
         )
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         s.deliverLifecycle(bridge)
+        if (isFamiliar && !isSpectatorMode()) mulliganHandler.onChooseStartingPlayer()
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {

@@ -164,7 +164,16 @@ object StateProjectionCompiler {
         editor: ProjectionState.Editor,
     ): Pair<SeatId, Result> {
         val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
-        val rendered = StateMapper.renderViewerDraft(shared, stagedInput, environment, prior, editor, viewer.actions)
+        val rendered =
+            StateMapper.renderViewerDraft(
+                shared,
+                stagedInput,
+                environment,
+                prior,
+                editor,
+                viewer.actions,
+                includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
+            )
         val annotated =
             rendered.gsm
                 .toBuilder()

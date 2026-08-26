@@ -10,6 +10,7 @@ import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionTransition
 import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -157,14 +158,17 @@ object LifecycleMessageMaterializer {
         val connectMsgId = planner.nextMsgId()
         val dieRollMsgId = planner.nextMsgId()
         val gameStateMsgId = planner.nextMsgId()
-        val startingPlayerMsgId = planner.nextMsgId()
+        val hasStartingPlayerRequest =
+            includeStartingPlayerPrompt &&
+                viewers.any { it.seatId == SeatId(2) && it.role == ProjectionViewerRole.Player }
+        val startingPlayerMsgId = if (hasStartingPlayerRequest) planner.nextMsgId() else null
         val prior = bridge.projectionStateSnapshot()
         val (messages, next) =
             bridge.editProjection(prior) { editor ->
                 val snapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, matchId, 0)
                 viewers.map { viewer ->
                     val seatId = viewer.seatId
-                    val shouldPrompt = includeStartingPlayerPrompt && seatId == SeatId(2)
+                    val shouldPrompt = hasStartingPlayerRequest && viewer.role == ProjectionViewerRole.Player && seatId == SeatId(2)
                     val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
                     val gsm =
                         GsmBuilder.buildInitialGameState(
@@ -173,8 +177,8 @@ object LifecycleMessageMaterializer {
                             bridge,
                             snapshot,
                             pendingMessageCount = if (shouldPrompt) 1 else 0,
-                            viewingSeatId = seatId.value,
-                            includeStartingPlayerDecision = includeStartingPlayerPrompt,
+                            viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
+                            includeStartingPlayerDecision = shouldPrompt,
                         )
                     editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = snapshot)
                     val output =
@@ -197,7 +201,7 @@ object LifecycleMessageMaterializer {
                                         .newBuilder()
                                         .setType(GREMessageType.ChooseStartingPlayerReq_695e)
                                         .addSystemSeatIds(seatId.value)
-                                        .setMsgId(startingPlayerMsgId)
+                                        .setMsgId(checkNotNull(startingPlayerMsgId))
                                         .setGameStateId(gameStateId)
                                         .setChooseStartingPlayerReq(
                                             ChooseStartingPlayerReq
