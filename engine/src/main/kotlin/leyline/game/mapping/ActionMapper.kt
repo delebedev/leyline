@@ -868,7 +868,7 @@ object ActionMapper {
 
     /**
      * Configure a Cast action's keyword-specific fields per the rail's row in
-     * [CastRails]. Reference fixtures live under engine/src/test/resources/puzzles/
+     * [CastRails]. Reference fixtures live under data/puzzles/.
      * (plot-railway-brawler, foretell-demon-bolt, disturb-lunarch,
      * escape-glimpse-of-freedom). The rail descriptor encodes:
      *

@@ -88,6 +88,8 @@ data class GreStartRequest(
     val seat1Deck: String? = null,
     val seat2Deck: String? = null,
     val gameVariant: String? = null,
+    val challengeId: String? = null,
+    /** Explicit puzzle identity for dev/Acceptance/E2E launches only. */
     val puzzle: String? = null,
     val spectatorMode: Boolean? = null,
 )
@@ -142,13 +144,9 @@ data class AuthView(
 )
 
 @Serializable
-data class PuzzleSummaryView(
-    val filename: String,
+data class ChallengeSummary(
+    val challengeId: String,
     val name: String,
-    val goal: String? = null,
-    val turns: Int? = null,
-    val difficulty: String? = null,
-    val description: String? = null,
 )
 
 @Serializable

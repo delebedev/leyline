@@ -183,7 +183,7 @@ class BlockerDeclarationInteractionTest :
 
         session(
             "second iterative blocker toggle does not wipe first assignment",
-            puzzleFile = "puzzles/multi-blocker.pzl",
+            puzzleFile = "test-puzzles/multi-blocker.pzl",
             aiScript = MULTI_BLOCKER_AI_SCRIPT,
         ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()
@@ -213,7 +213,7 @@ class BlockerDeclarationInteractionTest :
 
         session(
             "deselect blocker removes only that assignment",
-            puzzleFile = "puzzles/multi-blocker.pzl",
+            puzzleFile = "test-puzzles/multi-blocker.pzl",
             aiScript = MULTI_BLOCKER_AI_SCRIPT,
         ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()

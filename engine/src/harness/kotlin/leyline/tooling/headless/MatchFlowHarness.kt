@@ -18,6 +18,7 @@ import leyline.domain.deck.DeckSource
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -29,7 +30,6 @@ import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.match.isGameplayResponse
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -129,7 +129,6 @@ class MatchFlowHarness(
     private var nextNumericInputValue: Int? = null
     private lateinit var localConnection: MatchConnection
     private var familiarConnection: MatchConnection? = null
-    private var temporaryPuzzlePath: Path? = null
 
     lateinit var bridge: GameBridge
         private set
@@ -143,7 +142,7 @@ class MatchFlowHarness(
      * (mulligan + keep) from the harness's deck lists.
      *
      * @param puzzleText full `.pzl` text (metadata + state)
-     * @param puzzleResource classpath resource path, e.g. `puzzles/bolt-face.pzl`
+     * @param puzzleResource shared identity path or test-private classpath resource, e.g. `data/puzzles/bolt-face.pzl`
      */
     fun connect(
         puzzleText: String? = null,
@@ -179,7 +178,7 @@ class MatchFlowHarness(
     fun connectAndKeep(aiScript: List<ScriptedAction>? = null) {
         GameBootstrap.initializeCardDatabase(quiet = true)
         val repo = cardRepositoryForConstructedDecks()
-        val runtimeConfigs = runtimeConfigs(puzzlePath = null)
+        val runtimeConfigs = runtimeConfigs(puzzle = null)
         localConnection = newConnection(repo, runtimeConfigs, effectiveSink)
         val familiarSink = ListMessageSink()
         familiarConnection = newConnection(repo, runtimeConfigs, familiarSink)
@@ -229,10 +228,7 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>? = null,
     ) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        val stream =
-            MatchFlowHarness::class.java.classLoader.getResourceAsStream(resourcePath)
-                ?: error("Puzzle resource not found: $resourcePath")
-        startPuzzleConnection(stream.bufferedReader().use { it.readText() }, aiScript)
+        startPuzzleConnection(PuzzleSource.definitionFromResource(resourcePath).content, aiScript)
     }
 
     /**
@@ -257,17 +253,14 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         val repo = cardRepositoryForPuzzle()
-        val path = Files.createTempFile("leyline-headless-", ".pzl")
-        Files.writeString(path, puzzleText)
-        temporaryPuzzlePath = path
-        localConnection = newConnection(repo, runtimeConfigs(path), effectiveSink)
+        localConnection = newConnection(repo, runtimeConfigs(PuzzleSource.definitionFromText(puzzleText, matchId)), effectiveSink)
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         bindEngineHandles()
         if (aiScript != null) installScriptedAi(aiScript)
         drainSink()
     }
 
-    private fun runtimeConfigs(puzzlePath: Path?): RuntimeMatchConfigRegistry =
+    private fun runtimeConfigs(puzzle: leyline.config.PuzzleDefinition?): RuntimeMatchConfigRegistry =
         RuntimeMatchConfigRegistry().apply {
             put(
                 RuntimeMatchConfig(
@@ -275,7 +268,7 @@ class MatchFlowHarness(
                     seat1 = DeckSource.ForgeText(deckList ?: DEFAULT_DECK.trimIndent()),
                     seat2 = opponentDeckList?.let(DeckSource::ForgeText),
                     gameVariant = variant,
-                    puzzle = puzzlePath?.toString(),
+                    puzzleDefinition = puzzle,
                 ),
             )
         }
@@ -289,7 +282,7 @@ class MatchFlowHarness(
             registry = registry,
             output = SinkMatchOutput(outputSink),
             engineSettings = effectiveMatchConfig,
-            puzzlesDir = Path.of("puzzles").toFile(),
+            puzzleLibrary = leyline.game.generator.PuzzleLibrary(Path.of("data/puzzles")),
             cardRepository = repo,
             runtimeMatchConfigs = runtimeConfigs,
             deferGameplayAdvance = false,
@@ -1394,8 +1387,6 @@ class MatchFlowHarness(
 
     fun shutdown() {
         if (::localConnection.isInitialized) localConnection.disconnected()
-        temporaryPuzzlePath?.let(Files::deleteIfExists)
-        temporaryPuzzlePath = null
     }
 
     // --- Real-client gsId reflection ---

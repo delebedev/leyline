@@ -67,7 +67,7 @@ abstract class SessionTest(
      * - [puzzle] — puzzle text. A `[state]` body gets `[metadata]` synthesized
      *   from [name] and [turns]; text that already has a `[metadata]` section
      *   is used verbatim (and then [turns] does not apply).
-     * - [puzzleFile] — classpath resource, e.g. `puzzles/bolt-face.pzl`.
+     * - [puzzleFile] — shared identity path or test-private classpath resource, e.g. `data/puzzles/bolt-face.pzl`.
      * - neither — a normal game (mulligan + keep) using [deckList].
      *
      * [timeout] bounds a test that can hang the engine loop rather than fail.

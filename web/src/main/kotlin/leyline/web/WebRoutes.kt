@@ -42,8 +42,6 @@ import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
-import leyline.game.generator.PuzzleCatalog
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -59,22 +57,8 @@ data class WebServices(
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     /** Which pair the spectator feed serves next. Per server, not persisted. */
     val spectatorRotationCursor: AtomicInteger = AtomicInteger(),
-    /** Resolved puzzle library root (content root). */
-    val puzzleCatalogDir: File = File("puzzles"),
-    val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog(puzzleCatalogDir) },
+    val challengeCatalog: ChallengeCatalog = ChallengeCatalog.default(),
 )
-
-private fun defaultPuzzleCatalog(dir: File): List<PuzzleSummaryView> =
-    PuzzleCatalog.list(dir).map {
-        PuzzleSummaryView(
-            filename = it.filename,
-            name = it.name,
-            goal = it.goal,
-            turns = it.turns,
-            difficulty = it.difficulty,
-            description = it.description,
-        )
-    }
 
 interface WebMatchLauncher {
     fun launchGreMatch(
@@ -113,7 +97,7 @@ fun Application.installWeb(services: WebServices) {
             post("/gre/start") {
                 val player = call.authenticatedPlayer(services)
                 val request = call.receive<GreStartRequest>()
-                if (isGuestEmail(player.email) && !request.isCatalogPuzzle(services.puzzleCatalog())) {
+                if (isGuestEmail(player.email) && !request.isCatalogChallenge(services.challengeCatalog)) {
                     call.respond(HttpStatusCode.Forbidden)
                     return@post
                 }
@@ -292,8 +276,8 @@ private suspend fun ApplicationCall.playCourse(services: WebServices) {
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
     installPublicSpectatorRoutes(services)
-    get("/puzzles") {
-        call.respond(services.puzzleCatalog())
+    get("/challenges") {
+        call.respond(services.challengeCatalog.summaries())
     }
 }
 
@@ -391,9 +375,10 @@ private suspend fun ApplicationCall.respondLoginSuccess(result: VerifyLoginResul
 internal fun ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
-private fun GreStartRequest.isCatalogPuzzle(catalog: List<PuzzleSummaryView>): Boolean =
-    puzzle != null &&
-        catalog.any { it.filename == puzzle } &&
+private fun GreStartRequest.isCatalogChallenge(catalog: ChallengeCatalog): Boolean =
+    challengeId != null &&
+        puzzle == null &&
+        catalog.find(challengeId) != null &&
         matchId == null &&
         wireMatchId == null &&
         seat1Deck == null &&

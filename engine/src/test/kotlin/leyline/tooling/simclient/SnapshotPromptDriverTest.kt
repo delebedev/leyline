@@ -7,10 +7,10 @@ import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
+import leyline.game.generator.PuzzleSource
 import leyline.testkit.MatchFlowHarness
 import leyline.tooling.artifact.SyntheticArtifactWriter
 import java.nio.file.Files
-import java.nio.file.Path
 
 @Suppress("TierPlacementCheck") // These policies must traverse the headless match loop.
 class SnapshotPromptDriverTest :
@@ -30,7 +30,7 @@ class SnapshotPromptDriverTest :
                     maxTurns = 2,
                     connect = {
                         harness.connectAndKeepPuzzleText(
-                            Files.readString(Path.of("../puzzles/$puzzle")),
+                            PuzzleSource.definitionFromResource("data/puzzles/$puzzle").content,
                         )
                     },
                     forgeAi =

@@ -35,7 +35,7 @@ private val TIERED_THUNDER_MAGIC_PUZZLE =
 class TieredModalCostTest :
     SessionTest({
 
-        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "puzzles/tiered-ice-magic.pzl") {
+        session("Ice Magic emits a one-of-three Tiered modal-cost prompt", puzzleFile = "data/puzzles/tiered-ice-magic.pzl") {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val option = cto.getCastingTimeOptionReq(0)
             val modalReq = option.modalReq
@@ -68,7 +68,7 @@ class TieredModalCostTest :
 
         session(
             "Ice Magic selected first tier resolves through target selection",
-            puzzleFile = "puzzles/tiered-ice-magic.pzl",
+            puzzleFile = "data/puzzles/tiered-ice-magic.pzl",
         ) {
             val cto = castSpellUntilCastingTimeOptionsReq("Ice Magic")
             val firstTier = cto.getCastingTimeOptionReq(0).modalReq.getModalOptions(0)

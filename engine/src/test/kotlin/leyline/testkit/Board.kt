@@ -256,14 +256,14 @@ class Board(
          * Much faster than [startGameAtMain1] (~0.3s vs ~1.5s) because it skips:
          * deck shuffle, mulligan keep, and priority-passing through upkeep/draw.
          *
-         * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+         * @param puzzleText inline `.pzl` content (see `data/puzzles/` for format)
          */
         fun startPuzzleAtMain1(
             puzzleText: String,
             engineSettings: EngineSettings = EngineSettings(),
         ): Board = startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText), engineSettings)
 
-        /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
+        /** Convenience: load a puzzle from a shared identity path or test-private resource. */
         fun startPuzzleAtMain1FromResource(
             resourcePath: String,
             engineSettings: EngineSettings = EngineSettings(),

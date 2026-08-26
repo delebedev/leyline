@@ -27,8 +27,8 @@ class ResolvedPaths(
     /** Session journal file. */
     val sessionJournal: File get() = File(artifactsRoot, "sessions.jsonl")
 
-    /** Puzzle library root (`.pzl` fixtures). */
-    val puzzlesDir: File get() = File(contentRoot, "puzzles")
+    /** Shared puzzle library root (`.pzl` fixtures and acceptance suites). */
+    val puzzlesDir: File get() = File(contentRoot, "data/puzzles")
 
     /** Resolved booster-draft model directory (relative values anchor to the content root). */
     fun draftModelDir(modelDir: String): File = contentRoot.resolve(modelDir)

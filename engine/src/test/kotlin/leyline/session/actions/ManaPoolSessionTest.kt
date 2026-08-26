@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -19,7 +20,6 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
-import java.io.File
 
 class ManaPoolSessionTest :
     SessionTest({
@@ -32,7 +32,7 @@ class ManaPoolSessionTest :
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
         }
 
-        val racersRingPuzzle = File("../puzzles/racers-ring-draw.pzl").readText()
+        val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
 
         session(
             "tapping land and mana creature projects floating mana pool",

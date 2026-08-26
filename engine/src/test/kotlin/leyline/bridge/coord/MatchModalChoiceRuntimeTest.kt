@@ -61,7 +61,7 @@ class MatchModalChoiceRuntimeTest :
         }
 
         test("publishes one atomic CTO cut and retains exact Forge handle identity") {
-            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val card = source(board)
@@ -112,7 +112,7 @@ class MatchModalChoiceRuntimeTest :
         }
 
         test("rejects wrong game-state, duplicate, and late responses; timeout chooses default") {
-            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val card = source(board)
@@ -167,7 +167,7 @@ class MatchModalChoiceRuntimeTest :
         }
 
         test("detaches a completed modal before the next window and releases cleanup by interaction") {
-            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val card = source(board)
@@ -232,7 +232,7 @@ class MatchModalChoiceRuntimeTest :
         }
 
         test("correlated cancel completes empty without staging a modal selection") {
-            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val card = source(board)

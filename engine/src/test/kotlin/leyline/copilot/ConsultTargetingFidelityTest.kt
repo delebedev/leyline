@@ -26,7 +26,10 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ConsultTargetingFidelityTest :
     SessionTest({
 
-        session("consult-driven Giant Growth resolves via select-then-submit under fidelity mode", puzzleFile = "puzzles/pump-spell.pzl") {
+        session(
+            "consult-driven Giant Growth resolves via select-then-submit under fidelity mode",
+            puzzleFile = "test-puzzles/pump-spell.pzl",
+        ) {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
             drainSink()

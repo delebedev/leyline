@@ -22,6 +22,7 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.infra.MatchOutput
 import leyline.match.MatchConnection
 import leyline.match.MatchRegistry
@@ -271,7 +272,7 @@ class DirectWebGreEngineSession(
             registry = registry,
             output = output,
             engineSettings = engineSettings,
-            puzzlesDir = puzzlesDir,
+            puzzleLibrary = PuzzleLibrary(puzzlesDir),
             coordinator = coordinator,
             cardRepository = cardRepository,
             runtimeMatchConfigs = runtimeMatchConfigs,
@@ -292,7 +293,7 @@ class DirectWebGreEngineSession(
 
     private fun needsFamiliarSeat(matchId: String): Boolean {
         val config = runtimeMatchConfigs.get(matchId)
-        val puzzle = !config?.puzzle.isNullOrBlank()
+        val puzzle = !config?.puzzle.isNullOrBlank() || config?.puzzleDefinition != null
         val spectating = config?.spectatorMode ?: engineSettings.spectatorMode
         return !puzzle && !spectating
     }

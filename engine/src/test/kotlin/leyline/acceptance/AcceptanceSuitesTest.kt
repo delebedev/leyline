@@ -82,7 +82,7 @@ private fun writeScryRun(
 }
 
 private fun discoverSuiteNames(): List<String> {
-    val dir = AcceptancePaths.resolve("puzzles/sets", notFoundMessage = "puzzles/sets not found", exists = Files::isDirectory)
+    val dir = AcceptancePaths.resolve("data/puzzles/sets", notFoundMessage = "data/puzzles/sets not found", exists = Files::isDirectory)
     return Files.newDirectoryStream(dir, "*.yaml").use { stream ->
         stream.map { it.fileName.toString().removeSuffix(".yaml") }.sorted()
     }

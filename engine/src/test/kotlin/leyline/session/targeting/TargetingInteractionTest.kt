@@ -60,7 +60,7 @@ class TargetingInteractionTest :
 
         // ─── Giant Growth: single-target creature buff ─────────────────────────
 
-        session("Giant Growth — prompt shape, select, resolve, zone transfer", puzzleFile = "puzzles/pump-spell.pzl") {
+        session("Giant Growth — prompt shape, select, resolve, zone transfer", puzzleFile = "test-puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Phase 1: prompt shape
@@ -93,7 +93,7 @@ class TargetingInteractionTest :
             }
         }
 
-        session("selecting targets records the iterative echo as answered", puzzleFile = "puzzles/pump-spell.pzl") {
+        session("selecting targets records the iterative echo as answered", puzzleFile = "test-puzzles/pump-spell.pzl") {
             val creatureIid = human.battlefield.iid("Grizzly Bears")
             castSpellByName("Giant Growth")
 
@@ -106,7 +106,7 @@ class TargetingInteractionTest :
             takeConsumedPromptMsgIds() shouldHaveSize 1
         }
 
-        session("target selection requires the projected target group index", puzzleFile = "puzzles/pump-spell.pzl") {
+        session("target selection requires the projected target group index", puzzleFile = "test-puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
             selectTargetsIterative(listOf(creatureIid))
@@ -135,7 +135,7 @@ class TargetingInteractionTest :
 
         session(
             "targeting prompt rejects mismatched response families without consuming the pending route",
-            puzzleFile = "puzzles/pump-spell.pzl",
+            puzzleFile = "test-puzzles/pump-spell.pzl",
         ) {
             val creatureIid = humanBattlefieldCreatures().first().first
             castSpellByName("Giant Growth").shouldBeTrue()
@@ -162,7 +162,7 @@ class TargetingInteractionTest :
             (cardByIid(creatureIid)?.netPower ?: 0) shouldBeGreaterThanOrEqual 4
         }
 
-        session("Giant Growth — invariants hold across targeting flow", puzzleFile = "puzzles/pump-spell.pzl") {
+        session("Giant Growth — invariants hold across targeting flow", puzzleFile = "test-puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             assertAccumulatorConsistent("before targeting")
@@ -267,7 +267,7 @@ class TargetingInteractionTest :
 
         // ─── Cancel targeting ───────────────────────────────────────────────────
 
-        session("cancel unwinds stack, card back in hand, re-cast succeeds", puzzleFile = "puzzles/pump-spell.pzl") {
+        session("cancel unwinds stack, card back in hand, re-cast succeeds", puzzleFile = "test-puzzles/pump-spell.pzl") {
             val creatureIid = humanBattlefieldCreatures().first().first
 
             // Cast → cancel
@@ -295,7 +295,21 @@ class TargetingInteractionTest :
 
         // ─── Lightning Bolt: player + creature targeting ───────────────────────
 
-        session("Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent", puzzleFile = "puzzles/bolt-face.pzl") {
+        session(
+            "Lightning Bolt — prompt shape, sourceId, resolve deals 3 damage to opponent",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Lightning Bolt
+                humanbattlefield=Mountain
+                humanlibrary=Mountain
+                aibattlefield=Grizzly Bears
+                ailibrary=Mountain
+                """,
+        ) {
             val msgs = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
             val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
             stMsg.shouldNotBeNull()
@@ -343,7 +357,7 @@ class TargetingInteractionTest :
             }
         }
 
-        session("Lightning Bolt — cancel then re-cast deals damage", puzzleFile = "puzzles/bolt-face.pzl") {
+        session("Lightning Bolt — cancel then re-cast deals damage", puzzleFile = "data/puzzles/bolt-face.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             cancelAction()
             game().stack.isEmpty.shouldBeTrue()
@@ -359,7 +373,7 @@ class TargetingInteractionTest :
 
         // ─── PST / PSuT lifecycle annotations ──────────────────────────────────
 
-        session("Lightning Bolt — PST on cast frame, PSuT on submit frame", puzzleFile = "puzzles/bolt-face.pzl") {
+        session("Lightning Bolt — PST on cast frame, PSuT on submit frame", puzzleFile = "data/puzzles/bolt-face.pzl") {
             val castMessages = after { castSpellByName("Lightning Bolt").shouldBeTrue() }.messages
 
             val selectTargetsReq = castMessages.firstOrNull { it.hasSelectTargetsReq() }
@@ -643,7 +657,7 @@ class TargetingInteractionTest :
 
         // ─── Bite Down: multi-group fight targeting ────────────────────────────
 
-        session("Bite Down — resolution state: damage, destroy, target in GY", puzzleFile = "puzzles/bite-down.pzl") {
+        session("Bite Down — resolution state: damage, destroy, target in GY", puzzleFile = "data/puzzles/bite-down.pzl") {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -677,7 +691,7 @@ class TargetingInteractionTest :
             }
         }
 
-        session("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve", puzzleFile = "puzzles/bite-down.pzl") {
+        session("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve", puzzleFile = "data/puzzles/bite-down.pzl") {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 

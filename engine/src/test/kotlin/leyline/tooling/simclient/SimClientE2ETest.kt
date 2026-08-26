@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.SimClientTag
+import leyline.game.generator.PuzzleSource
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
@@ -13,7 +14,6 @@ import leyline.tooling.artifact.SyntheticArtifactWriter
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.nio.file.Files
-import java.nio.file.Path
 
 /**
  * Keeps the simclient-specific ordering assertion that is not owned by a
@@ -37,7 +37,7 @@ class SimClientE2ETest :
                         maxTurns = 2,
                         connect = {
                             harness.connectAndKeepPuzzleText(
-                                Files.readString(Path.of("../puzzles/bite-down.pzl")),
+                                PuzzleSource.definitionFromResource("data/puzzles/bite-down.pzl").content,
                             )
                         },
                     ).runOneGame()
@@ -67,7 +67,7 @@ class SimClientE2ETest :
                     maxTurns = 3,
                     connect = {
                         harness.connectAndKeepPuzzleText(
-                            Files.readString(Path.of("../puzzles/bolt-face.pzl")),
+                            PuzzleSource.definitionFromResource("data/puzzles/bolt-face.pzl").content,
                         )
                     },
                 ).runOneGame()

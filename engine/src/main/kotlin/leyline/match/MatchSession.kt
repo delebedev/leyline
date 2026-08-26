@@ -223,6 +223,7 @@ class MatchSession(
      */
     fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
         synchronized(sessionLock) {
+            close()
             val deletedIds = gameBridge.resetForPuzzle(puzzle)
             val replacement = MatchSession(connection, gameBridge, paceDelayMs, counter, deferNetworkAdvance)
             registry.registerSession(matchId, seatId, replacement)
@@ -231,7 +232,6 @@ class MatchSession(
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
             registry.getConnection(matchId, seatId)?.session = replacement
-            close()
             replacement to deletedIds
         }
 
@@ -684,7 +684,7 @@ class MatchSession(
                     do {
                         autoAdvanceRequested.set(false)
                         synchronized(sessionLock) {
-                            if (gameBridge.getGame() == null) return@synchronized
+                            if (autoAdvanceClosed.get() || gameBridge.getGame() == null) return@synchronized
                             log.debug("MatchSession: auto-advance pump ({})", reason)
                             autoPassEngine.autoPassAndAdvance()
                         }
@@ -704,7 +704,7 @@ class MatchSession(
         executeDeferred {
             try {
                 synchronized(sessionLock) {
-                    if (gameBridge.getGame() == null) return@synchronized
+                    if (autoAdvanceClosed.get() || gameBridge.getGame() == null) return@synchronized
                     drainCoordinatorFeed()
                 }
             } catch (t: Throwable) {

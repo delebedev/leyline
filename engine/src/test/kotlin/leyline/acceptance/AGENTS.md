@@ -2,7 +2,7 @@
 
 Puzzle-backed deterministic acceptance tests for `MatchFlowHarness`.
 
-- Scenario suites live under `puzzles/sets/*.yaml` next to their `.pzl` files.
+- Scenario suites live under `data/puzzles/sets/*.yaml` next to their `.pzl` files.
 - For direct puzzle-state limits, read `../../../../../../docs/puzzle-harness.md`.
 - Keep `steps` backend-neutral: game intent only, no UI coordinates or client gestures.
 - Do not add acceptance assertions for internal projection or conformance invariants; prove those in focused contract tests.
@@ -11,7 +11,7 @@ Puzzle-backed deterministic acceptance tests for `MatchFlowHarness`.
 - Simclient is the synthetic discovery and fixed-seed proof lane. It does not replace a YAML acceptance contract.
 - Run with `just test-acceptance`.
 
-`AcceptanceSuitesTest` discovers every `puzzles/sets/*.yaml` stem and runs it; a suite opts a runner out via top-level metadata (for example `web: {skip: reason}`) rather than by omission from a hard-coded list.
+`AcceptanceSuitesTest` discovers every `data/puzzles/sets/*.yaml` stem and runs it; a suite opts a runner out via top-level metadata (for example `web: {skip: reason}`) rather than by omission from a hard-coded list.
 
 ## Current durable patterns
 

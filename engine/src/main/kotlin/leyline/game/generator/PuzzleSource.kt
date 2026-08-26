@@ -2,48 +2,52 @@ package leyline.game.generator
 
 import forge.gamemodes.puzzle.Puzzle
 import forge.util.FileSection
-import org.slf4j.LoggerFactory
-import java.io.File
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.config.PuzzleDefinition
 
 /**
- * Loads Forge `.pzl` puzzles from text, file, or classpath resource.
+ * Loads Forge `.pzl` puzzles from text or a classpath resource.
  *
  * Lightweight: no DB dependency (unlike forge-web's PuzzleLoader which uses Exposed).
  * Parses via Forge's [FileSection.parseSections] and constructs a [Puzzle] object.
  */
 object PuzzleSource {
-    private val log = LoggerFactory.getLogger(PuzzleSource::class.java)
+    /** Keep raw puzzle identity and content independent of Forge. */
+    fun definitionFromText(
+        content: String,
+        name: String = "inline",
+    ): PuzzleDefinition = PuzzleDefinition(name, content)
+
+    /** Parse a puzzle definition into Forge after localization is ready. */
+    fun load(definition: PuzzleDefinition): Puzzle {
+        GameBootstrap.initializeLocalization()
+        val content = definition.content
+        val lines = content.lines()
+        val sections = FileSection.parseSections(lines)
+        return Puzzle(sections, definition.identity, false)
+    }
 
     /** Parse a puzzle from raw `.pzl` content string. */
     fun loadFromText(
         content: String,
         name: String = "inline",
-    ): Puzzle {
-        val lines = content.lines()
-        val sections = FileSection.parseSections(lines)
-        return Puzzle(sections, name, false)
-    }
+    ): Puzzle = load(definitionFromText(content, name))
 
-    /** Load a puzzle from a `.pzl` file on disk. */
-    fun loadFromFile(path: String): Puzzle {
-        val file = File(path)
-        require(file.exists()) { "Puzzle file not found: $path" }
-        val content = file.readText()
-        val name = file.nameWithoutExtension
-        log.info("Loaded puzzle from file: {} ({} chars)", path, content.length)
-        return loadFromText(content, name)
-    }
-
-    /** Load a puzzle from a classpath resource (e.g. test resources). */
-    fun loadFromResource(resourcePath: String): Puzzle {
+    /** Create a definition from a classpath resource (normally a test-private fixture). */
+    fun definitionFromResource(resourcePath: String): PuzzleDefinition {
+        if (resourcePath.startsWith("data/puzzles/")) {
+            return PuzzleLibrary.fromConfiguredContentRoot().require(resourcePath.removePrefix("data/puzzles/"))
+        }
         val stream =
             PuzzleSource::class.java.classLoader.getResourceAsStream(resourcePath)
                 ?: error("Puzzle resource not found: $resourcePath")
-        val content = stream.bufferedReader().readText()
+        val content = stream.bufferedReader().use { it.readText() }
         val name = resourcePath.substringAfterLast('/').removeSuffix(".pzl")
-        log.info("Loaded puzzle from resource: {} ({} chars)", resourcePath, content.length)
-        return loadFromText(content, name)
+        return definitionFromText(content, name)
     }
+
+    /** Load a puzzle from a classpath resource (e.g. test resources). */
+    fun loadFromResource(resourcePath: String): Puzzle = load(definitionFromResource(resourcePath))
 
     /**
      * Extract metadata from `.pzl` content without constructing a full [Puzzle].

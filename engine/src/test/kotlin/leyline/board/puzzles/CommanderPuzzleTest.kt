@@ -17,11 +17,57 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 import leyline.testkit.StateMapperShell as StateMapper
 
+private val COMMANDER_VISIBILITY_PUZZLE =
+    """
+    [metadata]
+    Name:Commander Visibility Test
+    Goal:Verify commander card renders in command zone
+    Turns:3
+    Difficulty:Tutorial
+    Description:Arabella in command zone should be visible to the client as a clickable card.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=25
+    AILife=25
+
+    humancommand=Arabella, Abandoned Doll|IsCommander
+    humanhand=Plains;Plains;Plains
+    humanbattlefield=Plains;Plains
+    humanlibrary=Plains;Plains;Plains;Plains;Plains
+    aibattlefield=Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
+private val COMMANDER_TAX_PUZZLE =
+    """
+    [metadata]
+    Name:Commander Tax Test
+    Goal:Verify commander tax is visible in command zone annotations
+    Turns:3
+    Difficulty:Tutorial
+    Description:Arabella has already been cast once and should carry one commander-tax step.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=25
+    AILife=25
+
+    humancommand=Arabella, Abandoned Doll|IsCommander|CommanderCast:1
+    humanhand=Plains;Plains;Plains
+    humanbattlefield=Plains;Plains;Mountain;Mountain
+    humanlibrary=Plains;Plains;Plains;Plains;Plains
+    aibattlefield=Mountain;Mountain
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
 class CommanderPuzzleTest :
     BoardTest({
 
         test("puzzle with commander applies Brawl variant and places commander in zone 26") {
-            val board = startPuzzleAtMain1FromResource("puzzles/commander-visibility.pzl")
+            val board = startPuzzleAtMain1(COMMANDER_VISIBILITY_PUZZLE)
 
             board.game.rules
                 .hasAppliedVariant(GameType.Brawl)
@@ -71,7 +117,7 @@ class CommanderPuzzleTest :
         }
 
         test("commander tax appears in commander designation annotations") {
-            val board = startPuzzleAtMain1FromResource("puzzles/commander-tax.pzl")
+            val board = startPuzzleAtMain1(COMMANDER_TAX_PUZZLE)
 
             val human = board.human
             human.getCommanderCast(human.commanders.first()) shouldBe 1

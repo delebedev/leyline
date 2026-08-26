@@ -1,7 +1,8 @@
 package leyline.tooling.simclient
 
+import leyline.game.generator.PuzzleLibrary
 import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.file.Path
 import kotlin.math.absoluteValue
 
 sealed interface SimClientRow {
@@ -113,24 +114,13 @@ private data class ResolvedDeck(
 )
 
 private fun readDeck(name: String): String {
-    val candidates =
-        listOf(
-            Paths.get("data/decks/$name"),
-            Paths.get("../data/decks/$name"),
-            Paths.get("../../data/decks/$name"),
-        )
-    val path = candidates.firstOrNull { Files.exists(it) } ?: error("deck not found: $name in any of $candidates")
+    val contentRoot = Path.of(System.getProperty("leyline.content.root", ".")).toAbsolutePath().normalize()
+    val path = contentRoot.resolve("data/decks/$name")
+    require(Files.isRegularFile(path)) { "deck not found: $name in $path" }
     return Files.readString(path)
 }
 
 private fun readPuzzle(name: String): String {
-    val candidates =
-        listOf(
-            Paths.get("src/test/resources/puzzles/$name"),
-            Paths.get("puzzles/$name"),
-            Paths.get("../puzzles/$name"),
-            Paths.get("../../puzzles/$name"),
-        )
-    val path = candidates.firstOrNull { Files.exists(it) } ?: error("puzzle not found: $name in any of $candidates")
-    return Files.readString(path)
+    val identity = name.removePrefix("data/puzzles/")
+    return PuzzleLibrary.fromConfiguredContentRoot().require(identity).content
 }

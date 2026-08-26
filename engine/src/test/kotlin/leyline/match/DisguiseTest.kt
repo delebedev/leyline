@@ -30,7 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * `Special_TurnFaceUp_add3` action instead.
  *
  * The `Special_TurnFaceUp_add3` accept side and the bf face-down projection
- * are exercised end-to-end via `puzzles/disguise-forum-familiar.pzl` — those
+ * are exercised end-to-end via `data/puzzles/disguise-forum-familiar.pzl` — those
  * paths require an actual face-down permanent which can't be programmatically
  * synthesized without driving the cast resolution.
  *

@@ -42,11 +42,11 @@ class NativeMatchDoorBootstrapTest :
                     bindAddress = "127.0.0.1",
                     port = 0,
                     engineSettings = EngineSettings(),
-                    puzzlesDir = File("puzzles"),
+                    puzzlesDir = File("data/puzzles"),
                     coordinator = MatchCoordinator.NOOP,
                     cardRepository = EmptyCardRepository,
                     debugSink = debugSink,
-                    puzzlePath = { null },
+                    puzzleIdentity = { null },
                     runtimeMatchConfigs = RuntimeMatchConfigRegistry(),
                 )
 

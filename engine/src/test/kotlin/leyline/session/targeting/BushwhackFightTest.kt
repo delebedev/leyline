@@ -52,7 +52,7 @@ class BushwhackFightTest :
             actions.actionsList.filter { it.actionType == ActionType.Cast && it.instanceId == destroyEvilIid } shouldBe emptyList()
         }
 
-        session("Bushwhack Fight mode shares exact target metadata with TargetSpec", puzzleFile = "puzzles/bushwhack-fight.pzl") {
+        session("Bushwhack Fight mode shares exact target metadata with TargetSpec", puzzleFile = "data/puzzles/bushwhack-fight.pzl") {
             val ownIid = human.battlefield.iid("Centaur Courser")
             val oppIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -138,7 +138,7 @@ class BushwhackFightTest :
             }
         }
 
-        session("Bushwhack Fight resolves: mutual damage, both creatures take damage", puzzleFile = "puzzles/bushwhack-fight.pzl") {
+        session("Bushwhack Fight resolves: mutual damage, both creatures take damage", puzzleFile = "data/puzzles/bushwhack-fight.pzl") {
             val ownIid = human.battlefield.iid("Centaur Courser")
             val oppIid = ai.battlefield.iid("Grizzly Bears")
 

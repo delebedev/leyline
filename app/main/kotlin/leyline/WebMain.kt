@@ -5,6 +5,7 @@ import io.ktor.server.netty.Netty
 import leyline.config.ConfigException
 import leyline.config.EngineSettings
 import leyline.config.LeylineConfigResolver
+import leyline.config.PuzzleDefinition
 import leyline.config.ResolvedLeylineConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
@@ -23,6 +24,7 @@ import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.AppMatchCoordinator
 import leyline.infra.persistence.SqlitePlayerStore
 import leyline.web.AuthRateLimitConfig
+import leyline.web.ChallengeCatalog
 import leyline.web.DEV_WEB_AUTH_SECRET
 import leyline.web.DevEmailSender
 import leyline.web.DirectWebGreEngineSession
@@ -101,10 +103,12 @@ fun main(args: Array<String>) {
     val coordinator = AppMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val relay = InProcessWebGreRelay()
     val runtimeMatches = RuntimeMatchConfigRegistry()
+    val challengeCatalog = ChallengeCatalog.default()
     val launcher =
         WebRuntimeMatchLauncher(
             engineSettings = engineSettings,
             puzzlesDir = paths.puzzlesDir,
+            challengeCatalog = challengeCatalog,
             coordinator = coordinator,
             cardRepo = cardRepo,
             runtimeMatches = runtimeMatches,
@@ -139,7 +143,7 @@ fun main(args: Array<String>) {
                         ),
                     fixedLoginCode = web.loginCode.takeIf { it.isNotBlank() },
                 ),
-            puzzleCatalogDir = paths.puzzlesDir,
+            challengeCatalog = challengeCatalog,
             sealedSets = {
                 SealedPoolGenerator.supportedSets().map {
                     LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
@@ -153,6 +157,7 @@ fun main(args: Array<String>) {
 private class WebRuntimeMatchLauncher(
     private val engineSettings: EngineSettings,
     private val puzzlesDir: File,
+    private val challengeCatalog: ChallengeCatalog,
     private val coordinator: AppMatchCoordinator,
     private val cardRepo: CardRepository,
     private val runtimeMatches: RuntimeMatchConfigRegistry,
@@ -163,6 +168,7 @@ private class WebRuntimeMatchLauncher(
         request: GreStartRequest,
     ): DraftPlayResponse {
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
+        val challenge = resolveChallenge(request, challengeCatalog)
         // Watch requests may arrive without decklists; an AI-vs-AI match still
         // needs two decks, so blank spectator seats fall back to defaults.
         val spectator = request.spectatorMode == true
@@ -175,6 +181,7 @@ private class WebRuntimeMatchLauncher(
                 seat2 = seat2Text?.let(DeckSource::ForgeText),
                 gameVariant = request.gameVariant,
                 puzzle = request.puzzle,
+                puzzleDefinition = challenge,
                 spectatorMode = request.spectatorMode,
             ),
         )
@@ -217,6 +224,15 @@ private class WebRuntimeMatchLauncher(
         return DraftPlayResponse(matchId, matchId)
     }
 }
+
+internal fun resolveChallenge(
+    request: GreStartRequest,
+    catalog: ChallengeCatalog,
+): PuzzleDefinition? =
+    request.challengeId?.let { challengeId ->
+        require(request.puzzle == null) { "challengeId and puzzle are mutually exclusive" }
+        requireNotNull(catalog.find(challengeId)) { "unknown challenge: $challengeId" }.puzzle
+    }
 
 private fun resolveWebConfig(): ResolvedLeylineConfig =
     try {

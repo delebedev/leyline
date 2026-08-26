@@ -13,6 +13,7 @@ import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.match.MatchConnection
 import leyline.match.MatchDebugSink
 import leyline.match.MatchRegistry
@@ -35,11 +36,12 @@ object NativeMatchDoorBootstrap {
         coordinator: MatchCoordinator,
         cardRepository: CardRepository,
         debugSink: MatchDebugSink,
-        puzzlePath: () -> String?,
+        puzzleIdentity: () -> String?,
         runtimeMatchConfigs: RuntimeMatchConfigRegistry,
         aiDeckNameOverride: () -> String? = { null },
     ): Channel {
         val registry = MatchRegistry()
+        debugSink.sessionProvider = { registry.activeHumanSession() }
         return ServerBootstrap()
             .group(bossGroup, workerGroup)
             .channel(NioServerSocketChannel::class.java)
@@ -60,11 +62,10 @@ object NativeMatchDoorBootstrap {
                                         registry = registry,
                                         output = output,
                                         engineSettings = engineSettings,
-                                        puzzlesDir = puzzlesDir,
+                                        puzzleLibrary = PuzzleLibrary(puzzlesDir),
                                         coordinator = coordinator,
                                         cardRepository = cardRepository,
-                                        debugSink = debugSink,
-                                        puzzlePath = puzzlePath,
+                                        puzzleIdentity = puzzleIdentity,
                                         runtimeMatchConfigs = runtimeMatchConfigs,
                                         aiDeckNameOverride = aiDeckNameOverride,
                                     )
