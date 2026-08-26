@@ -74,8 +74,9 @@ open class CombatHandler(
         promptGameStateId: Int?,
     ) {
         if (greMsg.gameStateId != promptGameStateId) return
-        ResponseEnvelopeGuard.reject(greMsg, FailureReason.UnexpectedMessage, counters.counter, sink)
-        if (ctx.bridge.cutCoordinator.republishDeclaration(actionId)) drainPendingPlayback()
+        ctx.bridge.cutCoordinator.publishIllegalRequest(counters.seatId, greMsg, FailureReason.UnexpectedMessage)
+        ctx.bridge.cutCoordinator.republishDeclaration(actionId)
+        sink.sendPriorityState(ctx.bridge)
     }
 
     /**
@@ -155,15 +156,9 @@ open class CombatHandler(
                 return false
             }
 
-        val confirmation = {
-            sink.makeGRE(GREMessageType.SubmitAttackersResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {
-                it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
-            }
-        }
         bridge.cutCoordinator.submitDeclaredAction(
             pending.actionId,
             responseGameStateId,
-            confirmation,
         )
         // Release the committed confirmation before the engine resumes. The
         // coordinator queue preserves ordering at this delivery boundary.
@@ -191,17 +186,10 @@ open class CombatHandler(
 
         log.info("CombatHandler: CancelAttackers — submitting empty attackers to pass combat")
 
-        val confirmation = {
-            sink.makeGRE(GREMessageType.SubmitAttackersResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {
-                it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
-            }
-        }
-
         val submitted =
             bridge.cutCoordinator.submitDeclaredAction(
                 pending.actionId,
                 responseGameStateId = gameStateId,
-                confirmation,
             )
         if (!submitted) {
             log.warn("CombatHandler: CancelActionReq did not match current attacker window")
@@ -260,16 +248,9 @@ open class CombatHandler(
                 return false
             }
 
-        val confirmation = {
-            sink.makeGRE(GREMessageType.SubmitBlockersResp_695e, counters.counter.currentGsId(), counters.counter.nextMsgId()) {
-                it.submitBlockersResp = SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500).build()
-            }
-        }
-
         bridge.cutCoordinator.submitDeclaredAction(
             pending.actionId,
             greMsg.gameStateId,
-            confirmation,
         )
         return true
     }

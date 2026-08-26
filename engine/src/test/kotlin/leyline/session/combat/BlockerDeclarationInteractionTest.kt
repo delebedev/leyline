@@ -1,18 +1,27 @@
 package leyline.session.combat
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.afterActionInstall
+import leyline.bridge.coord.beforeActionInstall
+import leyline.bridge.types.SeatId
+import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 private val GOBLIN_ATTACK_AI_SCRIPT =
     listOf(
@@ -173,6 +182,62 @@ class BlockerDeclarationInteractionTest :
                 "Raging Goblin" should beInGraveyardOf(ai, count = 1)
 
                 isGameOver().shouldBeFalse()
+            }
+        }
+
+        session(
+            "blocker confirmation installs before the engine token is submitted",
+            deckList = COMBAT_DECK,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
+            setupAiAttacksHumanCanBlock()
+            val pending = bridge.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            bridge.cutCoordinator.drain(SeatId(1))
+            var installed = emptyList<GREToClientMessage>()
+            var engineAlreadyResumed = true
+            bridge.cutCoordinator.afterActionInstall = {
+                installed = bridge.cutCoordinator.drain(SeatId(1)).flatten()
+                engineAlreadyResumed = pending.future.isDone
+            }
+
+            val completed =
+                bridge.cutCoordinator.submitDeclaredAction(
+                    pending.actionId,
+                    pending.promptGameStateId.shouldNotBeNull(),
+                )
+            bridge.cutCoordinator.afterActionInstall = null
+
+            assertSoftly {
+                completed.shouldBeTrue()
+                installed.single().type shouldBe GREMessageType.SubmitBlockersResp_695e
+                engineAlreadyResumed.shouldBeFalse()
+            }
+        }
+
+        session(
+            "blocker confirmation install failure publishes nothing and does not resume the engine",
+            deckList = COMBAT_DECK,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
+            setupAiAttacksHumanCanBlock()
+            val pending = bridge.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            bridge.cutCoordinator.drain(SeatId(1))
+            bridge.cutCoordinator.beforeActionInstall = { error("blocker confirmation install unavailable") }
+
+            val failure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    bridge.cutCoordinator.submitDeclaredAction(
+                        pending.actionId,
+                        pending.promptGameStateId.shouldNotBeNull(),
+                    )
+                }
+
+            assertSoftly {
+                failure.cause?.message shouldBe "blocker confirmation install unavailable"
+                bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .shouldBeEmpty()
+                pending.future.isCompletedExceptionally.shouldBeTrue()
             }
         }
 

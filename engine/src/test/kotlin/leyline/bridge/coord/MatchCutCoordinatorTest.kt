@@ -30,8 +30,14 @@ import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -577,6 +583,67 @@ class MatchCutCoordinatorTest :
                     .drain(SeatId(1))
                     .shouldBeEmpty()
                 installBoard.bridge.cutCoordinator.failure() shouldBe installFailure
+            }
+        }
+
+        test("settings acknowledgement commits behind older feed output") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val older = listOf(GREToClientMessage.getDefaultInstance())
+            coordinator.enqueueCommittedBatchForTest(SeatId(1), older)
+            val settings = SettingsMessage.getDefaultInstance()
+
+            coordinator.publishSettings(SeatId(1), settings)
+
+            val batches = coordinator.drain(SeatId(1))
+            assertSoftly {
+                batches.first() shouldBe older
+                batches.last().single().type shouldBe GREMessageType.SetSettingsResp_695e
+                batches
+                    .last()
+                    .single()
+                    .setSettingsResp.settings shouldBe settings
+            }
+        }
+
+        test("illegal response commits in feed order and publication failure leaves no owned batch") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val older = listOf(GREToClientMessage.getDefaultInstance())
+            coordinator.enqueueCommittedBatchForTest(SeatId(1), older)
+            val invalid =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.PerformActionResp_097b)
+                    .setSystemSeatId(1)
+                    .setRespId(7)
+                    .build()
+
+            coordinator.publishIllegalRequest(SeatId(1), invalid, FailureReason.ReqRespMismatch)
+            coordinator.publishSettings(SeatId(1), SettingsMessage.getDefaultInstance())
+
+            val batches = coordinator.drain(SeatId(1))
+            assertSoftly {
+                batches.first() shouldBe older
+                batches[1].single().type shouldBe GREMessageType.IllegalRequest
+                batches[1].single().illegalRequestMessage.invalidMessage shouldBe invalid
+                batches[2].single().type shouldBe GREMessageType.SetSettingsResp_695e
+            }
+
+            val failedBoard = startPuzzleAtMain1(puzzle)
+            val failedCoordinator = failedBoard.bridge.cutCoordinator
+            failedCoordinator.drain(SeatId(1))
+            failedCoordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("illegal response feed unavailable") }
+
+            val failure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    failedCoordinator.publishIllegalRequest(SeatId(1), invalid, FailureReason.ReqRespMismatch)
+                }
+            assertSoftly {
+                failure.cause?.message shouldBe "illegal response feed unavailable"
+                failedCoordinator.drain(SeatId(1)).shouldBeEmpty()
             }
         }
     })

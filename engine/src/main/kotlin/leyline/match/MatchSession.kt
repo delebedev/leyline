@@ -12,7 +12,6 @@ import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
-import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -293,8 +292,12 @@ class MatchSession(
         block: (completedActionId: String?) -> Unit,
     ): Unit =
         synchronized(sessionLock) {
-            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) {
+            val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, counter)
+            if (failure == null) {
                 block(gameBridge.actionBridge(seatId).getPending()?.actionId)
+            } else {
+                gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, failure)
+                drainCoordinatorFeed()
             }
         }
 
@@ -343,17 +346,8 @@ class MatchSession(
             )
 
             val settings = gameBridge.priorityPolicy.submit(incoming)
-
-            val (msg, nextMsgId) =
-                HandshakeMessages.settingsResp(
-                    seatId,
-                    counter.currentMsgId(),
-                    counter.currentGsId(),
-                    settings,
-                )
-            counter.setMsgId(nextMsgId)
-            ProtoDump.dump(msg, "SettingsResp")
-            sink.sendRaw(msg)
+            gameBridge.cutCoordinator.publishSettings(seatId, settings)
+            drainCoordinatorFeed()
         }
 
     // --- Sending helpers ---

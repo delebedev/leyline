@@ -1,10 +1,8 @@
 package leyline.match
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
@@ -83,17 +81,6 @@ class SessionOpsDefaultsTest :
 
         test("recorder default is null") {
             ops.recorder.shouldBeNull()
-        }
-
-        test("makeGRE default builds envelope fields") {
-            val gre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId = 7, msgId = 11) {}
-
-            assertSoftly(gre) {
-                type shouldBe GREMessageType.GameStateMessage_695e
-                msgId shouldBe 11
-                gameStateId shouldBe 7
-                systemSeatIdsList shouldBe listOf(1)
-            }
         }
 
         // --- ActionReceiver-only smoke tests ------------------------------------

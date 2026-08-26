@@ -214,13 +214,6 @@ private class BarrierSink(
     override fun sendBundle(result: BundleBuilder.BundleResult) = Unit
 
     override fun sendGameOver(reason: ResultReason) = Unit
-
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage = GREToClientMessage.getDefaultInstance()
 }
 
 private fun batch(gameStateId: Int): List<GREToClientMessage> =

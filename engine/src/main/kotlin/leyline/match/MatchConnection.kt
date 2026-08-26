@@ -396,7 +396,14 @@ class MatchConnection(
         block: () -> Unit,
     ) {
         val activeSession = session ?: return
-        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) block()
+        val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, activeSession.counter)
+        if (failure == null) {
+            block()
+        } else {
+            val bridge = registry.getMatch(matchId)?.bridge ?: return
+            bridge.cutCoordinator.publishIllegalRequest(activeSession.seatId, greMsg, failure)
+            deliverCommittedCoordinatorBatches(activeSession, bridge, activeSession.seatId)
+        }
     }
 
     /** Dispatch a post-handshake game action against the live [Connected] session. */

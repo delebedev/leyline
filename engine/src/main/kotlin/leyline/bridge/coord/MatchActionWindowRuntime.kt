@@ -9,7 +9,11 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ResultCode
+import wotc.mtgo.gre.external.messaging.Messages.SubmitAttackersResp
+import wotc.mtgo.gre.external.messaging.Messages.SubmitBlockersResp
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 
@@ -404,7 +408,6 @@ internal class MatchActionWindowRuntime(
     fun submitDeclaration(
         actionId: String,
         responseGameStateId: Int,
-        confirmation: (() -> GREToClientMessage)? = null,
     ): Boolean =
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
@@ -420,22 +423,23 @@ internal class MatchActionWindowRuntime(
                         return false
                     }
                     val action = window.combat?.resolveDeclaration(pending.state.kind) ?: return false
-                    val confirmationMessage =
-                        try {
-                            confirmation?.invoke()
-                        } catch (ex: Exception) {
-                            owner.fail(ex)
-                        }
                     val token = nextActionToken++
-                    window.status = ActionWindowStatus.Claimed(ActionClaimKind.Immediate, token)
-                    window.selections[token] =
-                        RuntimeActionSelection(
-                            GameActionBridge.ActionOffer(Action.getDefaultInstance(), action),
-                            Action.getDefaultInstance(),
-                        )
-                    confirmationMessage?.let {
-                        owner.feed(window.seatId).queue.add(listOf(it))
-                        owner.signalDelivery()
+                    val confirmation = declarationConfirmation(window.seatId, pending.state.kind)
+                    owner.cutInstaller.install(
+                        feed = owner.feed(window.seatId),
+                        cut = PreparedCut(listOf(confirmation), transition = null, closesPlaybackFrame = false),
+                        hooks = CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall, afterInstall = afterInstall),
+                        onInstalled = {
+                            window.status = ActionWindowStatus.Claimed(ActionClaimKind.Immediate, token)
+                            window.selections[token] =
+                                RuntimeActionSelection(
+                                    GameActionBridge.ActionOffer(Action.getDefaultInstance(), action),
+                                    Action.getDefaultInstance(),
+                                )
+                        },
+                    ) { ex ->
+                        nextActionToken = token
+                        owner.fail(ex)
                     }
                     val completed = owner.bridge.actionBridge(window.seatId).submitRuntimeToken(actionId, token)
                     if (completed) window.status = ActionWindowStatus.Completed
@@ -443,6 +447,32 @@ internal class MatchActionWindowRuntime(
                 }
             }
         }
+
+    private fun declarationConfirmation(
+        seatId: SeatId,
+        kind: PendingActionKind,
+    ): GREToClientMessage {
+        val builder =
+            GREToClientMessage
+                .newBuilder()
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(owner.counter.nextMsgId())
+                .setGameStateId(owner.counter.currentGsId())
+        when (kind) {
+            PendingActionKind.DECLARE_ATTACKERS ->
+                builder
+                    .setType(GREMessageType.SubmitAttackersResp_695e)
+                    .setSubmitAttackersResp(SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500))
+            PendingActionKind.DECLARE_BLOCKERS ->
+                builder
+                    .setType(GREMessageType.SubmitBlockersResp_695e)
+                    .setSubmitBlockersResp(SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500))
+            PendingActionKind.PRIORITY,
+            PendingActionKind.SYNC_ONLY,
+            -> error("Unsupported declaration kind $kind")
+        }
+        return builder.build()
+    }
 
     fun terminate() {
         synchronized(owner.feedLock) {

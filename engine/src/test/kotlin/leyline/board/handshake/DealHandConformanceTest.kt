@@ -13,7 +13,6 @@ import leyline.testkit.BoardTest
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.*
 import leyline.game.bundle.LifecycleMessageMaterializer as HandshakeMessages
-import leyline.protocol.HandshakeMessages as ProtocolHandshakeMessages
 
 /**
  * Structural tests for pre-mulligan handshake messages produced by [HandshakeMessages].
@@ -180,46 +179,5 @@ class DealHandConformanceTest :
 
             val req = messages[2].chooseStartingPlayerReq
             req.systemSeatIdsCount shouldBe 2
-        }
-
-        // --- settingsResp ---
-
-        test("settingsResp round-trips settings and advances msgId") {
-            val settings =
-                SettingsMessage
-                    .newBuilder()
-                    .addStops(
-                        Stop
-                            .newBuilder()
-                            .setStopType(StopType.PrecombatMainPhase)
-                            .setAppliesTo(SettingScope.Team_ac6e)
-                            .setStatus(SettingStatus.Set),
-                    ).setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                    .build()
-
-            val (msg, nextMsgId) = ProtocolHandshakeMessages.settingsResp(SeatId(1), 9, 2, settings)
-            val messages = greMessages(msg)
-
-            messages.size shouldBe 1
-            nextMsgId shouldBe 10
-
-            val gre = messages[0]
-            assertSoftly {
-                gre.type shouldBe GREMessageType.SetSettingsResp_695e
-                gre.msgId shouldBe 9
-                gre.setSettingsResp.settings shouldBe settings
-            }
-        }
-
-        test("settingsResp with null settings produces empty resp") {
-            val (msg, nextMsgId) = ProtocolHandshakeMessages.settingsResp(SeatId(2), 8, 2, null)
-            val messages = greMessages(msg)
-
-            messages.size shouldBe 1
-            nextMsgId shouldBe 9
-
-            val gre = messages[0]
-            gre.type shouldBe GREMessageType.SetSettingsResp_695e
-            gre.hasSetSettingsResp().shouldBeTrue()
         }
     })

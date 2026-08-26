@@ -32,7 +32,7 @@ class GameOverDeliveryTest :
             }
         }
 
-        test("MatchSession game-over delivery failure terminalizes the coordinator") {
+        test("MatchSession game-over delivery failure terminalizes before raw completion") {
             val bridge = startWithBoard { _, _, _ -> }.bridge
             val registry = MatchRegistry()
             val failure = IllegalStateException("match sink failed")

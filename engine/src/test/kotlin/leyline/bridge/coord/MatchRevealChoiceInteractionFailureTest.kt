@@ -26,7 +26,6 @@ import leyline.match.GreMessageSink
 import leyline.match.drainOneCoordinatorBarrier
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
@@ -343,13 +342,6 @@ class MatchRevealChoiceInteractionFailureTest :
                 override fun sendBundle(result: BundleBuilder.BundleResult) = Unit
 
                 override fun sendGameOver(reason: ResultReason) = Unit
-
-                override fun makeGRE(
-                    type: GREMessageType,
-                    gsId: Int,
-                    msgId: Int,
-                    configure: (GREToClientMessage.Builder) -> Unit,
-                ): GREToClientMessage = GREToClientMessage.getDefaultInstance()
             }
     }
 }

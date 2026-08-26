@@ -51,16 +51,18 @@ internal class DeferredCastCostInteractionHandler(
             )
         return when (admission) {
             is DeferredCastAdmission.Rejected -> {
-                ResponseEnvelopeGuard.reject(
+                ctx.bridge.cutCoordinator.publishIllegalRequest(
+                    counters.seatId,
                     greMsg,
-                    if (admission.reason == DeferredCastRejection.Stale) {
+                    if (admission.reason ==
+                        DeferredCastRejection.Stale
+                    ) {
                         FailureReason.ReqRespMismatch
                     } else {
                         FailureReason.InvalidOptionSelection
                     },
-                    counters.counter,
-                    sink,
                 )
+                sink.sendPriorityState(ctx.bridge)
                 HandlerResult.Waiting
             }
             is DeferredCastAdmission.Optional -> {

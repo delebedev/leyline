@@ -116,9 +116,11 @@ flowchart LR
 `MatchCutCoordinator` owns journal close, immutable pending cuts, projection
 installation, viewer feeds, prompt/action lifetimes, game-over lifecycle
 publication, startup and mulligan lifecycle publication, puzzle replacement,
-and terminal failure for migrated paths. `MatchPromptRuntimeSet` owns the match's prompt-runtime
-inventory. Exact Forge objects remain behind bounded runtime tables; client
-responses carry correlation values that resolve those retained handles.
+settings acknowledgements, illegal-response publication, declaration
+confirmations, and terminal failure. `MatchPromptRuntimeSet` owns the match's
+prompt-runtime inventory. Exact Forge objects remain behind bounded runtime
+tables; client responses carry correlation values that resolve those retained
+handles.
 
 `GameBridge.priorityPolicy` owns priority presentation policy and client settings
 state. Match sessions submit immutable `SettingsMessage` values to it. The
@@ -156,9 +158,10 @@ than a session-owned lookup table. `InteractiveCommandExchange` owns the
 cross-thread command handshake that iterative targeting and mana-source
 payment windows share.
 
-Residual session-owned output retains explicit handoff contracts.
-[`bridge-threading.md`](bridge-threading.md) is authoritative for those current
-exceptions and their lock order.
+`SpectatorSession` retains the independent `stateOnlyDiff` projection and raw
+completion output. `FamiliarSession` only copies already-allocated human-seat
+messages. [`bridge-threading.md`](bridge-threading.md) is authoritative for the
+remaining exception and its lock order.
 
 ## Interaction cuts
 
