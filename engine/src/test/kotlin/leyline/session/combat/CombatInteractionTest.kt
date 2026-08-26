@@ -1114,7 +1114,6 @@ class CombatInteractionTest :
             passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
 
             declareAttackers(listOf(attackerIid))
-            submitAttackers()
 
             passThroughCombat()
 

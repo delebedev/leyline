@@ -133,10 +133,7 @@ class DiscardInteractionTest :
                 """,
             turns = 10,
         ) {
-            castSpellByName("Duress") shouldBe true
-            passPriority()
-
-            val req = lastSelectNReq()
+            val req = castSpellUntilSelectNReq("Duress")
             val divinationId = findInstanceId(req.idsList, "Divination")
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
@@ -172,10 +169,7 @@ class DiscardInteractionTest :
                 """,
             turns = 10,
         ) {
-            castSpellByName("Duress") shouldBe true
-            passPriority()
-
-            val req = lastSelectNReq()
+            val req = castSpellUntilSelectNReq("Duress")
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
                 req.minSel shouldBe 0

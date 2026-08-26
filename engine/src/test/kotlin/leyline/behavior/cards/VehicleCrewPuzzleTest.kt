@@ -41,7 +41,7 @@ class VehicleCrewPuzzleTest :
                 HumanLife=20
                 AILife=10
 
-                humanbattlefield=Brute Suit|Centaur Courser
+                humanbattlefield=Brute Suit;Centaur Courser
                 humanlibrary=Mountain|Mountain|Mountain|Mountain
                 aibattlefield=Coral Merfolk
                 ailibrary=Mountain|Mountain|Mountain|Mountain
@@ -52,6 +52,7 @@ class VehicleCrewPuzzleTest :
                 phase() shouldBe "MAIN1"
 
                 activateAbility("Brute Suit").shouldBeTrue()
+                respondToEffectCost(listOf(human.battlefield.iid("Centaur Courser")))
 
                 // Pass priority until game over — engine runtime handles combat
                 passUntil(maxPasses = 40) { isGameOver() }.shouldBeTrue()
@@ -113,7 +114,13 @@ class VehicleCrewPuzzleTest :
             }
 
             respondToEffectCost(listOf(wallIid))
-            passUntilResolved(maxPasses = 4)
+            passUntil(maxPasses = 4) {
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Brute Suit" }
+                    .isCreature
+            }.shouldBeTrue()
 
             assertSoftly {
                 wall.isTapped.shouldBeTrue()

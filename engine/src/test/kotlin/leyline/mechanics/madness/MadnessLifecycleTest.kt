@@ -135,9 +135,6 @@ class MadnessLifecycleTest :
                 // PlayerController.playSaFromPlayEffect comment). The harness's
                 // autoRespondToOptionalAction auto-accepts on each drainSink, which
                 // drives the cast through super.playSaFromPlayEffect.
-                h.passPriority() // resolves trigger, triggers prompt, auto-accepts
-                h.passPriority() // continues if needed
-
                 // Fiery Temper landed on stack via madness — it MUST prompt for a
                 // target (ValidTgts$ Any). A missing prompt is a regression worth
                 // catching, so hard-assert rather than conditionally skipping.

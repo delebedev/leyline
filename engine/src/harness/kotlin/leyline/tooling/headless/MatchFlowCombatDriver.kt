@@ -11,7 +11,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 internal class MatchFlowCombatDriver(
     private val seatId: SeatId,
     private val bridge: () -> GameBridge,
-    private val submit: (ClientToGREMessage, String, (GREToClientMessage) -> Boolean) -> Unit,
+    private val submit: (ClientToGREMessage, String) -> Unit,
+    private val submitAndAwaitPrompt: (ClientToGREMessage, String, (GREToClientMessage) -> Boolean) -> Unit,
     private val messageSnapshot: () -> Int,
     private val messagesSince: (Int) -> List<GREToClientMessage>,
     private val submitWithGsId: (ClientToGREMessage) -> ClientToGREMessage,
@@ -36,7 +37,7 @@ internal class MatchFlowCombatDriver(
         attackerInstanceIds: List<Int>,
         damageRecipients: Map<Int, DamageRecipient>,
     ) {
-        submit(
+        submitAndAwaitPrompt(
             submitWithGsId(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
@@ -44,10 +45,10 @@ internal class MatchFlowCombatDriver(
                 ),
             ),
             "attacker selection",
-            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
+            GREToClientMessage::hasDeclareAttackersReq,
         )
 
-        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration") { false }
+        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration")
     }
 
     fun declareNoAttackers() {
@@ -61,7 +62,7 @@ internal class MatchFlowCombatDriver(
     ): List<GREToClientMessage> {
         val recipients = damageRecipients.ifEmpty { defaultDamageRecipients(attackerInstanceIds) }
         val snap = messageSnapshot()
-        submit(
+        submitAndAwaitPrompt(
             submitWithGsId(
                 declareAttackersResp(
                     attackers = attackerInstanceIds,
@@ -70,39 +71,40 @@ internal class MatchFlowCombatDriver(
                 ),
             ),
             "attacker selection",
-            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
+            GREToClientMessage::hasDeclareAttackersReq,
         )
         return messagesSince(snap)
     }
 
     fun deselectAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        submit(
+        submitAndAwaitPrompt(
             submitWithGsId(declareAttackersResp(attackers = attackerInstanceIds)),
             "attacker selection",
-            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
+            GREToClientMessage::hasDeclareAttackersReq,
         )
         return messagesSince(snap)
     }
 
     fun submitAttackers() {
-        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration") { false }
+        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration")
     }
 
     fun declareAllAttackers() {
         submit(
             submitWithGsId(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2)),
             "attacker selection",
-            { it.hasGameStateMessage() || it.hasDeclareAttackersReq() },
         )
     }
 
     fun declareBlockers(assignments: Map<Int, Int>) {
-        submit(submitWithGsId(declareBlockersResp(assignments)), "blocker selection") {
-            it.hasGameStateMessage() || it.hasDeclareBlockersReq()
-        }
+        submitAndAwaitPrompt(
+            submitWithGsId(declareBlockersResp(assignments)),
+            "blocker selection",
+            GREToClientMessage::hasDeclareBlockersReq,
+        )
 
-        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration")
     }
 
     fun declareNoBlockers() {
@@ -116,33 +118,35 @@ internal class MatchFlowCombatDriver(
             awaitClientOutput("client output") { true }
             return
         }
-        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration")
     }
 
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        submit(submitWithGsId(declareBlockersResp(assignments)), "blocker selection") {
-            it.hasGameStateMessage() || it.hasDeclareBlockersReq()
-        }
+        submitAndAwaitPrompt(
+            submitWithGsId(declareBlockersResp(assignments)),
+            "blocker selection",
+            GREToClientMessage::hasDeclareBlockersReq,
+        )
         return messagesSince(snap)
     }
 
     fun deselectBlocker(blockerInstanceId: Int): List<GREToClientMessage> {
         val snap = messageSnapshot()
-        submit(
+        submitAndAwaitPrompt(
             submitWithGsId(declareBlockersRespDeselect(blockerInstanceId)),
             "blocker selection",
-            { it.hasGameStateMessage() || it.hasDeclareBlockersReq() },
+            GREToClientMessage::hasDeclareBlockersReq,
         )
         return messagesSince(snap)
     }
 
     fun submitBlockers() {
-        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration") { false }
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration")
     }
 
     fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
-        submit(submitWithGsId(assignDamageResp(assigners)), "damage assignment") { false }
+        submit(submitWithGsId(assignDamageResp(assigners)), "damage assignment")
     }
 
     private fun defaultDamageRecipients(attackerInstanceIds: List<Int>): Map<Int, DamageRecipient> =

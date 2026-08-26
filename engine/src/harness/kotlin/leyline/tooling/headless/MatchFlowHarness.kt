@@ -17,7 +17,6 @@ import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckSource
 import leyline.game.bundle.InvariantSelection
-import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
@@ -115,7 +114,8 @@ class MatchFlowHarness(
         MatchFlowCombatDriver(
             seatId = seatId,
             bridge = { bridge },
-            submit = { message, description, predicate ->
+            submit = { message, description -> submitAndAwaitClientResult(message, description) },
+            submitAndAwaitPrompt = { message, description, predicate ->
                 submitAndAwaitClientResult(message, description, predicate)
             },
             messageSnapshot = { messageLog.snapshot() },
@@ -595,7 +595,8 @@ class MatchFlowHarness(
             unanswered != null -> respondToSelectN(unanswered.ids.take(unanswered.count))
             pendingKind == PendingActionKind.DECLARE_ATTACKERS -> declareNoAttackers()
             pendingKind == PendingActionKind.DECLARE_BLOCKERS -> declareNoBlockers()
-            pendingKind == PendingActionKind.PRIORITY || pendingKind == PendingActionKind.SYNC_ONLY -> passPriority()
+            pendingKind == PendingActionKind.PRIORITY || pendingKind == PendingActionKind.SYNC_ONLY ->
+                passPriorityUntil(messageSnapshot(), "priority horizon", stopAtInteraction = true)
             prompt?.hasPayCostsReq() == true ->
                 submitAndAwaitClientResult(
                     submitWithGsId(
@@ -606,12 +607,7 @@ class MatchFlowHarness(
                     ),
                     "cost cancellation",
                 )
-            else -> {
-                submitAndAwaitClientResult(
-                    submitWithGsId(performAction { actionType = ActionType.Pass }),
-                    "priority pass",
-                )
-            }
+            else -> passPriorityUntil(messageSnapshot(), "priority pass", stopAtInteraction = true)
         }
     }
 
@@ -716,7 +712,7 @@ class MatchFlowHarness(
     private fun submitAndAwaitClientResult(
         message: ClientToGREMessage,
         description: String,
-        expected: (GREToClientMessage) -> Boolean = { it.type in PROMPT_GRE_TYPES },
+        expected: ((GREToClientMessage) -> Boolean)? = null,
         autoRespond: Boolean = true,
     ) = awaitClientOperation(
         description,
@@ -737,15 +733,16 @@ class MatchFlowHarness(
         description: String,
         complete: () -> Boolean = { false },
         response: () -> ClientToGREMessage?,
-        expected: (GREToClientMessage) -> Boolean = { false },
+        expected: ((GREToClientMessage) -> Boolean)? = null,
         continueAfterSubmit: Boolean = false,
         autoRespond: Boolean = true,
     ) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (true) {
+            collectSinkMessages()
+            if (isGameOver()) return
             var epoch = 0L
             var messageStart = 0
-            var previousActionId: String? = null
             var submitted = false
             var completed = false
             withSessionLock {
@@ -754,7 +751,6 @@ class MatchFlowHarness(
                     completed = true
                     return@withSessionLock
                 }
-                previousActionId = bridge.actionBridge(seatId).getPending()?.actionId
                 epoch = localOutput.snapshot()
                 messageStart = messageSnapshot()
                 response()?.let {
@@ -764,10 +760,15 @@ class MatchFlowHarness(
             }
             if (completed) return
             if (submitted && !continueAfterSubmit) {
-                awaitNamedOutput(epoch, messageStart, description) { message ->
-                    expected(message) ||
-                        successorHorizonVisible(previousActionId, message) ||
-                        (isGameOver() && message.hasGameStateMessage())
+                if (expected == null) {
+                    val remainingNanos = deadline - System.nanoTime()
+                    check(
+                        remainingNanos > 0 &&
+                            localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
+                    ) { "Timed out waiting for $description" }
+                    collectSinkMessages()
+                } else {
+                    awaitNamedOutput(epoch, messageStart, description, expected)
                 }
                 if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
                 return
@@ -782,7 +783,7 @@ class MatchFlowHarness(
     private fun submitTargetingResponse(
         description: String,
         buildResponse: (GREToClientMessage) -> ClientToGREMessage,
-        expected: (GREToClientMessage) -> Boolean = { false },
+        expected: ((GREToClientMessage) -> Boolean)? = null,
     ) = awaitClientOperation(
         description,
         response = {
@@ -806,9 +807,13 @@ class MatchFlowHarness(
         messageStart: Int,
         description: String,
         expectedPrompt: ((GREToClientMessage) -> Boolean)? = null,
+        stopAtInteraction: Boolean = false,
     ) = awaitClientOperation(
         description,
-        complete = { expectedPrompt != null && messagesSince(messageStart).any(expectedPrompt) },
+        complete = {
+            (stopAtInteraction && bridge.hasPendingNonActionInteraction()) ||
+                (expectedPrompt != null && messagesSince(messageStart).any(expectedPrompt))
+        },
         response = {
             if (bridge.hasPendingNonActionInteraction()) {
                 check(expectedPrompt != null) { "The current prompt requires its typed response, not a priority pass" }
@@ -838,18 +843,9 @@ class MatchFlowHarness(
                 else -> null
             }
         },
-        expected = { expectedPrompt == null && it.type in PROMPT_GRE_TYPES },
         continueAfterSubmit = expectedPrompt != null,
         autoRespond = false,
     )
-
-    private fun successorHorizonVisible(
-        previousActionId: String?,
-        message: GREToClientMessage,
-    ): Boolean {
-        val successor = bridge.actionBridge(seatId).getPending() ?: return false
-        return successor.actionId != previousActionId && pendingHorizonVisible(successor, listOf(message))
-    }
 
     private inline fun <T> withSessionLock(block: () -> T): T {
         val session = localConnection.session as? MatchSession ?: error("Match session is not connected")
@@ -1166,7 +1162,6 @@ class MatchFlowHarness(
         submitAndAwaitClientResult(
             submitWithGsId(cancelActionReq()),
             "action cancellation",
-            { it.hasActionsAvailableReq() },
         )
     }
 
@@ -1335,6 +1330,16 @@ class MatchFlowHarness(
             if (msg.hasSelectNReq()) msg.selectNReq else null
         }
 
+    fun castSpellUntilSelectTargetsReq(cardName: String): SelectTargetsReq =
+        castSpellUntilPriorityPrompt(cardName, "SelectTargetsReq", null) { msg ->
+            if (msg.hasSelectTargetsReq()) msg.selectTargetsReq else null
+        }
+
+    fun castSpellUntilSearchReq(cardName: String): SearchReq =
+        castSpellUntilPriorityPrompt(cardName, "SearchReq", null) { msg ->
+            if (msg.hasSearchReq()) msg.searchReq else null
+        }
+
     fun castSpellUntilOrderReq(
         cardName: String,
         advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
@@ -1360,7 +1365,7 @@ class MatchFlowHarness(
         val messageStart = messageSnapshot()
         check(castSpellByName(cardName)) { "Could not cast $cardName" }
         if (advanceAfterCast == null) {
-            passPriorityUntil(messageStart, promptName) { extract(it) != null }
+            passPriorityUntil(messageStart, promptName, expectedPrompt = { extract(it) != null })
         } else {
             advanceAfterCast()
         }
@@ -1721,7 +1726,16 @@ class MatchFlowHarness(
     internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage {
         val prompt = messageLog.latestPrompt() ?: return msg
         val builder = msg.toBuilder()
-        val pendingActionGsId = bridge.actionBridge(seatId).getPending()?.promptGameStateId
+        val pendingActionGsId =
+            when (msg.type) {
+                ClientMessageType.PerformActionResp_097b,
+                ClientMessageType.DeclareAttackersResp_097b,
+                ClientMessageType.SubmitAttackersReq,
+                ClientMessageType.DeclareBlockersResp_097b,
+                ClientMessageType.SubmitBlockersReq,
+                -> bridge.actionBridge(seatId).getPending()?.promptGameStateId
+                else -> null
+            }
         if (msg.gameStateId == 0) builder.gameStateId = pendingActionGsId ?: prompt.gameStateId
         if (msg.respId == 0 && msg.type in leyline.match.CORRELATED_CLIENT_MESSAGE_TYPES) {
             builder.respId = prompt.msgId

@@ -1,9 +1,7 @@
 package leyline.session.targeting
 
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
-import leyline.testkit.after
 import leyline.testkit.assertGsIdChain
 
 class SearchPromptSessionTest :
@@ -23,10 +21,8 @@ class SearchPromptSessionTest :
                 ailibrary=Forest
                 """,
         ) {
-            castSpellByName("Sylvan Ranger") shouldBe true
-            passPriority()
-
-            val searchMessage = allMessages.lastOrNull { it.hasSearchReq() } ?: error("Expected SearchReq after resolving Sylvan Ranger")
+            castSpellUntilSearchReq("Sylvan Ranger")
+            val searchMessage = allMessages.last { it.hasSearchReq() }
             val searchReq = searchMessage.searchReq
             searchReq.itemsSoughtList.shouldNotBeEmpty()
             check(searchReq.sourceId != 0) { "Triggered search must retain its engine-side source identity" }
@@ -48,9 +44,7 @@ class SearchPromptSessionTest :
                     .any { it.instanceId in libraryIids },
             ) { "Library objects must be published before SearchReq" }
 
-            after {
-                respondToSearch(listOf(searchReq.itemsSoughtList.first()))
-            }
+            respondToSearch(listOf(searchReq.itemsSoughtList.first()))
 
             assertGsIdChain(allMessages, context = "search response playback drain")
         }

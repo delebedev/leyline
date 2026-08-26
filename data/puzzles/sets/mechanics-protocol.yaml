@@ -680,7 +680,7 @@ scenarios:
       - choose: { optional_cost: additional_cost, label: Waterbend }
       - expect:
           prompt: PayCostsReq
-      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Grizzly Bears, Llanowar Elves, Savannah Lions, Monastery Swiftspear, Healer's Hawk, Sol Ring] }
+      - select_cost: { zone: battlefield, cards: [Coral Merfolk, Grizzly Bears, Sol Ring, Manalith] }
       - resolve_stack: {}
       - expect:
           all:
