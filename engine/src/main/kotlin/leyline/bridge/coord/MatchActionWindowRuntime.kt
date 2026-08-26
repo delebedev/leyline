@@ -8,7 +8,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.mapping.ProjectionSupplement
+import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewerRole
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -20,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 
 /** Runtime action catalogs and exact presentation ownership beneath [MatchCutCoordinator]. */
+@Suppress("LargeClass") // Action-window publication and response lifecycle share one owner.
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
 ) : DeferredCastActionOwner {
@@ -513,26 +517,32 @@ internal class MatchActionWindowRuntime(
                 owner.ensureOpen()
                 val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                 val feed = owner.feed(seatId)
+                val routes = owner.viewerRoutes()
+                val playerRoute = routes.single { it.viewer.role == ProjectionViewerRole.Player }
+                val playerSeatId = playerRoute.viewer.seatId
                 val tokenBefore = nextActionToken
                 val prior = owner.bridge.projectionStateSnapshot()
                 val planner = LogicalSequencePlanner(prior.sequence)
+                val intent = initialActionIntent(pending.state.kind, prior, playerSeatId)
                 val prepared =
                     try {
-                        when (pending.state.kind) {
-                            PendingActionKind.PRIORITY ->
-                                feed.builder.preparePostAction(game, planner, priorityCandidates = pending.priorityCandidates)
-                            PendingActionKind.SYNC_ONLY -> error("Synchronization windows have no client presentation")
-                            PendingActionKind.DECLARE_ATTACKERS -> feed.builder.prepareDeclareAttackers(game, planner)
-                            PendingActionKind.DECLARE_BLOCKERS -> feed.builder.prepareDeclareBlockers(game, planner)
-                        }
+                        playerRoute.builder.prepareInitialActionWindow(
+                            game = game,
+                            counter = planner,
+                            routes = routes,
+                            kind = pending.state.kind,
+                            priorityCandidates = pending.priorityCandidates,
+                            intent = intent,
+                        )
                     } catch (ex: Exception) {
                         owner.fail(ex)
                     }
-                val result = prepared.bundle
+                val actionPrepared = prepared.player
+                val result = actionPrepared.bundle
                 val messages =
                     try {
                         if (pending.state.kind == PendingActionKind.PRIORITY && owner.bridge.engineSettings.timer) {
-                            result.messages + feed.builder.timerStart(planner).messages
+                            result.messages + playerRoute.builder.timerStart(planner).messages
                         } else {
                             result.messages
                         }
@@ -548,7 +558,7 @@ internal class MatchActionWindowRuntime(
                         createRuntimeActionWindow(
                             seatId,
                             pending,
-                            prepared,
+                            actionPrepared,
                             messages,
                             promptGsId,
                             nextToken = { nextActionToken++ },
@@ -566,9 +576,23 @@ internal class MatchActionWindowRuntime(
                     nextActionToken = tokenBefore
                     owner.fail(ex)
                 }
+                val cut =
+                    try {
+                        val outputs = viewerOutputs(prepared, playerSeatId, messages)
+                        PreparedCut.prepareForViewers(
+                            prior,
+                            planner,
+                            outputs,
+                            actionPrepared.transition,
+                            actionPrepared.closesPlaybackFrame,
+                            playbackOwnerSeatId = seatId,
+                        )
+                    } catch (ex: Exception) {
+                        nextActionToken = tokenBefore
+                        owner.fail(ex)
+                    }
                 owner.cutInstaller.install(
-                    feed,
-                    PreparedCut.prepare(prior, planner, messages, prepared.transition, prepared.closesPlaybackFrame),
+                    cut = cut,
                     CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall, afterInstall = afterInstall),
                     onRollback = { nextActionToken = tokenBefore },
                 ) { ex -> owner.fail(ex) }
@@ -580,6 +604,38 @@ internal class MatchActionWindowRuntime(
             }
         }
     }
+
+    private fun initialActionIntent(
+        kind: PendingActionKind,
+        prior: ProjectionState,
+        playerSeatId: SeatId,
+    ): ViewerProjectionIntent =
+        if (kind != PendingActionKind.PRIORITY) {
+            ViewerProjectionIntent.EMPTY
+        } else {
+            prior.viewerCursors[playerSeatId]
+                ?.pendingSubmittedTargets
+                ?.let {
+                    ViewerProjectionIntent.of(
+                        listOf(ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)),
+                    )
+                } ?: ViewerProjectionIntent.EMPTY
+        }
+
+    private fun viewerOutputs(
+        prepared: BundleBuilder.PreparedViewerCut<BundleBuilder.ActionWindowPrepared>,
+        playerSeatId: SeatId,
+        messages: List<GREToClientMessage>,
+    ): List<PreparedViewerOutput> =
+        prepared.viewers.map { output ->
+            val batches =
+                if (output.seatId == playerSeatId) {
+                    listOf(messages)
+                } else {
+                    output.batches
+                }
+            PreparedViewerOutput(output.seatId, batches)
+        }
 
     private fun publishPresentation(
         feed: MatchCutCoordinator.ViewerFeed,
