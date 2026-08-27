@@ -2175,19 +2175,10 @@ class BundleBuilder(
     }
 
     /**
-     * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
-     *
-     * **Where echoes fire.** State-only and remote-seat content-bearing
-     * emissions append one of these. Same applies to the `selectTargets`
-     * re-prompt cycle in `TargetingHandler.onSelectTargets`. The empirical
-     * pattern is "one empty echo per content GSM, same updateType."
-     *
-     * **Where echoes do not fire.** Human-priority [postAction] bundles and
-     * prompt-bearing bundles — coordinator-owned targeting, [selectNBundle],
-     * [prepareCastingTimeOptions], coordinator-owned payment cuts, [declareAttackersBundle],
-     * [declareBlockersBundle] — ship `[GSM, Request]` without a trailing echo.
-     * Targeting re-entry frames carry their echo through [TargetingWindowMaterializer]
-     * instead of as a tag-along on the initial request bundle.
+     * Builds the empty diff echo used after content GSMs prepared by
+     * [compilePlaybackCut], [optionalInteractionBundle], [prepareSearchWindow],
+     * and [preparePhaseTransitionDiff]. Other prompt materializers return their
+     * prepared state/request batches without adding an echo here.
      */
     fun buildEchoDiffGsm(
         counter: LogicalSequencePlanner,

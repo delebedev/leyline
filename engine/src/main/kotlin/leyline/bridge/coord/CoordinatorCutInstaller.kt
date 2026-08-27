@@ -113,10 +113,10 @@ internal class CoordinatorCutInstaller(
         transition: ProjectionTransition,
         onFailure: (Throwable) -> Nothing,
     ) {
-        val prior = owner.bridge.projectionStateSnapshot()
-        require(transition.expectedRevision == prior.revision) { "Projection-only transition must use the committed revision" }
-        require(transition.nextState.sequence == prior.sequence) { "Projection-only transition cannot advance output sequence" }
         try {
+            val prior = owner.bridge.projectionStateSnapshot()
+            require(transition.expectedRevision == prior.revision) { "Projection-only transition must use the committed revision" }
+            require(transition.nextState.sequence == prior.sequence) { "Projection-only transition cannot advance output sequence" }
             owner.bridge.commitProjection(transition)
         } catch (ex: Exception) {
             onFailure(ex)

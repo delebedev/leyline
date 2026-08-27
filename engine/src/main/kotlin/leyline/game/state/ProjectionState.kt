@@ -47,7 +47,7 @@ data class ProjectionState(
         var transientLinkedFaceFamilyIds = prior.transientLinkedFaceFamilyIds
         val tokenGrpIds = prior.tokenGrpIds.toMutableMap()
         val viewerCursors = prior.viewerCursors.toMutableMap()
-        val sequence = LogicalSequencePlanner(prior.sequence)
+        private val sequence = LogicalSequencePlanner(prior.sequence)
 
         fun freeze(): ProjectionState =
             ProjectionState(

@@ -1,6 +1,7 @@
 package leyline.architecture
 
 import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaFieldAccess
 import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields
@@ -80,6 +81,25 @@ class RuntimeBoundaryTest :
                     .toSet()
 
             callers shouldBe setOf("leyline.bridge.coord.CoordinatorCutInstaller")
+        }
+
+        test("projection state field writers match the publication and engine-shell inventory") {
+            val bridge = classes.single { it.name == "leyline.game.state.GameBridge" }
+            val writers =
+                bridge.fieldAccessesFromSelf
+                    .filter { it.target.name == "projectionState" && it.accessType == JavaFieldAccess.AccessType.SET }
+                    .map { kotlinName(it.origin.name) }
+                    .toSet()
+
+            writers shouldBe
+                setOf(
+                    "<init>",
+                    "getOrAllocInstanceId",
+                    "installProjection",
+                    "replaceProjectionStateForTest",
+                    "resetForPuzzle",
+                    "updateProjection",
+                )
         }
 
         test("state-bearing single-feed cuts match the classified call-site inventory") {
