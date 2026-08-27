@@ -70,6 +70,7 @@ internal class MatchSearchInteractionRuntime(
     ): SettledPromptOwner.SlotAdmission<List<Int>>? {
         val selectedOptions =
             if (pending.value.groups.isEmpty()) {
+                if (!message.hasSearchResp()) return null
                 val selectedInstanceIds = message.searchResp.itemsFoundList
                 if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
                 if (selectedInstanceIds.isEmpty()) {
@@ -80,6 +81,7 @@ internal class MatchSearchInteractionRuntime(
                     selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
                 }
             } else {
+                if (!message.hasSearchFromGroupsResp()) return null
                 val responseGroups = message.searchFromGroupsResp.groupsList
                 if (responseGroups.isEmpty()) {
                     if (pending.value.minFind != 0) return null

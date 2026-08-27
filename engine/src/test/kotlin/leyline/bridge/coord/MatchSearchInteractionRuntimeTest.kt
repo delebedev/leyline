@@ -141,12 +141,26 @@ class MatchSearchInteractionRuntimeTest :
             val selected = search.searchReq.itemsSoughtList.first()
             val projection = board.bridge.projectionStateSnapshot()
             val counter = board.counter.snapshot()
+            val acceptedResponses = board.bridge.responseAcceptance.responsesAccepted()
             assertSoftly {
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId + 1) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected, selected)), published.gameStateId) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(
+                    ClientToGREMessage.newBuilder().setType(ClientMessageType.SearchResp_097b).build(),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit
+                        .groupedSearchFailResp()
+                        .toBuilder()
+                        .setType(ClientMessageType.SearchResp_097b)
+                        .build(),
+                    published.gameStateId,
+                ) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 finished.count shouldBe 1
             }
@@ -154,6 +168,7 @@ class MatchSearchInteractionRuntimeTest :
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
                 coordinator.search
                     .current()
                     .shouldBeNull()
@@ -260,6 +275,18 @@ class MatchSearchInteractionRuntimeTest :
                 ) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(req.groupsList[0].idsList[0])), published.gameStateId) shouldBe
                     false
+                coordinator.acceptSettled(
+                    ClientToGREMessage.newBuilder().setType(ClientMessageType.SearchFromGroupsResp_097b).build(),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit
+                        .searchResp(listOf(req.groupsList[0].idsList[0]))
+                        .toBuilder()
+                        .setType(ClientMessageType.SearchFromGroupsResp_097b)
+                        .build(),
+                    published.gameStateId,
+                ) shouldBe false
                 coordinator.acceptSettled(
                     leyline.testkit.groupedSearchResp(9000, listOf(req.groupsList[0].idsList[0]), 1),
                     published.gameStateId,
