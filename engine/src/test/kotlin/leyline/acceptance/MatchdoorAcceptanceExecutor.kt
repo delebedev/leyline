@@ -386,6 +386,23 @@ private class ScenarioRun(
             harness.respondToOptionalCost(step.ctoId)
             return
         }
+        if (step.optionalCost == AcceptanceCastingTimeOption.Blight) {
+            val option =
+                harness.allMessages
+                    .lastOrNull { it.hasCastingTimeOptionsReq() }
+                    ?.castingTimeOptionsReq
+                    ?.castingTimeOptionReqList
+                    ?.firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.ChooseOrCost }
+                    ?: error("$context missing blight ChooseOrCost option")
+            require(
+                option.selectNReq.prompt.parametersList
+                    .any { it.promptId == PromptIds.CHOOSE_OR_COST_PAY_BLIGHT },
+            ) {
+                "$context ChooseOrCost option is not the Blight branch"
+            }
+            harness.respondToAlternateCost(option.ctoId, option.selectNReq.idsList.first())
+            return
+        }
         val option =
             harness.allMessages
                 .lastOrNull { it.hasCastingTimeOptionsReq() }

@@ -187,6 +187,14 @@ object TransferAnnotations {
                 ),
             )
         }
+        if (transfer.chosenCostPromptId != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOptionChosenCost(
+                    stackInstanceId = newId,
+                    chosenCostPromptId = transfer.chosenCostPromptId,
+                ),
+            )
+        }
         if (transfer.chosenX != 0) {
             persistent.add(
                 AnnotationBuilder.castingTimeOptionChooseX(
@@ -467,6 +475,9 @@ object TransferAnnotations {
                     additionalCostGrpId = GrpId(ev.additionalCostGrpId),
                 ),
             )
+        }
+        if (ev.chosenCostPromptId != 0) {
+            annotations.add(AnnotationBuilder.castingTimeOptionChosenCost(spellIid, ev.chosenCostPromptId))
         }
         if (ev.chosenX != 0) {
             annotations.add(AnnotationBuilder.castingTimeOptionChooseX(spellIid, ev.chosenX))

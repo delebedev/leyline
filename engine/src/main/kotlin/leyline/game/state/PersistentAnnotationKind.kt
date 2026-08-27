@@ -658,6 +658,21 @@ data object InstanceRevealedToOpponentKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object CastingTimeOptionKind : PersistentAnnotationKind {
+    override val name = "CastingTimeOption"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.CastingTimeOption in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -703,6 +718,7 @@ object PersistentAnnotationKinds {
     val lifecycleOnly: List<PersistentAnnotationKind> =
         listOf(
             EnteredZoneThisTurnKind,
+            CastingTimeOptionKind,
             TriggeringObjectKind,
             DisplayCardUnderCardKind,
         )

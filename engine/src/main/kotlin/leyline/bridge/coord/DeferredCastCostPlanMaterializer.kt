@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import forge.card.mana.ManaCost
 import forge.game.GameActionUtil
 import forge.game.card.Card
+import forge.game.cost.CostBlight
 import forge.game.keyword.Keyword
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
@@ -101,18 +102,25 @@ internal object DeferredCastCostPlanMaterializer {
         val childSelections = linkedMapOf<Long, RuntimeActionSelection>()
         val alternateChoices =
             if (card.keywords.any { it.original.startsWith("AlternateAdditionalCost") } && offer.castCandidates.size > 1) {
-                offer.castCandidates.mapIndexed { index, alternateAbility ->
-                    val token = nextToken()
-                    childSelections[token] =
-                        RuntimeActionSelection(
-                            offer.copy(
-                                command = command.copy(abilityId = index, ability = alternateAbility),
-                                castCandidates = emptyList(),
-                            ),
-                            offer.action,
+                offer.castCandidates
+                    .mapIndexed { index, alternateAbility -> index to alternateAbility }
+                    .filter { (_, alternateAbility) -> hasUsableAlternateCost(alternateAbility) }
+                    .map { (index, alternateAbility) ->
+                        val token = nextToken()
+                        childSelections[token] =
+                            RuntimeActionSelection(
+                                offer.copy(
+                                    command = command.copy(abilityId = index, ability = alternateAbility),
+                                    castCandidates = emptyList(),
+                                ),
+                                offer.action,
+                            )
+                        DeferredCastCostPlan.AlternateCostChoice(
+                            runtimeToken = token,
+                            promptId = promptIdForAdditionalCostBranch(alternateAbility),
+                            chosenCostPromptId = chosenCostPromptId(alternateAbility),
                         )
-                    DeferredCastCostPlan.AlternateCostChoice(token, promptIdForAdditionalCostBranch(alternateAbility))
-                }
+                    }
             } else {
                 emptyList()
             }
@@ -147,10 +155,25 @@ internal object DeferredCastCostPlanMaterializer {
         if (costs.isOnlyManaCost) return PromptIds.CHOOSE_OR_COST_PAY_MANA
         val parts = costs.costParts.map { it.javaClass.simpleName }
         return when {
+            costs.costParts.any { it is CostBlight } -> PromptIds.CHOOSE_OR_COST_PAY_BLIGHT
             parts.any { it.contains("Sacrifice") } -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
             parts.any { it.contains("Exile") } -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
             else -> null
         }
+    }
+
+    private fun chosenCostPromptId(ability: SpellAbility): Int? =
+        PromptIds.CHOOSE_OR_COST_PAY_BLIGHT.takeIf {
+            ability.payCosts?.costParts?.any { it is CostBlight } == true
+        }
+
+    private fun hasUsableAlternateCost(ability: SpellAbility): Boolean {
+        val player = ability.activatingPlayer ?: return false
+        return ability.payCosts
+            ?.costParts
+            ?.filterIsInstance<CostBlight>()
+            ?.all { it.canPay(ability, player, false) }
+            ?: true
     }
 
     private fun ManaCost.hybridOrTwoGenericColors(): List<ManaColor> = mapNotNull(ManaColorMapping::fromOrTwoGenericShard)

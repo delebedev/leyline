@@ -65,6 +65,7 @@ internal data class DeferredCastCostPlan private constructor(
     data class AlternateCostChoice(
         val runtimeToken: Long,
         val promptId: Int?,
+        val chosenCostPromptId: Int? = null,
     )
 
     companion object {

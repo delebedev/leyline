@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Select Blight 1 as Bogslither's Embrace's additional-cost branch.
+# Forcing: Grizzly Bears is the only controlled creature eligible to receive the counter.
+# AI behavior: The scripted human path has one spell target and one cost-payment creature.
+# Failure modes:
+#   WIN = the spell and selected Blight payment resolve normally.
+#   LOSE = the cast or payment path did not complete before the turn limit.
+#   TIMEOUT = a cast-time, targeting, or cost prompt did not resume the game.
+# Card roles:
+#   Bogslither's Embrace — exposes the Blight-or-mana branch and exiles the target.
+#   Grizzly Bears — receives the Blight counter.
+#   Centaur Courser — deterministic spell target.
+# Protocol path: Cast, CastingTimeOptionsReq, SelectTargetsReq, CastingTimeOption, CounterAdded, and Counter.
+# Paired with: blight-bogslither-no-creature.pzl
+[metadata]
+Name:Bogslither's Embrace Blight
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:Choose Blight 1, put a -1/-1 counter on Grizzly Bears, and exile Centaur Courser.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Bogslither's Embrace
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Grizzly Bears
+humanlibrary=Swamp
+aibattlefield=Centaur Courser
+ailibrary=Mountain

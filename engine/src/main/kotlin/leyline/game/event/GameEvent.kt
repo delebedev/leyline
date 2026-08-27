@@ -167,6 +167,8 @@ sealed interface GameEvent {
         val kickerAbilityGrpId: Int = 0,
         /** Non-zero when the cast paid a Waterbend additional cost. */
         val additionalCostGrpId: Int = 0,
+        /** Non-zero when the selected ChooseOrCost branch has a stable prompt identity. */
+        val chosenCostPromptId: Int = 0,
         /** Non-zero when the cast chose an X value. Drives the persistent
          *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
         val chosenX: Int = 0,
