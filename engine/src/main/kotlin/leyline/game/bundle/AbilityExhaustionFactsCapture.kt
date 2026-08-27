@@ -50,6 +50,7 @@ object AbilityExhaustionFactsCapture {
                 when {
                     ability.isBoast -> ability.activationsThisTurn > 0
                     ability.isExhaust -> ability.activationsThisGame > 0
+                    ability.isPowerUp -> ability.activationsThisGame > 0
                     else -> false
                 }
             }
