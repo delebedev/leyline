@@ -118,6 +118,7 @@ private fun SimDecision.targetIds(): List<Int> =
         is SimDecision.Distribution -> amountsByInstanceId.keys.toList()
         is SimDecision.Search -> itemsFound
         is SimDecision.GroupedSearch -> itemsFound
+        is SimDecision.SelectReplacement -> listOf(replacement.affectedObject)
         is SimDecision.EffectCost -> selectedInstanceIds
         is SimDecision.GroupTop -> instanceIds
         is SimDecision.GroupAway -> awayInstanceIds

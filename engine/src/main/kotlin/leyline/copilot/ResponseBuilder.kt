@@ -38,6 +38,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SearchResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectManaTypeResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectNResp
+import wotc.mtgo.gre.external.messaging.Messages.SelectReplacementResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target
@@ -314,6 +315,14 @@ internal object ResponseBuilder {
                                     .setMaxSelect(decision.maxSelect)
                                     .addAllIds(decision.itemsFound),
                             ),
+                        ).build(),
+                )
+
+            is SimDecision.SelectReplacement ->
+                listOf(
+                    base(ClientMessageType.SelectReplacementResp_097b)
+                        .setSelectReplacementResp(
+                            SelectReplacementResp.newBuilder().setReplacement(decision.replacement),
                         ).build(),
                 )
 

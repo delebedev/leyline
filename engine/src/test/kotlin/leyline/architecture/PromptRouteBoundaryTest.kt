@@ -235,6 +235,15 @@ private val promptRouteFamilies =
             semantics = listOf(PromptSemantic.Search, PromptSemantic.GroupedSearch),
         ),
         PromptRouteFamily(
+            name = "SelectReplacement",
+            materializers = listOf("$MATERIALIZERS.ReplacementWindowMaterializer"),
+            handoffValues = "$HANDOFF.(Replacement.*Value|PublishedReplacementInteraction)",
+            prepareMethod = "prepareReplacementWindow",
+            runtime = "$COORD.MatchReplacementInteractionRuntime",
+            routeType = ResolvedPromptRoute.SelectReplacement::class,
+            semantics = listOf(PromptSemantic.SelectReplacement),
+        ),
+        PromptRouteFamily(
             name = "Grouping",
             materializers = listOf("$MATERIALIZERS.GroupingWindowMaterializer"),
             handoffValues = "$HANDOFF.(Grouping.*Value|PublishedGroupingInteraction)",

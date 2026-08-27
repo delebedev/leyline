@@ -12,6 +12,7 @@ import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.StaticChoiceKind
@@ -95,6 +96,7 @@ class BundleBuilder(
     private val modalChoiceWindows = ModalChoiceWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
+    private val replacementWindows = ReplacementWindowMaterializer()
     private val orderWindows = OrderWindowMaterializer()
     private val distributionWindows = DistributionWindowMaterializer()
     private val groupingWindows = GroupingWindowMaterializer()
@@ -1458,6 +1460,22 @@ class BundleBuilder(
     }
 
     internal fun prepareSearchBaselineReset(prior: ProjectionState): ProjectionTransition = searchWindows.resetBaseline(prior)
+
+    /** Prepare, but do not install, one coordinator-owned competing-replacement window. */
+    internal fun prepareReplacementWindow(
+        game: Game,
+        counter: LogicalSequencePlanner,
+        window: ReplacementWindowValue,
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<SettledPromptMaterialization> {
+        val frame = prepareViewerPromptProjection(game, counter, routes)
+        return finishSettledPrompt(
+            frame,
+            counter,
+            { context -> replacementWindows.prepare(context, window) },
+            { it.bundle.messages },
+        )
+    }
 
     /** Prepare, but do not install, one coordinator-owned ordered-card window. */
     internal fun prepareOrderWindow(

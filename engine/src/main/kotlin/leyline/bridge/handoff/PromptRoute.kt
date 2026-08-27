@@ -61,6 +61,11 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
+    /** Competing self-replacement choice owned by the settled replacement slot. */
+    data class SelectReplacement(
+        override val semantic: PromptSemantic,
+    ) : ResolvedPromptRoute
+
     data class Order(
         override val semantic: PromptSemantic,
         val kind: OrderRouteKind,
@@ -281,6 +286,7 @@ object PromptRouteResolver {
             PromptSemantic.ModalChoice -> ResolvedPromptRoute.ModalChoice(semantic)
             PromptSemantic.Search -> ResolvedPromptRoute.Search(semantic)
             PromptSemantic.GroupedSearch -> ResolvedPromptRoute.Search(semantic)
+            PromptSemantic.SelectReplacement -> ResolvedPromptRoute.SelectReplacement(semantic)
             PromptSemantic.OrderForBottom -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Bottom)
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
             PromptSemantic.DividedAllocationDamage -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Damage)

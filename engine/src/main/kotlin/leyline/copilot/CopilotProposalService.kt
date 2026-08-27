@@ -69,6 +69,8 @@ class CopilotProposalService(
 
             GREMessageType.SearchFromGroupsReq_695e -> advisedProposal(prompt)
 
+            GREMessageType.SelectReplacementReq_695e -> advisedProposal(prompt)
+
             GREMessageType.NumericInputReq_695e -> advisedProposal(prompt)
 
             GREMessageType.DistributionReq_695e -> proposalFor(DefaultDecisions.distribution(prompt), prompt)

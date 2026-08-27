@@ -18,6 +18,7 @@ internal class MatchPromptRuntimeSet(
     val compatibilityCostSelection = MatchCompatibilityCostSelectionRuntime(owner)
     val blocking = own(MatchBlockingInteractionRuntime(owner))
     val search = MatchSearchInteractionRuntime(owner, settled)
+    val replacement = MatchReplacementInteractionRuntime(owner, settled)
     val order = MatchOrderInteractionRuntime(owner, settled)
     val distribution = MatchDistributionInteractionRuntime(owner, settled)
     val grouping = MatchGroupingInteractionRuntime(owner, settled)
@@ -34,6 +35,7 @@ internal class MatchPromptRuntimeSet(
             targeting = targeting,
             compatibilityCostSelection = compatibilityCostSelection,
             search = search,
+            replacement = replacement,
             order = order,
             distribution = distribution,
             grouping = grouping,

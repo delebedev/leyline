@@ -3,6 +3,7 @@ package leyline.copilot
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 
 internal typealias TargetGroupSelections = Map<Int, List<Int>>
 
@@ -77,6 +78,13 @@ internal sealed interface SimDecision {
         val maxSelect: Int,
     ) : SimDecision {
         override val kind: String = "grouped-search:$groupId"
+    }
+
+    /** Echo one complete published replacement row for a SelectReplacementReq. */
+    data class SelectReplacement(
+        val replacement: ReplacementEffect,
+    ) : SimDecision {
+        override val kind: String = "select-replacement"
     }
 
     data class EffectCost(

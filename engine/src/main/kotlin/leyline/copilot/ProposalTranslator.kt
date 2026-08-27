@@ -162,6 +162,10 @@ internal object ProposalTranslator {
 
             is SimDecision.GroupedSearch -> base("search", promptType, seat).copy(responseIds = decision.itemsFound)
 
+            // Complete replacement rows are submitted through ResponseBuilder;
+            // no live-client gesture executor owns this identity-rich response.
+            is SimDecision.SelectReplacement -> unrealizable(promptType, seat, "select-replacement is not an autoplay intent")
+
             SimDecision.CancelAction -> base("cancel", promptType, seat)
 
             SimDecision.RetirePrompt,

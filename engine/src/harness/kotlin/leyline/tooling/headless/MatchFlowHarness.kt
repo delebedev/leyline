@@ -1454,6 +1454,17 @@ class MatchFlowHarness(
         submitPromptResponse(searchResp(itemsFound), "search response")
     }
 
+    fun respondToSelectReplacement(replacement: ReplacementEffect) {
+        submitPromptResponse(
+            ClientToGREMessage
+                .newBuilder()
+                .setType(ClientMessageType.SelectReplacementResp_097b)
+                .setSelectReplacementResp(SelectReplacementResp.newBuilder().setReplacement(replacement))
+                .build(),
+            "replacement response",
+        )
+    }
+
     fun respondToGroupedSearch(
         groupId: Int,
         ids: List<Int>,
