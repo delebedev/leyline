@@ -21,6 +21,12 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionResp
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsResp
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -163,6 +169,58 @@ class MatchModalChoiceRuntimeTest :
                     .current()
                     .shouldBeNull()
                 coordinator.acceptSettled(leyline.testkit.castingTimeOptionsResp(listOf(grpIds[0])), published.gameStateId) shouldBe false
+            }
+        }
+
+        test("CastingTimeOptions requires the Modal discriminator and choose-modal payload") {
+            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val card = source(board)
+            val sa = ability(card)
+            val options = possible(sa)
+            sa.activatingPlayer = board.human
+            val result = AtomicReference<ModalChoiceInteractionResult>()
+            val finished = CountDownLatch(1)
+            Thread {
+                try {
+                    result.set(coordinator.modalChoices.awaitSelection(request(options, min = 0), options, card, sa, 3_000))
+                } finally {
+                    finished.countDown()
+                }
+            }.start()
+            val published = awaitPublished(coordinator)
+            coordinator.drain(SeatId(1))
+            val projection = board.bridge.projectionStateSnapshot()
+            val acceptedBefore = board.bridge.responseAcceptance.responsesAccepted()
+            val missingPayload =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.CastingTimeOptionsResp_097b)
+                    .setCastingTimeOptionsResp(
+                        CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                            CastingTimeOptionResp
+                                .newBuilder()
+                                .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4),
+                        ),
+                    ).build()
+
+            assertSoftly {
+                coordinator.admitSettled(leyline.testkit.optionalCostResp(0), published.gameStateId) shouldBe
+                    SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                coordinator.admitSettled(missingPayload, published.gameStateId) shouldBe
+                    SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
+                coordinator.modalChoices.current() shouldBe published
+                board.bridge.projectionStateSnapshot() shouldBe projection
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore
+                finished.count shouldBe 1L
+                val accepted =
+                    coordinator
+                        .admitSettled(leyline.testkit.castingTimeOptionsResp(emptyList()), published.gameStateId)
+                        .shouldBeInstanceOf<SettledPromptAdmission.Accepted>()
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get().handles shouldBe emptyList()
+                accepted.afterEngineResume.shouldNotBeNull().invoke()
             }
         }
 

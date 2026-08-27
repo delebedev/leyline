@@ -13,6 +13,7 @@ import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import java.util.concurrent.CompletableFuture
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -60,7 +61,11 @@ internal class MatchCardSelectInteractionRuntime(
         message: ClientToGREMessage,
     ): Boolean =
         message.type == ClientMessageType.SelectNresp ||
-            (message.type == ClientMessageType.EffectCostResp_097b && pending.value.kind in effectCostKinds)
+            (
+                message.type == ClientMessageType.EffectCostResp_097b &&
+                    message.effectCostResp.effectCostType == EffectCostType.Select_a59c &&
+                    pending.value.kind in effectCostKinds
+            )
 
     private fun admitLocked(
         pending: Window,
@@ -70,6 +75,7 @@ internal class MatchCardSelectInteractionRuntime(
             if (message.type == ClientMessageType.SelectNresp) {
                 message.selectNResp.idsList
             } else {
+                if (!message.effectCostResp.hasCostSelection()) return null
                 message.effectCostResp.costSelection.idsList
             }
         if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return null

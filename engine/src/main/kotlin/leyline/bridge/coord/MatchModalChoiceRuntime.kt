@@ -13,6 +13,7 @@ import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.ModalChoiceWindowMaterializer
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
@@ -45,7 +46,11 @@ internal class MatchModalChoiceRuntime(
             PromptTerminalPriority.ModalChoice,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
             owns = { _, message ->
-                message.type == ClientMessageType.CastingTimeOptionsResp_097b ||
+                (
+                    message.type == ClientMessageType.CastingTimeOptionsResp_097b &&
+                        message.castingTimeOptionsResp.castingTimeOptionResp.castingTimeOptionType ==
+                        CastingTimeOptionType.Modal_a7b4
+                ) ||
                     message.type == ClientMessageType.CancelActionReq_097b
             },
             admitLocked = ::admitLocked,
@@ -84,6 +89,7 @@ internal class MatchModalChoiceRuntime(
             if (message.type == ClientMessageType.CancelActionReq_097b) {
                 emptyList()
             } else {
+                if (!message.castingTimeOptionsResp.castingTimeOptionResp.hasChooseModalResp()) return null
                 message.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList
             }
         if (message.type != ClientMessageType.CancelActionReq_097b) {

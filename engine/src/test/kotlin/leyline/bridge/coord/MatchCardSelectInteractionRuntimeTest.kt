@@ -23,6 +23,11 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostResp
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
@@ -388,6 +393,63 @@ class MatchCardSelectInteractionRuntimeTest :
                         .current()
                         .shouldBeNull()
                 }
+            }
+        }
+
+        test("EffectCost requires the Select discriminator and cost-selection payload") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val handles = options(board)
+            val result = AtomicReference<CardSelectInteractionResult>()
+            val finished = CountDownLatch(1)
+            Thread {
+                try {
+                    result.set(
+                        coordinator.cardSelect.awaitSelection(
+                            request(board, PromptSemantic.SelectNDiscard, min = 0),
+                            handles,
+                            3_000,
+                        ),
+                    )
+                } finally {
+                    finished.countDown()
+                }
+            }.start()
+            val published = awaitPublished(coordinator)
+            coordinator.drain(SeatId(1))
+            val projection = board.bridge.projectionStateSnapshot()
+            val acceptedBefore = board.bridge.responseAcceptance.responsesAccepted()
+            val choicesBefore =
+                board.bridge
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .snapshotChoiceResults()
+            val missingPayload =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.EffectCostResp_097b)
+                    .setEffectCostResp(EffectCostResp.newBuilder().setEffectCostType(EffectCostType.Select_a59c))
+                    .build()
+
+            assertSoftly {
+                coordinator.admitSettled(
+                    leyline.testkit.gatherCountersResp(emptyList()),
+                    published.gameStateId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                coordinator.admitSettled(missingPayload, published.gameStateId) shouldBe
+                    SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
+                coordinator.cardSelect.current() shouldBe published
+                board.bridge.projectionStateSnapshot() shouldBe projection
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore
+                board.bridge
+                    .promptBridge(SeatId(1))
+                    .journal
+                    .snapshotChoiceResults() shouldBe choicesBefore
+                finished.count shouldBe 1L
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(emptyList()), published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get().handles shouldBe emptyList()
             }
         }
 
