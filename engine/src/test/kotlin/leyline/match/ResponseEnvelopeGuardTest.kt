@@ -55,6 +55,18 @@ class ResponseEnvelopeGuardTest :
             ) shouldBe FailureReason.ReqRespMismatch
         }
 
+        test("correlates London tuck group responses") {
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
+
+            ResponseEnvelopeGuard.mismatchReason(
+                response(respId = 16, type = ClientMessageType.GroupResp_097b),
+                sequence,
+                responses,
+            ) shouldBe FailureReason.ReqRespMismatch
+            responses.responsesAccepted() shouldBe 0
+        }
+
         test("leaves settled responses to the settled prompt owner") {
             val sequence = LogicalSequenceState(lastPromptMsgId = 17)
             val responses = ResponseAcceptanceTracker()

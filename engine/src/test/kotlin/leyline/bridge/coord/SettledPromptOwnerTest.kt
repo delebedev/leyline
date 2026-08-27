@@ -20,6 +20,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -165,17 +166,17 @@ class SettledPromptOwnerTest :
                     leyline.testkit.selectNResp(listOf(selected)),
                     published.gameStateId + 1,
                     requestMsgId,
-                ) shouldBe SettledPromptAdmission.Rejected
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
                 coordinator.admitSettled(
                     leyline.testkit.orderResp(listOf(selected)),
                     published.gameStateId,
                     requestMsgId,
-                ) shouldBe SettledPromptAdmission.Rejected
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
                 coordinator.admitSettled(
                     leyline.testkit.selectNResp(emptyList()),
                     published.gameStateId,
                     requestMsgId,
-                ) shouldBe SettledPromptAdmission.Rejected
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore
                 coordinator
@@ -191,7 +192,7 @@ class SettledPromptOwnerTest :
                     leyline.testkit.selectNResp(listOf(selected)),
                     published.gameStateId,
                     requestMsgId,
-                ) shouldBe SettledPromptAdmission.Rejected
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
                 board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore + 1
             }
         }

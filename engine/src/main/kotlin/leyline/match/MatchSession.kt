@@ -255,10 +255,16 @@ class MatchSession(
 
     internal fun admitSettled(greMsg: ClientToGREMessage): SettledPromptAdmission =
         synchronized(sessionLock) {
-            gameBridge.cutCoordinator.prompts.settled.admit(greMsg).also { admission ->
-                if (admission is SettledPromptAdmission.Accepted) {
-                    val completedActionId = gameBridge.actionBridge(seatId).getPending()?.actionId
-                    runtimeContinuation.awaitHorizon(completedActionId, admission.afterEngineResume)
+            val completedActionId = gameBridge.actionBridge(seatId).getPending()?.actionId
+            gameBridge.cutCoordinator.prompts.settled.admit(greMsg).also {
+                when (it) {
+                    is SettledPromptAdmission.Accepted ->
+                        runtimeContinuation.awaitHorizon(completedActionId, it.afterEngineResume)
+                    is SettledPromptAdmission.Rejected -> {
+                        gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, it.reason)
+                        drainCoordinatorFeed()
+                    }
+                    SettledPromptAdmission.NotOwned -> Unit
                 }
             }
         }

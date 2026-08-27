@@ -78,10 +78,11 @@ must remain protected as one publication boundary.
 
 `MatchRuntimeContinuation` is the transport seam for one engine horizon.
 `MatchSession` serializes admission and waits once after an accepted settled
-answer. The continuation drains committed batches in order, acknowledges each
-exact `SYNC_ONLY` barrier only after successful delivery, and then invokes any
-opaque one-shot post-resume cleanup supplied by the owning family. A response
-that only updates an iterative prompt returns without releasing the engine.
+answer. After the next horizon is published, the continuation invokes any
+opaque one-shot post-resume cleanup supplied by the owning family, then drains
+committed batches in order and acknowledges each exact `SYNC_ONLY` barrier only
+after successful delivery. A response that only updates an iterative prompt
+returns without releasing the engine.
 
 Every live human `MatchConnection` arms one
 `MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.

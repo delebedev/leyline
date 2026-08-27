@@ -17,6 +17,7 @@ import leyline.game.mapping.PromptIds
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -167,7 +168,7 @@ class MatchDistributionInteractionRuntimeTest :
                     leyline.testkit.cancelActionReq(),
                     interaction.gameStateId,
                     Int.MIN_VALUE,
-                ) shouldBe SettledPromptAdmission.Rejected
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
                 coordinator.prompts.settled.reset()
                 coordinator.admitSettled(
                     leyline.testkit.cancelActionReq(),

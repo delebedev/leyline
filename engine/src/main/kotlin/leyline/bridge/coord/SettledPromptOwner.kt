@@ -8,6 +8,7 @@ import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -183,8 +184,8 @@ internal class SettledPromptOwner(
         override fun ownsLocked(message: ClientToGREMessage): Boolean = currentLocked()?.let { owns(it, message) } == true
 
         override fun admitLocked(message: ClientToGREMessage): SettledPromptAdmission {
-            val pending = currentLocked() ?: return SettledPromptAdmission.Rejected
-            val accepted = admitLocked(pending, message) ?: return SettledPromptAdmission.Rejected
+            val pending = currentLocked() ?: return SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+            val accepted = admitLocked(pending, message) ?: return SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
             accepted.beforeComplete()
             check(completeLocked(pending, accepted.result)) { "Settled prompt changed during admission" }
             val exact = checkNotNull(correlation)
@@ -267,11 +268,17 @@ internal class SettledPromptOwner(
 
     private fun admitResponseLocked(message: ClientToGREMessage): SettledPromptAdmission {
         val matches = slots.filter { it.correlationLocked()?.requestMsgId == message.respId }
-        if (matches.isEmpty()) return if (message.respId in retired) SettledPromptAdmission.Rejected else SettledPromptAdmission.NotOwned
-        if (matches.size != 1) return SettledPromptAdmission.Rejected
+        if (matches.isEmpty()) {
+            return if (message.respId in retired) {
+                SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+            } else {
+                SettledPromptAdmission.NotOwned
+            }
+        }
+        if (matches.size != 1) return SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
         val slot = matches.single()
         if (slot.correlationLocked()?.gameStateId != message.gameStateId || !slot.ownsLocked(message)) {
-            return SettledPromptAdmission.Rejected
+            return SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
         }
         return slot.admitLocked(message)
     }
@@ -283,10 +290,10 @@ internal class SettledPromptOwner(
                     it.correlationLocked()?.gameStateId == message.gameStateId &&
                     it.ownsLocked(message)
             }
-        if (claims.size > 1) return SettledPromptAdmission.Rejected
+        if (claims.size > 1) return SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
         if (claims.size == 1) return claims.single().admitLocked(message)
         if (retired.values.any { it.cancelCapable && it.gameStateId == message.gameStateId }) {
-            return SettledPromptAdmission.Rejected
+            return SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
         }
         return SettledPromptAdmission.NotOwned
     }
@@ -302,7 +309,9 @@ internal sealed interface SettledPromptAdmission {
         val afterEngineResume: (() -> Unit)? = null,
     ) : SettledPromptAdmission
 
-    data object Rejected : SettledPromptAdmission
+    data class Rejected(
+        val reason: FailureReason,
+    ) : SettledPromptAdmission
 
     data object NotOwned : SettledPromptAdmission
 }
