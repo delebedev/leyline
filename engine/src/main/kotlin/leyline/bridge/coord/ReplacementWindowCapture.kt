@@ -4,7 +4,6 @@ import forge.game.card.Card
 import forge.game.keyword.Keyword
 import forge.game.replacement.ReplacementEffect
 import leyline.bridge.handoff.PromptRequest
-import leyline.bridge.handoff.ReplacementKeywordKind
 import leyline.bridge.handoff.ReplacementOptionValue
 import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -31,7 +30,7 @@ internal class ReplacementWindowCapture(
         val options =
             possibleReplacers.mapIndexed { index, effect ->
                 val host = effect.hostCard ?: return null
-                val keyword = selfReplacementKeyword(effect, host) ?: return null
+                if (!isSelfMadnessReplacement(effect, host)) return null
                 val hostId = ForgeCardId(host.id)
                 val instanceId = owner.bridge.peekInstanceId(hostId) ?: return null
                 if (instanceId.value == 0) return null
@@ -40,7 +39,7 @@ internal class ReplacementWindowCapture(
                 val cardData = owner.bridge.cardRepository.findByGrpId(grpId) ?: return null
                 val abilityGrpId = owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS) ?: return null
                 val uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId) ?: return null
-                ReplacementOptionValue(index, hostId, keyword, uniqueAbilityId, abilityGrpId)
+                ReplacementOptionValue(index, hostId, uniqueAbilityId, abilityGrpId)
             }
         if (options.map { it.hostForgeCardId }.distinct().size != options.size) return null
         val defaultIndex = request.defaultIndex.takeIf { it in options.indices } ?: return null
@@ -50,14 +49,11 @@ internal class ReplacementWindowCapture(
         )
     }
 
-    private fun selfReplacementKeyword(
+    private fun isSelfMadnessReplacement(
         effect: ReplacementEffect,
         host: Card,
-    ): ReplacementKeywordKind? {
-        val keyword = host.keywords.firstOrNull { it.replacements.any { replacement -> replacement === effect } } ?: return null
-        return when (keyword.keyword) {
-            Keyword.MADNESS -> ReplacementKeywordKind.Madness
-            else -> null
-        }
+    ): Boolean {
+        val keyword = host.keywords.firstOrNull { it.replacements.any { replacement -> replacement === effect } } ?: return false
+        return keyword.keyword == Keyword.MADNESS
     }
 }

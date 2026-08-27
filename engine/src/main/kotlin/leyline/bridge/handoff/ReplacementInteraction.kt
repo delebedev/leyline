@@ -3,16 +3,10 @@ package leyline.bridge.handoff
 import forge.game.replacement.ReplacementEffect
 import leyline.bridge.types.ForgeCardId
 
-/** Self-replacement keyword families supported by the replacement prompt seam. */
-enum class ReplacementKeywordKind {
-    Madness,
-}
-
 /** Immutable candidate facts retained beside its exact Forge replacement handle. */
 data class ReplacementOptionValue(
     val originalOptionIndex: Int,
     val hostForgeCardId: ForgeCardId,
-    val keyword: ReplacementKeywordKind,
     val uniqueAbilityId: Int,
     val abilityGrpId: Int,
 )
