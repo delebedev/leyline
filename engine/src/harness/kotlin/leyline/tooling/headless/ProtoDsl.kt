@@ -544,14 +544,6 @@ fun mana(
         .setCount(count)
         .build()
 
-/** Build an [ActionsAvailableReq] from a list of action types. */
-fun actionsReq(vararg types: ActionType): ActionsAvailableReq =
-    ActionsAvailableReq
-        .newBuilder()
-        .apply {
-            for (type in types) addActions(Action.newBuilder().setActionType(type))
-        }.build()
-
 // ===========================================================================
 // Outbound GRE fixtures — for unit tests that hand-build server messages
 // ===========================================================================

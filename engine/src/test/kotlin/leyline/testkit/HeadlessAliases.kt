@@ -125,8 +125,6 @@ fun mana(
     count: Int,
 ): ManaRequirement = leyline.tooling.headless.mana(color, count)
 
-fun actionsReq(vararg types: ActionType): ActionsAvailableReq = leyline.tooling.headless.actionsReq(*types)
-
 fun greMessage(
     msgId: Int = 1,
     gsId: Int = 0,
