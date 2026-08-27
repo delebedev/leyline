@@ -352,37 +352,6 @@ internal class MatchActionWindowRuntime(
             publishPresentation(feed, window, prepared, prior, planner, removePrevious = true)
         }
 
-    /** Preserve an undrained priority window's state frame without exposing its response prompt. */
-    fun suppressPriorityPresentation(actionId: String): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val window = actionWindows[actionId] ?: return false
-            val pending = owner.bridge.actionBridge(window.seatId).exactPending(actionId) ?: return false
-            if (pending.state.kind != PendingActionKind.PRIORITY || window.status != ActionWindowStatus.Published) return false
-            val feed = owner.feed(window.seatId)
-            val committed = owner.takeOwnedBatch(feed, window.publishedBatch) ?: return false
-            val stateOnly =
-                window.publishedBatch.mapNotNull { message ->
-                    when {
-                        message.hasActionsAvailableReq() -> null
-                        message.hasGameStateMessage() ->
-                            message
-                                .toBuilder()
-                                .setGameStateMessage(
-                                    message.gameStateMessage
-                                        .toBuilder()
-                                        .clearActions()
-                                        .setPendingMessageCount(0),
-                                ).build()
-                        else -> message
-                    }
-                }
-            feed.queue.add(committed.copy(messages = stateOnly))
-            owner.signalDelivery()
-            actionWindows[actionId] = window.copy(publishedBatch = stateOnly)
-            true
-        }
-
     fun claimPriority(
         actionId: String,
         responseGameStateId: Int,

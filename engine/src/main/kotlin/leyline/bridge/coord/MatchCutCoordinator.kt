@@ -192,8 +192,6 @@ internal class MatchCutCoordinator(
         includePriorityPrompt: Boolean = true,
     ): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId, includePriorityPrompt)
 
-    fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
-
     fun claimPriorityResponse(
         actionId: String,
         responseGameStateId: Int,

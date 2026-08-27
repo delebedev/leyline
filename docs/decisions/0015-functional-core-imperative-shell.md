@@ -11,7 +11,10 @@ read_when:
 ## Status
 
 Accepted. The functional projection core and match-scoped blocking-prompt
-ownership are implemented. Broader runtime convergence remains incremental.
+ownership are substantially implemented. The runtime now has one engine-thread
+progression authority, ordered gameplay and lifecycle output, tentative logical
+sequence in `ProjectionState`, atomic multi-view installation, and one
+settled-prompt admission and lifecycle owner.
 
 The implemented milestone provides:
 
@@ -23,11 +26,12 @@ The implemented milestone provides:
 - typed match-scoped owners for blocking prompt families, with exact Forge
   handles retained behind immutable client-facing values.
 
-Explicit remaining work includes `GameBridge` orchestration, the secondary
-live-state action-construction path, remaining terminal and residual lifecycle output,
-and `MatchSession` convergence. These are not
-requirements for treating the functional projection and prompt-ownership
-milestone as implemented.
+Remaining work is limited to `GameBridge` engine-shell orchestration and
+safe-point adaptation, the secondary live-state action-construction path,
+session-triggered coordinator publication, and `sessionLock`/`feedLock`
+coordination across classes. These are shell integration seams, not a second
+semantic progression owner, and do not reopen the projection or settled-prompt
+ownership claims above.
 
 This ADR is the durable decision record: it owns the rationale, fixed boundary,
 and rejected alternatives. [`architecture.md`](../architecture.md) describes
@@ -53,12 +57,13 @@ Leyline combines two systems with different interaction models:
   specific state, intermediate frames, prompts, stable object identities,
   monotonically ordered IDs, and replies that resume blocked engine callbacks.
 
-The current bridge makes the combination work, but ownership is distributed.
-The Forge thread mutates rules state and can also build playback output inside
-synchronous event subscribers. Session entrants build ordinary output and
-submit answers from transport, timer, test, and auto-advance threads. A
-spectator pump drains another path. Shared counters, projection cursors,
-futures, semaphores, locks, and queues preserve the resulting order.
+When this decision was made, the bridge made the combination work, but ownership
+was distributed. The Forge thread mutated rules state and could also build
+playback output inside synchronous event subscribers. Session entrants built
+ordinary output and submitted answers from transport, timer, test, and
+auto-advance threads. A spectator pump drained another path. Shared counters,
+projection cursors, futures, semaphores, locks, and queues preserved the
+resulting order.
 
 Four facts must be separated when choosing a replacement:
 
@@ -167,14 +172,15 @@ The implemented milestone is visible in current types:
   optional-empty or required stable-prefix synchronous default. Candidate-free
   Generic choices use the same explicit synchronous policy, while non-library
   ordering returns its input without allocating a prompt. Modal choice now has
-  a coordinator-owned runtime; remaining terminal and residual lifecycle output
-  remain outside the coordinator boundary.
+  a coordinator-owned runtime.
 
-The current milestone completes blocking prompt-response ownership, including
-the residual card compatibility path. It does not claim whole-runtime
-convergence: `GameBridge` orchestration, secondary action construction,
-lifecycle and terminal output, and `MatchSession` remain separate incremental
-work.
+The milestone now covers blocking prompt-response ownership, including the
+residual card compatibility path, multi-view projection installation, and
+ordered lifecycle and terminal output. Remaining work is shell integration:
+`GameBridge` orchestration and safe-point adaptation, secondary live-state
+action construction, session-triggered coordinator publication, and
+`sessionLock`/`feedLock` coordination across classes. These seams refine the
+integration around the single progression authority.
 
 ## Decision
 
