@@ -174,10 +174,11 @@ internal class MatchModalChoiceRuntime(
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
                 val prepared = preparedViewers.player
+                val materialization = prepared.materialization
                 val published =
                     PublishedModalChoiceInteraction(
                         interactionId,
-                        checkNotNull(prepared.bundle.actionGameStateId),
+                        checkNotNull(materialization.bundle.actionGameStateId),
                         prepared.sourceInstanceId,
                     )
                 val exact =
@@ -185,8 +186,8 @@ internal class MatchModalChoiceRuntime(
                         interactionId,
                         published.gameStateId,
                         initial.value,
-                        prepared.bundle.messages,
-                        prepared.transition,
+                        materialization.bundle.messages,
+                        materialization.transition,
                     )
                 val created =
                     Window(
@@ -201,8 +202,8 @@ internal class MatchModalChoiceRuntime(
                     )
                 SinglePromptPublication(
                     created,
-                    prepared.transition,
-                    prepared.closesPlaybackFrame,
+                    materialization.transition,
+                    materialization.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },

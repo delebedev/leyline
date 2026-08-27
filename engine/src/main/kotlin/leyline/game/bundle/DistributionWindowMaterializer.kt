@@ -5,44 +5,29 @@ import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.DistributionWindowValue
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.DistributionReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /** Value-only GRE preparation for coordinator-owned divided allocations. */
-internal class DistributionWindowMaterializer(
-    private val seatId: Int,
-) {
-    data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
-    )
-
+internal class DistributionWindowMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: LogicalSequencePlanner,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: DistributionWindowValue,
-    ): Prepared {
+    ): SettledPromptMaterialization {
         val sourceId =
-            projection.requireInstanceId(
+            context.requiredInstanceId(
                 if (window.sourceIsSpell) {
                     leyline.bridge.types.ForgeCardId(window.sourceForgeCardId)
                 } else {
                     FrameIdResolver.triggerStackAbilityForgeId(window.sourceForgeAbilityId)
                 },
+                "Distribution object",
             )
         val targetIds =
             window.targets.map { target ->
                 when (target) {
-                    is DistributionTargetRef.Card -> projection.requireInstanceId(target.id)
+                    is DistributionTargetRef.Card -> context.requiredInstanceId(target.id, "Distribution object")
                     is DistributionTargetRef.Player -> target.id.value
                 }
             }
@@ -57,7 +42,11 @@ internal class DistributionWindowMaterializer(
                 .addAllValidSelectedTargetIds(targetIds)
                 .setSourceId(sourceId)
                 .build()
-        val state = gameState.toBuilder().setPendingMessageCount(1).build()
+        val state =
+            context.gameState
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
         val promptId =
             when (window.kind) {
                 DistributionRouteKind.Damage -> PromptIds.DISTRIBUTE_DAMAGE
@@ -65,33 +54,21 @@ internal class DistributionWindowMaterializer(
             }
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) { it.gameStateMessage = state },
-                makeGRE(GREMessageType.DistributionReq_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GameStateMessage_695e) { it.gameStateMessage = state },
+                context.message(GREMessageType.DistributionReq_695e) {
                     it.distributionReq = request
                     it.prompt =
-                        promptWithCardId(promptId, projection.requireInstanceId(leyline.bridge.types.ForgeCardId(window.sourceForgeCardId)))
+                        promptWithCardId(
+                            promptId,
+                            context.requiredInstanceId(
+                                leyline.bridge.types.ForgeCardId(window.sourceForgeCardId),
+                                "Distribution object",
+                            ),
+                        )
                     it.allowCancel = AllowCancel.Abort
                     it.allowUndo = true
                 },
             )
-        return Prepared(BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId), transition, closesPlaybackFrame = true)
+        return context.prepared(messages)
     }
-
-    private fun ProjectionState.requireInstanceId(cardId: leyline.bridge.types.ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("Distribution object ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }
