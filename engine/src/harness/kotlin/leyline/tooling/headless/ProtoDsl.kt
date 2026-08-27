@@ -339,6 +339,29 @@ fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
         )
     }
 
+/** [SearchFromGroupsResp] — respond with one echoed group row. */
+fun groupedSearchResp(
+    groupId: Int,
+    ids: List<Int>,
+    maxSelect: Int,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchFromGroupsResp_097b) {
+        setSearchFromGroupsResp(
+            SearchFromGroupsResp.newBuilder().addGroups(
+                Group
+                    .newBuilder()
+                    .setGroupId(groupId)
+                    .setMaxSelect(maxSelect)
+                    .addAllIds(ids),
+            ),
+        )
+    }
+
+fun groupedSearchFailResp(): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchFromGroupsResp_097b) {
+        setSearchFromGroupsResp(SearchFromGroupsResp.getDefaultInstance())
+    }
+
 // ---------------------------------------------------------------------------
 // Modal — CastingTimeOptionsResp
 // ---------------------------------------------------------------------------

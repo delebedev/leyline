@@ -8,9 +8,13 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
+import wotc.mtgo.gre.external.messaging.Messages.GroupingStyle
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 
 /** Value-only GRE preparation for coordinator-owned library-search windows. */
 internal class SearchWindowMaterializer(
@@ -36,24 +40,57 @@ internal class SearchWindowMaterializer(
                 PromptIds.SEARCH
             }
         val request =
-            context.message(GREMessageType.SearchReq_695e) {
-                it.searchReq =
-                    RequestBuilder.buildSearchRequest(
-                        sourceInstanceId = sourceId,
-                        libraryZoneId = ZoneIds.libraryOf(SeatId(context.seatId)),
-                        allLibraryIds = libraryIds,
-                        validTargetIds = validIds,
-                        maxFind = window.maxFind,
-                        allowFailToFind = window.minFind == 0,
-                    )
-                it.allowCancel = AllowCancel.No_a526
-                it.prompt =
-                    Prompt
-                        .newBuilder()
-                        .setPromptId(promptId)
-                        .addParameters(cardIdPromptParameter(hostId))
-                        .addParameters(cardIdPromptParameter(context.seatId))
-                        .build()
+            if (window.groups.isNotEmpty()) {
+                context.message(GREMessageType.SearchFromGroupsReq_695e) {
+                    val groupedRequest =
+                        SearchFromGroupsReq
+                            .newBuilder()
+                            .setMaxFind(window.maxFind)
+                            .addZonesToSearch(ZoneIds.libraryOf(SeatId(context.seatId)))
+                            .addAllGroups(
+                                window.groups.map { group ->
+                                    Group
+                                        .newBuilder()
+                                        .setGroupId(group.groupId)
+                                        .setMaxSelect(group.maxSelect)
+                                        .addAllIds(
+                                            group.candidateCardIdsByOption.values.map {
+                                                context.requiredInstanceId(it, "Search candidate")
+                                            },
+                                        ).build()
+                                },
+                            ).setGroupingStyle(GroupingStyle.SingleGroup)
+                            .setSourceId(hostId)
+                    if (window.minFind == 0) groupedRequest.setAllowFailToFind(AllowFailToFind.Any)
+                    it.searchFromGroupsReq = groupedRequest.build()
+                    it.allowCancel = AllowCancel.No_a526
+                    it.prompt =
+                        Prompt
+                            .newBuilder()
+                            .setPromptId(PromptIds.SEARCH_FROM_GROUPS)
+                            .addParameters(cardIdPromptParameter(hostId))
+                            .build()
+                }
+            } else {
+                context.message(GREMessageType.SearchReq_695e) {
+                    it.searchReq =
+                        RequestBuilder.buildSearchRequest(
+                            sourceInstanceId = sourceId,
+                            libraryZoneId = ZoneIds.libraryOf(SeatId(context.seatId)),
+                            allLibraryIds = libraryIds,
+                            validTargetIds = validIds,
+                            maxFind = window.maxFind,
+                            allowFailToFind = window.minFind == 0,
+                        )
+                    it.allowCancel = AllowCancel.No_a526
+                    it.prompt =
+                        Prompt
+                            .newBuilder()
+                            .setPromptId(promptId)
+                            .addParameters(cardIdPromptParameter(hostId))
+                            .addParameters(cardIdPromptParameter(context.seatId))
+                            .build()
+                }
             }
         return context.prepared(stateMessages + request, awaitedRequest = request)
     }

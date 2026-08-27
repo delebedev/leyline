@@ -71,6 +71,14 @@ internal sealed interface SimDecision {
         override val kind: String = "search"
     }
 
+    data class GroupedSearch(
+        val groupId: Int,
+        val itemsFound: List<Int>,
+        val maxSelect: Int,
+    ) : SimDecision {
+        override val kind: String = "grouped-search:$groupId"
+    }
+
     data class EffectCost(
         val selectedInstanceIds: List<Int>,
     ) : SimDecision {

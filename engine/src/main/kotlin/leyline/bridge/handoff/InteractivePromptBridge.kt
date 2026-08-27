@@ -703,7 +703,7 @@ class InteractivePromptBridge(
         if (request.route is ResolvedPromptRoute.Targeting) {
             return runtimeBindings.targeting?.let { requestTargetingChoice(request, targetingSa, it, configuredTimeoutMs) }
         }
-        if (request.route is ResolvedPromptRoute.Search) {
+        if (request.route is ResolvedPromptRoute.Search || request.route is ResolvedPromptRoute.GroupedSearch) {
             return runtimeBindings.search?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
         }
         if (request.route is ResolvedPromptRoute.ModalChoice) {
@@ -734,6 +734,7 @@ enum class PromptSemantic {
     SelectNLegendRule,
     SelectNDiscard,
     Search,
+    GroupedSearch,
 
     /** Order cards going to the bottom of a library. */
     OrderForBottom,
@@ -904,6 +905,8 @@ data class PromptRequest(
     val waterbendCostString: String? = null,
     /** Frozen source/shape facts for the migrated library-search route. */
     val searchSource: SearchSourceValue? = null,
+    /** Ordered, disjoint option-index partitions for SearchFromGroupsReq. */
+    val searchGroupOptionIndices: List<List<Int>> = emptyList(),
     /** Frozen source identity for coordinator-owned Scry and Surveil grouping. */
     val groupingSource: GroupingSourceValue? = null,
 ) {

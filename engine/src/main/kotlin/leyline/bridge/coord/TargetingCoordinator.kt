@@ -34,6 +34,7 @@ import leyline.bridge.interaction.ChooseEntitiesPlanner
 import leyline.bridge.interaction.ChooseSingleEntityContext
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
+import leyline.bridge.interaction.GroupedSearchClassifier
 import leyline.bridge.interaction.UnclassifiedEntityChoicePolicy
 import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldAutoResolve
@@ -122,6 +123,13 @@ class TargetingCoordinator(
         }
 
         val labels = optionList.map { it.entityLabel() }
+        val groupedSearch =
+            if (plan.semantic == PromptSemantic.Search && optionList.all { it is Card }) {
+                GroupedSearchClassifier.classify(sa, optionList.filterIsInstance<Card>())
+            } else {
+                null
+            }
+        val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -134,12 +142,13 @@ class TargetingCoordinator(
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 route =
                     PromptRouteResolver.resolve(
-                        plan.semantic,
+                        semantic,
                         hasCandidateRefs = true,
                         resolutionInput = plan.resolutionRouteInput,
                     ),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
-                searchSource = searchSource(plan.semantic, sa),
+                searchSource = searchSource(semantic, sa),
+                searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
         val residual =
             UnclassifiedEntityChoicePolicy.decide(
@@ -283,6 +292,13 @@ class TargetingCoordinator(
                 ),
             )
         if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
+        val groupedSearch =
+            if (plan.semantic == PromptSemantic.Search && optionList.all { it is Card }) {
+                GroupedSearchClassifier.classify(sa, optionList.filterIsInstance<Card>())
+            } else {
+                null
+            }
+        val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         val request =
             PromptRequest(
                 promptType = "choose_cards",
@@ -294,13 +310,14 @@ class TargetingCoordinator(
                 candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
                 route =
                     PromptRouteResolver.resolve(
-                        plan.semantic,
+                        semantic,
                         hasCandidateRefs = true,
                         resolutionInput = plan.resolutionRouteInput,
                     ),
                 unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
-                searchSource = searchSource(plan.semantic, sa),
+                searchSource = searchSource(semantic, sa),
+                searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
         val residual =
             UnclassifiedEntityChoicePolicy.decide(
@@ -339,7 +356,7 @@ class TargetingCoordinator(
         semantic: PromptSemantic,
         ability: SpellAbility?,
     ): SearchSourceValue? {
-        if (semantic != PromptSemantic.Search) return null
+        if (semantic != PromptSemantic.Search && semantic != PromptSemantic.GroupedSearch) return null
         val exactStackAbilityId = currentStackAbilityId()
         return SearchSourceValue(
             hostCardId = (ability?.hostCard?.id ?: currentSourceEntityId())?.let(::ForgeCardId),
@@ -376,17 +393,25 @@ class TargetingCoordinator(
         if (sourceList.isEmpty()) return CardCollection()
         if (plan.mandatoryChoicePolicy.shouldAutoResolve(isOptional, sourceList.size, min)) return sourceList
         val effectiveMin = if (isOptional) 0 else min
+        val groupedSearch =
+            if (plan.semantic == PromptSemantic.Search) {
+                GroupedSearchClassifier.classify(sa, sourceList.toList())
+            } else {
+                null
+            }
+        val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         return chooseCardsViaBridge(
             sourceList,
             effectiveMin,
             max,
             title ?: "Choose cards",
-            semantic = plan.semantic,
+            semantic = semantic,
             candidateRefs = plan.candidateRefsPolicy.candidateRefs(candidateRefs),
             unfilteredRefs = plan.candidateRefsPolicy.unfilteredRefs(candidateRefs, plan.semantic),
             sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
             forcePrompt = plan.forcePrompt,
-            searchSource = searchSource(plan.semantic, sa),
+            searchSource = searchSource(semantic, sa),
+            searchGroupOptionIndices = groupedSearch.orEmpty(),
             resolutionRouteInput = plan.resolutionRouteInput,
         )
     }
@@ -1036,6 +1061,7 @@ class TargetingCoordinator(
         tapPayment: TapPaymentDescriptor? = null,
         payCostsPromptSource: PayCostsPromptSourceInput? = null,
         searchSource: SearchSourceValue? = null,
+        searchGroupOptionIndices: List<List<Int>> = emptyList(),
         resolutionRouteInput: ResolutionRouteInput? = null,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
@@ -1065,6 +1091,7 @@ class TargetingCoordinator(
                 minSelectionWeight = minSelectionWeight,
                 payCostsPromptSource = payCostsPromptSource,
                 searchSource = searchSource,
+                searchGroupOptionIndices = searchGroupOptionIndices,
             )
         val residual =
             UnclassifiedEntityChoicePolicy.decide(
