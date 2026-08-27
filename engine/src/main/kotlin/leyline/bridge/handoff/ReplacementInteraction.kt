@@ -34,8 +34,6 @@ data class ReplacementInteractionResult(
     val timedOut: Boolean = false,
 )
 
-class ReplacementInteractionTimeoutException : RuntimeException("Replacement interaction timed out")
-
 /** Blocking engine-thread contract for competing self-replacement choices. */
 interface ReplacementInteractionRuntime {
     fun awaitReplacement(

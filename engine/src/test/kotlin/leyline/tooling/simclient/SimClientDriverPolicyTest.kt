@@ -6,7 +6,6 @@ import leyline.UnitTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ExpectedCastVariant
 import leyline.copilot.ForgeAiPolicy
-import leyline.copilot.ResponseBuilder
 import leyline.copilot.SimDecision
 import leyline.copilot.allowedStaticColorIds
 import leyline.copilot.chooseCastActionByVariant
@@ -625,9 +624,11 @@ class SimClientDriverPolicyTest :
                     ).build()
             harness.allMessages += replacementMsg
             val replacementPrompt = SimPromptLedger(harness).activePrompt()!!
-            val replacementDecision = SimDecision.SelectReplacement(replacement)
-            val submitted = ResponseBuilder.build(replacementDecision, gsId = 20, seatId = 1, respId = 10).single()
-            submitted.selectReplacementResp.replacement shouldBe replacement
+            val replacementDecision =
+                GreedyPromptPolicy(harness)
+                    .respondToPrompt(replacementPrompt, ActionAttemptLedger { 1 })
+                    .decision
+            replacementDecision shouldBe SimDecision.SelectReplacement(replacement)
             recorder.record(
                 prompt = replacementPrompt,
                 decision = replacementDecision,

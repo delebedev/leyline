@@ -5,7 +5,6 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedReplacementInteraction
 import leyline.bridge.handoff.ReplacementInteractionResult
 import leyline.bridge.handoff.ReplacementInteractionRuntime
-import leyline.bridge.handoff.ReplacementInteractionTimeoutException
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -125,7 +124,7 @@ internal class MatchReplacementInteractionRuntime(
         slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
-            timeoutException = ::ReplacementInteractionTimeoutException,
+            timeoutException = { error("Replacement timeout should complete with a default") },
             beforeTimeoutCompleteLocked = {
                 val option = pending.value.options[pending.value.defaultOptionIndex]
                 val handle = pending.handlesByOption.getValue(option.originalOptionIndex)
