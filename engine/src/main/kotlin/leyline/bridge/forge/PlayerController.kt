@@ -59,6 +59,7 @@ import forge.util.collect.FCollectionView
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
@@ -76,10 +77,7 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.TargetingCandidateValue
-import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PhaseStopProfile
-import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
@@ -134,13 +132,13 @@ import java.util.function.Predicate
  * ## State ownership
  *
  * Interaction windows and live response handles belong to the match coordinator.
- * [autoPassState] remains here because the priority loop consumes it directly:
- * it is written via [setAutoPassState] (called by
- *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
- * Priority decisions are emitted as structured log entries by [recordDecision].
+ * Priority policy and settings state live in [PriorityPolicyRuntime]. This
+ * controller only supplies Forge's callback surface and delegates decisions to
+ * the runtime owner.
  *
- * Coordinators read and write these through [OwnerContext]; external callers use
- * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
+ * Coordinators receive the callback surface through [OwnerContext]. The priority
+ * coordinator receives [PriorityPolicyRuntime] explicitly because policy state is
+ * not part of that handoff. Prompt side-effects (reveal lifecycle, legend-rule
  * victims, searched-to-hand cards, optional-cost stash) flow through the typed
  * [leyline.bridge.handoff.PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
  * resolved" flag lives on [leyline.bridge.types.PrioritySignal].
@@ -203,22 +201,12 @@ class PlayerController(
     private val seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
-    private val phaseStopProfile: PhaseStopProfile? = null,
+    priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
-    autoPassState: ClientAutoPassState? = null,
     interactionRuntime: BlockingInteractionRuntime,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
-    @Volatile
-    override var autoPassState: ClientAutoPassState? = autoPassState
-        private set
-
-    /** Set client auto-pass state (called by MatchSession after bridge connection). */
-    fun setAutoPassState(state: ClientAutoPassState) {
-        autoPassState = state
-    }
-
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
     private val numericInputGate = NumericInputGate(actionBridge, interactionRuntime)
     private val spellExecutor = SpellExecutor(game, player, bridge)
@@ -250,7 +238,7 @@ class PlayerController(
                 game = game,
                 player = player,
                 actionBridge = ab,
-                phaseStopProfile = phaseStopProfile,
+                priorityPolicy = priorityPolicy,
                 smartPhaseSkip = smartPhaseSkip,
                 spellExecutor = spellExecutor,
                 interactionRuntime = interactionRuntime,
@@ -294,15 +282,6 @@ class PlayerController(
     }
 
     private var pendingManaColorChoice: Byte? = null
-
-    override fun recordDecision(decision: PriorityDecision) {
-        log.info(
-            "event=priority_decision source=engine phase={} turn={} decision={}",
-            game.phaseHandler.phase?.name,
-            game.phaseHandler.turn,
-            decision,
-        )
-    }
 
     fun <T> withManaColorChoice(
         colorMask: Byte?,

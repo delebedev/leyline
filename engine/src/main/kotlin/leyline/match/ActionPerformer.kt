@@ -1,7 +1,7 @@
 package leyline.match
 
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.handoff.PendingActionKind
-import leyline.bridge.types.ClientAutoPassState
 import leyline.game.bundle.BundleBuilder
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
@@ -16,8 +16,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * **Threading:** Callers invoke inside the session lock. This class adds no
  * locking of its own.
  *
- * **State:** Stateless between calls. [autoPassState] is a shared reference —
- * reads and writes flow through it to stay visible to other handlers.
+ * **State:** Stateless between calls. Priority settings are submitted to the
+ * match runtime, which remains the sole owner of mutable policy state.
  */
 class ActionPerformer(
     private val sink: GreMessageSink,
@@ -25,7 +25,7 @@ class ActionPerformer(
     private val matchRecorder: MatchRecorder? = null,
     private val targetingHandler: TargetingHandler,
     private val autoPassEngine: AutoPassEngine,
-    private val autoPassState: ClientAutoPassState,
+    private val priorityPolicy: PriorityPolicyRuntime,
     private val ctx: SessionContext,
 ) {
     private val log = LoggerFactory.getLogger(ActionPerformer::class.java)
@@ -101,7 +101,7 @@ class ActionPerformer(
             // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
             val autoPassPriority = greMsg.performActionResp.autoPassPriority
             if (autoPassPriority != AutoPassPriority.None_a099) {
-                autoPassState.updateAutoPassPriority(autoPassPriority)
+                priorityPolicy.submitAutoPassPriority(autoPassPriority)
                 log.debug("ActionPerformer: autoPassPriority={}", autoPassPriority)
             }
 
@@ -163,7 +163,7 @@ class ActionPerformer(
                 // Forge resolved the synchronized stack item. Surface it before
                 // returning; do not advance a second synchronization stop here.
                 val promptResult = targetingHandler.checkPendingPrompt()
-                if (shouldDelegateSynchronization(promptResult, autoPassState.shouldAutoPass())) {
+                if (shouldDelegateSynchronization(promptResult, priorityPolicy.shouldAutoPass())) {
                     autoPassEngine.autoPassAndAdvance()
                 }
                 return
@@ -176,7 +176,7 @@ class ActionPerformer(
 
             // After a cast or activate, check for targeting prompt or intermediate stack state.
             // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
-            if (isCastOrActivate && targetingHandler.handlePostCastPrompt(autoPassState.shouldAutoPass())) return
+            if (isCastOrActivate && targetingHandler.handlePostCastPrompt(priorityPolicy.shouldAutoPass())) return
 
             // After stack resolution: check for modal ETB prompt before sending state.
             // The engine may have fired a modal trigger (e.g. Charming Prince ETB)

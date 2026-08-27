@@ -19,6 +19,7 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
@@ -30,7 +31,6 @@ import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.MulliganPhase
-import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
@@ -111,6 +111,9 @@ class GameBridge(
             counter = messageCounter,
             delayMultiplier = engineSettings.aiDelayMultiplier,
         )
+
+    /** Match-scoped owner of mutable priority policy and client settings. */
+    val priorityPolicy = PriorityPolicyRuntime()
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
     private val setupBlockingInteractionRuntime =
@@ -533,10 +536,6 @@ class GameBridge(
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
     var eventCollector: GameEventCollector? = null
-        private set
-
-    /** Phase stop profile — controls which phases the engine stops at per player. Null before start(). */
-    var phaseStopProfile: PhaseStopProfile? = null
         private set
 
     /**
@@ -968,7 +967,7 @@ class GameBridge(
     private fun registerHumanController(g: Game) {
         val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        priorityPolicy.installPhaseStops(human.id, aiPlayer.id)
         val controller =
             BridgedPlayerController(
                 game = g,
@@ -978,7 +977,7 @@ class GameBridge(
                 seating = seating,
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = phaseStopProfile,
+                priorityPolicy = priorityPolicy,
                 interactionRuntime = cutCoordinator,
             )
         humanController = controller
@@ -1550,7 +1549,7 @@ class GameBridge(
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        priorityPolicy.installPhaseStops(human.id, aiPlayer.id)
         if (aiControllerFactory == null) {
             val controller =
                 BridgedPlayerController(
@@ -1561,7 +1560,7 @@ class GameBridge(
                     seating = seating,
                     actionBridge = actionBridge(controlledSeat),
                     mulliganBridge = mulliganBridge(controlledSeat),
-                    phaseStopProfile = phaseStopProfile,
+                    priorityPolicy = priorityPolicy,
                     interactionRuntime = cutCoordinator,
                 )
             humanController = controller

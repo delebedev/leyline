@@ -33,6 +33,10 @@ coordinator's game-over lifecycle cut also materializes any pending resolution
 diff and the terminal sequence before one ordered feed installation; sessions
 only drain that feed and deliver the raw room-state completion message.
 
+`GameBridge.priorityPolicy` owns mutable client priority settings. Settings and
+priority response metadata cross into it as immutable values; session code does
+not classify, suppress, or independently store priority policy.
+
 ### Lock order
 
 Frame producers that need all three monitors acquire them in this order:

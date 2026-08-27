@@ -13,6 +13,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
+import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 private val PRINCE_FLICKER_PUZZLE =
@@ -306,7 +307,18 @@ class ModalETBFlowTest :
                 displayCardUnderCard.affectedIdsList shouldContain exiledIid
             }
 
-            bridge.phaseStopProfile?.setEnabled(human.id, forge.game.phase.PhaseType.END_OF_TURN, true)
+            bridge.priorityPolicy.submit(
+                settingsMessage {
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.EndStep_ad1f)
+                            .setAppliesTo(SettingScope.Team_ac6e)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                },
+            )
             passUntil(maxPasses = 30) {
                 allMessages
                     .filter { it.hasGameStateMessage() }
