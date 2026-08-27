@@ -22,20 +22,14 @@ internal object BundleBuilderTestSupport {
         game: Game,
         counter: LogicalSequencePlanner,
         priorityCandidates: PriorityActionCandidates? = null,
-    ): BundleBuilder.BundleResult =
-        synchronized(bridge.projectionBuildLock) {
-            installAction(bridge, builder.preparePostAction(game, counter, priorityCandidates = priorityCandidates))
-        }
+    ): BundleBuilder.BundleResult = installAction(bridge, builder.preparePostAction(game, counter, priorityCandidates = priorityCandidates))
 
     fun phaseTransition(
         builder: BundleBuilder,
         bridge: GameBridge,
         game: Game,
         counter: LogicalSequencePlanner,
-    ): BundleBuilder.BundleResult =
-        synchronized(bridge.projectionBuildLock) {
-            installAction(bridge, builder.preparePhaseTransitionDiff(game, counter))
-        }
+    ): BundleBuilder.BundleResult = installAction(bridge, builder.preparePhaseTransitionDiff(game, counter))
 
     fun declareAttackers(
         builder: BundleBuilder,
@@ -57,23 +51,22 @@ internal object BundleBuilderTestSupport {
         bridge: GameBridge,
         game: Game,
         counter: LogicalSequencePlanner,
-    ): BundleBuilder.BundleResult =
-        synchronized(bridge.projectionBuildLock) {
-            val prepared =
-                builder.prepareStateOnlyDiff(
-                    game,
-                    counter,
-                    listOf(
-                        BundleBuilder.ViewerRoute(
-                            ProjectionViewer(SeatId(Board.SEAT_ID), ProjectionViewerRole.Player),
-                            builder,
-                        ),
+    ): BundleBuilder.BundleResult {
+        val prepared =
+            builder.prepareStateOnlyDiff(
+                game,
+                counter,
+                listOf(
+                    BundleBuilder.ViewerRoute(
+                        ProjectionViewer(SeatId(Board.SEAT_ID), ProjectionViewerRole.Player),
+                        builder,
                     ),
-                )
-            bridge.commitProjection(prepared.transition)
-            if (prepared.closesPlaybackFrame) bridge.acknowledgePlaybackFrame(SeatId(Board.SEAT_ID))
-            BundleBuilder.BundleResult(prepared.batches.single())
-        }
+                ),
+            )
+        bridge.commitProjection(prepared.transition)
+        if (prepared.closesPlaybackFrame) bridge.acknowledgePlaybackFrame(SeatId(Board.SEAT_ID))
+        return BundleBuilder.BundleResult(prepared.batches.single())
+    }
 
     fun buildActions(
         bridge: GameBridge,

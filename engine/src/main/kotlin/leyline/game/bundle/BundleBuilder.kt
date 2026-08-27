@@ -62,9 +62,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * Frame computation reads one snapshot, then installs projection history and the
  * shared viewer baseline through one seam. There is no Netty or mutable
- * handler state here. State-only and ordinary-playback producers acquire
- * [LogicalSequencePlanner] before the match projection-build monitor because those paths
- * can run concurrently; playback then acquires its queue monitor last.
+ * handler state here. Callers prepare and install cuts while holding the
+ * coordinator publication lock; isolated test helpers call preparation sequentially.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
  *
@@ -646,69 +645,66 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         frameSpecs: List<PlaybackFrameSpec>,
-    ): PlaybackCut =
-        run {
-            synchronized(bridge.projectionBuildLock) {
-                require(frameSpecs.isNotEmpty()) { "Playback cut must contain at least one frame" }
-                val initialProjection = bridge.projectionStateSnapshot()
-                val shellPromptFacts = bridge.materializePromptProjectionFacts()
-                val shellEffectFacts = bridge.materializeEffectProjectionFacts()
-                val laterEffectFacts = shellEffectFacts.withoutPendingEarthbendResolutions()
-                var captureProjection = initialProjection
-                var actions: ActionsAvailableReq? = null
-                val frames =
-                    frameSpecs.mapIndexed { index, spec ->
-                        val input =
-                            stateFrameInputCapture.captureNeutral(
-                                game = game,
-                                gameStateId = counter.nextGsId(),
-                                revealForSeat = null,
-                                events = StateFrameInputCapture.Events.Supplied(spec.events),
-                                priorProjectionOverride = captureProjection,
-                                promptFactsOverride = if (index == 0) shellPromptFacts else PromptProjectionFacts(),
-                                effectFactsOverride = if (index == 0) shellEffectFacts else laterEffectFacts,
-                            )
-                        captureProjection = input.priorProjection
-                        if (actions == null) {
-                            val (mappedActions, actionProjection) =
-                                bridge.editProjection(captureProjection) {
-                                    ActionMapper.buildNaiveActionsFromSnapshot(seatId, input.frame.snapshot, bridge)
-                                }
-                            actions = mappedActions
-                            captureProjection = actionProjection.copy(revision = initialProjection.revision)
+    ): PlaybackCut {
+        require(frameSpecs.isNotEmpty()) { "Playback cut must contain at least one frame" }
+        val initialProjection = bridge.projectionStateSnapshot()
+        val shellPromptFacts = bridge.materializePromptProjectionFacts()
+        val shellEffectFacts = bridge.materializeEffectProjectionFacts()
+        val laterEffectFacts = shellEffectFacts.withoutPendingEarthbendResolutions()
+        var captureProjection = initialProjection
+        var actions: ActionsAvailableReq? = null
+        val frames =
+            frameSpecs.mapIndexed { index, spec ->
+                val input =
+                    stateFrameInputCapture.captureNeutral(
+                        game = game,
+                        gameStateId = counter.nextGsId(),
+                        revealForSeat = null,
+                        events = StateFrameInputCapture.Events.Supplied(spec.events),
+                        priorProjectionOverride = captureProjection,
+                        promptFactsOverride = if (index == 0) shellPromptFacts else PromptProjectionFacts(),
+                        effectFactsOverride = if (index == 0) shellEffectFacts else laterEffectFacts,
+                    )
+                captureProjection = input.priorProjection
+                if (actions == null) {
+                    val (mappedActions, actionProjection) =
+                        bridge.editProjection(captureProjection) {
+                            ActionMapper.buildNaiveActionsFromSnapshot(seatId, input.frame.snapshot, bridge)
                         }
-                        val pending = captureProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets.takeIf { index == 0 }
-                        val supplements =
-                            listOfNotNull(
-                                ProjectionSupplement.NewTurnStarted.takeIf { spec.turnStarted },
-                                pending?.let {
-                                    ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
-                                },
-                            )
-                        val contentMsgId = counter.nextMsgId()
-                        val coinFlipMsgIds =
-                            input.frame.events.events
-                                .filterIsInstance<GameEvent.CoinFlipped>()
-                                .map { counter.nextMsgId() }
-                        val echoLink = counter.nextGameStateLink()
-                        val echoMsgId = counter.nextMsgId()
-                        PlaybackFrameCut(
-                            frame = input.frame,
-                            intent = ViewerProjectionIntent.of(supplements),
-                            contentMsgId = contentMsgId,
-                            coinFlipMsgIds = coinFlipMsgIds,
-                            echoLink = echoLink,
-                            echoMsgId = echoMsgId,
-                            lifeTotals = spec.lifeTotals.toMap(),
-                        )
-                    }
-                PlaybackCut(
-                    priorProjection = captureProjection.copy(revision = initialProjection.revision),
-                    actions = checkNotNull(actions),
-                    frames = frames,
+                    actions = mappedActions
+                    captureProjection = actionProjection.copy(revision = initialProjection.revision)
+                }
+                val pending = captureProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets.takeIf { index == 0 }
+                val supplements =
+                    listOfNotNull(
+                        ProjectionSupplement.NewTurnStarted.takeIf { spec.turnStarted },
+                        pending?.let {
+                            ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
+                        },
+                    )
+                val contentMsgId = counter.nextMsgId()
+                val coinFlipMsgIds =
+                    input.frame.events.events
+                        .filterIsInstance<GameEvent.CoinFlipped>()
+                        .map { counter.nextMsgId() }
+                val echoLink = counter.nextGameStateLink()
+                val echoMsgId = counter.nextMsgId()
+                PlaybackFrameCut(
+                    frame = input.frame,
+                    intent = ViewerProjectionIntent.of(supplements),
+                    contentMsgId = contentMsgId,
+                    coinFlipMsgIds = coinFlipMsgIds,
+                    echoLink = echoLink,
+                    echoMsgId = echoMsgId,
+                    lifeTotals = spec.lifeTotals.toMap(),
                 )
             }
-        }
+        return PlaybackCut(
+            priorProjection = captureProjection.copy(revision = initialProjection.revision),
+            actions = checkNotNull(actions),
+            frames = frames,
+        )
+    }
 
     internal fun compilePlaybackCut(
         cut: PlaybackCut,

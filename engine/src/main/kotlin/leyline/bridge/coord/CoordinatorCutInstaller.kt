@@ -97,7 +97,7 @@ internal data class CutInstallHooks(
 /**
  * Sole implementation of the coordinator cut transaction.
  *
- * Runs while the caller already holds the projection-build and feed locks. It
+ * Runs while the caller already holds the coordinator feed lock. It
  * owns enqueue ordering, projection commit, rollback of its own batches
  * before install, playback acknowledgement, and typed failure handoff.
  *
@@ -113,6 +113,7 @@ internal class CoordinatorCutInstaller(
         transition: ProjectionTransition,
         onFailure: (Throwable) -> Nothing,
     ) {
+        check(Thread.holdsLock(owner.feedLock)) { "Projection installation requires coordinator feed ownership" }
         try {
             val prior = owner.bridge.projectionStateSnapshot()
             require(transition.expectedRevision == prior.revision) { "Projection-only transition must use the committed revision" }
@@ -182,6 +183,7 @@ internal class CoordinatorCutInstaller(
         onRollback: (() -> Unit)?,
         onFailure: (Throwable) -> Nothing,
     ) {
+        check(Thread.holdsLock(owner.feedLock)) { "Cut installation requires coordinator feed ownership" }
         require(outputs.isNotEmpty()) { "Installed cut must contain output" }
         val installedMessages = outputs.flatMap { it.batches.flatten() }
         check(installedMessages == cut.messages) { "Installed batches must contain the prepared cut messages in order" }

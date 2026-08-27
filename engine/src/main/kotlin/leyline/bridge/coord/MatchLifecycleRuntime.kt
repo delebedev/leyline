@@ -60,77 +60,73 @@ internal class MatchLifecycleRuntime(
         includeStartingPlayerPrompt: Boolean,
     ): Int {
         owner.requireViewer(seatId)
-        return synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                initialPublication?.let { publication ->
-                    val viewerIndex = publication.outputs.indexOfFirst { it.seatId == seatId }
-                    check(viewerIndex >= 0) { "Initial output is unavailable for viewer $seatId" }
-                    val output = publication.outputs[viewerIndex]
-                    val feed = owner.feed(seatId)
-                    output.batches.forEachIndexed { batchIndex, messages ->
-                        val present = feed.queue.any { it.ordinal == publication.outputOrdinal && it.batchIndex == batchIndex }
-                        if (!present) {
-                            feed.queue.addFirst(
-                                CommittedOutputBatch(
-                                    ordinal = publication.outputOrdinal,
-                                    batchIndex = batchIndex,
-                                    messages = messages,
-                                    viewerIndex = viewerIndex,
-                                ),
-                            )
-                        }
-                    }
-                    owner.signalDelivery()
-                    return@synchronized publication.gameStateId
-                }
-                owner.ensureOpen()
-                val prior = owner.bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                val gameStateId = planner.nextGsId()
-                val prepared =
-                    prepare {
-                        LifecycleMessageMaterializer.initialBundles(
-                            viewers = owner.registeredViewers(),
-                            matchId = owner.matchId,
-                            gameStateId = gameStateId,
-                            planner = planner,
-                            bridge = owner.bridge,
-                            dieRollWinner = owner.bridge.dieRollWinner,
-                            includeStartingPlayerPrompt = includeStartingPlayerPrompt,
+        return synchronized(owner.feedLock) {
+            initialPublication?.let { publication ->
+                val viewerIndex = publication.outputs.indexOfFirst { it.seatId == seatId }
+                check(viewerIndex >= 0) { "Initial output is unavailable for viewer $seatId" }
+                val output = publication.outputs[viewerIndex]
+                val feed = owner.feed(seatId)
+                output.batches.forEachIndexed { batchIndex, messages ->
+                    val present = feed.queue.any { it.ordinal == publication.outputOrdinal && it.batchIndex == batchIndex }
+                    if (!present) {
+                        feed.queue.addFirst(
+                            CommittedOutputBatch(
+                                ordinal = publication.outputOrdinal,
+                                batchIndex = batchIndex,
+                                messages = messages,
+                                viewerIndex = viewerIndex,
+                            ),
                         )
                     }
-                val cut =
-                    PreparedCut.prepareForViewers(
-                        prior,
-                        planner,
-                        prepared.viewers.map { (viewerSeat, messages) ->
-                            PreparedViewerOutput(viewerSeat, listOf(messages))
-                        },
-                        prepared.transition,
-                        closesPlaybackFrame = false,
-                    )
-                owner.cutInstaller.install(
-                    cut,
-                    onInstalled = {
-                        initialPublication = InitialPublication(gameStateId, cut.outputOrdinal, cut.viewerOutputs)
-                    },
-                    onFailure = owner::fail,
-                )
-                gameStateId
+                }
+                owner.signalDelivery()
+                return@synchronized publication.gameStateId
             }
+            owner.ensureOpen()
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val gameStateId = planner.nextGsId()
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.initialBundles(
+                        viewers = owner.registeredViewers(),
+                        matchId = owner.matchId,
+                        gameStateId = gameStateId,
+                        planner = planner,
+                        bridge = owner.bridge,
+                        dieRollWinner = owner.bridge.dieRollWinner,
+                        includeStartingPlayerPrompt = includeStartingPlayerPrompt,
+                    )
+                }
+            val cut =
+                PreparedCut.prepareForViewers(
+                    prior,
+                    planner,
+                    prepared.viewers.map { (viewerSeat, messages) ->
+                        PreparedViewerOutput(viewerSeat, listOf(messages))
+                    },
+                    prepared.transition,
+                    closesPlaybackFrame = false,
+                )
+            owner.cutInstaller.install(
+                cut,
+                onInstalled = {
+                    initialPublication = InitialPublication(gameStateId, cut.outputOrdinal, cut.viewerOutputs)
+                },
+                onFailure = owner::fail,
+            )
+            gameStateId
         }
     }
 
     /** Claim the automatic Familiar startup transition once both match seats are connected. */
     fun claimFamiliarStartup(): Boolean =
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                if (familiarStartupClaimed) {
-                    false
-                } else {
-                    familiarStartupClaimed = true
-                    true
-                }
+        synchronized(owner.feedLock) {
+            if (familiarStartupClaimed) {
+                false
+            } else {
+                familiarStartupClaimed = true
+                true
             }
         }
 
@@ -266,13 +262,11 @@ internal class MatchLifecycleRuntime(
         block: (ProjectionState, LogicalSequencePlanner, Int) -> T,
     ): T {
         owner.registerViewer(seatId)
-        return synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                owner.ensureOpen()
-                val prior = owner.bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                block(prior, planner, planner.nextGsId())
-            }
+        return synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            block(prior, planner, planner.nextGsId())
         }
     }
 

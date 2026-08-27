@@ -77,23 +77,21 @@ internal class MatchSearchInteractionRuntime(
         gameStateId: Int,
         selectedInstanceIds: List<Int>,
     ): Boolean =
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                owner.ensureOpen()
-                val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-                if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-                val selectedOptions =
-                    if (selectedInstanceIds.isEmpty()) {
-                        if (pending.value.minFind != 0) return false
-                        listOf(pending.value.optionCount)
-                    } else {
-                        if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return false
-                        selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-                    }
-                resetBaseline()
-                afterBaselineResetBeforeRelease?.invoke()
-                windows.completeLocked(pending, selectedOptions)
-            }
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
+            val selectedOptions =
+                if (selectedInstanceIds.isEmpty()) {
+                    if (pending.value.minFind != 0) return false
+                    listOf(pending.value.optionCount)
+                } else {
+                    if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return false
+                    selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
+                }
+            resetBaseline()
+            afterBaselineResetBeforeRelease?.invoke()
+            windows.completeLocked(pending, selectedOptions)
         }
 
     override fun terminate(cause: Throwable) = windows.terminate(cause)
@@ -158,9 +156,7 @@ internal class MatchSearchInteractionRuntime(
             timeoutException = ::SearchInteractionTimeoutException,
             beforeTimeoutClaim = beforeTimeoutClaim,
             timeoutClaim = { claim ->
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) { claim() }
-                }
+                synchronized(owner.feedLock) { claim() }
             },
             beforeTimeoutCompleteLocked = {
                 resetBaseline()
