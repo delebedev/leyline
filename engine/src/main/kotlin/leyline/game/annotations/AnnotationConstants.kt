@@ -66,6 +66,9 @@ object AnnotationConstants {
     /** `DesignationType` enum value for an Earthbend-animated mana creature. */
     const val DESIGNATION_TYPE_MANA_CREATURE: Int = 23
 
+    /** `DesignationType` enum value for a player's speed state. */
+    const val DESIGNATION_TYPE_PLAYER_SPEED: Int = 21
+
     /** `REASON` value on the persistent `FaceDown` annotation for Disguise. */
     const val FACEDOWN_REASON_DISGUISE: Int = 6
 

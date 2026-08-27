@@ -2,6 +2,7 @@ package leyline.game.state
 
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardTraitChanges
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
@@ -27,10 +28,11 @@ class AbilityRegistry private constructor(
     private val staticMap: Map<Int, Int>,
     private val triggerMap: Map<Int, Int>,
     private val keywordFamilies: Map<AbilityDefinitionRef, AbilityKeywordFamily>,
+    private val hiddenAbilityIds: List<Pair<Int, Int>> = emptyList(),
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
-    fun forSpellAbility(ability: SpellAbility): Int? = forSpellAbility(ability.definitionId)
+    fun forSpellAbility(ability: SpellAbility): Int? = grantedAbilityGrpId(ability) ?: forSpellAbility(ability.definitionId)
 
     /** SpellAbility definition ID → abilityGrpId (mana + activated). */
     fun forSpellAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.SpellAbility(definitionId))?.abilityGrpId
@@ -51,9 +53,20 @@ class AbilityRegistry private constructor(
         return ResolvedAbilityIdentity(definition, abilityGrpId, keywordFamilies[definition])
     }
 
+    /** Resolve an ability added by a continuous `AddAbility` effect. */
+    fun grantedAbilityGrpId(ability: SpellAbility): Int? {
+        if (ability.grantorStatic == null || hiddenAbilityIds.size != 1) return null
+        val generated = generatedAbilities(ability.hostCard ?: return null)
+        if (generated.singleOrNull()?.definitionId != ability.definitionId) return null
+        return hiddenAbilityIds.single().first
+    }
+
+    /** Stable client unique-ability slot for a generated activated ability. */
+    fun grantedAbilityUniqueIndex(ability: SpellAbility): Int? = grantedAbilityGrpId(ability)?.let { 0 }
+
     companion object {
         /** Empty registry — no mappings. */
-        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), SlotLayout.Companion.EMPTY)
+        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), slotLayout = SlotLayout.Companion.EMPTY)
 
         /**
          * Build a registry from a live Forge [card] and its [cardData].
@@ -102,6 +115,7 @@ class AbilityRegistry private constructor(
                     emptyList()
                 }
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
+            mapGrantedAbilities(card, cardData, saMap)
             mapReconfigureUnattachAbilities(card, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, abilityIds, manaSlotIndices, fallbackGrpId, saMap)
@@ -121,8 +135,27 @@ class AbilityRegistry private constructor(
                 } + virtualSlots
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, layout)
+            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, cardData.hiddenAbilityIds, layout)
         }
+
+        private fun mapGrantedAbilities(
+            card: Card,
+            cardData: CardData,
+            saMap: MutableMap<Int, Int>,
+        ) {
+            val generated = generatedAbilities(card)
+            // Multiple generated abilities need an authoritative hidden-slot order before projection.
+            if (generated.size != 1 || cardData.hiddenAbilityIds.size != 1) return
+            val ability = generated.single()
+            val grpId = cardData.hiddenAbilityIds.single().first
+            saMap[ability.definitionId] = grpId
+        }
+
+        private fun generatedAbilities(card: Card): List<SpellAbility> =
+            card.changedCardTraits
+                .cellSet()
+                .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                .filter { it.isActivatedAbility && !it.isManaAbility() }
 
         /**
          * Station threshold rows are per-card static ability ids (e.g. 60002,

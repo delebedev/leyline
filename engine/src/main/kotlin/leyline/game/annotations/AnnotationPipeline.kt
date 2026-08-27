@@ -703,6 +703,8 @@ object AnnotationPipeline {
         startPersistentId: Int,
         frameContext: FrameContext,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
+        grantedAbilityDiff: EffectTracker.GrantedAbilityDiffResult =
+            EffectTracker.GrantedAbilityDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         persistentFeeds: PersistentFeedSet = PersistentFeedSet(),
         convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
@@ -815,6 +817,8 @@ object AnnotationPipeline {
             MechanicAnnotations.effectAnnotations(
                 diff = effectDiff,
                 keywordDiff = keywordDiff,
+                grantedAbilityDiff = grantedAbilityDiff,
+                grantedAbilitySourceInstanceId = frameIds::cardIid,
                 keywordAffectorFallbackForgeCardId = keywordAffectorFallbackForgeCardId,
                 keywordAffectorInstanceId = frameIds::cardIid,
                 boostAffectorResolver = { effect, sourceAbilityGrpId ->
@@ -885,13 +889,28 @@ object AnnotationPipeline {
                         put(AbilityExhaustedKind, abilityExhaustedPersistent)
                     },
             )
+        val storeEffectDiff = effectDiff.withDestroyedEarthbendLayers(earthbend.destroyedLayerIds)
+        val grantedDestroyedEffects =
+            grantedAbilityDiff.destroyed.map { granted ->
+                EffectTracker.TrackedEffect(
+                    syntheticId = granted.syntheticId,
+                    fingerprint =
+                        EffectTracker.EffectFingerprint(
+                            cardInstanceId = granted.cardInstanceId,
+                            timestamp = granted.fingerprint.timestamp,
+                            staticId = granted.fingerprint.staticId,
+                        ),
+                    powerDelta = 0,
+                    toughnessDelta = 0,
+                )
+            }
         val batch =
             PersistentAnnotationStore.computeBatch(
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,
                 effectPersistent = effectPersistent + earthbend.effectPersistent,
-                effectDiff = effectDiff.withDestroyedEarthbendLayers(earthbend.destroyedLayerIds),
+                effectDiff = storeEffectDiff.copy(destroyed = storeEffectDiff.destroyed + grantedDestroyedEffects),
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,

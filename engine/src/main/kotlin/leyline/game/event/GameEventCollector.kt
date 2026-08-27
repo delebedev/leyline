@@ -472,7 +472,11 @@ class GameEventCollector(
             specialAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
             decayedAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
         }
-        return bridge.resolveAbilityIdentity(card, definition)
+        return if (!isTrigger && sa != null) {
+            bridge.resolveAbilityIdentity(card, sa)
+        } else {
+            bridge.resolveAbilityIdentity(card, definition)
+        }
     }
 
     private fun specialAbilityGrpIdFor(

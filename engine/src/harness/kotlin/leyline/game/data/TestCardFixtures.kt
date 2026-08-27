@@ -39,6 +39,7 @@ object TestCardFixtures {
         val titleId: Int,
         val expansionCode: String,
         val abilities: List<Ability>,
+        val hiddenAbilities: List<Pair<Int, Int>> = emptyList(),
         val tokens: Map<Int, Int>,
         val linkedFaceType: Int,
         val linkedFaces: List<Int>,
@@ -148,6 +149,7 @@ object TestCardFixtures {
                 (raw["abilities"] as? List<*>).orEmpty().mapIndexed { i, entry ->
                     parseAbility(i, entry as Map<String, Any?>)
                 },
+            hiddenAbilities = parseAbilityPairs(raw["hiddenAbilities"] as? List<*>),
             tokens = parseTokens(raw["tokens"] as? Map<*, *>),
             linkedFaceType = (raw["linkedFaceType"] as? Number)?.toInt() ?: 0,
             linkedFaces = (raw["linkedFaces"] as? List<*>).orEmpty().map { (it as Number).toInt() },
@@ -179,6 +181,15 @@ object TestCardFixtures {
                     else -> error("token key '$k' is neither Number nor String")
                 }
             key to (v as Number).toInt()
+        }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseAbilityPairs(raw: List<*>?): List<Pair<Int, Int>> =
+        raw.orEmpty().mapIndexed { i, entry ->
+            val m = entry as? Map<String, Any?> ?: error("hiddenAbilities[$i] is not a mapping")
+            val id = (m["id"] as? Number)?.toInt() ?: error("hiddenAbilities[$i].id missing")
+            val textId = (m["textId"] as? Number)?.toInt() ?: error("hiddenAbilities[$i].textId missing")
+            id to textId
         }
 
     @Suppress("UNCHECKED_CAST")

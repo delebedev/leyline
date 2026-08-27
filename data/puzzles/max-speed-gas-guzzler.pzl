@@ -1,0 +1,18 @@
+[metadata]
+Name:Max Speed Gas Guzzler
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast Shock at the opponent to advance speed, then activate Gas Guzzler by sacrificing Walking Corpse to draw the known card.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanspeed=3
+
+humanbattlefield=Gas Guzzler;Walking Corpse;Mountain;Mountain;Swamp;Swamp
+humanhand=Shock;Shock
+humanlibrary=Grizzly Bears
+ailibrary=Mountain

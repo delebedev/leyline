@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.annotations.TransferResult
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.LinkedFaceRole
@@ -137,6 +138,9 @@ class FrameIdResolver(
         /** Offset added to a delayed-trigger source for its client-side holder object. */
         private const val DELAYED_TRIGGER_HOLDER_ID_OFFSET = 90_000_000
 
+        /** Offset for the player-owned TriggerHolder that carries Start your engines. */
+        private const val SPEED_TRIGGER_HOLDER_ID_OFFSET = 100_000_000
+
         /**
          * Surrogate forge ID for a stack-resident Ability gameObject — used as
          * the key into [ProjectionIdentityWorkspace.getOrAlloc] so the Ability's iid
@@ -166,6 +170,12 @@ class FrameIdResolver(
         /** Surrogate forge ID for the delayed-trigger holder owned by [sourceForgeId]. */
         fun delayedTriggerHolderForgeId(sourceForgeId: ForgeCardId): ForgeCardId =
             ForgeCardId(sourceForgeId.value + DELAYED_TRIGGER_HOLDER_ID_OFFSET)
+
+        /** Surrogate forge ID for a player's persistent speed trigger holder. */
+        fun speedTriggerHolderForgeId(seatId: SeatId): ForgeCardId = ForgeCardId(SPEED_TRIGGER_HOLDER_ID_OFFSET + seatId.value)
+
+        /** Iid for a player's persistent speed trigger holder. */
+        fun speedTriggerHolderIid(seatId: SeatId): InstanceId = InstanceId(SPEED_TRIGGER_HOLDER_ID_OFFSET + seatId.value)
 
         /** Surrogate keyed by one parent object lifetime and linked-face role. */
         fun linkedFaceCompanionForgeId(

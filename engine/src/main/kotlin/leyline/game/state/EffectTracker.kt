@@ -90,6 +90,37 @@ class EffectTracker {
         val destroyed: List<TrackedKeywordEffect>,
     )
 
+    data class GrantedAbilityEntry(
+        val timestamp: Long,
+        val staticId: Long,
+        val abilityGrpId: Int,
+        val uniqueAbilityId: Int,
+        val sourceForgeCardId: ForgeCardId? = null,
+    )
+
+    data class GrantedAbilityFingerprint(
+        val cardInstanceId: Int,
+        val timestamp: Long,
+        val staticId: Long,
+        val abilityGrpId: Int,
+        val sourceForgeCardId: ForgeCardId?,
+    )
+
+    data class TrackedGrantedAbility(
+        val syntheticId: Int,
+        val fingerprint: GrantedAbilityFingerprint,
+        val abilityGrpId: Int,
+        val uniqueAbilityId: Int,
+        val sourceForgeCardId: ForgeCardId? = null,
+    ) {
+        val cardInstanceId: Int get() = fingerprint.cardInstanceId
+    }
+
+    data class GrantedAbilityDiffResult(
+        val created: List<TrackedGrantedAbility>,
+        val destroyed: List<TrackedGrantedAbility>,
+    )
+
     private data class LifecycleDiff<T>(
         val created: List<T>,
         val destroyed: List<T>,
@@ -101,12 +132,14 @@ class EffectTracker {
     private var nextId = INITIAL_EFFECT_ID
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
     private val activeKeywordEffects = mutableMapOf<KeywordFingerprint, TrackedKeywordEffect>()
+    private val activeGrantedAbilities = mutableMapOf<GrantedAbilityFingerprint, TrackedGrantedAbility>()
 
     data class State(
         val initEmitted: Boolean,
         val nextId: Int,
         val activeEffects: Map<EffectFingerprint, TrackedEffect>,
         val activeKeywordEffects: Map<KeywordFingerprint, TrackedKeywordEffect>,
+        val activeGrantedAbilities: Map<GrantedAbilityFingerprint, TrackedGrantedAbility>,
     )
 
     /** Complete value state owned by a projection transition. */
@@ -116,6 +149,7 @@ class EffectTracker {
             nextId = nextId,
             activeEffects = activeEffects.toMap(),
             activeKeywordEffects = activeKeywordEffects.toMap(),
+            activeGrantedAbilities = activeGrantedAbilities.toMap(),
         )
 
     /** Build a private planner from a previously committed value. */
@@ -126,6 +160,8 @@ class EffectTracker {
         activeEffects.putAll(state.activeEffects)
         activeKeywordEffects.clear()
         activeKeywordEffects.putAll(state.activeKeywordEffects)
+        activeGrantedAbilities.clear()
+        activeGrantedAbilities.putAll(state.activeGrantedAbilities)
     }
 
     /** Allocate the next monotonic synthetic effect ID. */
@@ -204,6 +240,36 @@ class EffectTracker {
         return KeywordDiffResult(diff.created, diff.destroyed)
     }
 
+    /** Diff generated activated abilities supplied by continuous effects. */
+    fun diffGrantedAbilities(currentAbilities: Map<Int, List<GrantedAbilityEntry>>): GrantedAbilityDiffResult {
+        val diff =
+            diffLifecycle(
+                currentByCard = currentAbilities,
+                active = activeGrantedAbilities,
+                fingerprintOf = { cardIid, entry ->
+                    GrantedAbilityFingerprint(
+                        cardIid,
+                        entry.timestamp,
+                        entry.staticId,
+                        entry.abilityGrpId,
+                        entry.sourceForgeCardId,
+                    )
+                },
+                createTracked = { fp, entry ->
+                    TrackedGrantedAbility(
+                        syntheticId = nextEffectId(),
+                        fingerprint = fp,
+                        abilityGrpId = entry.abilityGrpId,
+                        uniqueAbilityId = entry.uniqueAbilityId,
+                        sourceForgeCardId = entry.sourceForgeCardId,
+                    )
+                },
+            )
+        return GrantedAbilityDiffResult(diff.created, diff.destroyed)
+    }
+
+    fun activeGrantedAbilities(): List<TrackedGrantedAbility> = activeGrantedAbilities.values.toList()
+
     private fun <Entry, Fingerprint, Tracked> diffLifecycle(
         currentByCard: Map<Int, List<Entry>>,
         active: MutableMap<Fingerprint, Tracked>,
@@ -275,6 +341,7 @@ class EffectTracker {
         nextId = INITIAL_EFFECT_ID
         activeEffects.clear()
         activeKeywordEffects.clear()
+        activeGrantedAbilities.clear()
         initEmitted = false
     }
 }

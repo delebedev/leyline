@@ -857,6 +857,27 @@ object AnnotationBuilder {
         return builder.build()
     }
 
+    /** One card's generated activated ability supplied by a layered effect. */
+    fun addAbilityLayered(
+        affectedId: InstanceId,
+        grpId: GrpId,
+        effectId: EffectId,
+        uniqueAbilityId: Int,
+        originalAbilityObjectZcid: Int,
+        affectorId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(affectedId.value)
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+            .addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, uniqueAbilityId))
+            .build()
+
     /**
      * Multi-keyword grant for auras (e.g. Flying + First Strike from Angelic Destiny).
      * Packs multiple grpIds/UniqueAbilityIds into one [AddAbility+LayeredEffect] pAnn.
@@ -984,6 +1005,22 @@ object AnnotationBuilder {
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** Persistent player speed designation (DesignationType=21). */
+    fun playerSpeedDesignation(
+        seatId: SeatId,
+        speed: Int,
+        triggerHolderIid: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(seatId.value)
+            .addAffectedIds(seatId.value)
+            .addAffectedIds(triggerHolderIid.value)
+            .addDetails(int32Detail(DetailKeys.VALUE, speed))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PLAYER_SPEED))
             .build()
 
     /** GainDesignation transient on a card (Prepared, Saddled, Plotted, Door states).
