@@ -134,17 +134,7 @@ dev: check-java
 
 # --- Bootstrap ---
 
-# install repo-tracked git hooks for this clone
-[group('setup')]
-hooks-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd "{{project_dir}}"
-    git config core.hooksPath .githooks
-    chmod +x .githooks/pre-push
-    echo "Git hooks installed."
-
-# one-command setup: submodules → forge install → build → hooks
+# one-command setup: submodules → forge install → build
 [group('setup')]
 bootstrap:
     #!/usr/bin/env bash
@@ -217,9 +207,6 @@ bootstrap:
     # Build (proto sync + compile + jars + classpath)
     echo "==> Building..."
     just build
-
-    echo "==> Installing git hooks..."
-    just hooks-install
 
     echo ""
     echo "Bootstrap complete. You can now:"
