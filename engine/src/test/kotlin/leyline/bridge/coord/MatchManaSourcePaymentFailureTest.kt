@@ -71,6 +71,22 @@ class MatchManaSourcePaymentFailureTest :
             )
         }
 
+        fun searchRequest(board: Board): PromptRequest {
+            val cards = board.human.getZone(ZoneType.Library).cards
+            return PromptRequest(
+                promptType = "choose_cards",
+                message = "Search",
+                options = cards.map { it.name },
+                min = 1,
+                max = 1,
+                candidateRefs =
+                    cards.mapIndexed { index, card ->
+                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Library.name)
+                    },
+                route = PromptRouteResolver.resolve(PromptSemantic.Search),
+            )
+        }
+
         fun awaitPublished(coordinator: MatchCutCoordinator): leyline.bridge.handoff.PublishedManaSourcePaymentInteraction {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             var published = coordinator.manaSourcePayments.current()
@@ -209,6 +225,46 @@ class MatchManaSourcePaymentFailureTest :
                 coordinator.manaSourcePayments
                     .current()
                     .shouldBeNull()
+            }
+        }
+
+        test("delivery retains mana ahead of a lower-priority settled child") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val searchFailure = AtomicReference<Throwable>()
+            val searchFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.search.awaitSearch(searchRequest(board), null) }
+                    .onFailure(searchFailure::set)
+                searchFinished.countDown()
+            }.start()
+            val searchDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (coordinator.search.current() == null && System.nanoTime() < searchDeadline) {
+                Thread.onSpinWait()
+            }
+            checkNotNull(coordinator.search.current())
+
+            val manaFailure = AtomicReference<Throwable>()
+            val manaFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), null) }
+                    .onFailure(manaFailure::set)
+                manaFinished.countDown()
+            }.start()
+            awaitPublished(coordinator)
+
+            val terminal = shouldThrow<PlaybackTerminalFailure> { coordinator.failDelivery(IllegalStateException("delivery unavailable")) }
+
+            assertSoftly {
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                searchFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                manaFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                searchFailure.get() shouldBe terminal
+                manaFailure.get() shouldBe terminal
             }
         }
 

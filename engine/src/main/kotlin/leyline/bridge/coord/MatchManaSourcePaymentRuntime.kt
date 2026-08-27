@@ -27,8 +27,6 @@ internal class MatchManaSourcePaymentRuntime(
     private val owner: MatchCutCoordinator,
 ) : ManaSourcePaymentRuntime,
     PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.ManaSourcePayment
-
     private sealed interface Command {
         val reply: CompletableFuture<ManaSourcePaymentCommandReceipt>
 
@@ -179,8 +177,11 @@ internal class MatchManaSourcePaymentRuntime(
         return true
     }
 
-    override fun claimTerminalCutLocked(): PendingPromptCut<ManaSourcePaymentWindowValue>? =
-        window?.cut.also { afterDeliveryCutLookup?.invoke() }
+    override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? =
+        window
+            ?.cut
+            ?.let { PromptTerminalCutCandidate(PromptTerminalPriority.ManaSourcePayment, it) }
+            .also { afterDeliveryCutLookup?.invoke() }
 
     override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {

@@ -139,7 +139,7 @@ class MatchStaticChoiceInteractionFailureTest :
                     .snapshotChoiceResults()
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.staticChoices.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -187,6 +187,6 @@ class MatchStaticChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
             }
-            coordinator.staticChoices.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
     })

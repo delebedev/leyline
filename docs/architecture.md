@@ -118,9 +118,11 @@ installation, viewer feeds, prompt/action lifetimes, game-over lifecycle
 publication, startup and mulligan lifecycle publication, puzzle replacement,
 settings acknowledgements, illegal-response publication, declaration
 confirmations, and terminal failure. `MatchPromptRuntimeSet` owns the match's
-prompt-runtime inventory. Exact Forge objects remain behind bounded runtime
-tables; client responses carry correlation values that resolve those retained
-handles.
+prompt-runtime inventory. Its `SettledPromptOwner` mounts one typed slot per
+settled interaction and owns their shared publication, correlation, timeout,
+reset, teardown, and terminal-cut lifecycle. Exact Forge objects remain behind
+bounded family runtimes; client responses carry correlation values that resolve
+those retained handles.
 
 `GameBridge.priorityPolicy` owns priority presentation policy and client settings
 state. Match sessions submit immutable `SettingsMessage` values to it. The

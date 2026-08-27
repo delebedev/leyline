@@ -15,10 +15,8 @@ import java.util.concurrent.CompletableFuture
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchOrderInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : OrderInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.Order
-
+    settled: SettledPromptOwner,
+) : OrderInteractionRuntime {
     private data class Window(
         val published: PublishedOrderInteraction,
         val value: OrderWindowValue,
@@ -26,31 +24,16 @@ internal class MatchOrderInteractionRuntime(
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OrderInteractionResult, PendingPromptCut<OrderWindowValue>> {
+    ) : SettledPromptOwner.Window<OrderInteractionResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<OrderWindowValue>, OrderInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<OrderWindowValue>, OrderInteractionResult>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, OrderInteractionResult>(
+            PromptTerminalPriority.Order,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitOrder(
         request: PromptRequest,
@@ -67,7 +50,7 @@ internal class MatchOrderInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun current(): PublishedOrderInteraction? = windows.current()?.published
+    fun current(): PublishedOrderInteraction? = slot.current()?.published
 
     fun submit(
         interactionId: String,
@@ -76,24 +59,17 @@ internal class MatchOrderInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             if (orderedInstanceIds.size != pending.value.candidates.size) return false
             if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return false
             val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
             if (options.toSet() != pending.handlesByOption.keys) return false
             val result = OrderInteractionResult(options, options.map(pending.handlesByOption::getValue))
-            windows.completeLocked(pending, result)
+            slot.completeLocked(pending, result)
         }
 
-    override fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    override fun reset() = windows.reset()
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<OrderWindowValue>? =
-        windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
-
     private fun publish(initial: OrderWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "An Order interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
@@ -136,7 +112,7 @@ internal class MatchOrderInteractionRuntime(
                     owner.failPrompt(IllegalStateException("Order candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -148,5 +124,5 @@ internal class MatchOrderInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): OrderInteractionResult = kernel.await(pending, timeoutMs, ::OrderInteractionTimeoutException, beforeTimeoutClaim)
+    ): OrderInteractionResult = slot.await(pending, timeoutMs, ::OrderInteractionTimeoutException)
 }

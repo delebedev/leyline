@@ -13,47 +13,31 @@ import java.util.concurrent.CompletableFuture
 /** Exact fixed-total allocation lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchDistributionInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : DistributionInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority: PromptTerminalPriority = PromptTerminalPriority.Distribution
-
+    settled: SettledPromptOwner,
+) : DistributionInteractionRuntime {
     private data class Window(
         val published: PublishedDistributionInteraction,
         val value: DistributionWindowValue,
         override val cut: PendingPromptCut<DistributionWindowValue>,
         val targetByWireId: Map<Int, DistributionTargetRef>,
         override val future: CompletableFuture<DistributionInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<DistributionInteractionResult, PendingPromptCut<DistributionWindowValue>> {
+    ) : SettledPromptOwner.Window<DistributionInteractionResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<DistributionWindowValue>, DistributionInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<DistributionWindowValue>, DistributionInteractionResult>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, DistributionInteractionResult>(
+            PromptTerminalPriority.Distribution,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
 
     override fun awaitDistribution(
         window: DistributionWindowValue,
         timeoutMs: Long?,
     ): DistributionInteractionResult = await(publish(window), timeoutMs)
 
-    override fun current(): PublishedDistributionInteraction? = windows.current()?.published
+    fun current(): PublishedDistributionInteraction? = slot.current()?.published
 
     fun submit(
         interactionId: String,
@@ -62,7 +46,7 @@ internal class MatchDistributionInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             submitLocked(pending, rows)
         }
 
@@ -73,7 +57,7 @@ internal class MatchDistributionInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             submitLocked(
                 pending,
                 rows.map { (wireId, amount) ->
@@ -88,8 +72,8 @@ internal class MatchDistributionInteractionRuntime(
         gameStateId: Int,
     ): Boolean =
         synchronized(owner.feedLock) {
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            windows.completeLocked(
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
+            slot.completeLocked(
                 pending,
                 DistributionInteractionResult(
                     pending.value.targets.associateWith { 0 },
@@ -98,14 +82,8 @@ internal class MatchDistributionInteractionRuntime(
             )
         }
 
-    override fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    override fun reset() = windows.reset()
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<DistributionWindowValue>? = windows.pendingCutLocked()
-
     private fun publish(initial: DistributionWindowValue): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A Distribution interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
@@ -138,7 +116,7 @@ internal class MatchDistributionInteractionRuntime(
                 if (targetByWireId.size != initial.targets.size) {
                     owner.fail(IllegalStateException("Distribution targets have colliding wire ids"))
                 }
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     Window(published, initial, exact, targetByWireId),
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -155,7 +133,7 @@ internal class MatchDistributionInteractionRuntime(
         if (rows.size != expected.size || rows.map { it.first }.toSet() != expected) return false
         if (rows.any { it.second < pending.value.minPerTarget }) return false
         if (rows.sumOf { it.second } != pending.value.amount) return false
-        return windows.completeLocked(pending, DistributionInteractionResult(rows.toMap()))
+        return slot.completeLocked(pending, DistributionInteractionResult(rows.toMap()))
     }
 
     private fun await(
@@ -163,7 +141,7 @@ internal class MatchDistributionInteractionRuntime(
         timeoutMs: Long?,
     ): DistributionInteractionResult =
         try {
-            kernel.await(pending, timeoutMs, ::DistributionInteractionTimeoutException, beforeTimeoutClaim)
+            slot.await(pending, timeoutMs, ::DistributionInteractionTimeoutException)
         } catch (_: DistributionInteractionTimeoutException) {
             pending.value.fallback()
         }

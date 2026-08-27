@@ -31,8 +31,6 @@ internal class MatchBlockingInteractionRuntime(
     private val owner: MatchCutCoordinator,
 ) : BlockingInteractionRuntime,
     PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.Blocking
-
     private sealed interface Answer {
         data class Optional(
             val accepted: Boolean,
@@ -160,7 +158,11 @@ internal class MatchBlockingInteractionRuntime(
     override fun current(): PublishedBlockingInteraction? =
         synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
-    override fun claimTerminalCutLocked(): PendingPromptCut<BlockingInteraction>? = window?.takeUnless { it.future.isDone }?.cut
+    override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? =
+        window
+            ?.takeUnless { it.future.isDone }
+            ?.cut
+            ?.let { PromptTerminalCutCandidate(PromptTerminalPriority.Blocking, it) }
 
     fun submitOptional(
         interactionId: String,

@@ -92,59 +92,10 @@ class MatchOneShotPayCostsFailureTest :
             return checkNotNull(published)
         }
 
-        test("response wins the timeout claim without a ghost fallback") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val timeoutEntered = CountDownLatch(1)
-            val releaseTimeout = CountDownLatch(1)
-            coordinator.oneShotPayCosts.beforeTimeoutClaim = {
-                timeoutEntered.countDown()
-                check(releaseTimeout.await(3, TimeUnit.SECONDS))
-            }
-            val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
-            val failure = AtomicReference<Throwable>()
-            val finished = CountDownLatch(1)
-            Thread {
-                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), 25) }
-                    .onSuccess(result::set)
-                    .onFailure(failure::set)
-                finished.countDown()
-            }.start()
-            val published = awaitPublished(coordinator)
-            val selected =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasPayCostsReq() }
-                    .payCostsReq.effectCostReq.costSelection.idsList
-                    .first()
-            timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
-            coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe true
-            releaseTimeout.countDown()
-
-            assertSoftly {
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                result.get().optionIndices shouldContainExactly listOf(0)
-                failure.get().shouldBeNull()
-                coordinator.failure().shouldBeNull()
-                coordinator.oneShotPayCosts
-                    .current()
-                    .shouldBeNull()
-            }
-            coordinator.oneShotPayCosts.beforeTimeoutClaim = null
-        }
-
         test("timeout retires the exact window and rejects late selection and cancel") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            val timeoutEntered = CountDownLatch(1)
-            val releaseTimeout = CountDownLatch(1)
-            coordinator.oneShotPayCosts.beforeTimeoutClaim = {
-                timeoutEntered.countDown()
-                check(releaseTimeout.await(3, TimeUnit.SECONDS))
-            }
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
             Thread {
@@ -160,9 +111,6 @@ class MatchOneShotPayCostsFailureTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
                     .first()
-            timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
-            releaseTimeout.countDown()
-
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 failure.get().shouldBeInstanceOf<OneShotPayCostsTimeoutException>()
@@ -173,7 +121,6 @@ class MatchOneShotPayCostsFailureTest :
                 coordinator.oneShotPayCosts.cancel(published.interactionId, published.gameStateId) shouldBe false
                 coordinator.failure().shouldBeNull()
             }
-            coordinator.oneShotPayCosts.beforeTimeoutClaim = null
         }
 
         test("capture materialize enqueue and install failures retain their exact publication stage") {
@@ -240,7 +187,7 @@ class MatchOneShotPayCostsFailureTest :
                     .projectionStateSnapshot()
                     .editor()
                     .freeze()
-            installOwner.oneShotPayCosts.beforeInstall = { installBoard.bridge.replaceProjectionStateForTest(competing) }
+            installOwner.prompts.settled.beforeInstall = { installBoard.bridge.replaceProjectionStateForTest(competing) }
             val install =
                 shouldThrow<PlaybackTerminalFailure> {
                     installOwner.oneShotPayCosts.awaitPayment(request(installBoard), cards(installBoard), 3_000)
@@ -284,65 +231,6 @@ class MatchOneShotPayCostsFailureTest :
                     .current()
                     .shouldBeNull()
             }
-        }
-
-        test("delivery terminalizes before a concurrent response can claim the window") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val engineFailure = AtomicReference<Throwable>()
-            val engineFinished = CountDownLatch(1)
-            Thread {
-                runCatching { coordinator.oneShotPayCosts.awaitPayment(request(board), cards(board), null) }
-                    .onFailure(engineFailure::set)
-                engineFinished.countDown()
-            }.start()
-            val published = awaitPublished(coordinator)
-            val committed = coordinator.drain(SeatId(1)).single()
-            val selected =
-                committed
-                    .single { it.hasPayCostsReq() }
-                    .payCostsReq.effectCostReq.costSelection.idsList
-                    .first()
-            val cutLocated = CountDownLatch(1)
-            val releaseDelivery = CountDownLatch(1)
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = {
-                cutLocated.countDown()
-                check(releaseDelivery.await(3, TimeUnit.SECONDS))
-            }
-            val deliveryFailure = AtomicReference<Throwable>()
-            val deliveryFinished = CountDownLatch(1)
-            val cause = IllegalStateException("PayCosts delivery unavailable")
-            Thread {
-                runCatching { coordinator.failDelivery(cause) }.onFailure(deliveryFailure::set)
-                deliveryFinished.countDown()
-            }.start()
-            cutLocated.await(3, TimeUnit.SECONDS) shouldBe true
-            val responseFailure = AtomicReference<Throwable>()
-            val responseFinished = CountDownLatch(1)
-            Thread {
-                runCatching {
-                    coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected))
-                }.onFailure(responseFailure::set)
-                responseFinished.countDown()
-            }.start()
-            responseFinished.count shouldBe 1
-            releaseDelivery.countDown()
-
-            assertSoftly {
-                deliveryFinished.await(3, TimeUnit.SECONDS) shouldBe true
-                responseFinished.await(3, TimeUnit.SECONDS) shouldBe true
-                engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
-                val terminal = deliveryFailure.get() as PlaybackTerminalFailure
-                terminal.pendingPromptCut
-                    .shouldNotBeNull()
-                    .interaction
-                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
-                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
-                engineFailure.get() shouldBe terminal
-                responseFailure.get() shouldBe terminal
-            }
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = null
         }
 
         test("delivery retains an inner payment cut ahead of an outer blocking cut") {

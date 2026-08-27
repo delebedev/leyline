@@ -247,7 +247,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val entry = revealEntry(board)
             val signal = PrioritySignal()
             val publishedAtTimeout = AtomicReference<PublishedRevealChoiceInteraction>()
-            coordinator.revealChoices.beforeTimeoutClaim = {
+            coordinator.prompts.settled.beforeTimeoutClaim = {
                 publishedAtTimeout.set(checkNotNull(coordinator.revealChoices.current()))
             }
             val prompt =

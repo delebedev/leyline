@@ -26,10 +26,10 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Shared correlation, timeout arbitration, and retirement proofs for all
- * [SinglePromptRuntimeKernel] users. The publication transaction itself belongs
+ * [SettledPromptOwner] slots. The publication transaction itself belongs
  * to [CoordinatorCutInstallerTest].
  */
-class SinglePromptRuntimeKernelTest :
+class SettledPromptOwnerTest :
     BoardTest({
         val puzzle =
             """
@@ -122,7 +122,7 @@ class SinglePromptRuntimeKernelTest :
             coordinator.drain(SeatId(1))
             val timeoutEntered = CountDownLatch(1)
             val releaseTimeout = CountDownLatch(1)
-            coordinator.cardSelect.beforeTimeoutClaim = {
+            coordinator.prompts.settled.beforeTimeoutClaim = {
                 timeoutEntered.countDown()
                 check(releaseTimeout.await(3, TimeUnit.SECONDS))
             }
@@ -131,6 +131,7 @@ class SinglePromptRuntimeKernelTest :
             val selected = ids(coordinator)[1]
             assertSoftly {
                 timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
+                coordinator.prompts.hasPendingInteraction() shouldBe true
                 coordinator.cardSelect.submitSelectN(published.interactionId, published.gameStateId, listOf(selected)) shouldBe true
                 coordinator.cardSelect.submitSelectN(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
             }
@@ -138,6 +139,7 @@ class SinglePromptRuntimeKernelTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().handles.single() shouldBe cards[1]
+                coordinator.prompts.hasPendingInteraction() shouldBe false
                 coordinator.failure().shouldBeNull()
             }
         }

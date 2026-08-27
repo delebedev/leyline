@@ -300,7 +300,7 @@ class CoordinatorCutInstallerTest :
                     .projectionStateSnapshot()
                     .editor()
                     .freeze()
-            coordinator.cardSelect.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
+            coordinator.prompts.settled.beforeInstall = { board.bridge.replaceProjectionStateForTest(competing) }
             val stale =
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)
@@ -321,7 +321,7 @@ class CoordinatorCutInstallerTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val prior = board.bridge.projectionStateSnapshot()
-            coordinator.cardSelect.afterInstall = { error("ack unavailable") }
+            coordinator.prompts.settled.afterInstall = { error("ack unavailable") }
             val committed =
                 shouldThrow<PlaybackTerminalFailure> {
                     coordinator.cardSelect.awaitSelection(request(board), options(board), 3_000)

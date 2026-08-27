@@ -145,12 +145,13 @@ The implemented milestone is visible in current types:
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
-- `MatchPromptRuntimeSet` is the one prompt-runtime registry beneath that
+- `MatchPromptRuntimeSet` is the one prompt-runtime inventory beneath that
   coordinator. It provides one immutable bridge binding and centralizes
   pending visibility, reset, terminal teardown, and delivery-failure dispatch.
-  The closest single-window families share correlation, timeout arbitration,
-  and retirement while retaining family-specific value freezing and
-  materialization.
+  One `SettledPromptOwner` mounts the settled interaction slots so correlation,
+  publication, timeout arbitration, reset, retirement, and terminal evidence
+  follow automatically. Family runtimes retain value freezing, validation,
+  defaults, cleanup, and exact Forge handles.
 - Forge's target-selection producer binds `TargetSelection` and freezes exact
   stack-object candidates before publication; candidate-backed `Generic` card
   choices bind the SelectTargets-compatible runtime, preserving existing

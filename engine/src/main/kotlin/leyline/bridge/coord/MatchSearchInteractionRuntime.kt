@@ -13,44 +13,28 @@ import java.util.concurrent.CompletableFuture
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchSearchInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : SearchInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.Search
-
+    settled: SettledPromptOwner,
+) : SearchInteractionRuntime {
     private data class Window(
         val published: PublishedSearchInteraction,
         val value: SearchWindowValue,
         override val cut: PendingPromptCut<SearchWindowValue>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>, PendingPromptCut<SearchWindowValue>> {
+    ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
     private val capture = SearchWindowCapture(owner)
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<SearchWindowValue>, List<Int>>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<SearchWindowValue>, List<Int>>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, List<Int>>(
+            PromptTerminalPriority.Search,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
     internal var beforeBaselineResetInstall: (() -> Unit)? = null
     internal var afterBaselineResetBeforeRelease: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitSearch(
         request: PromptRequest,
@@ -67,10 +51,7 @@ internal class MatchSearchInteractionRuntime(
         return await(pending, timeoutMs)
     }
 
-    override fun current(): PublishedSearchInteraction? = windows.current()?.published
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<SearchWindowValue>? =
-        windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
+    fun current(): PublishedSearchInteraction? = slot.current()?.published
 
     fun submit(
         interactionId: String,
@@ -79,7 +60,7 @@ internal class MatchSearchInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
             val selectedOptions =
                 if (selectedInstanceIds.isEmpty()) {
@@ -91,15 +72,11 @@ internal class MatchSearchInteractionRuntime(
                 }
             resetBaseline()
             afterBaselineResetBeforeRelease?.invoke()
-            windows.completeLocked(pending, selectedOptions)
+            slot.completeLocked(pending, selectedOptions)
         }
 
-    override fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    override fun reset() = windows.reset()
-
     private fun publish(value: SearchWindowValue): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A search interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
@@ -137,7 +114,7 @@ internal class MatchSearchInteractionRuntime(
                     owner.failPrompt(IllegalStateException("Search candidates have ambiguous client identities"), exact)
                 }
                 val created = Window(published, value, exact, optionByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -150,14 +127,10 @@ internal class MatchSearchInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): List<Int> =
-        kernel.await(
+        slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = ::SearchInteractionTimeoutException,
-            beforeTimeoutClaim = beforeTimeoutClaim,
-            timeoutClaim = { claim ->
-                synchronized(owner.feedLock) { claim() }
-            },
             beforeTimeoutCompleteLocked = {
                 resetBaseline()
                 afterBaselineResetBeforeRelease?.invoke()

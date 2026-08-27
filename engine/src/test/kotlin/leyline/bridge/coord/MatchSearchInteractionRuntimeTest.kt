@@ -8,13 +8,17 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
+import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
@@ -285,6 +289,56 @@ class MatchSearchInteractionRuntimeTest :
                 coordinator.search.current().shouldBeNull()
                 board.bridge.committedSequence() shouldBe prior.sequence
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
+            }
+        }
+
+        test("delivery retains Search ahead of its outer blocking window") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val blockingFailure = AtomicReference<Throwable>()
+            val blockingFinished = CountDownLatch(1)
+            Thread {
+                runCatching {
+                    coordinator.awaitOptional(
+                        BlockingInteraction.Optional(ForgeCardId(source.id), true, null, null),
+                        3_000,
+                        false,
+                    )
+                }.onFailure(blockingFailure::set)
+                blockingFinished.countDown()
+            }.start()
+            val blockingDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (coordinator.currentBlockingInteraction() == null && System.nanoTime() < blockingDeadline) {
+                Thread.onSpinWait()
+            }
+            checkNotNull(coordinator.currentBlockingInteraction())
+
+            val searchFailure = AtomicReference<Throwable>()
+            val searchFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.search.awaitSearch(request(board), null) }
+                    .onFailure(searchFailure::set)
+                searchFinished.countDown()
+            }.start()
+            awaitPublished(coordinator)
+
+            val terminal = shouldThrow<PlaybackTerminalFailure> { coordinator.failDelivery(IllegalStateException("delivery unavailable")) }
+
+            assertSoftly {
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<SearchWindowValue>()
+                blockingFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                searchFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                blockingFailure.get() shouldBe terminal
+                searchFailure.get() shouldBe terminal
             }
         }
 

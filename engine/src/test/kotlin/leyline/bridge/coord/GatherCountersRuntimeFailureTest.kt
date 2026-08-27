@@ -150,7 +150,7 @@ class GatherCountersRuntimeFailureTest :
                     .map { it.sourceId }
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -189,7 +189,7 @@ class GatherCountersRuntimeFailureTest :
                 terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
             }
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
 
         test("teardown wakes the pending Gather engine") {

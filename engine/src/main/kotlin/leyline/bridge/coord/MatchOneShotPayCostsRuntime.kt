@@ -24,10 +24,8 @@ import java.util.concurrent.CompletableFuture
 /** Match-scoped lifecycle for Select and the bounded GatherCounters PayCosts windows. */
 internal class MatchOneShotPayCostsRuntime(
     private val owner: MatchCutCoordinator,
-) : OneShotPayCostsRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.OneShotPayCosts
-
+    settled: SettledPromptOwner,
+) : OneShotPayCostsRuntime {
     private data class SelectWindow(
         val published: PublishedOneShotPayCostsInteraction,
         val value: OneShotPayCostsWindowValue,
@@ -35,7 +33,7 @@ internal class MatchOneShotPayCostsRuntime(
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OneShotPayCostsResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OneShotPayCostsResult, PendingPromptCut<OneShotPayCostsWindow>> {
+    ) : SettledPromptOwner.Window<OneShotPayCostsResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
@@ -47,7 +45,7 @@ internal class MatchOneShotPayCostsRuntime(
         val handlesBySourceId: Map<Int, Card>,
         val sourceByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<GatherCountersResult> = CompletableFuture(),
-    ) : SinglePromptWindow<GatherCountersResult, PendingPromptCut<OneShotPayCostsWindow>> {
+    ) : SettledPromptOwner.Window<GatherCountersResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
 
@@ -55,38 +53,18 @@ internal class MatchOneShotPayCostsRuntime(
             firstFitGatherCounters(value.sources, value.amountToGather, handlesBySourceId, timedOut)
     }
 
-    private val selectWindows = SinglePromptWindowState<SelectWindow, PendingPromptCut<OneShotPayCostsWindow>, OneShotPayCostsResult>(owner)
-    private val gatherWindows = SinglePromptWindowState<GatherWindow, PendingPromptCut<OneShotPayCostsWindow>, GatherCountersResult>(owner)
-    private val selectKernel =
-        SinglePromptRuntimeKernel<SelectWindow, PendingPromptCut<OneShotPayCostsWindow>, OneShotPayCostsResult>(
-            owner,
-            selectWindows,
+    private val selectSlot =
+        settled.mount<SelectWindow, OneShotPayCostsResult>(
+            PromptTerminalPriority.OneShotPayCosts,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
-    private val gatherKernel =
-        SinglePromptRuntimeKernel<GatherWindow, PendingPromptCut<OneShotPayCostsWindow>, GatherCountersResult>(
-            owner,
-            gatherWindows,
+    private val gatherSlot =
+        settled.mount<GatherWindow, GatherCountersResult>(
+            PromptTerminalPriority.OneShotPayCosts,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
     private val capture = OneShotPayCostsWindowCapture(owner)
     private val gatherCapture = GatherCountersWindowCapture(capture)
-
-    /** Both windows share one slot; each publication guards the other kind as well. */
-    internal var beforeInstall: (() -> Unit)?
-        get() = selectKernel.beforeInstall
-        set(value) {
-            selectKernel.beforeInstall = value
-            gatherKernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = selectKernel.afterInstall
-        set(value) {
-            selectKernel.afterInstall = value
-            gatherKernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitPayment(
         request: PromptRequest,
@@ -99,7 +77,7 @@ internal class MatchOneShotPayCostsRuntime(
             } catch (ex: Exception) {
                 owner.fail(ex)
             }
-        return selectKernel.await(publishSelect(initial), timeoutMs, ::OneShotPayCostsTimeoutException, beforeTimeoutClaim)
+        return selectSlot.await(publishSelect(initial), timeoutMs, ::OneShotPayCostsTimeoutException)
     }
 
     override fun awaitGatherCounters(
@@ -116,9 +94,9 @@ internal class MatchOneShotPayCostsRuntime(
         return awaitGather(publishGather(initial), timeoutMs)
     }
 
-    override fun current(): PublishedOneShotPayCostsInteraction? =
+    fun current(): PublishedOneShotPayCostsInteraction? =
         synchronized(owner.feedLock) {
-            selectWindows.current()?.published ?: gatherWindows.current()?.published
+            selectSlot.current()?.published ?: gatherSlot.current()?.published
         }
 
     fun submit(
@@ -128,14 +106,14 @@ internal class MatchOneShotPayCostsRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = selectWindows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = selectSlot.matchingLocked(interactionId, gameStateId) ?: return false
             if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
             val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
             if (options.size !in pending.value.minSelections..pending.value.maxSelections) return false
             val selected = pending.value.candidates.filter { it.originalOptionIndex in options }
             if (pending.value.minimumWeight?.let { minimum -> selected.sumOf { it.weight } < minimum } == true) return false
             val handles = options.map { pending.handlesByOption.getValue(it) }
-            selectWindows.completeLocked(pending, OneShotPayCostsResult(options, handles))
+            selectSlot.completeLocked(pending, OneShotPayCostsResult(options, handles))
         }
 
     fun submitGatherCounters(
@@ -145,7 +123,7 @@ internal class MatchOneShotPayCostsRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = gatherWindows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = gatherSlot.matchingLocked(interactionId, gameStateId) ?: return false
             if (selections.size != selections.distinctBy { it.instanceId }.size) return false
             if (selections.any { it.amount <= 0 }) return false
             val amountsBySource = pending.sourceByInstanceId
@@ -165,7 +143,7 @@ internal class MatchOneShotPayCostsRuntime(
                         selection.amount,
                     )
                 }
-            gatherWindows.completeLocked(pending, GatherCountersResult(payments))
+            gatherSlot.completeLocked(pending, GatherCountersResult(payments))
         }
 
     fun cancel(
@@ -174,33 +152,17 @@ internal class MatchOneShotPayCostsRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            selectWindows.matchingLocked(interactionId, gameStateId)?.let { pending ->
-                return selectWindows.completeLocked(pending, OneShotPayCostsResult(emptyList(), emptyList()))
+            selectSlot.matchingLocked(interactionId, gameStateId)?.let { pending ->
+                return selectSlot.completeLocked(pending, OneShotPayCostsResult(emptyList(), emptyList()))
             }
-            gatherWindows.matchingLocked(interactionId, gameStateId)?.let { pending ->
-                return gatherWindows.completeLocked(pending, GatherCountersResult.EMPTY)
+            gatherSlot.matchingLocked(interactionId, gameStateId)?.let { pending ->
+                return gatherSlot.completeLocked(pending, GatherCountersResult.EMPTY)
             }
             false
         }
 
-    override fun terminate(cause: Throwable) =
-        synchronized(owner.feedLock) {
-            selectWindows.terminate(cause)
-            gatherWindows.terminate(cause)
-        }
-
-    override fun reset() =
-        synchronized(owner.feedLock) {
-            selectWindows.reset()
-            gatherWindows.reset()
-        }
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<OneShotPayCostsWindow>? =
-        (selectWindows.pendingCutLocked() ?: gatherWindows.pendingCutLocked())
-            .also { afterDeliveryCutLookup?.invoke() }
-
     private fun publishSelect(initial: OneShotPayCostsWindowCapture.Initial): SelectWindow =
-        selectKernel.publish(
+        selectSlot.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
             prepare = { interactionId, _, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
@@ -249,18 +211,18 @@ internal class MatchOneShotPayCostsRuntime(
                 if (optionByInstanceId.size != optionEntries.size) {
                     owner.failPrompt(IllegalStateException("PayCosts candidates have ambiguous identities"), exact)
                 }
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     SelectWindow(published, initial.value, exact, initial.handlesByOption, optionByInstanceId),
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
-            ensureEmptyLocked = { gatherWindows.ensureEmptyLocked(DUPLICATE_MESSAGE) },
+            ensureEmptyLocked = { gatherSlot.ensureEmptyLocked(DUPLICATE_MESSAGE) },
         )
 
     private fun publishGather(initial: GatherCountersWindowCapture.Initial): GatherWindow =
-        gatherKernel.publish(
+        gatherSlot.publish(
             duplicateMessage = DUPLICATE_MESSAGE,
             prepare = { interactionId, _, game, planner ->
                 val resolved = game ?: owner.fail(IllegalStateException("Game unavailable"))
@@ -305,27 +267,26 @@ internal class MatchOneShotPayCostsRuntime(
                 if (sourceByInstanceId.size != sourceEntries.size) {
                     owner.failPrompt(IllegalStateException("GatherCounters sources have ambiguous identities"), exact)
                 }
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     GatherWindow(published, value, exact, initial.handlesBySourceId, sourceByInstanceId),
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
-            ensureEmptyLocked = { selectWindows.ensureEmptyLocked(DUPLICATE_MESSAGE) },
+            ensureEmptyLocked = { selectSlot.ensureEmptyLocked(DUPLICATE_MESSAGE) },
         )
 
     private fun awaitGather(
         pending: GatherWindow,
         timeoutMs: Long?,
     ): GatherCountersResult =
-        gatherKernel.await(
+        gatherSlot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = { error("GatherCounters timeout should complete with a default") },
-            beforeTimeoutClaim = beforeTimeoutClaim,
             beforeTimeoutCompleteLocked = {
-                gatherWindows.completeLocked(pending, pending.firstFit(timedOut = true))
+                gatherSlot.completeLocked(pending, pending.firstFit(timedOut = true))
             },
         )
 

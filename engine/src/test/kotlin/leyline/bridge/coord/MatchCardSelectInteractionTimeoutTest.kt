@@ -118,7 +118,7 @@ class MatchCardSelectInteractionTimeoutTest :
                     )
                 val signal = PrioritySignal()
                 val publishedAtTimeout = AtomicReference<PublishedCardSelectInteraction>()
-                coordinator.cardSelect.beforeTimeoutClaim = {
+                coordinator.prompts.settled.beforeTimeoutClaim = {
                     publishedAtTimeout.set(checkNotNull(coordinator.cardSelect.current()))
                 }
                 val prompt =
