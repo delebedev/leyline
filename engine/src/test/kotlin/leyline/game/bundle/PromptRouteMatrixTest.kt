@@ -47,7 +47,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.SelectNDiscard to
                         cardSelect(PromptSemantic.SelectNDiscard, CardSelectKind.Discard, sentiment = 1),
                     PromptSemantic.Search to ResolvedPromptRoute.Search(PromptSemantic.Search),
-                    PromptSemantic.GroupedSearch to ResolvedPromptRoute.GroupedSearch(PromptSemantic.GroupedSearch),
+                    PromptSemantic.GroupedSearch to ResolvedPromptRoute.Search(PromptSemantic.GroupedSearch),
                     PromptSemantic.OrderForBottom to
                         ResolvedPromptRoute.Order(PromptSemantic.OrderForBottom, OrderRouteKind.Bottom),
                     PromptSemantic.OrderForTop to ResolvedPromptRoute.Order(PromptSemantic.OrderForTop, OrderRouteKind.Top),

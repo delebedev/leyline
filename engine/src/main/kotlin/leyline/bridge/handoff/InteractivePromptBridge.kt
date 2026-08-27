@@ -703,7 +703,7 @@ class InteractivePromptBridge(
         if (request.route is ResolvedPromptRoute.Targeting) {
             return runtimeBindings.targeting?.let { requestTargetingChoice(request, targetingSa, it, configuredTimeoutMs) }
         }
-        if (request.route is ResolvedPromptRoute.Search || request.route is ResolvedPromptRoute.GroupedSearch) {
+        if (request.route is ResolvedPromptRoute.Search) {
             return runtimeBindings.search?.let { requestSearchChoice(request, it, configuredTimeoutMs) }
         }
         if (request.route is ResolvedPromptRoute.ModalChoice) {

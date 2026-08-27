@@ -61,10 +61,6 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
-    data class GroupedSearch(
-        override val semantic: PromptSemantic,
-    ) : ResolvedPromptRoute
-
     data class Order(
         override val semantic: PromptSemantic,
         val kind: OrderRouteKind,
@@ -284,7 +280,7 @@ object PromptRouteResolver {
             PromptSemantic.GroupingScry -> ResolvedPromptRoute.Grouping(semantic, GroupingContext.Scry_a0f6)
             PromptSemantic.ModalChoice -> ResolvedPromptRoute.ModalChoice(semantic)
             PromptSemantic.Search -> ResolvedPromptRoute.Search(semantic)
-            PromptSemantic.GroupedSearch -> ResolvedPromptRoute.GroupedSearch(semantic)
+            PromptSemantic.GroupedSearch -> ResolvedPromptRoute.Search(semantic)
             PromptSemantic.OrderForBottom -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Bottom)
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
             PromptSemantic.DividedAllocationDamage -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Damage)

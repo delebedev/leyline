@@ -50,7 +50,7 @@ internal class MatchSearchInteractionRuntime(
         request: PromptRequest,
         timeoutMs: Long?,
     ): List<Int> {
-        check(request.route is ResolvedPromptRoute.Search || request.route is ResolvedPromptRoute.GroupedSearch)
+        check(request.route is ResolvedPromptRoute.Search)
         val value =
             try {
                 capture.capture(request)

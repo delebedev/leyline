@@ -232,13 +232,7 @@ private val promptRouteFamilies =
             prepareMethod = "prepareSearchWindow",
             runtime = "$COORD.MatchSearchInteractionRuntime",
             routeType = ResolvedPromptRoute.Search::class,
-            semantics = listOf(PromptSemantic.Search),
-        ),
-        PromptRouteFamily(
-            name = "GroupedSearch",
-            handoffValues = "$HANDOFF.SearchGroup.*Value",
-            routeType = ResolvedPromptRoute.GroupedSearch::class,
-            semantics = listOf(PromptSemantic.GroupedSearch),
+            semantics = listOf(PromptSemantic.Search, PromptSemantic.GroupedSearch),
         ),
         PromptRouteFamily(
             name = "Grouping",

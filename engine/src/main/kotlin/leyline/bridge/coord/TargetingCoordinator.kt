@@ -123,12 +123,7 @@ class TargetingCoordinator(
         }
 
         val labels = optionList.map { it.entityLabel() }
-        val groupedSearch =
-            if (plan.semantic == PromptSemantic.Search && optionList.all { it is Card }) {
-                GroupedSearchClassifier.classify(sa, optionList.filterIsInstance<Card>())
-            } else {
-                null
-            }
+        val groupedSearch = groupedSearchOptionIndices(plan.semantic, sa, optionList)
         val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         val request =
             PromptRequest(
@@ -292,12 +287,7 @@ class TargetingCoordinator(
                 ),
             )
         if (plan.autoReturnPolicy.shouldReturnAll) return optionList.toList()
-        val groupedSearch =
-            if (plan.semantic == PromptSemantic.Search && optionList.all { it is Card }) {
-                GroupedSearchClassifier.classify(sa, optionList.filterIsInstance<Card>())
-            } else {
-                null
-            }
+        val groupedSearch = groupedSearchOptionIndices(plan.semantic, sa, optionList)
         val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         val request =
             PromptRequest(
@@ -352,6 +342,17 @@ class TargetingCoordinator(
         value: String,
     ): Boolean = hasParam(name) && getParam(name).equals(value, ignoreCase = true)
 
+    private fun groupedSearchOptionIndices(
+        semantic: PromptSemantic,
+        ability: SpellAbility?,
+        cards: Iterable<*>,
+    ): List<List<Int>>? {
+        if (semantic != PromptSemantic.Search) return null
+        val options = cards.toList()
+        if (options.any { it !is Card }) return null
+        return GroupedSearchClassifier.classify(ability, options.filterIsInstance<Card>())
+    }
+
     private fun searchSource(
         semantic: PromptSemantic,
         ability: SpellAbility?,
@@ -393,12 +394,7 @@ class TargetingCoordinator(
         if (sourceList.isEmpty()) return CardCollection()
         if (plan.mandatoryChoicePolicy.shouldAutoResolve(isOptional, sourceList.size, min)) return sourceList
         val effectiveMin = if (isOptional) 0 else min
-        val groupedSearch =
-            if (plan.semantic == PromptSemantic.Search) {
-                GroupedSearchClassifier.classify(sa, sourceList.toList())
-            } else {
-                null
-            }
+        val groupedSearch = groupedSearchOptionIndices(plan.semantic, sa, sourceList)
         val semantic = if (groupedSearch != null) PromptSemantic.GroupedSearch else plan.semantic
         return chooseCardsViaBridge(
             sourceList,

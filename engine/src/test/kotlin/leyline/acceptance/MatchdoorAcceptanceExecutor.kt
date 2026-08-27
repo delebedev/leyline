@@ -344,8 +344,12 @@ private class ScenarioRun(
             }
         }
         if (prompt.hasSearchFromGroupsReq()) {
-            val group = prompt.searchFromGroupsReq.groupsList.single { it.idsList.containsAll(selectedIds) }
-            harness.respondToGroupedSearch(group.groupId, selectedIds, group.maxSelect)
+            if (selectedIds.isEmpty()) {
+                harness.respondToGroupedSearchFail()
+            } else {
+                val group = prompt.searchFromGroupsReq.groupsList.single { it.idsList.containsAll(selectedIds) }
+                harness.respondToGroupedSearch(group.groupId, selectedIds, group.maxSelect)
+            }
         } else {
             harness.respondToSearch(selectedIds)
         }

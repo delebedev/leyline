@@ -77,7 +77,7 @@ class MatchSearchInteractionRuntimeTest :
                     },
                 route =
                     if (grouped) {
-                        ResolvedPromptRoute.GroupedSearch(PromptSemantic.GroupedSearch)
+                        ResolvedPromptRoute.Search(PromptSemantic.GroupedSearch)
                     } else {
                         ResolvedPromptRoute.Search(PromptSemantic.Search)
                     },
@@ -223,6 +223,7 @@ class MatchSearchInteractionRuntimeTest :
             val baseline = board.bridge.projectionStateSnapshot()
             val sequence = board.counter.snapshot()
             val requestMsgId = sequence.lastPromptMsgId
+            val acceptedResponses = board.bridge.responseAcceptance.responsesAccepted()
 
             fun groupedRows(vararg rows: Group): ClientToGREMessage =
                 ClientToGREMessage
@@ -297,6 +298,7 @@ class MatchSearchInteractionRuntimeTest :
                 ) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe baseline
                 board.counter.snapshot() shouldBe sequence
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
                 finished.await(100, TimeUnit.MILLISECONDS) shouldBe false
                 coordinator.search.current().shouldNotBeNull()
             }
@@ -307,11 +309,13 @@ class MatchSearchInteractionRuntimeTest :
                 ) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
                 coordinator.search.current().shouldBeNull()
                 coordinator.acceptSettled(
                     leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 1),
                     published.gameStateId,
                 ) shouldBe false
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
             }
         }
 
