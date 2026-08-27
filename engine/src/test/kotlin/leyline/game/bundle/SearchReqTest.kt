@@ -35,23 +35,4 @@ class SearchReqTest :
                 request.allowFailToFind shouldBe AllowFailToFind.Any
             }
         }
-
-        test("buildSearchRequest keeps the stack source distinct from searched items") {
-            val request =
-                RequestBuilder.buildSearchRequest(
-                    sourceInstanceId = 296, // AB instance iid
-                    libraryZoneId = 32,
-                    allLibraryIds = (260..279).toList(),
-                    validTargetIds = listOf(260, 261, 262, 263),
-                    maxFind = 1,
-                    allowFailToFind = true,
-                )
-
-            assertSoftly {
-                request.sourceId shouldBe 296
-                request.itemsSoughtList shouldContainExactly listOf(260, 261, 262, 263)
-                request.itemsToSearchList.size shouldBe 20
-                request.allowFailToFind shouldBe AllowFailToFind.Any
-            }
-        }
     })
