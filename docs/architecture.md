@@ -8,8 +8,8 @@ read_when:
 # Leyline Architecture
 
 Leyline is one stateful game backbone with two protocol heads. This document
-describes the current implementation. Durable architectural decisions live in
-[`docs/decisions/`](decisions/); current cross-thread constraints live in
+owns the system shape and module boundaries. Durable rationale lives in
+[`docs/decisions/`](decisions/); cross-thread constraints live in
 [`bridge-threading.md`](bridge-threading.md).
 
 ## System shape
@@ -35,10 +35,7 @@ flowchart LR
 
 The heads decode different transports but submit to the same engine match
 surface. `engine` is the only Gradle module that depends on Forge. `gre-proto`
-(mapped to `proto/`) owns the generated GRE wire schema: it synchronizes
-`proto/src/main/proto/messages.proto` from the `proto/upstream` submodule
-through `proto/rename-map.sed`, runs protoc, and ships the generated
-`wotc.mtgo.gre.external.messaging` classes.
+(mapped to `proto/`) owns the generated GRE wire schema.
 
 ## Modules
 
@@ -51,52 +48,26 @@ through `proto/rename-map.sed`, runs protoc, and ships the generated
 | `native` | Account, lobby, native match transport and framing | domain, engine, gre-proto |
 | `web` | Browser routes, authentication, GRE relay | domain, engine, gre-proto |
 
-Within `engine`, responsibilities follow the runtime boundary:
+Within `engine`, responsibilities follow the execution boundary:
 
 | Package | Responsibility |
 |---|---|
-| `bridge/forge` | Forge controller overrides and callbacks |
-| `bridge/interaction` | Callback-specific prompt classification and policy |
-| `bridge/handoff` | Immutable interaction values and narrow runtime interfaces |
-| `bridge/coord` | Match-scoped cuts, windows, exact handles, commit, terminal failure |
-| `game/snapshot` | Immutable Forge state observations |
-| `game/event` | Ordered facts that a resulting-state snapshot cannot recover |
-| `game/mapping`, `game/annotations` | Functional projection core |
-| `game/state` | Committed projection history and the `GameBridge` shell |
-| `game/bundle` | Interaction materializers and protocol envelopes |
+| `bridge/forge`, `bridge/interaction` | Forge callbacks and interaction policy |
+| `bridge/handoff` | Immutable cross-domain values and narrow runtime interfaces |
+| `bridge/coord` | Match-scoped publication, interaction windows, and terminal failure |
+| `game/snapshot`, `game/event` | Immutable state observations and ordered facts |
+| `game/mapping`, `game/annotations` | Projection and annotation construction |
+| `game/state`, `game/bundle` | Committed projection shell and protocol materialization |
 | `match` | Parsed-message dispatch, answer submission, batch delivery |
 
 Module-local ownership and dependency rules live in the nearest `AGENTS.md`.
-
-## Runtime services
-
-`LeylineMain` constructs shared repositories and match services, then starts the
-protocol heads and local operator services.
-
-| Service | Default port | Implementation |
-|---|---:|---|
-| Native lobby | 30010 | `native/frontdoor/FrontDoorHandler` |
-| Native match | 30003 | `native/matchdoor/NativeMatchDoorBootstrap` |
-| Local control | 8090 | `app/.../debug/DebugServer` |
-| Account | 9443 | `native/account/AccountServer` |
-| Management | 8091 | `app/.../infra/ManagementServer` |
-| Web head | 8080 | `app/.../WebMain` (Ktor/Netty over `web/`) |
-
-Both heads compose from one resolved configuration snapshot. Code defaults
-define the normal profile; optional `leyline.toml` entries and mechanical
-`LEYLINE_*` environment names provide overrides (precedence: typed default <
-TOML < environment). Relative paths resolve against the application root, and
-`LEYLINE_INSTANCE=<name>` starts an additional instance with isolated state and
-artifact paths. Exact native transport framing belongs to
-`native.protocol.FrameCodec`.
 
 ## Match runtime
 
 Forge is synchronous and mutable. One engine thread advances each game and
 blocks in controller callbacks when a human answer is required. Native, web,
-timer, and test entrants call the transport-neutral match surface; the current
-runtime serializes interactive session work while the match coordinator owns
-committed cuts and interaction windows.
+timer, and test entrants call the transport-neutral match surface. Interactive
+session entry is serialized separately from publication and projection commit.
 
 ```mermaid
 flowchart LR
@@ -112,62 +83,21 @@ flowchart LR
     S -->|"delivery"| H
 ```
 
-`GameBridge` is the engine shell's composition root.
-`MatchCutCoordinator` owns journal close, immutable pending cuts, projection
-installation, viewer feeds, prompt/action lifetimes, game-over lifecycle
-publication, startup and mulligan lifecycle publication, puzzle replacement,
-settings acknowledgements, illegal-response publication, declaration
-confirmations, and terminal failure. `MatchPromptRuntimeSet` owns the match's
-prompt-runtime inventory. Its `SettledPromptOwner` mounts one typed slot per
-settled interaction and owns their shared publication, correlation, timeout,
-reset, teardown, and terminal-cut lifecycle. `MatchConnection` offers each raw
-client message to this owner before the residual gameplay routes. Each family
-slot probes and parses only its own response shape while the owner atomically
-matches the exact request message and game-state identifiers. Retired
-correlations prevent duplicate or late answers from entering another route.
-Exact Forge objects remain behind bounded family runtimes.
+`GameBridge` is the engine shell's composition root. `MatchCutCoordinator` owns
+committed viewer feeds, interaction windows, cut installation, and terminal
+failure. Family runtimes retain exact Forge handles while sessions submit only
+immutable client-domain values. `PriorityPolicyRuntime` owns accumulated client
+settings and priority presentation policy. `ProjectionState` is the committed
+client-facing history.
 
-`GameBridge.priorityPolicy` owns priority presentation policy and client settings
-state. Match sessions submit immutable `SettingsMessage` values to it. The
-priority coordinator is the only source of Visible, SyncOnly, Skip, auto-pass,
-stop, and full-control decisions. `MatchRuntimeContinuation` only waits for the
-published horizon, drains committed batches, and releases exact sync barriers
-after delivery.
+The coordinator materializes lifecycle output from immutable intent. The
+player and spectator sessions currently derive `GameOverIntent` from the Forge
+outcome before asking the coordinator to publish the terminal cut. Transport
+completion remains a session concern after that cut drains.
 
-Each live human `MatchConnection` owns one runtime delivery observer. The
-observer waits for committed coordinator feed notifications and uses the same
-session lock and continuation drain path for horizons that arise after an
-inbound handler returns, including prompt timeouts, playback, and terminal
-delivery. An inbound handler drains the horizon it released while holding the
-session lock; the observer drains horizons published after that handler returns.
-The lock serializes those delivery claims, while the observer's feed
-notification remains its exclusive wake-up source. It never submits actions or
-chooses progression policy, and its generation is invalidated on teardown or
-puzzle replacement before a new observer is armed.
-
-In-process harness code observes named client output after asynchronous
-delivery when needed. It does not wait on an engine horizon or consume the
-observer's feed notification.
-
-Three owners sit beneath that boundary and are each the only implementation of
-their contract. `CoordinatorCutInstaller` performs the cut transaction — ordered
-viewer enqueue, projection commit, rollback of uninstalled batches, and playback
-acknowledgement — for every runtime family.
-`MatchActionWindowRuntime` is the sole authority on action-window lifecycle;
-`GameActionBridge` is the engine-thread wait adapter and keeps no competing
-lifecycle state. The action runtime retains executable offers and the exact
-combat identities published with each declaration window. Session handlers
-submit immutable client-domain values; the runtime resolves and claims the
-retained handles. Deferred cast-cost responses use the same action claim rather
-than a session-owned lookup table. The deferred runtime also owns casting-time
-prompt materialization and committed publication. `InteractiveCommandExchange`
-owns the cross-thread command handshake that iterative targeting and mana-source
-payment windows share.
-
-Player and observer sessions drain their own coordinator-committed feeds.
-`SpectatorSession` sends raw completion only after draining the committed terminal
-cut. [`bridge-threading.md`](bridge-threading.md) is authoritative for the lock
-order.
+[`bridge-threading.md`](bridge-threading.md) is authoritative for execution
+domains, mutable-state ownership, lock order, delivery limits, teardown, and the
+bounded initial-publication replay used by reconnect.
 
 ## Interaction cuts
 
@@ -195,9 +125,9 @@ must match the exact request message and game-state identifiers. Timeout, supers
 delivery failure, and teardown retire that same window; they cannot complete a
 later one.
 
-Prompt families keep separate value-freezing and materialization code when their
-identity or completion rules differ. Shared lifecycle machinery owns only the
-common publication, correlation, timeout, and retirement contract.
+Prompt families keep their own value freezing and response parsing where
+identity or completion rules differ. Shared runtime machinery owns publication,
+correlation, timeout, and retirement.
 
 ## State projection
 
@@ -219,23 +149,15 @@ flowchart LR
     K --> B["Committed viewer batch"]
 ```
 
-`StateProjectionCompiler.compileViewers` folds ordered viewer inputs over one
-private projection value and returns viewer results plus one tentative
-transition. `compileOneViewer` remains an isolated one-view compatibility entry.
-Client identities, visibility baselines, effect and annotation lifecycles, and
-prompt facts advance only when the surrounding transition installs. A stale or
-failed attempt publishes nothing from that attempt and retains the exact pending
-cut for diagnosis or terminal handling.
+Projection folds all viewer inputs over one private value and returns viewer
+messages plus one tentative transition. Client identities, visibility
+baselines, annotation lifecycles, prompt facts, and logical output advance only
+when that transition installs. The projection core receives immutable inputs;
+it does not query the live Forge graph.
 
-`AnnotationFrameFinalizer` orders and numbers a complete transient annotation
-frame once inside compilation. Persistent annotation state remains part of the
-returned projection value. Per-family materializers may add explicit viewer
-intent, but the projection core does not query live Forge state.
-
-Viewer cuts compile atomically and install one projection transition and output
-ordinal across their feeds. State-bearing publication and existing no-output
-projection transitions commit through `CoordinatorCutInstaller` while the
-coordinator holds its publication lock.
+A viewer cut installs one transition and output ordinal across its feeds. A
+stale or failed pre-install attempt publishes nothing and consumes no logical
+identifier.
 
 ## Output and delivery
 
@@ -244,26 +166,7 @@ viewer baseline records the latest installed projection, not client
 acknowledgement. Delivery cannot repair, reorder, or recompile a committed
 batch. When code needs delivery awareness, it tracks that fact explicitly.
 
-Logical identifiers, emission horizons, and the committed output ordinal live
-in `ProjectionState`. A coordinator cut forks a private planner from that value,
-then installs the resulting sequence, projection, identities, acknowledgements,
-and owned output together. Transport reads committed horizons but cannot advance
-them. The ordering contract is documented in
-[bridge-threading.md](bridge-threading.md).
-
 Direct `GameBridge` identity, cursor, and zone edits are engine-shell projection
 state changes. They allocate no logical sequence or output and are not
-publication.
-
-## Decision map
-
-- [ADR 0006](decisions/0006-single-backbone-core-and-heads.md): one backbone,
-  native and web heads.
-- [ADR 0010](decisions/0010-bind-priority-actions-at-projection-source.md):
-  executable actions bind beside their projected offers.
-- [ADR 0012](decisions/0012-bind-prompt-routes-once.md): prompt routes resolve
-  once and survive the whole interaction.
-- [ADR 0013](decisions/0013-finalize-annotation-frames-once.md): transient
-  annotation frames finalize once.
-- [ADR 0015](decisions/0015-functional-core-imperative-shell.md): imperative
-  Forge shell around a value-only projection core.
+publication. Detailed ordering is documented in
+[`bridge-threading.md`](bridge-threading.md).
