@@ -286,6 +286,25 @@ class CombatInteractionTest :
         }
 
         session(
+            "attacker cancellation requires the exact prompt game state",
+            deckList = COMBAT_DECK,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
+            setupSingleAttacker()
+            val pending = bridge.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            pending.state.kind shouldBe PendingActionKind.DECLARE_ATTACKERS
+            val promptGameStateId = pending.promptGameStateId.shouldNotBeNull()
+
+            assertSoftly {
+                bridge.cutCoordinator.submitDeclaredAction(pending.actionId, promptGameStateId - 1) shouldBe false
+                bridge.actionBridge(SeatId(1)).getPending()?.actionId shouldBe pending.actionId
+
+                bridge.cutCoordinator.submitDeclaredAction(pending.actionId, promptGameStateId) shouldBe true
+            }
+        }
+
+        session(
             "AI declares blockers",
             deckList = COMBAT_DECK,
             validation = combatValidation,

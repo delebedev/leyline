@@ -37,6 +37,13 @@ only drain that feed and deliver the raw room-state completion message.
 priority response metadata cross into it as immutable values; session code does
 not classify, suppress, or independently store priority policy.
 
+Action, combat declaration, and deferred cast-cost handlers parse protocol
+messages into immutable values only. `MatchActionWindowRuntime` validates the
+exact action and game-state correlation, resolves the retained executable or
+combat handle, and atomically claims it. `MatchBlockingInteractionRuntime`
+performs the equivalent client-instance lookup for damage assignments. Session
+code does not rebuild these responses from the live Forge graph.
+
 ### Lock order
 
 Frame producers that need all three monitors acquire them in this order:

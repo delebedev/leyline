@@ -30,6 +30,7 @@ internal data class RuntimeActionWindow(
     val selections: MutableMap<Long, RuntimeActionSelection> = mutableMapOf(),
     val deferredCostPlans: Map<Long, DeferredCastCostPlan> = emptyMap(),
     val deferredChildSelections: Map<Long, RuntimeActionSelection> = emptyMap(),
+    val combat: RuntimeCombatWindow? = null,
     // Mutations happen under the coordinator feed lock; engine and session threads
     // read it without one, so the field stays volatile.
     @Volatile var status: ActionWindowStatus = ActionWindowStatus.Published,
@@ -149,7 +150,7 @@ internal fun RuntimeActionWindow.resolveOfferedSelection(
     responseGameStateId: Int,
     response: Action,
 ): Pair<Long, GameActionBridge.ActionOffer>? {
-    if (responseGameStateId != 0 && responseGameStateId != promptGameStateId) return null
+    if (responseGameStateId != promptGameStateId) return null
     return resolveActionOffer(offers, response)
 }
 

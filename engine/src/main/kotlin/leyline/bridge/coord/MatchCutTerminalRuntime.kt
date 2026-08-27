@@ -43,6 +43,7 @@ internal class MatchCutTerminalRuntime(
                 context.pending?.let(owner::retainPendingCut)
                 failure = terminal
                 owner.actions.terminate()
+                owner.deferredCast.discard()
                 owner.prompts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)
                 owner.bridge.prioritySignal.signal()
