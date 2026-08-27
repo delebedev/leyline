@@ -4,7 +4,6 @@ import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 
 /** Value-only session adapter for coordinator-owned iterative and one-shot PayCosts windows. */
 internal class ManaSourcePaymentHandler(
@@ -66,49 +65,6 @@ internal class ManaSourcePaymentHandler(
             return HandlerResult.Waiting
         }
         return if (deliver(receipt)) HandlerResult.Resume else HandlerResult.Waiting
-    }
-
-    fun tryHandleOneShotEffectCost(greMsg: ClientToGREMessage): HandlerResult {
-        if (greMsg.effectCostResp.effectCostType != EffectCostType.Select_a59c) return HandlerResult.NotHandled
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return HandlerResult.NotHandled
-        val accepted =
-            runtime.submit(
-                pending.interactionId,
-                greMsg.gameStateId,
-                greMsg.effectCostResp.costSelection.idsList,
-            )
-        if (!accepted) {
-            log.warn("One-shot PayCosts response did not match the current interaction")
-            DevCheck.failOnAutoPass { "One-shot PayCosts response did not match the current interaction" }
-            return HandlerResult.Waiting
-        }
-        return HandlerResult.Resume
-    }
-
-    fun tryHandleGatherCounters(greMsg: ClientToGREMessage): HandlerResult {
-        if (greMsg.effectCostResp.effectCostType != EffectCostType.GatherCounters) return HandlerResult.NotHandled
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return HandlerResult.NotHandled
-        if (pending.windowKind != leyline.bridge.handoff.OneShotPayCostsWindowKind.GatherCounters) return HandlerResult.NotHandled
-        val selections =
-            greMsg.effectCostResp.gatherResp.gatheringsList.map {
-                leyline.bridge.handoff.GatherCountersSelection(it.instanceId, it.amount)
-            }
-        val accepted = runtime.submitGatherCounters(pending.interactionId, greMsg.gameStateId, selections)
-        if (!accepted) {
-            log.warn("GatherCounters response did not match the current interaction")
-            DevCheck.failOnAutoPass { "GatherCounters response did not match the current interaction" }
-            return HandlerResult.Waiting
-        }
-        return HandlerResult.Resume
-    }
-
-    fun tryHandleOneShotCancel(greMsg: ClientToGREMessage): HandlerResult {
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return HandlerResult.NotHandled
-        if (!runtime.cancel(pending.interactionId, greMsg.gameStateId)) return HandlerResult.Waiting
-        return HandlerResult.Resume
     }
 
     private fun deliver(receipt: leyline.bridge.handoff.ManaSourcePaymentCommandReceipt): Boolean {

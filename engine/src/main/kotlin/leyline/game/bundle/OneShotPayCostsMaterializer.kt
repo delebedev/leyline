@@ -30,7 +30,7 @@ internal class OneShotPayCostsMaterializer {
                     it.allowUndo = true
                 },
             )
-        return context.prepared(messages)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun payCostsRequest(

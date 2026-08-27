@@ -120,9 +120,12 @@ settings acknowledgements, illegal-response publication, declaration
 confirmations, and terminal failure. `MatchPromptRuntimeSet` owns the match's
 prompt-runtime inventory. Its `SettledPromptOwner` mounts one typed slot per
 settled interaction and owns their shared publication, correlation, timeout,
-reset, teardown, and terminal-cut lifecycle. Exact Forge objects remain behind
-bounded family runtimes; client responses carry correlation values that resolve
-those retained handles.
+reset, teardown, and terminal-cut lifecycle. `MatchConnection` offers each raw
+client message to this owner before the residual gameplay routes. Each family
+slot probes and parses only its own response shape while the owner atomically
+matches the exact request message and game-state identifiers. Retired
+correlations prevent duplicate or late answers from entering another route.
+Exact Forge objects remain behind bounded family runtimes.
 
 `GameBridge.priorityPolicy` owns priority presentation policy and client settings
 state. Match sessions submit immutable `SettingsMessage` values to it. The
@@ -182,13 +185,13 @@ sequenceDiagram
     P-->>C: tentative transition + messages
     C->>C: revision-check and commit
     C-->>H: immutable committed batch
-    H-->>C: correlated answer
+    H-->>C: raw correlated answer
     C-->>F: original retained handle or typed value
 ```
 
 The invariant is publication before wake-up: a visible prompt or action window
 is committed and drainable before the waiting observer is signalled. A response
-must match the exact interaction and state identifiers. Timeout, supersession,
+must match the exact request message and game-state identifiers. Timeout, supersession,
 delivery failure, and teardown retire that same window; they cannot complete a
 later one.
 

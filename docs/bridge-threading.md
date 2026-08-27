@@ -48,6 +48,14 @@ code does not rebuild these responses from the live Forge graph.
 casting-time prompts with the viewer feed builder, and installs their complete
 cut before replacing its correlated prompt state.
 
+`SettledPromptOwner` admits raw settled-prompt messages under `feedLock` before
+the residual match routes run. It resolves the exact request message and
+game-state correlation, then delegates family-local parsing and completion to
+the mounted typed slot. Only successful completion retires the correlation and
+marks the response accepted. Cancel controls claim by exact active game state,
+complete under the same lock, and mark the prompt handled without counting an
+accepted response.
+
 ### Publication lock
 
 The coordinator `feedLock` owns cut preparation, installation, committed feeds,
@@ -69,10 +77,11 @@ must remain protected as one publication boundary.
 ### Runtime horizons
 
 `MatchRuntimeContinuation` is the transport seam for one engine horizon.
-Accepted responses are validated and submitted by `MatchSession`; the handler's
-single continuation wait drains committed batches in order and acknowledges
-each exact `SYNC_ONLY` barrier only after successful delivery. A response that
-only updates an iterative prompt returns without releasing the engine.
+`MatchSession` serializes admission and waits once after an accepted settled
+answer. The continuation drains committed batches in order, acknowledges each
+exact `SYNC_ONLY` barrier only after successful delivery, and then invokes any
+opaque one-shot post-resume cleanup supplied by the owning family. A response
+that only updates an iterative prompt returns without releasing the engine.
 
 Every live human `MatchConnection` arms one
 `MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.
@@ -126,7 +135,7 @@ Every coordinator-backed interaction must preserve these rules:
 
 1. Freeze projection values and exact executable handles on the engine thread.
 2. Commit the complete state-and-request batch before signalling.
-3. Correlate answers to the exact interaction and game-state identifiers.
+3. Correlate answers to the exact request message and game-state identifiers.
 4. Resolve original handles only within the owning runtime.
 5. Retire response, timeout, supersession, and teardown through one winner.
 6. Treat materialization, install, or delivery failure as terminal when Forge

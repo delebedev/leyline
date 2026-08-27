@@ -97,46 +97,22 @@ class MatchCardSelectInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId + 1,
-                    listOf(ids[0]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0])), published.gameStateId + 1) shouldBe
                     false
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    emptyList(),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe
                     false
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(ids[0], ids[0]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0], ids[0])), published.gameStateId) shouldBe
                     false
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(Int.MAX_VALUE),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
                 coordinator.cardSelect.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(ids[1]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe
                     true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(ids[1]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe
                     false
             }
         }

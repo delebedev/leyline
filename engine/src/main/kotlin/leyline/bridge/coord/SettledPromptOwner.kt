@@ -3,8 +3,11 @@ package leyline.bridge.coord
 import forge.game.Game
 import leyline.game.PendingPromptCut
 import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.bundle.SettledPromptCorrelation
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -26,15 +29,33 @@ internal class SettledPromptOwner(
     fun <W, R> mount(
         terminalPriority: PromptTerminalPriority,
         publicationFailure: (Throwable, W) -> Nothing,
+        owns: (W, ClientToGREMessage) -> Boolean,
+        admitLocked: (W, ClientToGREMessage) -> SlotAdmission<R>?,
+        cancelCapable: Boolean = false,
         onTerminateLocked: (W?, Throwable) -> Unit = { _, _ -> },
         onResetLocked: (W?) -> Unit = {},
     ): Slot<W, R> where W : Window<R> =
         Slot(
             terminalPriority,
             publicationFailure,
+            owns,
+            admitLocked,
+            cancelCapable,
             onTerminateLocked,
             onResetLocked,
         ).also(slots::add)
+
+    private val retired = mutableMapOf<Int, RetiredCorrelation>()
+
+    fun admit(message: ClientToGREMessage): SettledPromptAdmission =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            if (message.type == ClientMessageType.CancelActionReq_097b) {
+                admitControlLocked(message)
+            } else {
+                admitResponseLocked(message)
+            }
+        }
 
     override fun current(): Any? = synchronized(owner.feedLock) { slots.firstNotNullOfOrNull(MountedSlot::currentLocked) }
 
@@ -43,7 +64,10 @@ internal class SettledPromptOwner(
     }
 
     override fun reset() {
-        synchronized(owner.feedLock) { slots.forEach(MountedSlot::resetLocked) }
+        synchronized(owner.feedLock) {
+            slots.forEach(MountedSlot::resetLocked)
+            retired.clear()
+        }
     }
 
     override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? {
@@ -54,16 +78,22 @@ internal class SettledPromptOwner(
 
     internal interface Window<R> {
         val interactionId: String
-        val gameStateId: Int
         val cut: PendingPromptCut<*>
         val future: CompletableFuture<R>
     }
+
+    internal data class SlotAdmission<R>(
+        val result: R,
+        val beforeComplete: () -> Unit = {},
+        val afterEngineResume: (() -> Unit)? = null,
+    )
 
     internal data class Publication<W>(
         val window: W,
         val transition: ProjectionTransition,
         val closesPlaybackFrame: Boolean,
         val viewerOutputs: List<PreparedViewerOutput>,
+        val correlation: SettledPromptCorrelation,
     ) {
         init {
             require(viewerOutputs.isNotEmpty()) { "A settled prompt publication requires viewer output" }
@@ -73,24 +103,20 @@ internal class SettledPromptOwner(
     internal inner class Slot<W, R>(
         private val terminalPriority: PromptTerminalPriority,
         private val publicationFailure: (Throwable, W) -> Nothing,
+        private val owns: (W, ClientToGREMessage) -> Boolean,
+        private val admitLocked: (W, ClientToGREMessage) -> SlotAdmission<R>?,
+        override val cancelCapable: Boolean,
         private val onTerminateLocked: (W?, Throwable) -> Unit,
         private val onResetLocked: (W?) -> Unit,
     ) : MountedSlot where W : Window<R> {
         private var window: W? = null
+        private var correlation: SettledPromptCorrelation? = null
 
         fun current(): W? = synchronized(owner.feedLock) { currentLocked() }
 
         fun ensureEmptyLocked(message: String) {
             check(window == null) { message }
         }
-
-        fun matchingLocked(
-            interactionId: String,
-            gameStateId: Int,
-        ): W? =
-            window?.takeUnless { it.future.isDone }?.takeIf {
-                it.interactionId == interactionId && it.gameStateId == gameStateId
-            }
 
         fun completeLocked(
             pending: W,
@@ -118,6 +144,7 @@ internal class SettledPromptOwner(
                     val publication = prepare(UUID.randomUUID().toString(), feed, owner.bridge.getGame(), planner)
                     publishPrepared(prior, planner, publication)
                     window = publication.window
+                    correlation = publication.correlation
                     publication.window
                 }
             owner.bridge.prioritySignal.signal()
@@ -141,6 +168,7 @@ internal class SettledPromptOwner(
                             window = null
                             pending.future.completeExceptionally(timeoutException())
                         }
+                        retireLocked()
                     }
                 }
                 completedValue(pending)
@@ -150,16 +178,37 @@ internal class SettledPromptOwner(
 
         override fun currentLocked(): W? = window?.takeUnless { it.future.isDone }
 
+        override fun correlationLocked(): SettledPromptCorrelation? = correlation?.takeIf { currentLocked() != null }
+
+        override fun ownsLocked(message: ClientToGREMessage): Boolean = currentLocked()?.let { owns(it, message) } == true
+
+        override fun admitLocked(message: ClientToGREMessage): SettledPromptAdmission {
+            val pending = currentLocked() ?: return SettledPromptAdmission.Rejected
+            val accepted = admitLocked(pending, message) ?: return SettledPromptAdmission.Rejected
+            accepted.beforeComplete()
+            check(completeLocked(pending, accepted.result)) { "Settled prompt changed during admission" }
+            val exact = checkNotNull(correlation)
+            retireLocked()
+            if (message.type == ClientMessageType.CancelActionReq_097b) {
+                owner.bridge.responseAcceptance.markPromptHandled(exact.requestMsgId)
+            } else {
+                owner.bridge.responseAcceptance.markResponseAccepted(message.respId)
+            }
+            return SettledPromptAdmission.Accepted(accepted.afterEngineResume)
+        }
+
         override fun terminateLocked(cause: Throwable) {
             val pending = window
             onTerminateLocked(pending, cause)
             pending?.future?.completeExceptionally(cause)
             window = null
+            correlation = null
         }
 
         override fun resetLocked() {
             onResetLocked(window)
             window = null
+            correlation = null
         }
 
         override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? =
@@ -185,6 +234,11 @@ internal class SettledPromptOwner(
             ) { ex -> publicationFailure(ex, publication.window) }
         }
 
+        private fun retireLocked() {
+            correlation?.let { retired[it.requestMsgId] = RetiredCorrelation(it.gameStateId, cancelCapable) }
+            correlation = null
+        }
+
         private fun completedValue(pending: W): R =
             try {
                 pending.future.get()
@@ -194,7 +248,15 @@ internal class SettledPromptOwner(
     }
 
     private interface MountedSlot {
+        val cancelCapable: Boolean
+
         fun currentLocked(): Any?
+
+        fun correlationLocked(): SettledPromptCorrelation?
+
+        fun ownsLocked(message: ClientToGREMessage): Boolean
+
+        fun admitLocked(message: ClientToGREMessage): SettledPromptAdmission
 
         fun terminateLocked(cause: Throwable)
 
@@ -202,4 +264,45 @@ internal class SettledPromptOwner(
 
         fun terminalCutCandidateLocked(): PromptTerminalCutCandidate?
     }
+
+    private fun admitResponseLocked(message: ClientToGREMessage): SettledPromptAdmission {
+        val matches = slots.filter { it.correlationLocked()?.requestMsgId == message.respId }
+        if (matches.isEmpty()) return if (message.respId in retired) SettledPromptAdmission.Rejected else SettledPromptAdmission.NotOwned
+        if (matches.size != 1) return SettledPromptAdmission.Rejected
+        val slot = matches.single()
+        if (slot.correlationLocked()?.gameStateId != message.gameStateId || !slot.ownsLocked(message)) {
+            return SettledPromptAdmission.Rejected
+        }
+        return slot.admitLocked(message)
+    }
+
+    private fun admitControlLocked(message: ClientToGREMessage): SettledPromptAdmission {
+        val claims =
+            slots.filter {
+                it.cancelCapable &&
+                    it.correlationLocked()?.gameStateId == message.gameStateId &&
+                    it.ownsLocked(message)
+            }
+        if (claims.size > 1) return SettledPromptAdmission.Rejected
+        if (claims.size == 1) return claims.single().admitLocked(message)
+        if (retired.values.any { it.cancelCapable && it.gameStateId == message.gameStateId }) {
+            return SettledPromptAdmission.Rejected
+        }
+        return SettledPromptAdmission.NotOwned
+    }
+
+    private data class RetiredCorrelation(
+        val gameStateId: Int,
+        val cancelCapable: Boolean,
+    )
+}
+
+internal sealed interface SettledPromptAdmission {
+    data class Accepted(
+        val afterEngineResume: (() -> Unit)? = null,
+    ) : SettledPromptAdmission
+
+    data object Rejected : SettledPromptAdmission
+
+    data object NotOwned : SettledPromptAdmission
 }

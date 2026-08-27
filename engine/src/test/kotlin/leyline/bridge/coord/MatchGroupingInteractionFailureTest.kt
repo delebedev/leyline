@@ -107,7 +107,7 @@ class MatchGroupingInteractionFailureTest :
             assertSoftly {
                 result.get().timedOut shouldBe true
                 result.get().awayHandles.single() shouldBe options(board).first()
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, ids, emptyList()) shouldBe false
+                coordinator.acceptSettled(groupResp(ids, emptyList()), published.gameStateId) shouldBe false
                 coordinator.grouping
                     .current()
                     .shouldBeNull()
@@ -143,7 +143,7 @@ class MatchGroupingInteractionFailureTest :
                 result.get().timedOut shouldBe true
                 result.get().topHandles.single() shouldBe card
                 result.get().awayHandles shouldBe emptyList()
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(id), emptyList()) shouldBe false
+                coordinator.acceptSettled(groupResp(listOf(id), emptyList()), published.gameStateId) shouldBe false
                 coordinator.grouping
                     .current()
                     .shouldBeNull()
@@ -169,7 +169,7 @@ class MatchGroupingInteractionFailureTest :
                     .flatten()
                     .single { it.hasGroupReq() }
                     .groupReq.instanceIdsList
-            coordinator.grouping.submit(published.interactionId, published.gameStateId, ids, emptyList()) shouldBe true
+            coordinator.acceptSettled(groupResp(ids, emptyList()), published.gameStateId) shouldBe true
             finished.await(3, TimeUnit.SECONDS) shouldBe true
 
             val promptBridge = board.bridge.promptBridge(SeatId(1))

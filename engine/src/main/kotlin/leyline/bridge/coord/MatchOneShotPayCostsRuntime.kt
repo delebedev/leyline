@@ -19,6 +19,9 @@ import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
 import leyline.bridge.handoff.firstFitGatherCounters
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import java.util.concurrent.CompletableFuture
 
 /** Match-scoped lifecycle for Select and the bounded GatherCounters PayCosts windows. */
@@ -35,7 +38,6 @@ internal class MatchOneShotPayCostsRuntime(
         override val future: CompletableFuture<OneShotPayCostsResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<OneShotPayCostsResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private data class GatherWindow(
@@ -47,7 +49,6 @@ internal class MatchOneShotPayCostsRuntime(
         override val future: CompletableFuture<GatherCountersResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<GatherCountersResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
 
         fun firstFit(timedOut: Boolean): GatherCountersResult =
             firstFitGatherCounters(value.sources, value.amountToGather, handlesBySourceId, timedOut)
@@ -57,11 +58,29 @@ internal class MatchOneShotPayCostsRuntime(
         settled.mount<SelectWindow, OneShotPayCostsResult>(
             PromptTerminalPriority.OneShotPayCosts,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message ->
+                message.type == ClientMessageType.CancelActionReq_097b ||
+                    (
+                        message.type == ClientMessageType.EffectCostResp_097b &&
+                            message.effectCostResp.effectCostType == EffectCostType.Select_a59c
+                    )
+            },
+            admitLocked = ::admitSelectLocked,
+            cancelCapable = true,
         )
     private val gatherSlot =
         settled.mount<GatherWindow, GatherCountersResult>(
             PromptTerminalPriority.OneShotPayCosts,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message ->
+                message.type == ClientMessageType.CancelActionReq_097b ||
+                    (
+                        message.type == ClientMessageType.EffectCostResp_097b &&
+                            message.effectCostResp.effectCostType == EffectCostType.GatherCounters
+                    )
+            },
+            admitLocked = ::admitGatherLocked,
+            cancelCapable = true,
         )
     private val capture = OneShotPayCostsWindowCapture(owner)
     private val gatherCapture = GatherCountersWindowCapture(capture)
@@ -99,67 +118,56 @@ internal class MatchOneShotPayCostsRuntime(
             selectSlot.current()?.published ?: gatherSlot.current()?.published
         }
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = selectSlot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-            val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            if (options.size !in pending.value.minSelections..pending.value.maxSelections) return false
-            val selected = pending.value.candidates.filter { it.originalOptionIndex in options }
-            if (pending.value.minimumWeight?.let { minimum -> selected.sumOf { it.weight } < minimum } == true) return false
-            val handles = options.map { pending.handlesByOption.getValue(it) }
-            selectSlot.completeLocked(pending, OneShotPayCostsResult(options, handles))
+    private fun admitSelectLocked(
+        pending: SelectWindow,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<OneShotPayCostsResult>? {
+        if (message.type == ClientMessageType.CancelActionReq_097b) {
+            return SettledPromptOwner.SlotAdmission(OneShotPayCostsResult(emptyList(), emptyList()))
         }
+        val selectedInstanceIds = message.effectCostResp.costSelection.idsList
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        if (options.size !in pending.value.minSelections..pending.value.maxSelections) return null
+        val selected = pending.value.candidates.filter { it.originalOptionIndex in options }
+        if (pending.value.minimumWeight?.let { minimum -> selected.sumOf { it.weight } < minimum } == true) return null
+        return SettledPromptOwner.SlotAdmission(
+            OneShotPayCostsResult(options, options.map(pending.handlesByOption::getValue)),
+        )
+    }
 
-    fun submitGatherCounters(
-        interactionId: String,
-        gameStateId: Int,
-        selections: List<GatherCountersSelection>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = gatherSlot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selections.size != selections.distinctBy { it.instanceId }.size) return false
-            if (selections.any { it.amount <= 0 }) return false
-            val amountsBySource = pending.sourceByInstanceId
-            if (selections.any { it.instanceId !in amountsBySource }) return false
-            val capacities =
-                pending.value.sources.associate { source ->
-                    pending.sourceByInstanceId.entries
-                        .first { it.value == source.forgeCardId.value }
-                        .key to source.maxAmount
-                }
-            if (selections.any { it.amount > capacities.getValue(it.instanceId) }) return false
-            if (selections.sumOf { it.amount } != pending.value.amountToGather) return false
-            val payments =
-                selections.map { selection ->
-                    GatherCountersPayment(
-                        pending.handlesBySourceId.getValue(amountsBySource.getValue(selection.instanceId)),
-                        selection.amount,
-                    )
-                }
-            gatherSlot.completeLocked(pending, GatherCountersResult(payments))
+    private fun admitGatherLocked(
+        pending: GatherWindow,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<GatherCountersResult>? {
+        if (message.type == ClientMessageType.CancelActionReq_097b) {
+            return SettledPromptOwner.SlotAdmission(GatherCountersResult.EMPTY)
         }
-
-    fun cancel(
-        interactionId: String,
-        gameStateId: Int,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            selectSlot.matchingLocked(interactionId, gameStateId)?.let { pending ->
-                return selectSlot.completeLocked(pending, OneShotPayCostsResult(emptyList(), emptyList()))
+        val selections =
+            message.effectCostResp.gatherResp.gatheringsList.map {
+                GatherCountersSelection(it.instanceId, it.amount)
             }
-            gatherSlot.matchingLocked(interactionId, gameStateId)?.let { pending ->
-                return gatherSlot.completeLocked(pending, GatherCountersResult.EMPTY)
+        if (selections.size != selections.distinctBy { it.instanceId }.size) return null
+        if (selections.any { it.amount <= 0 }) return null
+        val amountsBySource = pending.sourceByInstanceId
+        if (selections.any { it.instanceId !in amountsBySource }) return null
+        val capacities =
+            pending.value.sources.associate { source ->
+                pending.sourceByInstanceId.entries
+                    .first { it.value == source.forgeCardId.value }
+                    .key to source.maxAmount
             }
-            false
-        }
+        if (selections.any { it.amount > capacities.getValue(it.instanceId) }) return null
+        if (selections.sumOf { it.amount } != pending.value.amountToGather) return null
+        val payments =
+            selections.map { selection ->
+                GatherCountersPayment(
+                    pending.handlesBySourceId.getValue(amountsBySource.getValue(selection.instanceId)),
+                    selection.amount,
+                )
+            }
+        return SettledPromptOwner.SlotAdmission(GatherCountersResult(payments))
+    }
 
     private fun publishSelect(initial: OneShotPayCostsWindowCapture.Initial): SelectWindow =
         selectSlot.publish(
@@ -216,6 +224,7 @@ internal class MatchOneShotPayCostsRuntime(
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    player.correlation,
                 )
             },
             ensureEmptyLocked = { gatherSlot.ensureEmptyLocked(DUPLICATE_MESSAGE) },
@@ -272,6 +281,7 @@ internal class MatchOneShotPayCostsRuntime(
                     player.transition,
                     player.closesPlaybackFrame,
                     prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    player.correlation,
                 )
             },
             ensureEmptyLocked = { selectSlot.ensureEmptyLocked(DUPLICATE_MESSAGE) },

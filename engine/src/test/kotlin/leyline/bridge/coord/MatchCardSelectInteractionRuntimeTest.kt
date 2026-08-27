@@ -377,17 +377,10 @@ class MatchCardSelectInteractionRuntimeTest :
                             .gameStateMessage.gameObjectsList
                             .filter { it.instanceId in req.idsList }
                             .shouldBeEmpty()
-                        coordinator.cardSelect.submitEffectCost(
-                            published.interactionId,
-                            published.gameStateId,
-                            listOf(req.idsList[1]),
-                        ) shouldBe false
+                        coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(req.idsList[1])), published.gameStateId) shouldBe
+                            false
                     }
-                    coordinator.cardSelect.submitSelectN(
-                        published.interactionId,
-                        published.gameStateId,
-                        listOf(req.idsList[1]),
-                    ) shouldBe true
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(req.idsList[1])), published.gameStateId) shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get().optionIndices shouldContainExactly listOf(1)
                     (result.get().handles.single() === handles[1]) shouldBe true
@@ -417,11 +410,7 @@ class MatchCardSelectInteractionRuntimeTest :
                         .single { it.hasSelectNReq() }
                         .selectNReq.idsList[1]
 
-                coordinator.cardSelect.submitSelectN(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(id),
-                ) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId) shouldBe true
                 val result =
                     board.bridge
                         .promptBridge(SeatId(1))

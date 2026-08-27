@@ -53,6 +53,6 @@ internal class GatherCountersWindowMaterializer {
                     it.allowUndo = true
                 },
             )
-        return context.prepared(messages)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 }

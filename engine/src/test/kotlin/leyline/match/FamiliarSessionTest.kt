@@ -54,8 +54,6 @@ class FamiliarSessionTest :
             session.onDeclareAttackers(dummyMsg)
             session.onDeclareBlockers(dummyMsg)
             session.onSelectTargets(dummyMsg)
-            session.onSelectN(dummyMsg)
-            session.onGroupResp(dummyMsg)
             session.onCancelAction(dummyMsg)
             session.onConcede()
             session.onSettings(dummyMsg)

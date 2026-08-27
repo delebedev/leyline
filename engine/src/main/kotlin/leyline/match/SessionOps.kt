@@ -152,21 +152,11 @@ interface ActionReceiver {
 
     fun onSubmitTargets(greMsg: ClientToGREMessage) {}
 
-    fun onSelectN(greMsg: ClientToGREMessage) {}
-
-    fun onOrderResp(greMsg: ClientToGREMessage) {}
-
-    fun onDistributionResp(greMsg: ClientToGREMessage) {}
-
     fun onEffectCost(greMsg: ClientToGREMessage) {}
-
-    fun onGroupResp(greMsg: ClientToGREMessage) {}
 
     fun onCancelAction(greMsg: ClientToGREMessage) {}
 
     fun onCastingTimeOptions(greMsg: ClientToGREMessage) {}
-
-    fun onSearch(greMsg: ClientToGREMessage) {}
 
     fun onAssignDamage(greMsg: ClientToGREMessage) {}
 

@@ -12,7 +12,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.GatherCounterType
-import leyline.bridge.handoff.GatherCountersSelection
 import leyline.bridge.handoff.GatherCountersSourceValue
 import leyline.bridge.handoff.GatherCountersWindowInput
 import leyline.bridge.handoff.OneShotPayCostsWindow
@@ -166,11 +165,7 @@ class GatherCountersRuntimeFailureTest :
             val responseFinished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.oneShotPayCosts.submitGatherCounters(
-                        published.interactionId,
-                        published.gameStateId,
-                        sourceIds.map { GatherCountersSelection(it, 1) },
-                    )
+                    coordinator.acceptSettled(leyline.testkit.gatherCountersResp(sourceIds.map { it to 1 }), published.gameStateId)
                 }.onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()

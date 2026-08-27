@@ -55,7 +55,7 @@ internal class SearchWindowMaterializer(
                         .addParameters(cardIdPromptParameter(context.seatId))
                         .build()
             }
-        return context.prepared(stateMessages + request)
+        return context.prepared(stateMessages + request, awaitedRequest = request)
     }
 
     fun resetBaseline(prior: ProjectionState): ProjectionTransition {

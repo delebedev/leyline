@@ -54,6 +54,15 @@ class ResponseEnvelopeGuardTest :
                 ResponseAcceptanceTracker(),
             ) shouldBe FailureReason.ReqRespMismatch
         }
+
+        test("leaves settled responses to the settled prompt owner") {
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
+            val settled = response(respId = 16, type = ClientMessageType.SelectNresp)
+
+            ResponseEnvelopeGuard.mismatchReason(settled, sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 0
+        }
     })
 
 private fun response(

@@ -6,6 +6,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.DistributionInteractionResult
 import leyline.bridge.handoff.DistributionRouteKind
 import leyline.bridge.handoff.DistributionTargetRef
@@ -94,10 +95,9 @@ class MatchDistributionInteractionRuntimeTest :
                 req.distributionReq.minPerTarget shouldBe 1
                 req.distributionReq.targetIdsList.size shouldBe 2
                 req.distributionReq.validSelectedTargetIdsList shouldContainExactly req.distributionReq.targetIdsList
-                coordinator.distribution.submit(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.distributionResp(req.distributionReq.targetIdsList.zip(listOf(2, 3))),
                     interaction.gameStateId,
-                    listOf(cardTargets(options)[0] to 2, cardTargets(options)[1] to 3),
                 ) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().amounts shouldBe mapOf(cardTargets(options)[0] to 2, cardTargets(options)[1] to 3)
@@ -133,20 +133,47 @@ class MatchDistributionInteractionRuntimeTest :
                 published = coordinator.distribution.current()
             }
             val interaction = checkNotNull(published)
+            val targetIds =
+                coordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .single { it.hasDistributionReq() }
+                    .distributionReq.targetIdsList
+            val acceptedBefore = board.bridge.responseAcceptance.responsesAccepted()
             assertSoftly {
-                coordinator.distribution.submit(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.distributionResp(listOf(targetIds[0] to 1)),
                     interaction.gameStateId,
-                    listOf(cardTargets(options)[0] to 1),
                 ) shouldBe
                     false
-                coordinator.distribution.submit(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.distributionResp(targetIds.map { it to 1 }),
                     interaction.gameStateId,
-                    listOf(cardTargets(options)[0] to 1, cardTargets(options)[1] to 1),
                 ) shouldBe false
                 coordinator.distribution.current() shouldBe interaction
-                coordinator.distribution.cancel(interaction.interactionId, interaction.gameStateId) shouldBe true
+                coordinator.admitSettled(
+                    leyline.testkit.cancelActionReq(),
+                    interaction.gameStateId + 1,
+                    Int.MAX_VALUE,
+                ) shouldBe SettledPromptAdmission.NotOwned
+                coordinator
+                    .admitSettled(
+                        leyline.testkit.cancelActionReq(),
+                        interaction.gameStateId,
+                        Int.MAX_VALUE,
+                    ).shouldBeInstanceOf<SettledPromptAdmission.Accepted>()
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore
+                coordinator.admitSettled(
+                    leyline.testkit.cancelActionReq(),
+                    interaction.gameStateId,
+                    Int.MIN_VALUE,
+                ) shouldBe SettledPromptAdmission.Rejected
+                coordinator.prompts.settled.reset()
+                coordinator.admitSettled(
+                    leyline.testkit.cancelActionReq(),
+                    interaction.gameStateId,
+                    Int.MIN_VALUE,
+                ) shouldBe SettledPromptAdmission.NotOwned
             }
         }
 
@@ -186,13 +213,12 @@ class MatchDistributionInteractionRuntimeTest :
                     .distributionReq
                     .targetIdsList
             assertSoftly {
-                coordinator.distribution.submitWire(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.distributionResp(listOf(999_999 to 2, targetIds[1] to 3)),
                     interaction.gameStateId,
-                    listOf(999_999 to 2, targetIds[1] to 3),
                 ) shouldBe false
                 coordinator.distribution.current() shouldBe interaction
-                coordinator.distribution.cancel(interaction.interactionId, interaction.gameStateId) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), interaction.gameStateId) shouldBe true
             }
         }
 
@@ -247,10 +273,9 @@ class MatchDistributionInteractionRuntimeTest :
                     .targetIdsList
             assertSoftly {
                 targetIds.distinct().size shouldBe 2
-                coordinator.distribution.submitWire(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.distributionResp(listOf(targetIds[0] to 2, targetIds[1] to 3)),
                     interaction.gameStateId,
-                    listOf(targetIds[0] to 2, targetIds[1] to 3),
                 ) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().amounts shouldBe mapOf(cardTarget to 2, playerTarget to 3)

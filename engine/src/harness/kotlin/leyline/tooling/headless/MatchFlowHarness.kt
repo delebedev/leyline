@@ -707,15 +707,14 @@ class MatchFlowHarness(
         description: String,
         expected: ((GREToClientMessage) -> Boolean)? = null,
         autoRespond: Boolean = true,
+        preserveRespId: Boolean = false,
     ) = awaitClientOperation(
         description,
         response = {
+            val builder = message.toBuilder().clearGameStateId()
+            if (!preserveRespId) builder.clearRespId()
             submitWithGsId(
-                message
-                    .toBuilder()
-                    .clearGameStateId()
-                    .clearRespId()
-                    .build(),
+                builder.build(),
             )
         },
         expected = expected,
@@ -1191,7 +1190,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.None_a455),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        submitAndAwaitClientResult(submitWithGsId(msg), "group response")
+        submitPromptResponse(msg, "group response")
     }
 
     /**
@@ -1224,7 +1223,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.Bottom),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        submitAndAwaitClientResult(submitWithGsId(msg), "scry response")
+        submitPromptResponse(msg, "scry response")
     }
 
     /**
@@ -1440,19 +1439,19 @@ class MatchFlowHarness(
      * @param selectedInstanceIds the instanceIds the player chose (e.g. the legendary to keep)
      */
     fun respondToSelectN(selectedInstanceIds: List<Int>) {
-        submitAndAwaitClientResult(submitWithGsId(selectNResp(ids = selectedInstanceIds)), "selection response")
+        submitPromptResponse(selectNResp(ids = selectedInstanceIds), "selection response")
     }
 
     fun respondToOrder(orderedInstanceIds: List<Int>) {
-        submitAndAwaitClientResult(submitWithGsId(orderResp(ids = orderedInstanceIds)), "order response")
+        submitPromptResponse(orderResp(ids = orderedInstanceIds), "order response")
     }
 
     fun respondToDistribution(amounts: List<Pair<Int, Int>>) {
-        submitAndAwaitClientResult(submitWithGsId(distributionResp(amounts)), "distribution response")
+        submitPromptResponse(distributionResp(amounts), "distribution response")
     }
 
     fun respondToSearch(itemsFound: List<Int>) {
-        submitAndAwaitClientResult(submitWithGsId(searchResp(itemsFound)), "search response")
+        submitPromptResponse(searchResp(itemsFound), "search response")
     }
 
     fun respondToEffectCost(selectedInstanceIds: List<Int>) {
@@ -1460,7 +1459,19 @@ class MatchFlowHarness(
     }
 
     fun respondToGatherCounters(gatherings: List<Pair<Int, Int>>) {
-        submitAndAwaitClientResult(submitWithGsId(gatherCountersResp(gatherings)), "counter response")
+        submitPromptResponse(gatherCountersResp(gatherings), "counter response")
+    }
+
+    private fun submitPromptResponse(
+        message: ClientToGREMessage,
+        description: String,
+    ) {
+        val requestMsgId = checkNotNull(messageLog.latestPrompt()).msgId
+        submitAndAwaitClientResult(
+            message.toBuilder().setRespId(requestMsgId).build(),
+            description,
+            preserveRespId = true,
+        )
     }
 
     // --- Modal helpers ---

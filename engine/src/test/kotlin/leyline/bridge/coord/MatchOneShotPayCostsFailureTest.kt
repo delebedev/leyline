@@ -117,8 +117,8 @@ class MatchOneShotPayCostsFailureTest :
                 coordinator.oneShotPayCosts
                     .current()
                     .shouldBeNull()
-                coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
-                coordinator.oneShotPayCosts.cancel(published.interactionId, published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(selected)), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId) shouldBe false
                 coordinator.failure().shouldBeNull()
             }
         }

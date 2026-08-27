@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.player.GameLossReason
 import leyline.bridge.coord.GameOverIntent
+import leyline.bridge.coord.SettledPromptAdmission
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
@@ -90,9 +91,6 @@ class MatchSession(
         NumericInputHandler(
             ctx = ctx,
         )
-    private val orderInteractionHandler = OrderInteractionHandler(ctx)
-    private val distributionInteractionHandler = DistributionInteractionHandler(ctx)
-    private val groupingInteractionHandler = GroupingInteractionHandler(ctx)
     internal val actionPerformer =
         ActionPerformer(
             sink = this,
@@ -244,30 +242,9 @@ class MatchSession(
             awaitHandlerResult(targetingHandler.onSubmitTargets(greMsg), completedActionId)
         }
 
-    /** Handle SelectNResp — delegates to [TargetingHandler]. */
-    override fun onSelectN(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) { completedActionId ->
-            awaitHandlerResult(targetingHandler.onSelectN(greMsg), completedActionId)
-        }
-
-    override fun onOrderResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) { completedActionId ->
-            if (orderInteractionHandler.onOrderResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
-        }
-
-    override fun onDistributionResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) { completedActionId ->
-            if (distributionInteractionHandler.onDistributionResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
-        }
-
     override fun onEffectCost(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) { completedActionId ->
             awaitHandlerResult(targetingHandler.onEffectCost(greMsg), completedActionId)
-        }
-
-    override fun onGroupResp(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) { completedActionId ->
-            if (groupingInteractionHandler.onGroupResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
         }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
@@ -276,10 +253,14 @@ class MatchSession(
             awaitHandlerResult(targetingHandler.onCastingTimeOptions(greMsg), completedActionId)
         }
 
-    /** Handle SearchResp — delegates to [TargetingHandler]. */
-    override fun onSearch(greMsg: ClientToGREMessage) =
-        withValidResponse(greMsg) { completedActionId ->
-            awaitHandlerResult(targetingHandler.onSearchResp(greMsg), completedActionId)
+    internal fun admitSettled(greMsg: ClientToGREMessage): SettledPromptAdmission =
+        synchronized(sessionLock) {
+            gameBridge.cutCoordinator.prompts.settled.admit(greMsg).also { admission ->
+                if (admission is SettledPromptAdmission.Accepted) {
+                    val completedActionId = gameBridge.actionBridge(seatId).getPending()?.actionId
+                    runtimeContinuation.awaitHorizon(completedActionId, admission.afterEngineResume)
+                }
+            }
         }
 
     private fun withValidResponse(
@@ -300,7 +281,7 @@ class MatchSession(
         result: HandlerResult,
         completedActionId: String?,
     ) {
-        if (result.resumes) runtimeContinuation.awaitHorizon(completedActionId, result)
+        if (result.resumes) runtimeContinuation.awaitHorizon(completedActionId)
     }
 
     /**

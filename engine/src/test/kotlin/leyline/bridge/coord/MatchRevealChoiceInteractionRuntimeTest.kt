@@ -175,7 +175,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 req.prompt.promptId shouldBe PromptIds.SELECT_N
                 message.prompt.promptId shouldBe PromptIds.SELECT_N
                 message.allowCancel shouldBe AllowCancel.No_a526
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(candidateId)) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(candidateId)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (result.get().handles.single() === candidates.single()) shouldBe true
                 result.get().optionIndices shouldContainExactly listOf(0)
@@ -228,7 +228,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 req.unfilteredIdsCount shouldBe 2
                 req.minSel shouldBe 0
                 req.maxSel shouldBe 0
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().handles.shouldBeEmpty()
                 board.bridge
@@ -278,11 +278,11 @@ class MatchRevealChoiceInteractionRuntimeTest :
                     .journal
                     .activeRevealEntry()
                     .shouldBeNull()
-                coordinator.revealChoices.submit(
-                    published.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.selectNResp(listOf(requestMessage.selectNReq.idsList[0])),
                     published.gameStateId,
-                    listOf(requestMessage.selectNReq.idsList[0]),
-                ) shouldBe false
+                ) shouldBe
+                    false
             }
         }
 
@@ -316,7 +316,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val replacement = checkNotNull(journal.activeRevealEntry())
 
             assertSoftly {
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id)) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 journal.activeRevealEntry() shouldBe replacement
             }

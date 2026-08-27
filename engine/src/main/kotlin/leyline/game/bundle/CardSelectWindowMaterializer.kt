@@ -40,7 +40,7 @@ internal class CardSelectWindowMaterializer {
                     if (envelope.allowCancel != AllowCancel.None_a526) it.allowCancel = envelope.allowCancel
                 },
             )
-        return context.prepared(messages)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun buildRequest(
