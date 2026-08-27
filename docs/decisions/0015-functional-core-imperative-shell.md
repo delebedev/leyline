@@ -25,7 +25,7 @@ The implemented milestone provides:
 
 Explicit remaining work includes `GameBridge` orchestration, the secondary
 live-state action-construction path, remaining terminal and residual lifecycle output,
-`MatchSession` convergence, and atomic multi-view compilation. These are not
+and `MatchSession` convergence. These are not
 requirements for treating the functional projection and prompt-ownership
 milestone as implemented.
 
@@ -127,9 +127,11 @@ not disprove the value-only functional core.
 
 The implemented milestone is visible in current types:
 
-- `StateMapper.buildDraft` and `StateProjectionCompiler.compileOneViewer` now
-  form a bridge-free boundary over immutable snapshots, ordered facts, scoped
-  projection facts, and a `StateProjectionEnvironment`.
+- `StateMapper.buildDraft` and `StateProjectionCompiler.compileViewers` now form
+  a bridge-free boundary over immutable snapshots, ordered facts, scoped
+  projection facts, and a `StateProjectionEnvironment`. The ordered viewer fold
+  returns one tentative transition; `compileOneViewer` remains an isolated
+  compatibility entry.
 - `PureDiffReplayTest` covers replay from an explicit `StateFrameInput`, prior
   projection state, and intent. `StateMapperValueBoundaryTest` exercises the
   same direct value boundary without Forge or `GameBridge`.
@@ -162,14 +164,14 @@ The implemented milestone is visible in current types:
   optional-empty or required stable-prefix synchronous default. Candidate-free
   Generic choices use the same explicit synchronous policy, while non-library
   ordering returns its input without allocating a prompt. Modal choice now has
-  a coordinator-owned runtime; remaining terminal and residual lifecycle output and
-  multi-view compilation remain outside the coordinator boundary.
+  a coordinator-owned runtime; remaining terminal and residual lifecycle output
+  remain outside the coordinator boundary.
 
 The current milestone completes blocking prompt-response ownership, including
 the residual card compatibility path. It does not claim whole-runtime
 convergence: `GameBridge` orchestration, secondary action construction,
-lifecycle and terminal output, `MatchSession`, and multi-view compilation remain
-separate incremental work.
+lifecycle and terminal output, and `MatchSession` remain separate incremental
+work.
 
 ## Decision
 

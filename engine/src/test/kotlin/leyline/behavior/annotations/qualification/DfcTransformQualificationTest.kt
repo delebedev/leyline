@@ -6,6 +6,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.detailUint
 import leyline.testkit.gsmOrNull
 import leyline.testkit.humanPlayer
@@ -27,7 +28,7 @@ class DfcTransformQualificationTest :
                     .first { it.name == "Concealing Curtains" }
 
             board.game.fireEvent(GameEventCardStatsChanged(card))
-            bundleBuilder(board.bridge).stateOnlyDiff(board.game, board.counter).gsmOrNull
+            BundleBuilderTestSupport.stateOnly(bundleBuilder(board.bridge), board.bridge, board.game, board.counter).gsmOrNull
                 ?: error("front-face state diff returned no GSM")
 
             val gsm =

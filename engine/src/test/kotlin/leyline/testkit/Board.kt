@@ -49,7 +49,9 @@ class Board(
     fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, TEST_MATCH_ID, SEAT_ID)
 
     /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
-    fun stateOnlyDiff(): GameStateMessage = bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+    fun stateOnlyDiff(): GameStateMessage =
+        BundleBuilderTestSupport.stateOnly(bundleBuilder(), bridge, game, counter).gsmOrNull
+            ?: error("stateOnlyDiff returned no GSM")
 
     /**
      * Seed the diff baseline, run [action], build a stateOnlyDiff, return the GSM.
@@ -72,13 +74,13 @@ class Board(
                 ?.drainQueue()
                 .orEmpty()
                 .flatten()
-        val result = bundleBuilder().postAction(game, counter)
+        val result = BundleBuilderTestSupport.postAction(bundleBuilder(), bridge, game, counter)
         if (playbackMessages.isEmpty()) return result
         return BundleBuilder.BundleResult(playbackMessages + result.messages)
     }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
-    fun gameStart(): BundleBuilder.BundleResult = bundleBuilder().phaseTransitionDiff(game, counter)
+    fun gameStart(): BundleBuilder.BundleResult = BundleBuilderTestSupport.phaseTransition(bundleBuilder(), bridge, game, counter)
 
     // ----- Board actions -----
 

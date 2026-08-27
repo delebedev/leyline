@@ -29,6 +29,7 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailString
 import leyline.testkit.submitTestAction
@@ -250,7 +251,9 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
@@ -370,7 +373,9 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
@@ -456,7 +461,9 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
@@ -519,7 +526,9 @@ class GameBridgeTest :
             b.seedDiffBaseline(game)
 
             val result =
-                BundleBuilder(b, "test-match", 1).postAction(
+                BundleBuilderTestSupport.postAction(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )

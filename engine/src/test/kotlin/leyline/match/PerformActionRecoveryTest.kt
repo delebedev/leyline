@@ -8,6 +8,7 @@ import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.performAction
 
 /**
@@ -38,7 +39,8 @@ class PerformActionRecoveryTest :
                 )
 
             bridge.cutCoordinator.registerViewer(SeatId(1))
-            val committed = board.bundleBuilder().stateOnlyDiff(board.game, board.counter).messages
+            val committed =
+                BundleBuilderTestSupport.stateOnly(board.bundleBuilder(), board.bridge, board.game, board.counter).messages
             bridge.cutCoordinator.enqueueCommittedBatchForTest(SeatId(1), committed)
             val committedRevision = bridge.projectionStateSnapshot().revision
             val nextGameStateId = bridge.committedSequence().currentGsId
@@ -52,13 +54,13 @@ class PerformActionRecoveryTest :
                     .build(),
             )
 
-            // The state-only resync emits content + echo GSMs and no action request.
+            // The state-only resync emits one prepared GSM and no action request.
             // Runtime continuation emits only the committed state-only bundle.
             val gsms = sink.messages.filter { it.hasGameStateMessage() }
             val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
             val content = gsms.first().gameStateMessage
             assertSoftly {
-                gsms.size shouldBe 2
+                gsms.size shouldBe 1
                 aarCount shouldBe 0
                 content.pendingMessageCount shouldBe 0
                 bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe false

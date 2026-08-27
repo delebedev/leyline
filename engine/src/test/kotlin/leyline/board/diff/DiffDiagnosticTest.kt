@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.annotation
 import leyline.testkit.detailInt
@@ -73,7 +74,9 @@ class DiffDiagnosticTest :
             }
 
             val aiResult =
-                bundleBuilder(board.bridge).stateOnlyDiff(
+                BundleBuilderTestSupport.stateOnly(
+                    bundleBuilder(board.bridge),
+                    board.bridge,
                     board.game,
                     board.counter,
                 )

@@ -2,6 +2,7 @@ package leyline.bridge.coord
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -259,11 +260,14 @@ class MatchSearchInteractionRuntimeTest :
             }.start()
             awaitPublished(coordinator)
             coordinator.drain(SeatId(1))
+            val publishedSequence = board.bridge.committedSequence()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
                 signal.awaitSignal(3_000) shouldBe true
+                board.bridge.committedSequence() shouldBe publishedSequence
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
                 coordinator.search
                     .current()
                     .shouldBeNull()

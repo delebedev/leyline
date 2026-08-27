@@ -169,10 +169,6 @@ internal class MatchSearchInteractionRuntime(
 
     private fun resetBaseline() {
         val transition = owner.feed(owner.humanSeat).builder.prepareSearchBaselineReset(owner.bridge.projectionStateSnapshot())
-        try {
-            owner.bridge.commitProjection(transition)
-        } catch (ex: Exception) {
-            owner.fail(ex)
-        }
+        owner.cutInstaller.installProjectionOnly(transition, owner::fail)
     }
 }
