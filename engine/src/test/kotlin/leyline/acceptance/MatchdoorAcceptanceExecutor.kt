@@ -369,12 +369,14 @@ private class ScenarioRun(
             harness.accumulator.actions?.actionsList.orEmpty().filter { action ->
                 action.actionType == ActionType.Activate_add3 &&
                     actionCardName(action).equals(step.card, ignoreCase = true) &&
-                    actionMatchesZone(action, step.zone)
+                    actionMatchesZone(action, step.zone) &&
+                    (step.abilityGrpId == null || action.abilityGrpId == step.abilityGrpId)
             }
         val action =
             matching.getOrNull(step.abilityIndex)
                 ?: error(
-                    "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}",
+                    "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}" +
+                        step.abilityGrpId?.let { " with ability_grp_id $it" }.orEmpty(),
                 )
         submitAction(action)
     }

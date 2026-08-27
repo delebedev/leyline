@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Activate Champion of Dusan's Renew ability from the graveyard, exile it as a cost, and put a +1/+1 counter and a trample counter on a creature.
+# Forcing: Champion is the only graveyard activation and Ironheart is the only legal creature target; two Forests provide exactly {1}{G}.
+# AI behavior: The opponent has no choices, and the human starts in Main1 with every required object available.
+# Failure modes:
+#   WIN   = Renew resolves and updates Ironheart while Champion remains exiled.
+#   LOSE  = the activation, target, payment, cost movement, or counter effect fails.
+#   TIMEOUT = the activation or resolution never reaches stable priority.
+# Card roles:
+#   Champion of Dusan — graveyard Renew source and self-exile cost.
+#   Ironheart, Clever Champion — sole creature target with a 3/4 baseline.
+#   Forest — exact mana for Renew and deterministic library fillers.
+# Protocol path: graveyard activation, target selection, mana payment, self-exile cost, resolution, and counter state.
+
+[metadata]
+Name:Renew - Champion of Dusan
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Activate Champion of Dusan from the graveyard and put its two counters on Ironheart.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Forest;Ironheart, Clever Champion
+humangraveyard=Champion of Dusan
+humanlibrary=Forest
+ailibrary=Forest

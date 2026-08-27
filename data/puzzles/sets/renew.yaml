@@ -1,0 +1,29 @@
+name: renew
+description: Acceptance for Champion of Dusan's graveyard Renew activation.
+scenarios:
+  - id: champion-of-dusan-graveyard-renew
+    puzzle: renew-champion-of-dusan
+    run: activate Champion of Dusan's Renew ability from the graveyard, target Ironheart, and resolve it
+    expect: Champion is exiled and Ironheart gets one +1/+1 counter and one trample counter
+    steps:
+      - expect:
+          action: { type: activate, card: Champion of Dusan }
+      - activate: { card: Champion of Dusan, zone: graveyard, ability_grp_id: 188841 }
+      - target: { side: ours, zone: battlefield, card: "Ironheart, Clever Champion", count: 1 }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Champion of Dusan }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Champion of Dusan }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Champion of Dusan }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Champion of Dusan }
+            - battlefield_stats: { side: ours, card: "Ironheart, Clever Champion", power: 4, toughness: 5 }
+            - annotation_seen:
+                type: CounterAdded
+                details: { counter_type: "+1/+1", transaction_amount: "1" }
+            - annotation_seen:
+                type: CounterAdded
+                details: { counter_type: Trample, transaction_amount: "1" }
+            - stack_empty: true

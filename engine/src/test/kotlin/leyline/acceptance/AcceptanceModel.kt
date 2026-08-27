@@ -43,6 +43,7 @@ data class ActivateStep(
     val card: String,
     val zone: AcceptanceZone = AcceptanceZone.Battlefield,
     val abilityIndex: Int = 0,
+    val abilityGrpId: Int? = null,
 ) : AcceptanceStep {
     override val label: String = "activate $card"
 }
