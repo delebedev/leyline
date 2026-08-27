@@ -169,47 +169,6 @@ class PriorityPolicyRuntime {
             }
         }
 
-    /** Sole source of auto-pass/Grant/Skip classification used by the pump. */
-    internal fun decideHumanActions(
-        game: Game,
-        hasLegalAction: Boolean,
-    ): PriorityDecision {
-        val decision =
-            synchronized(stateLock) {
-                classifyActions(game.phaseHandler.phase?.name, hasLegalAction)
-            }
-        recordDecision(game, decision)
-        return decision
-    }
-
-    private fun classifyActions(
-        phase: String?,
-        hasLegalAction: Boolean,
-    ): PriorityDecision =
-        when {
-            autoPassPriority == AutoPassPriority.No_a099 ->
-                PriorityDecision.Grant(
-                    phase = phase ?: "UNKNOWN",
-                    actionCount = if (hasLegalAction) 1 else 0,
-                )
-            shouldAutoPassLocked() && !hasLegalAction -> PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
-            !hasLegalAction -> PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
-            else -> PriorityDecision.Grant(phase = phase ?: "UNKNOWN", actionCount = 1)
-        }
-
-    /** The pump may suppress only a runtime-classified opponent pass-only window. */
-    internal fun shouldSuppressOpponentPresentation(
-        game: Game,
-        isAiTurn: Boolean,
-        hasLegalAction: Boolean,
-    ): Boolean =
-        synchronized(stateLock) {
-            isAiTurn &&
-                autoPassPriority != AutoPassPriority.No_a099 &&
-                !opponentStops.contains(game.phaseHandler.phase ?: return false) &&
-                classifyActions(null, hasLegalAction) is PriorityDecision.Skip
-        }
-
     private fun priorityWindowMode(
         fullControl: Boolean,
         phaseStop: Boolean,
