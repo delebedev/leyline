@@ -114,14 +114,15 @@ class MatchFlowHarness(
         MatchFlowCombatDriver(
             seatId = seatId,
             bridge = { bridge },
-            submit = { message, description -> submitAndAwaitClientResult(message, description) },
-            submitAndAwaitPrompt = { message, description, predicate ->
-                submitAndAwaitClientResult(message, description, predicate)
+            submitOperation = { message, description, completeWhen ->
+                submitAndAwaitClientResult(message, description, completeWhen = completeWhen)
+            },
+            submitAndAwaitPromptOperation = { message, description, predicate, completeWhen ->
+                submitAndAwaitClientResult(message, description, predicate, completeWhen = completeWhen)
             },
             messageSnapshot = { messageLog.snapshot() },
             messagesSince = { snapshot -> messageLog.since(snapshot) },
             submitWithGsId = { msg -> submitWithGsId(msg) },
-            awaitClientOutput = { description, predicate -> awaitNextClientOutput(description, predicate) },
         )
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
@@ -521,7 +522,9 @@ class MatchFlowHarness(
     private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     /** Advance one exact priority or state-only synchronization stop. */
-    fun passPriority() = passPriorityUntil(messageSnapshot(), "priority horizon")
+    fun passPriority() {
+        passPriorityUntil(messageSnapshot(), "priority horizon")
+    }
 
     /** Submit an offered action without rebuilding or dropping action fields. */
     fun submitAction(action: Action) {
@@ -565,6 +568,10 @@ class MatchFlowHarness(
      * that ignores it spins to its budget with the game frozen in CLEANUP.
      */
     fun advance() {
+        advance { false }
+    }
+
+    private fun advance(completeWhen: () -> Boolean): Boolean {
         val unanswered = unansweredSelectN()
         val prompt = messageLog.latestPrompt()
         val pendingKind =
@@ -574,11 +581,21 @@ class MatchFlowHarness(
                 ?.state
                 ?.kind
         when {
-            unanswered != null -> respondToSelectN(unanswered.ids.take(unanswered.count))
-            pendingKind == PendingActionKind.DECLARE_ATTACKERS -> declareNoAttackers()
-            pendingKind == PendingActionKind.DECLARE_BLOCKERS -> declareNoBlockers()
+            unanswered != null ->
+                submitPromptResponse(
+                    selectNResp(ids = unanswered.ids.take(unanswered.count)),
+                    "selection response",
+                    completeWhen,
+                )
+            pendingKind == PendingActionKind.DECLARE_ATTACKERS -> declareNoAttackers(completeWhen)
+            pendingKind == PendingActionKind.DECLARE_BLOCKERS -> declareNoBlockers(completeWhen)
             pendingKind == PendingActionKind.PRIORITY || pendingKind == PendingActionKind.SYNC_ONLY ->
-                passPriorityUntil(messageSnapshot(), "priority horizon", stopAtInteraction = true)
+                passPriorityUntil(
+                    messageSnapshot(),
+                    "priority horizon",
+                    stopAtInteraction = true,
+                    completeWhen = completeWhen,
+                )
             prompt?.hasPayCostsReq() == true ->
                 submitAndAwaitClientResult(
                     submitWithGsId(
@@ -588,9 +605,17 @@ class MatchFlowHarness(
                             .build(),
                     ),
                     "cost cancellation",
+                    completeWhen = completeWhen,
                 )
-            else -> passPriorityUntil(messageSnapshot(), "priority pass", stopAtInteraction = true)
+            else ->
+                passPriorityUntil(
+                    messageSnapshot(),
+                    "priority pass",
+                    stopAtInteraction = true,
+                    completeWhen = completeWhen,
+                )
         }
+        return completeWhen()
     }
 
     /**
@@ -632,7 +657,7 @@ class MatchFlowHarness(
     ): Boolean {
         repeat(maxPasses) {
             if (stopWhen()) return true
-            advance()
+            if (advance(stopWhen)) return true
         }
         return stopWhen()
     }
@@ -691,12 +716,23 @@ class MatchFlowHarness(
         awaitNamedOutput(epoch, messageStart, description, predicate)
     }
 
-    internal fun awaitPendingActionHorizon(pending: leyline.bridge.handoff.GameActionBridge.PendingAction) {
+    internal fun pendingActionHorizonPublished(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messageStart: Int,
+    ): Boolean {
+        check(pending.state.kind != PendingActionKind.SYNC_ONLY)
+        collectSinkMessages()
+        return pendingHorizonVisible(pending, messagesSince(messageStart))
+    }
+
+    internal fun awaitPendingActionHorizon(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messageStart: Int,
+    ) {
         check(pending.state.kind != PendingActionKind.SYNC_ONLY)
         val epoch = localOutput.snapshot()
-        val messageStart = messageSnapshot()
         collectSinkMessages()
-        if (pendingHorizonVisible(pending, allMessages)) return
+        if (pendingHorizonVisible(pending, messagesSince(messageStart))) return
         awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
             pendingHorizonVisible(pending, listOf(message))
         }
@@ -708,8 +744,10 @@ class MatchFlowHarness(
         expected: ((GREToClientMessage) -> Boolean)? = null,
         autoRespond: Boolean = true,
         preserveRespId: Boolean = false,
+        completeWhen: () -> Boolean = { false },
     ) = awaitClientOperation(
         description,
+        complete = completeWhen,
         response = {
             val builder = message.toBuilder().clearGameStateId()
             if (!preserveRespId) builder.clearRespId()
@@ -728,11 +766,11 @@ class MatchFlowHarness(
         expected: ((GREToClientMessage) -> Boolean)? = null,
         continueAfterSubmit: Boolean = false,
         autoRespond: Boolean = true,
-    ) {
+    ): Boolean {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
         while (true) {
             collectSinkMessages()
-            if (isGameOver()) return
+            if (isGameOver()) return false
             var epoch = 0L
             var messageStart = 0
             var submitted = false
@@ -750,7 +788,7 @@ class MatchFlowHarness(
                     submitted = true
                 }
             }
-            if (completed) return
+            if (completed) return true
             if (submitted && !continueAfterSubmit) {
                 if (expected == null) {
                     val remainingNanos = deadline - System.nanoTime()
@@ -763,7 +801,7 @@ class MatchFlowHarness(
                     awaitNamedOutput(epoch, messageStart, description, expected)
                 }
                 if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
-                return
+                return false
             }
             val remainingNanos = deadline - System.nanoTime()
             check(
@@ -800,10 +838,12 @@ class MatchFlowHarness(
         description: String,
         expectedPrompt: ((GREToClientMessage) -> Boolean)? = null,
         stopAtInteraction: Boolean = false,
+        completeWhen: () -> Boolean = { false },
     ) = awaitClientOperation(
         description,
         complete = {
-            (stopAtInteraction && bridge.hasPendingNonActionInteraction()) ||
+            completeWhen() ||
+                (stopAtInteraction && bridge.hasPendingNonActionInteraction()) ||
                 (expectedPrompt != null && messagesSince(messageStart).any(expectedPrompt))
         },
         response = {
@@ -883,12 +923,9 @@ class MatchFlowHarness(
         return controller
     }
 
-    // --- Phase-precise advancement (bridge-level) ---
+    // --- Phase-precise advancement ---
 
-    /**
-     * Advance to a specific phase via bridge — one PassPriority at a time.
-     * No session policy is involved, so there is no phase overshoot.
-     */
+    /** Advance to a specific phase through serialized client operations. */
     fun advanceToPhase(
         phase: String,
         turn: Int? = null,
@@ -896,27 +933,27 @@ class MatchFlowHarness(
         drainSink()
         val pendingAtStart = bridge.actionBridge(seatId).getPending()
         val messageStart = messageLog.snapshot()
-        var epoch = localOutput.snapshot()
-        val pending =
-            leyline.game.advanceTo(
-                bridge,
-                predicate = { currentPhase, currentTurn -> currentPhase == phase && (turn == null || currentTurn == turn) },
-                onSynchronization = {
-                    val synchronizationStart = messageSnapshot()
-                    awaitNamedOutput(epoch, synchronizationStart, "synchronization delivery") { it.hasGameStateMessage() }
-                    epoch = localOutput.snapshot()
-                },
-            )
+        var pending: leyline.bridge.handoff.GameActionBridge.PendingAction? = null
+
+        fun captureTarget(): Boolean {
+            val current = bridge.actionBridge(seatId).getPending()
+            if (current?.state?.let { it.phase == phase && (turn == null || it.turn == turn) } != true) return false
+            pending = current
+            return true
+        }
+
+        advanceUntil(50, ::captureTarget)
+        val reached = checkNotNull(pending) { "Timed out advancing to $phase${turn?.let { " on turn $it" }.orEmpty()}" }
         drainSink()
         val alreadyVisible =
-            pendingHorizonVisible(pending, allMessages.subList(0, messageStart)) &&
-                (pending.state.kind != PendingActionKind.SYNC_ONLY || pendingAtStart?.actionId == pending.actionId)
-        if (!alreadyVisible && !pendingHorizonVisible(pending, messagesSince(messageStart))) {
-            awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
-                pendingHorizonVisible(pending, listOf(message))
+            pendingHorizonVisible(reached, allMessages.subList(0, messageStart)) &&
+                (reached.state.kind != PendingActionKind.SYNC_ONLY || pendingAtStart?.actionId == reached.actionId)
+        if (!alreadyVisible && !pendingHorizonVisible(reached, messagesSince(messageStart))) {
+            awaitNamedOutput(localOutput.snapshot(), messageStart, "${reached.state.kind} delivery") { message ->
+                pendingHorizonVisible(reached, listOf(message))
             }
         }
-        return pending
+        return reached
     }
 
     private fun pendingHorizonVisible(
@@ -963,23 +1000,34 @@ class MatchFlowHarness(
 
     /** Declare no attackers (skip combat). Sends empty selection then submits. */
     fun declareNoAttackers() {
+        declareNoAttackers { false }
+    }
+
+    private fun declareNoAttackers(completeWhen: () -> Boolean): Boolean {
         if (bridge
                 .actionBridge(seatId)
                 .getPending()
                 ?.state
                 ?.kind != PendingActionKind.DECLARE_ATTACKERS
         ) {
-            passPriority()
+            passPriorityUntil(
+                messageSnapshot(),
+                "priority horizon",
+                stopAtInteraction = true,
+                completeWhen = completeWhen,
+            )
+            if (completeWhen()) return true
             if (bridge
                     .actionBridge(seatId)
                     .getPending()
                     ?.state
                     ?.kind != PendingActionKind.DECLARE_ATTACKERS
             ) {
-                return
+                return false
             }
         }
-        combatDriver.declareNoAttackers()
+        combatDriver.declareNoAttackers(completeWhen)
+        return completeWhen()
     }
 
     /**
@@ -1023,23 +1071,34 @@ class MatchFlowHarness(
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() {
+        declareNoBlockers { false }
+    }
+
+    private fun declareNoBlockers(completeWhen: () -> Boolean): Boolean {
         if (bridge
                 .actionBridge(seatId)
                 .getPending()
                 ?.state
                 ?.kind != PendingActionKind.DECLARE_BLOCKERS
         ) {
-            passPriority()
+            passPriorityUntil(
+                messageSnapshot(),
+                "priority horizon",
+                stopAtInteraction = true,
+                completeWhen = completeWhen,
+            )
+            if (completeWhen()) return true
             if (bridge
                     .actionBridge(seatId)
                     .getPending()
                     ?.state
                     ?.kind != PendingActionKind.DECLARE_BLOCKERS
             ) {
-                return
+                return false
             }
         }
-        combatDriver.declareNoBlockers()
+        combatDriver.declareNoBlockers(completeWhen)
+        return completeWhen()
     }
 
     /**
@@ -1488,12 +1547,14 @@ class MatchFlowHarness(
     private fun submitPromptResponse(
         message: ClientToGREMessage,
         description: String,
-    ) {
+        completeWhen: () -> Boolean = { false },
+    ): Boolean {
         val requestMsgId = checkNotNull(messageLog.latestPrompt()).msgId
-        submitAndAwaitClientResult(
+        return submitAndAwaitClientResult(
             message.toBuilder().setRespId(requestMsgId).build(),
             description,
             preserveRespId = true,
+            completeWhen = completeWhen,
         )
     }
 

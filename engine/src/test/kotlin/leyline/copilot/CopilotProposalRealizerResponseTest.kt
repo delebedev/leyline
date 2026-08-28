@@ -7,6 +7,7 @@ import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
 
@@ -18,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.TeamType
  * gsId — finalizes. Every message answers exactly one prompt.
  */
 @Suppress("MissingAssertSoftly")
-class ResponseBuilderTest :
+class CopilotProposalRealizerResponseTest :
     FunSpec({
 
         tags(UnitTag)
@@ -34,7 +35,12 @@ class ResponseBuilderTest :
             gsId: Int = 42,
             seat: Int = 1,
             respId: Int = 0,
-        ) = decode(ResponseBuilder.hexMessages(ResponseBuilder.build(decision, gsId, seat, respId)).single())
+        ) = decode(
+            CopilotProposalRealizer
+                .realize(decision, GREMessageType.PromptReq, seat, gsId = gsId, respId = respId)
+                .responses
+                .single(),
+        )
 
         test("pass is a single PerformActionResp Pass tagged to the prompt gsId") {
             val msgs = bytesOf(SimDecision.PassPriority)
@@ -207,7 +213,7 @@ class ResponseBuilderTest :
             group.idsList shouldBe listOf(105)
         }
 
-        test("replacement echoes the complete identity-rich row") {
+        test("replacement preserves the selected row and request-local identity") {
             val row =
                 ReplacementEffect
                     .newBuilder()
@@ -217,7 +223,17 @@ class ResponseBuilderTest :
                     .setAbilityGrpId(202)
                     .setReplacementEffectId(9000)
                     .build()
-            val msg = bytesOf(SimDecision.SelectReplacement(row), gsId = 44, respId = 78).single()
+            val proposal =
+                CopilotProposalRealizer.realize(
+                    SimDecision.SelectReplacement(row),
+                    GREMessageType.SelectReplacementReq_695e,
+                    1,
+                    gsId = 44,
+                    respId = 78,
+                )
+            proposal.intent shouldBe "select_replacement"
+            proposal.replacementEffectId shouldBe 9000
+            val msg = decode(proposal.responses.single()).single()
             msg.type shouldBe ClientMessageType.SelectReplacementResp_097b
             msg.gameStateId shouldBe 44
             msg.respId shouldBe 78

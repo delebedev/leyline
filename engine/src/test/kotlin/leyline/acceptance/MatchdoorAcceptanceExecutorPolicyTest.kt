@@ -10,12 +10,21 @@ class MatchdoorAcceptanceExecutorPolicyTest :
     FunSpec({
         tags(UnitTag)
 
-        test("an empty stack at client priority needs no further pass") {
+        test("a published post-action priority horizon needs no further pass") {
             stackResolutionNeedsAdvance(
                 passCount = 0,
                 stackEmpty = true,
                 pendingKind = PendingActionKind.PRIORITY,
+                postActionHorizonPublished = true,
             ) shouldBe false
+        }
+
+        test("a stale priority horizon still advances an empty stack once") {
+            stackResolutionNeedsAdvance(
+                passCount = 0,
+                stackEmpty = true,
+                pendingKind = PendingActionKind.PRIORITY,
+            ) shouldBe true
         }
 
         test("an entry-empty stack without a published horizon still advances once") {

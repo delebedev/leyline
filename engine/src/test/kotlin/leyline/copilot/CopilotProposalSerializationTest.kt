@@ -17,12 +17,24 @@ class CopilotProposalSerializationTest :
 
         test("serializes ordered delivery messages as independently decodable JSON entries") {
             val pass =
-                ResponseBuilder
-                    .hexMessages(ResponseBuilder.build(SimDecision.PassPriority, gsId = 42, seatId = 1, respId = 7))
+                CopilotProposalRealizer
+                    .realize(
+                        SimDecision.PassPriority,
+                        wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
+                        1,
+                        gsId = 42,
+                        respId = 7,
+                    ).responses
                     .single()
             val cancel =
-                ResponseBuilder
-                    .hexMessages(ResponseBuilder.build(SimDecision.CancelAction, gsId = 42, seatId = 1, respId = 7))
+                CopilotProposalRealizer
+                    .realize(
+                        SimDecision.CancelAction,
+                        wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
+                        1,
+                        gsId = 42,
+                        respId = 7,
+                    ).responses
                     .single()
             val proposal =
                 CopilotProposal(intent = "pass", promptType = "ActionsAvailableReq", seat = 1, responses = listOf(pass, cancel))
