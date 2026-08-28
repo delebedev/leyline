@@ -30,39 +30,38 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 fun GameBridge.seedDiffBaseline(
     game: Game,
     gameStateId: Int = 0,
-): GsmSnapshot =
-    synchronized(projectionBuildLock) {
-        val priorProjection = projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            editProjection(priorProjection) {
-                GsmSnapshot.capture(game, this, "", gameStateId)
-            }
-        val events = closeBundleFrame()
-        val promptFacts = materializePromptProjectionFacts()
-        val result =
-            StateProjectionCompiler.compileOneViewer(
-                environment = stateProjectionEnvironment,
-                input =
-                    StateFrameInput(
-                        gameStateId = gameStateId,
-                        snapshot = snap,
-                        previousSnapshot = null,
-                        events = events,
-                        promptFacts = promptFacts,
-                        persistentFeedFacts =
-                            PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
-                        effectFacts = materializeEffectProjectionFacts(),
-                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
-                        updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
-                        viewingSeatId = seating.humanSeat.value,
-                        revealForSeat = null,
-                    ),
-                prior = capturedProjection.copy(revision = priorProjection.revision),
-            )
-        commitProjection(result.transition)
-        snap
-    }
+): GsmSnapshot {
+    val priorProjection = projectionStateSnapshot()
+    val (snap, capturedProjection) =
+        editProjection(priorProjection) {
+            GsmSnapshot.capture(game, this, "", gameStateId)
+        }
+    val events = closeBundleFrame()
+    val promptFacts = materializePromptProjectionFacts()
+    val result =
+        StateProjectionCompiler.compileOneViewer(
+            environment = stateProjectionEnvironment,
+            input =
+                StateFrameInput(
+                    gameStateId = gameStateId,
+                    snapshot = snap,
+                    previousSnapshot = null,
+                    events = events,
+                    promptFacts = promptFacts,
+                    persistentFeedFacts =
+                        PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
+                    effectFacts = materializeEffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
+                    updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
+                    viewingSeatId = seating.humanSeat.value,
+                    revealForSeat = null,
+                ),
+            prior = capturedProjection.copy(revision = priorProjection.revision),
+        )
+    commitProjection(result.transition)
+    return snap
+}
 
 /** Compile one observational projection from an explicit snapshot without installing it. */
 fun GameBridge.projectSnapshotForTest(

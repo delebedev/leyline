@@ -214,21 +214,19 @@ internal class DeferredCastWindowRuntime(
         }
 
     fun cancel(promptGameStateId: Int): Boolean =
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                val pending = prompt ?: return@synchronized false
-                if (pending.promptGameStateId != promptGameStateId || !actions.isDeferredClaim(pending.actionClaim)) {
-                    return@synchronized false
-                }
-                val claim = pending.actionClaim
-                prompt = null
-                claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
-                owner.bridge
-                    .seat(actions.seatFor(claim.actionId))
-                    .prompt.journal
-                    .clearHybridManaStash()
-                actions.reopenDeferredClaim(claim)
+        synchronized(owner.feedLock) {
+            val pending = prompt ?: return@synchronized false
+            if (pending.promptGameStateId != promptGameStateId || !actions.isDeferredClaim(pending.actionClaim)) {
+                return@synchronized false
             }
+            val claim = pending.actionClaim
+            prompt = null
+            claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
+            owner.bridge
+                .seat(actions.seatFor(claim.actionId))
+                .prompt.journal
+                .clearHybridManaStash()
+            actions.reopenDeferredClaim(claim)
         }
 
     private fun admitOptional(
@@ -324,18 +322,16 @@ internal class DeferredCastWindowRuntime(
 
     private fun publishClaimed(publication: Publication) {
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                owner.ensureOpen()
-                checkClaim(publication.claim)
-                validate(publication)
-                val seatId = actions.seatFor(publication.claim.actionId)
-                owner.registerViewer(seatId)
-                val routes = owner.viewerRoutes()
-                val prior = owner.bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                prepareAndInstallLocked(routes, publication, prior, planner)
-            }
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            checkClaim(publication.claim)
+            validate(publication)
+            val seatId = actions.seatFor(publication.claim.actionId)
+            owner.registerViewer(seatId)
+            val routes = owner.viewerRoutes()
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            prepareAndInstallLocked(routes, publication, prior, planner)
         }
     }
 
@@ -349,21 +345,19 @@ internal class DeferredCastWindowRuntime(
             if (adoptedHybrid(receipt) == null) return false
         }
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                owner.ensureOpen()
-                val pending = adoptedHybrid(receipt) ?: return false
-                checkClaim(pending.actionClaim)
-                val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
-                validate(publication)
-                val seatId = actions.seatFor(pending.actionClaim.actionId)
-                owner.registerViewer(seatId)
-                val routes = owner.viewerRoutes()
-                val prior = owner.bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                prepareAndInstallLocked(routes, publication, prior, planner)
-                return true
-            }
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val pending = adoptedHybrid(receipt) ?: return false
+            checkClaim(pending.actionClaim)
+            val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
+            validate(publication)
+            val seatId = actions.seatFor(pending.actionClaim.actionId)
+            owner.registerViewer(seatId)
+            val routes = owner.viewerRoutes()
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            prepareAndInstallLocked(routes, publication, prior, planner)
+            return true
         }
     }
 

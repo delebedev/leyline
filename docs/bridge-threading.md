@@ -1,5 +1,5 @@
 ---
-summary: "Current cross-thread bridge contract: execution domains, lock order, publication, projection commit, and safe points."
+summary: "Current cross-thread bridge contract: execution domains, publication ownership, projection commit, and safe points."
 read_when:
   - "modifying GameBridge, MatchSession, MatchCutCoordinator, BundleBuilder, or engine callbacks"
   - "debugging state-id ordering, snapshot timing, delivery ordering, or stale interactions"
@@ -48,16 +48,16 @@ code does not rebuild these responses from the live Forge graph.
 casting-time prompts with the viewer feed builder, and installs their complete
 cut before replacing its correlated prompt state.
 
-### Lock order
+### Publication lock
 
-Frame producers that need both monitors acquire them in this order:
+The coordinator `feedLock` owns cut preparation, installation, committed feeds,
+and focused interaction windows. `GameBridge.projectionLock` protects only the
+committed `ProjectionState` value and its revision-checked swap; installation
+briefly acquires it while already holding `feedLock`. No path acquires `feedLock`
+while holding `projectionLock`.
 
-```text
-GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
-```
-
-Drainers take only `feedLock`. Event subscribers requesting a future cut take
-only `feedLock`. No drainer waits for the engine while holding `feedLock`.
+Drainers and event subscribers requesting a future cut use `feedLock`. No
+drainer waits for the engine while holding it.
 
 Action-window visibility and prompt correlation are read without `feedLock`, off
 volatile state the runtime writes while holding it. Threads polling for a
@@ -201,7 +201,7 @@ reason to mutate projection state outside compilation.
 
 This document can disappear when all match entrants submit immutable signals to
 one logical runtime owner, every gameplay and lifecycle producer commits through
-one ordered path, and the session/projection/feed locks no longer form a
-cross-class correctness contract. Until then, changes to any named lock,
-publication boundary, or residual producer must update this document in the
+one ordered path, and the session and feed locks no longer form a cross-class
+correctness contract. Until then, changes to any named lock,
+publication monitor, or residual producer must update this document in the
 same change.

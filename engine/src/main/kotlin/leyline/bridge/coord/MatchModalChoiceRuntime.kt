@@ -127,12 +127,10 @@ internal class MatchModalChoiceRuntime(
 
     /** Release Forge after its response was accepted, then remove synthetic trigger state. */
     fun releaseAfterEngineResume(token: ModalChoiceCleanupToken): Boolean =
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                val receipt = cleanupReceipts.remove(token.interactionId) ?: return false
-                queueCleanupLocked(receipt)
-                true
-            }
+        synchronized(owner.feedLock) {
+            val receipt = cleanupReceipts.remove(token.interactionId) ?: return false
+            queueCleanupLocked(receipt)
+            true
         }
 
     fun releaseAfterEngineResume(interactionId: String): Boolean =
@@ -220,9 +218,7 @@ internal class MatchModalChoiceRuntime(
             timeoutException = { error("ModalChoice timeout should complete with a default") },
             beforeTimeoutClaim = beforeTimeoutClaim,
             timeoutClaim = { claim ->
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) { claim() }
-                }
+                synchronized(owner.feedLock) { claim() }
             },
             beforeTimeoutCompleteLocked = {
                 val fallback = listOf(pending.value.defaultOptionIndex)

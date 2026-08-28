@@ -126,20 +126,18 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
     ): W {
         owner.beforePublicationLock?.invoke()
         val created =
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    windows.ensureEmptyLocked(duplicateMessage)
-                    ensureEmptyLocked()
-                    val feed = owner.feed(owner.humanSeat)
-                    val prior = owner.bridge.projectionStateSnapshot()
-                    val planner = LogicalSequencePlanner(prior.sequence)
-                    val interactionId = UUID.randomUUID().toString()
-                    val publication = prepare(interactionId, feed, owner.bridge.getGame(), planner)
-                    publishPrepared(prior, planner, publication)
-                    windows.installLocked(publication.window)
-                    publication.window
-                }
+            synchronized(owner.feedLock) {
+                owner.ensureOpen()
+                windows.ensureEmptyLocked(duplicateMessage)
+                ensureEmptyLocked()
+                val feed = owner.feed(owner.humanSeat)
+                val prior = owner.bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val interactionId = UUID.randomUUID().toString()
+                val publication = prepare(interactionId, feed, owner.bridge.getGame(), planner)
+                publishPrepared(prior, planner, publication)
+                windows.installLocked(publication.window)
+                publication.window
             }
         owner.bridge.prioritySignal.signal()
         return created

@@ -71,31 +71,6 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("playback producers preserve the frame lock order") {
-            // Source-level, deliberately: `synchronized` is inlined to bare monitor
-            // instructions, so the nesting order the deadlock argument rests on is
-            // not visible in the imported class model.
-            val producer =
-                sourceRoot
-                    .resolve("leyline/bridge/coord/MatchCutCoordinator.kt")
-                    .toFile()
-                    .readText()
-                    .substringAfter("fun flushPlaybackCut(")
-                    .substringBefore("fun acknowledgeExternalFrame(")
-            val order =
-                listOf("bridge.projectionBuildLock", "feedLock")
-                    .map { it to producer.indexOf("synchronized($it)") }
-            val outOfOrder =
-                order
-                    .zipWithNext()
-                    .filterNot { (outer, inner) -> outer.second in 0 until inner.second }
-                    .map { (outer, inner) -> "${outer.first}@${outer.second} must precede ${inner.first}@${inner.second}" }
-
-            withClue("flushPlaybackCut lock nesting (offset -1 means the lock is gone): $order") {
-                outOfOrder.shouldBeEmpty()
-            }
-        }
-
         test("migrated session paths neither build state-only diffs nor close frames") {
             noClasses()
                 .that()

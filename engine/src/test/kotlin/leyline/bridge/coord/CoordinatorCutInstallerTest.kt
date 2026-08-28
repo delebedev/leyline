@@ -134,18 +134,14 @@ class CoordinatorCutInstallerTest :
             val prior = board.bridge.projectionStateSnapshot()
             val transition = board.bundleBuilder().prepareSearchBaselineReset(prior)
 
-            synchronized(board.bridge.projectionBuildLock) {
-                synchronized(coordinator.feedLock) {
-                    coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
-                }
+            synchronized(coordinator.feedLock) {
+                coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
             }
 
             val installed = board.bridge.projectionStateSnapshot()
             shouldThrow<IllegalArgumentException> {
-                synchronized(board.bridge.projectionBuildLock) {
-                    synchronized(coordinator.feedLock) {
-                        coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
-                    }
+                synchronized(coordinator.feedLock) {
+                    coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
                 }
             }
             assertSoftly {
@@ -190,10 +186,8 @@ class CoordinatorCutInstallerTest :
             coordinator.setBeforeBatchEnqueue(SeatId(2)) { _, _ -> error("observer feed unavailable") }
 
             shouldThrow<IllegalStateException> {
-                synchronized(board.bridge.projectionBuildLock) {
-                    synchronized(coordinator.feedLock) {
-                        coordinator.cutInstaller.install(cut, onFailure = { throw it })
-                    }
+                synchronized(coordinator.feedLock) {
+                    coordinator.cutInstaller.install(cut, onFailure = { throw it })
                 }
             }
 
@@ -231,16 +225,14 @@ class CoordinatorCutInstallerTest :
             var installedCallbacks = 0
             feed.beforeBatchEnqueue = { index, _ -> indexes += index }
 
-            synchronized(board.bridge.projectionBuildLock) {
-                synchronized(coordinator.feedLock) {
-                    coordinator.cutInstaller.install(
-                        feed = feed,
-                        cut = cut,
-                        batches = batches,
-                        onInstalled = { installedCallbacks += 1 },
-                        onFailure = { throw it },
-                    )
-                }
+            synchronized(coordinator.feedLock) {
+                coordinator.cutInstaller.install(
+                    feed = feed,
+                    cut = cut,
+                    batches = batches,
+                    onInstalled = { installedCallbacks += 1 },
+                    onFailure = { throw it },
+                )
             }
 
             val owned = synchronized(coordinator.feedLock) { feed.queue.toList() }

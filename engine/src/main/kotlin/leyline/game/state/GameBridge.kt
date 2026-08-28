@@ -173,11 +173,6 @@ class GameBridge(
     /** Guards the committed projection value and compare-and-set installation. */
     internal val projectionLock = Any()
 
-    /**
-     * Preserves engine-cut order across every bundle builder sharing this match.
-     */
-    internal val projectionBuildLock = Any()
-
     private var projectionState = ProjectionState.initial(sequence = initialSequence)
     private val activeProjectionEditor = ThreadLocal<ProjectionState.Editor?>()
 

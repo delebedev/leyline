@@ -83,6 +83,13 @@ class RuntimeBoundaryTest :
             callers shouldBe setOf("leyline.bridge.coord.CoordinatorCutInstaller")
         }
 
+        test("the coordinator feed lock is the only cut publication monitor") {
+            val bridge = classes.single { it.name == "leyline.game.state.GameBridge" }
+            val obsoleteLock = "projection" + "BuildLock"
+
+            (obsoleteLock in bridge.fields.map { it.name }) shouldBe false
+        }
+
         test("projection state field writers match the publication and engine-shell inventory") {
             val bridge = classes.single { it.name == "leyline.game.state.GameBridge" }
             val writers =

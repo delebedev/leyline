@@ -100,30 +100,28 @@ internal class MatchCutCoordinator(
         settings: SettingsMessage?,
     ) {
         registerViewer(seatId)
-        synchronized(bridge.projectionBuildLock) {
-            synchronized(feedLock) {
-                ensureOpen()
-                val prior = bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                val msgId = planner.currentMsgId()
-                val response = SetSettingsResp.newBuilder()
-                settings?.let(response::setSettings)
-                val message =
-                    GREToClientMessage
-                        .newBuilder()
-                        .setType(GREMessageType.SetSettingsResp_695e)
-                        .addSystemSeatIds(seatId.value)
-                        .setMsgId(msgId)
-                        .setGameStateId(planner.currentGsId())
-                        .setSetSettingsResp(response)
-                        .build()
-                planner.setMsgId(msgId + 1)
-                cutInstaller.install(
-                    feed(seatId),
-                    PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
-                    onFailure = ::fail,
-                )
-            }
+        synchronized(feedLock) {
+            ensureOpen()
+            val prior = bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val msgId = planner.currentMsgId()
+            val response = SetSettingsResp.newBuilder()
+            settings?.let(response::setSettings)
+            val message =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SetSettingsResp_695e)
+                    .addSystemSeatIds(seatId.value)
+                    .setMsgId(msgId)
+                    .setGameStateId(planner.currentGsId())
+                    .setSetSettingsResp(response)
+                    .build()
+            planner.setMsgId(msgId + 1)
+            cutInstaller.install(
+                feed(seatId),
+                PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                onFailure = ::fail,
+            )
         }
     }
 
@@ -134,41 +132,39 @@ internal class MatchCutCoordinator(
         reason: FailureReason,
     ) {
         registerViewer(seatId)
-        synchronized(bridge.projectionBuildLock) {
-            synchronized(feedLock) {
-                ensureOpen()
-                val prior = bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
-                val message =
-                    GREToClientMessage
-                        .newBuilder()
-                        .setType(GREMessageType.IllegalRequest)
-                        .setMsgId(planner.nextMsgId())
-                        .setGameStateId(planner.currentGsId())
-                        .addSystemSeatIds(invalid.systemSeatId)
-                        .setPrompt(
-                            Prompt
-                                .newBuilder()
-                                .setPromptId(3)
-                                .addParameters(
-                                    PromptParameter
-                                        .newBuilder()
-                                        .setParameterName("FailureReason")
-                                        .setType(ParameterType.Number)
-                                        .setNumberValue(reason.number),
-                                ),
-                        ).setIllegalRequestMessage(
-                            IllegalRequestMessage
-                                .newBuilder()
-                                .setInvalidMessage(invalid)
-                                .setReason(reason),
-                        ).build()
-                cutInstaller.install(
-                    feed(seatId),
-                    PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
-                    onFailure = ::fail,
-                )
-            }
+        synchronized(feedLock) {
+            ensureOpen()
+            val prior = bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val message =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.IllegalRequest)
+                    .setMsgId(planner.nextMsgId())
+                    .setGameStateId(planner.currentGsId())
+                    .addSystemSeatIds(invalid.systemSeatId)
+                    .setPrompt(
+                        Prompt
+                            .newBuilder()
+                            .setPromptId(3)
+                            .addParameters(
+                                PromptParameter
+                                    .newBuilder()
+                                    .setParameterName("FailureReason")
+                                    .setType(ParameterType.Number)
+                                    .setNumberValue(reason.number),
+                            ),
+                    ).setIllegalRequestMessage(
+                        IllegalRequestMessage
+                            .newBuilder()
+                            .setInvalidMessage(invalid)
+                            .setReason(reason),
+                    ).build()
+            cutInstaller.install(
+                feed(seatId),
+                PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                onFailure = ::fail,
+            )
         }
     }
 
@@ -358,70 +354,68 @@ internal class MatchCutCoordinator(
     ) {
         val game = bridge.getGame()
         val request =
-            synchronized(bridge.projectionBuildLock) {
-                synchronized(feedLock) {
-                    ensureOpen()
-                    val feed = feed(seatId)
-                    val prior = bridge.projectionStateSnapshot()
-                    val planner = LogicalSequencePlanner(prior.sequence)
-                    val request = feed.requestedCut ?: return
-                    if (request.boundary != boundary) return
-                    if (game == null) {
-                        failPlayback(
-                            IllegalStateException("Game unavailable"),
-                            diagnostic = MaterializationDiagnostic(request, null),
-                        )
-                    }
-                    val events =
-                        try {
-                            bridge.closeBundleFrame(seatId.value)
-                        } catch (ex: Exception) {
-                            failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
-                        }
-                    val pending =
-                        try {
-                            PendingCut(
-                                request,
-                                feed.builder.materializePlaybackCut(
-                                    game,
-                                    planner,
-                                    PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
-                                ),
-                            )
-                        } catch (ex: Exception) {
-                            failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
-                        }
-                    feed.pendingCut = pending
-                    val prepared =
-                        try {
-                            feed.builder.compilePlaybackCut(
-                                pending.projection,
-                                viewerRoutes(),
-                            )
-                        } catch (ex: Exception) {
-                            failPlayback(ex, pending = pending)
-                        }
-                    val cut =
-                        PreparedCut.prepareForViewers(
-                            prior,
-                            planner,
-                            prepared.viewers.map { output ->
-                                PreparedViewerOutput(output.seatId, output.batches)
-                            },
-                            prepared.transition,
-                            closesPlaybackFrame = true,
-                            playbackOwnerSeatId = seatId,
-                        )
-                    cutInstaller.install(
-                        cut = cut,
-                        onInstalled = {
-                            feed.pendingCut = null
-                            feed.requestedCut = null
-                        },
-                        onFailure = { failPlayback(it, pending = pending) },
+            synchronized(feedLock) {
+                ensureOpen()
+                val feed = feed(seatId)
+                val prior = bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val request = feed.requestedCut ?: return
+                if (request.boundary != boundary) return
+                if (game == null) {
+                    failPlayback(
+                        IllegalStateException("Game unavailable"),
+                        diagnostic = MaterializationDiagnostic(request, null),
                     )
-                    request
                 }
+                val events =
+                    try {
+                        bridge.closeBundleFrame(seatId.value)
+                    } catch (ex: Exception) {
+                        failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
+                    }
+                val pending =
+                    try {
+                        PendingCut(
+                            request,
+                            feed.builder.materializePlaybackCut(
+                                game,
+                                planner,
+                                PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
+                            ),
+                        )
+                    } catch (ex: Exception) {
+                        failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
+                    }
+                feed.pendingCut = pending
+                val prepared =
+                    try {
+                        feed.builder.compilePlaybackCut(
+                            pending.projection,
+                            viewerRoutes(),
+                        )
+                    } catch (ex: Exception) {
+                        failPlayback(ex, pending = pending)
+                    }
+                val cut =
+                    PreparedCut.prepareForViewers(
+                        prior,
+                        planner,
+                        prepared.viewers.map { output ->
+                            PreparedViewerOutput(output.seatId, output.batches)
+                        },
+                        prepared.transition,
+                        closesPlaybackFrame = true,
+                        playbackOwnerSeatId = seatId,
+                    )
+                cutInstaller.install(
+                    cut = cut,
+                    onInstalled = {
+                        feed.pendingCut = null
+                        feed.requestedCut = null
+                    },
+                    onFailure = { failPlayback(it, pending = pending) },
+                )
+                request
             }
         pacePlayback(request.delayMs, delayMultiplier)
         bridge.prioritySignal.signal()
