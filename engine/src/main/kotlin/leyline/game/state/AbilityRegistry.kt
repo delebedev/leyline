@@ -32,7 +32,12 @@ class AbilityRegistry private constructor(
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
-    fun forSpellAbility(ability: SpellAbility): Int? = grantedAbilityGrpId(ability) ?: forSpellAbility(ability.definitionId)
+    fun forSpellAbility(ability: SpellAbility): Int? =
+        if (ability.grantorStatic != null) {
+            grantedAbilityGrpId(ability)
+        } else {
+            forSpellAbility(ability.definitionId)
+        }
 
     /** SpellAbility definition ID → abilityGrpId (mana + activated). */
     fun forSpellAbility(definitionId: Int): Int? = resolve(AbilityDefinitionRef.SpellAbility(definitionId))?.abilityGrpId
@@ -115,7 +120,6 @@ class AbilityRegistry private constructor(
                     emptyList()
                 }
             mapActivatedAbilities(card, abilityIds, activatedSlotIndices, saMap)
-            mapGrantedAbilities(card, cardData, saMap)
             mapReconfigureUnattachAbilities(card, saMap)
             mapStationThresholdStatics(card, abilityIds, staticMap)
             mapManaAbilities(card, abilityIds, manaSlotIndices, fallbackGrpId, saMap)
@@ -136,19 +140,6 @@ class AbilityRegistry private constructor(
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
             return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, cardData.hiddenAbilityIds, layout)
-        }
-
-        private fun mapGrantedAbilities(
-            card: Card,
-            cardData: CardData,
-            saMap: MutableMap<Int, Int>,
-        ) {
-            val generated = generatedAbilities(card)
-            // Multiple generated abilities need an authoritative hidden-slot order before projection.
-            if (generated.size != 1 || cardData.hiddenAbilityIds.size != 1) return
-            val ability = generated.single()
-            val grpId = cardData.hiddenAbilityIds.single().first
-            saMap[ability.definitionId] = grpId
         }
 
         private fun generatedAbilities(card: Card): List<SpellAbility> =

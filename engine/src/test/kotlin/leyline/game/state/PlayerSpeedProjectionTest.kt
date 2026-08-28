@@ -83,6 +83,7 @@ class PlayerSpeedProjectionTest :
                     },
                 )
             val pAnn = createdPersistent.single()
+            val speed = AnnotationBuilder.playerSpeedDesignation(SeatId(1), 4, InstanceId(100_000_001))
             assertSoftly {
                 createdTransient.single().typeList shouldBe listOf(AnnotationType.LayeredEffectCreated)
                 pAnn.typeList shouldBe listOf(AnnotationType.AddAbility_af5a, AnnotationType.LayeredEffect)
@@ -102,9 +103,10 @@ class PlayerSpeedProjectionTest :
                     effectPersistent = listOf(pAnn),
                     effectDiff = emptyEffectDiff(),
                     transferPersistent = emptyList(),
-                    mechanicResult = MechanicAnnotationResult(emptyList(), emptyList()),
+                    mechanicResult = speedResult(speed),
                     resolveInstanceId = { InstanceId(it.value) },
                 )
+            val numberedEffect = numbered.allAnnotations.single { AnnotationType.LayeredEffect in it.typeList }
             val retired =
                 PersistentAnnotationStore.computeBatch(
                     currentActive = numbered.allAnnotations.associateBy { it.id },
@@ -125,7 +127,7 @@ class PlayerSpeedProjectionTest :
                                 ),
                         ),
                     transferPersistent = emptyList(),
-                    mechanicResult = MechanicAnnotationResult(emptyList(), emptyList()),
+                    mechanicResult = speedResult(speed),
                     resolveInstanceId = { InstanceId(it.value) },
                 )
 
@@ -139,8 +141,10 @@ class PlayerSpeedProjectionTest :
             assertSoftly {
                 destroyedTransient.single().typeList shouldBe listOf(AnnotationType.LayeredEffectDestroyed)
                 destroyedPersistent.shouldBeEmpty()
-                retired.deletedIds shouldBe listOf(numbered.allAnnotations.single().id)
-                retired.allAnnotations.shouldBeEmpty()
+                retired.deletedIds shouldBe listOf(numberedEffect.id)
+                val speed = retired.allAnnotations.single(PlayerSpeedDesignationKind::matches)
+                speed.affectedIdsList shouldBe listOf(1, 100_000_001)
+                detailInt(speed, DetailKeys.VALUE) shouldBe 4
             }
         }
     })
