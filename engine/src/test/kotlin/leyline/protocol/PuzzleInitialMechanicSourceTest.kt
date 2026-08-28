@@ -8,6 +8,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.event.GameEvent
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
@@ -40,8 +41,8 @@ class PuzzleInitialMechanicSourceTest :
                 .single()
                 .isTrigger shouldBe true
 
-            val (bundle, _) =
-                HandshakeMessages.puzzleInitialBundle(
+            val (messages, _) =
+                LifecycleMessageMaterializer.puzzleInitialBundle(
                     seatId = SeatId(1),
                     matchId = Board.TEST_MATCH_ID,
                     msgIdStart = 1,
@@ -49,7 +50,7 @@ class PuzzleInitialMechanicSourceTest :
                     bridge = board.bridge,
                 )
             val gsm =
-                bundle.greToClientEvent.greToClientMessagesList
+                messages
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
             val created = gsm.annotationsList.single { AnnotationType.AbilityInstanceCreated in it.typeList }

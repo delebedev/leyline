@@ -36,6 +36,12 @@ class MatchSession(
     val paceDelayMs: Long = 200L,
     override var counter: MessageCounter = gameBridge.messageCounter,
 ) : GameOps {
+    data class PuzzleReplacementResult(
+        val gameStateId: Int,
+        val objectCount: Int,
+        val zoneCount: Int,
+    )
+
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
     override val seatId: SeatId get() = connection.seatId
@@ -139,9 +145,10 @@ class MatchSession(
      * Held under [connection.sessionLock] so concurrent inbound messages can't
      * interleave with the swap.
      *
-     * @return Pair of (new session, ids the client should delete from its view).
+     * The replacement session publishes its initial lifecycle batch before this
+     * method releases the connection lock.
      */
-    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): Pair<MatchSession, List<Int>> =
+    fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): PuzzleReplacementResult =
         synchronized(sessionLock) {
             val matchConnection = registry.getConnection(matchId, seatId)
             matchConnection?.stopRuntimeDeliveryObserver()
@@ -153,9 +160,20 @@ class MatchSession(
             // to the new session. Without this, MatchHandler keeps a stale reference
             // and the next PerformActionResp builds a Diff against unrelated game
             // state, producing spurious diffDeletedInstanceIds.
-            registry.getConnection(matchId, seatId)?.session = replacement
-            replacement to deletedIds
+            matchConnection?.session = replacement
+            replacement.publishPuzzleReplacement(deletedIds).also {
+                matchConnection?.armRuntimeDeliveryObserver()
+            }
         }
+
+    /** Commit and deliver the replacement puzzle's initial state and action horizon. */
+    private fun publishPuzzleReplacement(deletedInstanceIds: List<Int>): PuzzleReplacementResult {
+        gameBridge.awaitPriority()
+        val pending = checkNotNull(gameBridge.seat(seatId).action.getPending()) { "Puzzle replacement has no pending priority window" }
+        val published = gameBridge.cutCoordinator.lifecycle.publishPuzzleReplacement(seatId, deletedInstanceIds, pending.actionId)
+        drainCoordinatorBarrier(this, gameBridge, seatId)
+        return PuzzleReplacementResult(published.gameStateId, published.objectCount, published.zoneCount)
+    }
 
     override fun onPuzzleStart() =
         synchronized(sessionLock) {
@@ -459,7 +477,14 @@ class MatchSession(
         sendBundledGREDirect(messages)
     }
 
-    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
+    internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) {
+        sendBundledGREDirect(messages, mirror = false)
+    }
+
+    private fun sendBundledGREDirect(
+        messages: List<GREToClientMessage>,
+        mirror: Boolean = true,
+    ) {
         for (m in messages) {
             if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
             markIfPrompt(counter, m.type, m.gameStateId, m.msgId)
@@ -470,7 +495,7 @@ class MatchSession(
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)
-        mirrorToFamiliar(messages)
+        if (mirror) mirrorToFamiliar(messages)
     }
 
     fun close() {

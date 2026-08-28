@@ -5,14 +5,10 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.game.bundle.MessageCounter
-import leyline.game.bundle.markPrompts
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
-import leyline.infra.MatchOutput
-import leyline.protocol.HandshakeMessages
-import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 
 /**
@@ -73,54 +69,25 @@ class PuzzleHandler(
 
     /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
     fun sendPuzzleInitialBundle(
-        output: MatchOutput,
         session: MatchSession,
         matchId: String,
         seatId: Int,
     ) {
         val bridge = session.gameBridge
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
-        val gsId = session.counter.nextGsId()
-
-        val (bundleMsg, nextMsgId) =
-            HandshakeMessages.puzzleInitialBundle(
-                SeatId(seatId),
-                matchId,
-                session.counter.currentMsgId(),
-                gsId,
-                bridge,
-            )
-        session.counter.setMsgId(nextMsgId)
-        session.counter.markGameStateGsId(gsId)
-        Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
-        ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
-        output.send(bundleMsg)
-
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        val actions = bridge.bindInitialPuzzleHorizon(pending.actionId, gsId)
-        if (actions == null) {
-            registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
-            return
+        val publication = bridge.cutCoordinator.lifecycle.publishPuzzleInitial(SeatId(seatId), pending.actionId)
+        Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
+        if (publication.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
+            session.deliverRuntimeHorizon()
+        } else {
+            session.deliverLifecycle(bridge, beforeMsgId = publication.deliveryBoundaryMsgId)
         }
-
-        // Expose the request only after its executable catalog is installed.
-        val (actionsMsg, nextMsgId2) =
-            HandshakeMessages.puzzleActionsReq(
-                session.counter.currentMsgId(),
-                gsId,
-                SeatId(seatId),
-                actions,
-            )
-        session.counter.setMsgId(nextMsgId2)
-        markPrompts(session.counter, actionsMsg)
-        Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
-        ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
-        output.send(actionsMsg)
-        if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_ATTACKERS ||
-            pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS
+        if (publication.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_ATTACKERS ||
+            publication.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS
         ) {
             check(bridge.cutCoordinator.republishDeclaration(pending.actionId))
         }

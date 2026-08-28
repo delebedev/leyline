@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  */
 internal class MatchCutCoordinator(
     internal val bridge: GameBridge,
-    private val matchId: String,
+    internal val matchId: String,
     internal val counter: MessageCounter,
     private val delayMultiplier: Double,
 ) : BlockingInteractionRuntime {
@@ -47,6 +47,7 @@ internal class MatchCutCoordinator(
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val gameOver = MatchGameOverRuntime(this)
+    internal val lifecycle = MatchLifecycleRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
     internal val deferredCast = DeferredCastWindowRuntime(this, actions)
     internal val prompts = MatchPromptRuntimeSet(this)

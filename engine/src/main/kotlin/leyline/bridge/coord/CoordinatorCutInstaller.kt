@@ -41,8 +41,9 @@ internal class CoordinatorCutInstaller(
      * Installs [cut] into [feed], then runs [onInstalled] inside the same
      * transaction once the cut is fully published.
      *
-     * A failure before the projection transition installs removes only this
-     * batch; competing state and unrelated queued output are untouched. When the
+     * [replaces], when nonempty, is retired after the new batch is enqueued and
+     * restored if projection installation fails. A failure before the projection
+     * transition installs removes only this batch; competing state and unrelated queued output are untouched. When the
      * transition did not install, [onRollback] runs after the batch is withdrawn
      * so the caller can undo side effects it owns alongside the cut. Any failure
      * is handed to [onFailure] so the family can attach its exact cut.
@@ -51,18 +52,24 @@ internal class CoordinatorCutInstaller(
         feed: MatchCutCoordinator.ViewerFeed,
         cut: PreparedCut,
         hooks: CutInstallHooks = CutInstallHooks(),
+        replaces: List<GREToClientMessage> = emptyList(),
         onInstalled: (() -> Unit)? = null,
         onRollback: (() -> Unit)? = null,
         onFailure: (Throwable) -> Nothing,
     ) {
         val batch = cut.messages
         var enqueued = false
+        var replaced = false
         var installed = false
         try {
             hooks.beforeEnqueue?.invoke()
             feed.beforeBatchEnqueue?.invoke(0, batch)
             feed.queue.add(batch)
             enqueued = true
+            if (replaces.isNotEmpty()) {
+                check(owner.removeOwnedBatch(feed, replaces)) { "Replaced coordinator batch is already visible" }
+                replaced = true
+            }
             hooks.beforeInstall?.invoke()
             cut.transition?.let { transition ->
                 owner.bridge.commitProjection(transition) { installed = true }
@@ -74,6 +81,7 @@ internal class CoordinatorCutInstaller(
         } catch (ex: Exception) {
             if (!installed) {
                 if (enqueued) owner.removeOwnedBatch(feed, batch)
+                if (replaced) feed.queue.add(replaces)
                 onRollback?.invoke()
             }
             onFailure(ex)

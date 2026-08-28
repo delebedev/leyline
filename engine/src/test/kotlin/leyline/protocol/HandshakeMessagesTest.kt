@@ -11,12 +11,12 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.Random
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -44,7 +44,7 @@ class HandshakeMessagesTest :
             winner: Int = 2,
         ): Map<Int, Int> {
             val bundle =
-                HandshakeMessages.initialBundle(
+                LifecycleMessageMaterializer.initialBundle(
                     seatId = SeatId(2),
                     matchId = "test",
                     msgIdStart = 1,
@@ -54,7 +54,7 @@ class HandshakeMessagesTest :
                     dieRollWinner = winner,
                 )
             val dieRoll =
-                bundle.first.greToClientEvent.greToClientMessagesList
+                bundle.messages
                     .first { it.type == GREMessageType.DieRollResultsResp_695e }
                     .dieRollResultsResp
             return dieRoll.playerDieRollsList.associate { it.systemSeatId to it.rollValue }
@@ -94,7 +94,7 @@ class HandshakeMessagesTest :
             bridge = b
             b.start(seed = 1L)
             val bundle =
-                HandshakeMessages.initialBundle(
+                LifecycleMessageMaterializer.initialBundle(
                     seatId = SeatId(2),
                     matchId = "test",
                     msgIdStart = 1,
@@ -105,7 +105,7 @@ class HandshakeMessagesTest :
                     seedProjectionCursor = true,
                 )
 
-            val messages = bundle.first.greToClientEvent.greToClientMessagesList
+            val messages = bundle.messages
             assertSoftly {
                 messages.map { it.type } shouldBe
                     listOf(GREMessageType.DieRollResultsResp_695e, GREMessageType.GameStateMessage_695e)
@@ -113,7 +113,11 @@ class HandshakeMessagesTest :
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
-                b.projectionStateSnapshot().viewerCursors[0]?.previousSnapshot shouldNotBe null
+                bundle.transition
+                    ?.nextState
+                    ?.viewerCursors
+                    ?.get(0)
+                    ?.previousSnapshot shouldNotBe null
             }
         }
 
@@ -127,15 +131,12 @@ class HandshakeMessagesTest :
             try {
                 val bundles =
                     listOf(SeatId(1), SeatId(2)).map { seat ->
-                        pool.submit<Pair<MatchServiceToClientMessage, Int>> {
+                        pool.submit<Int> {
                             start.await(5, TimeUnit.SECONDS)
-                            HandshakeMessages.initialBundle(
-                                seatId = seat,
-                                matchId = "concurrent-initial",
-                                msgIdStart = 1,
-                                gameStateId = 1,
-                                deckMessage = DeckMessage.getDefaultInstance(),
-                                bridge = b,
+                            b.cutCoordinator.lifecycle.publishInitial(
+                                seat,
+                                includeStartingPlayerPrompt = true,
+                                seedProjectionCursor = false,
                             )
                         }
                     }
@@ -148,9 +149,9 @@ class HandshakeMessagesTest :
         }
 
         test("puzzle actions request carries pass-priority prompt") {
-            val (message, nextMsgId) =
-                HandshakeMessages.puzzleActionsReq(7, 5, SeatId(1), ActionMapper.passOnlyActions())
-            val gre = message.greToClientEvent.greToClientMessagesList.single()
+            val (messages, nextMsgId) =
+                LifecycleMessageMaterializer.puzzleActionsReq(7, 5, SeatId(1), ActionMapper.passOnlyActions())
+            val gre = messages.single()
 
             assertSoftly {
                 nextMsgId shouldBe 8

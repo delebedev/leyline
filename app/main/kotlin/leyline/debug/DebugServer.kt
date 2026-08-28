@@ -512,10 +512,8 @@ class DebugServer(
         }
 
         val session = sessionProvider?.invoke()
-        val bridge = session?.gameBridge
-
-        if (session != null && bridge != null) {
-            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzleDefinition, ex) ?: return
+        if (session != null) {
+            val label = hotSwapPuzzle(session, body, fileParam, puzzleDefinition, ex) ?: return
             respond(ex, 200, "text/plain", label)
         } else {
             if (fileParam != null) {
@@ -529,7 +527,6 @@ class DebugServer(
     /** Hot-swap puzzle into active session. Returns label string on success, null if error was sent. */
     private fun hotSwapPuzzle(
         session: MatchSession,
-        bridge: GameBridge,
         body: String,
         fileParam: String?,
         puzzleDefinition: PuzzleDefinition?,
@@ -545,63 +542,16 @@ class DebugServer(
                 }
             }
 
-        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
-        bridge.awaitPriority()
-        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
-
-        val counter = newSession.counter
-        val gsId = counter.nextGsId()
-        val msgId = counter.nextMsgId()
-
-        val game = bridge.getGame()!!
-        val full = BundleBuilder(bridge, newSession.matchId, newSession.seatId.value).fullState(game, gsId)
-        val actions = bridge.bindInitialPuzzleHorizon(pending.actionId, gsId)
-
-        val gsmWithDeletes =
-            if (deletedIds.isNotEmpty()) {
-                full.gsm
-                    .toBuilder()
-                    .addAllDiffDeletedInstanceIds(deletedIds)
-                    .build()
-            } else {
-                full.gsm
-            }
-
-        val greGsm =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(newSession.seatId.value)
-                .setGameStateMessage(gsmWithDeletes)
-                .build()
-
-        val greActions =
-            actions?.let {
-                GREToClientMessage
-                    .newBuilder()
-                    .setType(GREMessageType.ActionsAvailableReq_695e)
-                    .setMsgId(counter.nextMsgId())
-                    .setGameStateId(gsId)
-                    .addSystemSeatIds(newSession.seatId.value)
-                    .setActionsAvailableReq(it)
-                    .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                    .build()
-            }
-
-        newSession.sendBundledGRE(listOfNotNull(greGsm, greActions))
-        newSession.registry.getConnection(newSession.matchId, newSession.seatId)?.armRuntimeDeliveryObserver()
+        val published = session.replaceForPuzzle(puzzle)
 
         return if (fileParam != null) {
-            "Puzzle '$fileParam' set + injected gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
+            "Puzzle '$fileParam' set + injected gsId=${published.gameStateId} " +
+                "objects=${published.objectCount} zones=${published.zoneCount}"
                     .also { log.info(it) }
         } else {
             val meta = PuzzleSource.parseMetadata(body)
-            "Injected puzzle '${meta.name}' gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
+            "Injected puzzle '${meta.name}' gsId=${published.gameStateId} " +
+                "objects=${published.objectCount} zones=${published.zoneCount}"
                     .also { log.info(it) }
         }
     }

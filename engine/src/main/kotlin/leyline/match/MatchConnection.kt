@@ -8,7 +8,6 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
-import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleLibrary
@@ -119,7 +118,6 @@ class MatchConnection(
             engineSettings,
             registry,
             sessionProvider = { session as? GameOps },
-            outputProvider = { output },
             matchIdProvider = { matchId },
             seatIdProvider = { SeatId(seatId) },
         )
@@ -143,7 +141,6 @@ class MatchConnection(
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
-            output = output,
             createMatchSession = ::createAndRegisterMatchSession,
             createFamiliarSession = ::createAndRegisterFamiliarSession,
             createSpectatorSession = ::createAndRegisterSpectatorSession,
@@ -456,28 +453,14 @@ class MatchConnection(
     private fun sendInitialBundle() {
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
-        val gsId = s.counter.nextGsId()
         val seat = SeatId(seatId)
-        val deckGrpIds = bridge.getDeckGrpIds(seat)
-        val deck = GsmBuilder.buildDeckMessage(deckGrpIds, bridge.getCommanderGrpIds(seat))
-        val (msg, nextMsgId) =
-            HandshakeMessages.initialBundle(
-                SeatId(seatId),
-                matchId,
-                s.counter.currentMsgId(),
-                gsId,
-                deck,
-                bridge,
-                dieRollWinner = bridge.dieRollWinner,
-                includeStartingPlayerPrompt = !isSpectatorMode(),
-                seedProjectionCursor = isSpectatorMode(),
-            )
-        s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        leyline.game.bundle.markPrompts(s.counter, msg)
+        bridge.cutCoordinator.lifecycle.publishInitial(
+            seat,
+            includeStartingPlayerPrompt = !isSpectatorMode(),
+            seedProjectionCursor = isSpectatorMode(),
+        )
         Tap.outboundTemplate("InitialBundle seat=$seatId")
-        ProtoDump.dump(msg, "InitialBundle-seat$seatId")
-        output.send(msg)
+        s.deliverLifecycle(bridge)
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {

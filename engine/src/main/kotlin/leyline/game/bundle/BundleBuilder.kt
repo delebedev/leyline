@@ -126,6 +126,11 @@ class BundleBuilder(
         val actionOffers: List<ActionOffer>,
     )
 
+    internal data class PreparedFullState(
+        val result: FullStateResult,
+        val transition: ProjectionTransition,
+    )
+
     private typealias FrameInput = StateFrameInputCapture.Materialized
 
     /** One immutable frame inside an ordinary-playback cut. Logical ids are reserved exactly once. */
@@ -162,40 +167,50 @@ class BundleBuilder(
         gameStateId: Int,
     ): FullStateResult =
         synchronized(bridge.projectionBuildLock) {
-            val prior = bridge.projectionStateSnapshot()
-            val input =
-                stateFrameInputCapture.capture(
-                    game = game,
-                    gameStateId = gameStateId,
-                    revealForSeat = null,
-                    events = StateFrameInputCapture.Events.Supplied(FrameEventLog.EMPTY),
-                    priorProjectionOverride = prior,
-                    includePreviousSnapshot = false,
-                ) { _, _ -> GameStateUpdate.SendAndRecord }
-            val snapshot = input.state.snapshot
-            val result =
-                StateProjectionCompiler.compileOneViewer(
-                    environment = stateProjectionEnvironment,
-                    input = input.state,
-                    prior = input.priorProjection,
-                    intent = ViewerProjectionIntent.EMPTY,
-                )
-            val transition = result.transition
-            val tentative = transition.nextState.copy(revision = transition.expectedRevision)
-            val (actions, next) =
-                bridge.editProjection(tentative) {
-                    ActionMapper.buildProjectionFromSnapshot(seatId, snapshot, bridge)
-                }
-            bridge.commitProjection(
-                transition.copy(nextState = next),
-            )
-            FullStateResult(
-                snapshot = snapshot,
-                gsm = GsmBuilder.embedActions(result.gsm, actions.actions, GsmFrame.from(snapshot), recipientSeatId = seatId),
-                actions = actions.actions,
-                actionOffers = actions.offers,
-            )
+            val prepared = prepareFullState(game, gameStateId)
+            bridge.commitProjection(prepared.transition)
+            prepared.result
         }
+
+    internal fun prepareFullState(
+        game: Game,
+        gameStateId: Int,
+    ): PreparedFullState {
+        val prior = bridge.projectionStateSnapshot()
+        val input =
+            stateFrameInputCapture.capture(
+                game = game,
+                gameStateId = gameStateId,
+                revealForSeat = null,
+                events = StateFrameInputCapture.Events.Supplied(FrameEventLog.EMPTY),
+                priorProjectionOverride = prior,
+                includePreviousSnapshot = false,
+            ) { _, _ -> GameStateUpdate.SendAndRecord }
+        val snapshot = input.state.snapshot
+        val result =
+            StateProjectionCompiler.compileOneViewer(
+                environment = stateProjectionEnvironment,
+                input = input.state,
+                prior = input.priorProjection,
+                intent = ViewerProjectionIntent.EMPTY,
+            )
+        val transition = result.transition
+        val tentative = transition.nextState.copy(revision = transition.expectedRevision)
+        val (actions, next) =
+            bridge.editProjection(tentative) {
+                ActionMapper.buildProjectionFromSnapshot(seatId, snapshot, bridge)
+            }
+        return PreparedFullState(
+            result =
+                FullStateResult(
+                    snapshot = snapshot,
+                    gsm = GsmBuilder.embedActions(result.gsm, actions.actions, GsmFrame.from(snapshot), recipientSeatId = seatId),
+                    actions = actions.actions,
+                    actionOffers = actions.offers,
+                ),
+            transition = transition.copy(nextState = next),
+        )
+    }
 
     private data class FrameDiff(
         val gameStateId: Int,
@@ -860,17 +875,17 @@ class BundleBuilder(
         counter: MessageCounter,
         priorityActions: ActionsAvailableReq? = null,
         includePriorityPrompt: Boolean = true,
+        priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
     ): ActionWindowPrepared {
-        val prior = bridge.projectionStateSnapshot()
         val (result, next) =
-            bridge.editProjection(prior) {
+            bridge.editProjection(priorProjection) {
                 buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt)
             }
         val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
         return ActionWindowPrepared(
             result.bundle,
             ProjectionTransition(
-                expectedRevision = prior.revision,
+                expectedRevision = priorProjection.revision,
                 nextState =
                     next.copy(
                         viewerCursors =

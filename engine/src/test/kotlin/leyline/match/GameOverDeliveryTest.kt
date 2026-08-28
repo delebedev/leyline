@@ -12,6 +12,26 @@ import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 
 class GameOverDeliveryTest :
     BoardTest({
+        test("lifecycle delivery failure terminalizes the coordinator") {
+            val bridge = startWithBoard { _, _, _ -> }.bridge
+            val registry = MatchRegistry()
+            val failure = IllegalStateException("lifecycle sink failed")
+            val session =
+                MatchSession(
+                    connection = ConnectionState(SeatId(1), MATCH_ID, failingSink(failure), registry),
+                    gameBridge = bridge,
+                    paceDelayMs = 0,
+                )
+
+            try {
+                bridge.cutCoordinator.lifecycle.publishDealHand(SeatId(1))
+                shouldTerminalizeDelivery(failure) { session.deliverLifecycle(bridge) } shouldBe
+                    bridge.cutCoordinator.failure()
+            } finally {
+                session.close()
+            }
+        }
+
         test("MatchSession game-over delivery failure terminalizes the coordinator") {
             val bridge = startWithBoard { _, _, _ -> }.bridge
             val registry = MatchRegistry()
