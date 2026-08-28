@@ -7,7 +7,6 @@ import forge.game.player.Player
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -24,37 +23,20 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object RequestBuilder {
     private val log = LoggerFactory.getLogger(RequestBuilder::class.java)
 
-    /** Build a [SearchReq] GRE message with populated inner fields for library search.
+    /** Build the [SearchReq] fields for a library search.
      *
      *  [sourceInstanceId] — `searchReq.sourceId`.
      *
-     *  [hostCardInstanceId] — first `prompt.parameters` CardId. Names the source
-     *  card so the picker header can use the card context.
-     *
-     *  [searchingSeat] — second `prompt.parameters` CardId. Both parameters are
-     *  required to anchor the picker header.
-     *
-     *  [promptId] — picker layout. [PromptIds.SEARCH_TYPECYCLING] for cycling,
-     *  typecycling, and basiccycling; [PromptIds.SEARCH] for generic tutors.
-     *
-     *  [allowCancel] — defaults to `No_a526`; generic tutors with optional
-     *  resolution may pass `Abort` instead. */
+     */
     @Suppress("LongParameterList")
-    fun buildSearchReq(
-        msgId: Int,
-        gsId: Int,
-        systemSeatId: Int,
+    fun buildSearchRequest(
         sourceInstanceId: Int,
-        hostCardInstanceId: Int,
-        searchingSeat: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
         validTargetIds: List<Int>,
         maxFind: Int = 1,
         allowFailToFind: Boolean = true,
-        promptId: Int = PromptIds.SEARCH,
-        allowCancel: AllowCancel = AllowCancel.No_a526,
-    ): GREToClientMessage {
+    ): SearchReq {
         val searchReq =
             SearchReq
                 .newBuilder()
@@ -66,21 +48,7 @@ object RequestBuilder {
         if (allowFailToFind) {
             searchReq.setAllowFailToFind(AllowFailToFind.Any)
         }
-        return GREToClientMessage
-            .newBuilder()
-            .setType(GREMessageType.SearchReq_695e)
-            .setMsgId(msgId)
-            .setGameStateId(gsId)
-            .addSystemSeatIds(systemSeatId)
-            .setAllowCancel(allowCancel)
-            .setPrompt(
-                Prompt
-                    .newBuilder()
-                    .setPromptId(promptId)
-                    .addParameters(cardIdPromptParameter(hostCardInstanceId))
-                    .addParameters(cardIdPromptParameter(searchingSeat)),
-            ).setSearchReq(searchReq)
-            .build()
+        return searchReq.build()
     }
 
     private fun playerDamageRecipient(seatId: SeatId): DamageRecipient =

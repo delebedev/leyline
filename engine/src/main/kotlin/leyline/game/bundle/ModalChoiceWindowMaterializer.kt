@@ -1,12 +1,9 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.ModalChoiceWindowValue
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -24,24 +21,21 @@ internal class ModalChoiceWindowMaterializer(
     private val seatId: Int,
 ) {
     data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
+        val materialization: SettledPromptMaterialization,
         val sourceInstanceId: Int,
     )
 
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: LogicalSequencePlanner,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: ModalChoiceWindowValue,
     ): Prepared {
-        val sourceCardInstanceId = projection.requireInstanceId(window.sourceForgeCardId)
+        val sourceCardInstanceId = context.requiredInstanceId(window.sourceForgeCardId, "ModalChoice source")
         val sourceInstanceId =
             if (window.triggered) {
-                projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(window.sourceForgeAbilityId))
+                context.requiredInstanceId(
+                    FrameIdResolver.triggerStackAbilityForgeId(window.sourceForgeAbilityId),
+                    "ModalChoice source",
+                )
             } else {
                 sourceCardInstanceId
             }
@@ -55,10 +49,10 @@ internal class ModalChoiceWindowMaterializer(
                 sourceInstanceId = sourceInstanceId,
                 grpId = window.ctoGrpId,
                 ctoId = window.ctoId,
-                playerIdToPrompt = seatId,
+                playerIdToPrompt = context.seatId,
             )
         val state =
-            gameState
+            context.gameState
                 .toBuilder()
                 .setPendingMessageCount(1)
                 .let { builder ->
@@ -73,8 +67,8 @@ internal class ModalChoiceWindowMaterializer(
                                 .setType(GameObjectType.Ability)
                                 .setZoneId(ZoneIds.STACK)
                                 .setVisibility(Visibility.Public)
-                                .setOwnerSeatId(seatId)
-                                .setControllerSeatId(seatId)
+                                .setOwnerSeatId(context.seatId)
+                                .setControllerSeatId(context.seatId)
                                 .setObjectSourceGrpId(window.sourceCardGrpId)
                                 .setParentId(sourceCardInstanceId)
                                 .build()
@@ -84,15 +78,15 @@ internal class ModalChoiceWindowMaterializer(
                 }.build()
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) { it.gameStateMessage = state },
-                makeGRE(GREMessageType.CastingTimeOptionsReq_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GameStateMessage_695e) { it.gameStateMessage = state },
+                context.message(GREMessageType.CastingTimeOptionsReq_695e) {
                     it.castingTimeOptionsReq = req
                     it.prompt = Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build()
                     it.allowCancel = AllowCancel.Abort
                     it.allowUndo = true
                 },
             )
-        return Prepared(BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId), transition, true, sourceInstanceId)
+        return Prepared(context.prepared(messages), sourceInstanceId)
     }
 
     fun cleanup(
@@ -100,8 +94,13 @@ internal class ModalChoiceWindowMaterializer(
         abilityInstanceId: Int,
     ): GREToClientMessage {
         val link = counter.nextGameStateLink()
-        return makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
-            it.gameStateMessage =
+        return GREToClientMessage
+            .newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .setGameStateId(link.gsId)
+            .setMsgId(counter.nextMsgId())
+            .addSystemSeatIds(seatId)
+            .setGameStateMessage(
                 GameStateMessage
                     .newBuilder()
                     .setType(wotc.mtgo.gre.external.messaging.Messages.GameStateType.Diff)
@@ -116,8 +115,8 @@ internal class ModalChoiceWindowMaterializer(
                             .setType(ZoneType.Stack)
                             .setVisibility(Visibility.Public)
                             .build(),
-                    ).build()
-        }
+                    ),
+            ).build()
     }
 
     private fun addToStack(
@@ -147,22 +146,4 @@ internal class ModalChoiceWindowMaterializer(
         }
         return builder
     }
-
-    private fun ProjectionState.requireInstanceId(cardId: ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("ModalChoice source ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }

@@ -3,14 +3,9 @@ package leyline.game.bundle
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectOriginZone
 import leyline.bridge.handoff.CardSelectWindowValue
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
@@ -21,44 +16,36 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /** Value-only GRE preparation for coordinator-owned card-backed SelectN windows. */
-internal class CardSelectWindowMaterializer(
-    private val seatId: Int,
-) {
-    data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
-    )
-
+internal class CardSelectWindowMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: LogicalSequencePlanner,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: CardSelectWindowValue,
-    ): Prepared {
-        val request = buildRequest(window, projection)
-        if (window.kind in privateCandidateKinds) requirePrivateCandidates(gameState, request.idsList)
+    ): SettledPromptMaterialization {
+        val request = buildRequest(window, context)
+        if (window.kind in privateCandidateKinds) requirePrivateCandidates(context, request.idsList)
         val envelope = envelope(window, request)
-        val state = gameState.toBuilder().setPendingMessageCount(1).build()
+        val state =
+            context.gameState
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GameStateMessage_695e) {
                     it.gameStateMessage = state
                 },
-                makeGRE(GREMessageType.SelectNreq, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.SelectNreq) {
                     it.selectNReq = envelope.req
                     it.prompt = envelope.prompt
                     if (envelope.allowCancel != AllowCancel.None_a526) it.allowCancel = envelope.allowCancel
                 },
             )
-        return Prepared(BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId), transition, true)
+        return context.prepared(messages)
     }
 
     private fun buildRequest(
         window: CardSelectWindowValue,
-        projection: ProjectionState,
+        context: SettledPromptMaterializationContext,
     ): SelectNReq {
         val discard = window.kind == CardSelectKind.Discard
         return SelectNReq
@@ -72,9 +59,9 @@ internal class CardSelectWindowMaterializer(
             .setIdType(IdType.InstanceId_ab2c)
             .setMinSel(if (window.kind == CardSelectKind.Learn && window.candidates.isNotEmpty()) 1 else window.min)
             .setMaxSel(window.max)
-            .addAllIds(window.candidates.map { projection.requireInstanceId(it.forgeCardId) })
+            .addAllIds(window.candidates.map { context.requiredInstanceId(it.forgeCardId, "CardSelect card") })
             .apply {
-                window.sourceForgeCardId?.let { sourceId = projection.requireInstanceId(it) }
+                window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "CardSelect card") }
                 when (window.kind) {
                     CardSelectKind.LegendRule -> {
                         prompt = Prompt.getDefaultInstance()
@@ -128,36 +115,18 @@ internal class CardSelectWindowMaterializer(
             CardSelectKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(request)
         }
 
-    private fun ProjectionState.requireInstanceId(cardId: ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("CardSelect card ${cardId.value} has no projected instance id")
-
     private fun requirePrivateCandidates(
-        gameState: GameStateMessage,
+        context: SettledPromptMaterializationContext,
         candidateIds: List<Int>,
     ) {
-        val objectsById = gameState.gameObjectsList.associateBy { it.instanceId }
+        val objectsById = context.gameState.gameObjectsList.associateBy { it.instanceId }
         candidateIds.forEach { candidateId ->
             val candidate = checkNotNull(objectsById[candidateId]) { "Private CardSelect candidate $candidateId was not projected" }
-            check(candidate.visibility == Visibility.Private && candidate.viewersList == listOf(seatId)) {
+            check(candidate.visibility == Visibility.Private && candidate.viewersList == listOf(context.seatId)) {
                 "Private CardSelect candidate $candidateId must be private to its chooser"
             }
         }
     }
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 
     private companion object {
         val privateCandidateKinds = setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.Learn)

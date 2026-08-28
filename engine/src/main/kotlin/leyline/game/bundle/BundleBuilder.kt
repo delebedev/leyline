@@ -89,18 +89,18 @@ class BundleBuilder(
     val seatId: Int,
 ) {
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
-    private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
-    private val revealChoiceWindows = RevealChoiceWindowMaterializer(seatId)
-    private val staticChoiceWindows = StaticChoiceWindowMaterializer(seatId)
+    private val cardSelectWindows = CardSelectWindowMaterializer()
+    private val revealChoiceWindows = RevealChoiceWindowMaterializer()
+    private val staticChoiceWindows = StaticChoiceWindowMaterializer()
     private val modalChoiceWindows = ModalChoiceWindowMaterializer(seatId)
     private val targetingWindows = TargetingWindowMaterializer(seatId)
     private val searchWindows = SearchWindowMaterializer(SeatId(seatId))
-    private val orderWindows = OrderWindowMaterializer(seatId)
-    private val distributionWindows = DistributionWindowMaterializer(seatId)
-    private val groupingWindows = GroupingWindowMaterializer(seatId)
+    private val orderWindows = OrderWindowMaterializer()
+    private val distributionWindows = DistributionWindowMaterializer()
+    private val groupingWindows = GroupingWindowMaterializer()
     private val manaSourcePayments = ManaSourcePaymentMaterializer(seatId)
-    private val oneShotPayCosts = OneShotPayCostsMaterializer(seatId)
-    private val gatherCounters = GatherCountersWindowMaterializer(seatId)
+    private val oneShotPayCosts = OneShotPayCostsMaterializer()
+    private val gatherCounters = GatherCountersWindowMaterializer()
     private val stateFrameInputCapture = StateFrameInputCapture(bridge, matchId, seatId)
 
     /** Frozen on first projection, after the match game and variant exist; retries reuse the same value. */
@@ -1380,6 +1380,30 @@ class BundleBuilder(
         )
     }
 
+    private fun <T> finishSettledPrompt(
+        frame: ViewerPromptProjection,
+        counter: LogicalSequencePlanner,
+        prepare: (SettledPromptMaterializationContext) -> T,
+        messages: (T) -> List<GREToClientMessage>,
+        gameState: (GameStateMessage) -> GameStateMessage = { it },
+    ): PreparedViewerCut<T> =
+        finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                prepare(
+                    SettledPromptMaterializationContext(
+                        gameState(gsm),
+                        gameStateId,
+                        counter,
+                        transition.nextState,
+                        transition,
+                        seatId,
+                    ),
+                )
+            },
+            messages,
+        )
+
     internal fun prepareTargetingRePrompt(
         counter: LogicalSequencePlanner,
         projection: ProjectionState,
@@ -1402,7 +1426,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: SearchWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<SearchWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
         val supplements =
             buildList {
@@ -1422,18 +1446,12 @@ class BundleBuilder(
                 revealPlayerCards = true,
                 updateType = { snap, events -> resolveFrameUpdateType(snap, events) },
             )
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, _, transition ->
-                val stateMessages = stateOnlyMessages(gsm, emptyList(), counter)
-                searchWindows.initial(
-                    stateMessages,
-                    counter.currentGsId(),
-                    counter,
-                    transition.nextState,
-                    transition,
-                    window,
-                )
+            counter,
+            { context ->
+                val stateMessages = stateOnlyMessages(context.gameState, emptyList(), context.sequence)
+                searchWindows.initial(stateMessages, context.atCurrentGameState(), window)
             },
             { it.bundle.messages },
         )
@@ -1447,7 +1465,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: OrderWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<OrderWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val orderPrompt =
             OrderPromptProjection.of(
                 window.candidates.map { it.forgeCardId },
@@ -1461,11 +1479,10 @@ class BundleBuilder(
                 routes,
                 ViewerProjectionIntent.of(orderPrompt = orderPrompt),
             )
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                orderWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
+            counter,
+            { context -> orderWindows.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1476,13 +1493,12 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: DistributionWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<DistributionWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val frame = prepareViewerPromptProjection(game, counter, routes)
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                distributionWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
+            counter,
+            { context -> distributionWindows.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1493,7 +1509,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: GroupingWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<GroupingWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val sourceForgeId =
             window.source
                 ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
@@ -1511,11 +1527,10 @@ class BundleBuilder(
                     PrivateCardPromptProjection.of(window.candidates.map { it.forgeCardId }, sourceForgeId),
             )
         val frame = prepareViewerPromptProjection(game, counter, routes, intent)
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                groupingWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
+            counter,
+            { context -> groupingWindows.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1526,7 +1541,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: CardSelectWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<CardSelectWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val privatePrompt =
             window
                 .takeIf {
@@ -1541,11 +1556,10 @@ class BundleBuilder(
                 routes,
                 ViewerProjectionIntent.of(privateCardPrompt = privatePrompt),
             )
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                cardSelectWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
+            counter,
+            { context -> cardSelectWindows.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1556,15 +1570,14 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: RevealChoiceWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<RevealChoiceWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val promptFacts =
             bridge.materializePromptProjectionFacts().withClaimedReveal(PromptFactKey(window.journalSeatId, window.revealVersion))
         val frame = prepareViewerPromptProjection(game, counter, routes, promptFacts = promptFacts)
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                revealChoiceWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
+            counter,
+            { context -> revealChoiceWindows.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1575,7 +1588,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.StaticChoiceWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<StaticChoiceWindowMaterializer.Prepared> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val supplements =
             if (window.kind == StaticChoiceKind.Parity && window.sourceForgeCardId != null) {
                 val creatures = game.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }
@@ -1591,16 +1604,17 @@ class BundleBuilder(
             }
         val frame =
             prepareViewerPromptProjection(game, counter, routes, ViewerProjectionIntent.of(supplements = supplements))
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
+            counter,
+            { context -> staticChoiceWindows.prepare(context, window) },
+            { it.bundle.messages },
+            gameState = { gsm ->
                 val playerSnapshot =
                     frame.fold.viewers[frame.playerIndex]
                         .result.projectionSnapshot
-                val state = gsm.toBuilder().setTurnInfo(GsmFrame.from(playerSnapshot).turnInfo()).build()
-                staticChoiceWindows.prepare(state, gameStateId, counter, transition.nextState, transition, window)
+                gsm.toBuilder().setTurnInfo(GsmFrame.from(playerSnapshot).turnInfo()).build()
             },
-            { it.bundle.messages },
         )
     }
 
@@ -1621,12 +1635,11 @@ class BundleBuilder(
                     ),
             )
         val frame = prepareViewerPromptProjection(game, counter, routes, intent)
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                modalChoiceWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
-            },
-            { it.bundle.messages },
+            counter,
+            { context -> modalChoiceWindows.prepare(context, window) },
+            { it.materialization.bundle.messages },
         )
     }
 
@@ -1666,7 +1679,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.OneShotPayCostsWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<PreparedPayCostsCut> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val frame =
             prepareViewerPromptProjection(
                 game,
@@ -1675,18 +1688,10 @@ class BundleBuilder(
                 intent = ViewerProjectionIntent.of(payCostsSupplements(window)),
                 updateType = { _, _ -> GameStateUpdate.Send },
             )
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                oneShotPayCosts.prepare(
-                    gameState = gsm,
-                    gameStateId = gameStateId,
-                    counter = counter,
-                    projection = transition.nextState,
-                    transition = transition,
-                    window = window,
-                )
-            },
+            counter,
+            { context -> oneShotPayCosts.prepare(context, window) },
             { it.bundle.messages },
         )
     }
@@ -1697,7 +1702,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.GatherCountersWindowValue,
         routes: List<ViewerRoute>,
-    ): PreparedViewerCut<PreparedPayCostsCut> {
+    ): PreparedViewerCut<SettledPromptMaterialization> {
         val source = window.promptSource
         val frame =
             prepareViewerPromptProjection(
@@ -1720,18 +1725,10 @@ class BundleBuilder(
                     ),
                 updateType = { _, _ -> GameStateUpdate.Send },
             )
-        return finishViewerPrompt(
+        return finishSettledPrompt(
             frame,
-            { gsm, gameStateId, transition ->
-                gatherCounters.prepare(
-                    gameState = gsm,
-                    gameStateId = gameStateId,
-                    counter = counter,
-                    projection = transition.nextState,
-                    transition = transition,
-                    window = window,
-                )
-            },
+            counter,
+            { context -> gatherCounters.prepare(context, window) },
             { it.bundle.messages },
         )
     }
