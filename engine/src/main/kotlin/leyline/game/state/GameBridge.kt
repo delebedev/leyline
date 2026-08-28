@@ -298,9 +298,13 @@ class GameBridge(
 
     fun setSelectedChosenCostPromptId(
         cardId: ForgeCardId,
-        promptId: Int,
+        promptId: Int?,
     ) {
-        selectedChosenCostPromptIds[cardId] = promptId
+        if (promptId == null) {
+            selectedChosenCostPromptIds.remove(cardId)
+        } else {
+            selectedChosenCostPromptIds[cardId] = promptId
+        }
     }
 
     fun consumeSelectedChosenCostPromptId(cardId: ForgeCardId): Int? = selectedChosenCostPromptIds.remove(cardId)

@@ -3,6 +3,7 @@ package leyline.mechanics.blight
 import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -20,7 +21,10 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 class BlightLifecycleTest :
     SessionTest({
-        session("selected Blight branch pays with a controlled creature and records its cast option", puzzle = blightPuzzle(true)) {
+        session(
+            "selected Blight branch pays with a controlled creature and records its cast option",
+            puzzleFile = "data/puzzles/blight-bogslither-positive.pzl",
+        ) {
             val snap = messageSnapshot()
             val option =
                 after { castSpellByName("Bogslither's Embrace") }
@@ -76,25 +80,38 @@ class BlightLifecycleTest :
             }
         }
 
-        session("without an eligible controlled creature only the mana branch remains", puzzle = blightPuzzle(false)) {
+        session(
+            "without an eligible controlled creature only the mana branch remains",
+            puzzleFile = "data/puzzles/blight-bogslither-no-creature.pzl",
+        ) {
             val cast = after { castSpellByName("Bogslither's Embrace") }
             cast.messages.filter { it.hasCastingTimeOptionsReq() } shouldHaveSize 0
             val targetPrompt = cast.expectOneSelectTargetsReq()
             targetPrompt.targetsList.flatMap { it.targetsList }.map { it.targetInstanceId } shouldContain
                 ai.battlefield.iid("Centaur Courser")
         }
+
+        session(
+            "cancelled Blight selection does not leak into a mana recast",
+            puzzleFile = "data/puzzles/blight-bogslither-positive.pzl",
+        ) {
+            after { castSpellByName("Bogslither's Embrace") }
+                .expectOneCastingTimeOptionsReq()
+                .let { request ->
+                    val option = request.castingTimeOptionReqList.single()
+                    after { respondToAlternateCost(option.ctoId, option.selectNReq.idsList.first()) }
+                        .expectOneSelectTargetsReq()
+                }
+            after { cancelAction() }
+
+            val recastSnapshot = messageSnapshot()
+            val recast = after { castSpellByName("Bogslither's Embrace") }.expectOneCastingTimeOptionsReq()
+            val manaOption = recast.castingTimeOptionReqList.single()
+            after { respondToAlternateCost(manaOption.ctoId, manaOption.selectNReq.idsList.last()) }
+                .expectOneSelectTargetsReq()
+            selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
+            passUntilResolved(maxPasses = 8)
+
+            messagesSince(recastSnapshot).persistentAnnotationsOfType(AnnotationType.CastingTimeOption).shouldBeEmpty()
+        }
     })
-
-private fun blightPuzzle(withCreature: Boolean): String =
-    """
-    ActivePlayer=Human
-    ActivePhase=Main1
-    HumanLife=20
-    AILife=20
-
-    humanhand=Bogslither's Embrace
-    humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp${if (withCreature) ";Grizzly Bears" else ""}
-    humanlibrary=Swamp
-    aibattlefield=Centaur Courser
-    ailibrary=Mountain
-    """.trimIndent()

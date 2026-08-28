@@ -169,11 +169,21 @@ internal class DeferredCastWindowRuntime(
 
     fun hasPrompt(): Boolean = synchronized(owner.feedLock) { prompt != null }
 
-    fun discard() = synchronized(owner.feedLock) { prompt = null }
+    fun discard() =
+        synchronized(owner.feedLock) {
+            prompt?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
+            prompt = null
+        }
 
     fun close(actionId: String) {
         synchronized(owner.feedLock) {
-            if (prompt?.actionClaim?.actionId == actionId) prompt = null
+            val pending = prompt?.takeIf { it.actionClaim.actionId == actionId }
+            pending?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
+            if (pending != null) prompt = null
         }
     }
 
@@ -221,7 +231,10 @@ internal class DeferredCastWindowRuntime(
             }
             val claim = pending.actionClaim
             prompt = null
-            claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
+            claim.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedSpellGrpId(cardId, null)
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
             owner.bridge
                 .seat(actions.seatFor(claim.actionId))
                 .prompt.journal
@@ -292,14 +305,15 @@ internal class DeferredCastWindowRuntime(
                     DeferredCastRejection.WrongOption,
                 )
         pending.adopted = true
-        choice.chosenCostPromptId?.let { promptId ->
-            pending.actionClaim.deferredCostPlan
-                ?.sourceCardId
-                ?.let { cardId -> owner.bridge.setSelectedChosenCostPromptId(cardId, promptId) }
+        val sourceCardId = pending.actionClaim.deferredCostPlan?.sourceCardId
+        sourceCardId?.let { cardId ->
+            owner.bridge.setSelectedChosenCostPromptId(cardId, choice.chosenCostPromptId)
         }
-        check(
-            actions.completeDeferredClaim(pending.actionClaim, choice.runtimeToken),
-        ) { "Deferred alternate action claim did not complete" }
+        val completed = actions.completeDeferredClaim(pending.actionClaim, choice.runtimeToken)
+        if (!completed) {
+            sourceCardId?.let { cardId -> owner.bridge.setSelectedChosenCostPromptId(cardId, null) }
+        }
+        check(completed) { "Deferred alternate action claim did not complete" }
         prompt = null
         return DeferredCastAdmission.Alternate
     }
