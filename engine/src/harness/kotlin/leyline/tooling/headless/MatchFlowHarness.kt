@@ -691,12 +691,23 @@ class MatchFlowHarness(
         awaitNamedOutput(epoch, messageStart, description, predicate)
     }
 
-    internal fun awaitPendingActionHorizon(pending: leyline.bridge.handoff.GameActionBridge.PendingAction) {
+    internal fun pendingActionHorizonPublished(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messageStart: Int,
+    ): Boolean {
+        check(pending.state.kind != PendingActionKind.SYNC_ONLY)
+        collectSinkMessages()
+        return pendingHorizonVisible(pending, messagesSince(messageStart))
+    }
+
+    internal fun awaitPendingActionHorizon(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messageStart: Int,
+    ) {
         check(pending.state.kind != PendingActionKind.SYNC_ONLY)
         val epoch = localOutput.snapshot()
-        val messageStart = messageSnapshot()
         collectSinkMessages()
-        if (pendingHorizonVisible(pending, allMessages)) return
+        if (pendingHorizonVisible(pending, messagesSince(messageStart))) return
         awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
             pendingHorizonVisible(pending, listOf(message))
         }

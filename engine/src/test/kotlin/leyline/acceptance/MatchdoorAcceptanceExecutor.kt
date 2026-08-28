@@ -65,11 +65,12 @@ internal fun stackResolutionNeedsAdvance(
     passCount: Int,
     stackEmpty: Boolean,
     pendingKind: PendingActionKind?,
+    postActionHorizonPublished: Boolean = false,
 ): Boolean =
     when {
         pendingKind == PendingActionKind.DECLARE_ATTACKERS || pendingKind == PendingActionKind.DECLARE_BLOCKERS -> false
         !stackEmpty -> true
-        pendingKind == PendingActionKind.PRIORITY -> false
+        pendingKind == PendingActionKind.PRIORITY -> !postActionHorizonPublished && passCount == 0
         passCount == 0 -> true
         pendingKind == PendingActionKind.SYNC_ONLY -> true
         else -> false
@@ -115,6 +116,7 @@ private class ScenarioRun(
     lateinit var context: String
         private set
     private var observationStart = 0
+    private var postActionMessageStart: Int? = null
 
     @Suppress("CyclomaticComplexMethod")
     fun executeStep(
@@ -122,6 +124,9 @@ private class ScenarioRun(
         step: AcceptanceStep,
     ) {
         context = "$scenarioId step ${index + 1} (${step.label})"
+        if (step !is WaitStep && step !is ExpectStep && step !is ResolveStackStep) {
+            postActionMessageStart = harness.messageSnapshot()
+        }
         when (step) {
             is WaitStep -> {
                 assertConditions(step.conditions)
@@ -547,14 +552,28 @@ private class ScenarioRun(
     }
 
     private fun resolveStack() {
+        val actionMessageStart = postActionMessageStart ?: harness.messageSnapshot()
+        postActionMessageStart = null
         repeat(12) { index ->
             if (harness.isGameOver()) return
             val pending =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
                     .getPending()
-            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pending?.state?.kind)) {
-                pending?.let(harness::awaitPendingActionHorizon)
+            val postActionHorizonPublished =
+                pending?.takeUnless { it.state.kind == PendingActionKind.SYNC_ONLY }?.let {
+                    harness.pendingActionHorizonPublished(it, actionMessageStart)
+                } == true
+            if (!stackResolutionNeedsAdvance(
+                    index,
+                    harness.game().stack.isEmpty,
+                    pending?.state?.kind,
+                    postActionHorizonPublished,
+                )
+            ) {
+                pending?.takeUnless { it.state.kind == PendingActionKind.SYNC_ONLY }?.let {
+                    harness.awaitPendingActionHorizon(it, actionMessageStart)
+                }
                 return
             }
             harness.advance()
@@ -571,7 +590,9 @@ private class ScenarioRun(
                     .actionBridge(OUR_SEAT)
                     .getPending()
             if (harness.game().stack.isEmpty && nextPending?.state?.kind != PendingActionKind.SYNC_ONLY) {
-                nextPending?.let(harness::awaitPendingActionHorizon)
+                nextPending?.takeUnless { it.state.kind == PendingActionKind.SYNC_ONLY }?.let {
+                    harness.awaitPendingActionHorizon(it, actionMessageStart)
+                }
                 return
             }
         }
