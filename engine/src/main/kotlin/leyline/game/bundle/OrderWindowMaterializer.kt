@@ -26,7 +26,7 @@ internal class OrderWindowMaterializer(
     fun prepare(
         gameState: GameStateMessage,
         gameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: OrderWindowValue,

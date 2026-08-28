@@ -41,7 +41,7 @@ import leyline.config.EngineSettings
 import leyline.domain.deck.DeckSource
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
 import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
@@ -92,9 +92,8 @@ class GameBridge(
     private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     /** Playtest config — controls AI speed, die roll, etc. */
     val engineSettings: EngineSettings = EngineSettings(),
-    /** Shared protocol counter for GRE message sequencing.
-     *  Production: shared with MatchSession. Tests: local default. */
-    val messageCounter: MessageCounter = MessageCounter(),
+    /** Logical sequence at match creation, normally the protocol defaults. */
+    initialSequence: LogicalSequenceState = LogicalSequenceState(),
     /** Card data repository — lookups for grpId ↔ name, card metadata. */
     val cardRepository: CardRepository,
     /** Proto builder for GameObjectInfo — uses [cardRepository] for static card data. */
@@ -112,9 +111,11 @@ class GameBridge(
         MatchCutCoordinator(
             bridge = this,
             matchId = matchId,
-            counter = messageCounter,
             delayMultiplier = engineSettings.aiDelayMultiplier,
         )
+
+    /** Shell observation state; it does not allocate logical output. */
+    val responseAcceptance = ResponseAcceptanceTracker()
 
     /** Match-scoped owner of mutable priority policy and client settings. */
     val priorityPolicy = PriorityPolicyRuntime()
@@ -173,14 +174,15 @@ class GameBridge(
 
     /**
      * Preserves engine-cut order across every bundle builder sharing this match.
-     * Frame producers acquire the shared MessageCounter first and playback queue lock last.
      */
     internal val projectionBuildLock = Any()
 
-    private var projectionState = ProjectionState.initial()
+    private var projectionState = ProjectionState.initial(sequence = initialSequence)
     private val activeProjectionEditor = ThreadLocal<ProjectionState.Editor?>()
 
     internal fun projectionStateSnapshot(): ProjectionState = synchronized(projectionLock) { projectionState }
+
+    fun committedSequence(): LogicalSequenceState = projectionStateSnapshot().sequence
 
     @VisibleForTesting
     internal fun replaceProjectionStateForTest(state: ProjectionState) {
@@ -1676,7 +1678,11 @@ class GameBridge(
         selectedAdditionalCostGrpIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
-            projectionState = ProjectionState.initial(projectionState.identities.nextInstanceId)
+            projectionState =
+                ProjectionState.initial(
+                    startInstanceId = projectionState.identities.nextInstanceId,
+                    sequence = projectionState.sequence,
+                )
         }
 
         // Drain bridge state from previous game

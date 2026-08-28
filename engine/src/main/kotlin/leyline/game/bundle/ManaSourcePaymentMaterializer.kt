@@ -41,7 +41,7 @@ internal class ManaSourcePaymentMaterializer(
     fun prepare(
         gameState: GameStateMessage,
         gameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: ManaSourcePaymentWindowValue,

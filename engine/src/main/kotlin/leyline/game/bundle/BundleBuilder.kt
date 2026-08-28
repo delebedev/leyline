@@ -61,7 +61,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Frame computation reads one snapshot, then installs projection history and the
  * shared viewer baseline through one seam. There is no Netty or mutable
  * handler state here. State-only and ordinary-playback producers acquire
- * [MessageCounter] before the match projection-build monitor because those paths
+ * [LogicalSequencePlanner] before the match projection-build monitor because those paths
  * can run concurrently; playback then acquires its queue monitor last.
  *
  * Captures a [GsmSnapshot] at entry; every stage reads from the snapshot.
@@ -139,7 +139,7 @@ class BundleBuilder(
         val intent: ViewerProjectionIntent,
         val contentMsgId: Int,
         val coinFlipMsgIds: List<Int>,
-        val echoLink: MessageCounter.GameStateLink,
+        val echoLink: LogicalSequencePlanner.GameStateLink,
         val echoMsgId: Int,
         val lifeTotals: Map<Int, Int> = emptyMap(),
     )
@@ -161,16 +161,6 @@ class BundleBuilder(
         val turnStarted: Boolean = false,
         val lifeTotals: Map<Int, Int> = emptyMap(),
     )
-
-    fun fullState(
-        game: Game,
-        gameStateId: Int,
-    ): FullStateResult =
-        synchronized(bridge.projectionBuildLock) {
-            val prepared = prepareFullState(game, gameStateId)
-            bridge.commitProjection(prepared.transition)
-            prepared.result
-        }
 
     internal fun prepareFullState(
         game: Game,
@@ -222,7 +212,7 @@ class BundleBuilder(
 
     private fun frameInput(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         revealForSeat: Int?,
         eventsOverride: FrameEventLog?,
         priorProjectionOverride: ProjectionState? = null,
@@ -261,7 +251,7 @@ class BundleBuilder(
 
     private fun buildFrameDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         revealForSeat: Int? = null,
         eventsOverride: FrameEventLog? = null,
         includePendingPlayerSubmittedTargets: Boolean = false,
@@ -366,11 +356,11 @@ class BundleBuilder(
      */
     fun postAction(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         revealForSeat: Int? = null,
         priorityCandidates: PriorityActionCandidates? = null,
     ): BundleResult =
-        synchronized(counter) {
+        run {
             synchronized(bridge.projectionBuildLock) {
                 commitActionWindow(preparePostAction(game, counter, revealForSeat, priorityCandidates))
             }
@@ -378,7 +368,7 @@ class BundleBuilder(
 
     internal fun preparePostAction(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         revealForSeat: Int? = null,
         priorityCandidates: PriorityActionCandidates? = null,
     ): ActionWindowPrepared {
@@ -467,10 +457,10 @@ class BundleBuilder(
      */
     fun stateOnlyDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         revealForSeat: Int? = null,
     ): BundleResult =
-        synchronized(counter) {
+        run {
             val diff =
                 buildFrameDiff(game, counter, revealForSeat, includePendingPlayerSubmittedTargets = true) { snap, _ ->
                     StateMapper.resolveUpdateType(snap, seatId)
@@ -497,7 +487,7 @@ class BundleBuilder(
     /** Prepare one state-only cut for a pre-block synchronization window. */
     internal fun prepareStateOnlyDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): ActionWindowPrepared {
         val input =
             frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, events ->
@@ -545,7 +535,7 @@ class BundleBuilder(
 
     internal fun materializePlaybackCut(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         turnStarted: Boolean,
         events: FrameEventLog,
     ): PlaybackCut = materializePlaybackCut(game, counter, listOf(PlaybackFrameSpec(events, turnStarted)))
@@ -553,10 +543,10 @@ class BundleBuilder(
     /** Materializes every frame for one closed journal before projection starts. */
     internal fun materializePlaybackCut(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         frameSpecs: List<PlaybackFrameSpec>,
     ): PlaybackCut =
-        synchronized(counter) {
+        run {
             synchronized(bridge.projectionBuildLock) {
                 require(frameSpecs.isNotEmpty()) { "Playback cut must contain at least one frame" }
                 val initialProjection = bridge.projectionStateSnapshot()
@@ -745,7 +735,7 @@ class BundleBuilder(
 
     internal fun optionalInteractionBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
     ): BlockingInteractionMaterializer.Prepared =
         interaction.commanderReturn?.let { commanderOptionalInteractionBundle(game, counter, interaction, it) }
@@ -757,7 +747,7 @@ class BundleBuilder(
 
     private fun commanderOptionalInteractionBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         context: CommanderReturnPromptContext,
     ): BlockingInteractionMaterializer.Prepared {
@@ -794,7 +784,7 @@ class BundleBuilder(
 
     private fun snapshotOptionalInteractionBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
     ): BlockingInteractionMaterializer.Prepared {
         val input =
@@ -809,7 +799,7 @@ class BundleBuilder(
     private fun stateOnlyMessages(
         gsm: GameStateMessage,
         events: List<GameEvent>,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): List<GREToClientMessage> =
         listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, gsm.gameStateId, counter.nextMsgId()) {
@@ -820,7 +810,7 @@ class BundleBuilder(
 
     internal fun commanderPromptCleanup(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         context: CommanderReturnPromptContext,
         beforeMaterialization: (() -> Unit)? = null,
     ): BlockingInteractionMaterializer.Prepared {
@@ -839,18 +829,19 @@ class BundleBuilder(
     }
 
     internal fun numericInteractionBundle(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Numeric,
     ): BlockingInteractionMaterializer.Prepared = blockingInteractions.numeric(bridge.projectionStateSnapshot(), counter, interaction)
 
     internal fun damageInteractionBundle(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Damage,
         blockerToughness: Map<ForgeCardId, Int>,
     ): BlockingInteractionMaterializer.Prepared =
         blockingInteractions.damage(bridge.projectionStateSnapshot(), counter, interaction, blockerToughness)
 
-    internal fun damageAssignmentConfirmation(counter: MessageCounter): BundleResult = blockingInteractions.damageConfirmation(counter)
+    internal fun damageAssignmentConfirmation(counter: LogicalSequencePlanner): BundleResult =
+        blockingInteractions.damageConfirmation(counter)
 
     /**
      * Phase transition bundle matching expected client-facing message pattern (5 messages):
@@ -862,7 +853,7 @@ class BundleBuilder(
      */
     fun phaseTransitionDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         priorityActions: ActionsAvailableReq? = null,
         includePriorityPrompt: Boolean = true,
     ): BundleResult =
@@ -872,7 +863,7 @@ class BundleBuilder(
 
     internal fun preparePhaseTransitionDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         priorityActions: ActionsAvailableReq? = null,
         includePriorityPrompt: Boolean = true,
         priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
@@ -903,7 +894,7 @@ class BundleBuilder(
 
     private fun buildPhaseTransitionDiff(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         priorityActions: ActionsAvailableReq?,
         includePriorityPrompt: Boolean,
     ): PhaseTransitionResult {
@@ -1031,7 +1022,7 @@ class BundleBuilder(
      */
     internal fun prepareEchoAttackers(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
         selectedAttackAlternatives: Map<Int, Int> = emptyMap(),
@@ -1059,13 +1050,13 @@ class BundleBuilder(
      */
     fun declareAttackersBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         prebuiltReq: DeclareAttackersReq? = null,
     ): BundleResult = commitActionWindow(prepareDeclareAttackers(game, counter, prebuiltReq))
 
     internal fun prepareDeclareAttackers(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         prebuiltReq: DeclareAttackersReq? = null,
     ): ActionWindowPrepared {
         val input =
@@ -1104,7 +1095,7 @@ class BundleBuilder(
      */
     internal fun prepareEchoBlockers(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         blockAssignments: Map<Int, Int>,
         presentationActions: ActionsAvailableReq,
     ): ActionWindowPrepared =
@@ -1126,7 +1117,7 @@ class BundleBuilder(
 
     private fun prepareCombatEcho(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         includedInstanceIds: Collection<Int>,
         requestType: GREMessageType,
         presentationActions: ActionsAvailableReq,
@@ -1192,12 +1183,12 @@ class BundleBuilder(
      */
     fun declareBlockersBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): BundleResult = commitActionWindow(prepareDeclareBlockers(game, counter))
 
     internal fun prepareDeclareBlockers(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): ActionWindowPrepared {
         val input =
             frameInput(
@@ -1229,7 +1220,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned targeting window. */
     internal fun prepareTargetingWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: TargetingWindowValue,
         transientSourceCard: BoundCard? = null,
     ): TargetingWindowMaterializer.Prepared {
@@ -1253,7 +1244,7 @@ class BundleBuilder(
     }
 
     internal fun prepareTargetingRePrompt(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         window: TargetingWindowValue,
         selectedOptionIndices: Set<Int>,
@@ -1262,7 +1253,7 @@ class BundleBuilder(
         targetingWindows.rePrompt(counter, projection, window, selectedOptionIndices, legalOptionIndices)
 
     internal fun prepareTargetingSubmit(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         prior: ProjectionState,
         sourceInstanceId: InstanceId?,
         casterSeatId: SeatId,
@@ -1271,7 +1262,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned library-search window. */
     internal fun prepareSearchWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: SearchWindowValue,
     ): SearchWindowMaterializer.Prepared {
         val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
@@ -1314,7 +1305,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned ordered-card window. */
     internal fun prepareOrderWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: OrderWindowValue,
     ): OrderWindowMaterializer.Prepared {
         val orderPrompt =
@@ -1346,7 +1337,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned divided-allocation window. */
     internal fun prepareDistributionWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: DistributionWindowValue,
     ): DistributionWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
@@ -1364,7 +1355,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned Scry or Surveil window. */
     internal fun prepareGroupingWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: GroupingWindowValue,
     ): GroupingWindowMaterializer.Prepared {
         val sourceForgeId =
@@ -1402,7 +1393,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned card-backed SelectN window. */
     internal fun prepareCardSelectWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: CardSelectWindowValue,
     ): CardSelectWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
@@ -1432,7 +1423,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned reveal-backed SelectN window. */
     internal fun prepareRevealChoiceWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: RevealChoiceWindowValue,
     ): RevealChoiceWindowMaterializer.Prepared {
         val promptFacts =
@@ -1461,7 +1452,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned static enum SelectN window. */
     internal fun prepareStaticChoiceWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.StaticChoiceWindowValue,
     ): StaticChoiceWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
@@ -1496,7 +1487,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned modal choice window. */
     internal fun prepareModalChoiceWindow(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.ModalChoiceWindowValue,
     ): ModalChoiceWindowMaterializer.Prepared {
         val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
@@ -1520,7 +1511,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned mana-source payment presentation. */
     internal fun prepareManaSourcePayment(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.ManaSourcePaymentWindowValue,
     ): ManaSourcePaymentMaterializer.Prepared {
         val input =
@@ -1544,7 +1535,7 @@ class BundleBuilder(
     /** Prepare, but do not install, one coordinator-owned one-shot PayCosts window. */
     internal fun prepareOneShotPayCosts(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.OneShotPayCostsWindowValue,
     ): PreparedPayCostsCut {
         val input =
@@ -1586,7 +1577,7 @@ class BundleBuilder(
     /** Prepare, but do not install, the bounded GatherCounters payment window. */
     internal fun prepareGatherCounters(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.GatherCountersWindowValue,
     ): PreparedPayCostsCut {
         val input =
@@ -1644,7 +1635,7 @@ class BundleBuilder(
 
     fun selectNBundle(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         envelope: SelectNEnvelope,
     ): BundleResult {
         val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
@@ -1653,7 +1644,7 @@ class BundleBuilder(
 
     private fun selectNBundleFromDiff(
         diff: FrameDiff,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         envelope: SelectNEnvelope,
     ): BundleResult {
         val snap = diff.snap
@@ -1679,7 +1670,7 @@ class BundleBuilder(
 
     private fun promptRequestBundle(
         diff: FrameDiff,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         gameStateMessage: GameStateMessage,
         requestType: GREMessageType,
         configureRequest: (GREToClientMessage.Builder) -> Unit,
@@ -1760,7 +1751,7 @@ class BundleBuilder(
     /** Prepare the deferred cast-cost CastingTimeOptionsReq cut without installing projection state. */
     internal fun prepareCastingTimeOptions(
         game: Game,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         req: CastingTimeOptionsReq,
     ): ActionWindowPrepared {
         val input =
@@ -1797,7 +1788,7 @@ class BundleBuilder(
      */
     fun queuedGameState(
         gameState: GameStateMessage,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): GREToClientMessage =
         makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), counter.nextMsgId()) {
             it.gameStateMessage = gameState
@@ -1807,7 +1798,7 @@ class BundleBuilder(
      * Server-forced pass (EdictalMessage). Tells the client "I'm passing priority for seat X".
      * Breaks the client out of autoPassPriority mode so it re-renders action buttons.
      */
-    fun edictalPass(counter: MessageCounter): BundleResult {
+    fun edictalPass(counter: LogicalSequencePlanner): BundleResult {
         val edictal =
             EdictalMessage
                 .newBuilder()
@@ -1846,7 +1837,7 @@ class BundleBuilder(
      */
     fun gameOverBundle(
         winningTeam: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
@@ -1862,7 +1853,7 @@ class BundleBuilder(
     /** Prepare the terminal lifecycle bundle without installing projection state. */
     internal fun prepareGameOverBundle(
         winningTeam: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
@@ -1881,7 +1872,7 @@ class BundleBuilder(
     @Suppress("LongMethod") // fixed three-message game-over protocol sequence
     private fun buildGameOverBundle(
         winningTeam: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         reason: ResultReason,
         losingPlayerSeatId: Int,
         lossReason: AnnotationLossReason,
@@ -2044,7 +2035,7 @@ class BundleBuilder(
      * Sent on priority grant — the client shows a rope countdown.
      */
     fun timerStart(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         durationSec: Int = 30,
     ): BundleResult = buildTimerBundle(counter, running = true, durationSec = durationSec)
 
@@ -2053,12 +2044,12 @@ class BundleBuilder(
      * Sent when client responds to an action (pass/cast/play).
      */
     fun timerStop(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         durationSec: Int = 30,
     ): BundleResult = buildTimerBundle(counter, running = false, durationSec = durationSec)
 
     private fun buildTimerBundle(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         running: Boolean,
         durationSec: Int,
     ): BundleResult {
@@ -2099,13 +2090,13 @@ class BundleBuilder(
      * instead of as a tag-along on the initial request bundle.
      */
     fun buildEchoDiffGsm(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         updateType: GameStateUpdate = GameStateUpdate.Send,
         previousGsId: Int? = null,
     ): GREToClientMessage = buildEchoDiffGsm(counter.nextGameStateLink(), counter.nextMsgId(), updateType, previousGsId)
 
     private fun buildEchoDiffGsm(
-        link: MessageCounter.GameStateLink,
+        link: LogicalSequencePlanner.GameStateLink,
         msgId: Int,
         updateType: GameStateUpdate,
         previousGsId: Int? = null,
@@ -2168,7 +2159,7 @@ class BundleBuilder(
     internal fun coinFlipPromptMessages(
         events: List<GameEvent>,
         gsId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
     ): List<GREToClientMessage> {
         val coinEvents = events.filterIsInstance<GameEvent.CoinFlipped>()
         return coinFlipPromptMessages(coinEvents, gsId, coinEvents.map { counter.nextMsgId() })

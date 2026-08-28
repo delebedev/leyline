@@ -182,7 +182,7 @@ import java.util.function.Predicate
  *
  * Every override runs on the Forge engine thread. Input callbacks publish a complete
  * committed interaction before blocking; the session thread submits immutable answers.
- * Match-cut publication follows the shared counter → projection-build → feed lock order.
+ * Match-cut publication follows the projection-build → feed lock order.
  * Consequences for every coordinator:
  *
  * - A missing or slow override blocks the entire game loop.

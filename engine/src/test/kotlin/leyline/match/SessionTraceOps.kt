@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.match.GameOps
 import leyline.match.SessionContext
@@ -16,7 +15,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class SessionTraceOps(
     override val seatId: SeatId = SeatId(1),
     override val matchId: String = "test-match",
-    override var counter: MessageCounter = MessageCounter(),
     override val gameBridge: GameBridge,
 ) : GameOps {
     /** Snapshot for handler construction in tests. */

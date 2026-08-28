@@ -10,10 +10,8 @@ import leyline.bridge.types.SeatId
 import leyline.config.PuzzleDefinition
 import leyline.copilot.CopilotProposalService
 import leyline.domain.json.productionJson
-import leyline.game.bundle.BundleBuilder
 import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
@@ -405,42 +403,13 @@ class DebugServer(
             respond(ex, 404, "text/plain", "No active session")
             return
         }
-        val bridge = session.gameBridge
-        val game = bridge.getGame()
-        if (game == null) {
+        if (session.gameBridge.getGame() == null) {
             respond(ex, 404, "text/plain", "No game")
             return
         }
-
-        val counter = session.counter
-        val gsId = counter.nextGsId()
-        val msgId = counter.nextMsgId()
-
-        val full = BundleBuilder(bridge, session.matchId, session.seatId.value).fullState(game, gsId)
-
-        val greGsm =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setGameStateMessage(full.gsm)
-                .build()
-
-        val greActions =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(counter.nextMsgId())
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setActionsAvailableReq(full.actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
-
-        session.sendBundledGRE(listOf(greGsm, greActions))
-        val info = "Pushed full state gsId=$gsId objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
+        val published = session.injectFullState()
+        val info =
+            "Pushed full state gsId=${published.gameStateId} objects=${published.objectCount} zones=${published.zoneCount}"
         log.info(info)
         respond(ex, 200, "text/plain", info)
     }

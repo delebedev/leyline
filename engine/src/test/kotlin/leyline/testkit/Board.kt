@@ -11,7 +11,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
@@ -29,13 +29,13 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 class Board(
     val bridge: GameBridge,
     val game: Game,
-    val counter: MessageCounter,
+    val counter: LogicalSequencePlanner,
 ) {
     operator fun component1(): GameBridge = bridge
 
     operator fun component2(): Game = game
 
-    operator fun component3(): MessageCounter = counter
+    operator fun component3(): LogicalSequencePlanner = counter
 
     /** The human (non-AI) player. */
     val human: Player get() = game.humanPlayer
@@ -186,8 +186,8 @@ class Board(
          * @param board lambda that receives (game, human, ai) to set up zones
          */
         fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board {
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b = GameBridge(initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
 
             val game = GameBootstrap.createGame()
             b.wrapGame(game)
@@ -224,8 +224,8 @@ class Board(
             if (deckList != null) {
                 TestCardRegistry.ensureDeckRegistered(deckList)
             }
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b = GameBridge(initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
             // Forge's MyRandom is a static Random. b.start(seed) replaces it via
             // MyRandom.setRandom(Random(seed)), so two concurrent Kotest specs
             // calling this race — one overwrites the other's RNG mid-shuffle and
@@ -273,8 +273,9 @@ class Board(
             puzzle: forge.gamemodes.puzzle.Puzzle,
             engineSettings: EngineSettings,
         ): Board {
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(engineSettings = engineSettings, messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b =
+                GameBridge(engineSettings = engineSettings, initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
 
             b.startPuzzle(puzzle)
 

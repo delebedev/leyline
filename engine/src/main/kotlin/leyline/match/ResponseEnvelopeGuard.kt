@@ -1,6 +1,7 @@
 package leyline.match
 
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
+import leyline.game.state.ResponseAcceptanceTracker
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -36,12 +37,13 @@ internal object ResponseEnvelopeGuard {
 
     fun mismatchReason(
         message: ClientToGREMessage,
-        counter: MessageCounter,
+        sequence: LogicalSequenceState,
+        responses: ResponseAcceptanceTracker,
     ): FailureReason? {
         if (message.type !in CORRELATED_CLIENT_MESSAGE_TYPES) return null
-        val expectedRespId = counter.lastPromptMsgId()
+        val expectedRespId = sequence.lastPromptMsgId
         if (expectedRespId != 0 && message.respId == expectedRespId) {
-            counter.markResponseAccepted(message.respId)
+            responses.markResponseAccepted(message.respId)
             return null
         }
 

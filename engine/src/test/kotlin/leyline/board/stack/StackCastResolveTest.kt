@@ -11,7 +11,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
@@ -35,7 +35,7 @@ class StackCastResolveTest :
         fun castCreatureToStack(
             b: GameBridge,
             game: Game,
-            counter: MessageCounter,
+            counter: LogicalSequencePlanner,
         ): Pair<forge.game.card.Card, Int> {
             playLand(b) ?: error("playLand failed")
             b.playback?.drainQueue()

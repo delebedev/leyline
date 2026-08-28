@@ -856,7 +856,7 @@ object AnnotationPipeline {
 
         // Vehicle/Attach (Crew + Saddle + Reconfigure) — invoked here so its
         // crew/reconfigure effect-id allocations follow mutate-merge's on the
-        // shared counter, preserving emitted effect ids.
+        // shared frame allocator, preserving emitted effect ids.
         val vehicleAttach = VehicleAttachContributor.contribute(ctx)
         annotations.addAll(vehicleAttach.transient)
 

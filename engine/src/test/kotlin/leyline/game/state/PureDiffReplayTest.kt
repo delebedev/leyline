@@ -50,7 +50,8 @@ class PureDiffReplayTest :
                 val replayBytes =
                     liveRun.map { step ->
                         val replayPrior = replayBridge.projectionStateSnapshot()
-                        replayPrior shouldBe step.prior
+                        // Logical sequence belongs to cut installation; this replay exercises only compiler transitions.
+                        replayPrior.copy(sequence = step.prior.sequence) shouldBe step.prior
                         val result =
                             StateProjectionCompiler.compileOneViewer(
                                 replayBridge.stateProjectionEnvironment,

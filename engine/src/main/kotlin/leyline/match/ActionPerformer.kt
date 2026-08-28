@@ -41,7 +41,7 @@ internal class ActionPerformer(
         try {
             val bridge = ctx.bridge
             val seatBridge = bridge.seat(counters.seatId)
-            log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, counters.counter.currentGsId())
+            log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, bridge.committedSequence().currentGsId)
 
             // Reject stale actions — client may resend with outdated gameStateId.
             // Compare against the last prompt's gsId, not currentGsId. Trailing
@@ -51,11 +51,11 @@ internal class ActionPerformer(
             // not the latest counter value. Anything strictly less than the last
             // prompt is genuinely stale (a newer prompt has been emitted since).
             val clientGsId = greMsg.gameStateId
-            if (clientGsId != 0 && clientGsId < counters.counter.lastPromptGsId()) {
+            if (clientGsId != 0 && clientGsId < bridge.committedSequence().lastPromptGsId) {
                 log.warn(
                     "ActionPerformer: stale PerformActionResp gsId={} (lastPrompt={}), ignoring",
                     clientGsId,
-                    counters.counter.lastPromptGsId(),
+                    bridge.committedSequence().lastPromptGsId,
                 )
                 return
             }

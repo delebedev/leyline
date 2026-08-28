@@ -102,13 +102,13 @@ internal class MatchSearchInteractionRuntime(
     private fun publish(value: SearchWindowValue): Window =
         kernel.publish(
             duplicateMessage = "A search interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
                 val prepared =
                     try {
                         feed.builder.prepareSearchWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             value,
                         )
                     } catch (ex: Exception) {

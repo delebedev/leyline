@@ -95,13 +95,13 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun publish(initial: StaticChoiceWindowValue): Window =
         kernel.publish(
             duplicateMessage = "A StaticChoice interaction is already pending",
-            prepare = { interactionId, feed, game ->
+            prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
                 val prepared =
                     try {
                         feed.builder.prepareStaticChoiceWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial,
                         )
                     } catch (ex: Exception) {

@@ -33,7 +33,7 @@ internal class ModalChoiceWindowMaterializer(
     fun prepare(
         gameState: GameStateMessage,
         gameStateId: Int,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         projection: ProjectionState,
         transition: ProjectionTransition,
         window: ModalChoiceWindowValue,
@@ -96,7 +96,7 @@ internal class ModalChoiceWindowMaterializer(
     }
 
     fun cleanup(
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         abilityInstanceId: Int,
     ): GREToClientMessage {
         val link = counter.nextGameStateLink()

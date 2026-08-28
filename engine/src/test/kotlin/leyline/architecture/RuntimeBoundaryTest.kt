@@ -73,7 +73,7 @@ class RuntimeBoundaryTest :
             // queue append and a projection commit in one class, which reads as two
             // unrelated call edges in the class model. MatchSearchInteractionRuntime
             // commits a projection without appending a batch and is not an owner.
-            val owners = setOf("CoordinatorCutInstaller.kt", "MatchCutCoordinator.kt")
+            val owners = setOf("CoordinatorCutInstaller.kt")
             val coordRoot = EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord")
             val installers = mutableSetOf<String>()
             Files.walk(coordRoot).use { stream ->
@@ -189,6 +189,39 @@ class RuntimeBoundaryTest :
                 connection shouldContain "stopRuntimeDeliveryObserver()"
                 coordinator shouldContain "internal val deliverySignal"
             }
+        }
+
+        test("transport and session code cannot allocate logical sequence or output order") {
+            val roots =
+                listOf(
+                    EngineArchitecture.sourceRoot.resolve("leyline/match"),
+                    EngineArchitecture.sourceRoot.resolve("leyline/infra"),
+                )
+            val forbidden =
+                listOf(
+                    "MessageCounter",
+                    "LogicalSequencePlanner",
+                    "nextGsId(",
+                    "nextMsgId(",
+                    "setGsId(",
+                    "setMsgId(",
+                    "allocateOutputOrdinal(",
+                )
+            val violations = mutableListOf<String>()
+            roots.filter(Files::exists).forEach { root ->
+                Files.walk(root).use { stream ->
+                    stream
+                        .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
+                        .forEach { file ->
+                            val source = Files.readString(file)
+                            forbidden.filter(source::contains).forEach { token ->
+                                violations += "${EngineArchitecture.sourceRoot.relativize(file)}: $token"
+                            }
+                        }
+                }
+            }
+
+            violations.shouldBeEmpty()
         }
 
         test("accumulated settings state has one runtime owner") {

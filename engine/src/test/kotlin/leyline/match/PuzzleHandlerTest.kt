@@ -5,6 +5,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -99,7 +101,7 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(session, "puzzle-bolt-face", 1)
                 val gre = sink.messages
                 val actionPrompt = gre.last { it.hasActionsAvailableReq() }
-                session.counter.lastPromptMsgId() shouldBe actionPrompt.msgId
+                session.gameBridge.committedSequence().lastPromptMsgId shouldBe actionPrompt.msgId
 
                 session.onPerformAction(
                     ClientToGREMessage
@@ -219,6 +221,66 @@ class PuzzleHandlerTest :
                         ?.state
                         ?.kind shouldNotBe PendingActionKind.SYNC_ONLY
                     sink.messages.drop(initialMessageCount).any { it.hasGameStateMessage() } shouldBe true
+                }
+                bridge.shutdown()
+            } finally {
+                initial.delete()
+                replacement.delete()
+            }
+        }
+
+        test("puzzle replacement keeps committed sequence and clears prior projection state") {
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val initial = tempPuzzleFile("sequence-initial")
+            val replacement = tempPuzzleFile("sequence-replacement", humanHand = "Mountain")
+            try {
+                val handler =
+                    PuzzleHandler(
+                        puzzleIdentity = { initial.nameWithoutExtension },
+                        TestCardRegistry.repo,
+                        registry,
+                        EngineSettings(),
+                        PuzzleLibrary(initial.parentFile),
+                    )
+                val bridge = handler.getOrCreatePuzzleBridge("puzzle-sequence-replacement")
+                val session =
+                    MatchSession(
+                        connection =
+                            ConnectionState(
+                                seatId = SeatId(1),
+                                matchId = "puzzle-sequence-replacement",
+                                sink = sink,
+                                registry = registry,
+                            ),
+                        gameBridge = bridge,
+                        paceDelayMs = 0,
+                    )
+                handler.sendPuzzleInitialBundle(session, "puzzle-sequence-replacement", 1)
+                val prior = bridge.projectionStateSnapshot()
+                bridge.replaceProjectionStateForTest(
+                    prior.copy(
+                        limboInstanceIds = prior.limboInstanceIds + 991,
+                        protoZones = prior.protoZones + (991 to 17),
+                        tokenGrpIds = prior.tokenGrpIds + (991 to 23),
+                    ),
+                )
+
+                session.replaceForPuzzle(
+                    PuzzleSource.load(PuzzleLibrary(replacement.parentFile).require(replacement.nameWithoutExtension)),
+                )
+
+                val installed = bridge.projectionStateSnapshot()
+                assertSoftly {
+                    installed.sequence.currentGsId shouldBeGreaterThan prior.sequence.currentGsId
+                    installed.sequence.currentMsgId shouldBeGreaterThan prior.sequence.currentMsgId
+                    installed.sequence.lastPromptGsId shouldBeGreaterThan prior.sequence.lastPromptGsId
+                    installed.sequence.lastPromptMsgId shouldBeGreaterThan prior.sequence.lastPromptMsgId
+                    installed.sequence.lastGameStateGsId shouldBeGreaterThan prior.sequence.lastGameStateGsId
+                    installed.sequence.committedOutputOrdinal shouldBeGreaterThan prior.sequence.committedOutputOrdinal
+                    installed.limboInstanceIds shouldNotContain 991
+                    installed.protoZones.keys shouldNotContain 991
+                    installed.tokenGrpIds.keys shouldNotContain 991
                 }
                 bridge.shutdown()
             } finally {

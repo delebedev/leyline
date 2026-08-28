@@ -4,7 +4,6 @@ import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.config.EngineSettings
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
-import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
@@ -23,7 +22,7 @@ internal class MatchConnectFlow(
     private val cardRepository: CardRepository,
     private val puzzleHandler: PuzzleHandler,
     private val createMatchSession: (GameBridge) -> MatchSession,
-    private val createFamiliarSession: (MessageCounter) -> FamiliarSession,
+    private val createFamiliarSession: () -> FamiliarSession,
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
     private val sendRoomState: () -> Unit,
     private val sendInitialBundle: () -> Unit,
@@ -74,7 +73,6 @@ internal class MatchConnectFlow(
                         promptFailsafeMs = engineSettings.promptFailsafeMs,
                         runtimeHorizonMode = RuntimeHorizonMode.Observed,
                         engineSettings = engineSettings,
-                        messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
                 Match(attempt.matchId, bridge).also { newMatch ->
@@ -104,7 +102,7 @@ internal class MatchConnectFlow(
         if (isSpectatorMode()) {
             connectSpectator(attempt, match)
         } else if (attempt.familiar) {
-            createFamiliarSession(bridge.messageCounter)
+            createFamiliarSession()
             sendRoomState()
             sendInitialBundle()
         } else {

@@ -436,6 +436,13 @@ The runtime has one fewer semantic handoff. Projection cannot race the Forge
 operation that produced its input because it runs synchronously on the same
 owner after a declared safe point.
 
+The current runtime stores logical GRE identities, emission horizons, and output
+ordinal in `ProjectionState`. Cut preparation uses a private planner fork;
+installation commits its next value with projection, identities,
+acknowledgements, and output ownership. Committed values are monotonic and never
+rewound. Failed, stale, or abandoned preparation consumes nothing. Delivery
+failure after installation does not rewind or reuse an allocation.
+
 The value boundary becomes stricter. Adding a protocol feature may require a
 new typed fact or projection-state field instead of a convenient live read.
 That cost is intentional: missing information becomes visible and testable.

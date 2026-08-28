@@ -276,8 +276,9 @@ class MatchDoorMulliganFlowTest :
                         chooseStartingPlayer(
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         5,
                     ),
@@ -290,8 +291,9 @@ class MatchDoorMulliganFlowTest :
                             MulliganOption.AcceptHand,
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         6,
                     ),
@@ -357,8 +359,9 @@ class MatchDoorMulliganFlowTest :
                         chooseStartingPlayer(
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         5,
                     ),
@@ -373,8 +376,9 @@ class MatchDoorMulliganFlowTest :
                             MulliganOption.Mulligan,
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         6,
                     ),
@@ -390,8 +394,9 @@ class MatchDoorMulliganFlowTest :
                             MulliganOption.Mulligan,
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         7,
                     ),
@@ -406,8 +411,9 @@ class MatchDoorMulliganFlowTest :
                             MulliganOption.AcceptHand,
                             registry
                                 .getMatch(matchId)!!
-                                .bridge.messageCounter
-                                .lastPromptMsgId(),
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
                         ),
                         8,
                     ),

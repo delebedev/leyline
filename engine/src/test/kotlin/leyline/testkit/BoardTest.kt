@@ -15,7 +15,7 @@ import leyline.config.EngineSettings
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
@@ -56,7 +56,7 @@ abstract class BoardTest(
     private var bridge: GameBridge? = null
 
     /** Shared counter for the current test. Reset per test via [startGameAtMain1] et al. */
-    private var testCounter: MessageCounter = MessageCounter()
+    private var testCounter: LogicalSequencePlanner = LogicalSequencePlanner()
 
     init {
         tags(BoardTag)
@@ -67,7 +67,7 @@ abstract class BoardTest(
         afterEach {
             bridge?.shutdown()
             bridge = null
-            testCounter = MessageCounter()
+            testCounter = LogicalSequencePlanner()
         }
         body()
     }

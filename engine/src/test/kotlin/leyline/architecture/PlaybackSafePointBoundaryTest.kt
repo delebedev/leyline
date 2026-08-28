@@ -70,7 +70,7 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("playback producers preserve the shared frame lock order") {
+        test("playback producers preserve the frame lock order") {
             // Source-level, deliberately: `synchronized` is inlined to bare monitor
             // instructions, so the nesting order the deadlock argument rests on is
             // not visible in the imported class model.
@@ -82,7 +82,7 @@ class PlaybackSafePointBoundaryTest :
                     .substringAfter("fun flushPlaybackCut(")
                     .substringBefore("fun acknowledgeExternalFrame(")
             val order =
-                listOf("counter", "bridge.projectionBuildLock", "feedLock")
+                listOf("bridge.projectionBuildLock", "feedLock")
                     .map { it to producer.indexOf("synchronized($it)") }
             val outOfOrder =
                 order
@@ -112,13 +112,13 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("the spectator path builds its own state-only diff but never closes the frame") {
+        test("the spectator path delegates residual projection but never closes the frame") {
             classes()
                 .that()
                 .haveFullyQualifiedName("leyline.match.SpectatorSession")
                 .should()
-                .callMethodWhere(stateOnlyDiff)
-                .because("a spectator frame is projected outside the cut coordinator")
+                .callMethodWhere(materializeLegacySpectatorState)
+                .because("residual spectator projection keeps allocation behind the coordinator")
                 .check(classes)
 
             noClasses()
@@ -207,6 +207,9 @@ private val commitProjection = methodCall(GAME_BRIDGE, "commitProjection", "comm
 
 private val flushPlaybackCut =
     methodCall(CUT_COORDINATOR, "flushPlaybackCut", "flush a requested playback cut")
+
+private val materializeLegacySpectatorState =
+    methodCall(CUT_COORDINATOR, "materializeLegacySpectatorState", "delegate residual spectator projection")
 
 private val sleep = methodCall("java.lang.Thread", "sleep", "sleep on the playback thread")
 

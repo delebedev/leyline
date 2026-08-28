@@ -2,6 +2,8 @@ package leyline.game.state
 
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.bundle.LogicalSequenceState
 import leyline.game.snapshot.GsmSnapshot
 
 /**
@@ -25,6 +27,7 @@ data class ProjectionState(
     val transientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
     val tokenGrpIds: Map<Int, Int> = emptyMap(),
     val viewerCursors: Map<Int, ViewerProjectionCursor> = emptyMap(),
+    val sequence: LogicalSequenceState = LogicalSequenceState(),
 ) {
     fun editor(): Editor = Editor(this)
 
@@ -44,6 +47,7 @@ data class ProjectionState(
         var transientLinkedFaceFamilyIds = prior.transientLinkedFaceFamilyIds
         val tokenGrpIds = prior.tokenGrpIds.toMutableMap()
         val viewerCursors = prior.viewerCursors.toMutableMap()
+        val sequence = LogicalSequencePlanner(prior.sequence)
 
         fun freeze(): ProjectionState =
             ProjectionState(
@@ -63,12 +67,19 @@ data class ProjectionState(
                 transientLinkedFaceFamilyIds = transientLinkedFaceFamilyIds.toSet(),
                 tokenGrpIds = tokenGrpIds.toMap(),
                 viewerCursors = viewerCursors.toMap(),
+                sequence = sequence.snapshot(),
             )
     }
 
     companion object {
-        fun initial(startInstanceId: Int = 100): ProjectionState =
-            ProjectionState(identities = InstanceIdRegistry.initialState(startInstanceId))
+        fun initial(
+            startInstanceId: Int = 100,
+            sequence: LogicalSequenceState = LogicalSequenceState(),
+        ): ProjectionState =
+            ProjectionState(
+                identities = InstanceIdRegistry.initialState(startInstanceId),
+                sequence = sequence,
+            )
     }
 }
 

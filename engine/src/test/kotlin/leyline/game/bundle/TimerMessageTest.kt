@@ -6,7 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.InMemoryCardRepository
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.TimerType
@@ -19,7 +19,7 @@ class TimerMessageTest :
         fun bb() = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1)
 
         test("timerStart builds TimerStateMessage with Decision timer running") {
-            val counter = MessageCounter()
+            val counter = LogicalSequencePlanner()
             val result = bb().timerStart(counter = counter, durationSec = 30)
 
             result.messages.size shouldBe 1
@@ -40,7 +40,7 @@ class TimerMessageTest :
         }
 
         test("timerStop builds TimerStateMessage with running=false") {
-            val counter = MessageCounter()
+            val counter = LogicalSequencePlanner()
             val result = bb().timerStop(counter = counter)
 
             result.messages.size shouldBe 1
@@ -53,7 +53,7 @@ class TimerMessageTest :
         }
 
         test("timerStart uses counter for msgId") {
-            val counter = MessageCounter()
+            val counter = LogicalSequencePlanner()
             val startMsgId = counter.currentMsgId()
 
             bb().timerStart(counter = counter)

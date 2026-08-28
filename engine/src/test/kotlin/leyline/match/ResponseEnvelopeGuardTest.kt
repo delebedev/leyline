@@ -1,10 +1,10 @@
 package leyline.match
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
+import leyline.game.state.ResponseAcceptanceTracker
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class ResponseEnvelopeGuardTest :
@@ -12,49 +12,46 @@ class ResponseEnvelopeGuardTest :
         tags(UnitTag)
 
         test("accepts a response correlated to the latest prompt") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.mismatchReason(response(respId = 17), counter) shouldBe null
-            counter.responsesAccepted() shouldBe 1
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 17), sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 1
         }
 
         test("classifies a response correlated to another prompt without advancing response state") {
-            val counter = MessageCounter(initialMsgId = 20)
-            counter.markPromptMsgId(17)
-            val before = counter.snapshot()
+            val sequence = LogicalSequenceState(currentMsgId = 20, lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.mismatchReason(response(respId = 16), counter) shouldBe FailureReason.ReqRespMismatch
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 16), sequence, responses) shouldBe FailureReason.ReqRespMismatch
 
-            assertSoftly {
-                counter.snapshot() shouldBe before
-                counter.responsesAccepted() shouldBe 0
-            }
+            responses.responsesAccepted() shouldBe 0
         }
 
         test("rejects a response when no prompt has been emitted") {
-            ResponseEnvelopeGuard.mismatchReason(response(respId = 0), MessageCounter()) shouldBe FailureReason.ReqRespMismatch
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 0), LogicalSequenceState(), ResponseAcceptanceTracker()) shouldBe
+                FailureReason.ReqRespMismatch
         }
 
         test("does not correlate control messages") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
             val control =
                 ClientToGREMessage
                     .newBuilder()
                     .setType(ClientMessageType.CancelActionReq_097b)
                     .build()
 
-            ResponseEnvelopeGuard.mismatchReason(control, counter) shouldBe null
-            counter.responsesAccepted() shouldBe 0
+            ResponseEnvelopeGuard.mismatchReason(control, sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 0
         }
 
         test("correlates numeric input responses") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
             ResponseEnvelopeGuard.mismatchReason(
                 response(respId = 16, type = ClientMessageType.NumericInputResp_097b),
-                counter,
+                sequence,
+                ResponseAcceptanceTracker(),
             ) shouldBe FailureReason.ReqRespMismatch
         }
     })
