@@ -36,6 +36,7 @@ class GamePlaybackTest :
 
         fun createMinimalPlayback(counter: LogicalSequencePlanner = LogicalSequencePlanner()): GamePlayback {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository(), initialSequence = counter.snapshot())
+            bridge.cutCoordinator.registerViewer(SeatId(1))
             return GamePlayback(bridge, 1)
         }
 

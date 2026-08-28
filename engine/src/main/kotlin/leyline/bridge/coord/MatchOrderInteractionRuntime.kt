@@ -97,16 +97,18 @@ internal class MatchOrderInteractionRuntime(
             duplicateMessage = "An Order interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareOrderWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedOrderInteraction(
                         interactionId,
@@ -139,6 +141,7 @@ internal class MatchOrderInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

@@ -124,16 +124,18 @@ internal class MatchRevealChoiceInteractionRuntime(
             duplicateMessage = "A RevealChoice interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareRevealChoiceWindow(
                             game ?: failInitial(IllegalStateException("Game unavailable"), initial),
                             planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         failInitial(ex, initial, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published = PublishedRevealChoiceInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
                     PendingPromptCut(
@@ -169,6 +171,7 @@ internal class MatchRevealChoiceInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

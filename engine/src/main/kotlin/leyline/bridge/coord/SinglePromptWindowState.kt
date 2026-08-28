@@ -105,6 +105,7 @@ internal data class SinglePromptPublication<W>(
     val messages: List<GREToClientMessage>,
     val transition: ProjectionTransition,
     val closesPlaybackFrame: Boolean,
+    val viewerOutputs: List<PreparedViewerOutput> = emptyList(),
 )
 
 /** Owns the shared publication transaction for settled single-window prompts. */
@@ -164,9 +165,31 @@ internal class SinglePromptRuntimeKernel<W, C, R>(
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
         publication: SinglePromptPublication<W>,
-    ) = owner.cutInstaller.install(
-        feed,
-        PreparedCut.prepare(prior, planner, publication.messages, publication.transition, publication.closesPlaybackFrame),
-        CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
-    ) { ex -> publicationFailure(ex, publication.window) }
+    ) {
+        val cut =
+            if (publication.viewerOutputs.isEmpty()) {
+                PreparedCut.prepare(prior, planner, publication.messages, publication.transition, publication.closesPlaybackFrame)
+            } else {
+                PreparedCut.prepareForViewers(
+                    prior,
+                    planner,
+                    publication.viewerOutputs,
+                    publication.transition,
+                    publication.closesPlaybackFrame,
+                    playbackOwnerSeatId = owner.humanSeat.takeIf { publication.closesPlaybackFrame },
+                )
+            }
+        if (publication.viewerOutputs.isEmpty()) {
+            owner.cutInstaller.install(
+                feed,
+                cut,
+                CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+            ) { ex -> publicationFailure(ex, publication.window) }
+        } else {
+            owner.cutInstaller.install(
+                cut,
+                CutInstallHooks(beforeInstall = beforeInstall, afterInstall = afterInstall),
+            ) { ex -> publicationFailure(ex, publication.window) }
+        }
+    }
 }

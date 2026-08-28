@@ -45,6 +45,8 @@ import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PersistentFeedFacts
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
@@ -657,9 +659,15 @@ class BundleBuilderTest :
 
         test("prepared targeting window shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
             val result =
-                bundleBuilder(b)
-                    .prepareTargetingWindow(game, counter, targetingWindow(source = null))
+                builder
+                    .prepareTargetingWindow(
+                        game,
+                        counter,
+                        targetingWindow(source = null),
+                        routes = listOf(BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player), builder)),
+                    ).player
                     .bundle
 
             assertSoftly {
@@ -682,13 +690,16 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val prepared =
-                bundleBuilder(b).prepareTargetingWindow(
+            val builder = bundleBuilder(b)
+            val preparedCut =
+                builder.prepareTargetingWindow(
                     game,
                     counter,
                     targetingWindow(source = ForgeCardId(source.id)),
+                    routes = listOf(BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player), builder)),
                 )
-            b.commitProjection(checkNotNull(prepared.transition))
+            b.commitProjection(preparedCut.transition)
+            val prepared = preparedCut.player
             val result = prepared.bundle
             val gsm = result.messages.first().gameStateMessage
             val rider = gsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
@@ -872,6 +883,7 @@ class BundleBuilderTest :
                     .cards
                     .single()
             val builder = bundleBuilder(b)
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             b.registerPlaybackForTest(SeatId(1), playback)
             game.subscribeToEvents(playback)
@@ -942,6 +954,7 @@ class BundleBuilderTest :
 
         test("stale exact playback cut becomes terminal and emits nothing") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             var writerRan = false
             b.diffListener = { _, _, _, _ ->
@@ -984,6 +997,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             val collector = checkNotNull(b.eventCollector)
             game.unsubscribeFromEvents(collector)
@@ -1025,6 +1039,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
 

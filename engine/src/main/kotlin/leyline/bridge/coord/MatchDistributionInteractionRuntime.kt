@@ -109,16 +109,18 @@ internal class MatchDistributionInteractionRuntime(
             duplicateMessage = "A Distribution interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
-                val prepared =
+                val preparedViewers =
                     try {
                         feed.builder.prepareDistributionWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             initial,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedDistributionInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId), initial.kind)
                 val exact =
@@ -141,6 +143,7 @@ internal class MatchDistributionInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

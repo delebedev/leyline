@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.event.GameEvent
@@ -16,8 +17,10 @@ import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionOutput
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -25,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /** Finalizes one viewer's state projection as one tentative value transition. */
+@Suppress("LargeClass") // Shared planning and per-view rendering are one cohesive projection lifecycle.
 object StateProjectionCompiler {
     data class Result(
         val gsm: GameStateMessage,
@@ -34,12 +38,29 @@ object StateProjectionCompiler {
         val objectRefreshInstanceIds: Set<Int>,
     )
 
+    data class ViewerInput(
+        val input: StateFrameInput,
+        val intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+        val actions: ActionsAvailableReq? = null,
+        val role: ProjectionViewerRole = ProjectionViewerRole.Player,
+    )
+
+    data class ViewerResult(
+        val seatId: SeatId,
+        val result: Result,
+    )
+
+    data class FoldResult(
+        val viewers: List<ViewerResult>,
+        val transition: ProjectionTransition,
+    )
+
     fun compileOneViewer(
         environment: StateProjectionEnvironment,
         input: StateFrameInput,
         prior: ProjectionState,
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
-    ): Result = compile(environment, input, prior, intent, null)
+    ): Result = compileViewers(environment, prior, listOf(ViewerInput(input, intent))).viewers.single().result
 
     internal fun compileOneViewerWithActions(
         environment: StateProjectionEnvironment,
@@ -47,81 +68,190 @@ object StateProjectionCompiler {
         prior: ProjectionState,
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
         actions: ActionsAvailableReq,
-    ): Result = compile(environment, input, prior, intent, actions)
+    ): Result = compileViewers(environment, prior, listOf(ViewerInput(input, intent, actions))).viewers.single().result
 
-    private fun compile(
+    fun compileViewers(
         environment: StateProjectionEnvironment,
-        input: StateFrameInput,
         prior: ProjectionState,
-        intent: ViewerProjectionIntent,
-        actions: ActionsAvailableReq?,
-    ): Result {
+        viewers: List<ViewerInput>,
+    ): FoldResult {
+        require(viewers.isNotEmpty()) { "Projection requires at least one viewer" }
+        require(viewers.map { it.input.viewingSeatId }.distinct().size == viewers.size) { "Viewer seats must be unique" }
         val editor = prior.editor()
-        val stagedInput = stagePreStackAbilities(input, intent.supplements)
-        aliasAdmittedStackAbilities(stagedInput, editor)
-        val draft = StateMapper.buildDraft(stagedInput, environment, prior, editor, actions)
-        val privatePromptGsm =
-            projectPrivateCardPrompt(
-                draft.gsm,
-                stagedInput.snapshot,
-                input.viewingSeatId,
-                intent.privateCardPrompt,
-                environment,
-                editor,
-            )
-        val orderResult =
+        val canonical = viewers.first()
+        val stagedCanonical = stagePreStackAbilities(canonical.input, canonical.intent.supplements)
+        aliasAdmittedStackAbilities(stagedCanonical, editor)
+        val planned = StateMapper.planSharedDraft(stagedCanonical, environment, editor)
+        projectPrivateCardPrompt(
+            planned.gsm,
+            stagedCanonical.snapshot,
+            canonical.input.viewingSeatId,
+            canonical.intent.privateCardPrompt,
+            environment,
+            editor,
+        )
+        val plannedOrder =
             projectOrder(
-                privatePromptGsm,
-                stagedInput.snapshot,
-                input.viewingSeatId,
-                intent.orderPrompt,
+                planned.gsm,
+                stagedCanonical.snapshot,
+                canonical.input.viewingSeatId,
+                canonical.intent.orderPrompt,
                 environment,
                 editor,
             )
-        val supplementAnnotations = projectSupplements(input, prior, intent.supplements, draft, editor)
+        val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
         val finalized =
             AnnotationFrameFinalizer.finalize(
-                orderResult.gsm.annotationsList + supplementAnnotations,
-                draft.firstAnnotationId,
+                plannedOrder.gsm.annotationsList + supplementAnnotations,
+                planned.firstAnnotationId,
             )
-        val gsm =
-            orderResult.gsm
-                .toBuilder()
-                .clearAnnotations()
-                .addAllAnnotations(finalized.annotations)
-                .build()
+        val shared =
+            planned.copy(
+                gsm =
+                    planned.gsm
+                        .toBuilder()
+                        .clearAnnotations()
+                        .addAllAnnotations(finalized.annotations)
+                        .build(),
+                output =
+                    planned.output.copy(
+                        idReallocations = planned.output.idReallocations + plannedOrder.idReallocations,
+                    ),
+            )
+        editor.persistentAnnotations = editor.persistentAnnotations.copy(nextAnnotationId = finalized.nextId)
 
-        editor.persistentAnnotations =
-            editor.persistentAnnotations.copy(nextAnnotationId = finalized.nextId)
-        val priorCursor = editor.viewerCursors[VIEWER_ID] ?: ViewerProjectionCursor()
-        editor.viewerCursors[VIEWER_ID] =
-            priorCursor.copy(
-                previousSnapshot = orderResult.snapshot,
-                pendingSubmittedTargets =
-                    if (supplementAnnotations.consumedSubmittedTargets) null else priorCursor.pendingSubmittedTargets,
-            )
+        val projected =
+            viewers.map { viewer ->
+                renderViewer(
+                    viewer,
+                    shared,
+                    plannedOrder,
+                    finalized.annotations,
+                    supplementAnnotations.consumedSubmittedTargets,
+                    environment,
+                    prior,
+                    editor,
+                )
+            }
         val next = editor.freeze()
-        val output =
-            draft.output.copy(
-                idReallocations = draft.output.idReallocations + orderResult.idReallocations,
-            )
-        return Result(
-            gsm = gsm,
-            projectionSnapshot = orderResult.snapshot,
-            output = output,
-            transition =
-                ProjectionTransition(
-                    expectedRevision = prior.revision,
-                    nextState = next,
-                    acknowledgements =
-                        ProjectionAcknowledgements(
-                            consumedEarthbendResolutionVersions = output.consumedEarthbendResolutionVersions,
-                            promptFacts = output.promptFactConsumption,
-                        ),
-                ),
-            objectRefreshInstanceIds = draft.objectRefreshInstanceIds,
+        val acknowledgements =
+            projected.fold(ProjectionAcknowledgements()) { accumulated, (_, result) ->
+                ProjectionAcknowledgements(
+                    consumedEarthbendResolutionVersions =
+                        accumulated.consumedEarthbendResolutionVersions + result.output.consumedEarthbendResolutionVersions,
+                    promptFacts = accumulated.promptFacts.merge(result.output.promptFactConsumption),
+                )
+            }
+        val transition = ProjectionTransition(prior.revision, next, acknowledgements)
+        return FoldResult(
+            viewers =
+                projected.map { (seatId, result) ->
+                    ViewerResult(seatId, result.copy(transition = transition))
+                },
+            transition = transition,
         )
     }
+
+    @Suppress("LongParameterList")
+    private fun renderViewer(
+        viewer: ViewerInput,
+        shared: StateMapper.Draft,
+        plannedOrder: OrderResult,
+        finalizedAnnotations: List<AnnotationInfo>,
+        submittedTargetsConsumed: Boolean,
+        environment: StateProjectionEnvironment,
+        prior: ProjectionState,
+        editor: ProjectionState.Editor,
+    ): Pair<SeatId, Result> {
+        val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
+        val rendered =
+            StateMapper.renderViewerDraft(
+                shared,
+                stagedInput,
+                environment,
+                prior,
+                editor,
+                viewer.actions,
+                includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
+            )
+        val annotated =
+            rendered.gsm
+                .toBuilder()
+                .clearAnnotations()
+                .addAllAnnotations(finalizedAnnotations)
+                .build()
+        val privateOverlay =
+            if (viewer.role == ProjectionViewerRole.Player) {
+                projectPrivateCardPrompt(
+                    annotated,
+                    stagedInput.snapshot,
+                    viewer.input.viewingSeatId,
+                    viewer.intent.privateCardPrompt,
+                    environment,
+                    editor,
+                )
+            } else {
+                annotated
+            }
+        val orderOverlay =
+            if (viewer.role == ProjectionViewerRole.Player) {
+                renderPlannedOrder(
+                    privateOverlay,
+                    stagedInput.snapshot,
+                    viewer.input.viewingSeatId,
+                    viewer.intent.orderPrompt,
+                    plannedOrder,
+                    environment,
+                    editor,
+                )
+            } else {
+                OrderResult(privateOverlay, rendered.projectionSnapshot)
+            }
+        val finalizedOrderOverlay =
+            orderOverlay.copy(
+                gsm =
+                    orderOverlay.gsm
+                        .toBuilder()
+                        .clearAnnotations()
+                        .addAllAnnotations(finalizedAnnotations)
+                        .build(),
+            )
+        val draft =
+            rendered.copy(
+                gsm = finalizedOrderOverlay.gsm,
+                projectionSnapshot = finalizedOrderOverlay.snapshot,
+                output =
+                    rendered.output.copy(
+                        idReallocations = rendered.output.idReallocations + finalizedOrderOverlay.idReallocations,
+                    ),
+            )
+        val viewerSeatId = SeatId(viewer.input.viewingSeatId)
+        val priorCursor = editor.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
+        editor.viewerCursors[viewerSeatId] =
+            priorCursor.copy(
+                previousSnapshot = draft.projectionSnapshot,
+                pendingSubmittedTargets = if (submittedTargetsConsumed) null else priorCursor.pendingSubmittedTargets,
+            )
+        return viewerSeatId to
+            Result(
+                gsm = draft.gsm,
+                projectionSnapshot = draft.projectionSnapshot,
+                output = draft.output,
+                transition = ProjectionTransition(prior.revision, prior),
+                objectRefreshInstanceIds = draft.objectRefreshInstanceIds,
+            )
+    }
+
+    private fun leyline.game.state.PromptFactConsumption.merge(
+        next: leyline.game.state.PromptFactConsumption,
+    ): leyline.game.state.PromptFactConsumption =
+        leyline.game.state.PromptFactConsumption(
+            choiceResults = choiceResults + next.choiceResults,
+            staleReveals = staleReveals + next.staleReveals,
+            convokePayments = convokePayments + next.convokePayments,
+            collectEvidenceCosts = collectEvidenceCosts + next.collectEvidenceCosts,
+            targetSpecs = targetSpecs + next.targetSpecs,
+        )
 
     private data class SupplementAnnotations(
         val annotations: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>,
@@ -169,7 +299,7 @@ object StateProjectionCompiler {
                             supplement.seatId,
                             supplement.version,
                         )
-                    check(prior.viewerCursors[VIEWER_ID]?.pendingSubmittedTargets == expected) {
+                    check(prior.viewerCursors[SeatId(input.viewingSeatId)]?.pendingSubmittedTargets == expected) {
                         "Submitted-target fact does not match the prior viewer cursor"
                     }
                     annotations += AnnotationBuilder.playerSubmittedTargets(supplement.spellInstanceId, supplement.seatId)
@@ -372,6 +502,45 @@ object StateProjectionCompiler {
         return OrderResult(stagedGsm, stagedSnapshot, moved.map { it.reallocation })
     }
 
+    private fun renderPlannedOrder(
+        gsm: GameStateMessage,
+        snapshot: GsmSnapshot,
+        viewingSeatId: Int,
+        order: OrderPromptProjection?,
+        planned: OrderResult,
+        environment: StateProjectionEnvironment,
+        editor: ProjectionState.Editor,
+    ): OrderResult {
+        order ?: return OrderResult(gsm, snapshot)
+        val move = order.move
+        if (move == null) {
+            return OrderResult(
+                exposePrivateCandidates(gsm, snapshot, order.candidateForgeIds, viewingSeatId, environment, editor),
+                snapshot,
+            )
+        }
+        val moved = order.candidateForgeIds.zip(planned.idReallocations).map { (forgeCardId, ids) -> MovedCard(forgeCardId, ids) }
+        val sourceZoneId = ZoneIds.handOf(move.seatId)
+        val destinationZoneId = ZoneIds.libraryOf(move.seatId)
+        val sourceId = order.sourceForgeId?.let(editor.identities::getOrAlloc) ?: InstanceId(0)
+        return OrderResult(
+            stagedOrderGsm(
+                gsm,
+                snapshot,
+                planned.snapshot,
+                move,
+                moved,
+                sourceId,
+                sourceZoneId,
+                destinationZoneId,
+                environment,
+                editor,
+            ),
+            planned.snapshot,
+            planned.idReallocations,
+        )
+    }
+
     private data class MovedCard(
         val forgeCardId: ForgeCardId,
         val reallocation: InstanceIdRegistry.IdReallocation,
@@ -546,6 +715,4 @@ object StateProjectionCompiler {
             ).toBuilder()
             .addViewers(viewerSeatId)
             .build()
-
-    private const val VIEWER_ID = 0
 }

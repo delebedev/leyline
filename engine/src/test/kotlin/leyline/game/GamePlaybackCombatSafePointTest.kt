@@ -17,6 +17,8 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -64,6 +66,12 @@ class GamePlaybackCombatSafePointTest :
             )
             bridge.recordEarthbendResolution(sourceId, 42, 0, listOf(sourceId))
             setOpenFrame(bridge, events ?: combatDamageFrame(sourceId))
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             val playback = GamePlayback(bridge, 1, captureLocalActions)
             playback.visit(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
             return CombatPlaybackFixture(

@@ -55,7 +55,7 @@ fun GameBridge.seedDiffBaseline(
                         mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
                         abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
                         updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
-                        viewingSeatId = 0,
+                        viewingSeatId = seating.humanSeat.value,
                         revealForSeat = null,
                     ),
                 prior = capturedProjection.copy(revision = priorProjection.revision),

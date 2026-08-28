@@ -31,27 +31,28 @@ internal class MatchGameOverRuntime(
             synchronized(owner.feedLock) {
                 owner.ensureOpen()
                 val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                owner.registerViewer(seatId)
-                val feed = owner.feed(seatId)
+                owner.requireViewer(seatId)
+                val routes = owner.viewerRoutes()
                 val initialProjection = owner.bridge.projectionStateSnapshot()
                 val planner = LogicalSequencePlanner(initialProjection.sequence)
                 val pending =
                     try {
                         beforeMaterialization?.invoke()
                         if (owner.bridge.hasPendingEvents()) {
-                            feed.builder.prepareStateOnlyDiff(game, planner)
+                            owner.feed(seatId).builder.prepareStateOnlyDiff(game, planner, routes)
                         } else {
                             null
                         }
                     } catch (ex: Exception) {
                         owner.fail(ex)
                     }
-                val priorProjection = pending?.transition?.nextState ?: owner.bridge.projectionStateSnapshot()
+                val priorProjection = pending?.transition?.nextState ?: initialProjection
                 val terminal =
                     try {
-                        feed.builder.prepareGameOverBundle(
+                        owner.feed(seatId).builder.prepareGameOverBundle(
                             winningTeam = intent.winningTeam,
                             counter = planner,
+                            routes = routes,
                             reason = intent.reason,
                             losingPlayerSeatId = intent.losingPlayerSeatId,
                             lossReason = intent.lossReason,
@@ -61,26 +62,41 @@ internal class MatchGameOverRuntime(
                         owner.fail(ex)
                     }
 
-                val messages = (pending?.bundle?.messages.orEmpty() + terminal.bundle.messages)
-                val terminalTransition = checkNotNull(terminal.transition)
+                val outputs =
+                    routes.map { route ->
+                        val viewer = route.viewer
+                        val pendingMessages =
+                            pending
+                                ?.viewers
+                                ?.single { it.seatId == viewer.seatId }
+                                ?.batches
+                                ?.flatten()
+                                .orEmpty()
+                        val terminalMessages =
+                            terminal.viewers
+                                .single { it.seatId == viewer.seatId }
+                                .batches
+                                .flatten()
+                        PreparedViewerOutput(viewer.seatId, listOf(pendingMessages + terminalMessages))
+                    }
                 val transition =
                     ProjectionTransition(
                         expectedRevision = initialProjection.revision,
-                        nextState = terminalTransition.nextState.copy(revision = initialProjection.revision + 1),
-                        acknowledgements = pending?.transition?.acknowledgements ?: terminalTransition.acknowledgements,
+                        nextState = terminal.transition.nextState.copy(revision = initialProjection.revision + 1),
+                        acknowledgements = pending?.transition?.acknowledgements ?: terminal.transition.acknowledgements,
                     )
                 owner.cutInstaller.install(
-                    feed = feed,
                     cut =
-                        PreparedCut.prepare(
+                        PreparedCut.prepareForViewers(
                             initialProjection,
                             planner,
-                            messages,
+                            outputs,
                             transition,
-                            closesPlaybackFrame = pending?.closesPlaybackFrame == true,
+                            closesPlaybackFrame = pending != null,
+                            playbackOwnerSeatId = seatId.takeIf { pending != null },
                         ),
                     hooks = CutInstallHooks(beforeInstall = beforeInstall),
-                    onInstalled = { feed.requestedCut = null },
+                    onInstalled = { owner.feed(seatId).requestedCut = null },
                 ) { ex -> owner.fail(ex) }
             }
         }

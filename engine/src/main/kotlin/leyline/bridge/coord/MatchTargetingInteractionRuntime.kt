@@ -11,6 +11,7 @@ import leyline.bridge.handoff.TargetingInteractionRuntime
 import leyline.bridge.handoff.TargetingInteractionTimeoutException
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ResolvedAbilityIdentity
+import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.TargetingWindowMaterializer
 import leyline.game.snapshot.BoundCard
@@ -150,16 +151,22 @@ internal class MatchTargetingInteractionRuntime(
                     val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
                     val prepared =
                         try {
-                            feed.builder.prepareTargetingWindow(game, planner, value, transientSourceCard)
+                            feed.builder.prepareTargetingWindow(
+                                game,
+                                planner,
+                                value,
+                                transientSourceCard,
+                                owner.viewerRoutes(),
+                            )
                         } catch (ex: Exception) {
                             owner.fail(ex)
                         }
-                    publishPrepared(feed, prior, planner, prepared)
-                    val projection = prepared.transition?.nextState ?: owner.bridge.projectionStateSnapshot()
+                    publishPrepared(prior, planner, prepared)
+                    val projection = prepared.transition.nextState
                     val published =
                         PublishedTargetingInteraction(
                             UUID.randomUUID().toString(),
-                            checkNotNull(prepared.bundle.actionGameStateId),
+                            checkNotNull(prepared.gameStateId),
                             value.targetIndex,
                             kind,
                         )
@@ -393,6 +400,22 @@ internal class MatchTargetingInteractionRuntime(
         if (requireIdle && pending.exchange.inFlight != null) return null
         return pending
     }
+
+    private fun publishPrepared(
+        prior: ProjectionState,
+        planner: LogicalSequencePlanner,
+        prepared: BundleBuilder.PreparedViewerCut<TargetingWindowMaterializer.Prepared>,
+    ) = owner.cutInstaller.install(
+        PreparedCut.prepareForViewers(
+            prior = prior,
+            planner = planner,
+            outputs = prepared.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+            projection = prepared.transition,
+            closesPlaybackFrame = prepared.closesPlaybackFrame,
+            playbackOwnerSeatId = owner.humanSeat,
+        ),
+        CutInstallHooks(beforeInstall = beforeInstall),
+    ) { ex -> owner.fail(ex) }
 
     private fun publishPrepared(
         feed: MatchCutCoordinator.ViewerFeed,

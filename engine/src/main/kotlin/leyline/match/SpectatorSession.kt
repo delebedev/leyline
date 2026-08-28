@@ -18,6 +18,7 @@ class SpectatorSession(
     val sink: MessageSink,
     val gameBridge: GameBridge,
     val playerId: String = "spectator",
+    private val peerSession: () -> SpectatorSession? = { null },
 ) : SessionOps {
     private var gameOverSent = false
 
@@ -57,11 +58,9 @@ class SpectatorSession(
         var sent = false
         val playback = gameBridge.playbackFor(seatId)
         if (playback != null && playback.hasPendingMessages()) {
-            for (batch in playback.drainQueue()) {
-                sendBundledGRE(batch)
-                sent = true
-            }
+            sent = deliverCommitted() || sent
         }
+        sent = (peerSession()?.deliverCommitted() == true) || sent
         val game = gameBridge.getGame()
         if (!gameOverSent && game?.isGameOver == true) {
             sendGameOver()
@@ -76,13 +75,21 @@ class SpectatorSession(
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) = sendLegacySpectatorState(revealForSeat)
+    ) {
+        deliverCommitted()
+    }
 
-    /** Explicit residual projection path until spectator/multi-view ownership migrates. */
-    private fun sendLegacySpectatorState(revealForSeat: Int?) {
-        for (batch in gameBridge.cutCoordinator.drain(seatId)) sendBundledGRE(batch)
-        val game = gameBridge.getGame() ?: return
-        sendBundledGRE(gameBridge.cutCoordinator.materializeLegacySpectatorState(seatId, game, revealForSeat))
+    internal fun deliverCommitted(): Boolean {
+        var sent = false
+        try {
+            for (batch in gameBridge.cutCoordinator.drain(seatId)) {
+                sendBundledGRE(batch)
+                sent = true
+            }
+        } catch (ex: Exception) {
+            gameBridge.cutCoordinator.failDelivery(ex)
+        }
+        return sent
     }
 
     override fun sendGameOver(reason: ResultReason) {
@@ -97,7 +104,15 @@ class SpectatorSession(
                 lossReason = AnnotationLossReason.LifeTotal,
             ),
         )
-        deliverCommittedCoordinatorBatches(this, gameBridge, seatId)
+        deliverTerminal(winningTeam, reason)
+        peerSession()?.deliverTerminal(winningTeam, reason)
+    }
+
+    private fun deliverTerminal(
+        winningTeam: Int,
+        reason: ResultReason,
+    ) {
+        deliverCommitted()
         sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
     }
 }

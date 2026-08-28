@@ -26,7 +26,7 @@ data class ProjectionState(
     val delayedTriggerHolders: Map<Int, HolderRecord> = emptyMap(),
     val transientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
     val tokenGrpIds: Map<Int, Int> = emptyMap(),
-    val viewerCursors: Map<Int, ViewerProjectionCursor> = emptyMap(),
+    val viewerCursors: Map<SeatId, ViewerProjectionCursor> = emptyMap(),
     val sequence: LogicalSequenceState = LogicalSequenceState(),
 ) {
     fun editor(): Editor = Editor(this)
@@ -87,6 +87,17 @@ data class ProjectionState(
 data class ViewerProjectionCursor(
     val previousSnapshot: GsmSnapshot? = null,
     val pendingSubmittedTargets: PendingSubmittedTargets? = null,
+)
+
+enum class ProjectionViewerRole {
+    Player,
+    Observer,
+}
+
+/** Stable output feed and projection perspective for one registered viewer. */
+data class ProjectionViewer(
+    val seatId: SeatId,
+    val role: ProjectionViewerRole,
 )
 
 data class PendingSubmittedTargets(

@@ -11,6 +11,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
@@ -112,15 +113,7 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("the spectator path delegates residual projection but never closes the frame") {
-            classes()
-                .that()
-                .haveFullyQualifiedName("leyline.match.SpectatorSession")
-                .should()
-                .callMethodWhere(materializeLegacySpectatorState)
-                .because("residual spectator projection keeps allocation behind the coordinator")
-                .check(classes)
-
+        test("the spectator path drains committed output without rebuilding state") {
             noClasses()
                 .that()
                 .haveNameMatching(named("leyline.match.SpectatorSession"))
@@ -128,6 +121,26 @@ class PlaybackSafePointBoundaryTest :
                 .callMethodWhere(closeBundleFrame)
                 .because("the cut coordinator still owns frame closure")
                 .check(classes)
+
+            val source =
+                sourceRoot
+                    .resolve("leyline/match/SpectatorSession.kt")
+                    .toFile()
+                    .readText()
+            assertSoftly {
+                withClue("spectator sessions must not rebuild or rewrite committed game state") {
+                    listOf("materializeLegacySpectatorState", "stateOnlyDiff", "BundleBuilder", ".toBuilder()")
+                        .filter(source::contains)
+                        .shouldBeEmpty()
+                }
+                withClue("spectator delivery must drain its coordinator feed") {
+                    source shouldContain "gameBridge.cutCoordinator.drain(seatId)"
+                }
+                val terminal = source.substringAfter("private fun deliverTerminal(")
+                withClue("raw completion must follow the committed terminal drain") {
+                    (terminal.indexOf("deliverCommitted()") in 0 until terminal.indexOf("sink.sendRaw(")) shouldBe true
+                }
+            }
         }
 
         test("every game-loop launch registers its playback pipeline first") {
@@ -207,9 +220,6 @@ private val commitProjection = methodCall(GAME_BRIDGE, "commitProjection", "comm
 
 private val flushPlaybackCut =
     methodCall(CUT_COORDINATOR, "flushPlaybackCut", "flush a requested playback cut")
-
-private val materializeLegacySpectatorState =
-    methodCall(CUT_COORDINATOR, "materializeLegacySpectatorState", "delegate residual spectator projection")
 
 private val sleep = methodCall("java.lang.Thread", "sleep", "sleep on the playback thread")
 

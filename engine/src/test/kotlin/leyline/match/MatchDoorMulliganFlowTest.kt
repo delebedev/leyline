@@ -145,6 +145,8 @@ class MatchDoorMulliganFlowTest :
             registry: MatchRegistry,
             matchId: String,
             deckList: String = deck,
+            familiarFirst: Boolean = false,
+            drainInitial: Boolean = true,
         ): Pair<EmbeddedChannel, EmbeddedChannel> {
             runtimeMatchConfigs.put(
                 RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
@@ -157,11 +159,102 @@ class MatchDoorMulliganFlowTest :
             greOutbound(local)
             greOutbound(familiar)
 
-            local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
-            familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
-            greOutbound(local)
-            greOutbound(familiar)
+            if (familiarFirst) {
+                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+            } else {
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+            }
+            if (drainInitial) {
+                greOutbound(local)
+                greOutbound(familiar)
+            }
             return local to familiar
+        }
+
+        fun dealHandCount(messages: List<GREToClientMessage>): Int =
+            messages.count { message ->
+                message.hasGameStateMessage() &&
+                    message.gameStateMessage.playersList.any {
+                        it.pendingMessageType == ClientMessageType.MulliganResp_097b
+                    }
+            }
+
+        fun chooseStartingPlayer(
+            respId: Int,
+            seatId: Int = 1,
+        ): ClientToGREMessage =
+            greMessage(2, ClientMessageType.ChooseStartingPlayerResp_097b) {
+                setRespId(respId)
+                setChooseStartingPlayerResp(
+                    ChooseStartingPlayerResp
+                        .newBuilder()
+                        .setTeamType(TeamType.Individual)
+                        .setSystemSeatId(seatId)
+                        .setTeamId(seatId),
+                )
+            }
+
+        listOf(false to "player-first", true to "Familiar-first").forEach { (familiarFirst, order) ->
+            test("$order startup progresses exactly once after both sessions connect") {
+                val registry = MatchRegistry()
+                val matchId = "startup-$order"
+                val (local, familiar) =
+                    connectPair(registry, matchId, familiarFirst = familiarFirst, drainInitial = false)
+
+                try {
+                    val playerMessages = greOutbound(local)
+                    val observerMessages = greOutbound(familiar)
+                    assertSoftly {
+                        dealHandCount(playerMessages) shouldBe 1
+                        playerMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 1
+                        observerMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 0
+                        observerMessages.count { it.type == GREMessageType.ChooseStartingPlayerReq_695e } shouldBe 0
+                    }
+                } finally {
+                    local.close()
+                    familiar.close()
+                }
+            }
+        }
+
+        test("Familiar reconnect and legacy starting-player response do not replay startup") {
+            val registry = MatchRegistry()
+            val matchId = "familiar-startup-replay"
+            val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
+
+            try {
+                val initialPlayerMessages = greOutbound(local)
+                greOutbound(familiar)
+                val bridge = registry.getMatch(matchId)!!.bridge
+                val committedAfterStartup = bridge.committedSequence()
+
+                familiar.writeInbound(auth("local-player_Familiar", 5))
+                greOutbound(familiar)
+                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 6))
+                val reconnectMessages = greOutbound(familiar)
+
+                familiar.writeInbound(
+                    greServiceMessage(
+                        chooseStartingPlayer(committedAfterStartup.lastPromptMsgId),
+                        7,
+                    ),
+                )
+                val legacyResponseMessages = greOutbound(familiar)
+
+                assertSoftly {
+                    dealHandCount(initialPlayerMessages) shouldBe 1
+                    initialPlayerMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 1
+                    reconnectMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 0
+                    legacyResponseMessages shouldBe emptyList()
+                    greOutbound(local) shouldBe emptyList()
+                    bridge.committedSequence() shouldBe committedAfterStartup
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
         }
 
         test("one-shot AI deck override is consumed once per shared match") {
@@ -241,21 +334,6 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
-        fun chooseStartingPlayer(
-            respId: Int,
-            seatId: Int = 1,
-        ): ClientToGREMessage =
-            greMessage(2, ClientMessageType.ChooseStartingPlayerResp_097b) {
-                setRespId(respId)
-                setChooseStartingPlayerResp(
-                    ChooseStartingPlayerResp
-                        .newBuilder()
-                        .setTeamType(TeamType.Individual)
-                        .setSystemSeatId(seatId)
-                        .setTeamId(seatId),
-                )
-            }
-
         fun mulliganDecision(
             decision: MulliganOption,
             respId: Int,
@@ -268,22 +346,11 @@ class MatchDoorMulliganFlowTest :
         test("normal keep flows through MatchHandler mulligan request and response path") {
             val registry = MatchRegistry()
             val matchId = "mulligan-flow-keep"
-            val (local, familiar) = connectPair(registry, matchId)
+            val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
 
             try {
-                familiar.writeInbound(
-                    greServiceMessage(
-                        chooseStartingPlayer(
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge
-                                .committedSequence()
-                                .lastPromptMsgId,
-                        ),
-                        5,
-                    ),
-                )
                 val mulliganPrompt = greOutbound(local).map { it.type }
+                greOutbound(familiar)
 
                 local.writeInbound(
                     greServiceMessage(
@@ -351,22 +418,11 @@ class MatchDoorMulliganFlowTest :
                 30 Forest
                 30 Mountain
                 """.trimIndent()
-            val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck)
+            val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck, drainInitial = false)
 
             try {
-                familiar.writeInbound(
-                    greServiceMessage(
-                        chooseStartingPlayer(
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge
-                                .committedSequence()
-                                .lastPromptMsgId,
-                        ),
-                        5,
-                    ),
-                )
                 greOutbound(local)
+                greOutbound(familiar)
                 val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
                 val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 

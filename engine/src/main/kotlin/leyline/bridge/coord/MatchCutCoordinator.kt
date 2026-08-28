@@ -16,6 +16,8 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
@@ -51,6 +53,7 @@ internal class MatchCutCoordinator(
     internal val feedLock = Any()
     internal val deliverySignal = MatchDeliverySignal()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
+    private val viewers = linkedMapOf<SeatId, ProjectionViewer>()
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val gameOver = MatchGameOverRuntime(this)
@@ -270,15 +273,45 @@ internal class MatchCutCoordinator(
         blockers: forge.game.card.CardCollectionView,
     ): MutableMap<forge.game.card.Card?, Int>? = interactions.takeCachedDamage(attacker, blockers)
 
-    fun registerViewer(seatId: SeatId) {
+    fun registerViewer(
+        seatId: SeatId,
+        role: ProjectionViewerRole = ProjectionViewerRole.Player,
+    ) {
         synchronized(feedLock) {
+            viewers.putIfAbsent(seatId, ProjectionViewer(seatId, role))
             feeds.getOrPut(seatId) { ViewerFeed(seatId, BundleBuilder(bridge, matchId, seatId.value)) }
         }
     }
 
+    fun registerViewers(registered: List<ProjectionViewer>) {
+        require(registered.map { it.seatId }.distinct().size == registered.size) { "Viewer seats must be unique" }
+        synchronized(feedLock) {
+            if (viewers.isNotEmpty()) {
+                check(viewers.values.toList() == registered) { "Viewer roster is already registered" }
+                return
+            }
+            registered.forEach { viewer ->
+                viewers[viewer.seatId] = viewer
+                feeds[viewer.seatId] = ViewerFeed(viewer.seatId, BundleBuilder(bridge, matchId, viewer.seatId.value))
+            }
+        }
+    }
+
+    internal fun registeredViewers(): List<ProjectionViewer> = synchronized(feedLock) { viewers.values.toList() }
+
+    internal fun viewerRoutes(): List<BundleBuilder.ViewerRoute> =
+        registeredViewers().map { BundleBuilder.ViewerRoute(it, feed(it.seatId).builder) }
+
+    internal fun requireViewer(seatId: SeatId) {
+        synchronized(feedLock) { check(seatId in viewers) { "Viewer $seatId is not registered" } }
+    }
+
     /** Teardown disposition: committed-but-undrained batches are discarded with their viewer feeds. */
     fun unregisterViewers() {
-        synchronized(feedLock) { feeds.clear() }
+        synchronized(feedLock) {
+            feeds.clear()
+            viewers.clear()
+        }
     }
 
     /** Terminalize every owned waiter and reject later cuts/interactions. */
@@ -361,22 +394,26 @@ internal class MatchCutCoordinator(
                     feed.pendingCut = pending
                     val prepared =
                         try {
-                            feed.builder.compilePlaybackCut(pending.projection)
+                            feed.builder.compilePlaybackCut(
+                                pending.projection,
+                                viewerRoutes(),
+                            )
                         } catch (ex: Exception) {
                             failPlayback(ex, pending = pending)
                         }
                     val cut =
-                        PreparedCut.prepare(
+                        PreparedCut.prepareForViewers(
                             prior,
                             planner,
-                            prepared.batches.flatten(),
+                            prepared.viewers.map { output ->
+                                PreparedViewerOutput(output.seatId, output.batches)
+                            },
                             prepared.transition,
                             closesPlaybackFrame = true,
+                            playbackOwnerSeatId = seatId,
                         )
                     cutInstaller.install(
-                        feed = feed,
                         cut = cut,
-                        batches = prepared.batches,
                         onInstalled = {
                             feed.pendingCut = null
                             feed.requestedCut = null
@@ -393,19 +430,6 @@ internal class MatchCutCoordinator(
     fun acknowledgeExternalFrame(seatId: SeatId) {
         synchronized(feedLock) { feeds[seatId]?.requestedCut = null }
     }
-
-    /** Residual single-view compilation owned here until viewer folding migrates. */
-    fun materializeLegacySpectatorState(
-        seatId: SeatId,
-        game: forge.game.Game,
-        revealForSeat: Int?,
-    ): List<GREToClientMessage> =
-        synchronized(bridge.projectionBuildLock) {
-            synchronized(feedLock) {
-                val planner = LogicalSequencePlanner(bridge.projectionStateSnapshot().sequence)
-                feed(seatId).builder.stateOnlyDiff(game, planner, revealForSeat).messages
-            }
-        }
 
     fun drain(
         seatId: SeatId,

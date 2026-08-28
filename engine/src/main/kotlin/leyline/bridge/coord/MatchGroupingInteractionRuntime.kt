@@ -166,17 +166,19 @@ internal class MatchGroupingInteractionRuntime(
             ensureEmptyLocked = { check(finalization == null) { "A Grouping interaction is already active" } },
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+                val preparedViewers =
                     try {
                         beforeMaterialize?.invoke()
                         feed.builder.prepareGroupingWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
                             planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedGroupingInteraction(
                         interactionId,
@@ -217,6 +219,7 @@ internal class MatchGroupingInteractionRuntime(
                     prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
                 )
             },
         )

@@ -24,6 +24,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.CapturedStateFrame
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.OrderPromptProjection
@@ -33,7 +34,6 @@ import leyline.game.mapping.PrivateCardPromptProjection
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
-import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
@@ -46,6 +46,8 @@ import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptFactConsumption
 import leyline.game.state.PromptFactKey
 import leyline.game.state.PromptProjectionFacts
@@ -135,7 +137,7 @@ class BundleBuilder(
 
     /** One immutable frame inside an ordinary-playback cut. Logical ids are reserved exactly once. */
     internal data class PlaybackFrameCut(
-        val state: StateFrameInput,
+        val frame: CapturedStateFrame,
         val intent: ViewerProjectionIntent,
         val contentMsgId: Int,
         val coinFlipMsgIds: List<Int>,
@@ -151,10 +153,52 @@ class BundleBuilder(
         val frames: List<PlaybackFrameCut>,
     )
 
-    internal data class PreparedPlaybackCut(
-        val batches: List<List<GREToClientMessage>>,
-        val transition: ProjectionTransition,
+    internal data class ViewerRoute(
+        val viewer: ProjectionViewer,
+        val builder: BundleBuilder,
     )
+
+    internal data class ViewerBatches(
+        val seatId: SeatId,
+        val batches: List<List<GREToClientMessage>>,
+    )
+
+    internal data class PreparedViewerCut<T>(
+        val player: T,
+        val viewers: List<ViewerBatches>,
+        val transition: ProjectionTransition,
+        val closesPlaybackFrame: Boolean = false,
+        val gameStateId: Int? = null,
+    ) {
+        /** Isolated one-view materializer compatibility. */
+        val batches: List<List<GREToClientMessage>> get() = viewers.single().batches
+    }
+
+    private data class ViewerPromptProjection(
+        val gameStateId: Int,
+        val playerIndex: Int,
+        val routes: List<ViewerRoute>,
+        val fold: StateProjectionCompiler.FoldResult,
+        val closesPlaybackFrame: Boolean,
+    ) {
+        fun outputs(playerMessages: List<GREToClientMessage>): List<ViewerBatches> {
+            val content = playerMessages.first { it.hasGameStateMessage() }
+            return routes.mapIndexed { index, route ->
+                val (viewer, builder) = route
+                val messages =
+                    if (index == playerIndex) {
+                        playerMessages
+                    } else {
+                        listOf(
+                            builder.makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, content.msgId) {
+                                it.gameStateMessage = fold.viewers[index].result.gsm
+                            },
+                        )
+                    }
+                ViewerBatches(viewer.seatId, listOf(messages))
+            }
+        }
+    }
 
     internal data class PlaybackFrameSpec(
         val events: FrameEventLog,
@@ -263,7 +307,7 @@ class BundleBuilder(
             val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType = updateType)
             val pendingSubmittedTargets =
                 if (includePendingPlayerSubmittedTargets) {
-                    input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+                    input.priorProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
                 } else {
                     null
                 }
@@ -379,7 +423,7 @@ class BundleBuilder(
                 revealForSeat = revealForSeat,
                 eventsOverride = null,
             ) { snap, events -> resolveFrameUpdateType(snap, events) }
-        val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+        val pendingSubmittedTargets = input.priorProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
         val intent =
             ViewerProjectionIntent.of(
                 pendingSubmittedTargets
@@ -450,11 +494,7 @@ class BundleBuilder(
         return prepared.bundle
     }
 
-    /**
-     * State-only diff: Diff GameStateMessage without ActionsAvailableReq.
-     * Used to show intermediate state (e.g. spell on stack) without
-     * prompting the client for a response.
-     */
+    /** Standalone one-view state projection for isolated materializer tests. */
     fun stateOnlyDiff(
         game: Game,
         counter: LogicalSequencePlanner,
@@ -488,38 +528,89 @@ class BundleBuilder(
     internal fun prepareStateOnlyDiff(
         game: Game,
         counter: LogicalSequencePlanner,
-    ): ActionWindowPrepared {
-        val input =
-            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, events ->
-                resolveFrameUpdateType(snap, events)
-            }
-        val pendingSubmittedTargets = input.priorProjection.viewerCursors[0]?.pendingSubmittedTargets
+        routes: List<ViewerRoute>,
+        phaseTransition: Boolean = false,
+    ): PreparedViewerCut<Unit> {
+        val pending = bridge.projectionStateSnapshot().viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
         val intent =
             ViewerProjectionIntent.of(
-                pendingSubmittedTargets
-                    ?.let { pending ->
-                        listOf(
-                            ProjectionSupplement.SubmitPendingTargets(
-                                pending.spellInstanceId,
-                                pending.casterSeatId,
-                                pending.version,
-                            ),
-                        )
-                    }.orEmpty(),
+                pending
+                    ?.let { listOf(ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)) }
+                    .orEmpty(),
             )
-        val diff = prepareFrameInputLocked(input, intent)
-        val gs = diff.result.gsm
-        val messages =
-            listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, diff.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = gs
-                },
-            ) + coinFlipPromptMessages(diff.events.events, diff.gameStateId, counter) +
-                listOf(buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId))
-        return ActionWindowPrepared(
-            bundle = BundleResult(messages),
-            transition = diff.result.transition,
-            closesPlaybackFrame = true,
+        val frame =
+            prepareViewerPromptProjection(
+                game,
+                counter,
+                routes,
+                intent,
+                requirePlayer = false,
+                updateType = ::resolveFrameUpdateType,
+            )
+        val contentMsgId = counter.nextMsgId()
+        val echoLink = counter.nextGameStateLink().takeIf { phaseTransition }
+        val echoMsgId = counter.nextMsgId().takeIf { phaseTransition }
+        val commitLink = counter.nextGameStateLink().takeIf { phaseTransition }
+        val commitMsgId = counter.nextMsgId().takeIf { phaseTransition }
+        val outputs =
+            routes.mapIndexed { index, route ->
+                val (viewer, builder) = route
+                val state =
+                    frame.fold.viewers[index]
+                        .result.gsm
+                val messages =
+                    if (phaseTransition) {
+                        builder.phaseTransitionStateMessages(
+                            state,
+                            contentMsgId,
+                            checkNotNull(echoLink),
+                            checkNotNull(echoMsgId),
+                            checkNotNull(commitLink),
+                            checkNotNull(commitMsgId),
+                        )
+                    } else {
+                        listOf(
+                            builder.makeGRE(GREMessageType.GameStateMessage_695e, frame.gameStateId, contentMsgId) {
+                                it.gameStateMessage = state
+                            },
+                        )
+                    }
+                ViewerBatches(viewer.seatId, listOf(messages))
+            }
+        return PreparedViewerCut(Unit, outputs, frame.fold.transition, frame.closesPlaybackFrame, frame.gameStateId)
+    }
+
+    private fun phaseTransitionStateMessages(
+        state: GameStateMessage,
+        contentMsgId: Int,
+        echoLink: LogicalSequencePlanner.GameStateLink,
+        echoMsgId: Int,
+        commitLink: LogicalSequencePlanner.GameStateLink,
+        commitMsgId: Int,
+    ): List<GREToClientMessage> {
+        val contentState = state.toBuilder().setUpdate(GameStateUpdate.SendHiFi).build()
+        val commitState =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(commitLink.gsId)
+                .setPrevGameStateId(commitLink.prevGsId)
+                .setTurnInfo(state.turnInfo)
+                .addAllAnnotations(
+                    state.annotationsList
+                        .filter { AnnotationType.PhaseOrStepModified in it.typeList }
+                        .takeLast(1),
+                ).addAllTimers(PlayerMapper.buildTimers())
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
+        return listOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, contentMsgId) {
+                it.gameStateMessage = contentState
+            },
+            buildEchoDiffGsm(echoLink, echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId),
+            makeGRE(GREMessageType.GameStateMessage_695e, commitLink.gsId, commitMsgId) {
+                it.gameStateMessage = commitState
+            },
         )
     }
 
@@ -554,32 +645,29 @@ class BundleBuilder(
                 val shellEffectFacts = bridge.materializeEffectProjectionFacts()
                 val laterEffectFacts = shellEffectFacts.withoutPendingEarthbendResolutions()
                 var captureProjection = initialProjection
-                var previousSnapshot = initialProjection.viewerCursors[0]?.previousSnapshot
                 var actions: ActionsAvailableReq? = null
                 val frames =
                     frameSpecs.mapIndexed { index, spec ->
                         val input =
-                            stateFrameInputCapture.capture(
+                            stateFrameInputCapture.captureNeutral(
                                 game = game,
                                 gameStateId = counter.nextGsId(),
                                 revealForSeat = null,
                                 events = StateFrameInputCapture.Events.Supplied(spec.events),
                                 priorProjectionOverride = captureProjection,
-                                previousSnapshotOverride = previousSnapshot,
                                 promptFactsOverride = if (index == 0) shellPromptFacts else PromptProjectionFacts(),
                                 effectFactsOverride = if (index == 0) shellEffectFacts else laterEffectFacts,
-                            ) { _, _ -> GameStateUpdate.SendHiFi }
+                            )
                         captureProjection = input.priorProjection
-                        previousSnapshot = input.state.snapshot
                         if (actions == null) {
                             val (mappedActions, actionProjection) =
                                 bridge.editProjection(captureProjection) {
-                                    ActionMapper.buildNaiveActionsFromSnapshot(seatId, input.state.snapshot, bridge)
+                                    ActionMapper.buildNaiveActionsFromSnapshot(seatId, input.frame.snapshot, bridge)
                                 }
                             actions = mappedActions
                             captureProjection = actionProjection.copy(revision = initialProjection.revision)
                         }
-                        val pending = captureProjection.viewerCursors[0]?.pendingSubmittedTargets.takeIf { index == 0 }
+                        val pending = captureProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets.takeIf { index == 0 }
                         val supplements =
                             listOfNotNull(
                                 ProjectionSupplement.NewTurnStarted.takeIf { spec.turnStarted },
@@ -589,13 +677,13 @@ class BundleBuilder(
                             )
                         val contentMsgId = counter.nextMsgId()
                         val coinFlipMsgIds =
-                            input.state.events.events
+                            input.frame.events.events
                                 .filterIsInstance<GameEvent.CoinFlipped>()
                                 .map { counter.nextMsgId() }
                         val echoLink = counter.nextGameStateLink()
                         val echoMsgId = counter.nextMsgId()
                         PlaybackFrameCut(
-                            state = input.state,
+                            frame = input.frame,
                             intent = ViewerProjectionIntent.of(supplements),
                             contentMsgId = contentMsgId,
                             coinFlipMsgIds = coinFlipMsgIds,
@@ -612,35 +700,52 @@ class BundleBuilder(
             }
         }
 
-    internal fun compilePlaybackCut(cut: PlaybackCut): PreparedPlaybackCut {
+    internal fun compilePlaybackCut(
+        cut: PlaybackCut,
+        routes: List<ViewerRoute> =
+            listOf(ViewerRoute(ProjectionViewer(SeatId(seatId), ProjectionViewerRole.Player), this)),
+    ): PreparedViewerCut<Unit> {
         var framePrior = cut.priorProjection
         var acknowledgements = ProjectionAcknowledgements()
-        val batches =
-            cut.frames.map { frame ->
-                val state = frame.state.copy(previousSnapshot = framePrior.viewerCursors[0]?.previousSnapshot)
-                val result = compileFrame(FrameInput(state, framePrior, closesPlaybackFrame = false), intent = frame.intent)
-                bridge.diffListener?.invoke(state, framePrior, frame.intent, result.gsm)
-                val gsmBuilder = result.gsm.toBuilder()
-                for (action in cut.actions.actionsList) {
-                    gsmBuilder.addActions(
-                        ActionInfo
-                            .newBuilder()
-                            .setSeatId(seatId)
-                            .setAction(ActionMapper.stripActionForGsm(action)),
+        val batches = routes.associate { it.viewer.seatId to mutableListOf<List<GREToClientMessage>>() }
+        cut.frames.forEach { frame ->
+            val inputs =
+                routes.map { route ->
+                    val viewer = route.viewer
+                    val state =
+                        frame.frame.forViewer(
+                            viewingSeatId = viewer.seatId.value,
+                            previousSnapshot = framePrior.viewerCursors[viewer.seatId]?.previousSnapshot,
+                            updateType = GameStateUpdate.SendHiFi,
+                        )
+                    StateProjectionCompiler.ViewerInput(
+                        input = state,
+                        intent = frame.intent,
+                        actions = cut.actions.takeIf { viewer.role == ProjectionViewerRole.Player },
+                        role = viewer.role,
                     )
                 }
+            val fold = StateProjectionCompiler.compileViewers(stateProjectionEnvironment, framePrior, inputs)
+            routes.zip(fold.viewers).forEach { entry ->
+                val (viewer, builder) = entry.first
+                val projected = entry.second
+                check(viewer.seatId == projected.seatId)
+                val state = inputs.first { it.input.viewingSeatId == viewer.seatId.value }.input
+                bridge.diffListener?.invoke(state, framePrior, frame.intent, projected.result.gsm)
                 val content =
-                    makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, frame.contentMsgId) {
-                        it.gameStateMessage = gsmBuilder.build()
+                    builder.makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, frame.contentMsgId) {
+                        it.gameStateMessage = projected.result.gsm
                     }
-                val prompts = coinFlipPromptMessages(state.events.events, state.gameStateId, frame.coinFlipMsgIds)
-                val echo = buildEchoDiffGsm(frame.echoLink, frame.echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId)
-                framePrior = result.transition.nextState
-                acknowledgements = acknowledgements.merge(result.transition.acknowledgements)
-                (listOf(content) + prompts + echo).withLifeTotals(frame.lifeTotals)
+                val prompts = builder.coinFlipPromptMessages(state.events.events, state.gameStateId, frame.coinFlipMsgIds)
+                val echo = builder.buildEchoDiffGsm(frame.echoLink, frame.echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId)
+                batches.getValue(viewer.seatId) += (listOf(content) + prompts + echo).withLifeTotals(frame.lifeTotals)
             }
-        return PreparedPlaybackCut(
-            batches = batches,
+            framePrior = fold.transition.nextState
+            acknowledgements = acknowledgements.merge(fold.transition.acknowledgements)
+        }
+        return PreparedViewerCut(
+            player = Unit,
+            viewers = routes.map { ViewerBatches(it.viewer.seatId, batches.getValue(it.viewer.seatId)) },
             transition =
                 ProjectionTransition(
                     expectedRevision = cut.priorProjection.revision,
@@ -872,7 +977,8 @@ class BundleBuilder(
             bridge.editProjection(priorProjection) {
                 buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt)
             }
-        val priorCursor = next.viewerCursors[0] ?: ViewerProjectionCursor()
+        val viewerSeatId = SeatId(seatId)
+        val priorCursor = next.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
         return ActionWindowPrepared(
             result.bundle,
             ProjectionTransition(
@@ -881,7 +987,7 @@ class BundleBuilder(
                     next.copy(
                         viewerCursors =
                             next.viewerCursors +
-                                (0 to priorCursor.copy(previousSnapshot = result.snapshot)),
+                                (viewerSeatId to priorCursor.copy(previousSnapshot = result.snapshot)),
                     ),
             ),
         )
@@ -1223,23 +1329,71 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         window: TargetingWindowValue,
         transientSourceCard: BoundCard? = null,
-    ): TargetingWindowMaterializer.Prepared {
-        val input =
-            frameInput(
-                game,
-                counter,
-                revealForSeat = null,
-                eventsOverride = null,
-            ) { _, _ -> GameStateUpdate.Send }
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<TargetingWindowMaterializer.Prepared> {
         val intent = ViewerProjectionIntent.of(targetingSupplements(window, transientSourceCard))
-        val diff = prepareFrameInputLocked(input, intent)
-        return targetingWindows.initial(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                targetingWindows.initial(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
+        )
+    }
+
+    private fun prepareViewerPromptProjection(
+        game: Game,
+        counter: LogicalSequencePlanner,
+        routes: List<ViewerRoute>,
+        intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+        promptFacts: PromptProjectionFacts? = null,
+        revealPlayerCards: Boolean = false,
+        requirePlayer: Boolean = true,
+        updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate = { _, _ -> GameStateUpdate.Send },
+    ): ViewerPromptProjection {
+        val gameStateId = counter.nextGsId()
+        val observation =
+            stateFrameInputCapture.captureNeutral(
+                game = game,
+                gameStateId = gameStateId,
+                revealForSeat = null,
+                events = StateFrameInputCapture.Events.CloseBundleFrame,
+                promptFactsOverride = promptFacts,
+            )
+        val playerIndex = routes.indexOfFirst { it.viewer.role == ProjectionViewerRole.Player }
+        if (requirePlayer) require(playerIndex >= 0) { "A state-bearing prompt requires one Player viewer" }
+        val inputs =
+            routes.map { route ->
+                val viewer = route.viewer
+                StateProjectionCompiler.ViewerInput(
+                    observation.frame.forViewer(
+                        viewingSeatId = viewer.seatId.value,
+                        previousSnapshot = observation.priorProjection.viewerCursors[viewer.seatId]?.previousSnapshot,
+                        updateType = updateType(observation.frame.snapshot, observation.frame.events),
+                        revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role == ProjectionViewerRole.Player },
+                    ),
+                    intent,
+                    role = viewer.role,
+                )
+            }
+        val fold = StateProjectionCompiler.compileViewers(stateProjectionEnvironment, observation.priorProjection, inputs)
+        return ViewerPromptProjection(gameStateId, playerIndex.coerceAtLeast(0), routes, fold, observation.closesPlaybackFrame)
+    }
+
+    private fun <T> finishViewerPrompt(
+        frame: ViewerPromptProjection,
+        prepare: (GameStateMessage, Int, ProjectionTransition) -> T,
+        messages: (T) -> List<GREToClientMessage>,
+    ): PreparedViewerCut<T> {
+        val result = frame.fold.viewers[frame.playerIndex].result
+        val player = prepare(result.gsm, frame.gameStateId, frame.fold.transition)
+        return PreparedViewerCut(
+            player,
+            frame.outputs(messages(player)),
+            frame.fold.transition,
+            frame.closesPlaybackFrame,
+            frame.gameStateId,
         )
     }
 
@@ -1264,39 +1418,41 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: SearchWindowValue,
-    ): SearchWindowMaterializer.Prepared {
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<SearchWindowMaterializer.Prepared> {
         val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
         val supplements =
             buildList {
-                pendingSubmittedTargets?.let { pending ->
-                    add(ProjectionSupplement.SubmitPendingTargets(pending.spellInstanceId, pending.casterSeatId, pending.version))
+                pendingSubmittedTargets?.let {
+                    add(ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version))
                 }
                 window.source
                     ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
                     ?.let { add(ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId)) }
             }
-        val input =
-            frameInput(
+        val frame =
+            prepareViewerPromptProjection(
                 game,
                 counter,
-                revealForSeat = seatId,
-                eventsOverride = null,
-            ) { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements))
-        val stateMessages =
-            listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, diff.gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = diff.result.gsm
-                },
-            ) + coinFlipPromptMessages(diff.events.events, diff.gameStateId, counter) +
-                listOf(buildEchoDiffGsm(counter, diff.result.gsm.update, previousGsId = diff.result.gsm.gameStateId))
-        return searchWindows.initial(
-            stateMessages = stateMessages,
-            requestGameStateId = counter.currentGsId(),
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+                routes,
+                intent = ViewerProjectionIntent.of(supplements),
+                revealPlayerCards = true,
+                updateType = { snap, events -> resolveFrameUpdateType(snap, events) },
+            )
+        return finishViewerPrompt(
+            frame,
+            { gsm, _, transition ->
+                val stateMessages = stateOnlyMessages(gsm, emptyList(), counter)
+                searchWindows.initial(
+                    stateMessages,
+                    counter.currentGsId(),
+                    counter,
+                    transition.nextState,
+                    transition,
+                    window,
+                )
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1307,30 +1463,27 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: OrderWindowValue,
-    ): OrderWindowMaterializer.Prepared {
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<OrderWindowMaterializer.Prepared> {
         val orderPrompt =
             OrderPromptProjection.of(
-                candidateForgeIds = window.candidates.map { it.forgeCardId },
-                sourceForgeId = window.sourceForgeCardId,
-                move =
-                    window.move?.let { move ->
-                        OrderZoneMoveFact.of(
-                            move.seatId,
-                            move.forgeCardIds,
-                            move.putOnTop,
-                        )
-                    },
+                window.candidates.map { it.forgeCardId },
+                window.sourceForgeCardId,
+                window.move?.let { OrderZoneMoveFact.of(it.seatId, it.forgeCardIds, it.putOnTop) },
             )
-        val input =
-            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(orderPrompt = orderPrompt))
-        return orderWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame =
+            prepareViewerPromptProjection(
+                game,
+                counter,
+                routes,
+                ViewerProjectionIntent.of(orderPrompt = orderPrompt),
+            )
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                orderWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1339,16 +1492,15 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: DistributionWindowValue,
-    ): DistributionWindowMaterializer.Prepared {
-        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
-        return distributionWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<DistributionWindowMaterializer.Prepared> {
+        val frame = prepareViewerPromptProjection(game, counter, routes)
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                distributionWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1357,36 +1509,31 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: GroupingWindowValue,
-    ): GroupingWindowMaterializer.Prepared {
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<GroupingWindowMaterializer.Prepared> {
         val sourceForgeId =
             window.source
                 ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
                 ?.let { FrameIdResolver.triggerStackAbilityForgeId(it.forgeAbilityId) }
                 ?: window.source?.hostCardId
-        val privatePrompt =
-            PrivateCardPromptProjection.of(
-                candidateForgeIds = window.candidates.map { it.forgeCardId },
-                sourceForgeId = sourceForgeId,
+        val intent =
+            ViewerProjectionIntent.of(
+                supplements =
+                    listOfNotNull(
+                        window.source
+                            ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
+                            ?.let { ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId) },
+                    ),
+                privateCardPrompt =
+                    PrivateCardPromptProjection.of(window.candidates.map { it.forgeCardId }, sourceForgeId),
             )
-        val supplements =
-            listOfNotNull(
-                window.source
-                    ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
-                    ?.let { ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId) },
-            )
-        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val diff =
-            prepareFrameInputLocked(
-                input,
-                ViewerProjectionIntent.of(supplements = supplements, privateCardPrompt = privatePrompt),
-            )
-        return groupingWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                groupingWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1395,28 +1542,28 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: CardSelectWindowValue,
-    ): CardSelectWindowMaterializer.Prepared {
-        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<CardSelectWindowMaterializer.Prepared> {
         val privatePrompt =
             window
                 .takeIf {
-                    it.kind == CardSelectKind.ManifestDread ||
-                        it.kind == CardSelectKind.Resolution ||
-                        it.kind == CardSelectKind.Learn
+                    it.kind == CardSelectKind.ManifestDread || it.kind == CardSelectKind.Resolution || it.kind == CardSelectKind.Learn
                 }?.let {
-                    PrivateCardPromptProjection.of(
-                        candidateForgeIds = it.candidates.map { candidate -> candidate.forgeCardId },
-                        sourceForgeId = it.sourceForgeCardId,
-                    )
+                    PrivateCardPromptProjection.of(it.candidates.map { candidate -> candidate.forgeCardId }, it.sourceForgeCardId)
                 }
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(privateCardPrompt = privatePrompt))
-        return cardSelectWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame =
+            prepareViewerPromptProjection(
+                game,
+                counter,
+                routes,
+                ViewerProjectionIntent.of(privateCardPrompt = privatePrompt),
+            )
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                cardSelectWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1425,27 +1572,17 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: RevealChoiceWindowValue,
-    ): RevealChoiceWindowMaterializer.Prepared {
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<RevealChoiceWindowMaterializer.Prepared> {
         val promptFacts =
-            bridge
-                .materializePromptProjectionFacts()
-                .withClaimedReveal(PromptFactKey(window.journalSeatId, window.revealVersion))
-        val input =
-            frameInput(
-                game,
-                counter,
-                revealForSeat = null,
-                eventsOverride = null,
-                promptFactsOverride = promptFacts,
-            ) { _, _ -> GameStateUpdate.Send }
-        val diff = prepareFrameInputLocked(input)
-        return revealChoiceWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+            bridge.materializePromptProjectionFacts().withClaimedReveal(PromptFactKey(window.journalSeatId, window.revealVersion))
+        val frame = prepareViewerPromptProjection(game, counter, routes, promptFacts = promptFacts)
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                revealChoiceWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1454,33 +1591,33 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.StaticChoiceWindowValue,
-    ): StaticChoiceWindowMaterializer.Prepared {
-        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<StaticChoiceWindowMaterializer.Prepared> {
         val supplements =
             if (window.kind == StaticChoiceKind.Parity && window.sourceForgeCardId != null) {
                 val creatures = game.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }
                 listOf(
                     ProjectionSupplement.StaticParityChoice(
-                        sourceForgeId = window.sourceForgeCardId,
-                        evenForgeIds = creatures.filter { it.getCMC() % 2 == 0 }.map { ForgeCardId(it.id) },
-                        oddForgeIds = creatures.filter { it.getCMC() % 2 != 0 }.map { ForgeCardId(it.id) },
+                        window.sourceForgeCardId,
+                        creatures.filter { it.getCMC() % 2 == 0 }.map { ForgeCardId(it.id) },
+                        creatures.filter { it.getCMC() % 2 != 0 }.map { ForgeCardId(it.id) },
                     ),
                 )
             } else {
                 emptyList()
             }
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements = supplements))
-        return staticChoiceWindows.prepare(
-            gameState =
-                diff.result.gsm
-                    .toBuilder()
-                    .setTurnInfo(GsmFrame.from(diff.snap).turnInfo())
-                    .build(),
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame =
+            prepareViewerPromptProjection(game, counter, routes, ViewerProjectionIntent.of(supplements = supplements))
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                val playerSnapshot =
+                    frame.fold.viewers[frame.playerIndex]
+                        .result.projectionSnapshot
+                val state = gsm.toBuilder().setTurnInfo(GsmFrame.from(playerSnapshot).turnInfo()).build()
+                staticChoiceWindows.prepare(state, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1489,22 +1626,24 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         window: leyline.bridge.handoff.ModalChoiceWindowValue,
-    ): ModalChoiceWindowMaterializer.Prepared {
-        val input = frameInput(game, counter, revealForSeat = null, eventsOverride = null) { _, _ -> GameStateUpdate.Send }
-        val supplements =
-            listOfNotNull(
-                window.sourceForgeAbilityId
-                    .takeIf { window.triggered && it != 0 }
-                    ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<ModalChoiceWindowMaterializer.Prepared> {
+        val intent =
+            ViewerProjectionIntent.of(
+                supplements =
+                    listOfNotNull(
+                        window.sourceForgeAbilityId
+                            .takeIf { window.triggered && it != 0 }
+                            ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+                    ),
             )
-        val diff = prepareFrameInputLocked(input, ViewerProjectionIntent.of(supplements = supplements))
-        return modalChoiceWindows.prepare(
-            gameState = diff.result.gsm,
-            gameStateId = diff.gameStateId,
-            counter = counter,
-            projection = diff.result.transition.nextState,
-            transition = diff.result.transition,
-            window = window,
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
+        return finishViewerPrompt(
+            frame,
+            { gsm, gameStateId, transition ->
+                modalChoiceWindows.prepare(gsm, gameStateId, counter, transition.nextState, transition, window)
+            },
+            { it.bundle.messages },
         )
     }
 
@@ -1845,39 +1984,75 @@ class BundleBuilder(
         prepareGameOverBundle(
             winningTeam = winningTeam,
             counter = counter,
+            routes = listOf(ViewerRoute(ProjectionViewer(SeatId(seatId), ProjectionViewerRole.Player), this)),
             reason = reason,
             losingPlayerSeatId = losingPlayerSeatId,
             lossReason = lossReason,
-        ).bundle
+        ).viewers.single().batches.single().let(::BundleResult)
 
     /** Prepare the terminal lifecycle bundle without installing projection state. */
     internal fun prepareGameOverBundle(
         winningTeam: Int,
         counter: LogicalSequencePlanner,
+        routes: List<ViewerRoute>,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
         priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
-    ): ActionWindowPrepared {
-        val (bundle, next) =
+    ): PreparedViewerCut<Unit> {
+        val ids = allocateGameOverIds(counter)
+        val (outputs, next) =
             bridge.editProjection(priorProjection) {
-                buildGameOverBundle(winningTeam, counter, reason, losingPlayerSeatId, lossReason)
+                val snapshot = bridge.getGame()?.let { GsmSnapshot.capture(it, bridge, matchId, 0) }
+                routes.map { route ->
+                    val (viewer, builder) = route
+                    ViewerBatches(
+                        viewer.seatId,
+                        listOf(builder.buildGameOverBundle(winningTeam, ids, snapshot, reason, losingPlayerSeatId, lossReason).messages),
+                    )
+                }
             }
-        return ActionWindowPrepared(
-            bundle = bundle,
-            transition = ProjectionTransition(priorProjection.revision, next),
+        return PreparedViewerCut(Unit, outputs, ProjectionTransition(priorProjection.revision, next))
+    }
+
+    private data class GameOverIds(
+        val previousGsId: Int,
+        val firstGsId: Int,
+        val secondGsId: Int,
+        val thirdGsId: Int,
+        val firstMsgId: Int,
+        val secondMsgId: Int,
+        val thirdMsgId: Int,
+        val intermissionMsgId: Int,
+    )
+
+    private fun allocateGameOverIds(counter: LogicalSequencePlanner): GameOverIds {
+        val previous = counter.currentGsId()
+        val firstGsId = counter.nextGsId()
+        val secondGsId = counter.nextGsId()
+        val thirdGsId = counter.nextGsId()
+        return GameOverIds(
+            previous,
+            firstGsId,
+            secondGsId,
+            thirdGsId,
+            counter.nextMsgId(),
+            counter.nextMsgId(),
+            counter.nextMsgId(),
+            counter.nextMsgId(),
         )
     }
 
     @Suppress("LongMethod") // fixed three-message game-over protocol sequence
     private fun buildGameOverBundle(
         winningTeam: Int,
-        counter: LogicalSequencePlanner,
+        ids: GameOverIds,
+        gameOverSnap: GsmSnapshot?,
         reason: ResultReason,
         losingPlayerSeatId: Int,
         lossReason: AnnotationLossReason,
     ): BundleResult {
-        val prevGsId = counter.currentGsId()
+        val prevGsId = ids.previousGsId
         val losingTeam = if (winningTeam == 1) 2 else 1
 
         // Shared GameInfo fields matching initial state projection.
@@ -1921,7 +2096,7 @@ class BundleBuilder(
             baseGameInfo()
                 .setMatchState(MatchState.GameComplete)
                 .addResults(gameResult)
-        val gs1Id = counter.nextGsId()
+        val gs1Id = ids.firstGsId
         val gs1 =
             GameStateMessage
                 .newBuilder()
@@ -1939,9 +2114,7 @@ class BundleBuilder(
                 .setStatus(TeamStatus.PendingLoss_a458),
         )
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
-        val game = bridge.getGame()
-        if (game != null) {
-            val gameOverSnap = GsmSnapshot.capture(game, bridge, matchId, 0)
+        if (gameOverSnap != null && losingPlayerSeatId != 0) {
             val loserInfo =
                 PlayerMapper
                     .buildFromSnapshot(gameOverSnap, losingPlayerSeatId)
@@ -1962,7 +2135,7 @@ class BundleBuilder(
                 .setMatchState(MatchState.MatchComplete)
                 .addResults(gameResult)
                 .addResults(matchResult)
-        val gs2Id = counter.nextGsId()
+        val gs2Id = ids.secondGsId
         val gs2 =
             GameStateMessage
                 .newBuilder()
@@ -1973,7 +2146,7 @@ class BundleBuilder(
                 .setUpdate(GameStateUpdate.SendAndRecord)
 
         // gs3: bare diff with pendingMessageCount=1 (IntermissionReq follows)
-        val gs3Id = counter.nextGsId()
+        val gs3Id = ids.thirdGsId
         val gs3 =
             GameStateMessage
                 .newBuilder()
@@ -1985,13 +2158,13 @@ class BundleBuilder(
 
         val messages =
             mutableListOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
-                makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
-                makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
+                makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, ids.firstMsgId) { it.gameStateMessage = gs1.build() },
+                makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, ids.secondMsgId) { it.gameStateMessage = gs2.build() },
+                makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, ids.thirdMsgId) { it.gameStateMessage = gs3.build() },
             )
 
         messages.add(
-            makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, counter.nextMsgId()) {
+            makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, ids.intermissionMsgId) {
                 it.intermissionReq =
                     IntermissionReq
                         .newBuilder()

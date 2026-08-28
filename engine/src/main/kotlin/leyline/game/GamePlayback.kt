@@ -31,7 +31,7 @@ class GamePlayback(
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
 
     init {
-        bridge.cutCoordinator.registerViewer(SeatId(seatId))
+        bridge.cutCoordinator.requireViewer(SeatId(seatId))
     }
 
     /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */

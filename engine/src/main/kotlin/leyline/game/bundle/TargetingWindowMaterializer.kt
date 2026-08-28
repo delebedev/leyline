@@ -3,6 +3,7 @@ package leyline.game.bundle
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import leyline.game.state.PendingSubmittedTargets
@@ -100,8 +101,9 @@ internal class TargetingWindowMaterializer(
         val transition =
             sourceInstanceId?.let { sourceId ->
                 val editor = prior.editor()
-                val cursor = editor.viewerCursors[0] ?: leyline.game.state.ViewerProjectionCursor()
-                editor.viewerCursors[0] =
+                val viewerSeatId = SeatId(seatId)
+                val cursor = editor.viewerCursors[viewerSeatId] ?: leyline.game.state.ViewerProjectionCursor()
+                editor.viewerCursors[viewerSeatId] =
                     cursor.copy(
                         pendingSubmittedTargets =
                             PendingSubmittedTargets(

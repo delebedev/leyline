@@ -6,11 +6,10 @@ import leyline.infra.MessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Read-only mirror session for the Familiar (AI spectator seat).
+ * Read-only viewer session for the Familiar (AI spectator seat).
  *
- * Receives mirrored GRE messages from the human player's [MatchSession]
- * via [sendBundledGRE]. All action handlers are inherited no-ops from
- * [SessionOps] — the Familiar never drives game logic.
+ * Drains its coordinator-committed viewer feed. The Familiar never drives game
+ * logic.
  *
  * All action handlers are inherited no-ops from [SessionOps] —
  * the type system enforces read-only behavior without boolean gates.
@@ -19,13 +18,18 @@ class FamiliarSession(
     override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
+    val gameBridge: GameBridge? = null,
 ) : SessionOps {
     override fun sendBundledGRE(messages: List<GREToClientMessage>) = sink.send(messages)
 
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) {}
+    ) = deliverCommitted()
+
+    internal fun deliverCommitted() {
+        gameBridge?.let { deliverCommittedCoordinatorBatches(this, it, seatId) }
+    }
 
     override fun sendGameOver(reason: ResultReason) {}
 

@@ -37,6 +37,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.bridge.types.opponent
 import leyline.config.EngineSettings
 import leyline.domain.deck.DeckSource
 import leyline.game.GamePlayback
@@ -237,11 +238,15 @@ class GameBridge(
             result
         }
 
-    internal fun viewerProjectionCursor(): ViewerProjectionCursor = projectionStateSnapshot().viewerCursors[0] ?: ViewerProjectionCursor()
+    internal fun viewerProjectionCursor(seatId: SeatId = seating.humanSeat): ViewerProjectionCursor =
+        projectionStateSnapshot().viewerCursors[seatId] ?: ViewerProjectionCursor()
 
-    internal fun updateViewerProjectionCursor(block: (ViewerProjectionCursor) -> ViewerProjectionCursor) {
+    internal fun updateViewerProjectionCursor(
+        seatId: SeatId = seating.humanSeat,
+        block: (ViewerProjectionCursor) -> ViewerProjectionCursor,
+    ) {
         updateProjection { editor ->
-            editor.viewerCursors[0] = block(editor.viewerCursors[0] ?: ViewerProjectionCursor())
+            editor.viewerCursors[seatId] = block(editor.viewerCursors[seatId] ?: ViewerProjectionCursor())
         }
     }
 
@@ -1067,6 +1072,12 @@ class GameBridge(
         // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
+        cutCoordinator.registerViewers(
+            listOf(
+                ProjectionViewer(seating.humanSeat, ProjectionViewerRole.Player),
+                ProjectionViewer(seating.humanSeat.opponent, ProjectionViewerRole.Observer),
+            ),
+        )
         registerPlaybackPipeline(g, seating.humanSeat, captureLocalActions = false)
         log.info("GameBridge: registered playback pipeline for seat 1")
 
@@ -1158,6 +1169,12 @@ class GameBridge(
             )
         }
 
+        cutCoordinator.registerViewers(
+            listOf(
+                ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
+                ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+            ),
+        )
         registerPlaybackPipeline(g, SeatId(1), captureLocalActions = true)
         log.info("GameBridge: registered spectator playback pipeline")
 
@@ -1627,6 +1644,7 @@ class GameBridge(
             human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
         }
 
+        cutCoordinator.registerViewers(listOf(ProjectionViewer(controlledSeat, ProjectionViewerRole.Player)))
         registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
 
         if (!startRuntime) return

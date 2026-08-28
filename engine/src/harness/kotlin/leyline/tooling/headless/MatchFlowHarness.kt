@@ -196,24 +196,6 @@ class MatchFlowHarness(
         if (aiScript != null) installScriptedAi(aiScript)
         drainSink()
 
-        val familiarPrompt = familiarSink.messages.last { it.type == GREMessageType.ChooseStartingPlayerReq_695e }
-        checkNotNull(familiarConnection).submitGREMessage(
-            ClientToGREMessage
-                .newBuilder()
-                .setSystemSeatId(opponentSeatId.value)
-                .setType(ClientMessageType.ChooseStartingPlayerResp_097b)
-                .setGameStateId(familiarPrompt.gameStateId)
-                .setRespId(familiarPrompt.msgId)
-                .setChooseStartingPlayerResp(
-                    ChooseStartingPlayerResp
-                        .newBuilder()
-                        .setTeamType(TeamType.Individual)
-                        .setSystemSeatId(bridge.dieRollWinner)
-                        .setTeamId(bridge.dieRollWinner),
-                ).build(),
-        )
-        drainSink()
-
         val mulliganPrompt = allMessages.last { it.type == GREMessageType.MulliganReq_aa0d }
         val outputEpoch = localOutput.snapshot()
         val outputStart = messageSnapshot()

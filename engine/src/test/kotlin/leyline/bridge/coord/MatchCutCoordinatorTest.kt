@@ -16,8 +16,10 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
@@ -27,6 +29,8 @@ import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.awaitFreshPending
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -38,6 +42,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -339,6 +344,44 @@ class MatchCutCoordinatorTest :
             }
         }
 
+        test("phase synchronization folds one shared frame for the fixed roster") {
+            val board = startWithBoard { _, _, _ -> }
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
+            val prior = board.bridge.projectionStateSnapshot()
+            val pending =
+                GameActionBridge.PendingAction(
+                    actionId = "phase-sync",
+                    state =
+                        PendingActionState(
+                            phase = "Main1",
+                            turn = 1,
+                            activePlayerId = 1,
+                            priorityPlayerId = 1,
+                            kind = PendingActionKind.SYNC_ONLY,
+                            synchronizationPresentation = SynchronizationPresentation.PhaseTransition,
+                        ),
+                    future = CompletableFuture(),
+                    windowRuntime = coordinator.actionWindowRuntime(SeatId(1)),
+                )
+
+            coordinator.syncOnly.publish(SeatId(1), pending)
+
+            val player = coordinator.drain(SeatId(1)).single()
+            val observer = coordinator.drain(SeatId(2)).single()
+            assertSoftly {
+                player.map { it.gameStateId } shouldBe observer.map { it.gameStateId }
+                player.map { it.type } shouldBe List(3) { GREMessageType.GameStateMessage_695e }
+                observer.map { it.type } shouldBe List(3) { GREMessageType.GameStateMessage_695e }
+                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
+            }
+        }
+
         test("delivered synchronization pass wins against a paused timeout claim") {
             val board = startPuzzleAtMain1(puzzle)
             board.bridge.cutCoordinator.drain(SeatId(1))
@@ -493,6 +536,7 @@ class MatchCutCoordinatorTest :
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
+            board.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(board.bridge, 1)
             val collector = checkNotNull(board.bridge.eventCollector)
             collector.closeFrame()
@@ -526,7 +570,7 @@ class MatchCutCoordinatorTest :
             val pendingIndex = messages.indexOfFirst { it.hasGameStateMessage() && !it.gameStateMessage.hasGameInfo() }
             assertSoftly {
                 gameOverIndex shouldBeGreaterThan pendingIndex
-                messages.count { it.hasGameStateMessage() } shouldBe 5
+                messages.count { it.hasGameStateMessage() } shouldBe 4
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 board.bridge.hasPendingEvents().shouldBeFalse()
             }
@@ -534,6 +578,7 @@ class MatchCutCoordinatorTest :
 
         test("game-over materialization and install failures are terminal without an owned orphan") {
             val materializationBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            materializationBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(materializationBoard.bridge, 1)
             val existing =
                 listOf(
@@ -558,6 +603,7 @@ class MatchCutCoordinatorTest :
             }
 
             val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            installBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(installBoard.bridge, 1)
             installBoard.bridge.cutCoordinator.gameOver.beforeInstall = { error("game-over install failed") }
             val installFailure =

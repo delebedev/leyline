@@ -11,13 +11,12 @@ import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
  * Game orchestration session — thin dispatcher for post-mulligan game logic.
  *
  * Delegates combat flows to [CombatHandler] and targeting to [TargetingHandler].
- * Owns the [sessionLock], message sending, and Familiar mirroring.
+ * Owns the [sessionLock], message sending, and committed-feed delivery.
  *
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
@@ -369,11 +368,16 @@ class MatchSession(
 
     internal fun deliverRuntimeHorizon() =
         synchronized(sessionLock) {
-            runtimeContinuation.deliverHorizon()
+            runtimeContinuation.deliverHorizon().also { drainFamiliarFeed() }
         }
 
     private fun drainCoordinatorFeed() {
         drainCoordinatorBarrier(this, gameBridge, seatId)
+        drainFamiliarFeed()
+    }
+
+    private fun drainFamiliarFeed() {
+        (registry.getPeer(matchId, seatId) as? FamiliarSession)?.deliverCommitted()
     }
 
     /**
@@ -407,6 +411,7 @@ class MatchSession(
             ),
         )
         deliverCommittedCoordinatorBatches(this, bridge, seatId)
+        drainFamiliarFeed()
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
@@ -438,7 +443,7 @@ class MatchSession(
     // --- Low-level helpers ---
 
     /**
-     * Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer.
+     * Send multiple GRE messages bundled in one GreToClientEvent.
      *
      * Logical identity and prompt horizons are already committed before this sink runs.
      */
@@ -454,14 +459,9 @@ class MatchSession(
         sendBundledGREDirect(messages)
     }
 
-    internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) {
-        sendBundledGREDirect(messages, mirror = false)
-    }
+    internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) = sendBundledGREDirect(messages)
 
-    private fun sendBundledGREDirect(
-        messages: List<GREToClientMessage>,
-        mirror: Boolean = true,
-    ) {
+    private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
         for (m in messages) {
             if (m.type in PROMPT_GRE_TYPES) {
                 lastPrompt = m
@@ -470,41 +470,10 @@ class MatchSession(
         }
         recorder?.recordOutbound(messages)
         sink.send(messages)
-        if (mirror) mirrorToFamiliar(messages)
     }
 
     fun close() {
         autopush?.shutdown()
-    }
-
-    /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */
-    private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
-        if (seatId != gameBridge.seating.humanSeat) return
-        val peer = registry.getPeer(matchId, seatId) ?: return
-        // Only mirror to FamiliarSession — paired peers build their own state
-        // via per-seat GamePlayback.
-        if (peer !is FamiliarSession) return
-        val mirrorSeat = 2
-        // Filter out CastingTimeOptionsReq — Familiar must not auto-respond to modal prompts
-        val filtered = messages.filter { it.type != GREMessageType.CastingTimeOptionsReq_695e }
-        if (filtered.isEmpty()) return
-        val mirrored =
-            filtered.map { gre ->
-                val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
-                // Strip Private gameObjects not visible to mirror seat (client
-                // omits Limbo objects from non-owner messages).
-                if (builder.hasGameStateMessage()) {
-                    val gsm = builder.gameStateMessage.toBuilder()
-                    val filtered =
-                        gsm.gameObjectsList.filter { obj ->
-                            obj.visibility != Visibility.Private || obj.viewersList.contains(mirrorSeat)
-                        }
-                    gsm.clearGameObjects().addAllGameObjects(filtered)
-                    builder.setGameStateMessage(gsm.build())
-                }
-                builder.build()
-            }
-        peer.sink.send(mirrored)
     }
 }
 

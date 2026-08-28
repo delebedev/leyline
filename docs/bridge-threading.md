@@ -95,11 +95,9 @@ observer notification.
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`, but
 its gameplay output commits through the coordinator lifecycle runtime.
-`SpectatorSession` remains the independent projection holdout: its
-`stateOnlyDiff` projection and raw completion output stay outside coordinator
-publication. `FamiliarSession` only copies already-allocated human-seat output
-and allocates no protocol identities. These are not patterns for new entry
-points.
+Player, Familiar, and spectator sessions drain only their own committed viewer
+feeds. Raw match completion remains connection-local and follows the committed
+terminal drain. PvP transport is outside this fixed-roster model.
 
 ## Publication before signalling
 

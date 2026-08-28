@@ -324,7 +324,8 @@ class MatchConnection(
     /** Create and register a read-only familiar session. */
     private fun createAndRegisterFamiliarSession(): FamiliarSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
-        val s = FamiliarSession(SeatId(seatId), matchId, sink)
+        val bridge = checkNotNull(registry.getMatch(matchId)?.bridge) { "Familiar match is unavailable" }
+        val s = FamiliarSession(SeatId(seatId), matchId, sink, bridge)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
@@ -333,7 +334,16 @@ class MatchConnection(
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
-        val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
+        val sessionSeat = SeatId(seatId)
+        val s =
+            SpectatorSession(
+                sessionSeat,
+                matchId,
+                sink,
+                bridge,
+                playerId = clientId.removeSuffix("_Familiar"),
+                peerSession = { registry.getPeer(matchId, sessionSeat) as? SpectatorSession },
+            )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
@@ -357,8 +367,8 @@ class MatchConnection(
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
-            ClientMessageType.ChooseStartingPlayerResp_097b ->
-                withConnectionOwnedResponse(greMsg) { mulliganHandler.onChooseStartingPlayer() }
+            // Startup is server-owned. Legacy responses are inert and cannot replay it.
+            ClientMessageType.ChooseStartingPlayerResp_097b -> {}
 
             ClientMessageType.MulliganResp_097b ->
                 withConnectionOwnedResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
@@ -463,10 +473,10 @@ class MatchConnection(
         bridge.cutCoordinator.lifecycle.publishInitial(
             seat,
             includeStartingPlayerPrompt = !isSpectatorMode(),
-            seedProjectionCursor = isSpectatorMode(),
         )
         Tap.outboundTemplate("InitialBundle seat=$seatId")
         s.deliverLifecycle(bridge)
+        if (!isSpectatorMode()) mulliganHandler.startFamiliarIfReady()
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {
