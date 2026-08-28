@@ -102,6 +102,7 @@ class PlaybackSafePointBoundaryTest :
                     named(
                         "leyline.match.ActionPerformer",
                         "leyline.match.CombatHandler",
+                        "leyline.match.DeferredCastCostInteractionHandler",
                         "leyline.match.NumericInputHandler",
                         "leyline.match.OptionalActionHandler",
                     ),

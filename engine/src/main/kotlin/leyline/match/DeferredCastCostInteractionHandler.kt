@@ -8,6 +8,7 @@ import leyline.bridge.coord.DeferredCastResponse
 import leyline.bridge.coord.MatchActionWindowRuntime
 import leyline.game.bundle.CastingTimeOptionsBuilder
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 
@@ -15,9 +16,13 @@ import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 internal class DeferredCastCostInteractionHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val bundles: BundleBuilderHolder,
     private val ctx: SessionContext,
 ) {
+    private data class OptionalCostPrompt(
+        val request: CastingTimeOptionsReq,
+        val ctoIds: List<Int>,
+    )
+
     private val log = LoggerFactory.getLogger(DeferredCastCostInteractionHandler::class.java)
 
     fun onCastingTimeOptions(greMsg: ClientToGREMessage): HandlerResult {
@@ -51,16 +56,18 @@ internal class DeferredCastCostInteractionHandler(
             )
         return when (admission) {
             is DeferredCastAdmission.Rejected -> {
-                ResponseEnvelopeGuard.reject(
+                ctx.bridge.cutCoordinator.publishIllegalRequest(
+                    counters.seatId,
                     greMsg,
-                    if (admission.reason == DeferredCastRejection.Stale) {
+                    if (admission.reason ==
+                        DeferredCastRejection.Stale
+                    ) {
                         FailureReason.ReqRespMismatch
                     } else {
                         FailureReason.InvalidOptionSelection
                     },
-                    counters.counter,
-                    sink,
                 )
+                sink.sendPriorityState(ctx.bridge)
                 HandlerResult.Waiting
             }
             is DeferredCastAdmission.Optional -> {
@@ -90,11 +97,6 @@ internal class DeferredCastCostInteractionHandler(
     fun checkHybridManaTypeOptions(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
         val hybrid = plan.hybrid ?: return false
-        val bridge = ctx.bridge
-        val game = ctx.game
-        val seatBridge = bridge.seat(counters.seatId)
-        seatBridge.prompt.journal.clearHybridManaStash()
-
         val (ctoReq, ctoIds) =
             CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
                 instanceId = plan.instanceId,
@@ -103,17 +105,16 @@ internal class DeferredCastCostInteractionHandler(
                 hybridColors = hybrid.promptColors,
                 manaCost = hybrid.manaCost,
             )
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         ctx.bridge.cutCoordinator.deferredCast.publishHybrid(
             claim = actionClaim,
-            promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
+            request = ctoReq,
             ctoIds = ctoIds,
             promptColors = hybrid.promptColors,
             paymentColors = hybrid.paymentColors,
         )
 
         Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} grpId=${plan.grpId}")
-        sink.sendBundledGRE(result.messages)
+        sink.sendPriorityState(ctx.bridge)
         return true
     }
 
@@ -123,10 +124,10 @@ internal class DeferredCastCostInteractionHandler(
     ): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
-        return publishOptionalCosts(plan, preserveHybridStash) { gameStateId, ctoIds ->
-            deferredCast.publishOptional(actionClaim, gameStateId, ctoIds)
-            true
-        }
+        val prompt = prepareOptionalCosts(plan) ?: return false
+        deferredCast.publishOptional(actionClaim, prompt.request, prompt.ctoIds, preserveHybridStash)
+        deliverOptionalPrompt(plan)
+        return true
     }
 
     private fun checkOptionalCosts(
@@ -135,19 +136,14 @@ internal class DeferredCastCostInteractionHandler(
         preserveHybridStash: Boolean,
     ): Boolean {
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
-        return publishOptionalCosts(plan, preserveHybridStash) { gameStateId, ctoIds ->
-            deferredCast.publishOptional(receipt, gameStateId, ctoIds)
-        }
+        val prompt = prepareOptionalCosts(plan) ?: return false
+        if (!deferredCast.publishOptional(receipt, prompt.request, prompt.ctoIds, preserveHybridStash)) return false
+        deliverOptionalPrompt(plan)
+        return true
     }
 
-    private fun publishOptionalCosts(
-        plan: leyline.bridge.handoff.DeferredCastCostPlan,
-        preserveHybridStash: Boolean,
-        publish: (Int, List<Int>) -> Boolean,
-    ): Boolean {
-        val optional = plan.optional ?: return false
-        val game = ctx.game
-        clearDeferredCastCostStashes(clearHybrid = !preserveHybridStash)
+    private fun prepareOptionalCosts(plan: leyline.bridge.handoff.DeferredCastCostPlan): OptionalCostPrompt? {
+        val optional = plan.optional ?: return null
 
         log.info(
             "DeferredCastCostInteractionHandler: grpId={} has {} deferred cost choices — sending prompt",
@@ -161,19 +157,17 @@ internal class DeferredCastCostInteractionHandler(
                 playerIdToPrompt = counters.seatId.value,
                 baseManaCost = optional.baseManaCost,
             )
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
-        val promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId
-        if (!publish(promptGameStateId, costCtoIds)) return false
+        return OptionalCostPrompt(ctoReq, costCtoIds)
+    }
 
+    private fun deliverOptionalPrompt(plan: leyline.bridge.handoff.DeferredCastCostPlan) {
         Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} grpId=${plan.grpId}")
-        sink.sendBundledGRE(result.messages)
-        return true
+        sink.sendPriorityState(ctx.bridge)
     }
 
     fun checkAlternateAdditionalCostChoice(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
         val alternate = plan.alternate ?: return false
-        val game = ctx.game
         val optionPromptIds = alternate.choices.map { it.promptId }
         val (ctoReq, ctoIds) =
             CastingTimeOptionsBuilder.buildChooseOrCostCastingTimeOptionsReq(
@@ -183,25 +177,14 @@ internal class DeferredCastCostInteractionHandler(
                 optionCount = alternate.choices.size,
                 optionPromptIds = if (optionPromptIds.all { it != null }) optionPromptIds.filterNotNull() else emptyList(),
             )
-        val result = bundles.bundleBuilder.castingTimeOptionsBundle(game, counters.counter, ctoReq)
         ctx.bridge.cutCoordinator.deferredCast.publishAlternate(
             claim = actionClaim,
-            promptGameStateId = result.messages.first { it.hasCastingTimeOptionsReq() }.gameStateId,
+            request = ctoReq,
             ctoIds = ctoIds,
         )
 
         Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} grpId=${plan.grpId}")
-        sink.sendBundledGRE(result.messages)
+        sink.sendPriorityState(ctx.bridge)
         return true
-    }
-
-    fun clearDeferredCastCostStashes(clearHybrid: Boolean = true) {
-        val journal =
-            ctx.bridge
-                .seat(counters.seatId)
-                .prompt.journal
-        journal.clearKeywordCostStash()
-        if (clearHybrid) journal.clearHybridManaStash()
-        journal.clearCollectEvidenceCost()
     }
 }

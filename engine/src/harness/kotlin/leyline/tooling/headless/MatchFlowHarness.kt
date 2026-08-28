@@ -709,6 +709,17 @@ class MatchFlowHarness(
         awaitNamedOutput(epoch, messageStart, description, predicate)
     }
 
+    internal fun awaitPendingActionHorizon(pending: leyline.bridge.handoff.GameActionBridge.PendingAction) {
+        check(pending.state.kind != PendingActionKind.SYNC_ONLY)
+        val epoch = localOutput.snapshot()
+        val messageStart = messageSnapshot()
+        collectSinkMessages()
+        if (pendingHorizonVisible(pending, allMessages)) return
+        awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
+            pendingHorizonVisible(pending, listOf(message))
+        }
+    }
+
     private fun submitAndAwaitClientResult(
         message: ClientToGREMessage,
         description: String,

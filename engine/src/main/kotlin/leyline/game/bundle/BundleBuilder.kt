@@ -1757,13 +1757,20 @@ class BundleBuilder(
         return gsBuilder.build()
     }
 
-    /** Build the deferred cast-cost CastingTimeOptionsReq bundle. */
-    fun castingTimeOptionsBundle(
+    /** Prepare the deferred cast-cost CastingTimeOptionsReq cut without installing projection state. */
+    internal fun prepareCastingTimeOptions(
         game: Game,
         counter: MessageCounter,
         req: CastingTimeOptionsReq,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
+    ): ActionWindowPrepared {
+        val input =
+            frameInput(
+                game,
+                counter,
+                revealForSeat = null,
+                eventsOverride = null,
+            ) { _, _ -> GameStateUpdate.Send }
+        val diff = prepareFrameInputLocked(input)
         val gsResult = diff.result
         val gsBuilder =
             gsResult.gsm
@@ -1771,12 +1778,18 @@ class BundleBuilder(
                 .setPendingMessageCount(1)
 
         val gs = gsBuilder.build()
-        return promptRequestBundle(diff, counter, gs, GREMessageType.CastingTimeOptionsReq_695e) {
-            it.castingTimeOptionsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
-        }
+        val bundle =
+            promptRequestBundle(diff, counter, gs, GREMessageType.CastingTimeOptionsReq_695e) {
+                it.castingTimeOptionsReq = req
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
+            }.copy(actionGameStateId = diff.gameStateId)
+        return ActionWindowPrepared(
+            bundle = bundle,
+            transition = diff.result.transition,
+            closesPlaybackFrame = input.closesPlaybackFrame,
+        )
     }
 
     /**
@@ -2080,7 +2093,7 @@ class BundleBuilder(
      *
      * **Where echoes do not fire.** Human-priority [postAction] bundles and
      * prompt-bearing bundles — coordinator-owned targeting, [selectNBundle],
-     * [castingTimeOptionsBundle], coordinator-owned payment cuts, [declareAttackersBundle],
+     * [prepareCastingTimeOptions], coordinator-owned payment cuts, [declareAttackersBundle],
      * [declareBlockersBundle] — ship `[GSM, Request]` without a trailing echo.
      * Targeting re-entry frames carry their echo through [TargetingWindowMaterializer]
      * instead of as a tag-along on the initial request bundle.

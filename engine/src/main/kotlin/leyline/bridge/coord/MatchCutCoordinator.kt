@@ -18,7 +18,16 @@ import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.IllegalRequestMessage
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
+import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
+import wotc.mtgo.gre.external.messaging.Messages.SetSettingsResp
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -84,6 +93,84 @@ internal class MatchCutCoordinator(
         intent: GameOverIntent,
     ) = gameOver.publish(seatId, intent)
 
+    /** Commit the settings acknowledgement behind older coordinator output. */
+    fun publishSettings(
+        seatId: SeatId,
+        settings: SettingsMessage?,
+    ) {
+        registerViewer(seatId)
+        synchronized(counter) {
+            synchronized(bridge.projectionBuildLock) {
+                synchronized(feedLock) {
+                    ensureOpen()
+                    val msgId = counter.currentMsgId()
+                    val response = SetSettingsResp.newBuilder()
+                    settings?.let(response::setSettings)
+                    val message =
+                        GREToClientMessage
+                            .newBuilder()
+                            .setType(GREMessageType.SetSettingsResp_695e)
+                            .addSystemSeatIds(seatId.value)
+                            .setMsgId(msgId)
+                            .setGameStateId(counter.currentGsId())
+                            .setSetSettingsResp(response)
+                            .build()
+                    counter.setMsgId(msgId + 1)
+                    cutInstaller.install(
+                        feed(seatId),
+                        PreparedCut(listOf(message), transition = null, closesPlaybackFrame = false),
+                        onFailure = ::fail,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Materialize and commit one rejected client response in gameplay order. */
+    fun publishIllegalRequest(
+        seatId: SeatId,
+        invalid: ClientToGREMessage,
+        reason: FailureReason,
+    ) {
+        registerViewer(seatId)
+        synchronized(counter) {
+            synchronized(bridge.projectionBuildLock) {
+                synchronized(feedLock) {
+                    ensureOpen()
+                    val message =
+                        GREToClientMessage
+                            .newBuilder()
+                            .setType(GREMessageType.IllegalRequest)
+                            .setMsgId(counter.nextMsgId())
+                            .setGameStateId(counter.currentGsId())
+                            .addSystemSeatIds(invalid.systemSeatId)
+                            .setPrompt(
+                                Prompt
+                                    .newBuilder()
+                                    .setPromptId(3)
+                                    .addParameters(
+                                        PromptParameter
+                                            .newBuilder()
+                                            .setParameterName("FailureReason")
+                                            .setType(ParameterType.Number)
+                                            .setNumberValue(reason.number),
+                                    ),
+                            ).setIllegalRequestMessage(
+                                IllegalRequestMessage
+                                    .newBuilder()
+                                    .setInvalidMessage(invalid)
+                                    .setReason(reason),
+                            ).build()
+                    cutInstaller.install(
+                        feed(seatId),
+                        PreparedCut(listOf(message), transition = null, closesPlaybackFrame = false),
+                        onFailure = ::fail,
+                    )
+                }
+            }
+        }
+    }
+
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
 
     fun hasLegalAttackers(actionId: String): Boolean = actions.hasLegalAttackers(actionId)
@@ -132,8 +219,7 @@ internal class MatchCutCoordinator(
     fun submitDeclaredAction(
         actionId: String,
         responseGameStateId: Int,
-        confirmation: (() -> GREToClientMessage)? = null,
-    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, confirmation)
+    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId)
 
     fun currentBlockingInteraction(): PublishedBlockingInteraction? = interactions.current()
 

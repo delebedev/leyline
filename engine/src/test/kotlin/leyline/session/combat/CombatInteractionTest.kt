@@ -3,9 +3,11 @@ package leyline.session.combat
 import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -14,9 +16,12 @@ import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.afterActionInstall
+import leyline.bridge.coord.beforeActionInstall
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.copilot.CopilotProposalService
+import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
@@ -301,6 +306,65 @@ class CombatInteractionTest :
                 bridge.actionBridge(SeatId(1)).getPending()?.actionId shouldBe pending.actionId
 
                 bridge.cutCoordinator.submitDeclaredAction(pending.actionId, promptGameStateId) shouldBe true
+            }
+        }
+
+        session(
+            "attacker confirmation installs before the engine token is submitted",
+            deckList = COMBAT_DECK,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
+            setupSingleAttacker()
+            val pending = bridge.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            bridge.cutCoordinator.drain(SeatId(1))
+            var installed = emptyList<GREToClientMessage>()
+            var engineAlreadyResumed = true
+            bridge.cutCoordinator.beforeActionInstall = null
+            bridge.cutCoordinator.afterActionInstall = {
+                installed = bridge.cutCoordinator.drain(SeatId(1)).flatten()
+                engineAlreadyResumed = pending.future.isDone
+            }
+
+            val completed =
+                bridge.cutCoordinator.submitDeclaredAction(
+                    pending.actionId,
+                    pending.promptGameStateId.shouldNotBeNull(),
+                )
+            bridge.cutCoordinator.afterActionInstall = null
+
+            assertSoftly {
+                completed.shouldBeTrue()
+                installed.single().type shouldBe GREMessageType.SubmitAttackersResp_695e
+                engineAlreadyResumed.shouldBeFalse()
+            }
+        }
+
+        session(
+            "attacker confirmation install failure publishes nothing and does not resume the engine",
+            deckList = COMBAT_DECK,
+            validation = combatValidation,
+            aiScript = singleAttackerAiScript,
+        ) {
+            setupSingleAttacker()
+            val pending = bridge.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            bridge.cutCoordinator.drain(SeatId(1))
+            bridge.cutCoordinator.beforeActionInstall = { error("attacker confirmation install unavailable") }
+
+            val failure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    bridge.cutCoordinator.submitDeclaredAction(
+                        pending.actionId,
+                        pending.promptGameStateId.shouldNotBeNull(),
+                    )
+                }
+
+            assertSoftly {
+                failure.cause?.message shouldBe "attacker confirmation install unavailable"
+                bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .shouldBeEmpty()
+                pending.future.isCompletedExceptionally.shouldBeTrue()
             }
         }
 

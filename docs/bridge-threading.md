@@ -44,6 +44,9 @@ exact action and game-state correlation, resolves the retained executable or
 combat handle, and atomically claims it. `MatchBlockingInteractionRuntime`
 performs the equivalent client-instance lookup for damage assignments. Session
 code does not rebuild these responses from the live Forge graph.
+`DeferredCastWindowRuntime` validates the retained action claim, materializes
+casting-time prompts with the viewer feed builder, and installs their complete
+cut before replacing its correlated prompt state.
 
 ### Lock order
 
@@ -91,9 +94,12 @@ observer notification.
 ### Current exceptions
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`, but
-its gameplay output commits through the coordinator lifecycle runtime. Residual
-output builders still share counters and sequencing with coordinator-backed
-output. These are explicit migration seams, not patterns for new entry points.
+its gameplay output commits through the coordinator lifecycle runtime.
+`SpectatorSession` remains the independent projection holdout: its
+`stateOnlyDiff` projection and raw completion output stay outside coordinator
+publication. `FamiliarSession` only copies already-allocated human-seat output
+and allocates no protocol identities. These are not patterns for new entry
+points.
 
 ## Publication before signalling
 

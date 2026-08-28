@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.match.GameOps
@@ -12,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Test double for [GameOps] that traces all calls for assertion.
  *
  * Always constructed with a [GameBridge] — handlers under test need
- * a non-null `bundleBuilder` and `gameBridge`.
+ * a non-null `gameBridge`.
  */
 class SessionTraceOps(
     override val seatId: SeatId = SeatId(1),
@@ -20,9 +19,6 @@ class SessionTraceOps(
     override var counter: MessageCounter = MessageCounter(),
     override val gameBridge: GameBridge,
 ) : GameOps {
-    override val bundleBuilder: BundleBuilder =
-        BundleBuilder(gameBridge, matchId, seatId.value)
-
     /** Snapshot for handler construction in tests. */
     val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "SessionTraceOps requires non-null game" }, gameBridge)
 
@@ -43,10 +39,6 @@ class SessionTraceOps(
         revealForSeat: Int?,
     ) {
         sentRealGameState.add(bridge)
-    }
-
-    override fun sendBundle(result: BundleBuilder.BundleResult) {
-        sentGRE.add(result.messages)
     }
 
     override fun sendGameOver(reason: ResultReason) {

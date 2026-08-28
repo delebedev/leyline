@@ -504,13 +504,14 @@ private class ScenarioRun(
     private fun resolveStack() {
         repeat(12) { index ->
             if (harness.isGameOver()) return
-            val pendingKind =
+            val pending =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
                     .getPending()
-                    ?.state
-                    ?.kind
-            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pendingKind)) return
+            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pending?.state?.kind)) {
+                pending?.let(harness::awaitPendingActionHorizon)
+                return
+            }
             harness.advance()
             if (harness.isGameOver()) return
             if (harness.bridge.cutCoordinator
@@ -520,13 +521,14 @@ private class ScenarioRun(
             ) {
                 return
             }
-            val nextSynchronization =
+            val nextPending =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
                     .getPending()
-                    ?.state
-                    ?.kind == PendingActionKind.SYNC_ONLY
-            if (harness.game().stack.isEmpty && !nextSynchronization) return
+            if (harness.game().stack.isEmpty && nextPending?.state?.kind != PendingActionKind.SYNC_ONLY) {
+                nextPending?.let(harness::awaitPendingActionHorizon)
+                return
+            }
         }
         error(
             "$context did not resolve stack; stack size=${harness.game().stack.size()}",

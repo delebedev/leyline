@@ -1,7 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -22,17 +21,7 @@ interface GreMessageSink {
 
     fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
 
-    fun sendBundle(result: BundleBuilder.BundleResult)
-
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
-
-    /** Build a single GRE message with explicit IDs. */
-    fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage
 }
 
 internal enum class SynchronizationDrain {
@@ -153,17 +142,6 @@ interface SessionCounters {
 }
 
 /**
- * Accessor for the per-session [BundleBuilder].
- *
- * Implemented by sessions that drive game logic ([MatchSession]). Read-only
- * sessions that never build bundles ([FamiliarSession]) do not implement this
- * interface — the type system enforces the absence rather than a runtime null.
- */
-interface BundleBuilderHolder {
-    val bundleBuilder: BundleBuilder
-}
-
-/**
  * Inbound client-action dispatch surface.
  *
  * All methods default to no-op so read-only sessions (FamiliarSession)
@@ -225,10 +203,8 @@ interface ActionReceiver {
  *   the full [ActionReceiver] surface)
  * - Whole-surface test doubles (e.g. `SessionTraceOps`).
  *
- * [BundleBuilderHolder] and a non-null `gameBridge` are NOT part of this
- * contract — sessions that drive game logic ([MatchSession]) implement
- * those separately via [GameOps]. Read-only sessions ([FamiliarSession])
- * do not, and the type system enforces the asymmetry.
+ * A non-null `gameBridge` is NOT part of this contract. Sessions that drive
+ * game logic ([MatchSession]) implement that separately via [GameOps].
  *
  * [HandlerConstructorContractTest] pins each concrete handler's
  * primary-constructor parameter types to this narrow-interface contract.
@@ -239,24 +215,6 @@ interface SessionOps :
     ActionReceiver {
     val recorder: MatchRecorder? get() = null
     val matchId: String
-
-    /** Build a single GRE message with an explicit msgId (no side-effect on counters). */
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage {
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(type)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(seatId.value)
-        configure(gre)
-        return gre.build()
-    }
 }
 
 /**
@@ -264,8 +222,6 @@ interface SessionOps :
  * to [SessionOps]. Implemented by [MatchSession]; not implemented by
  * [FamiliarSession].
  */
-interface GameOps :
-    SessionOps,
-    BundleBuilderHolder {
+interface GameOps : SessionOps {
     val gameBridge: GameBridge
 }

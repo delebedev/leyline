@@ -94,8 +94,6 @@ class SpectatorSession(
         sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
     }
 
-    override fun sendBundle(result: BundleBuilder.BundleResult) = sendBundledGRE(result.messages)
-
     override fun sendGameOver(reason: ResultReason) {
         val p1Won = gameBridge.getPlayer(SeatId(1))?.getOutcome()?.hasWon() == true
         val winningTeam = if (p1Won) 1 else 2

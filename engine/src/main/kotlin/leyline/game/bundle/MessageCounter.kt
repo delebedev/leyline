@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * One instance is created at match setup and shared by protocol output producers.
  * Individual allocations are atomic and monotonic. Match-cut publication reserves
  * whole batches while holding this monitor before the projection-build and coordinator
- * feed monitors; explicitly named residual producers retain their own sequencing rules.
+ * feed monitors; the independent spectator projection retains its own sequencing rule.
  * See `docs/bridge-threading.md` for the complete ownership and lock-order contract.
  *
  * The client requires gsIds to increase monotonically across the interleaved

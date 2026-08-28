@@ -147,7 +147,7 @@ class ClientSettingsTest :
             }
         }
 
-        session("settings response is echoed back as raw message") {
+        session("settings response is delivered as a GRE batch") {
             sendSettings(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
             drainSink()
 

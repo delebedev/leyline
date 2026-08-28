@@ -5,14 +5,12 @@ import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.MessageCounter
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.bundle.markIfPrompt
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
-import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -79,8 +77,6 @@ class MatchSession(
      */
     val ctx: SessionContext = SessionContext(requireNotNull(gameBridge.getGame()) { "MatchSession requires non-null game" }, gameBridge)
 
-    override val bundleBuilder: BundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
-
     /** Sub-handlers for combat, targeting, and routed interaction flows. */
     val combatHandler =
         CombatHandler(
@@ -92,7 +88,6 @@ class MatchSession(
         TargetingHandler(
             sink = this,
             counters = this,
-            bundles = this,
             ctx = ctx,
         )
     val optionalActionHandler =
@@ -293,8 +288,12 @@ class MatchSession(
         block: (completedActionId: String?) -> Unit,
     ): Unit =
         synchronized(sessionLock) {
-            if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, counter, this)) {
+            val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, counter)
+            if (failure == null) {
                 block(gameBridge.actionBridge(seatId).getPending()?.actionId)
+            } else {
+                gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, failure)
+                drainCoordinatorFeed()
             }
         }
 
@@ -343,17 +342,8 @@ class MatchSession(
             )
 
             val settings = gameBridge.priorityPolicy.submit(incoming)
-
-            val (msg, nextMsgId) =
-                HandshakeMessages.settingsResp(
-                    seatId,
-                    counter.currentMsgId(),
-                    counter.currentGsId(),
-                    settings,
-                )
-            counter.setMsgId(nextMsgId)
-            ProtoDump.dump(msg, "SettingsResp")
-            sink.sendRaw(msg)
+            gameBridge.cutCoordinator.publishSettings(seatId, settings)
+            drainCoordinatorFeed()
         }
 
     // --- Sending helpers ---
@@ -381,15 +371,6 @@ class MatchSession(
         synchronized(sessionLock) {
             runtimeContinuation.deliverHorizon()
         }
-
-    /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
-    override fun sendBundle(result: BundleBuilder.BundleResult) {
-        for (gre in result.messages) {
-            if (gre.hasGameStateMessage()) Tap.outboundState(gre.gameStateMessage)
-            if (gre.hasActionsAvailableReq()) Tap.outboundActions(gre.actionsAvailableReq)
-        }
-        sendBundledGRE(result.messages)
-    }
 
     private fun drainCoordinatorFeed() {
         drainCoordinatorBarrier(this, gameBridge, seatId)

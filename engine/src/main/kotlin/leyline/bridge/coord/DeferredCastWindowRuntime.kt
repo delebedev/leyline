@@ -3,7 +3,9 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 internal data class DeferredCastOptionResponse(
@@ -61,6 +63,9 @@ internal class DeferredCastWindowRuntime(
     private val owner: MatchCutCoordinator,
     private val actions: DeferredCastActionOwner,
 ) {
+    internal var beforeMaterialization: (() -> Unit)? = null
+    internal var beforeInstall: (() -> Unit)? = null
+
     private sealed interface Prompt {
         val actionClaim: MatchActionWindowRuntime.ActionClaim
         val promptGameStateId: Int
@@ -92,60 +97,61 @@ internal class DeferredCastWindowRuntime(
         ) : Prompt
     }
 
+    private sealed interface Publication {
+        val claim: MatchActionWindowRuntime.ActionClaim
+        val request: CastingTimeOptionsReq
+
+        data class Hybrid(
+            override val claim: MatchActionWindowRuntime.ActionClaim,
+            override val request: CastingTimeOptionsReq,
+            val ctoIds: List<Int>,
+            val promptColors: List<ManaColor>,
+            val paymentColors: List<ManaColor>,
+        ) : Publication
+
+        data class Optional(
+            override val claim: MatchActionWindowRuntime.ActionClaim,
+            override val request: CastingTimeOptionsReq,
+            val ctoIds: List<Int>,
+            val clearHybridStash: Boolean,
+        ) : Publication
+
+        data class Alternate(
+            override val claim: MatchActionWindowRuntime.ActionClaim,
+            override val request: CastingTimeOptionsReq,
+            val ctoIds: List<Int>,
+        ) : Publication
+    }
+
     private var prompt: Prompt? = null
 
     fun publishHybrid(
         claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
+        request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
         promptColors: List<ManaColor>,
         paymentColors: List<ManaColor>,
-    ) = synchronized(owner.feedLock) {
-        owner.ensureOpen()
-        checkClaim(claim)
-        prompt =
-            Prompt.HybridManaType(claim, promptGameStateId, ctoIds.toList(), promptColors.toList(), paymentColors.toList())
-    }
+    ) = publishClaimed(Publication.Hybrid(claim, request, ctoIds, promptColors, paymentColors))
 
     fun publishOptional(
         claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
+        request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
-    ) = synchronized(owner.feedLock) { installOptional(claim, promptGameStateId, ctoIds) }
+        preserveHybridStash: Boolean = false,
+    ) = publishClaimed(Publication.Optional(claim, request, ctoIds, clearHybridStash = !preserveHybridStash))
 
     fun publishOptional(
         receipt: DeferredCastReceipt,
-        promptGameStateId: Int,
+        request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            val pending = prompt as? Prompt.HybridManaType ?: return@synchronized false
-            if (!pending.adopted ||
-                pending.actionClaim.actionId != receipt.actionId ||
-                pending.actionClaim.token != receipt.token
-            ) {
-                return@synchronized false
-            }
-            installOptional(pending.actionClaim, promptGameStateId, ctoIds)
-            true
-        }
+        preserveHybridStash: Boolean,
+    ): Boolean = publishAdoptedOptional(receipt, request, ctoIds, clearHybridStash = !preserveHybridStash)
 
     fun publishAlternate(
         claim: MatchActionWindowRuntime.ActionClaim,
-        promptGameStateId: Int,
+        request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
-    ) = synchronized(owner.feedLock) {
-        owner.ensureOpen()
-        checkClaim(claim)
-        val tokens =
-            claim.deferredCostPlan
-                ?.alternate
-                ?.choices
-                ?.map { it.runtimeToken }
-                .orEmpty()
-        check(tokens.size == ctoIds.size) { "Deferred alternate-cost catalog no longer matches the action plan" }
-        prompt = Prompt.AlternateCostChoice(claim, promptGameStateId, ctoIds.zip(tokens).toMap())
-    }
+    ) = publishClaimed(Publication.Alternate(claim, request, ctoIds))
 
     fun deferredCostPlan(receipt: DeferredCastReceipt): DeferredCastCostPlan? =
         synchronized(owner.feedLock) {
@@ -293,30 +299,181 @@ internal class DeferredCastWindowRuntime(
         return DeferredCastAdmission.Alternate
     }
 
-    private fun installOptional(
+    private fun optionalPrompt(
         claim: MatchActionWindowRuntime.ActionClaim,
         promptGameStateId: Int,
         ctoIds: List<Int>,
-    ) {
-        owner.ensureOpen()
-        checkClaim(claim)
+    ): Prompt.Optional {
         val entries =
             claim.deferredCostPlan
                 ?.optional
                 ?.entries
                 .orEmpty()
         check(entries.size == ctoIds.size) { "Deferred optional-cost catalog no longer matches the action plan" }
-        prompt =
-            Prompt.Optional(
-                claim,
-                promptGameStateId,
-                ctoIds.toList(),
-                entries
-                    .mapIndexedNotNull { index, entry ->
-                        entry.abilityGrpId.takeIf { entry.type == CastingTimeOptionType.AdditionalCost }?.let { ctoIds[index] to it }
-                    }.toMap(),
-                entries.mapIndexedNotNull { index, entry -> entry.keywordName?.let { ctoIds[index] to it } }.toMap(),
-            )
+        return Prompt.Optional(
+            claim,
+            promptGameStateId,
+            ctoIds.toList(),
+            entries
+                .mapIndexedNotNull { index, entry ->
+                    entry.abilityGrpId.takeIf { entry.type == CastingTimeOptionType.AdditionalCost }?.let { ctoIds[index] to it }
+                }.toMap(),
+            entries.mapIndexedNotNull { index, entry -> entry.keywordName?.let { ctoIds[index] to it } }.toMap(),
+        )
+    }
+
+    private fun publishClaimed(publication: Publication) {
+        owner.beforePublicationLock?.invoke()
+        synchronized(owner.counter) {
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    checkClaim(publication.claim)
+                    validate(publication)
+                    val seatId = actions.seatFor(publication.claim.actionId)
+                    owner.registerViewer(seatId)
+                    val feed = owner.feed(seatId)
+                    prepareAndInstallLocked(feed, publication)
+                }
+            }
+        }
+    }
+
+    private fun publishAdoptedOptional(
+        receipt: DeferredCastReceipt,
+        request: CastingTimeOptionsReq,
+        ctoIds: List<Int>,
+        clearHybridStash: Boolean,
+    ): Boolean {
+        synchronized(owner.feedLock) {
+            if (adoptedHybrid(receipt) == null) return false
+        }
+        owner.beforePublicationLock?.invoke()
+        synchronized(owner.counter) {
+            synchronized(owner.bridge.projectionBuildLock) {
+                synchronized(owner.feedLock) {
+                    owner.ensureOpen()
+                    val pending = adoptedHybrid(receipt) ?: return false
+                    checkClaim(pending.actionClaim)
+                    val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
+                    validate(publication)
+                    val seatId = actions.seatFor(pending.actionClaim.actionId)
+                    owner.registerViewer(seatId)
+                    val feed = owner.feed(seatId)
+                    prepareAndInstallLocked(feed, publication)
+                    return true
+                }
+            }
+        }
+    }
+
+    private fun adoptedHybrid(receipt: DeferredCastReceipt): Prompt.HybridManaType? {
+        val pending = prompt as? Prompt.HybridManaType ?: return null
+        return pending.takeIf {
+            it.adopted && it.actionClaim.actionId == receipt.actionId && it.actionClaim.token == receipt.token
+        }
+    }
+
+    private fun validate(publication: Publication) {
+        when (publication) {
+            is Publication.Hybrid ->
+                check(publication.ctoIds.size == publication.promptColors.size) {
+                    "Deferred hybrid catalog no longer matches the action plan"
+                }
+            is Publication.Optional -> {
+                val entries =
+                    publication.claim.deferredCostPlan
+                        ?.optional
+                        ?.entries
+                        .orEmpty()
+                check(entries.size == publication.ctoIds.size) { "Deferred optional-cost catalog no longer matches the action plan" }
+            }
+            is Publication.Alternate -> {
+                val tokens =
+                    publication.claim.deferredCostPlan
+                        ?.alternate
+                        ?.choices
+                        .orEmpty()
+                check(tokens.size == publication.ctoIds.size) { "Deferred alternate-cost catalog no longer matches the action plan" }
+            }
+        }
+    }
+
+    private fun prepareAndInstallLocked(
+        feed: MatchCutCoordinator.ViewerFeed,
+        publication: Publication,
+    ) {
+        val prepared = materialize(feed, publication.request)
+        val gameStateId = checkNotNull(prepared.bundle.actionGameStateId)
+        val nextPrompt =
+            when (publication) {
+                is Publication.Hybrid ->
+                    Prompt.HybridManaType(
+                        publication.claim,
+                        gameStateId,
+                        publication.ctoIds.toList(),
+                        publication.promptColors.toList(),
+                        publication.paymentColors.toList(),
+                    )
+                is Publication.Optional -> optionalPrompt(publication.claim, gameStateId, publication.ctoIds)
+                is Publication.Alternate -> {
+                    val tokens =
+                        publication.claim.deferredCostPlan
+                            ?.alternate
+                            ?.choices
+                            .orEmpty()
+                            .map { it.runtimeToken }
+                    Prompt.AlternateCostChoice(publication.claim, gameStateId, publication.ctoIds.zip(tokens).toMap())
+                }
+            }
+        install(feed, prepared, nextPrompt, publication)
+    }
+
+    private fun materialize(
+        feed: MatchCutCoordinator.ViewerFeed,
+        request: CastingTimeOptionsReq,
+    ) = try {
+        beforeMaterialization?.invoke()
+        val game = owner.bridge.getGame() ?: error("Game unavailable")
+        feed.builder.prepareCastingTimeOptions(game, owner.counter, request)
+    } catch (ex: Exception) {
+        owner.fail(ex)
+    }
+
+    private fun install(
+        feed: MatchCutCoordinator.ViewerFeed,
+        prepared: BundleBuilder.ActionWindowPrepared,
+        nextPrompt: Prompt,
+        publication: Publication,
+    ) = owner.cutInstaller.install(
+        feed,
+        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+        CutInstallHooks(beforeInstall = beforeInstall),
+        onInstalled = {
+            prompt = nextPrompt
+            when (publication) {
+                is Publication.Hybrid ->
+                    owner.bridge
+                        .seat(actions.seatFor(publication.claim.actionId))
+                        .prompt.journal
+                        .clearHybridManaStash()
+                is Publication.Optional -> clearCostStashes(publication.claim, publication.clearHybridStash)
+                is Publication.Alternate -> Unit
+            }
+        },
+    ) { ex -> owner.fail(ex) }
+
+    private fun clearCostStashes(
+        claim: MatchActionWindowRuntime.ActionClaim,
+        clearHybrid: Boolean,
+    ) {
+        val journal =
+            owner.bridge
+                .seat(actions.seatFor(claim.actionId))
+                .prompt.journal
+        journal.clearKeywordCostStash()
+        if (clearHybrid) journal.clearHybridManaStash()
+        journal.clearCollectEvidenceCost()
     }
 
     private fun checkClaim(claim: MatchActionWindowRuntime.ActionClaim) {

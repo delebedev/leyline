@@ -1,6 +1,5 @@
 package leyline.protocol
 
-import leyline.bridge.types.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /** Head-owned room, completion, and settings transport messages. */
@@ -42,26 +41,6 @@ object HandshakeMessages {
                 .setStateType(MatchGameRoomStateType.MatchCompleted)
                 .setFinalMatchResult(result)
         return wrapRoomState(roomInfo)
-    }
-
-    fun settingsResp(
-        seatId: SeatId,
-        msgId: Int,
-        gameStateId: Int,
-        clientSettings: SettingsMessage?,
-    ): Pair<MatchServiceToClientMessage, Int> {
-        val resp = SetSettingsResp.newBuilder()
-        if (clientSettings != null) resp.setSettings(clientSettings)
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.SetSettingsResp_695e)
-                .addSystemSeatIds(seatId.value)
-                .setMsgId(msgId)
-                .setGameStateId(gameStateId)
-                .setSetSettingsResp(resp)
-                .build()
-        return wrapGre(gre) to (msgId + 1)
     }
 
     private fun resultSpec(
@@ -113,11 +92,5 @@ object HandshakeMessages {
         MatchServiceToClientMessage
             .newBuilder()
             .setMatchGameRoomStateChangedEvent(MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo))
-            .build()
-
-    private fun wrapGre(message: GREToClientMessage): MatchServiceToClientMessage =
-        MatchServiceToClientMessage
-            .newBuilder()
-            .setGreToClientEvent(GreToClientEvent.newBuilder().addGreToClientMessages(message))
             .build()
 }
