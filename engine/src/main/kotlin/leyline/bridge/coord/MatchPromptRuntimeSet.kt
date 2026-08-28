@@ -12,20 +12,21 @@ internal class MatchPromptRuntimeSet(
     private val owner: MatchCutCoordinator,
 ) {
     private val lifecycle = mutableListOf<PromptLifecycle>()
+    internal val settled = own(SettledPromptOwner(owner))
 
     val targeting = own(MatchTargetingInteractionRuntime(owner))
     val compatibilityCostSelection = MatchCompatibilityCostSelectionRuntime(owner)
     val blocking = own(MatchBlockingInteractionRuntime(owner))
-    val search = own(MatchSearchInteractionRuntime(owner))
-    val order = own(MatchOrderInteractionRuntime(owner))
-    val distribution = own(MatchDistributionInteractionRuntime(owner))
-    val grouping = own(MatchGroupingInteractionRuntime(owner))
-    val cardSelect = own(MatchCardSelectInteractionRuntime(owner))
-    val staticChoices = own(MatchStaticChoiceInteractionRuntime(owner))
-    val revealChoices = own(MatchRevealChoiceInteractionRuntime(owner))
-    val modalChoices = own(MatchModalChoiceRuntime(owner))
+    val search = MatchSearchInteractionRuntime(owner, settled)
+    val order = MatchOrderInteractionRuntime(owner, settled)
+    val distribution = MatchDistributionInteractionRuntime(owner, settled)
+    val grouping = MatchGroupingInteractionRuntime(owner, settled)
+    val cardSelect = MatchCardSelectInteractionRuntime(owner, settled)
+    val staticChoices = MatchStaticChoiceInteractionRuntime(owner, settled)
+    val revealChoices = MatchRevealChoiceInteractionRuntime(owner, settled)
+    val modalChoices = MatchModalChoiceRuntime(owner, settled)
     val manaSourcePayments = own(MatchManaSourcePaymentRuntime(owner))
-    val oneShotPayCosts = own(MatchOneShotPayCostsRuntime(owner))
+    val oneShotPayCosts = MatchOneShotPayCostsRuntime(owner, settled)
 
     fun bindings(seatId: SeatId): PromptRuntimeBindings {
         check(seatId == owner.humanSeat) { "Prompt runtimes are only registered for the human seat" }
@@ -57,14 +58,12 @@ internal class MatchPromptRuntimeSet(
 
     fun failDelivery(cause: Throwable): Nothing =
         synchronized(owner.feedLock) {
-            lifecycle
-                .filterIsInstance<PromptTerminalCutOwner>()
-                .sortedBy { it.terminalPriority }
-                .forEach { entry ->
-                    entry.claimTerminalCutLocked()?.let { pending ->
-                        owner.failPrompt(cause, pending)
-                    }
-                }
+            val candidate =
+                lifecycle
+                    .filterIsInstance<PromptTerminalCutOwner>()
+                    .mapNotNull(PromptTerminalCutOwner::terminalCutCandidateLocked)
+                    .minByOrNull { it.priority }
+            candidate?.let { owner.failPrompt(cause, it.cut) }
             owner.fail(cause)
         }
 

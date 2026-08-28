@@ -1,13 +1,11 @@
 package leyline.bridge.coord
 
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import leyline.bridge.types.SeatId
+import io.kotest.matchers.collections.shouldContainExactly
 import leyline.testkit.BoardTest
-import java.lang.reflect.Modifier
 
 class MatchPromptRuntimeSetTest :
     BoardTest({
-        test("every bound prompt runtime has exactly one lifecycle owner") {
+        test("the settled cohort contributes one match lifecycle owner") {
             val board =
                 startPuzzleAtMain1(
                     """
@@ -26,15 +24,13 @@ class MatchPromptRuntimeSetTest :
                     """.trimIndent(),
                 )
             val prompts = board.bridge.cutCoordinator.prompts
-            val bindings = prompts.bindings(SeatId(1))
-            val boundRuntimes =
-                bindings.javaClass.declaredFields
-                    .filterNot { Modifier.isStatic(it.modifiers) }
-                    .onEach { it.trySetAccessible() }
-                    .mapNotNull { it.get(bindings) }
-                    .filter { it !== prompts.compatibilityCostSelection }
-            val expectedOwners = boundRuntimes + prompts.blocking
 
-            prompts.lifecycleOwners() shouldContainExactlyInAnyOrder expectedOwners
+            prompts.lifecycleOwners() shouldContainExactly
+                listOf(
+                    prompts.settled,
+                    prompts.targeting,
+                    prompts.blocking,
+                    prompts.manaSourcePayments,
+                )
         }
     })

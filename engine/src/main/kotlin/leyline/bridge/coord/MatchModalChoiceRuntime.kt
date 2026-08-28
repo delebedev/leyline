@@ -19,10 +19,8 @@ import java.util.concurrent.CompletableFuture
 /** Exact Forge-handle modal lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchModalChoiceRuntime(
     private val owner: MatchCutCoordinator,
-) : ModalChoiceInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.ModalChoice
-
+    settled: SettledPromptOwner,
+) : ModalChoiceInteractionRuntime {
     private data class Window(
         val published: PublishedModalChoiceInteraction,
         val value: ModalChoiceWindowValue,
@@ -31,7 +29,7 @@ internal class MatchModalChoiceRuntime(
         val optionIndexByGrpId: Map<Int, Int>,
         val aiContext: ModalChoiceAiContext,
         override val future: CompletableFuture<ModalChoiceInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<ModalChoiceInteractionResult, PendingPromptCut<ModalChoiceWindowValue>> {
+    ) : SettledPromptOwner.Window<ModalChoiceInteractionResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
@@ -43,27 +41,14 @@ internal class MatchModalChoiceRuntime(
         val cut: PendingPromptCut<ModalChoiceWindowValue>,
     )
 
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<ModalChoiceWindowValue>, ModalChoiceInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<ModalChoiceWindowValue>, ModalChoiceInteractionResult>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
-        )
     private val cleanupReceipts = mutableMapOf<String, CleanupReceipt>()
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
+    private val slot =
+        settled.mount<Window, ModalChoiceInteractionResult>(
+            PromptTerminalPriority.ModalChoice,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            onTerminateLocked = { _, _ -> cleanupReceipts.clear() },
+            onResetLocked = { cleanupReceipts.clear() },
+        )
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -81,12 +66,12 @@ internal class MatchModalChoiceRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun current(): PublishedModalChoiceInteraction? = windows.current()?.published
+    fun current(): PublishedModalChoiceInteraction? = slot.current()?.published
 
     /** Read-only Forge context for the harness policy; no prompt/session lookup. */
     internal fun aiContext(): ModalChoiceAiContext? =
         synchronized(owner.feedLock) {
-            windows.current()?.aiContext
+            slot.current()?.aiContext
         }
 
     fun submit(
@@ -102,7 +87,7 @@ internal class MatchModalChoiceRuntime(
     ): ModalChoiceCleanupToken? =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return null
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return null
             if (selectedGrpIds.size !in pending.value.min..pending.value.max) return null
             if (!pending.value.allowRepeat && selectedGrpIds.size != selectedGrpIds.distinct().size) return null
             val optionIndices = selectedGrpIds.map { pending.optionIndexByGrpId[it] ?: return null }
@@ -121,7 +106,7 @@ internal class MatchModalChoiceRuntime(
     ): ModalChoiceCleanupToken? =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return null
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return null
             detachAndCompleteLocked(pending, emptyList(), emptyList(), timedOut = false).token
         }
 
@@ -138,27 +123,8 @@ internal class MatchModalChoiceRuntime(
             ModalChoiceCleanupToken(interactionId),
         )
 
-    override fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            windows.terminate(cause)
-            cleanupReceipts.clear()
-        }
-    }
-
-    override fun reset() {
-        synchronized(owner.feedLock) {
-            windows.reset()
-            cleanupReceipts.clear()
-        }
-    }
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<ModalChoiceWindowValue>? =
-        windows
-            .pendingCutLocked()
-            .also { afterDeliveryCutLookup?.invoke() }
-
     private fun publish(initial: ModalChoiceWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A ModalChoice interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
@@ -200,7 +166,7 @@ internal class MatchModalChoiceRuntime(
                             .toMap(),
                         initial.aiContext,
                     )
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     materialization.transition,
                     materialization.closesPlaybackFrame,
@@ -213,14 +179,10 @@ internal class MatchModalChoiceRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): ModalChoiceInteractionResult =
-        kernel.await(
+        slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = { error("ModalChoice timeout should complete with a default") },
-            beforeTimeoutClaim = beforeTimeoutClaim,
-            timeoutClaim = { claim ->
-                synchronized(owner.feedLock) { claim() }
-            },
             beforeTimeoutCompleteLocked = {
                 val fallback = listOf(pending.value.defaultOptionIndex)
                 val grpIds = fallback.map { pending.value.possible[it].grpId }
@@ -236,7 +198,7 @@ internal class MatchModalChoiceRuntime(
         selectedGrpIds: List<Int>,
         timedOut: Boolean,
     ): CleanupReceipt {
-        check(windows.matchingLocked(pending.interactionId, pending.gameStateId) === pending) {
+        check(slot.matchingLocked(pending.interactionId, pending.gameStateId) === pending) {
             "ModalChoice window changed during completion"
         }
         if (selectedGrpIds.singleOrNull() != null) {
@@ -253,7 +215,7 @@ internal class MatchModalChoiceRuntime(
                 pending.cut,
             )
         cleanupReceipts[pending.published.interactionId] = receipt
-        windows.completeLocked(
+        slot.completeLocked(
             pending,
             ModalChoiceInteractionResult(
                 optionIndices = optionIndices,

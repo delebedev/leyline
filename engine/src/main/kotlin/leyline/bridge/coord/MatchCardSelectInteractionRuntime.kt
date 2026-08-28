@@ -16,10 +16,8 @@ import java.util.concurrent.CompletableFuture
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchCardSelectInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : CardSelectInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.CardSelect
-
+    settled: SettledPromptOwner,
+) : CardSelectInteractionRuntime {
     private data class Window(
         val published: PublishedCardSelectInteraction,
         val value: CardSelectWindowValue,
@@ -27,30 +25,16 @@ internal class MatchCardSelectInteractionRuntime(
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<CardSelectInteractionResult, PendingPromptCut<CardSelectWindowValue>> {
+    ) : SettledPromptOwner.Window<CardSelectInteractionResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<CardSelectWindowValue>, CardSelectInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<CardSelectWindowValue>, CardSelectInteractionResult>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, CardSelectInteractionResult>(
+            PromptTerminalPriority.CardSelect,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -66,7 +50,7 @@ internal class MatchCardSelectInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun current(): PublishedCardSelectInteraction? = windows.current()?.published
+    fun current(): PublishedCardSelectInteraction? = slot.current()?.published
 
     fun submitSelectN(
         interactionId: String,
@@ -75,7 +59,7 @@ internal class MatchCardSelectInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             completeSelection(pending, selectedInstanceIds)
         }
 
@@ -86,7 +70,7 @@ internal class MatchCardSelectInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             when (pending.value.kind) {
                 CardSelectKind.LegendRule,
                 CardSelectKind.LibraryPutback,
@@ -104,14 +88,8 @@ internal class MatchCardSelectInteractionRuntime(
             completeSelection(pending, selectedInstanceIds)
         }
 
-    override fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    override fun reset() = windows.reset()
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<CardSelectWindowValue>? = windows.pendingCutLocked()
-
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A CardSelect interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
@@ -154,7 +132,7 @@ internal class MatchCardSelectInteractionRuntime(
                     owner.failPrompt(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -186,11 +164,11 @@ internal class MatchCardSelectInteractionRuntime(
         val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
         recordChoiceResults(pending, selectedInstanceIds)
         val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
-        return windows.completeLocked(pending, result)
+        return slot.completeLocked(pending, result)
     }
 
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): CardSelectInteractionResult = kernel.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException, beforeTimeoutClaim)
+    ): CardSelectInteractionResult = slot.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException)
 }

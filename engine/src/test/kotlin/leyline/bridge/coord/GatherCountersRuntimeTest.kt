@@ -409,7 +409,7 @@ class GatherCountersRuntimeTest :
             val finished = CountDownLatch(1)
             val timeoutClaim = CountDownLatch(1)
             val releaseTimeout = CountDownLatch(1)
-            board.bridge.cutCoordinator.oneShotPayCosts.beforeTimeoutClaim = {
+            board.bridge.cutCoordinator.prompts.settled.beforeTimeoutClaim = {
                 timeoutClaim.countDown()
                 check(releaseTimeout.await(3, TimeUnit.SECONDS))
             }
@@ -462,6 +462,6 @@ class GatherCountersRuntimeTest :
                     ids.map { GatherCountersSelection(it, 1) },
                 ) shouldBe false
             }
-            board.bridge.cutCoordinator.oneShotPayCosts.beforeTimeoutClaim = null
+            board.bridge.cutCoordinator.prompts.settled.beforeTimeoutClaim = null
         }
     })

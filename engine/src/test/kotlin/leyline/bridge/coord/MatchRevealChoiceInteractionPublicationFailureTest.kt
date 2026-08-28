@@ -146,7 +146,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val prior = board.bridge.projectionStateSnapshot()
-            coordinator.revealChoices.afterInstall = { error("reveal acknowledgement unavailable") }
+            coordinator.prompts.settled.afterInstall = { error("reveal acknowledgement unavailable") }
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {

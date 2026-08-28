@@ -225,7 +225,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .first()
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.revealChoices.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -273,7 +273,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
             }
-            coordinator.revealChoices.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
 
         test("teardown wakes the exact waiter and clears retained handles") {

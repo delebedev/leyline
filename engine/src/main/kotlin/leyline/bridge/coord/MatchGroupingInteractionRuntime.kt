@@ -17,10 +17,8 @@ import java.util.concurrent.CompletableFuture
 /** Exact Scry and Surveil lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchGroupingInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : GroupingInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.Grouping
-
+    settled: SettledPromptOwner,
+) : GroupingInteractionRuntime {
     private data class Window(
         val published: PublishedGroupingInteraction,
         val value: GroupingWindowValue,
@@ -29,18 +27,10 @@ internal class MatchGroupingInteractionRuntime(
         val optionByInstanceId: Map<Int, Int>,
         val instanceIdsByCardId: Map<ForgeCardId, InstanceId>,
         override val future: CompletableFuture<GroupingInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<GroupingInteractionResult, PendingPromptCut<GroupingWindowValue>> {
+    ) : SettledPromptOwner.Window<GroupingInteractionResult> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
-
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<GroupingWindowValue>, GroupingInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<GroupingWindowValue>, GroupingInteractionResult>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
-        )
 
     private data class Finalization(
         val interactionId: String,
@@ -51,20 +41,15 @@ internal class MatchGroupingInteractionRuntime(
 
     private var finalization: Finalization? = null
     private val arrangements = ArrayDeque<GroupingArrangementValue>()
+    private val slot =
+        settled.mount<Window, GroupingInteractionResult>(
+            PromptTerminalPriority.Grouping,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            onTerminateLocked = { _, _ -> clearFamilyStateLocked() },
+            onResetLocked = { clearFamilyStateLocked() },
+        )
 
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
     internal var beforeMaterialize: (() -> Unit)? = null
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitGrouping(
         request: PromptRequest,
@@ -80,7 +65,7 @@ internal class MatchGroupingInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun current(): PublishedGroupingInteraction? = windows.current()?.published
+    fun current(): PublishedGroupingInteraction? = slot.current()?.published
 
     fun submit(
         interactionId: String,
@@ -90,7 +75,7 @@ internal class MatchGroupingInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             val allIds = topInstanceIds + awayInstanceIds
             if (allIds.size != pending.value.candidates.size || allIds.distinct().size != allIds.size) return false
             val allOptions = allIds.map { pending.optionByInstanceId[it] ?: return false }
@@ -139,29 +124,8 @@ internal class MatchGroupingInteractionRuntime(
             if (index < 0) null else arrangements.removeAt(index)
         }
 
-    override fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            windows.terminate(cause)
-            finalization = null
-            arrangements.clear()
-        }
-    }
-
-    override fun reset() {
-        synchronized(owner.feedLock) {
-            windows.reset()
-            finalization = null
-            arrangements.clear()
-        }
-    }
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<GroupingWindowValue>? =
-        windows
-            .pendingCutLocked()
-            .also { afterDeliveryCutLookup?.invoke() }
-
     private fun publish(initial: GroupingWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A Grouping interaction is already pending",
             ensureEmptyLocked = { check(finalization == null) { "A Grouping interaction is already active" } },
             prepare = { interactionId, feed, game, planner ->
@@ -214,7 +178,7 @@ internal class MatchGroupingInteractionRuntime(
                         optionsByInstanceId,
                         entries.associate { it.third },
                     )
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -227,11 +191,10 @@ internal class MatchGroupingInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): GroupingInteractionResult =
-        kernel.await(
+        slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = { error("Grouping timeout should complete with a default") },
-            beforeTimeoutClaim = beforeTimeoutClaim,
             beforeTimeoutCompleteLocked = {
                 val away =
                     if (pending.value.singleCardChoice) {
@@ -263,7 +226,7 @@ internal class MatchGroupingInteractionRuntime(
                 timedOut,
                 this,
             )
-        val completed = windows.completeLocked(pending, result)
+        val completed = slot.completeLocked(pending, result)
         if (completed) {
             finalization =
                 Finalization(
@@ -274,5 +237,10 @@ internal class MatchGroupingInteractionRuntime(
                 )
         }
         return completed
+    }
+
+    private fun clearFamilyStateLocked() {
+        finalization = null
+        arrangements.clear()
     }
 }

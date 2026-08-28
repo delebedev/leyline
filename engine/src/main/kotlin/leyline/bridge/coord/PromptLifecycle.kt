@@ -11,12 +11,15 @@ internal interface PromptLifecycle {
     fun reset()
 }
 
-/** A prompt lifecycle that can retain an exact cut when delivery terminalizes the match. */
+/** A prompt lifecycle that can report its read-only terminal-cut candidate. */
 internal interface PromptTerminalCutOwner : PromptLifecycle {
-    val terminalPriority: PromptTerminalPriority
-
-    fun claimTerminalCutLocked(): PendingPromptCut<*>?
+    fun terminalCutCandidateLocked(): PromptTerminalCutCandidate?
 }
+
+internal data class PromptTerminalCutCandidate(
+    val priority: PromptTerminalPriority,
+    val cut: PendingPromptCut<*>,
+)
 
 /** Inner prompt cuts take precedence over the outer windows that led to them. */
 internal enum class PromptTerminalPriority {

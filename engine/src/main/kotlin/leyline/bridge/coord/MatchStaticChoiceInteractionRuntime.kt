@@ -15,42 +15,26 @@ import java.util.concurrent.CompletableFuture
 /** Exact static enum SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchStaticChoiceInteractionRuntime(
     private val owner: MatchCutCoordinator,
-) : StaticChoiceInteractionRuntime,
-    PromptTerminalCutOwner {
-    override val terminalPriority = PromptTerminalPriority.StaticChoice
-
+    settled: SettledPromptOwner,
+) : StaticChoiceInteractionRuntime {
     private data class Window(
         val published: PublishedStaticChoiceInteraction,
         val value: StaticChoiceWindowValue,
         override val cut: PendingPromptCut<StaticChoiceWindowValue>,
         val optionByValue: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>, PendingPromptCut<StaticChoiceWindowValue>> {
+    ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
         override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingPromptCut<StaticChoiceWindowValue>, List<Int>>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingPromptCut<StaticChoiceWindowValue>, List<Int>>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, List<Int>>(
+            PromptTerminalPriority.StaticChoice,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
         )
 
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
     internal var beforeResponseComplete: (() -> Unit)? = null
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -65,7 +49,7 @@ internal class MatchStaticChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    override fun current(): PublishedStaticChoiceInteraction? = windows.current()?.published
+    fun current(): PublishedStaticChoiceInteraction? = slot.current()?.published
 
     fun submit(
         interactionId: String,
@@ -74,26 +58,17 @@ internal class MatchStaticChoiceInteractionRuntime(
     ): Boolean =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
+            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
             if (selectedValues.size !in pending.value.min..pending.value.max) return false
             if (selectedValues.size != selectedValues.distinct().size) return false
             val options = selectedValues.map { pending.optionByValue[it] ?: return false }
             recordChoiceResults(pending, selectedValues)
             beforeResponseComplete?.invoke()
-            windows.completeLocked(pending, options)
-        }
-
-    override fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    override fun reset() = windows.reset()
-
-    override fun claimTerminalCutLocked(): PendingPromptCut<StaticChoiceWindowValue>? =
-        windows.pendingCutLocked().also {
-            afterDeliveryCutLookup?.invoke()
+            slot.completeLocked(pending, options)
         }
 
     private fun publish(initial: StaticChoiceWindowValue): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A StaticChoice interaction is already pending",
             prepare = { interactionId, feed, game, planner ->
                 val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
@@ -125,7 +100,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                     )
                 val optionByValue = initial.options.associate { it.protocolValue to it.originalOptionIndex }
                 val created = Window(published, initial, exact, optionByValue)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
@@ -158,7 +133,7 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): List<Int> = kernel.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException, beforeTimeoutClaim)
+    ): List<Int> = slot.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException)
 
     private fun StaticChoiceKind.choiceDomain(): Int =
         when (this) {
