@@ -1,0 +1,17 @@
+[metadata]
+Name:Mystical Teachings Grouped Search
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Cast Mystical Teachings and choose a flash creature from the grouped search.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Mystical Teachings
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Nightpack Ambusher;Lightning Bolt;Ponder;Forest
+ailibrary=Mountain;Mountain;Mountain

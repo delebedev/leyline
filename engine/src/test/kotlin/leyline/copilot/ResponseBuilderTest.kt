@@ -179,6 +179,21 @@ class ResponseBuilderTest :
             msgs[0].performAutoTapActionsResp.index shouldBe 0
         }
 
+        test("grouped search echoes one group row with selected ids") {
+            val msgs = bytesOf(SimDecision.GroupedSearch(groupId = 5004, itemsFound = listOf(105), maxSelect = 1), respId = 77)
+            msgs.single().type shouldBe ClientMessageType.SearchFromGroupsResp_097b
+            msgs.single().respId shouldBe 77
+            msgs.single().gameStateId shouldBe 42
+            val group =
+                msgs
+                    .single()
+                    .searchFromGroupsResp.groupsList
+                    .single()
+            group.groupId shouldBe 5004
+            group.maxSelect shouldBe 1
+            group.idsList shouldBe listOf(105)
+        }
+
         test("optional cost decline sends the Done option by type (no ctoId)") {
             val msgs = bytesOf(SimDecision.OptionalCost(0), respId = 803)
             msgs.size shouldBe 1

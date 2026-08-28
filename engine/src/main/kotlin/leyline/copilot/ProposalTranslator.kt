@@ -160,6 +160,8 @@ internal object ProposalTranslator {
 
             is SimDecision.Search -> base("search", promptType, seat).copy(responseIds = decision.itemsFound)
 
+            is SimDecision.GroupedSearch -> base("search", promptType, seat).copy(responseIds = decision.itemsFound)
+
             SimDecision.CancelAction -> base("cancel", promptType, seat)
 
             SimDecision.RetirePrompt,

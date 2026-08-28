@@ -10,9 +10,11 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.DistributionReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 class DefaultDecisionsTest :
@@ -127,5 +129,22 @@ class DefaultDecisionsTest :
             val decision = DefaultDecisions.distribution(prompt).shouldBeInstanceOf<SimDecision.Distribution>()
             decision.amountsByInstanceId.values.sum() shouldBe 7
             decision.amountsByInstanceId shouldBe mapOf(10 to 6, 11 to 1)
+        }
+
+        test("grouped search default selects the first row up to maxSelect") {
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SearchFromGroupsReq_695e)
+                    .setSearchFromGroupsReq(
+                        SearchFromGroupsReq.newBuilder().addGroups(
+                            Group
+                                .newBuilder()
+                                .setGroupId(5004)
+                                .setMaxSelect(1)
+                                .addIds(105),
+                        ),
+                    ).build()
+            DefaultDecisions.groupedSearch(prompt) shouldBe SimDecision.GroupedSearch(5004, listOf(105), 1)
         }
     })

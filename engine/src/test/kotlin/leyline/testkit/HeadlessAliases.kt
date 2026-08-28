@@ -91,6 +91,14 @@ fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage = leylin
 
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage = leyline.tooling.headless.searchResp(itemsFound)
 
+fun groupedSearchResp(
+    groupId: Int,
+    ids: List<Int>,
+    maxSelect: Int,
+): ClientToGREMessage = leyline.tooling.headless.groupedSearchResp(groupId, ids, maxSelect)
+
+fun groupedSearchFailResp(): ClientToGREMessage = leyline.tooling.headless.groupedSearchFailResp()
+
 fun castingTimeOptionsResp(
     selectedGrpIds: List<Int>,
     ctoId: Int = 1,

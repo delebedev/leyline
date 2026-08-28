@@ -60,6 +60,24 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Forest }
             - zone_contains: { side: ours, zone: battlefield, card: Island }
             - stack_empty: true
+  - id: mystical-teachings-grouped-search
+    puzzle: mystical-teachings-grouped-search
+    web:
+      skip: Browser runner does not implement grouped library search responses.
+    run: cast Mystical Teachings, choose Nightpack Ambusher from its grouped search, and finish resolving
+    expect: SearchFromGroupsReq returns Nightpack Ambusher to hand
+    steps:
+      - expect:
+          action: { type: cast, card: Mystical Teachings }
+      - cast: Mystical Teachings
+      - pass_until:
+          prompt: { type: SearchFromGroupsReq, prompt_id: 3713 }
+      - search_cards: { side: ours, cards: [Nightpack Ambusher] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Nightpack Ambusher }
+            - stack_empty: true
   - id: kami-hand-land-select
     puzzle: kami-hand-land-select
     web:

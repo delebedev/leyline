@@ -166,6 +166,11 @@ internal class SimPromptLedger(
                 "Order:${orderReq.idsList.joinToString(",")}"
             hasDistributionReq() ->
                 "Distribution:${distributionReq.minAmount}:${distributionReq.maxAmount}:${distributionReq.targetIdsList.joinToString(",")}"
+            hasSearchFromGroupsReq() ->
+                "SearchFromGroups:" +
+                    searchFromGroupsReq.groupsList.joinToString("|") { group ->
+                        "${group.groupId}:${group.maxSelect}:${group.idsList.joinToString(",")}"
+                    }
             hasSelectTargetsReq() ->
                 "SelectTargets:" +
                     selectTargetsReq.targetsList.joinToString("|") { sel ->
@@ -190,6 +195,7 @@ internal fun isSimPrompt(msg: GREToClientMessage): Boolean =
         msg.hasOrderReq() ||
         msg.hasDistributionReq() ||
         msg.hasSearchReq() ||
+        msg.hasSearchFromGroupsReq() ||
         msg.hasPayCostsReq() ||
         msg.hasAssignDamageReq() ||
         msg.hasMulliganReq() ||

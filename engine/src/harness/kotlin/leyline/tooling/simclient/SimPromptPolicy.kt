@@ -79,6 +79,8 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondDistribution(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
+            GREMessageType.SearchFromGroupsReq_695e ->
+                SimPromptResponse(DefaultDecisions.groupedSearch(prompt.msg))
             GREMessageType.PayCostsReq_695e ->
                 SimPromptResponse(respondPayCosts(prompt.msg))
             GREMessageType.GroupReq_695e ->
@@ -428,6 +430,7 @@ internal class ForgeAiPromptPolicy(
             GREMessageType.SelectNreq -> "SelectNReq"
             GREMessageType.SelectTargetsReq_695e -> "SelectTargetsReq"
             GREMessageType.SearchReq_695e -> "SearchReq"
+            GREMessageType.SearchFromGroupsReq_695e -> "SearchFromGroupsReq"
             GREMessageType.GroupReq_695e -> "GroupReq"
             GREMessageType.CastingTimeOptionsReq_695e -> "CastingTimeOptionsReq"
             GREMessageType.PayCostsReq_695e -> "PayCostsReq"

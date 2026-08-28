@@ -226,6 +226,15 @@ private val promptRouteFamilies =
             semantics = listOf(PromptSemantic.DividedAllocationDamage, PromptSemantic.DividedAllocationCounters),
         ),
         PromptRouteFamily(
+            name = "Search",
+            materializers = listOf("$MATERIALIZERS.SearchWindowMaterializer"),
+            handoffValues = "$HANDOFF.(Search.*Value|PublishedSearchInteraction)",
+            prepareMethod = "prepareSearchWindow",
+            runtime = "$COORD.MatchSearchInteractionRuntime",
+            routeType = ResolvedPromptRoute.Search::class,
+            semantics = listOf(PromptSemantic.Search, PromptSemantic.GroupedSearch),
+        ),
+        PromptRouteFamily(
             name = "Grouping",
             materializers = listOf("$MATERIALIZERS.GroupingWindowMaterializer"),
             handoffValues = "$HANDOFF.(Grouping.*Value|PublishedGroupingInteraction)",

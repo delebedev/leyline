@@ -29,6 +29,10 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsResp
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -57,6 +61,7 @@ class MatchSearchInteractionRuntimeTest :
             min: Int = 1,
             defaultIndex: Int = 0,
             source: SearchSourceValue? = null,
+            grouped: Boolean = false,
         ): PromptRequest {
             val candidates = board.human.getZone(ZoneType.Library).cards
             return PromptRequest(
@@ -70,8 +75,14 @@ class MatchSearchInteractionRuntimeTest :
                     candidates.mapIndexed { index, card ->
                         PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Library.name)
                     },
-                route = ResolvedPromptRoute.Search(PromptSemantic.Search),
+                route =
+                    if (grouped) {
+                        ResolvedPromptRoute.Search(PromptSemantic.GroupedSearch)
+                    } else {
+                        ResolvedPromptRoute.Search(PromptSemantic.Search)
+                    },
                 searchSource = source,
+                searchGroupOptionIndices = if (grouped) listOf(listOf(0), listOf(1)) else emptyList(),
             )
         }
 
@@ -182,6 +193,9 @@ class MatchSearchInteractionRuntimeTest :
 
             val published = awaitPublished(coordinator)
             val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSearchReq() }
+            val projection = board.bridge.projectionStateSnapshot()
+            val counter = board.counter.snapshot()
+            val acceptedResponses = board.bridge.responseAcceptance.responsesAccepted()
             assertSoftly {
                 requestMessage.prompt.promptId shouldBe PromptIds.SEARCH_TYPECYCLING
                 requestMessage.searchReq.sourceId shouldBeGreaterThan 0
@@ -189,9 +203,184 @@ class MatchSearchInteractionRuntimeTest :
                     requestMessage.prompt.parametersList
                         .first()
                         .numberValue
+                coordinator.acceptSettled(
+                    ClientToGREMessage.newBuilder().setType(ClientMessageType.SearchResp_097b).build(),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit
+                        .groupedSearchFailResp()
+                        .toBuilder()
+                        .setType(ClientMessageType.SearchResp_097b)
+                        .build(),
+                    published.gameStateId,
+                ) shouldBe false
+                board.bridge.projectionStateSnapshot() shouldBe projection
+                board.counter.snapshot() shouldBe counter
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
+                coordinator.search.current() shouldBe published
+                finished.await(100, TimeUnit.MILLISECONDS) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.searchResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(2)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
+                coordinator.search.current().shouldBeNull()
+            }
+        }
+
+        test("grouped SearchFromGroupsReq preserves partitions and admits only exact rows") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val result = AtomicReference<List<Int>>()
+            val finished = CountDownLatch(1)
+            Thread {
+                result.set(coordinator.search.awaitSearch(request(board, grouped = true), 3_000))
+                finished.countDown()
+            }.start()
+
+            val published = awaitPublished(coordinator)
+            val search = coordinator.drain(SeatId(1)).flatten().single { it.hasSearchFromGroupsReq() }
+            val req = search.searchFromGroupsReq
+            val baseline = board.bridge.projectionStateSnapshot()
+            val sequence = board.counter.snapshot()
+            val requestMsgId = sequence.lastPromptMsgId
+            val acceptedResponses = board.bridge.responseAcceptance.responsesAccepted()
+
+            fun groupedRows(vararg rows: Group): ClientToGREMessage =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.SearchFromGroupsResp_097b)
+                    .setSearchFromGroupsResp(SearchFromGroupsResp.newBuilder().addAllGroups(rows.asList()))
+                    .build()
+            assertSoftly {
+                search.prompt.promptId shouldBe PromptIds.SEARCH_FROM_GROUPS
+                req.sourceId shouldBe
+                    search.prompt.parametersList
+                        .single()
+                        .numberValue
+                req.groupingStyle shouldBe wotc.mtgo.gre.external.messaging.Messages.GroupingStyle.SingleGroup
+                req.zonesToSearchList shouldContainExactly listOf(ZoneIds.libraryOf(SeatId(1)))
+                req.minFind shouldBe 0
+                req.maxFind shouldBe 1
+                req.additionalZonesList shouldBe emptyList()
+                req.allowFailToFind shouldBe wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind.None_a8f7
+                search.allowCancel shouldBe wotc.mtgo.gre.external.messaging.Messages.AllowCancel.No_a526
+                search.prompt.parametersCount shouldBe 1
+                req.groupsList.map { it.groupId } shouldContainExactly listOf(5003, 5004)
+                req.groupsList.all { it.maxSelect == 1 } shouldBe true
+                req.groupsList.flatMap { it.idsList }.distinct() shouldHaveSize 2
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId,
+                    requestMsgId + 1,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId + 1,
+                    requestMsgId,
+                ) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.searchResp(listOf(req.groupsList[0].idsList[0])), published.gameStateId) shouldBe
+                    false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(9000, listOf(req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId,
+                ) shouldBe
+                    false
+                coordinator.acceptSettled(
+                    groupedRows(req.groupsList[0], req.groupsList[0]),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    groupedRows(req.groupsList[0], req.groupsList[1]),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 2),
+                    published.gameStateId,
+                ) shouldBe
+                    false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[1].idsList[0]), 1),
+                    published.gameStateId,
+                ) shouldBe
+                    false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0], req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId,
+                ) shouldBe
+                    false
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(
+                        5003,
+                        listOf(req.groupsList[0].idsList[0], req.groupsList[1].idsList[0]),
+                        1,
+                    ),
+                    published.gameStateId,
+                ) shouldBe false
+                board.bridge.projectionStateSnapshot() shouldBe baseline
+                board.counter.snapshot() shouldBe sequence
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
+                finished.await(100, TimeUnit.MILLISECONDS) shouldBe false
+                coordinator.search.current().shouldNotBeNull()
+            }
+            assertSoftly {
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId,
+                ) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get() shouldContainExactly listOf(0)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
+                coordinator.search.current().shouldBeNull()
+                coordinator.acceptSettled(
+                    leyline.testkit.groupedSearchResp(5003, listOf(req.groupsList[0].idsList[0]), 1),
+                    published.gameStateId,
+                ) shouldBe false
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
+            }
+        }
+
+        test("grouped search admits a zero-row fail-to-find when minFind is zero") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val result = AtomicReference<List<Int>>()
+            val finished = CountDownLatch(1)
+            Thread {
+                result.set(coordinator.search.awaitSearch(request(board, min = 0, grouped = true), 3_000))
+                finished.countDown()
+            }.start()
+            val published = awaitPublished(coordinator)
+            val requestMessage = coordinator.drain(SeatId(1)).flatten().single { it.hasSearchFromGroupsReq() }
+            val projection = board.bridge.projectionStateSnapshot()
+            val counter = board.counter.snapshot()
+            val acceptedResponses = board.bridge.responseAcceptance.responsesAccepted()
+            assertSoftly {
+                requestMessage.searchFromGroupsReq.allowFailToFind shouldBe
+                    wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind.Any
+                coordinator.acceptSettled(
+                    ClientToGREMessage.newBuilder().setType(ClientMessageType.SearchFromGroupsResp_097b).build(),
+                    published.gameStateId,
+                ) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit
+                        .searchResp(emptyList())
+                        .toBuilder()
+                        .setType(ClientMessageType.SearchFromGroupsResp_097b)
+                        .build(),
+                    published.gameStateId,
+                ) shouldBe false
+                board.bridge.projectionStateSnapshot() shouldBe projection
+                board.counter.snapshot() shouldBe counter
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
+                coordinator.search.current() shouldBe published
+                finished.await(100, TimeUnit.MILLISECONDS) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.groupedSearchFailResp(), published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get() shouldContainExactly listOf(2)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses + 1
+                coordinator.search.current().shouldBeNull()
             }
         }
 

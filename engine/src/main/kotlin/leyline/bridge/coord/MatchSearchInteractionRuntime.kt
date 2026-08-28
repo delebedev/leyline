@@ -32,7 +32,14 @@ internal class MatchSearchInteractionRuntime(
         settled.mount<Window, List<Int>>(
             PromptTerminalPriority.Search,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
-            owns = { _, message -> message.type == ClientMessageType.SearchResp_097b },
+            owns = { pending, message ->
+                message.type ==
+                    if (pending.value.groups.isEmpty()) {
+                        ClientMessageType.SearchResp_097b
+                    } else {
+                        ClientMessageType.SearchFromGroupsResp_097b
+                    }
+            },
             admitLocked = ::admitLocked,
         )
 
@@ -56,19 +63,43 @@ internal class MatchSearchInteractionRuntime(
 
     fun current(): PublishedSearchInteraction? = slot.current()?.published
 
+    @Suppress("ReturnCount")
     private fun admitLocked(
         pending: Window,
         message: ClientToGREMessage,
     ): SettledPromptOwner.SlotAdmission<List<Int>>? {
-        val selectedInstanceIds = message.searchResp.itemsFoundList
-        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
         val selectedOptions =
-            if (selectedInstanceIds.isEmpty()) {
-                if (pending.value.minFind != 0) return null
-                listOf(pending.value.optionCount)
+            if (pending.value.groups.isEmpty()) {
+                if (!message.hasSearchResp()) return null
+                val selectedInstanceIds = message.searchResp.itemsFoundList
+                if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+                if (selectedInstanceIds.isEmpty()) {
+                    if (pending.value.minFind != 0) return null
+                    listOf(pending.value.optionCount)
+                } else {
+                    if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return null
+                    selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+                }
             } else {
-                if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return null
-                selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+                if (!message.hasSearchFromGroupsResp()) return null
+                val responseGroups = message.searchFromGroupsResp.groupsList
+                if (responseGroups.isEmpty()) {
+                    if (pending.value.minFind != 0) return null
+                    listOf(pending.value.optionCount)
+                } else {
+                    if (responseGroups.size != 1) return null
+                    val response = responseGroups.single()
+                    val group = pending.value.groups.singleOrNull { it.groupId == response.groupId } ?: return null
+                    if (response.maxSelect != group.maxSelect) return null
+                    val selectedInstanceIds = response.idsList
+                    if (selectedInstanceIds.isEmpty()) return null
+                    if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+                    if (selectedInstanceIds.size !in pending.value.minFind..minOf(pending.value.maxFind, group.maxSelect)) return null
+                    val allowedOptions = group.candidateCardIdsByOption.keys
+                    selectedInstanceIds.map { instanceId ->
+                        pending.optionByInstanceId[instanceId]?.takeIf(allowedOptions::contains) ?: return null
+                    }
+                }
             }
         return SettledPromptOwner.SlotAdmission(
             selectedOptions,

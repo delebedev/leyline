@@ -36,6 +36,7 @@ object PromptIds {
     const val GROUP_SCRY = 92
     const val GROUP_SURVEIL = 129
     const val SEARCH = 1065
+    const val SEARCH_FROM_GROUPS = 3713
 
     /** Static SelectN color choice — "Choose a color." */
     const val CHOOSE_COLOR = 118

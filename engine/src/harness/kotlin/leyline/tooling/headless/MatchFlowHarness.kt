@@ -1454,6 +1454,18 @@ class MatchFlowHarness(
         submitPromptResponse(searchResp(itemsFound), "search response")
     }
 
+    fun respondToGroupedSearch(
+        groupId: Int,
+        ids: List<Int>,
+        maxSelect: Int,
+    ) {
+        submitPromptResponse(groupedSearchResp(groupId, ids, maxSelect), "grouped search response")
+    }
+
+    fun respondToGroupedSearchFail() {
+        submitPromptResponse(groupedSearchFailResp(), "grouped search fail response")
+    }
+
     fun respondToEffectCost(selectedInstanceIds: List<Int>) {
         submitAndAwaitClientResult(submitWithGsId(effectCostResp(selectedInstanceIds)), "cost response")
     }
