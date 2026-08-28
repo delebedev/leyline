@@ -237,11 +237,11 @@ class PuzzleHandlerTest :
             try {
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { initial.absolutePath },
+                        puzzleIdentity = { initial.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        initial.parentFile,
+                        PuzzleLibrary(initial.parentFile),
                     )
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-sequence-replacement")
                 val session =
@@ -266,7 +266,9 @@ class PuzzleHandlerTest :
                     ),
                 )
 
-                session.replaceForPuzzle(PuzzleSource.loadFromFile(replacement.absolutePath))
+                session.replaceForPuzzle(
+                    PuzzleSource.load(PuzzleLibrary(replacement.parentFile).require(replacement.nameWithoutExtension)),
+                )
 
                 val installed = bridge.projectionStateSnapshot()
                 assertSoftly {
