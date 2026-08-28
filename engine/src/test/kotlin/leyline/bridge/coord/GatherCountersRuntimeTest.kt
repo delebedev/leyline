@@ -15,17 +15,104 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class GatherCountersRuntimeTest :
     BoardTest({
+        test("GatherCounters keeps Player bytes and gives Observer projected state only") {
+            data class Published(
+                val player: List<GREToClientMessage>,
+                val observer: List<GREToClientMessage>,
+            )
+
+            fun publish(withObserver: Boolean): Published {
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard("Mountain", human, ZoneType.Hand)
+                        addCard("Hopeful Initiate", human, ZoneType.Battlefield)
+                        addCard("Hopeful Initiate", human, ZoneType.Battlefield)
+                    }
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.registerViewers(
+                    buildList {
+                        add(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player))
+                        if (withObserver) add(ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer))
+                    },
+                )
+                val creatures =
+                    board.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .filter { it.isCreature }
+                creatures.forEach {
+                    it.addCounterInternal(CounterEnumType.P1P1, 1, board.game.humanPlayer, true, null, AbilityKey.newMap())
+                }
+                val source = creatures.first()
+                val ability = source.spellAbilities.first { it.isActivatedAbility() }
+                val window =
+                    GatherCountersWindowInput(
+                        PayCostsPromptSourceInput.StackAbility(
+                            ability.id,
+                            ForgeCardId(source.id),
+                            ability.rootAbility.definitionId,
+                            emptyList(),
+                        ),
+                        creatures.map { GatherCountersSourceValue(ForgeCardId(it.id), 1) },
+                        2,
+                        GatherCounterType.P1P1,
+                    )
+                val finished = CountDownLatch(1)
+                Thread {
+                    coordinator.oneShotPayCosts.awaitGatherCounters(window, creatures, 3_000)
+                    finished.countDown()
+                }.start()
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+                var interaction = coordinator.oneShotPayCosts.current()
+                while (interaction == null && System.nanoTime() < deadline) {
+                    Thread.onSpinWait()
+                    interaction = coordinator.oneShotPayCosts.current()
+                }
+                val published = checkNotNull(interaction)
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
+                coordinator.oneShotPayCosts.cancel(published.interactionId, published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                return Published(player, observer)
+            }
+
+            val playerOnly = publish(withObserver = false)
+            val withObserver = publish(withObserver = true)
+
+            assertSoftly {
+                withObserver.player.map { it.toByteArray().toList() } shouldBe
+                    playerOnly.player.map { it.toByteArray().toList() }
+                withObserver.player.any { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer.size shouldBe 1
+                withObserver.observer.single().hasGameStateMessage() shouldBe true
+                withObserver.observer.none { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldBe emptyList()
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.gameObjectsList
+                    .none { it.visibility == Visibility.Private } shouldBe true
+            }
+        }
+
         test("publishes exact multi-source GatherCounters envelope and retains original handles") {
             val board =
                 startWithBoard { _, human, _ ->
