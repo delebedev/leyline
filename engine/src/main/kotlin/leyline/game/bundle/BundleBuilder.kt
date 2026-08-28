@@ -11,6 +11,7 @@ import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.OrderWindowValue
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.StaticChoiceKind
@@ -34,6 +35,7 @@ import leyline.game.mapping.PrivateCardPromptProjection
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ShouldStopEvaluator
+import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
@@ -178,6 +180,7 @@ class BundleBuilder(
         val gameStateId: Int,
         val playerIndex: Int,
         val routes: List<ViewerRoute>,
+        val playerInput: StateFrameInput,
         val fold: StateProjectionCompiler.FoldResult,
         val closesPlaybackFrame: Boolean,
     ) {
@@ -486,6 +489,145 @@ class BundleBuilder(
             compiled.transition.copy(nextState = next),
             closesPlaybackFrame = true,
         )
+    }
+
+    /** Prepare one initial action window for every registered viewer from one frame. */
+    internal fun prepareInitialActionWindow(
+        game: Game,
+        counter: LogicalSequencePlanner,
+        routes: List<ViewerRoute>,
+        kind: PendingActionKind,
+        priorityCandidates: PriorityActionCandidates? = null,
+        intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+    ): PreparedViewerCut<ActionWindowPrepared> {
+        require(kind != PendingActionKind.SYNC_ONLY) { "Synchronization windows have no action presentation" }
+        val frame =
+            prepareViewerPromptProjection(
+                game = game,
+                counter = counter,
+                routes = routes,
+                intent = intent,
+                intentForViewer =
+                    { viewer ->
+                        intent.takeIf { viewer.role == ProjectionViewerRole.Player } ?: ViewerProjectionIntent.EMPTY
+                    },
+                updateType =
+                    when (kind) {
+                        PendingActionKind.PRIORITY -> ::resolveFrameUpdateType
+                        PendingActionKind.DECLARE_ATTACKERS,
+                        PendingActionKind.DECLARE_BLOCKERS,
+                        PendingActionKind.SYNC_ONLY,
+                        -> { snap, _ -> StateMapper.resolveUpdateType(snap, seatId) }
+                    },
+            )
+        val playerRoute = routes[frame.playerIndex]
+        val playerSeatId = playerRoute.viewer.seatId.value
+        val player = frame.fold.viewers[frame.playerIndex].result
+        val diff =
+            FrameDiff(
+                gameStateId = frame.gameStateId,
+                snap = player.projectionSnapshot,
+                result = player,
+                events = frame.playerInput.events,
+                previousSnap = frame.playerInput.previousSnapshot,
+            )
+        val tentative =
+            frame.fold.transition.nextState.copy(
+                revision = frame.fold.transition.expectedRevision,
+            )
+        val (bundle, next, presentationActions) =
+            when (kind) {
+                PendingActionKind.PRIORITY -> prepareInitialPriority(frame, counter, tentative, playerSeatId, priorityCandidates)
+                PendingActionKind.DECLARE_ATTACKERS,
+                PendingActionKind.DECLARE_BLOCKERS,
+                -> prepareInitialDeclaration(game, frame.gameStateId, counter, tentative, playerSeatId, kind, diff)
+                PendingActionKind.SYNC_ONLY -> error("Synchronization windows have no action presentation")
+            }
+        val prepared =
+            ActionWindowPrepared(
+                bundle = bundle,
+                transition = frame.fold.transition.copy(nextState = next),
+                closesPlaybackFrame = frame.closesPlaybackFrame,
+                presentationActions = presentationActions,
+            )
+        return PreparedViewerCut(
+            player = prepared,
+            viewers = frame.outputs(prepared.bundle.messages),
+            transition = checkNotNull(prepared.transition),
+            closesPlaybackFrame = prepared.closesPlaybackFrame,
+            gameStateId = frame.gameStateId,
+        )
+    }
+
+    private fun prepareInitialPriority(
+        frame: ViewerPromptProjection,
+        counter: LogicalSequencePlanner,
+        tentative: ProjectionState,
+        playerSeatId: Int,
+        priorityCandidates: PriorityActionCandidates?,
+    ): Triple<BundleResult, ProjectionState, ActionsAvailableReq> {
+        val player = frame.fold.viewers[frame.playerIndex].result
+        val (projection, projectionNext) =
+            bridge.editProjection(tentative) {
+                ActionMapper.buildProjectionFromSnapshot(playerSeatId, player.projectionSnapshot, bridge, priorityCandidates)
+            }
+        val actions = projection.actions
+        val gs =
+            GsmBuilder.embedActions(
+                player.gsm,
+                actions,
+                GsmFrame.from(player.projectionSnapshot),
+                recipientSeatId = playerSeatId,
+            )
+        val messages =
+            listOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, frame.gameStateId, counter.nextMsgId()) {
+                    it.gameStateMessage = gs
+                },
+            ) + coinFlipPromptMessages(frame.playerInput.events.events, frame.gameStateId, counter) +
+                listOf(
+                    makeGRE(GREMessageType.ActionsAvailableReq_695e, frame.gameStateId, counter.nextMsgId()) {
+                        it.actionsAvailableReq = actions
+                        it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                    },
+                )
+        return Triple(BundleResult(messages, projection.offers, frame.gameStateId), projectionNext, actions)
+    }
+
+    private fun prepareInitialDeclaration(
+        game: Game,
+        gameStateId: Int,
+        counter: LogicalSequencePlanner,
+        tentative: ProjectionState,
+        playerSeatId: Int,
+        kind: PendingActionKind,
+        diff: FrameDiff,
+    ): Triple<BundleResult, ProjectionState, ActionsAvailableReq> {
+        val (projected, projectionNext) =
+            bridge.editProjection(tentative) {
+                val bundle =
+                    when (kind) {
+                        PendingActionKind.DECLARE_ATTACKERS -> {
+                            val req = RequestBuilder.buildDeclareAttackersReq(SeatId(playerSeatId), bridge)
+                            promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareAttackersReq_695e) {
+                                it.declareAttackersReq = req
+                                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
+                            }
+                        }
+                        PendingActionKind.DECLARE_BLOCKERS -> {
+                            val req = RequestBuilder.buildDeclareBlockersReq(game, SeatId(playerSeatId), bridge)
+                            promptRequestBundle(diff, counter, diff.result.gsm, GREMessageType.DeclareBlockersReq_695e) {
+                                it.declareBlockersReq = req
+                                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
+                            }
+                        }
+                        PendingActionKind.PRIORITY,
+                        PendingActionKind.SYNC_ONLY,
+                        -> error("Unsupported initial action kind $kind")
+                    }.copy(actionGameStateId = gameStateId)
+                bundle to ActionMapper.buildNaiveActionsFromSnapshot(playerSeatId, diff.snap, bridge)
+            }
+        return Triple(projected.first, projectionNext, projected.second)
     }
 
     private fun commitActionWindow(prepared: ActionWindowPrepared): BundleResult {
@@ -1347,6 +1489,7 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         routes: List<ViewerRoute>,
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
+        intentForViewer: (ProjectionViewer) -> ViewerProjectionIntent = { intent },
         promptFacts: PromptProjectionFacts? = null,
         revealPlayerCards: Boolean = false,
         requirePlayer: Boolean = true,
@@ -1373,12 +1516,20 @@ class BundleBuilder(
                         updateType = updateType(observation.frame.snapshot, observation.frame.events),
                         revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role == ProjectionViewerRole.Player },
                     ),
-                    intent,
+                    intentForViewer(viewer),
                     role = viewer.role,
                 )
             }
         val fold = StateProjectionCompiler.compileViewers(stateProjectionEnvironment, observation.priorProjection, inputs)
-        return ViewerPromptProjection(gameStateId, playerIndex.coerceAtLeast(0), routes, fold, observation.closesPlaybackFrame)
+        val selectedPlayerIndex = playerIndex.coerceAtLeast(0)
+        return ViewerPromptProjection(
+            gameStateId,
+            selectedPlayerIndex,
+            routes,
+            inputs[selectedPlayerIndex].input,
+            fold,
+            observation.closesPlaybackFrame,
+        )
     }
 
     private fun <T> finishViewerPrompt(

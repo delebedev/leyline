@@ -21,6 +21,7 @@ import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.ViewerProjectionCursor
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -78,7 +79,10 @@ object StateProjectionCompiler {
         require(viewers.isNotEmpty()) { "Projection requires at least one viewer" }
         require(viewers.map { it.input.viewingSeatId }.distinct().size == viewers.size) { "Viewer seats must be unique" }
         val editor = prior.editor()
-        val canonical = viewers.first()
+        val canonical =
+            viewers.firstOrNull { viewer ->
+                viewer.intent.supplements.any { it is ProjectionSupplement.SubmitPendingTargets }
+            } ?: viewers.first()
         val stagedCanonical = stagePreStackAbilities(canonical.input, canonical.intent.supplements)
         aliasAdmittedStackAbilities(stagedCanonical, editor)
         val planned = StateMapper.planSharedDraft(stagedCanonical, environment, editor)
@@ -163,6 +167,15 @@ object StateProjectionCompiler {
         prior: ProjectionState,
         editor: ProjectionState.Editor,
     ): Pair<SeatId, Result> {
+        val viewerAnnotations =
+            if (
+                submittedTargetsConsumed &&
+                viewer.intent.supplements.none { it is ProjectionSupplement.SubmitPendingTargets }
+            ) {
+                finalizedAnnotations.filterNot { AnnotationType.PlayerSubmittedTargets in it.typeList }
+            } else {
+                finalizedAnnotations
+            }
         val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
         val rendered =
             StateMapper.renderViewerDraft(
@@ -178,7 +191,7 @@ object StateProjectionCompiler {
             rendered.gsm
                 .toBuilder()
                 .clearAnnotations()
-                .addAllAnnotations(finalizedAnnotations)
+                .addAllAnnotations(viewerAnnotations)
                 .build()
         val privateOverlay =
             if (viewer.role == ProjectionViewerRole.Player) {
@@ -213,7 +226,7 @@ object StateProjectionCompiler {
                     orderOverlay.gsm
                         .toBuilder()
                         .clearAnnotations()
-                        .addAllAnnotations(finalizedAnnotations)
+                        .addAllAnnotations(viewerAnnotations)
                         .build(),
             )
         val draft =
@@ -230,7 +243,15 @@ object StateProjectionCompiler {
         editor.viewerCursors[viewerSeatId] =
             priorCursor.copy(
                 previousSnapshot = draft.projectionSnapshot,
-                pendingSubmittedTargets = if (submittedTargetsConsumed) null else priorCursor.pendingSubmittedTargets,
+                pendingSubmittedTargets =
+                    if (
+                        submittedTargetsConsumed &&
+                        viewer.intent.supplements.any { it is ProjectionSupplement.SubmitPendingTargets }
+                    ) {
+                        null
+                    } else {
+                        priorCursor.pendingSubmittedTargets
+                    },
             )
         return viewerSeatId to
             Result(
