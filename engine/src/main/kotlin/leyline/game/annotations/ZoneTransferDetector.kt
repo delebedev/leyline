@@ -54,6 +54,7 @@ data class AppliedTransfer(
     /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
     val kickerAbilityGrpId: Int = 0,
     val additionalCostGrpId: Int = 0,
+    val chosenCostPromptId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
     val chosenX: Int = 0,
 )
@@ -429,6 +430,7 @@ object ZoneTransferDetector {
                 val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
                 val additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0
+                val chosenCostPromptId = spellCastEvent?.chosenCostPromptId ?: 0
                 val chosenX = spellCastEvent?.chosenX ?: 0
                 val transferAffectorId =
                     if (category == TransferCategory.CastSpell && spellCastEvent?.isParadigmCopyCastEvent() == true) {
@@ -457,6 +459,7 @@ object ZoneTransferDetector {
                         castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
                         additionalCostGrpId = additionalCostGrpId,
+                        chosenCostPromptId = chosenCostPromptId,
                         chosenX = chosenX,
                     ),
                 )
@@ -1100,6 +1103,7 @@ object ZoneTransferDetector {
                     altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0,
                     kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0,
                     additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0,
+                    chosenCostPromptId = spellCastEvent?.chosenCostPromptId ?: 0,
                     chosenX = spellCastEvent?.chosenX ?: 0,
                 ),
             )

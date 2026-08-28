@@ -121,6 +121,7 @@ internal class MatchTargetingInteractionRuntime(
     override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
             val pending = window ?: return
+            clearChosenCostCorrelation(pending)
             pending.exchange.terminateLocked(cause, TargetingCommand.Terminal(cause))
             window = null
         }
@@ -128,6 +129,7 @@ internal class MatchTargetingInteractionRuntime(
 
     override fun reset() {
         synchronized(owner.feedLock) {
+            window?.let(::clearChosenCostCorrelation)
             window = null
         }
     }
@@ -314,6 +316,7 @@ internal class MatchTargetingInteractionRuntime(
         synchronized(owner.feedLock) {
             matching(pending.interactionId, commandGameStateId(command), requireIdle = false)
                 ?: owner.fail(IllegalStateException("Targeting window changed during completion"))
+            clearChosenCostCorrelation(pending)
             command.reply.complete(
                 TargetingCommandReceipt(
                     pending.interactionId,
@@ -367,8 +370,17 @@ internal class MatchTargetingInteractionRuntime(
             if (window === pending && pending.exchange.inFlight != null) {
                 return@synchronized checkNotNull(pending.exchange.pollQueuedLocked())
             }
-            if (window === pending) window = null
+            if (window === pending) {
+                clearChosenCostCorrelation(pending)
+                window = null
+            }
             throw TargetingInteractionTimeoutException()
+        }
+    }
+
+    private fun clearChosenCostCorrelation(pending: TargetingWindow) {
+        pending.value.sourceForgeCardId?.let { cardId ->
+            owner.bridge.setSelectedChosenCostPromptId(cardId, null)
         }
     }
 

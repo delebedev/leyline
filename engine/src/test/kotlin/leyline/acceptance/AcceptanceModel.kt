@@ -367,6 +367,7 @@ enum class AcceptanceCastingTimeOption(
     Bargain("bargain"),
     Cleave("cleave"),
     Overload("overload"),
+    Blight("blight"),
     ;
 
     companion object {

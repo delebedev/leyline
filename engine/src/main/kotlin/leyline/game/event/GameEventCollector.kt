@@ -387,6 +387,7 @@ class GameEventCollector(
                 topSa,
                 ev.si()?.optionalCostString,
                 bridge.consumeSelectedAdditionalCostGrpId(ForgeCardId(card.id)),
+                bridge.consumeSelectedChosenCostPromptId(ForgeCardId(card.id)),
                 card,
             )
         if (!isTrigger && !isAbility) {
@@ -419,6 +420,7 @@ class GameEventCollector(
                 activationZoneId = activationZoneId,
                 kickerAbilityGrpId = castingTimeOptionState.kickerAbilityGrpId,
                 additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
+                chosenCostPromptId = castingTimeOptionState.chosenCostPromptId,
                 chosenX = castingTimeOptionState.chosenX,
                 rootAbilityForgeId = rootAbilityForgeId,
                 stackAbilityForgeId = ev.cause()?.stackAbilityId() ?: 0,
@@ -657,6 +659,7 @@ class GameEventCollector(
     private data class CastingTimeOptionState(
         val kickerAbilityGrpId: Int = 0,
         val additionalCostGrpId: Int = 0,
+        val chosenCostPromptId: Int = 0,
         val chosenX: Int = 0,
     )
 
@@ -665,6 +668,7 @@ class GameEventCollector(
         topSa: forge.game.spellability.SpellAbility?,
         stackOptionalCosts: String?,
         selectedAdditionalCostGrpId: Int?,
+        selectedChosenCostPromptId: Int?,
         card: forge.game.card.CardView,
     ): CastingTimeOptionState {
         val sourceSa = topSa?.takeIf { it.hostCard?.id == card.id }
@@ -695,7 +699,12 @@ class GameEventCollector(
                 else -> 0
             }
         val x = sourceSa?.xManaCostPaid ?: 0
-        return CastingTimeOptionState(kickerAbilityGrpId = kicker, additionalCostGrpId = additionalCost, chosenX = x)
+        return CastingTimeOptionState(
+            kickerAbilityGrpId = kicker,
+            additionalCostGrpId = additionalCost,
+            chosenCostPromptId = selectedChosenCostPromptId ?: 0,
+            chosenX = x,
+        )
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {

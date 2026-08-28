@@ -20,6 +20,7 @@ import forge.game.card.CardLists
 import forge.game.card.CardView
 import forge.game.combat.Combat
 import forge.game.cost.Cost
+import forge.game.cost.CostBlight
 import forge.game.cost.CostDecisionMakerBase
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostEnlist
@@ -1131,7 +1132,7 @@ class PlayerController(
                 payCostsPromptSource = tapPayment?.promptSource,
                 // Grounded tap rows retain their PayCosts envelope even when
                 // Forge offers exactly one eligible permanent.
-                forcePrompt = isOptional || tapPayment != null,
+                forcePrompt = isOptional || tapPayment != null || cpl is CostBlight,
             )
         if (cpl is CostEnlist && selected.isNotEmpty()) {
             bridge.journal.record(

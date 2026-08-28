@@ -257,6 +257,7 @@ class GameBridge(
     /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
     private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
+    private val selectedChosenCostPromptIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
     fun recordStackAbilityIdentity(
@@ -294,6 +295,19 @@ class GameBridge(
     }
 
     fun consumeSelectedAdditionalCostGrpId(cardId: ForgeCardId): Int? = selectedAdditionalCostGrpIds.remove(cardId)
+
+    fun setSelectedChosenCostPromptId(
+        cardId: ForgeCardId,
+        promptId: Int?,
+    ) {
+        if (promptId == null) {
+            selectedChosenCostPromptIds.remove(cardId)
+        } else {
+            selectedChosenCostPromptIds[cardId] = promptId
+        }
+    }
+
+    fun consumeSelectedChosenCostPromptId(cardId: ForgeCardId): Int? = selectedChosenCostPromptIds.remove(cardId)
 
     /** Read-only committed correlation for event collection and snapshot capture. */
     fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
@@ -1693,6 +1707,7 @@ class GameBridge(
         stackAbilityIdentitiesByRuntimeId.clear()
         selectedSpellGrpIds.clear()
         selectedAdditionalCostGrpIds.clear()
+        selectedChosenCostPromptIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
             val prior = projectionState

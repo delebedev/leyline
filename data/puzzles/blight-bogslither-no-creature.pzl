@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Suppress the Blight branch when no controlled creature can receive its counter.
+# Forcing: The human controls only lands, so the mana branch is the only payable additional cost.
+# AI behavior: The scripted human path has one spell target and no cost-selection choice.
+# Failure modes:
+#   WIN = the mana branch resolves and exiles the target.
+#   LOSE = the spell did not complete before the turn limit.
+#   TIMEOUT = an invalid Blight choice or another prompt blocked the game.
+# Card roles:
+#   Bogslither's Embrace — exposes the Blight-or-mana additional cost.
+#   Centaur Courser — deterministic spell target.
+# Protocol path: Cast proceeds directly to SelectTargetsReq without a Blight CastingTimeOptionsReq.
+# Paired with: blight-bogslither-positive.pzl
+[metadata]
+Name:Bogslither's Embrace Mana Branch
+Goal:Win
+Turns:2
+Difficulty:Easy
+Description:With no controlled creature, cast Bogslither's Embrace using its mana branch and exile Centaur Courser.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Bogslither's Embrace
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp
+aibattlefield=Centaur Courser
+ailibrary=Mountain
