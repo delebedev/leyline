@@ -10,7 +10,7 @@ class MatchdoorAcceptanceExecutorPolicyTest :
     FunSpec({
         tags(UnitTag)
 
-        test("an exact Visible post-action horizon proves empty-stack resolution completed") {
+        test("an empty stack at client priority needs no further pass") {
             stackResolutionNeedsAdvance(
                 passCount = 0,
                 stackEmpty = true,
