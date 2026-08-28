@@ -16,6 +16,7 @@ import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.game.generator.PuzzleLibrary
+import leyline.game.generator.PuzzleSource
 import leyline.infra.ListMessageSink
 import leyline.match.ConnectionState
 import leyline.match.MatchRegistry
@@ -184,11 +185,11 @@ class PuzzleHandlerTest :
             try {
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { initial.absolutePath },
+                        puzzleIdentity = { initial.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        initial.parentFile,
+                        PuzzleLibrary(initial.parentFile),
                     )
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-replacement")
                 val session =
@@ -206,7 +207,9 @@ class PuzzleHandlerTest :
                 handler.sendPuzzleInitialBundle(session, "puzzle-replacement", 1)
                 val initialMessageCount = sink.messages.size
 
-                session.replaceForPuzzle(PuzzleSource.loadFromFile(replacement.absolutePath))
+                session.replaceForPuzzle(
+                    PuzzleSource.load(PuzzleLibrary(replacement.parentFile).require(replacement.nameWithoutExtension)),
+                )
 
                 assertSoftly {
                     bridge
