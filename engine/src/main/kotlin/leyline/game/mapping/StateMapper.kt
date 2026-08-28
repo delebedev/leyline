@@ -148,6 +148,9 @@ object StateMapper {
         val effectDiff = effectPlanner.effects.diffBoosts(boostSnapshot)
         val keywordSnapshot = keywordEntries(effectFacts, effectPlanner.earthbend, editor.identities)
         val keywordDiff = effectPlanner.effects.diffKeywords(keywordSnapshot)
+        val grantedAbilitySnapshot = grantedAbilityEntries(effectFacts, editor.identities)
+        val grantedAbilityDiff = effectPlanner.effects.diffGrantedAbilities(grantedAbilitySnapshot)
+        val activeGrantedAbilities = effectPlanner.effects.activeGrantedAbilities().groupBy { it.cardInstanceId }
         // Persistent annotation history comes from the tentative projection editor.
         // computeBatch is pure over this value and the current feed set.
         val persistentState = editor.persistentAnnotations
@@ -256,6 +259,7 @@ object StateMapper {
             gameObjects,
             keywordSnapshot,
             earthbendProjection,
+            activeGrantedAbilities,
         )
         projectSharedZone(snap, ZoneIds.STACK, environment, editor, zones, gameObjects)
         projectSharedZone(snap, ZoneIds.SUPPRESSED, environment, editor, zones, gameObjects)
@@ -281,6 +285,7 @@ object StateMapper {
 
         // RevealedCard view synthesis / cleanup (may append RevealProxiesDeleted to eventsMutable)
         applyRevealProxies(activeReveal, snap, editor, environment, zones, gameObjects, eventsMutable)
+        addSpeedTriggerHolders(snap, zones, gameObjects)
 
         log.debug(
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
@@ -510,11 +515,12 @@ object StateMapper {
                 effectDiff,
                 persistSnapshot,
                 startPersistentId,
-                frameContext,
-                keywordDiff,
-                combatResult,
-                persistentFeeds,
-                convokePaymentsBySource,
+                frameContext = frameContext,
+                keywordDiff = keywordDiff,
+                grantedAbilityDiff = grantedAbilityDiff,
+                combatResult = combatResult,
+                persistentFeeds = persistentFeeds,
+                convokePaymentsBySource = convokePaymentsBySource,
                 transferResult = transferResult,
                 annotationJournal = annotationJournal,
             )
@@ -585,9 +591,12 @@ object StateMapper {
             firstAnnotationId = startAnnotationId,
             idResolver = frameIds,
             objectRefreshInstanceIds =
-                (keywordDiff.created + keywordDiff.destroyed)
-                    .map { it.cardInstanceId }
-                    .toSet(),
+                (
+                    keywordDiff.created.map { it.cardInstanceId } +
+                        keywordDiff.destroyed.map { it.cardInstanceId } +
+                        grantedAbilityDiff.created.map { it.cardInstanceId } +
+                        grantedAbilityDiff.destroyed.map { it.cardInstanceId }
+                ).toSet(),
         )
     }
 
@@ -624,6 +633,7 @@ object StateMapper {
         gameObjects: MutableList<GameObjectInfo>,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { null },
+        grantedAbilitySnapshot: Map<Int, List<EffectTracker.TrackedGrantedAbility>> = emptyMap(),
     ) {
         ZoneMapper.addSharedZoneCardsFromSnapshot(
             snap = snap,
@@ -634,7 +644,33 @@ object StateMapper {
             gameObjects = gameObjects,
             keywordSnapshot = keywordSnapshot,
             earthbendProjection = earthbendProjection,
+            grantedAbilitySnapshot = grantedAbilitySnapshot,
         )
+    }
+
+    private fun addSpeedTriggerHolders(
+        snap: GsmSnapshot,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+    ) {
+        val activeSeats = snap.seats.filter { it.speed > 0 }.map { it.seatId }
+        if (activeSeats.isEmpty()) return
+        val limbo = zones.firstOrNull { it.zoneId == ZoneIds.LIMBO } ?: return
+        val limboIids = limbo.objectInstanceIdsList.toMutableSet()
+        for (seat in activeSeats) {
+            val iid = FrameIdResolver.speedTriggerHolderIid(seat)
+            limboIids.add(iid.value)
+            if (gameObjects.none { it.instanceId == iid.value }) {
+                gameObjects += ObjectMapper.buildTriggerHolderObject(iid.value, seat.value)
+            }
+        }
+        zones.removeIf { it.zoneId == ZoneIds.LIMBO }
+        zones +=
+            limbo
+                .toBuilder()
+                .clearObjectInstanceIds()
+                .addAllObjectInstanceIds(limboIids)
+                .build()
     }
 
     private fun boostEntries(
@@ -688,6 +724,28 @@ object StateMapper {
                         staticId = entry.staticId,
                         keyword = entry.keyword,
                         affectorForgeCardId = entry.affectorForgeCardId,
+                    ),
+                )
+        }
+        return entriesByInstance.mapValues { (_, entries) -> entries.toList() }
+    }
+
+    private fun grantedAbilityEntries(
+        facts: EffectProjectionFacts,
+        identities: leyline.game.state.InstanceIdRegistry.Planner,
+    ): Map<Int, List<EffectTracker.GrantedAbilityEntry>> {
+        val entriesByInstance = linkedMapOf<Int, MutableList<EffectTracker.GrantedAbilityEntry>>()
+        for (entry in facts.grantedAbilityEntries) {
+            val instanceId = identities.getOrAlloc(entry.forgeCardId).value
+            entriesByInstance
+                .getOrPut(instanceId) { mutableListOf() }
+                .add(
+                    EffectTracker.GrantedAbilityEntry(
+                        timestamp = entry.timestamp,
+                        staticId = entry.staticId,
+                        abilityGrpId = entry.abilityGrpId,
+                        uniqueAbilityId = entry.uniqueAbilityId,
+                        sourceForgeCardId = entry.sourceForgeCardId,
                     ),
                 )
         }
@@ -827,7 +885,7 @@ object StateMapper {
     ): Draft {
         if (prev == null) {
             // First bundle — Full GSM with one complete transition.
-            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects, actions) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -856,7 +914,7 @@ object StateMapper {
         // contents (matches the protocol shape Arena uses for cycling /
         // tutor searches).
         if (revealForSeat != null) {
-            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects, actions) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -1140,29 +1198,44 @@ object StateMapper {
     private fun Draft.forViewer(
         viewingSeatId: Int,
         includePrivateObjects: Boolean,
+        actions: ActionsAvailableReq? = null,
     ): Draft {
-        if (viewingSeatId == 0 && includePrivateObjects) return this
-        val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
-        val visibleObjects =
-            gsm.gameObjectsList.filter { obj ->
-                obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+        val projectedBuilder =
+            if (viewingSeatId == 0 && includePrivateObjects) {
+                gsm.toBuilder().clearActions()
+            } else {
+                val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
+                val visibleObjects =
+                    gsm.gameObjectsList.filter { obj ->
+                        obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+                    }
+                gsm
+                    .toBuilder()
+                    .clearZones()
+                    .addAllZones(
+                        gsm.zonesList.map { zone ->
+                            if (!includePrivateObjects && zone.visibility == Visibility.Private) {
+                                zone.toBuilder().clearObjectInstanceIds().build()
+                            } else {
+                                redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                            }
+                        },
+                    ).clearGameObjects()
+                    .addAllGameObjects(visibleObjects)
+                    .clearActions()
             }
-        val projected =
-            gsm
-                .toBuilder()
-                .clearZones()
-                .addAllZones(
-                    gsm.zonesList.map { zone ->
-                        if (!includePrivateObjects && zone.visibility == Visibility.Private) {
-                            zone.toBuilder().clearObjectInstanceIds().build()
-                        } else {
-                            redactOpponentSideboardZone(zone, opponentSideboardZoneId)
-                        }
-                    },
-                ).clearGameObjects()
-                .addAllGameObjects(visibleObjects)
-                .build()
-        return copy(gsm = projected)
+        if (actions != null) {
+            val actionSeat = viewingSeatId.takeIf { it != 0 } ?: gsm.turnInfo.priorityPlayer
+            actions.actionsList.forEach { action ->
+                projectedBuilder.addActions(
+                    ActionInfo
+                        .newBuilder()
+                        .setSeatId(actionSeat)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
+            }
+        }
+        return copy(gsm = projectedBuilder.build())
     }
 
     private fun redactOpponentSideboardZone(

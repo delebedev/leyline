@@ -3,6 +3,7 @@ package leyline.game.state
 import forge.game.Game
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardTraitChanges
 import forge.game.cost.Cost
 import forge.game.keyword.Keyword
 import forge.game.spellability.AbilityActivated
@@ -64,6 +65,70 @@ class AbilityRegistryTest :
             val registry = AbilityRegistry.build(injected.card, CardDataDeriver.fromForgeCard(injected.card, "Lumen-Class Frigate"))
 
             registry.forSpellAbility(stationAbility.id) shouldBe 373
+        }
+
+        test("single continuously granted activated ability maps to its hidden slot") {
+            val (_, game, _) =
+                startWithBoard { _, human, _ ->
+                    human.setSpeed(4)
+                    addCard("Gas Guzzler", human, ZoneType.Battlefield)
+                    human.game.action.checkStaticAbilities(false)
+                }
+            val card =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Gas Guzzler" }
+            val granted =
+                card.changedCardTraits
+                    .cellSet()
+                    .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                    .filter { it.isActivatedAbility && !it.isManaAbility() }
+            granted.shouldHaveSize(1)
+            val ability = granted.single()
+            val registry = AbilityRegistry.build(card, CardDataDeriver.fromForgeCard(card, card.name))
+
+            assertSoftly {
+                ability.grantorStatic.hostCard shouldBe card
+                registry.grantedAbilityGrpId(ability) shouldBe 179264
+                registry.grantedAbilityUniqueIndex(ability) shouldBe 0
+            }
+        }
+
+        test("multiple continuously granted abilities fail closed after a single grant") {
+            val (_, game, _) =
+                startWithBoard { _, human, _ ->
+                    human.setSpeed(4)
+                    addCard("Gas Guzzler", human, ZoneType.Battlefield)
+                    human.game.action.checkStaticAbilities(false)
+                }
+            val card =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Gas Guzzler" }
+            val first =
+                card.changedCardTraits
+                    .cellSet()
+                    .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                    .single { it.isActivatedAbility && !it.isManaAbility() }
+            val registry = AbilityRegistry.build(card, CardDataDeriver.fromForgeCard(card, card.name))
+
+            registry.forSpellAbility(first) shouldBe 179264
+
+            val second = first.copy(card, false).also { it.setGrantorStatic(first.grantorStatic) }
+            card.addChangedCardTraits(
+                listOf(second),
+                emptyList(),
+                emptyList(),
+                emptyList(),
+                { true },
+                99L,
+                99L,
+                false,
+            )
+
+            registry.forSpellAbility(first).shouldBeNull()
         }
 
         test("keyword-backed activated ability dispatches by activated index") {

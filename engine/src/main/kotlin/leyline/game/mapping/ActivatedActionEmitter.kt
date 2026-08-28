@@ -79,13 +79,14 @@ internal object ActivatedActionEmitter {
             val actionGrpId = grpId()
             val actionCardData = cardData(actionGrpId)
             val registry = abilityRegistryLookup(card, actionCardData)
-            val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
+            val abilityGrpId = registry?.forSpellAbility(ability) ?: 0
+            val grantedIndex = registry?.grantedAbilityUniqueIndex(ability)
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
                 grpId = actionGrpId,
                 abilityGrpId = abilityGrpId,
-                uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId),
+                uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId, grantedIndex = grantedIndex),
                 abilityCost = abilityCost,
                 autoTapSolution = autoTap,
                 canPay = canPay,
@@ -261,9 +262,11 @@ internal object ActivatedActionEmitter {
         cardData: CardData?,
         abilityGrpId: Int,
         fallbackWhenUnmapped: Boolean = false,
+        grantedIndex: Int? = null,
     ): Int? {
         if (abilityGrpId == 0) return null
         if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
+        grantedIndex?.let { return INITIAL_UNIQUE_ABILITY_ID + cardData.abilityIds.size + it }
         val index = cardData.abilityIds.indexOfFirst { (grpId, _) -> grpId == abilityGrpId }
         return when {
             index >= 0 -> INITIAL_UNIQUE_ABILITY_ID + index

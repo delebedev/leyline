@@ -1,0 +1,39 @@
+name: max-speed
+description: Max Speed continuous ability projection and activation smoke suite.
+scenarios:
+  - id: gas-guzzler-speed-four
+    puzzle: max-speed-gas-guzzler
+    run: cast Shock at the opponent, sacrifice Walking Corpse to Gas Guzzler, draw Grizzly Bears, then Shock Gas Guzzler
+    expect: Gas Guzzler is unavailable below speed four, gains its stable max-speed activation at speed four, draws after the sacrifice, and retires the grant when it leaves
+    steps:
+      - expect:
+          all:
+            - annotation_seen: Designation
+            - action_not_available: { type: activate, card: Gas Guzzler, ability_grp_id: 179264 }
+      - wait:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 18
+            - action: { type: activate, card: Gas Guzzler, ability_grp_id: 179264 }
+      - activate: { card: Gas Guzzler, ability_grp_id: 179264 }
+      - select_cost: { zone: battlefield, cards: [Walking Corpse] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Walking Corpse }
+            - zone_contains: { side: ours, zone: hand, card: Grizzly Bears }
+            - stack_empty: true
+      - expect:
+          action: { type: cast, card: Shock }
+      - cast: Shock
+      - target: { side: ours, zone: battlefield, card: Gas Guzzler }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Gas Guzzler }
+            - annotation_seen: LayeredEffectDestroyed
+            - stack_empty: true

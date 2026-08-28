@@ -408,6 +408,21 @@ data object ManaCreatureDesignationKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+/** Persistent player-owned speed state. */
+data object PlayerSpeedDesignationKind : PersistentAnnotationKind {
+    override val name = "PlayerSpeedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_PLAYER_SPEED
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = true
+}
+
 /**
  * Persistent `FaceDown` annotation for face-down disguise creatures on the
  * battlefield. Carries `REASON=6` (Disguise) + `abilityGrpId=307`
@@ -658,6 +673,21 @@ data object InstanceRevealedToOpponentKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+data object CastingTimeOptionKind : PersistentAnnotationKind {
+    override val name = "CastingTimeOption"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.CastingTimeOption in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
+}
+
 object PersistentAnnotationKinds {
     /**
      * Upsert-path kinds — rows are identity-keyed, dispatched by
@@ -692,6 +722,7 @@ object PersistentAnnotationKinds {
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             ManaCreatureDesignationKind,
+            PlayerSpeedDesignationKind,
             DayNightDesignationKind,
             FaceDownDisguiseKind,
             FaceDownCloakKind,
@@ -703,6 +734,7 @@ object PersistentAnnotationKinds {
     val lifecycleOnly: List<PersistentAnnotationKind> =
         listOf(
             EnteredZoneThisTurnKind,
+            CastingTimeOptionKind,
             TriggeringObjectKind,
             DisplayCardUnderCardKind,
         )

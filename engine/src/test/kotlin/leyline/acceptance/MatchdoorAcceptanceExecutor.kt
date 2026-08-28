@@ -372,11 +372,11 @@ private class ScenarioRun(
                     actionMatchesZone(action, step.zone) &&
                     (step.abilityGrpId == null || action.abilityGrpId == step.abilityGrpId)
             }
+        val selector = step.abilityGrpId?.toString() ?: "index ${step.abilityIndex}"
         val action =
-            matching.getOrNull(step.abilityIndex)
+            (if (step.abilityGrpId != null) matching.singleOrNull() else matching.getOrNull(step.abilityIndex))
                 ?: error(
-                    "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}" +
-                        step.abilityGrpId?.let { " with ability_grp_id $it" }.orEmpty(),
+                    "$context no activate action $selector for ${step.card} in ${step.zone.yamlName}",
                 )
         submitAction(action)
     }
@@ -384,6 +384,23 @@ private class ScenarioRun(
     private fun choose(step: ChooseStep) {
         if (step.ctoId != null) {
             harness.respondToOptionalCost(step.ctoId)
+            return
+        }
+        if (step.optionalCost == AcceptanceCastingTimeOption.Blight) {
+            val option =
+                harness.allMessages
+                    .lastOrNull { it.hasCastingTimeOptionsReq() }
+                    ?.castingTimeOptionsReq
+                    ?.castingTimeOptionReqList
+                    ?.firstOrNull { it.castingTimeOptionType == CastingTimeOptionType.ChooseOrCost }
+                    ?: error("$context missing blight ChooseOrCost option")
+            require(
+                option.selectNReq.prompt.parametersList
+                    .any { it.promptId == PromptIds.CHOOSE_OR_COST_PAY_BLIGHT },
+            ) {
+                "$context ChooseOrCost option is not the Blight branch"
+            }
+            harness.respondToAlternateCost(option.ctoId, option.selectNReq.idsList.first())
             return
         }
         val option =
@@ -619,6 +636,19 @@ private class ScenarioRun(
                     "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}",
                 )
 
+            is ActionUnavailableCondition ->
+                ConditionResult(
+                    !actionAvailable(
+                        ActionAvailableCondition(
+                            type = condition.type,
+                            card = condition.card,
+                            altCost = condition.altCost,
+                            abilityGrpId = condition.abilityGrpId,
+                        ),
+                    ),
+                    "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}",
+                )
+
             is ZoneContainsCondition -> {
                 val names = zoneCardNames(condition.side, condition.zone)
                 ConditionResult(
@@ -798,7 +828,8 @@ private class ScenarioRun(
             candidates.any { action ->
                 action.actionType == expectedType &&
                     actionCardName(action).equals(condition.card, ignoreCase = true) &&
-                    (condition.altCost == null || actionMatchesAltCost(action, condition.altCost))
+                    (condition.altCost == null || actionMatchesAltCost(action, condition.altCost)) &&
+                    (condition.abilityGrpId == null || action.abilityGrpId == condition.abilityGrpId)
             }
         if (namedMatch) return true
         return condition.type in

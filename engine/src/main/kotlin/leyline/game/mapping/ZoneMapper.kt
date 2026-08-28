@@ -269,6 +269,7 @@ object ZoneMapper {
         gameObjects: MutableList<GameObjectInfo>,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { null },
+        grantedAbilitySnapshot: Map<Int, List<EffectTracker.TrackedGrantedAbility>> = emptyMap(),
     ) {
         val projected =
             StateZoneProjection.projectSharedZone(
@@ -278,6 +279,7 @@ object ZoneMapper {
                 instanceIdLookup = instanceIdLookup,
                 keywordSnapshot = keywordSnapshot,
                 earthbendProjection = earthbendProjection,
+                grantedAbilitySnapshot = grantedAbilitySnapshot,
             ) ?: return
         zones.removeIf { it.zoneId == arenaZoneId }
         zones += projected.zone

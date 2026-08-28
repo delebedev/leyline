@@ -188,10 +188,9 @@ class GameBridgeTest :
             b.getHandGrpIds(SeatId(1)).size shouldBe 6
 
             b.submitKeep(SeatId(1))
-            b.awaitPriority()
+            b.awaitActionPriority(SeatId(1)).shouldBeTrue()
 
-            val game = b.getGame()!!
-            listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
+            b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
         }
 
         test("build actions includes lands") {

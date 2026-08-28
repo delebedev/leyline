@@ -83,6 +83,7 @@ object StateZoneProjection {
         instanceIdLookup: (ForgeCardId) -> InstanceId,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { null },
+        grantedAbilitySnapshot: Map<Int, List<EffectTracker.TrackedGrantedAbility>> = emptyMap(),
     ): SharedZoneProjection? {
         val originalZone = snap.zones[arenaZoneId] ?: return null
         val zoneBuilder =
@@ -110,6 +111,7 @@ object StateZoneProjection {
                     keywordSnapshot,
                     parentLinkage = bound.parentLinkage,
                     earthbend = earthbendProjection(forgeCardId),
+                    grantedAbilitySnapshot = grantedAbilitySnapshot,
                 )
         }
         return SharedZoneProjection(zoneBuilder.build(), gameObjects.toList())

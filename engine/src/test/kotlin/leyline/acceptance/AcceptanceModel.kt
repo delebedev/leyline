@@ -215,8 +215,18 @@ data class ActionAvailableCondition(
     val type: AcceptanceActionType,
     val card: String,
     val altCost: AcceptanceAltCost? = null,
+    val abilityGrpId: Int? = null,
 ) : AcceptanceCondition {
     override val label: String = "action ${type.yamlName} $card${altCost?.let { " via ${it.yamlName}" } ?: ""}"
+}
+
+data class ActionUnavailableCondition(
+    val type: AcceptanceActionType,
+    val card: String,
+    val altCost: AcceptanceAltCost? = null,
+    val abilityGrpId: Int? = null,
+) : AcceptanceCondition {
+    override val label: String = "action ${type.yamlName} $card unavailable${altCost?.let { " via ${it.yamlName}" } ?: ""}"
 }
 
 data class ZoneContainsCondition(
@@ -367,6 +377,7 @@ enum class AcceptanceCastingTimeOption(
     Bargain("bargain"),
     Cleave("cleave"),
     Overload("overload"),
+    Blight("blight"),
     ;
 
     companion object {

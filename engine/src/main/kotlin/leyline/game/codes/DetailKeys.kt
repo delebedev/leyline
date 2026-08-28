@@ -58,6 +58,7 @@ object DetailKeys {
     const val COLORS = "colors"
     const val INDEX = "index"
     const val PROMPT_ID = "promptId"
+    const val CHOSEN_COST_PROMPT_ID = "chosenCostPromptId"
     const val PROMPT_PARAMETERS = "promptParameters"
     const val DISTRIBUTIONS = "distributions"
     const val POWER = "power"

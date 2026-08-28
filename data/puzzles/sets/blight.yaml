@@ -1,0 +1,31 @@
+name: blight
+description: Bogslither's Embrace Blight branch and adjacent mana-only branch.
+scenarios:
+  - id: bogslither-blight
+    puzzle: blight-bogslither-positive
+    run: choose Blight 1, choose the controlled creature for the counter, and exile the opposing creature
+    expect: Grizzly Bears has a -1/-1 counter and Centaur Courser is exiled
+    steps:
+      - expect:
+          action: { type: cast, card: "Bogslither's Embrace" }
+      - cast: "Bogslither's Embrace"
+      - choose: { optional_cost: blight }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: exile, card: Centaur Courser }
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 1, toughness: 1 }
+  - id: bogslither-no-controlled-creature
+    puzzle: blight-bogslither-no-creature
+    run: cast with no controlled creature so only the mana branch is available
+    expect: Centaur Courser is exiled without a counter payment prompt
+    steps:
+      - expect:
+          action: { type: cast, card: "Bogslither's Embrace" }
+      - cast: "Bogslither's Embrace"
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: opponent, zone: exile, card: Centaur Courser }

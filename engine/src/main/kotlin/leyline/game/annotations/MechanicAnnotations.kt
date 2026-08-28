@@ -417,6 +417,9 @@ object MechanicAnnotations {
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
+        grantedAbilityDiff: EffectTracker.GrantedAbilityDiffResult =
+            EffectTracker.GrantedAbilityDiffResult(emptyList(), emptyList()),
+        grantedAbilitySourceInstanceId: ((ForgeCardId) -> InstanceId)? = null,
         keywordAffectorFallbackForgeCardId: ForgeCardId? = null,
         keywordAffectorInstanceId: ((ForgeCardId) -> InstanceId)? = null,
         boostAffectorResolver: ((EffectTracker.TrackedEffect, GrpId?) -> InstanceId?)? = null,
@@ -425,7 +428,8 @@ object MechanicAnnotations {
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         val hasBoosts = diff.created.isNotEmpty() || diff.destroyed.isNotEmpty()
         val hasKeywords = keywordDiff.created.isNotEmpty() || keywordDiff.destroyed.isNotEmpty()
-        if (!hasBoosts && !hasKeywords) {
+        val hasGrantedAbilities = grantedAbilityDiff.created.isNotEmpty() || grantedAbilityDiff.destroyed.isNotEmpty()
+        if (!hasBoosts && !hasKeywords && !hasGrantedAbilities) {
             return emptyList<AnnotationInfo>() to emptyList()
         }
 
@@ -447,8 +451,36 @@ object MechanicAnnotations {
             uniqueAbilityIdAllocator,
             keywordExtraAbilityGrpIds,
         )
+        addGrantedAbilityEffectAnnotations(transient, persistent, grantedAbilityDiff, grantedAbilitySourceInstanceId)
 
         return transient to persistent
+    }
+
+    private fun addGrantedAbilityEffectAnnotations(
+        transient: MutableList<AnnotationInfo>,
+        persistent: MutableList<AnnotationInfo>,
+        diff: EffectTracker.GrantedAbilityDiffResult,
+        sourceInstanceId: ((ForgeCardId) -> InstanceId)?,
+    ) {
+        for (effect in diff.created) {
+            val affectedId = InstanceId(effect.cardInstanceId)
+            val affectorId = effect.sourceForgeCardId?.let { sourceInstanceId?.invoke(it) } ?: affectedId
+            val effectId = EffectId(effect.syntheticId)
+            transient.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorId))
+            persistent.add(
+                AnnotationBuilder.addAbilityLayered(
+                    affectedId = affectedId,
+                    grpId = GrpId(effect.abilityGrpId),
+                    effectId = effectId,
+                    uniqueAbilityId = effect.uniqueAbilityId,
+                    originalAbilityObjectZcid = affectorId.value,
+                    affectorId = affectorId,
+                ),
+            )
+        }
+        for (effect in diff.destroyed) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
+        }
     }
 
     private fun addBoostEffectAnnotations(

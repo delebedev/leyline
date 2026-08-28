@@ -94,7 +94,7 @@ internal class DeferredCastWindowRuntime(
         data class AlternateCostChoice(
             override val actionClaim: MatchActionWindowRuntime.ActionClaim,
             override val promptGameStateId: Int,
-            val runtimeTokensByCtoId: Map<Int, Long>,
+            val choicesByCtoId: Map<Int, DeferredCastCostPlan.AlternateCostChoice>,
             override var adopted: Boolean = false,
         ) : Prompt
     }
@@ -169,11 +169,21 @@ internal class DeferredCastWindowRuntime(
 
     fun hasPrompt(): Boolean = synchronized(owner.feedLock) { prompt != null }
 
-    fun discard() = synchronized(owner.feedLock) { prompt = null }
+    fun discard() =
+        synchronized(owner.feedLock) {
+            prompt?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
+            prompt = null
+        }
 
     fun close(actionId: String) {
         synchronized(owner.feedLock) {
-            if (prompt?.actionClaim?.actionId == actionId) prompt = null
+            val pending = prompt?.takeIf { it.actionClaim.actionId == actionId }
+            pending?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
+            if (pending != null) prompt = null
         }
     }
 
@@ -221,7 +231,10 @@ internal class DeferredCastWindowRuntime(
             }
             val claim = pending.actionClaim
             prompt = null
-            claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.setSelectedSpellGrpId(it, null) }
+            claim.deferredCostPlan?.sourceCardId?.let { cardId ->
+                owner.bridge.setSelectedSpellGrpId(cardId, null)
+                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            }
             owner.bridge
                 .seat(actions.seatFor(claim.actionId))
                 .prompt.journal
@@ -286,13 +299,21 @@ internal class DeferredCastWindowRuntime(
         response: DeferredCastResponse,
     ): DeferredCastAdmission {
         val selected = response.selectedCtoId ?: response.ctoId
-        val runtimeToken =
-            pending.runtimeTokensByCtoId[selected]
+        val choice =
+            pending.choicesByCtoId[selected]
                 ?: return DeferredCastAdmission.Rejected(
                     DeferredCastRejection.WrongOption,
                 )
         pending.adopted = true
-        check(actions.completeDeferredClaim(pending.actionClaim, runtimeToken)) { "Deferred alternate action claim did not complete" }
+        val sourceCardId = pending.actionClaim.deferredCostPlan?.sourceCardId
+        sourceCardId?.let { cardId ->
+            owner.bridge.setSelectedChosenCostPromptId(cardId, choice.chosenCostPromptId)
+        }
+        val completed = actions.completeDeferredClaim(pending.actionClaim, choice.runtimeToken)
+        if (!completed) {
+            sourceCardId?.let { cardId -> owner.bridge.setSelectedChosenCostPromptId(cardId, null) }
+        }
+        check(completed) { "Deferred alternate action claim did not complete" }
         prompt = null
         return DeferredCastAdmission.Alternate
     }
@@ -414,13 +435,12 @@ internal class DeferredCastWindowRuntime(
                     )
                 is Publication.Optional -> optionalPrompt(publication.claim, gameStateId, publication.ctoIds)
                 is Publication.Alternate -> {
-                    val tokens =
+                    val choices =
                         publication.claim.deferredCostPlan
                             ?.alternate
                             ?.choices
                             .orEmpty()
-                            .map { it.runtimeToken }
-                    Prompt.AlternateCostChoice(publication.claim, gameStateId, publication.ctoIds.zip(tokens).toMap())
+                    Prompt.AlternateCostChoice(publication.claim, gameStateId, publication.ctoIds.zip(choices).toMap())
                 }
             }
         install(prepared, nextPrompt, publication, prior, planner)

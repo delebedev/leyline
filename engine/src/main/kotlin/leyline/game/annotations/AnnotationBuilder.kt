@@ -5,6 +5,7 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.WireId
+import leyline.game.codes.CounterTypes
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.game.event.DamageSourceKind
@@ -254,6 +255,19 @@ object AnnotationBuilder {
             .addAffectedIds(stackInstanceId.value)
             .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.AdditionalCost.number))
             .addDetails(int32Detail(DetailKeys.ADDITIONAL_COST_GRP_ID, additionalCostGrpId.value))
+            .build()
+
+    fun castingTimeOptionChosenCost(
+        stackInstanceId: InstanceId,
+        chosenCostPromptId: Int,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId.value)
+            .addAffectedIds(stackInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.ChooseOrCost.number))
+            .addDetails(int32Detail(DetailKeys.CHOSEN_COST_PROMPT_ID, chosenCostPromptId))
             .build()
 
     /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */
@@ -663,7 +677,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.CounterAdded)
             .setOptionalAffector(affectorId)
             .addAffectedIds(instanceId.value)
-            .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(counterTypeDetail(counterType))
             .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
             .build()
 
@@ -677,7 +691,7 @@ object AnnotationBuilder {
             .newBuilder()
             .addType(AnnotationType.CounterRemoved)
             .addAffectedIds(instanceId.value)
-            .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(counterTypeDetail(counterType))
             .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
             .build()
 
@@ -762,6 +776,13 @@ object AnnotationBuilder {
     private fun isPowerToughnessCounter(counterType: Int): Boolean =
         counterType == CounterType.P1P1.number || counterType == CounterType.M1M1.number
 
+    private fun counterTypeDetail(counterType: String): KeyValuePairInfo =
+        if (counterType == "-1/-1") {
+            int32Detail(DetailKeys.COUNTER_TYPE, CounterTypes.counterTypeId(counterType))
+        } else {
+            typedStringDetail(DetailKeys.COUNTER_TYPE, counterType)
+        }
+
     /** Counter state on a player. */
     fun playerCounter(
         seatId: SeatId,
@@ -835,6 +856,27 @@ object AnnotationBuilder {
         uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
         return builder.build()
     }
+
+    /** One card's generated activated ability supplied by a layered effect. */
+    fun addAbilityLayered(
+        affectedId: InstanceId,
+        grpId: GrpId,
+        effectId: EffectId,
+        uniqueAbilityId: Int,
+        originalAbilityObjectZcid: Int,
+        affectorId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId.value)
+            .addAffectedIds(affectedId.value)
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+            .addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, uniqueAbilityId))
+            .build()
 
     /**
      * Multi-keyword grant for auras (e.g. Flying + First Strike from Angelic Destiny).
@@ -963,6 +1005,22 @@ object AnnotationBuilder {
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** Persistent player speed designation (DesignationType=21). */
+    fun playerSpeedDesignation(
+        seatId: SeatId,
+        speed: Int,
+        triggerHolderIid: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(seatId.value)
+            .addAffectedIds(seatId.value)
+            .addAffectedIds(triggerHolderIid.value)
+            .addDetails(int32Detail(DetailKeys.VALUE, speed))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, AnnotationConstants.DESIGNATION_TYPE_PLAYER_SPEED))
             .build()
 
     /** GainDesignation transient on a card (Prepared, Saddled, Plotted, Door states).

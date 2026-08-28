@@ -186,6 +186,7 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
         parentLinkage: ParentLinkage? = null,
         earthbend: EarthbendProjection? = null,
+        grantedAbilitySnapshot: Map<Int, List<EffectTracker.TrackedGrantedAbility>> = emptyMap(),
     ): GameObjectInfo {
         // Supported face-down creatures get a synthetic stencil envelope —
         // the per-card identity (name, subtypes, color, abilities) is
@@ -246,6 +247,16 @@ object ObjectMapper {
                 )
             }
             builder.addAbilityOriginalCardGrpIds(earthbend.sourceCardGrpId)
+        }
+        grantedAbilitySnapshot[instanceId].orEmpty().forEach { granted ->
+            if (builder.uniqueAbilitiesList.none { it.grpId == granted.abilityGrpId }) {
+                builder.addUniqueAbilities(
+                    UniqueAbilityInfo
+                        .newBuilder()
+                        .setId(granted.uniqueAbilityId)
+                        .setGrpId(granted.abilityGrpId),
+                )
+            }
         }
         if (cardSnap.isMergedPermanent) {
             builder.addAllAbilityOriginalCardGrpIds(

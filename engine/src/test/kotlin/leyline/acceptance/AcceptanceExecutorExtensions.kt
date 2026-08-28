@@ -23,6 +23,7 @@ internal fun AcceptanceCastingTimeOption.toProtoType(): CastingTimeOptionType =
         AcceptanceCastingTimeOption.Bargain -> CastingTimeOptionType.Bargain
         AcceptanceCastingTimeOption.Cleave -> CastingTimeOptionType.CastThroughAbility
         AcceptanceCastingTimeOption.Overload -> CastingTimeOptionType.CastThroughAbility
+        AcceptanceCastingTimeOption.Blight -> CastingTimeOptionType.ChooseOrCost
     }
 
 /** Ordered by precedence: [promptName] reports the first type in this list that matches. */
