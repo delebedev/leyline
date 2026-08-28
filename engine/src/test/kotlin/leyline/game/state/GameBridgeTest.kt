@@ -15,6 +15,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -138,18 +139,19 @@ class GameBridgeTest :
         test("keep advances to priority") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
-            b.start()
+            b.start(seed = 42L)
 
             b.getHandGrpIds(SeatId(1)).size shouldBe 7
             b.submitKeep(SeatId(1))
-            b.awaitPriority()
+            b.awaitActionPriority(SeatId(1)).shouldBeTrue()
 
-            // Engine should be at Main1 (or later) with a pending action
             val pending = b.actionBridge(SeatId(1)).getPending()
-            pending.shouldNotBeNull()
-
-            val game = b.getGame()!!
-            listOf(PhaseType.MAIN1, PhaseType.UPKEEP, PhaseType.DRAW) shouldContain game.phaseHandler.phase
+            assertSoftly {
+                pending.shouldNotBeNull()
+                pending.state.kind shouldBe PendingActionKind.PRIORITY
+                pending.state.phase shouldBe PhaseType.MAIN1.name
+                b.getGame()!!.phaseHandler.phase shouldBe PhaseType.MAIN1
+            }
         }
 
         test("submit mull auto-tucks and produces new hand") {
