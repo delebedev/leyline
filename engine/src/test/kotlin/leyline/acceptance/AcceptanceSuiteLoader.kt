@@ -332,6 +332,7 @@ object AcceptanceSuiteLoader {
     ): AcceptanceCondition =
         when (key) {
             "action" -> parseActionAvailable(value, "$context.action")
+            "action_not_available" -> parseActionUnavailable(value, "$context.action_not_available")
             "zone_contains" -> parseZoneContains(value, "$context.zone_contains")
             "zone_not_contains" -> parseZoneNotContains(value, "$context.zone_not_contains")
             "zone_count_at_least" -> parseZoneCountAtLeast(value, "$context.zone_count_at_least")
@@ -361,6 +362,20 @@ object AcceptanceSuiteLoader {
             type = AcceptanceActionType.parse(map.requiredString("type", context)),
             card = map.requiredString("card", context),
             altCost = map.optionalString("alt_cost", context)?.let(AcceptanceAltCost::parse),
+            abilityGrpId = map.optionalInt("ability_grp_id", context),
+        )
+    }
+
+    private fun parseActionUnavailable(
+        raw: Any?,
+        context: String,
+    ): ActionUnavailableCondition {
+        val map = raw.asMap(context)
+        return ActionUnavailableCondition(
+            type = AcceptanceActionType.parse(map.requiredString("type", context)),
+            card = map.requiredString("card", context),
+            altCost = map.optionalString("alt_cost", context)?.let(AcceptanceAltCost::parse),
+            abilityGrpId = map.optionalInt("ability_grp_id", context),
         )
     }
 

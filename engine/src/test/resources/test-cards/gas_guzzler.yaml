@@ -1,0 +1,17 @@
+name: "Gas Guzzler"
+grpId: 94887
+titleId: 878991
+abilities:
+  - id: 354
+    textId: 878793
+    category: 3
+  - id: 180111
+    textId: 878990
+    category: 3
+  - id: 176455
+    textId: 878991
+    category: 3
+hiddenAbilities:
+  - id: 179264
+    textId: 878991
+expansionCode: "DFT"

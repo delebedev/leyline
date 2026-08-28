@@ -45,6 +45,7 @@ object SnapshotCapture {
                     life = player.life,
                     startingLife = player.startingLife,
                     maxHandSize = player.maxHandSize,
+                    speed = player.speed,
                     manaPool = ManaSnapshotCapture.capturePool(player, bridge),
                 )
             }

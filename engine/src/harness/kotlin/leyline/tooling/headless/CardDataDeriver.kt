@@ -88,6 +88,7 @@ object CardDataDeriver {
             subtypes = subtypes,
             supertypes = supertypes,
             abilityIds = abilityIds,
+            hiddenAbilityIds = identity.hiddenAbilities,
             abilityKinds = abilityKinds,
             abilityCategories = abilityCategories,
             manaCost = manaCost,

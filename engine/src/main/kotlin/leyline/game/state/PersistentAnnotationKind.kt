@@ -408,6 +408,21 @@ data object ManaCreatureDesignationKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+/** Persistent player-owned speed state. */
+data object PlayerSpeedDesignationKind : PersistentAnnotationKind {
+    override val name = "PlayerSpeedDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_PLAYER_SPEED
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = true
+}
+
 /**
  * Persistent `FaceDown` annotation for face-down disguise creatures on the
  * battlefield. Carries `REASON=6` (Disguise) + `abilityGrpId=307`
@@ -707,6 +722,7 @@ object PersistentAnnotationKinds {
             LeftUnlockedDesignationKind,
             RightUnlockedDesignationKind,
             ManaCreatureDesignationKind,
+            PlayerSpeedDesignationKind,
             DayNightDesignationKind,
             FaceDownDisguiseKind,
             FaceDownCloakKind,

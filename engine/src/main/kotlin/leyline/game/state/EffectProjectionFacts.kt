@@ -16,6 +16,7 @@ import kotlin.ConsistentCopyVisibility
 data class EffectProjectionFacts private constructor(
     val boostEntries: List<BoostEntry>,
     val keywordEntries: List<KeywordEntry>,
+    val grantedAbilityEntries: List<GrantedAbilityEntry>,
     val crewStates: List<CrewState>,
     val saddleStates: List<SaddleState>,
     val reconfigureStates: List<ReconfigureState>,
@@ -26,6 +27,7 @@ data class EffectProjectionFacts private constructor(
         operator fun invoke(
             boostEntries: List<BoostEntry> = emptyList(),
             keywordEntries: List<KeywordEntry> = emptyList(),
+            grantedAbilityEntries: List<GrantedAbilityEntry> = emptyList(),
             crewStates: List<CrewState> = emptyList(),
             saddleStates: List<SaddleState> = emptyList(),
             reconfigureStates: List<ReconfigureState> = emptyList(),
@@ -35,6 +37,7 @@ data class EffectProjectionFacts private constructor(
             EffectProjectionFacts(
                 unmodifiable(boostEntries),
                 unmodifiable(keywordEntries),
+                unmodifiable(grantedAbilityEntries),
                 unmodifiable(crewStates),
                 unmodifiable(saddleStates),
                 unmodifiable(reconfigureStates),
@@ -61,6 +64,16 @@ data class EffectProjectionFacts private constructor(
         val staticId: Long,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
+    )
+
+    /** One generated activated ability currently supplied by a continuous effect. */
+    data class GrantedAbilityEntry(
+        val forgeCardId: ForgeCardId,
+        val timestamp: Long,
+        val staticId: Long,
+        val abilityGrpId: Int,
+        val uniqueAbilityId: Int,
+        val sourceForgeCardId: ForgeCardId? = null,
     )
 
     @ConsistentCopyVisibility

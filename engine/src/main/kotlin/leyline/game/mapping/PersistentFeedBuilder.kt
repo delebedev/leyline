@@ -24,6 +24,7 @@ import leyline.game.state.HolderRecord
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentFeedFacts
+import leyline.game.state.PlayerSpeedDesignationKind
 import leyline.game.state.PreparedDesignationKind
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.QualificationKind
@@ -236,10 +237,21 @@ internal object PersistentFeedBuilder {
                         ),
                     )
                 }
+        val playerSpeed =
+            snap.seats
+                .filter { it.speed > 0 }
+                .map { seat ->
+                    AnnotationBuilder.playerSpeedDesignation(
+                        seatId = seat.seatId,
+                        speed = seat.speed,
+                        triggerHolderIid = FrameIdResolver.speedTriggerHolderIid(seat.seatId),
+                    )
+                }
         return simpleRows +
             mapOf(
                 PreparedDesignationKind to prepared,
                 CommanderDesignationKind to commander,
+                PlayerSpeedDesignationKind to playerSpeed,
             )
     }
 

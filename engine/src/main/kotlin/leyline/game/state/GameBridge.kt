@@ -7,6 +7,7 @@ import forge.game.GameType
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
+import forge.game.card.CardTraitChanges
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -1273,12 +1274,18 @@ class GameBridge(
     fun resolveAbilityIdentity(
         card: Card,
         ability: SpellAbility,
-    ): ResolvedAbilityIdentity? =
-        resolveAbilityIdentity(
-            card,
+    ): ResolvedAbilityIdentity? {
+        val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
-                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId),
-        )
+                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
+        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+        if (ability.trigger != null) return registry.resolve(definition)
+        val abilityGrpId = registry.forSpellAbility(ability) ?: return null
+        return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
+            ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+    }
 
     private fun resolvePromptAbilityIdentity(
         card: Card,
@@ -1983,6 +1990,7 @@ class GameBridge(
         val currentGame = game ?: return EffectProjectionFacts(pendingEarthbendResolutions = pendingEarthbendResolutions.toList())
         val boosts = mutableListOf<EffectProjectionFacts.BoostEntry>()
         val keywords = mutableListOf<EffectProjectionFacts.KeywordEntry>()
+        val grantedAbilities = mutableListOf<EffectProjectionFacts.GrantedAbilityEntry>()
         val crew = mutableListOf<EffectProjectionFacts.CrewState>()
         val saddle = mutableListOf<EffectProjectionFacts.SaddleState>()
         val reconfigure = mutableListOf<EffectProjectionFacts.ReconfigureState>()
@@ -1992,14 +2000,7 @@ class GameBridge(
                 player.getZone(ZoneType.Battlefield).cards
             }
         val keywordAffectorByStaticId = keywordAffectorByStaticId(battlefieldCards)
-        val boostSourceByStaticId =
-            buildMap<Long, Card> {
-                for (card in battlefieldCards) {
-                    for (staticAbility in card.staticAbilities.orEmpty()) {
-                        if (staticAbility.id > 0) putIfAbsent(staticAbility.id.toLong(), card)
-                    }
-                }
-            }
+        val boostSourceByStaticId = boostSourceByStaticId(battlefieldCards)
 
         for (player in currentGame.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
@@ -2035,6 +2036,8 @@ class GameBridge(
                         }
                     }
                 }
+
+                grantedAbilities += grantedAbilityEntries(card, forgeCardId)
 
                 card.getCrewedByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
                     crew +=
@@ -2073,12 +2076,62 @@ class GameBridge(
         return EffectProjectionFacts(
             boostEntries = boosts,
             keywordEntries = keywords,
+            grantedAbilityEntries = sortGrantedAbilityEntries(grantedAbilities),
             crewStates = crew,
             saddleStates = saddle,
             reconfigureStates = reconfigure,
             pendingEarthbendResolutions = pendingEarthbendResolutions.toList(),
             battlefieldEarthbendSignatures = earthbendSignatures,
         )
+    }
+
+    private fun boostSourceByStaticId(cards: List<Card>): Map<Long, Card> =
+        buildMap {
+            for (card in cards) {
+                for (staticAbility in card.staticAbilities.orEmpty()) {
+                    if (staticAbility.id > 0) putIfAbsent(staticAbility.id.toLong(), card)
+                }
+            }
+        }
+
+    private fun sortGrantedAbilityEntries(
+        entries: List<EffectProjectionFacts.GrantedAbilityEntry>,
+    ): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        entries.sortedWith(
+            compareBy(
+                { it.forgeCardId.value },
+                { it.timestamp },
+                { it.staticId },
+                { it.abilityGrpId },
+            ),
+        )
+
+    private fun grantedAbilityEntries(
+        card: Card,
+        forgeCardId: ForgeCardId,
+    ): List<EffectProjectionFacts.GrantedAbilityEntry> {
+        val cardGrpId = cardRepository.findGrpIdByName(card.name)
+        val cardData = cardGrpId?.let(cardRepository::findByGrpId) ?: return emptyList()
+        val registry = abilityRegistryFor(card, cardData) ?: return emptyList()
+        return buildList {
+            for (cell in card.changedCardTraits.cellSet()) {
+                for (ability in (cell.value as? CardTraitChanges)?.getAbilities().orEmpty()) {
+                    if (!ability.isActivatedAbility || ability.isManaAbility()) continue
+                    val abilityGrpId = registry.forSpellAbility(ability) ?: continue
+                    val hiddenIndex = registry.grantedAbilityUniqueIndex(ability) ?: continue
+                    add(
+                        EffectProjectionFacts.GrantedAbilityEntry(
+                            forgeCardId = forgeCardId,
+                            timestamp = cell.rowKey,
+                            staticId = cell.columnKey,
+                            abilityGrpId = abilityGrpId,
+                            uniqueAbilityId = 50 + cardData.abilityIds.size + hiddenIndex,
+                            sourceForgeCardId = ability.grantorStatic?.hostCard?.let { ForgeCardId(it.id) } ?: forgeCardId,
+                        ),
+                    )
+                }
+            }
+        }
     }
 
     /** Resolve boost source ability metadata while the shell owns the live Forge cut. */
