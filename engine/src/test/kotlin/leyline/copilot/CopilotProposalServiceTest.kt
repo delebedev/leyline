@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.TeamType
  * Drives the copilot proposal surface against a live Forge game (not synthetic
  * messages): the service consults the real Forge-AI brain through the extracted
  * policy and the live GameBridge, so this pins the whole chain
- * bridge → ForgeAiPolicy → SimDecision → ProposalTranslator → CopilotProposal.
+ * bridge → ForgeAiPolicy → SimDecision → CopilotProposalRealizer → CopilotProposal.
  */
 @Suppress("MissingAssertSoftly", "TierPlacementCheck")
 class CopilotProposalServiceTest :

@@ -32,12 +32,16 @@ class CopilotProposalService(
     /** Propose a response for [prompt]; null / uncovered / failed consults yield `unrealizable`. */
     fun propose(prompt: GREToClientMessage?): CopilotProposal {
         if (prompt == null) {
-            return ProposalTranslator.unrealizable(GREMessageType.PromptReq, seatId.value, "no pending prompt for seat ${seatId.value}")
+            return CopilotProposalRealizer.unrealizable(
+                GREMessageType.PromptReq,
+                seatId.value,
+                "no pending prompt for seat ${seatId.value}",
+            )
         }
         return runCatching { route(prompt) }
             .getOrElse { t ->
                 log.warn("copilot proposal for {} failed: {}", prompt.type, t.message, t)
-                ProposalTranslator.unrealizable(prompt.type, seatId.value, "consult failed: ${t.message}")
+                CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "consult failed: ${t.message}")
             }
     }
 
@@ -100,7 +104,7 @@ class CopilotProposalService(
 
             GREMessageType.OptionalActionMessage_695e -> advisedProposal(prompt)
 
-            else -> ProposalTranslator.unrealizable(prompt.type, seatId.value, "prompt type ${prompt.type} has no copilot decoder")
+            else -> CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "prompt type ${prompt.type} has no copilot decoder")
         }
 
     private fun advisedProposal(prompt: GREToClientMessage): CopilotProposal =
@@ -122,12 +126,12 @@ class CopilotProposalService(
         if (result is PromptDecisionResult.Unavailable) return unavailableProposal(prompt, result)
         val desired =
             (result as PromptDecisionResult.Chosen).decision as? SimDecision.SelectTargets
-                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-target decision")
+                ?: return CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "advisor returned a non-target decision")
         val req = prompt.selectTargetsReq
         val committed = TargetSelectionDiff.committedTargets(req)
         val step =
             TargetSelectionDiff.step(req = req, committed = committed, desired = desired.targetGroups)
-                ?: return ProposalTranslator.unrealizable(
+                ?: return CopilotProposalRealizer.unrealizable(
                     prompt.type,
                     seatId.value,
                     "advisor target plan cannot converge from committed groups",
@@ -140,7 +144,7 @@ class CopilotProposalService(
         if (result is PromptDecisionResult.Unavailable) return unavailableProposal(prompt, result)
         val decision =
             (result as PromptDecisionResult.Chosen).decision as? SimDecision.DeclareAttackers
-                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-attacker decision")
+                ?: return CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "advisor returned a non-attacker decision")
         val req = prompt.declareAttackersReq
         val step =
             CombatDeclarationDiff.attackerStep(
@@ -157,7 +161,7 @@ class CopilotProposalService(
         if (decision == SimDecision.DeclareNoBlockers) return proposalFor(decision, prompt)
         val blockers =
             decision as? SimDecision.DeclareBlockers
-                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-blocker decision")
+                ?: return CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "advisor returned a non-blocker decision")
         val req = prompt.declareBlockersReq
         val step =
             CombatDeclarationDiff.blockerStep(
@@ -180,27 +184,31 @@ class CopilotProposalService(
                 else -> null
             }
         return fallback?.let { proposalFor(it, prompt) }
-            ?: ProposalTranslator.unrealizable(
+            ?: CopilotProposalRealizer.unrealizable(
                 prompt.type,
                 seatId.value,
                 "advisor unavailable: ${result.reason.name}: ${result.detail}",
             )
     }
 
-    /** Translate the decision and attach its ordered delivery messages. */
+    /** Realize the decision and attach its ordered delivery messages. */
     private fun proposalFor(
         decision: SimDecision,
         prompt: GREToClientMessage,
     ): CopilotProposal =
-        ProposalTranslator.translate(decision, prompt.type, seatId.value, resolver).copy(
-            promptKey = "${prompt.gameStateId}:${prompt.msgId}",
-            gameStateId = prompt.gameStateId,
-            respId = prompt.msgId,
-            responses =
-                ResponseBuilder
-                    .build(decision, prompt.gameStateId, seatId.value, respId = prompt.msgId)
-                    .let(ResponseBuilder::hexMessages),
-        )
+        CopilotProposalRealizer
+            .realize(
+                decision = decision,
+                promptType = prompt.type,
+                seat = seatId.value,
+                resolve = resolver,
+                gsId = prompt.gameStateId,
+                respId = prompt.msgId,
+            ).copy(
+                promptKey = "${prompt.gameStateId}:${prompt.msgId}",
+                gameStateId = prompt.gameStateId,
+                respId = prompt.msgId,
+            )
 
     private fun resolveEntity(instanceId: Int): EntityRef {
         val card =

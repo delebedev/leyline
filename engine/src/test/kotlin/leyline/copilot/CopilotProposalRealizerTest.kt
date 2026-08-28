@@ -15,7 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * decision→intent mapping is exercised without a live game.
  */
 @Suppress("MissingAssertSoftly")
-class ProposalTranslatorTest :
+class CopilotProposalRealizerTest :
     FunSpec({
 
         tags(UnitTag)
@@ -43,7 +43,7 @@ class ProposalTranslatorTest :
 
         test("play-land action → play_land intent with resolved card") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.PerformAction(action(ActionType.Play_add3, instanceId = 10, grpId = 100)),
                     aar,
                     seat = 1,
@@ -55,13 +55,13 @@ class ProposalTranslatorTest :
         }
 
         test("cancel action → cancel intent (a realizable back-out, not unrealizable)") {
-            val p = ProposalTranslator.translate(SimDecision.CancelAction, aar, seat = 1, resolve)
+            val p = CopilotProposalRealizer.realize(SimDecision.CancelAction, aar, seat = 1, resolve)
             p.intent shouldBe "cancel"
         }
 
         test("base cast action → cast intent, no alternative") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.PerformAction(action(ActionType.Cast, instanceId = 11, grpId = 200)),
                     aar,
                     seat = 1,
@@ -74,7 +74,7 @@ class ProposalTranslatorTest :
 
         test("Adventure cast action → cast_adventure intent") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.PerformAction(action(ActionType.CastAdventure, instanceId = 14, grpId = 201)),
                     aar,
                     seat = 1,
@@ -86,7 +86,7 @@ class ProposalTranslatorTest :
 
         test("alt-cost cast action → cast_mdfc intent carrying the alternative grpId") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.PerformAction(action(ActionType.Cast, instanceId = 12, grpId = 200, alternativeGrpId = 19573)),
                     aar,
                     seat = 1,
@@ -98,7 +98,7 @@ class ProposalTranslatorTest :
 
         test("activate action → activate intent with ability grpId") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.PerformAction(action(ActionType.Activate_add3, instanceId = 13, abilityGrpId = 777)),
                     aar,
                     seat = 1,
@@ -110,7 +110,7 @@ class ProposalTranslatorTest :
 
         test("select-targets → target intent with resolved entities") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.SelectTargets(mapOf(0 to listOf(21, 22))),
                     GREMessageType.SelectTargetsReq_695e,
                     seat = 1,
@@ -124,7 +124,7 @@ class ProposalTranslatorTest :
 
         test("select-n → select_n intent") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.SelectN(listOf(31)),
                     GREMessageType.SelectNreq,
                     seat = 1,
@@ -136,7 +136,7 @@ class ProposalTranslatorTest :
 
         test("effect-cost → pay_cost intent") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.EffectCost(listOf(41, 42)),
                     GREMessageType.PayCostsReq_695e,
                     seat = 1,
@@ -148,7 +148,7 @@ class ProposalTranslatorTest :
 
         test("modal-choice → modal intent with grpIds") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.ModalChoice(ctoId = 3, selectedGrpIds = listOf(555)),
                     GREMessageType.CastingTimeOptionsReq_695e,
                     seat = 1,
@@ -162,7 +162,7 @@ class ProposalTranslatorTest :
 
         test("mana-type → mana_type intent with per-cto colors") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.ManaTypeChoices(listOf(9 to ManaColor.Green_afc9)),
                     GREMessageType.CastingTimeOptionsReq_695e,
                     seat = 1,
@@ -175,7 +175,7 @@ class ProposalTranslatorTest :
 
         test("optional-cost → optional_cost intent with ctoId") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.OptionalCost(ctoId = 7),
                     GREMessageType.CastingTimeOptionsReq_695e,
                     seat = 1,
@@ -188,7 +188,7 @@ class ProposalTranslatorTest :
 
         test("numeric-input → numeric intent") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.NumericInput(value = 3),
                     GREMessageType.PromptReq,
                     seat = 1,
@@ -200,7 +200,7 @@ class ProposalTranslatorTest :
 
         test("distribution → distribute intent") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.Distribution(linkedMapOf(300 to 1, 361 to 1)),
                     GREMessageType.DistributionReq_695e,
                     seat = 1,
@@ -212,7 +212,7 @@ class ProposalTranslatorTest :
 
         test("casting-time X retains ctoId and numeric value") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.CastingTimeX(ctoId = 2, value = 4),
                     GREMessageType.CastingTimeOptionsReq_695e,
                     seat = 1,
@@ -224,20 +224,20 @@ class ProposalTranslatorTest :
         }
 
         test("optional-action → optional_action intent carrying accept/decline") {
-            ProposalTranslator
-                .translate(SimDecision.OptionalAction(accept = true), GREMessageType.OptionalActionMessage_695e, seat = 1, resolve)
+            CopilotProposalRealizer
+                .realize(SimDecision.OptionalAction(accept = true), GREMessageType.OptionalActionMessage_695e, seat = 1, resolve)
                 .let {
                     it.intent shouldBe "optional_action"
                     it.accept shouldBe true
                 }
-            ProposalTranslator
-                .translate(SimDecision.OptionalAction(accept = false), GREMessageType.OptionalActionMessage_695e, seat = 1, resolve)
+            CopilotProposalRealizer
+                .realize(SimDecision.OptionalAction(accept = false), GREMessageType.OptionalActionMessage_695e, seat = 1, resolve)
                 .accept shouldBe false
         }
 
         test("declare-attackers → attack intent with resolved attackers") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.DeclareAttackers(listOf(51, 52)),
                     GREMessageType.DeclareAttackersReq_695e,
                     seat = 1,
@@ -248,15 +248,21 @@ class ProposalTranslatorTest :
             p.responseIds shouldBe listOf(51, 52)
         }
 
-        test("declare-all-attackers → attack_all intent") {
-            ProposalTranslator
-                .translate(SimDecision.DeclareAllAttackers, GREMessageType.DeclareAttackersReq_695e, seat = 1, resolve)
-                .intent shouldBe "attack_all"
+        test("declare-all-attackers is unrealizable without deliverable bytes") {
+            val p =
+                CopilotProposalRealizer.realize(
+                    SimDecision.DeclareAllAttackers,
+                    GREMessageType.DeclareAttackersReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "unrealizable"
+            p.responses shouldBe emptyList()
         }
 
         test("declare-blockers → block intent with blocker→attacker pairs") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.DeclareBlockers(mapOf(61 to 71)),
                     GREMessageType.DeclareBlockersReq_695e,
                     seat = 1,
@@ -274,7 +280,7 @@ class ProposalTranslatorTest :
 
         test("declare-no-blockers → block intent with no assignments") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.DeclareNoBlockers,
                     GREMessageType.DeclareBlockersReq_695e,
                     seat = 1,
@@ -285,14 +291,14 @@ class ProposalTranslatorTest :
         }
 
         test("pass-priority → pass intent") {
-            ProposalTranslator
-                .translate(SimDecision.PassPriority, aar, seat = 1, resolve)
+            CopilotProposalRealizer
+                .realize(SimDecision.PassPriority, aar, seat = 1, resolve)
                 .intent shouldBe "pass"
         }
 
         test("search decodes to a search intent carrying the found ids") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.Search(listOf(1, 2)),
                     GREMessageType.SearchReq_695e,
                     seat = 1,
@@ -304,7 +310,7 @@ class ProposalTranslatorTest :
 
         test("distribution decodes to a fixed-total intent carrying per-target amounts") {
             val p =
-                ProposalTranslator.translate(
+                CopilotProposalRealizer.realize(
                     SimDecision.Distribution(linkedMapOf(11 to 2, 12 to 3)),
                     GREMessageType.DistributionReq_695e,
                     seat = 1,
@@ -316,13 +322,13 @@ class ProposalTranslatorTest :
         }
 
         test("truly unmapped decision families → unrealizable with a reason") {
-            val p = ProposalTranslator.translate(SimDecision.RetirePrompt, GREMessageType.PromptReq, seat = 1, resolve)
+            val p = CopilotProposalRealizer.realize(SimDecision.RetirePrompt, GREMessageType.PromptReq, seat = 1, resolve)
             p.intent shouldBe "unrealizable"
             p.reason.shouldNotBeNull()
         }
 
         test("explicit unrealizable carries prompt type and reason") {
-            val p = ProposalTranslator.unrealizable(GREMessageType.SelectTargetsReq_695e, seat = 2, reason = "no game")
+            val p = CopilotProposalRealizer.unrealizable(GREMessageType.SelectTargetsReq_695e, seat = 2, reason = "no game")
             p.intent shouldBe "unrealizable"
             p.promptType shouldBe "SelectTargetsReq_695e"
             p.seat shouldBe 2

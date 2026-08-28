@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
  *
  * [intent] is the acceptance verb (`play_land`, `cast`, `cast_mdfc`,
  * `activate`, `target`, `pay_cost`, `select_n`, `modal`, `mana_type`,
- * `optional_cost`, `numeric`, `attack`, `attack_all`, `block`, `pass`,
- * `choose_starting_player`) or the sentinel `unrealizable` when the AI produced
+ * `optional_cost`, `numeric`, `attack`, `block`, `pass`, `choose_starting_player`,
+ * `select_replacement`) or the sentinel `unrealizable` when the AI produced
  * no response the current decoder can map. [responseIds] is the flat list of
  * instance ids (or grpIds/ctoIds)
  * the client would submit — the surface for diffing a client-submitted
@@ -52,6 +52,8 @@ data class CopilotProposal(
     val accept: Boolean? = null,
     /** Casting-time-option id for `optional_cost`. */
     val ctoId: Int? = null,
+    /** Request-local replacement-effect id selected for `select_replacement`. */
+    val replacementEffectId: Int? = null,
     /** Flat ids the client should submit — the client-vs-proposal diff surface. */
     val responseIds: List<Int> = emptyList(),
     /** Serialized response messages, in delivery order. Empty when no response can be built. */
