@@ -173,7 +173,7 @@ class MatchModalChoiceRuntimeTest :
         }
 
         test("CastingTimeOptions requires the Modal discriminator and choose-modal payload") {
-            val board = startPuzzleAtMain1FromResource("puzzles/modal-etb.pzl")
+            val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val card = source(board)
