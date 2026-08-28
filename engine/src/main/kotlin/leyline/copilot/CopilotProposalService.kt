@@ -50,6 +50,8 @@ class CopilotProposalService(
             // so it only fires on the live-client path.
             GREMessageType.MulliganReq_aa0d -> advisedProposal(prompt)
 
+            GREMessageType.ChooseStartingPlayerReq_695e -> proposalFor(SimDecision.ChooseStartingPlayer, prompt)
+
             GREMessageType.ActionsAvailableReq_695e -> aarProposal(prompt)
 
             // Two-round-trip targeting: diff the prompt's committed picks

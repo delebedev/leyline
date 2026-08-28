@@ -8,6 +8,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
+import wotc.mtgo.gre.external.messaging.Messages.TeamType
 
 /**
  * Pins the injectable response bytes per decision. The combat cases guard the
@@ -170,6 +171,17 @@ class ResponseBuilderTest :
             msgs[0].respId shouldBe 3
             msgs[0].mulliganResp.decision shouldBe
                 wotc.mtgo.gre.external.messaging.Messages.MulliganOption.AcceptHand
+        }
+
+        test("starting-player response chooses the requesting seat") {
+            val msgs = bytesOf(SimDecision.ChooseStartingPlayer, gsId = 1, seat = 2, respId = 5)
+            msgs.size shouldBe 1
+            msgs[0].type shouldBe ClientMessageType.ChooseStartingPlayerResp_097b
+            msgs[0].gameStateId shouldBe 1
+            msgs[0].respId shouldBe 5
+            msgs[0].chooseStartingPlayerResp.teamType shouldBe TeamType.Individual
+            msgs[0].chooseStartingPlayerResp.systemSeatId shouldBe 2
+            msgs[0].chooseStartingPlayerResp.teamId shouldBe 2
         }
 
         test("auto-tap payment confirms the offered solution by index") {

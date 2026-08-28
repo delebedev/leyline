@@ -8,7 +8,10 @@ import leyline.SimClientTag
 import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.TeamType
 
 /**
  * Drives the copilot proposal surface against a live Forge game (not synthetic
@@ -54,5 +57,29 @@ class CopilotProposalServiceTest :
 
             proposal.intent shouldBe "unrealizable"
             proposal.reason.shouldNotBeNull()
+        }
+
+        test("starting-player prompt chooses the requesting seat") {
+            val harness = MatchFlowHarness(seed = 7L, deckList = "60 Forest")
+            harness.connectAndKeep()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ChooseStartingPlayerReq_695e)
+                    .setGameStateId(1)
+                    .setMsgId(5)
+                    .setChooseStartingPlayerReq(
+                        ChooseStartingPlayerReq
+                            .newBuilder()
+                            .setTeamType(TeamType.Individual)
+                            .addSystemSeatIds(1)
+                            .addSystemSeatIds(2),
+                    ).build()
+
+            val proposal = CopilotProposalService(harness.bridge, SeatId(2)).propose(prompt)
+
+            proposal.intent shouldBe "choose_starting_player"
+            proposal.promptKey shouldBe "1:5"
+            proposal.responses.size shouldBe 1
         }
     })

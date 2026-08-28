@@ -75,6 +75,8 @@ internal object ProposalTranslator {
 
             SimDecision.KeepHand -> base("keep_hand", promptType, seat)
 
+            SimDecision.ChooseStartingPlayer -> base("choose_starting_player", promptType, seat)
+
             is SimDecision.ModalChoice ->
                 base("modal", promptType, seat).copy(
                     ctoId = decision.ctoId,

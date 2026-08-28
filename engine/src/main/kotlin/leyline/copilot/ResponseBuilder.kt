@@ -9,6 +9,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionResp
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsResp
 import wotc.mtgo.gre.external.messaging.Messages.ChooseModalResp
+import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.DamageAssigner
@@ -43,6 +44,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
+import wotc.mtgo.gre.external.messaging.Messages.TeamType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import java.util.Locale
 
@@ -261,6 +263,18 @@ internal object ResponseBuilder {
                     base(ClientMessageType.MulliganResp_097b)
                         .setMulliganResp(MulliganResp.newBuilder().setDecision(MulliganOption.AcceptHand))
                         .build(),
+                )
+
+            SimDecision.ChooseStartingPlayer ->
+                listOf(
+                    base(ClientMessageType.ChooseStartingPlayerResp_097b)
+                        .setChooseStartingPlayerResp(
+                            ChooseStartingPlayerResp
+                                .newBuilder()
+                                .setTeamType(TeamType.Individual)
+                                .setSystemSeatId(seatId)
+                                .setTeamId(seatId),
+                        ).build(),
                 )
 
             // Confirm an offered auto-tap mana-payment solution by index — the
