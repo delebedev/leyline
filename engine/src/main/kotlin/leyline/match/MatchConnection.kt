@@ -16,7 +16,6 @@ import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.infra.MatchOutputMessageSink
 import leyline.protocol.HandshakeMessages
-import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -40,8 +39,6 @@ class MatchConnection(
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cardRepository: CardRepository,
-    /** Factory for per-session action recorders. */
-    private val recorderFactory: (() -> MatchRecorder)? = null,
     /** Runtime puzzle identity supplier — non-null activates puzzle mode. */
     private val puzzleIdentity: () -> String? = { null },
     /** Runtime inline puzzle definition supplier for product challenge launches. */
@@ -229,7 +226,6 @@ class MatchConnection(
                         .setSessionId("forge-session-1")
                         .setScreenName(playerName),
                 ).build()
-        ProtoDump.dump(resp, "AuthResp")
         output.send(resp)
     }
 
@@ -300,15 +296,13 @@ class MatchConnection(
 
     /** Create and register a [MatchSession] bound to [bridge]. */
     private fun createAndRegisterMatchSession(bridge: GameBridge): MatchSession {
-        val sink = MatchOutputMessageSink(output, dumpEnabled = true)
-        val rec = recorderFactory?.invoke()
+        val sink = MatchOutputMessageSink(output)
         val connection =
             ConnectionState(
                 seatId = SeatId(seatId),
                 matchId = matchId,
                 sink = sink,
                 registry = registry,
-                recorder = rec,
                 coordinator = coordinator,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         val s =
@@ -325,7 +319,7 @@ class MatchConnection(
 
     /** Create and register a read-only familiar session. */
     private fun createAndRegisterFamiliarSession(): FamiliarSession {
-        val sink = MatchOutputMessageSink(output, dumpEnabled = false)
+        val sink = MatchOutputMessageSink(output)
         val bridge = checkNotNull(registry.getMatch(matchId)?.bridge) { "Familiar match is unavailable" }
         val s = FamiliarSession(SeatId(seatId), matchId, sink, bridge)
         bindSession(s)
@@ -335,7 +329,7 @@ class MatchConnection(
     }
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
-        val sink = MatchOutputMessageSink(output, dumpEnabled = true)
+        val sink = MatchOutputMessageSink(output)
         val sessionSeat = SeatId(seatId)
         val s =
             SpectatorSession(
@@ -460,7 +454,6 @@ class MatchConnection(
         val eventName = coordinator?.selectedEventName ?: "AIBotMatch"
         val msg = HandshakeMessages.roomState(matchId, playerId, opponentName, eventName, true)
         Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
-        ProtoDump.dump(msg, "RoomState")
         output.send(msg)
     }
 
@@ -502,7 +495,6 @@ class MatchConnection(
             matchId = matchId,
             reason = MatchTeardownReason.Disconnect,
             seatId = SeatId(seatId),
-            recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
         )
     }
@@ -514,7 +506,6 @@ class MatchConnection(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
             seatId = SeatId(seatId),
-            recorder = session?.recorder,
             fallbackBridge = (session as? GameOps)?.gameBridge,
         )
         output.close()

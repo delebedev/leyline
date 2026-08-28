@@ -43,7 +43,6 @@ fun main(args: Array<String>) {
             externalHost = native.matchDoorHost,
             cardRepo = cardRepo,
             playerDbFile = paths.playerDb,
-            engineDumpDir = paths.engineDump,
             sessionJournalFile = paths.sessionJournal,
         )
 

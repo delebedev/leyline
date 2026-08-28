@@ -21,9 +21,6 @@ class ResolvedPaths(
     /** Persistent player database file. */
     val playerDb: File get() = File(stateDir, "player.db")
 
-    /** Protocol dump output directory (outbound GRE messages). */
-    val engineDump: File get() = File(artifactsRoot, "engine")
-
     /** Session journal file. */
     val sessionJournal: File get() = File(artifactsRoot, "sessions.jsonl")
 
@@ -35,7 +32,7 @@ class ResolvedPaths(
 
     fun ensureDirectories() {
         stateDir.mkdirs()
-        engineDump.mkdirs()
+        artifactsRoot.mkdirs()
     }
 
     companion object {

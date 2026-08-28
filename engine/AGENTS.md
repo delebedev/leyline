@@ -13,7 +13,7 @@ config/      EngineSettings and runtime match config.
 game/        Engine state -> GRE protobuf mapping, annotations, data, generators.
 infra/       Message sinks and output plumbing.
 match/       MatchHandler, MatchSession, FamiliarSession, combat/targeting/mulligan/puzzle handlers.
-protocol/    GRE handshake/proto dump helpers. TCP frame codecs live in native.protocol.
+protocol/    GRE handshake helpers. TCP frame codecs live in native.protocol.
 ```
 
 `leyline.tooling` (headless match harness, simclient, and neutral synthetic artifacts) lives in the separate `harness`

@@ -71,8 +71,6 @@ class LeylineServer(
     val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
-    /** Resolved protocol dump output directory (outbound GRE messages). */
-    private val engineDumpDir: File,
     private val sessionJournalFile: File,
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
@@ -108,9 +106,6 @@ class LeylineServer(
     fun start() {
         // Initialize dev-time strict checking from config
         DevCheck.init(engineSettings.dev.strict, engineSettings.dev.strictPass)
-
-        // Configure proto dump output directory
-        leyline.protocol.ProtoDump.engineDumpDir = engineDumpDir
 
         // Initialize engine card DB on a background thread — server accepts connections
         // immediately while the ~2s card parse runs. GameBridge.start() calls

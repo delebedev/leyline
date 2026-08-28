@@ -39,7 +39,6 @@ class MatchSession(
     override val matchId: String get() = connection.matchId
     val sink: MessageSink get() = connection.sink
     val registry: MatchRegistry get() = connection.registry
-    override val recorder: MatchRecorder? get() = connection.recorder
     val coordinator: MatchCoordinator? get() = connection.coordinator
 
     /** Client player ID — delegate; mutable on connection. */
@@ -95,7 +94,6 @@ class MatchSession(
         ActionPerformer(
             sink = this,
             counters = this,
-            matchRecorder = recorder,
             targetingHandler = targetingHandler,
             priorityPolicy = gameBridge.priorityPolicy,
             ctx = ctx,
@@ -413,16 +411,10 @@ class MatchSession(
             log.warn("MatchSession: reportMatchResult failed: {}", e.message)
         }
 
-        // Trigger post-game analysis
-        recorder?.run {
-            markGameOver()
-        }
-
         registry.teardownMatch(
             matchId = matchId,
             reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
             seatId = seatId,
-            recorder = recorder,
             fallbackBridge = bridge,
         )
     }
@@ -455,7 +447,6 @@ class MatchSession(
                 autopush?.onPrompt(m)
             }
         }
-        recorder?.recordOutbound(messages)
         sink.send(messages)
     }
 

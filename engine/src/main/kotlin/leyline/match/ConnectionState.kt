@@ -17,7 +17,6 @@ class ConnectionState(
     val matchId: String,
     val sink: MessageSink,
     val registry: MatchRegistry,
-    val recorder: MatchRecorder? = null,
     val coordinator: MatchCoordinator? = null,
 ) {
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */

@@ -32,7 +32,7 @@ import java.nio.file.Files
  *                  annotations/, bundle/, data/, codes/, generator/)
  *
  * Tier 2 — wire protocol (imports Tier 0 + 1):
- *   protocol       HandshakeMessages, FrameCodec, ProtoDump
+ *   protocol       HandshakeMessages, FrameCodec
  *   infra          MessageSink (wire output)
  *
  * Tier 3 — session orchestration (imports everything):

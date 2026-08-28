@@ -46,8 +46,6 @@ interface MatchOutput {
 /** Wraps a raw [MatchOutput] in the GRE-focused [MessageSink] used by sessions. */
 class MatchOutputMessageSink(
     private val output: MatchOutput,
-    /** When false, skips ProtoDump — used for mirror/familiar sinks to avoid duplicate .bin files. */
-    private val dumpEnabled: Boolean = true,
 ) : MessageSink {
     override fun send(messages: List<GREToClientMessage>) {
         val event = GreToClientEvent.newBuilder()
@@ -57,7 +55,6 @@ class MatchOutputMessageSink(
                 .newBuilder()
                 .setGreToClientEvent(event.build())
                 .build()
-        if (dumpEnabled) leyline.protocol.ProtoDump.dump(msg)
         output.send(msg)
     }
 
