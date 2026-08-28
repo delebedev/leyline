@@ -232,6 +232,7 @@ class GameBridge(
             val editor = prior.editor()
             val result = block(editor)
             val next = editor.freeze()
+            check(next.sequence == prior.sequence) { "Direct projection edits cannot change logical sequence" }
             if (next.copy(revision = prior.revision) != prior) {
                 projectionState = next
             }
@@ -792,9 +793,12 @@ class GameBridge(
         return synchronized(projectionLock) {
             projectionState.identities.forgeIdToInstanceId[forgeCardId]
                 ?: run {
+                    val prior = projectionState
                     val editor = projectionState.editor()
                     val allocated = editor.identities.getOrAlloc(forgeCardId)
-                    projectionState = editor.freeze()
+                    val next = editor.freeze()
+                    check(next.sequence == prior.sequence) { "Direct identity allocation cannot change logical sequence" }
+                    projectionState = next
                     allocated
                 }
         }
@@ -1696,11 +1700,14 @@ class GameBridge(
         selectedAdditionalCostGrpIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
-            projectionState =
+            val prior = projectionState
+            val next =
                 ProjectionState.initial(
-                    startInstanceId = projectionState.identities.nextInstanceId,
-                    sequence = projectionState.sequence,
+                    startInstanceId = prior.identities.nextInstanceId,
+                    sequence = prior.sequence,
                 )
+            check(next.sequence == prior.sequence) { "Puzzle reset cannot change logical sequence" }
+            projectionState = next
         }
 
         // Drain bridge state from previous game

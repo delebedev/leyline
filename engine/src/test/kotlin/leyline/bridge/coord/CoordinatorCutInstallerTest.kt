@@ -127,6 +127,35 @@ class CoordinatorCutInstallerTest :
             prior.sequence shouldBe LogicalSequenceState(currentGsId = 6, currentMsgId = 11)
         }
 
+        test("projection-only install changes no feed or output sequence") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val prior = board.bridge.projectionStateSnapshot()
+            val transition = board.bundleBuilder().prepareSearchBaselineReset(prior)
+
+            synchronized(board.bridge.projectionBuildLock) {
+                synchronized(coordinator.feedLock) {
+                    coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
+                }
+            }
+
+            val installed = board.bridge.projectionStateSnapshot()
+            shouldThrow<IllegalArgumentException> {
+                synchronized(board.bridge.projectionBuildLock) {
+                    synchronized(coordinator.feedLock) {
+                        coordinator.cutInstaller.installProjectionOnly(transition, onFailure = { throw it })
+                    }
+                }
+            }
+            assertSoftly {
+                installed.revision shouldBe prior.revision + 1
+                installed.sequence shouldBe prior.sequence
+                board.bridge.projectionStateSnapshot() shouldBe installed
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
+            }
+        }
+
         test("all-view install rolls back a first feed when the second feed enqueue fails") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator

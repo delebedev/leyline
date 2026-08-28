@@ -53,9 +53,7 @@ import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptFactConsumption
 import leyline.game.state.PromptFactKey
 import leyline.game.state.PromptProjectionFacts
-import leyline.game.state.StaleProjectionTransitionException
 import leyline.game.state.ViewerProjectionCursor
-import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -91,7 +89,6 @@ class BundleBuilder(
     private val matchId: String,
     val seatId: Int,
 ) {
-    private val log = LoggerFactory.getLogger(BundleBuilder::class.java)
     private val blockingInteractions = BlockingInteractionMaterializer(seatId)
     private val cardSelectWindows = CardSelectWindowMaterializer(seatId)
     private val revealChoiceWindows = RevealChoiceWindowMaterializer(seatId)
@@ -296,82 +293,6 @@ class BundleBuilder(
             intent = intent,
         )
 
-    private fun buildFrameDiff(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        revealForSeat: Int? = null,
-        eventsOverride: FrameEventLog? = null,
-        includePendingPlayerSubmittedTargets: Boolean = false,
-        supplements: List<ProjectionSupplement> = emptyList(),
-        orderPrompt: OrderPromptProjection? = null,
-        updateType: (GsmSnapshot, FrameEventLog) -> GameStateUpdate,
-    ): FrameDiff =
-        synchronized(bridge.projectionBuildLock) {
-            val input = frameInput(game, counter, revealForSeat, eventsOverride, updateType = updateType)
-            val pendingSubmittedTargets =
-                if (includePendingPlayerSubmittedTargets) {
-                    input.priorProjection.viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
-                } else {
-                    null
-                }
-            val allSupplements =
-                supplements +
-                    listOfNotNull(
-                        pendingSubmittedTargets?.let { pending ->
-                            ProjectionSupplement.SubmitPendingTargets(
-                                pending.spellInstanceId,
-                                pending.casterSeatId,
-                                pending.version,
-                            )
-                        },
-                    )
-            finalizeFrameInputLocked(input, ViewerProjectionIntent.of(supplements = allSupplements, orderPrompt = orderPrompt))
-        }
-
-    private fun finalizeFrameInputLocked(
-        input: FrameInput,
-        intent: ViewerProjectionIntent,
-    ): FrameDiff {
-        repeat(MAX_ID_TRANSITION_RETRIES) { attempt ->
-            try {
-                val result =
-                    run {
-                        val retryState =
-                            if (attempt == 0) {
-                                input.priorProjection
-                            } else {
-                                rebaseFrameIdentityState(
-                                    bridge.projectionStateSnapshot(),
-                                    input.priorProjection,
-                                )
-                            }
-                        val finalized = compileFrame(input, retryState, intent)
-                        bridge.diffListener?.invoke(
-                            input.state,
-                            retryState,
-                            intent,
-                            finalized.gsm,
-                        )
-                        bridge.commitProjection(finalized.transition)
-                        if (input.closesPlaybackFrame) {
-                            bridge.acknowledgePlaybackFrame(SeatId(seatId))
-                        }
-                        finalized
-                    }
-                return FrameDiff(
-                    input.state.gameStateId,
-                    result.projectionSnapshot,
-                    result,
-                    input.state.events,
-                    input.state.previousSnapshot,
-                )
-            } catch (stale: StaleProjectionTransitionException) {
-                if (attempt == MAX_ID_TRANSITION_RETRIES - 1) throw stale
-            }
-        }
-        error("unreachable")
-    }
-
     private fun prepareFrameInputLocked(
         input: FrameInput,
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
@@ -395,23 +316,6 @@ class BundleBuilder(
     internal fun pendingSubmittedTargets(): PendingSubmittedTargets? = bridge.viewerProjectionCursor().pendingSubmittedTargets
 
     internal fun previousProjectionSnapshot(): GsmSnapshot? = bridge.viewerProjectionCursor().previousSnapshot
-
-    /**
-     * Post-action state bundle:
-     *   GRE 1: Diff GameStateMessage with embedded actions (only changed zones/objects)
-     *   GRE 2: ActionsAvailableReq
-     */
-    fun postAction(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        revealForSeat: Int? = null,
-        priorityCandidates: PriorityActionCandidates? = null,
-    ): BundleResult =
-        run {
-            synchronized(bridge.projectionBuildLock) {
-                commitActionWindow(preparePostAction(game, counter, revealForSeat, priorityCandidates))
-            }
-        }
 
     internal fun preparePostAction(
         game: Game,
@@ -629,42 +533,6 @@ class BundleBuilder(
             }
         return Triple(projected.first, projectionNext, projected.second)
     }
-
-    private fun commitActionWindow(prepared: ActionWindowPrepared): BundleResult {
-        prepared.transition?.let(bridge::commitProjection)
-        if (prepared.closesPlaybackFrame) bridge.acknowledgePlaybackFrame(SeatId(seatId))
-        return prepared.bundle
-    }
-
-    /** Standalone one-view state projection for isolated materializer tests. */
-    fun stateOnlyDiff(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        revealForSeat: Int? = null,
-    ): BundleResult =
-        run {
-            val diff =
-                buildFrameDiff(game, counter, revealForSeat, includePendingPlayerSubmittedTargets = true) { snap, _ ->
-                    StateMapper.resolveUpdateType(snap, seatId)
-                }
-            val nextGs = diff.gameStateId
-            val result = diff.result
-            val gs = result.gsm
-
-            // State-only updates still use the content GSM + echo envelope. Human-priority
-            // postAction bundles stop at ActionsAvailableReq instead.
-            val messages =
-                listOf(
-                    makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                        it.gameStateMessage = gs
-                    },
-                ) + coinFlipPromptMessages(diff.events.events, nextGs, counter) +
-                    listOf(
-                        buildEchoDiffGsm(counter, gs.update, previousGsId = gs.gameStateId),
-                    )
-
-            BundleResult(messages)
-        }
 
     /** Prepare one state-only cut for a pre-block synchronization window. */
     internal fun prepareStateOnlyDiff(
@@ -967,16 +835,6 @@ class BundleBuilder(
     // MatchSession uses these instead of calling RequestBuilder directly,
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
-    /** Build playable actions for a seat (with legality checks). */
-    @org.jetbrains.annotations.VisibleForTesting
-    internal fun buildActions(priorityCandidates: PriorityActionCandidates? = null): ActionsAvailableReq {
-        val game = bridge.getGame() ?: return ActionMapper.passOnlyActions()
-        return projectAndCommit {
-            val snap = GsmSnapshot.capture(game, bridge, matchId, 0)
-            ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge, priorityCandidates).actions
-        }
-    }
-
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
 
@@ -1102,24 +960,6 @@ class BundleBuilder(
 
     internal fun damageAssignmentConfirmation(counter: LogicalSequencePlanner): BundleResult =
         blockingInteractions.damageConfirmation(counter)
-
-    /**
-     * Phase transition bundle matching expected client-facing message pattern (5 messages):
-     *   1. GS Diff SendHiFi (2x PhaseOrStepModified, gameInfo, players, actions)
-     *   2. GS Diff SendHiFi echo (turnInfo + actions only)
-     *   3. GS Diff SendAndRecord (1x PhaseOrStepModified, actions)
-     *   4. PromptReq (promptId=37)
-     *   5. ActionsAvailableReq (promptId=2)
-     */
-    fun phaseTransitionDiff(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        priorityActions: ActionsAvailableReq? = null,
-        includePriorityPrompt: Boolean = true,
-    ): BundleResult =
-        synchronized(bridge.projectionBuildLock) {
-            commitActionWindow(preparePhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt))
-        }
 
     internal fun preparePhaseTransitionDiff(
         game: Game,
@@ -1306,15 +1146,6 @@ class BundleBuilder(
             configureRequest
         }
 
-    /**
-     * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
-     */
-    fun declareAttackersBundle(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        prebuiltReq: DeclareAttackersReq? = null,
-    ): BundleResult = commitActionWindow(prepareDeclareAttackers(game, counter, prebuiltReq))
-
     internal fun prepareDeclareAttackers(
         game: Game,
         counter: LogicalSequencePlanner,
@@ -1438,14 +1269,6 @@ class BundleBuilder(
             }
         return ActionWindowPrepared(bundle, ProjectionTransition(prior.revision, next))
     }
-
-    /**
-     * Declare-blockers bundle: Diff (DeclareBlock step) + DeclareBlockersReq (prompt id=7).
-     */
-    fun declareBlockersBundle(
-        game: Game,
-        counter: LogicalSequencePlanner,
-    ): BundleResult = commitActionWindow(prepareDeclareBlockers(game, counter))
 
     internal fun prepareDeclareBlockers(
         game: Game,
@@ -1958,41 +1781,6 @@ class BundleBuilder(
         }
     }
 
-    fun selectNBundle(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        envelope: SelectNEnvelope,
-    ): BundleResult {
-        val diff = buildFrameDiff(game, counter) { _, _ -> GameStateUpdate.Send }
-        return selectNBundleFromDiff(diff, counter, envelope)
-    }
-
-    private fun selectNBundleFromDiff(
-        diff: FrameDiff,
-        counter: LogicalSequencePlanner,
-        envelope: SelectNEnvelope,
-    ): BundleResult {
-        val snap = diff.snap
-        val baseGs =
-            when (envelope.gameStateAugmentation) {
-                SelectNEnvelope.GameStateAugmentation.LookAndPick ->
-                    attachLookAndPickGameObjects(diff.result.gsm, envelope.req, snap)
-                SelectNEnvelope.GameStateAugmentation.None -> diff.result.gsm
-            }
-        val gs =
-            baseGs
-                .toBuilder()
-                .setPendingMessageCount(1)
-                .build()
-        return promptRequestBundle(diff, counter, gs, GREMessageType.SelectNreq) {
-            it.selectNReq = envelope.req
-            it.setPrompt(envelope.prompt)
-            if (envelope.allowCancel != AllowCancel.None_a526) {
-                it.allowCancel = envelope.allowCancel
-            }
-        }
-    }
-
     private fun promptRequestBundle(
         diff: FrameDiff,
         counter: LogicalSequencePlanner,
@@ -2008,69 +1796,6 @@ class BundleBuilder(
         val msg2 = makeGRE(requestType, nextGs, counter.nextMsgId(), configureRequest)
 
         return BundleResult(listOf(msg1, msg2))
-    }
-
-    /**
-     * Look-and-pick GSM augmentation. Adds full [GameObjectInfo] entries for the
-     * SelectN candidate iids with `visibility = Private, viewers = [seatId]`,
-     * keeping them in the chooser's library zone.
-     *
-     * Required because the client renders the SelectN panel from
-     * [GameObjectInfo] entries, not from the [SelectNReq.ids] list alone. With
-     * the candidates' iids in the library but no per-iid object data sent, the
-     * panel comes through blank. Adding the entries with the chooser as the sole
-     * `viewer` reveals the cards to the picking player without leaking them to
-     * the opponent.
-     *
-     * Routes through [ObjectMapper.buildFromSnapshot] so the canonical card →
-     * GameObjectInfo pipeline stays the single source of truth (P/T,
-     * extrinsic keywords, attachment state, etc.). The only override on top
-     * is `addViewers(seatId)`.
-     */
-    private fun attachLookAndPickGameObjects(
-        gsm: GameStateMessage,
-        req: SelectNReq,
-        snap: GsmSnapshot,
-    ): GameStateMessage {
-        if (req.idsList.isEmpty()) return gsm
-        val gsBuilder = gsm.toBuilder()
-        val libraryZoneId = ZoneIds.libraryOf(seatId)
-        val existingByIid = gsBuilder.gameObjectsList.withIndex().associate { (idx, obj) -> obj.instanceId to idx }
-        for (iid in req.idsList) {
-            val forgeCardId =
-                bridge.getForgeCardId(InstanceId(iid)) ?: run {
-                    log.warn("attachLookAndPickGameObjects: no ForgeCardId for iid={}", iid)
-                    continue
-                }
-            val cardSnap =
-                snap.objects[forgeCardId] ?: run {
-                    log.warn(
-                        "attachLookAndPickGameObjects: no CardSnapshot for forgeCardId={} iid={}",
-                        forgeCardId.value,
-                        iid,
-                    )
-                    continue
-                }
-            val obj =
-                ObjectMapper
-                    .buildFromSnapshot(
-                        cardSnap = cardSnap,
-                        instanceId = iid,
-                        zoneId = libraryZoneId,
-                        ownerSeatId = seatId,
-                        cardProto = bridge.cardProto,
-                        visibility = Visibility.Private,
-                    ).toBuilder()
-                    .addViewers(seatId)
-                    .build()
-            val existingIdx = existingByIid[iid]
-            if (existingIdx != null) {
-                gsBuilder.setGameObjects(existingIdx, obj)
-            } else {
-                gsBuilder.addGameObjects(obj)
-            }
-        }
-        return gsBuilder.build()
     }
 
     /** Prepare the deferred cast-cost CastingTimeOptionsReq cut without installing projection state. */
@@ -2450,19 +2175,10 @@ class BundleBuilder(
     }
 
     /**
-     * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
-     *
-     * **Where echoes fire.** State-only and remote-seat content-bearing
-     * emissions append one of these. Same applies to the `selectTargets`
-     * re-prompt cycle in `TargetingHandler.onSelectTargets`. The empirical
-     * pattern is "one empty echo per content GSM, same updateType."
-     *
-     * **Where echoes do not fire.** Human-priority [postAction] bundles and
-     * prompt-bearing bundles — coordinator-owned targeting, [selectNBundle],
-     * [prepareCastingTimeOptions], coordinator-owned payment cuts, [declareAttackersBundle],
-     * [declareBlockersBundle] — ship `[GSM, Request]` without a trailing echo.
-     * Targeting re-entry frames carry their echo through [TargetingWindowMaterializer]
-     * instead of as a tag-along on the initial request bundle.
+     * Builds the empty diff echo used after content GSMs prepared by
+     * [compilePlaybackCut], [optionalInteractionBundle], [prepareSearchWindow],
+     * and [preparePhaseTransitionDiff]. Other prompt materializers return their
+     * prepared state/request batches without adding an echo here.
      */
     fun buildEchoDiffGsm(
         counter: LogicalSequencePlanner,
@@ -2487,29 +2203,6 @@ class BundleBuilder(
                     .setUpdate(updateType)
                     .build()
         }
-    }
-
-    private fun <T> projectAndCommit(block: () -> T): T =
-        synchronized(bridge.projectionBuildLock) {
-            val prior = bridge.projectionStateSnapshot()
-            val (result, next) = bridge.editProjection(prior) { block() }
-            bridge.commitProjection(ProjectionTransition(prior.revision, next))
-            result
-        }
-
-    private fun rebaseFrameIdentityState(
-        committed: ProjectionState,
-        frameState: ProjectionState,
-    ): ProjectionState {
-        val (_, rebased) =
-            bridge.editProjection(committed) { editor ->
-                for ((frameInstanceId, grpId) in frameState.tokenGrpIds) {
-                    val forgeCardId = frameState.identities.instanceIdToForgeId[InstanceId(frameInstanceId)] ?: continue
-                    val rebasedInstanceId = editor.identities.getOrAlloc(forgeCardId)
-                    editor.tokenGrpIds.putIfAbsent(rebasedInstanceId.value, grpId)
-                }
-            }
-        return rebased.copy(revision = committed.revision)
     }
 
     /** Build a single GRE message. */
@@ -2579,7 +2272,6 @@ class BundleBuilder(
         }
 
     companion object {
-        private const val MAX_ID_TRANSITION_RETRIES = 3
         private const val COIN_FLIP_WIN_LOCALIZATION_ID = 47
         private const val COIN_FLIP_LOSS_LOCALIZATION_ID = 48
 

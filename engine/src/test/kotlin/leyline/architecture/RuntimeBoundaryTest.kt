@@ -1,6 +1,7 @@
 package leyline.architecture
 
 import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaFieldAccess
 import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields
@@ -68,27 +69,71 @@ class RuntimeBoundaryTest :
                 .check(classes)
         }
 
-        test("one installer owns the coordinator cut transaction") {
-            // Source-level, deliberately: the property is the co-occurrence of a
-            // queue append and a projection commit in one class, which reads as two
-            // unrelated call edges in the class model. MatchSearchInteractionRuntime
-            // commits a projection without appending a batch and is not an owner.
-            val owners = setOf("CoordinatorCutInstaller.kt")
+        test("the cut installer is the only production projection commit caller") {
+            val callers =
+                classes
+                    .flatMap { it.methodCallsFromSelf }
+                    .filter {
+                        it.targetOwner.name == "leyline.game.state.GameBridge" &&
+                            kotlinName(it.target.name) == "commitProjection" &&
+                            it.originOwner.name.substringBefore('$') != "leyline.game.state.GameBridge"
+                    }.map { it.originOwner.name.substringBefore('$') }
+                    .toSet()
+
+            callers shouldBe setOf("leyline.bridge.coord.CoordinatorCutInstaller")
+        }
+
+        test("projection state field writers match the publication and engine-shell inventory") {
+            val bridge = classes.single { it.name == "leyline.game.state.GameBridge" }
+            val writers =
+                bridge.fieldAccessesFromSelf
+                    .filter { it.target.name == "projectionState" && it.accessType == JavaFieldAccess.AccessType.SET }
+                    .map { kotlinName(it.origin.name) }
+                    .toSet()
+
+            writers shouldBe
+                setOf(
+                    "<init>",
+                    "getOrAllocInstanceId",
+                    "installProjection",
+                    "replaceProjectionStateForTest",
+                    "resetForPuzzle",
+                    "updateProjection",
+                )
+        }
+
+        test("state-bearing single-feed cuts match the classified call-site inventory") {
+            val preparedBundleCall =
+                "PreparedCut.prepare(prior,planner,prepared.bundle.messages," +
+                    "prepared.transition,prepared.closesPlaybackFrame)"
+            val allowed =
+                listOf(
+                    "MatchActionWindowRuntime.kt:PreparedCut.prepare(prior,planner,messages," +
+                        "prepared.transition,prepared.closesPlaybackFrame)",
+                    "MatchBlockingInteractionRuntime.kt:${preparedBundleCall.dropLast(1)},)",
+                    "MatchBlockingInteractionRuntime.kt:${preparedBundleCall.dropLast(1)},)",
+                    "MatchLifecycleRuntime.kt:PreparedCut.prepare(prior,planner,messages," +
+                        "full.transition,closesPlaybackFrame=false)",
+                    "MatchLifecycleRuntime.kt:PreparedCut.prepare(prior,planner,prepared.messages," +
+                        "prepared.transition,closesPlaybackFrame=false)",
+                    "MatchTargetingInteractionRuntime.kt:$preparedBundleCall",
+                )
             val coordRoot = EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord")
-            val installers = mutableSetOf<String>()
+            val calls = mutableListOf<String>()
             Files.walk(coordRoot).use { stream ->
                 stream
                     .filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") }
                     .forEach { file ->
-                        val source = Files.readString(file)
-                        if ("commitProjection(" in source && "queue.add(" in source) {
-                            installers += coordRoot.relativize(file).toString()
-                        }
+                        preparedCutCalls(Files.readString(file))
+                            .filterNot { "projection = null" in it }
+                            .forEach { call ->
+                                calls += "${file.fileName}:" + call.filterNot(Char::isWhitespace)
+                            }
                     }
             }
 
-            withClue("cut installation must stay centralized; owners are $owners") {
-                installers shouldBe owners
+            withClue("state-bearing single-feed cuts must remain player-private or seat-scoped") {
+                calls.sorted() shouldBe allowed.sorted()
             }
         }
 
@@ -309,4 +354,26 @@ private fun methodCall(
     description: String,
 ) = object : DescribedPredicate<JavaMethodCall>(description) {
     override fun test(call: JavaMethodCall): Boolean = call.targetOwner.name == owner && kotlinName(call.target.name) == name
+}
+
+private fun preparedCutCalls(source: String): List<String> {
+    val marker = "PreparedCut.prepare("
+    val calls = mutableListOf<String>()
+    var searchFrom = 0
+    while (true) {
+        val start = source.indexOf(marker, searchFrom)
+        if (start < 0) return calls
+        var depth = 1
+        var cursor = start + marker.length
+        while (cursor < source.length && depth > 0) {
+            when (source[cursor]) {
+                '(' -> depth++
+                ')' -> depth--
+            }
+            cursor++
+        }
+        check(depth == 0) { "Unclosed PreparedCut.prepare call" }
+        calls += source.substring(start, cursor)
+        searchFrom = cursor
+    }
 }

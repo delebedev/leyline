@@ -214,21 +214,23 @@ flowchart LR
     K --> B["Committed viewer batch"]
 ```
 
-`StateProjectionCompiler.compileOneViewer` edits a private projection value and
-returns a tentative result. Client identities, visibility baselines, effect and
-annotation lifecycles, and prompt facts advance only when the surrounding
-transition installs. A stale or failed attempt publishes nothing from that
-attempt and retains the exact pending cut for diagnosis or terminal handling.
+`StateProjectionCompiler.compileViewers` folds ordered viewer inputs over one
+private projection value and returns viewer results plus one tentative
+transition. `compileOneViewer` remains an isolated one-view compatibility entry.
+Client identities, visibility baselines, effect and annotation lifecycles, and
+prompt facts advance only when the surrounding transition installs. A stale or
+failed attempt publishes nothing from that attempt and retains the exact pending
+cut for diagnosis or terminal handling.
 
 `AnnotationFrameFinalizer` orders and numbers a complete transient annotation
 frame once inside compilation. Persistent annotation state remains part of the
 returned projection value. Per-family materializers may add explicit viewer
 intent, but the projection core does not query live Forge state.
 
-Current compilation is single-view. Atomic multi-view compilation and the
-remaining lifecycle/output convergence stay within the direction established
-by [ADR 0015](decisions/0015-functional-core-imperative-shell.md); this document
-does not maintain a migration checklist.
+Viewer cuts compile atomically and install one projection transition and output
+ordinal across their feeds. State-bearing publication and existing no-output
+projection transitions commit through `CoordinatorCutInstaller` while the
+coordinator holds its publication lock.
 
 ## Output and delivery
 
@@ -242,7 +244,11 @@ in `ProjectionState`. A coordinator cut forks a private planner from that value,
 then installs the resulting sequence, projection, identities, acknowledgements,
 and owned output together. Transport reads committed horizons but cannot advance
 them. The ordering contract is documented in
-[`bridge-threading.md`](bridge-threading.md).
+[bridge-threading.md](bridge-threading.md).
+
+Direct `GameBridge` identity, cursor, and zone edits are engine-shell projection
+state changes. They allocate no logical sequence or output and are not
+publication.
 
 ## Decision map
 

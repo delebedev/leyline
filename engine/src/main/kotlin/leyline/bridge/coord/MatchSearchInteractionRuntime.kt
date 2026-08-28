@@ -48,6 +48,7 @@ internal class MatchSearchInteractionRuntime(
             kernel.afterInstall = value
         }
     internal var beforeTimeoutClaim: (() -> Unit)? = null
+    internal var beforeBaselineResetInstall: (() -> Unit)? = null
     internal var afterBaselineResetBeforeRelease: (() -> Unit)? = null
     internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
@@ -169,10 +170,7 @@ internal class MatchSearchInteractionRuntime(
 
     private fun resetBaseline() {
         val transition = owner.feed(owner.humanSeat).builder.prepareSearchBaselineReset(owner.bridge.projectionStateSnapshot())
-        try {
-            owner.bridge.commitProjection(transition)
-        } catch (ex: Exception) {
-            owner.fail(ex)
-        }
+        beforeBaselineResetInstall?.invoke()
+        owner.cutInstaller.installProjectionOnly(transition, owner::fail)
     }
 }

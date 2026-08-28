@@ -124,11 +124,13 @@ internal class MatchLifecycleRuntime(
     /** Claim the automatic Familiar startup transition once both match seats are connected. */
     fun claimFamiliarStartup(): Boolean =
         synchronized(owner.bridge.projectionBuildLock) {
-            if (familiarStartupClaimed) {
-                false
-            } else {
-                familiarStartupClaimed = true
-                true
+            synchronized(owner.feedLock) {
+                if (familiarStartupClaimed) {
+                    false
+                } else {
+                    familiarStartupClaimed = true
+                    true
+                }
             }
         }
 

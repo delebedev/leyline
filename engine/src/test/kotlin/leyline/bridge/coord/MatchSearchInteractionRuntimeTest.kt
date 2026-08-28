@@ -2,6 +2,8 @@ package leyline.bridge.coord
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -18,6 +20,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.PlaybackTerminalFailure
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.Board
@@ -242,6 +245,49 @@ class MatchSearchInteractionRuntimeTest :
             coordinator.search.afterBaselineResetBeforeRelease = null
         }
 
+        test("stale shared baseline reset terminalizes search and releases its waiter") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val waiterFailure = AtomicReference<Throwable?>()
+            val finished = CountDownLatch(1)
+            Thread {
+                try {
+                    coordinator.search.awaitSearch(request(board), null)
+                } catch (ex: Throwable) {
+                    waiterFailure.set(ex)
+                } finally {
+                    finished.countDown()
+                }
+            }.start()
+            val published = awaitPublished(coordinator)
+            val selected =
+                coordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .single { it.hasSearchReq() }
+                    .searchReq.itemsSoughtList
+                    .first()
+            val prior = board.bridge.projectionStateSnapshot()
+            coordinator.search.beforeBaselineResetInstall = {
+                board.bridge.getOrAllocInstanceId(ForgeCardId(9_999_999))
+            }
+
+            val terminal =
+                shouldThrow<PlaybackTerminalFailure> {
+                    coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected))
+                }
+
+            assertSoftly {
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                waiterFailure.get() shouldBe terminal
+                coordinator.failure() shouldBe terminal
+                coordinator.search.current().shouldBeNull()
+                board.bridge.committedSequence() shouldBe prior.sequence
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
+            }
+        }
+
         test("bridge timeout returns the configured default and requests later progression") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
@@ -259,11 +305,14 @@ class MatchSearchInteractionRuntimeTest :
             }.start()
             awaitPublished(coordinator)
             coordinator.drain(SeatId(1))
+            val publishedSequence = board.bridge.committedSequence()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
                 signal.awaitSignal(3_000) shouldBe true
+                board.bridge.committedSequence() shouldBe publishedSequence
+                coordinator.drain(SeatId(1)).shouldBeEmpty()
                 coordinator.search
                     .current()
                     .shouldBeNull()

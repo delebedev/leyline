@@ -108,6 +108,21 @@ internal data class CutInstallHooks(
 internal class CoordinatorCutInstaller(
     private val owner: MatchCutCoordinator,
 ) {
+    /** Installs an existing no-output transition without allocating or publishing output state. */
+    fun installProjectionOnly(
+        transition: ProjectionTransition,
+        onFailure: (Throwable) -> Nothing,
+    ) {
+        try {
+            val prior = owner.bridge.projectionStateSnapshot()
+            require(transition.expectedRevision == prior.revision) { "Projection-only transition must use the committed revision" }
+            require(transition.nextState.sequence == prior.sequence) { "Projection-only transition cannot advance output sequence" }
+            owner.bridge.commitProjection(transition)
+        } catch (ex: Exception) {
+            onFailure(ex)
+        }
+    }
+
     /**
      * Installs [cut] into [feed], then runs [onInstalled] inside the same
      * transaction once the cut is fully published.
