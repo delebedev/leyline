@@ -1,0 +1,13 @@
+name: "Serpent Specialist"
+grpId: 105081
+titleId: 1117853
+abilities:
+  - id: 1
+    textId: 100
+    category: 3
+  - id: 206280
+    textId: 1117856
+    category: 1
+    baseId: 410
+    mana: "o3oG"
+expansionCode: "MSH"

@@ -147,6 +147,29 @@ scenarios:
           all:
             - annotation_seen: AbilityExhausted
             - stack_empty: true
+  - id: power-up-serpent-specialist
+    puzzle: power-up-serpent-specialist
+    run: wait until the starting Serpent Specialist is not newly entered, then activate Power Up once for its full cost
+    expect: Serpent Specialist becomes exactly 3/3 and its Power Up ability is exhausted
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 30
+      - attack_all: {}
+      - pass_until:
+          phase: MAIN1
+          max_passes: 30
+      - expect:
+          action: { type: activate, card: Serpent Specialist }
+      - activate: { card: Serpent Specialist, ability_grp_id: 206280 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
+            - annotation_seen:
+                type: AbilityExhausted
+                details: { AbilityGrpId: 206280, UsesRemaining: 0 }
+            - stack_empty: true
   - id: boast-usher-of-the-fallen
     puzzle: boast-usher-of-the-fallen
     run: attack with Usher of the Fallen, then activate Boast
