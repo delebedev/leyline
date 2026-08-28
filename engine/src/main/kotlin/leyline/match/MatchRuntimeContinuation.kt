@@ -1,6 +1,5 @@
 package leyline.match
 
-import leyline.bridge.handoff.ModalChoiceCleanupToken
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 
@@ -11,12 +10,8 @@ internal sealed interface HandlerResult {
 
     data object Resume : HandlerResult
 
-    data class ResumeAfterEngineResume(
-        val cleanup: ModalChoiceCleanupToken,
-    ) : HandlerResult
-
     val resumes: Boolean
-        get() = this === Resume || this is ResumeAfterEngineResume
+        get() = this === Resume
 }
 
 /**
@@ -35,17 +30,12 @@ internal class MatchRuntimeContinuation(
 
     fun awaitHorizon(
         completedActionId: String?,
-        result: HandlerResult = HandlerResult.Resume,
+        afterEngineResume: (() -> Unit)? = null,
         timeoutMs: Long = bridge.priorityWaitMs,
     ) {
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
-        if (result is HandlerResult.ResumeAfterEngineResume) {
-            if (!awaitNextSeatHorizon(deadline, completedActionId)) return
-            bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(result.cleanup)
-            deliverHorizon()
-            return
-        }
         if (!awaitNextSeatHorizon(deadline, completedActionId)) return
+        afterEngineResume?.invoke()
         deliverHorizon()
     }
 

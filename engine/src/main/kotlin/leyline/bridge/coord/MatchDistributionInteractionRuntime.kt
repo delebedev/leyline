@@ -8,6 +8,8 @@ import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.PublishedDistributionInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact fixed-total allocation lifecycle beneath [MatchCutCoordinator]. */
@@ -23,13 +25,18 @@ internal class MatchDistributionInteractionRuntime(
         override val future: CompletableFuture<DistributionInteractionResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<DistributionInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val slot =
         settled.mount<Window, DistributionInteractionResult>(
             PromptTerminalPriority.Distribution,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message ->
+                message.type == ClientMessageType.DistributionResp_097b ||
+                    message.type == ClientMessageType.CancelActionReq_097b
+            },
+            admitLocked = ::admitLocked,
+            cancelCapable = true,
         )
 
     override fun awaitDistribution(
@@ -39,48 +46,25 @@ internal class MatchDistributionInteractionRuntime(
 
     fun current(): PublishedDistributionInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        rows: List<Pair<DistributionTargetRef, Int>>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            submitLocked(pending, rows)
-        }
-
-    fun submitWire(
-        interactionId: String,
-        gameStateId: Int,
-        rows: List<Pair<Int, Int>>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            submitLocked(
-                pending,
-                rows.map { (wireId, amount) ->
-                    val target = pending.targetByWireId[wireId] ?: return false
-                    target to amount
-                },
-            )
-        }
-
-    fun cancel(
-        interactionId: String,
-        gameStateId: Int,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            slot.completeLocked(
-                pending,
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<DistributionInteractionResult>? {
+        if (message.type == ClientMessageType.CancelActionReq_097b) {
+            return SettledPromptOwner.SlotAdmission(
                 DistributionInteractionResult(
                     pending.value.targets.associateWith { 0 },
                     cancelled = true,
                 ),
             )
         }
+        val rows =
+            message.distributionResp.distributionsList.map { row ->
+                val target = pending.targetByWireId[row.instanceId] ?: return null
+                target to row.amount
+            }
+        return validate(pending, rows)?.let(SettledPromptOwner::SlotAdmission)
+    }
 
     private fun publish(initial: DistributionWindowValue): Window =
         slot.publish(
@@ -121,19 +105,20 @@ internal class MatchDistributionInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
 
-    private fun submitLocked(
+    private fun validate(
         pending: Window,
         rows: List<Pair<DistributionTargetRef, Int>>,
-    ): Boolean {
+    ): DistributionInteractionResult? {
         val expected = pending.value.targets.toSet()
-        if (rows.size != expected.size || rows.map { it.first }.toSet() != expected) return false
-        if (rows.any { it.second < pending.value.minPerTarget }) return false
-        if (rows.sumOf { it.second } != pending.value.amount) return false
-        return slot.completeLocked(pending, DistributionInteractionResult(rows.toMap()))
+        if (rows.size != expected.size || rows.map { it.first }.toSet() != expected) return null
+        if (rows.any { it.second < pending.value.minPerTarget }) return null
+        if (rows.sumOf { it.second } != pending.value.amount) return null
+        return DistributionInteractionResult(rows.toMap())
     }
 
     private fun await(

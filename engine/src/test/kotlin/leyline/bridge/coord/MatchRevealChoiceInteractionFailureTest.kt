@@ -125,21 +125,19 @@ class MatchRevealChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.revealChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(ids[0])) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0])), published.gameStateId + 1) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0], ids[0])), published.gameStateId) shouldBe
                     false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId + 1, listOf(ids[0])) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[0], ids[0])) shouldBe
-                    false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
                 coordinator.revealChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe false
             }
         }
 
@@ -243,7 +241,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val responseFinished = CountDownLatch(1)
             Thread {
                 responseStarted.countDown()
-                runCatching { coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id)) }
+                runCatching { coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId) }
                     .onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()
@@ -317,7 +315,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id))
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId)
                 } shouldBe coordinator.failure()
             }
         }

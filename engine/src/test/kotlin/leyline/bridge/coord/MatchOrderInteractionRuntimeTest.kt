@@ -143,10 +143,10 @@ class MatchOrderInteractionRuntimeTest :
                         AnnotationType.ObjectIdChanged,
                         AnnotationType.ZoneTransfer_af5a,
                     )
-                coordinator.order.submit(published.interactionId, published.gameStateId + 1, orderedIds) shouldBe false
-                coordinator.order.submit(published.interactionId, published.gameStateId, orderedIds) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.orderResp(orderedIds), published.gameStateId + 1) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.orderResp(orderedIds), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.order.submit(published.interactionId, published.gameStateId, orderedIds) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.orderResp(orderedIds), published.gameStateId) shouldBe false
                 result.get().optionIndices shouldContainExactly listOf(1, 0)
                 (result.get().handles[0] === options[1]) shouldBe true
                 (result.get().handles[1] === options[0]) shouldBe true
@@ -175,22 +175,18 @@ class MatchOrderInteractionRuntimeTest :
                 order.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_BOTTOM
                 order.orderReq.orderingContext shouldBe OrderingContext.OrderingForBottom
                 order.allowUndo shouldBe false
-                coordinator.order.submit(
-                    published.interactionId,
+                coordinator.acceptSettled(leyline.testkit.orderResp(listOf(order.orderReq.idsList.first())), published.gameStateId) shouldBe
+                    false
+                coordinator.acceptSettled(leyline.testkit.orderResp(listOf(1, 1)), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit.orderResp(listOf(order.orderReq.idsList.first(), Int.MAX_VALUE)),
                     published.gameStateId,
-                    listOf(order.orderReq.idsList.first()),
                 ) shouldBe
                     false
-                coordinator.order.submit(published.interactionId, published.gameStateId, listOf(1, 1)) shouldBe false
-                coordinator.order.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(order.orderReq.idsList.first(), Int.MAX_VALUE),
-                ) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
-                coordinator.order.submit(published.interactionId, published.gameStateId, order.orderReq.idsList) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.orderResp(order.orderReq.idsList), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
         }

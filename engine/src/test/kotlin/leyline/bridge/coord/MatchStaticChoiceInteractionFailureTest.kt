@@ -92,30 +92,20 @@ class MatchStaticChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.staticChoices.submit(
-                    "${published.interactionId}-stale",
-                    published.gameStateId,
-                    listOf(values[0]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0])), published.gameStateId + 1) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId + 1, listOf(values[0])) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0], values[0])), published.gameStateId) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.staticChoices.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(values[0], values[0]),
-                ) shouldBe
-                    false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
                 coordinator.staticChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[1])) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[1])), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[1])) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[1])), published.gameStateId) shouldBe false
             }
         }
 
@@ -158,7 +148,7 @@ class MatchStaticChoiceInteractionFailureTest :
             Thread {
                 responseStarted.countDown()
                 runCatching {
-                    coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[0]))
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0])), published.gameStateId)
                 }.onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()

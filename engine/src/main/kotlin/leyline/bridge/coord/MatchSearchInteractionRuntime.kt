@@ -8,6 +8,8 @@ import leyline.bridge.handoff.SearchInteractionTimeoutException
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
@@ -23,7 +25,6 @@ internal class MatchSearchInteractionRuntime(
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
     ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val capture = SearchWindowCapture(owner)
@@ -31,6 +32,8 @@ internal class MatchSearchInteractionRuntime(
         settled.mount<Window, List<Int>>(
             PromptTerminalPriority.Search,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.SearchResp_097b },
+            admitLocked = ::admitLocked,
         )
 
     internal var beforeBaselineResetInstall: (() -> Unit)? = null
@@ -53,27 +56,28 @@ internal class MatchSearchInteractionRuntime(
 
     fun current(): PublishedSearchInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-            val selectedOptions =
-                if (selectedInstanceIds.isEmpty()) {
-                    if (pending.value.minFind != 0) return false
-                    listOf(pending.value.optionCount)
-                } else {
-                    if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return false
-                    selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-                }
-            resetBaseline()
-            afterBaselineResetBeforeRelease?.invoke()
-            slot.completeLocked(pending, selectedOptions)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<List<Int>>? {
+        val selectedInstanceIds = message.searchResp.itemsFoundList
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val selectedOptions =
+            if (selectedInstanceIds.isEmpty()) {
+                if (pending.value.minFind != 0) return null
+                listOf(pending.value.optionCount)
+            } else {
+                if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return null
+                selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+            }
+        return SettledPromptOwner.SlotAdmission(
+            selectedOptions,
+            beforeComplete = {
+                resetBaseline()
+                afterBaselineResetBeforeRelease?.invoke()
+            },
+        )
+    }
 
     private fun publish(value: SearchWindowValue): Window =
         slot.publish(
@@ -119,6 +123,7 @@ internal class MatchSearchInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )

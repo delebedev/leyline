@@ -1,5 +1,7 @@
 package leyline.match
 
+import leyline.bridge.coord.SettledPromptAdmission
+import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
@@ -359,6 +361,11 @@ class MatchConnection(
     private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
+        if (greMsg.type != ClientMessageType.ConnectReq_097b) {
+            val admission = (session as? MatchSession)?.admitSettled(greMsg)
+            if (admission != null && admission != SettledPromptAdmission.NotOwned) return
+        }
+
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
         // game action that requires a live session — dispatched against Connected,
@@ -373,29 +380,20 @@ class MatchConnection(
             ClientMessageType.MulliganResp_097b ->
                 withConnectionOwnedResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
 
-            // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
-            // During mulligan phase, route to mulligan handler; otherwise to session.
-            ClientMessageType.GroupResp_097b -> dispatchGroupResp(greMsg)
+            ClientMessageType.GroupResp_097b -> dispatchLondonTuck(greMsg)
 
             else -> dispatchToSession(greMsg)
         }
     }
 
-    private fun dispatchGroupResp(greMsg: ClientToGREMessage) {
+    private fun dispatchLondonTuck(greMsg: ClientToGREMessage) {
         val gameSession = session as? GameOps
         val bridge = gameSession?.gameBridge
-        when (
-            groupResponseRoute(
-                groupingPending = bridge?.cutCoordinator?.grouping?.current() != null,
-                mulliganPhase = bridge?.mulliganBridge(SeatId(seatId))?.pendingPrompt()?.phase,
-            )
-        ) {
-            GroupResponseRoute.Grouping -> checkNotNull(gameSession).onGroupResp(greMsg)
-            GroupResponseRoute.LondonTuck -> {
-                checkNotNull(gameSession)
-                withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
-            }
-            GroupResponseRoute.Stale -> log.warn("Match Door GRE: stale GroupResp without Grouping or London-tuck window")
+        if (bridge?.mulliganBridge(SeatId(seatId))?.pendingPrompt()?.phase == MulliganPhase.WaitingTuck) {
+            checkNotNull(gameSession)
+            withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
+        } else {
+            log.warn("Match Door GRE: stale GroupResp without London-tuck window")
         }
     }
 

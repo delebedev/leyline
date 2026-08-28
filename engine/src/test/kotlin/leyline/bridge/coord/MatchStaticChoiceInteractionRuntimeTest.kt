@@ -208,11 +208,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
                             listOf(oddCreatureId)
                         state.annotations(AnnotationType.ResolutionStart).single().affectorId shouldBe sourceInstanceId
                     }
-                    coordinator.staticChoices.submit(
-                        published.interactionId,
-                        published.gameStateId,
-                        listOf(case.values[1]),
-                    ) shouldBe true
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(case.values[1])), published.gameStateId) shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get() shouldContainExactly listOf(1)
                     coordinator.staticChoices
@@ -246,11 +242,8 @@ class MatchStaticChoiceInteractionRuntimeTest :
                     .single { it.hasSelectNReq() }
                     .selectNReq
 
-            coordinator.staticChoices.submit(
-                published.interactionId,
-                published.gameStateId,
-                listOf(case.values[1], case.values[0]),
-            ) shouldBe true
+            coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(case.values[1], case.values[0])), published.gameStateId) shouldBe
+                true
 
             assertSoftly {
                 req.sourceId shouldBe 0
@@ -288,11 +281,7 @@ class MatchStaticChoiceInteractionRuntimeTest :
             val submitFinished = CountDownLatch(1)
             Thread {
                 submitted.set(
-                    coordinator.staticChoices.submit(
-                        published.interactionId,
-                        published.gameStateId,
-                        listOf(case.values[1]),
-                    ),
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(case.values[1])), published.gameStateId),
                 )
                 submitFinished.countDown()
             }.start()

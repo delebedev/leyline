@@ -9,6 +9,8 @@ import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.concurrent.CompletableFuture
 
@@ -25,13 +27,14 @@ internal class MatchStaticChoiceInteractionRuntime(
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
     ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val slot =
         settled.mount<Window, List<Int>>(
             PromptTerminalPriority.StaticChoice,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.SelectNresp },
+            admitLocked = ::admitLocked,
         )
 
     internal var beforeResponseComplete: (() -> Unit)? = null
@@ -51,21 +54,22 @@ internal class MatchStaticChoiceInteractionRuntime(
 
     fun current(): PublishedStaticChoiceInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedValues: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedValues.size !in pending.value.min..pending.value.max) return false
-            if (selectedValues.size != selectedValues.distinct().size) return false
-            val options = selectedValues.map { pending.optionByValue[it] ?: return false }
-            recordChoiceResults(pending, selectedValues)
-            beforeResponseComplete?.invoke()
-            slot.completeLocked(pending, options)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<List<Int>>? {
+        val selectedValues = message.selectNResp.idsList
+        if (selectedValues.size !in pending.value.min..pending.value.max) return null
+        if (selectedValues.size != selectedValues.distinct().size) return null
+        val options = selectedValues.map { pending.optionByValue[it] ?: return null }
+        return SettledPromptOwner.SlotAdmission(
+            options,
+            beforeComplete = {
+                recordChoiceResults(pending, selectedValues)
+                beforeResponseComplete?.invoke()
+            },
+        )
+    }
 
     private fun publish(initial: StaticChoiceWindowValue): Window =
         slot.publish(
@@ -105,6 +109,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )

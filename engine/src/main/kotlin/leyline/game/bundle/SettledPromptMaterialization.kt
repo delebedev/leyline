@@ -46,17 +46,25 @@ internal class SettledPromptMaterializationContext(
 
     fun prepared(
         messages: List<GREToClientMessage>,
+        awaitedRequest: GREToClientMessage,
         closesPlaybackFrame: Boolean = true,
     ): SettledPromptMaterialization =
         SettledPromptMaterialization(
             BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId),
             transition,
             closesPlaybackFrame,
+            SettledPromptCorrelation(awaitedRequest.gameStateId, awaitedRequest.msgId),
         )
 }
+
+internal data class SettledPromptCorrelation(
+    val gameStateId: Int,
+    val requestMsgId: Int,
+)
 
 internal data class SettledPromptMaterialization(
     val bundle: BundleBuilder.BundleResult,
     val transition: ProjectionTransition,
     val closesPlaybackFrame: Boolean,
+    val correlation: SettledPromptCorrelation,
 )

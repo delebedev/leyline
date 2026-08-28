@@ -11,6 +11,9 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedCardSelectInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import java.util.concurrent.CompletableFuture
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -27,13 +30,14 @@ internal class MatchCardSelectInteractionRuntime(
         override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<CardSelectInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val slot =
         settled.mount<Window, CardSelectInteractionResult>(
             PromptTerminalPriority.CardSelect,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = ::owns,
+            admitLocked = ::admitLocked,
         )
 
     override fun awaitSelection(
@@ -52,41 +56,37 @@ internal class MatchCardSelectInteractionRuntime(
 
     fun current(): PublishedCardSelectInteraction? = slot.current()?.published
 
-    fun submitSelectN(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
+    private fun owns(
+        pending: Window,
+        message: ClientToGREMessage,
     ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            completeSelection(pending, selectedInstanceIds)
-        }
+        message.type == ClientMessageType.SelectNresp ||
+            (
+                message.type == ClientMessageType.EffectCostResp_097b &&
+                    message.effectCostResp.effectCostType == EffectCostType.Select_a59c &&
+                    pending.value.kind in effectCostKinds
+            )
 
-    fun submitEffectCost(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            when (pending.value.kind) {
-                CardSelectKind.LegendRule,
-                CardSelectKind.LibraryPutback,
-                CardSelectKind.ManifestDread,
-                CardSelectKind.Resolution,
-                CardSelectKind.ResolutionMapped,
-                CardSelectKind.Learn,
-                -> return false
-                CardSelectKind.Discard,
-                CardSelectKind.SacrificeEffect,
-                CardSelectKind.Suspect,
-                CardSelectKind.MutateTopBottom,
-                -> Unit
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<CardSelectInteractionResult>? {
+        val selectedInstanceIds =
+            if (message.type == ClientMessageType.SelectNresp) {
+                message.selectNResp.idsList
+            } else {
+                if (!message.effectCostResp.hasCostSelection()) return null
+                message.effectCostResp.costSelection.idsList
             }
-            completeSelection(pending, selectedInstanceIds)
-        }
+        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return null
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
+        return SettledPromptOwner.SlotAdmission(
+            result,
+            beforeComplete = { recordChoiceResults(pending, selectedInstanceIds) },
+        )
+    }
 
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
         slot.publish(
@@ -137,6 +137,7 @@ internal class MatchCardSelectInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -155,16 +156,14 @@ internal class MatchCardSelectInteractionRuntime(
         }
     }
 
-    private fun completeSelection(
-        pending: Window,
-        selectedInstanceIds: List<Int>,
-    ): Boolean {
-        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
-        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-        recordChoiceResults(pending, selectedInstanceIds)
-        val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
-        return slot.completeLocked(pending, result)
+    private companion object {
+        val effectCostKinds =
+            setOf(
+                CardSelectKind.Discard,
+                CardSelectKind.SacrificeEffect,
+                CardSelectKind.Suspect,
+                CardSelectKind.MutateTopBottom,
+            )
     }
 
     private fun await(

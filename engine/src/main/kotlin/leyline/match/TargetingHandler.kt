@@ -30,9 +30,6 @@ class TargetingHandler(
     }
 
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
-    private val cardSelectInteractionHandler = CardSelectInteractionHandler(ctx)
-    private val revealChoiceInteractionHandler = RevealChoiceInteractionHandler(ctx)
-    private val staticChoiceInteractionHandler = StaticChoiceInteractionHandler(ctx)
     private val manaSourcePaymentHandler = ManaSourcePaymentHandler(sink, counters, ctx)
     private val deferredCastCostInteractionHandler =
         DeferredCastCostInteractionHandler(
@@ -126,30 +123,9 @@ class TargetingHandler(
         return HandlerResult.NotHandled
     }
 
-    /**
-     * Handle SelectNResp: map client instanceIds back to prompt option indices and submit.
-     * Mirrors [onSelectTargets] but for "choose N cards" prompts.
-     */
-    internal fun onSelectN(greMsg: ClientToGREMessage): HandlerResult {
-        if (revealChoiceInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
-        if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
-        if (cardSelectInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
-        log.warn("TargetingHandler: SelectNResp did not match a coordinator-owned window")
-        DevCheck.failOnAutoPass { "SelectNResp but no coordinator-owned window" }
-        return HandlerResult.NotHandled
-    }
-
     internal fun onEffectCost(greMsg: ClientToGREMessage): HandlerResult {
-        val bridge = ctx.bridge
         val payment = manaSourcePaymentHandler.tryHandleEffectCost(greMsg)
         if (payment != HandlerResult.NotHandled) return payment
-        val gather = manaSourcePaymentHandler.tryHandleGatherCounters(greMsg)
-        if (gather != HandlerResult.NotHandled) return gather
-        val oneShot = manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg)
-        if (oneShot != HandlerResult.NotHandled) return oneShot
-        if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg)) {
-            return if (bridge.cutCoordinator.cardSelect.current() == null) HandlerResult.Resume else HandlerResult.Waiting
-        }
         log.warn("TargetingHandler: EffectCostResp did not match a coordinator-owned window")
         DevCheck.failOnAutoPass { "EffectCostResp but no coordinator-owned window" }
         return HandlerResult.NotHandled
@@ -193,39 +169,12 @@ class TargetingHandler(
             }
         }
 
-        val modal = bridge.cutCoordinator.modalChoices.current()
-        if (modal != null) return cancelModalChoice(modal, greMsg.gameStateId)
-
-        val distribution = bridge.cutCoordinator.distribution.current()
-        if (distribution != null) {
-            if (bridge.cutCoordinator.distribution.cancel(distribution.interactionId, greMsg.gameStateId)) {
-                return HandlerResult.Resume
-            }
-        }
-
         val payment = manaSourcePaymentHandler.tryHandleCancel(greMsg)
         if (payment != HandlerResult.NotHandled) return payment
-        val oneShot = manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg)
-        if (oneShot != HandlerResult.NotHandled) return oneShot
 
         log.warn("TargetingHandler: CancelActionReq but no coordinator-owned window")
         DevCheck.failOnAutoPass { "CancelActionReq but no coordinator-owned window" }
         return HandlerResult.NotHandled
-    }
-
-    private fun cancelModalChoice(
-        modal: leyline.bridge.handoff.PublishedModalChoiceInteraction,
-        gameStateId: Int,
-    ): HandlerResult {
-        val bridge = ctx.bridge
-        val cleanup = bridge.cutCoordinator.modalChoices.cancelAndClaim(modal.interactionId, gameStateId)
-        if (cleanup == null) {
-            log.warn("TargetingHandler: CancelActionReq did not match current modal window")
-            DevCheck.failOnAutoPass { "CancelActionReq did not match current modal window" }
-            return HandlerResult.Waiting
-        }
-        log.info("TargetingHandler: CancelActionReq — cancelling modal choice")
-        return HandlerResult.ResumeAfterEngineResume(cleanup)
     }
 
     private fun cancelDeferredCast(gameStateId: Int): HandlerResult {
@@ -269,65 +218,13 @@ class TargetingHandler(
         return if (receipt.engineWillResume) HandlerResult.Resume else HandlerResult.Waiting
     }
 
-    /**
-     * Handle SearchResp: resolve the pending search prompt with the client's choice.
-     *
-     * @param itemsFound instanceIds the client selected (from SearchResp.itemsFound).
-     *        Empty = player declined ("fail to find").
-     */
-    internal fun onSearchResp(greMsg: ClientToGREMessage): HandlerResult {
-        val bridge = ctx.bridge
-        val pending = bridge.cutCoordinator.search.current()
-        if (pending == null) {
-            log.warn("SearchResp but no coordinator-owned search window")
-            DevCheck.failOnAutoPass { "SearchResp but no search window" }
-            return HandlerResult.Waiting
-        }
-        val accepted =
-            bridge.cutCoordinator.search.submit(
-                pending.interactionId,
-                greMsg.gameStateId,
-                greMsg.searchResp?.itemsFoundList.orEmpty(),
-            )
-        if (!accepted) {
-            log.warn("SearchResp did not match the current search window")
-            DevCheck.failOnAutoPass { "SearchResp did not match the current search window" }
-            return HandlerResult.Waiting
-        }
-        return HandlerResult.Resume
-    }
-
     // --- Helpers ---
 
     /**
      * Handle CastingTimeOptionsResp: dispatches to modal or kicker/optional cost handler.
      */
-    internal fun onCastingTimeOptions(greMsg: ClientToGREMessage): HandlerResult {
-        // Deferred cast costs retain the cast action claim; modal ability choices use the coordinator window below.
-        val deferredResult = deferredCastCostInteractionHandler.onCastingTimeOptions(greMsg)
-        if (deferredResult != HandlerResult.NotHandled) {
-            return deferredResult
-        }
-        val bridge = ctx.bridge
-        val modal = bridge.cutCoordinator.modalChoices.current()
-        if (modal == null) {
-            if (bridge.cutCoordinator.deferredCast.hasPrompt()) {
-                error("deferred cast-cost handler did not consume the response")
-            }
-            log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")
-            DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no modal or deferred-cost window" }
-            return HandlerResult.Waiting
-        }
-        val chosenGrpIds = greMsg.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList
-        val cleanup = bridge.cutCoordinator.modalChoices.submitAndClaim(modal.interactionId, greMsg.gameStateId, chosenGrpIds)
-        if (cleanup == null) {
-            log.warn("TargetingHandler: CastingTimeOptionsResp did not match current modal window")
-            DevCheck.failOnAutoPass { "CastingTimeOptionsResp did not match current modal window" }
-            return HandlerResult.Waiting
-        }
-        log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={}", chosenGrpIds)
-        return HandlerResult.ResumeAfterEngineResume(cleanup)
-    }
+    internal fun onCastingTimeOptions(greMsg: ClientToGREMessage): HandlerResult =
+        deferredCastCostInteractionHandler.onCastingTimeOptions(greMsg)
 
     internal fun checkHybridManaTypeOptions(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =
         deferredCastCostInteractionHandler.checkHybridManaTypeOptions(actionClaim)

@@ -150,8 +150,10 @@ The implemented milestone is visible in current types:
   pending visibility, reset, terminal teardown, and delivery-failure dispatch.
   One `SettledPromptOwner` mounts the settled interaction slots so correlation,
   publication, timeout arbitration, reset, retirement, and terminal evidence
-  follow automatically. Family runtimes retain value freezing, validation,
-  defaults, cleanup, and exact Forge handles.
+  follow automatically. It admits raw client messages before residual match
+  routing, matches exact request-message and game-state correlations, and
+  delegates parsing and completion to the owning typed slot. Family runtimes
+  retain value freezing, validation, defaults, cleanup, and exact Forge handles.
 - Forge's target-selection producer binds `TargetSelection` and freezes exact
   stack-object candidates before publication; candidate-backed `Generic` card
   choices bind the SelectTargets-compatible runtime, preserving existing

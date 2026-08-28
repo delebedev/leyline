@@ -12,6 +12,8 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact Scry and Surveil lifecycle beneath [MatchCutCoordinator]. */
@@ -29,7 +31,6 @@ internal class MatchGroupingInteractionRuntime(
         override val future: CompletableFuture<GroupingInteractionResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<GroupingInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private data class Finalization(
@@ -45,6 +46,8 @@ internal class MatchGroupingInteractionRuntime(
         settled.mount<Window, GroupingInteractionResult>(
             PromptTerminalPriority.Grouping,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.GroupResp_097b },
+            admitLocked = ::admitLocked,
             onTerminateLocked = { _, _ -> clearFamilyStateLocked() },
             onResetLocked = { clearFamilyStateLocked() },
         )
@@ -67,23 +70,26 @@ internal class MatchGroupingInteractionRuntime(
 
     fun current(): PublishedGroupingInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        topInstanceIds: List<Int>,
-        awayInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            val allIds = topInstanceIds + awayInstanceIds
-            if (allIds.size != pending.value.candidates.size || allIds.distinct().size != allIds.size) return false
-            val allOptions = allIds.map { pending.optionByInstanceId[it] ?: return false }
-            if (allOptions.toSet() != pending.handlesByOption.keys) return false
-            val topOptions = topInstanceIds.map(pending.optionByInstanceId::getValue)
-            val awayOptions = awayInstanceIds.map(pending.optionByInstanceId::getValue)
-            completeLocked(pending, topOptions, awayOptions, timedOut = false)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<GroupingInteractionResult>? {
+        val groups = message.groupResp.groupsList
+        if (groups.size != 2) return null
+        val topInstanceIds = groups[0].idsList
+        val awayInstanceIds = groups[1].idsList
+        val allIds = topInstanceIds + awayInstanceIds
+        if (allIds.size != pending.value.candidates.size || allIds.distinct().size != allIds.size) return null
+        val allOptions = allIds.map { pending.optionByInstanceId[it] ?: return null }
+        if (allOptions.toSet() != pending.handlesByOption.keys) return null
+        val topOptions = topInstanceIds.map(pending.optionByInstanceId::getValue)
+        val awayOptions = awayInstanceIds.map(pending.optionByInstanceId::getValue)
+        val result = result(pending, topOptions, awayOptions, timedOut = false)
+        return SettledPromptOwner.SlotAdmission(
+            result,
+            beforeComplete = { finalization = finalization(pending) },
+        )
+    }
 
     override fun finalizeArrangement(
         result: GroupingInteractionResult,
@@ -183,6 +189,7 @@ internal class MatchGroupingInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -217,27 +224,34 @@ internal class MatchGroupingInteractionRuntime(
         awayOptions: List<Int>,
         timedOut: Boolean,
     ): Boolean {
-        val result =
-            GroupingInteractionResult(
-                pending.published.interactionId,
-                pending.value.context,
-                topOptions.map(pending.handlesByOption::getValue),
-                awayOptions.map(pending.handlesByOption::getValue),
-                timedOut,
-                this,
-            )
+        val result = result(pending, topOptions, awayOptions, timedOut)
         val completed = slot.completeLocked(pending, result)
-        if (completed) {
-            finalization =
-                Finalization(
-                    pending.published.interactionId,
-                    pending.value.context,
-                    pending.instanceIdsByCardId.keys,
-                    pending.instanceIdsByCardId,
-                )
-        }
+        if (completed) finalization = finalization(pending)
         return completed
     }
+
+    private fun result(
+        pending: Window,
+        topOptions: List<Int>,
+        awayOptions: List<Int>,
+        timedOut: Boolean,
+    ): GroupingInteractionResult =
+        GroupingInteractionResult(
+            pending.published.interactionId,
+            pending.value.context,
+            topOptions.map(pending.handlesByOption::getValue),
+            awayOptions.map(pending.handlesByOption::getValue),
+            timedOut,
+            this,
+        )
+
+    private fun finalization(pending: Window): Finalization =
+        Finalization(
+            pending.published.interactionId,
+            pending.value.context,
+            pending.instanceIdsByCardId.keys,
+            pending.instanceIdsByCardId,
+        )
 
     private fun clearFamilyStateLocked() {
         finalization = null

@@ -35,7 +35,7 @@ internal class RevealChoiceWindowMaterializer {
                     it.allowCancel = AllowCancel.No_a526
                 },
             )
-        return context.prepared(messages)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun buildRequest(

@@ -10,6 +10,8 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedOrderInteraction
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
@@ -26,13 +28,14 @@ internal class MatchOrderInteractionRuntime(
         override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<OrderInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val slot =
         settled.mount<Window, OrderInteractionResult>(
             PromptTerminalPriority.Order,
             publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.OrderResp_097b },
+            admitLocked = ::admitLocked,
         )
 
     override fun awaitOrder(
@@ -52,21 +55,17 @@ internal class MatchOrderInteractionRuntime(
 
     fun current(): PublishedOrderInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        orderedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (orderedInstanceIds.size != pending.value.candidates.size) return false
-            if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return false
-            val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            if (options.toSet() != pending.handlesByOption.keys) return false
-            val result = OrderInteractionResult(options, options.map(pending.handlesByOption::getValue))
-            slot.completeLocked(pending, result)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<OrderInteractionResult>? {
+        val orderedInstanceIds = message.orderResp.idsList
+        if (orderedInstanceIds.size != pending.value.candidates.size) return null
+        if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return null
+        val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        if (options.toSet() != pending.handlesByOption.keys) return null
+        return SettledPromptOwner.SlotAdmission(OrderInteractionResult(options, options.map(pending.handlesByOption::getValue)))
+    }
 
     private fun publish(initial: OrderWindowCapture.Initial): Window =
         slot.publish(
@@ -117,6 +116,7 @@ internal class MatchOrderInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )

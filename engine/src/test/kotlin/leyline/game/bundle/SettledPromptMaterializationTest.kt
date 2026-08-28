@@ -20,7 +20,7 @@ class SettledPromptMaterializationTest :
             val context = materializationContext()
 
             val message = context.message(GREMessageType.SelectNreq) {}
-            val prepared = context.prepared(listOf(message))
+            val prepared = context.prepared(listOf(message), awaitedRequest = message)
             context.sequence.nextGameStateLink()
             val nextGameState = context.atCurrentGameState()
 
@@ -34,6 +34,7 @@ class SettledPromptMaterializationTest :
                 prepared.bundle.messages shouldBe listOf(message)
                 prepared.transition.nextState.revision shouldBe 0
                 prepared.closesPlaybackFrame shouldBe true
+                prepared.correlation shouldBe SettledPromptCorrelation(gameStateId = 17, requestMsgId = 42)
                 nextGameState.gameStateId shouldBe 18
             }
         }

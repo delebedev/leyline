@@ -130,7 +130,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 val interaction = awaitPublished(coordinator)
                 val player = coordinator.drain(SeatId(1)).single()
                 val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
-                coordinator.oneShotPayCosts.cancel(interaction.interactionId, interaction.gameStateId) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), interaction.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 return Published(player, observer)
             }
@@ -265,7 +265,7 @@ class MatchOneShotPayCostsRuntimeTest :
                     PayCostsRouteKind.WaterbendCost,
                     -> error("Iterative route entered one-shot materializer proof")
                 }
-                val accepted = coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected))
+                val accepted = coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(selected)), published.gameStateId)
                 assertSoftly {
                     accepted shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
@@ -341,11 +341,7 @@ class MatchOneShotPayCostsRuntimeTest :
                     selection.minWeight shouldBe Int.MIN_VALUE
                     selection.maxWeight shouldBe Int.MAX_VALUE
                     selection.weightsList shouldContainExactly emittedWeights
-                    coordinator.oneShotPayCosts.submit(
-                        published.interactionId,
-                        published.gameStateId,
-                        selectedIds,
-                    ) shouldBe true
+                    coordinator.acceptSettled(leyline.testkit.effectCostResp(selectedIds), published.gameStateId) shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get().handles shouldHaveSize selectedIds.size
                 }
@@ -388,23 +384,21 @@ class MatchOneShotPayCostsRuntimeTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
-                coordinator.oneShotPayCosts.submit("stale", exact.gameStateId, listOf(exactIds.first())) shouldBe false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId + 1, listOf(exactIds.first())) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId + 1) shouldBe
                     false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
-                coordinator.oneShotPayCosts.submit(
-                    exact.interactionId,
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(Int.MAX_VALUE)), exact.gameStateId) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit.effectCostResp(listOf(exactIds.first(), exactIds.first())),
                     exact.gameStateId,
-                    listOf(exactIds.first(), exactIds.first()),
                 ) shouldBe
                     false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, emptyList()) shouldBe false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, exactIds) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(emptyList()), exact.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(exactIds), exact.gameStateId) shouldBe false
                 coordinator.oneShotPayCosts.current() shouldBe exact
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(exactIds.first())) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId) shouldBe true
                 exactFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 exactResult.get().optionIndices shouldContainExactly listOf(0)
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(exactIds.first())) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId) shouldBe false
             }
 
             val (weightedResult, weightedFinished) = launch(request(cards, PayCostsRouteKind.CollectEvidence, source.id))
@@ -416,18 +410,10 @@ class MatchOneShotPayCostsRuntimeTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
-                coordinator.oneShotPayCosts.submit(
-                    weighted.interactionId,
-                    weighted.gameStateId,
-                    listOf(weightedIds.last()),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(weightedIds.last())), weighted.gameStateId) shouldBe
                     false
                 coordinator.oneShotPayCosts.current() shouldBe weighted
-                coordinator.oneShotPayCosts.submit(
-                    weighted.interactionId,
-                    weighted.gameStateId,
-                    listOf(weightedIds.first()),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(weightedIds.first())), weighted.gameStateId) shouldBe
                     true
                 weightedFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 weightedResult.get().optionIndices shouldContainExactly listOf(0)
@@ -436,7 +422,7 @@ class MatchOneShotPayCostsRuntimeTest :
             val (cancelResult, cancelFinished) = launch(request(cards, PayCostsRouteKind.EnlistCost, source.id))
             val cancellable = awaitPublished(coordinator)
             coordinator.drain(SeatId(1))
-            coordinator.oneShotPayCosts.cancel(cancellable.interactionId, cancellable.gameStateId) shouldBe true
+            coordinator.acceptSettled(leyline.testkit.cancelActionReq(), cancellable.gameStateId) shouldBe true
             assertSoftly {
                 cancelFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 cancelResult.get().optionIndices shouldBe emptyList()

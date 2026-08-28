@@ -41,7 +41,7 @@ internal class OrderWindowMaterializer {
                     if (window.kind == OrderRouteKind.Top) it.allowUndo = true
                 },
             )
-        return context.prepared(messages)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun promptId(kind: OrderRouteKind): Int =

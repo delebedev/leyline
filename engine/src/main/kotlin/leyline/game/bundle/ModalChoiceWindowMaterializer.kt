@@ -86,7 +86,7 @@ internal class ModalChoiceWindowMaterializer(
                     it.allowUndo = true
                 },
             )
-        return Prepared(context.prepared(messages), sourceInstanceId)
+        return Prepared(context.prepared(messages, awaitedRequest = messages.last()), sourceInstanceId)
     }
 
     fun cleanup(

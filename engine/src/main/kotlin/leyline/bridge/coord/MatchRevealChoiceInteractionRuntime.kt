@@ -11,6 +11,8 @@ import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact reveal-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -28,7 +30,6 @@ internal class MatchRevealChoiceInteractionRuntime(
         override val future: CompletableFuture<RevealChoiceInteractionResult> = CompletableFuture(),
     ) : SettledPromptOwner.Window<RevealChoiceInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val slot =
@@ -38,6 +39,8 @@ internal class MatchRevealChoiceInteractionRuntime(
                 clearReveal(failed.revealEntry, failed.value.journalSeatId)
                 owner.failPrompt(cause, failed.cut)
             },
+            owns = { _, message -> message.type == ClientMessageType.SelectNresp },
+            admitLocked = ::admitLocked,
             onTerminateLocked = { pending, _ ->
                 pending?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
             },
@@ -71,19 +74,20 @@ internal class MatchRevealChoiceInteractionRuntime(
 
     fun current(): PublishedRevealChoiceInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = slot.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
-            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-            val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            completeLocked(pending, options, timedOut = false)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<RevealChoiceInteractionResult>? {
+        val selectedInstanceIds = message.selectNResp.idsList
+        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return null
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        val handles = options.map(pending.handlesByOption::getValue)
+        return SettledPromptOwner.SlotAdmission(
+            RevealChoiceInteractionResult(options, handles, timedOut = false),
+            beforeComplete = { completeFamilyState(pending, handles) },
+        )
+    }
 
     private fun publish(initial: RevealChoiceWindowCapture.Initial): Window =
         slot.publish(
@@ -137,6 +141,7 @@ internal class MatchRevealChoiceInteractionRuntime(
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -161,6 +166,14 @@ internal class MatchRevealChoiceInteractionRuntime(
         timedOut: Boolean,
     ): Boolean {
         val handles = options.map(pending.handlesByOption::getValue)
+        completeFamilyState(pending, handles)
+        return slot.completeLocked(pending, RevealChoiceInteractionResult(options, handles, timedOut))
+    }
+
+    private fun completeFamilyState(
+        pending: Window,
+        handles: List<Card>,
+    ) {
         pending.value.exileUnderSourceForgeCardId?.let { source ->
             handles.forEach { card ->
                 journal(pending.value.journalSeatId).record(
@@ -169,7 +182,6 @@ internal class MatchRevealChoiceInteractionRuntime(
             }
         }
         clearReveal(pending.revealEntry, pending.value.journalSeatId)
-        return slot.completeLocked(pending, RevealChoiceInteractionResult(options, handles, timedOut))
     }
 
     private fun failInitial(

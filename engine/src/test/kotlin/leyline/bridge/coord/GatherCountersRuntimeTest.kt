@@ -7,7 +7,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.GatherCounterType
-import leyline.bridge.handoff.GatherCountersSelection
 import leyline.bridge.handoff.GatherCountersSourceValue
 import leyline.bridge.handoff.GatherCountersWindowInput
 import leyline.bridge.handoff.PayCostsPromptSourceInput
@@ -86,7 +85,7 @@ class GatherCountersRuntimeTest :
                 val published = checkNotNull(interaction)
                 val player = coordinator.drain(SeatId(1)).single()
                 val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
-                coordinator.oneShotPayCosts.cancel(published.interactionId, published.gameStateId) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 return Published(player, observer)
             }
@@ -201,11 +200,11 @@ class GatherCountersRuntimeTest :
                     .numberValue shouldBe gather.destinationId
             }
             assertSoftly {
-                board.bridge.cutCoordinator.oneShotPayCosts.submitGatherCounters(
-                    interaction.interactionId,
+                board.bridge.cutCoordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(sourceIids.map { it to 1 }),
                     interaction.gameStateId,
-                    sourceIids.map { GatherCountersSelection(it, 1) },
-                ) shouldBe true
+                ) shouldBe
+                    true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().payments.map { it.amount } shouldContainExactly listOf(1, 1)
                 result.get().payments.map { it.handle } shouldContainExactly creatures
@@ -269,39 +268,33 @@ class GatherCountersRuntimeTest :
                         it.hasPayCostsReq()
                     }.payCostsReq.effectCostReq.gatherReq.sourcesList
                     .map { it.sourceId }
-            val runtime = board.bridge.cutCoordinator.oneShotPayCosts
+            val coordinator = board.bridge.cutCoordinator
             assertSoftly {
-                runtime.submit(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.effectCostResp(listOf(ids[0], ids[1])),
                     interaction.gameStateId,
-                    listOf(ids[0], ids[1]),
                 ) shouldBe false
-                runtime.submitGatherCounters(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(listOf(ids[0] to 1, ids[1] to 1)),
                     interaction.gameStateId + 1,
-                    listOf(GatherCountersSelection(ids[0], 1), GatherCountersSelection(ids[1], 1)),
                 ) shouldBe false
-                runtime.submitGatherCounters(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(listOf(ids[0] to 1, ids[0] to 1)),
                     interaction.gameStateId,
-                    listOf(GatherCountersSelection(ids[0], 1), GatherCountersSelection(ids[0], 1)),
                 ) shouldBe false
-                runtime.submitGatherCounters(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(listOf(Int.MAX_VALUE to 2)),
                     interaction.gameStateId,
-                    listOf(GatherCountersSelection(Int.MAX_VALUE, 2)),
                 ) shouldBe false
-                runtime.submitGatherCounters(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(listOf(ids[0] to 2)),
                     interaction.gameStateId,
-                    listOf(GatherCountersSelection(ids[0], 2)),
                 ) shouldBe false
-                runtime.submitGatherCounters(
-                    interaction.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(listOf(ids[0] to 1)),
                     interaction.gameStateId,
-                    listOf(GatherCountersSelection(ids[0], 1)),
                 ) shouldBe false
-                runtime.cancel(interaction.interactionId, interaction.gameStateId) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), interaction.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
         }
@@ -370,11 +363,11 @@ class GatherCountersRuntimeTest :
                 result.get().payments.map { it.handle } shouldContainExactly creatures
                 board.bridge.cutCoordinator.oneShotPayCosts
                     .current() shouldBe null
-                board.bridge.cutCoordinator.oneShotPayCosts.submitGatherCounters(
-                    interaction.interactionId,
+                board.bridge.cutCoordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(ids.map { it to 1 }),
                     interaction.gameStateId,
-                    ids.map { GatherCountersSelection(it, 1) },
-                ) shouldBe false
+                ) shouldBe
+                    false
             }
         }
 
@@ -442,11 +435,11 @@ class GatherCountersRuntimeTest :
                     .sourcesList
                     .map { it.sourceId }
             timeoutClaim.await(3, TimeUnit.SECONDS) shouldBe true
-            board.bridge.cutCoordinator.oneShotPayCosts.submitGatherCounters(
-                interaction.interactionId,
+            board.bridge.cutCoordinator.acceptSettled(
+                leyline.testkit.gatherCountersResp(ids.map { it to 1 }),
                 interaction.gameStateId,
-                ids.map { GatherCountersSelection(it, 1) },
-            ) shouldBe true
+            ) shouldBe
+                true
             releaseTimeout.countDown()
 
             assertSoftly {
@@ -456,11 +449,11 @@ class GatherCountersRuntimeTest :
                 result.get().payments.map { it.handle } shouldContainExactly creatures
                 board.bridge.cutCoordinator.oneShotPayCosts
                     .current() shouldBe null
-                board.bridge.cutCoordinator.oneShotPayCosts.submitGatherCounters(
-                    interaction.interactionId,
+                board.bridge.cutCoordinator.acceptSettled(
+                    leyline.testkit.gatherCountersResp(ids.map { it to 1 }),
                     interaction.gameStateId,
-                    ids.map { GatherCountersSelection(it, 1) },
-                ) shouldBe false
+                ) shouldBe
+                    false
             }
             board.bridge.cutCoordinator.prompts.settled.beforeTimeoutClaim = null
         }

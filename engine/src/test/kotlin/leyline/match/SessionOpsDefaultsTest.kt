@@ -46,14 +46,6 @@ class SessionOpsDefaultsTest :
             shouldNotThrowAny { ops.onSelectTargets(dummyMsg) }
         }
 
-        test("onSelectN default is no-op") {
-            shouldNotThrowAny { ops.onSelectN(dummyMsg) }
-        }
-
-        test("onGroupResp default is no-op") {
-            shouldNotThrowAny { ops.onGroupResp(dummyMsg) }
-        }
-
         test("onCancelAction default is no-op") {
             shouldNotThrowAny { ops.onCancelAction(dummyMsg) }
         }

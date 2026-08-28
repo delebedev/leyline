@@ -131,16 +131,16 @@ class MatchSearchInteractionRuntimeTest :
             val projection = board.bridge.projectionStateSnapshot()
             val counter = board.counter.snapshot()
             assertSoftly {
-                coordinator.search.submit(published.interactionId, published.gameStateId + 1, listOf(selected)) shouldBe false
-                coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected, selected)) shouldBe false
-                coordinator.search.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId + 1) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected, selected)), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.searchResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
                 finished.count shouldBe 1
             }
             assertSoftly {
-                coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(0)
                 coordinator.search
@@ -189,7 +189,7 @@ class MatchSearchInteractionRuntimeTest :
                     requestMessage.prompt.parametersList
                         .first()
                         .numberValue
-                coordinator.search.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.searchResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(2)
             }
@@ -229,7 +229,7 @@ class MatchSearchInteractionRuntimeTest :
             val submitFinished = CountDownLatch(1)
             Thread {
                 try {
-                    accepted.set(coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected)))
+                    accepted.set(coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId))
                 } finally {
                     submitFinished.countDown()
                 }
@@ -279,7 +279,7 @@ class MatchSearchInteractionRuntimeTest :
 
             val terminal =
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.search.submit(published.interactionId, published.gameStateId, listOf(selected))
+                    coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId)
                 }
 
             assertSoftly {

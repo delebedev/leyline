@@ -143,11 +143,7 @@ class MatchCardSelectInteractionTimeoutTest :
                     if (case.semantic == PromptSemantic.ManifestDread) {
                         req.idsList shouldContainExactly req.unfilteredIdsList
                     }
-                    coordinator.cardSelect.submitSelectN(
-                        published.interactionId,
-                        published.gameStateId,
-                        listOf(req.idsList[1]),
-                    ) shouldBe false
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(req.idsList[1])), published.gameStateId) shouldBe false
                 }
             }
         }

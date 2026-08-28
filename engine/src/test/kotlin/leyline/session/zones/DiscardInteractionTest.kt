@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.acceptSettled
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.SeatId
 import leyline.testkit.SessionTest
@@ -98,11 +99,7 @@ class DiscardInteractionTest :
                     .current()
                     .shouldNotBeNull()
             pending.kind shouldBe leyline.bridge.handoff.CardSelectKind.Discard
-            bridge.cutCoordinator.cardSelect.submitSelectN(
-                pending.interactionId,
-                pending.gameStateId,
-                emptyList(),
-            ) shouldBe true
+            bridge.cutCoordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), pending.gameStateId) shouldBe true
             bridge.awaitPriority()
 
             assertSoftly {

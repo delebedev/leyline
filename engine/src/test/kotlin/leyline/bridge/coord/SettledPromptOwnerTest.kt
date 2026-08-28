@@ -20,6 +20,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -132,8 +133,8 @@ class SettledPromptOwnerTest :
             assertSoftly {
                 timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
                 coordinator.prompts.hasPendingInteraction() shouldBe true
-                coordinator.cardSelect.submitSelectN(published.interactionId, published.gameStateId, listOf(selected)) shouldBe true
-                coordinator.cardSelect.submitSelectN(published.interactionId, published.gameStateId, listOf(selected)) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(selected)), published.gameStateId) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(selected)), published.gameStateId) shouldBe false
             }
             releaseTimeout.countDown()
             assertSoftly {
@@ -141,6 +142,58 @@ class SettledPromptOwnerTest :
                 result.get().handles.single() shouldBe cards[1]
                 coordinator.prompts.hasPendingInteraction() shouldBe false
                 coordinator.failure().shouldBeNull()
+            }
+        }
+
+        test("exact correlation owns rejection acceptance and retirement") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val (result, finished, cards) = startAwait(coordinator, board, 3_000)
+            val published = awaitPublished(coordinator)
+            val selected = ids(coordinator)[1]
+            val requestMsgId = board.bridge.committedSequence().lastPromptMsgId
+            val projection = board.bridge.projectionStateSnapshot()
+            val acceptedBefore = board.bridge.responseAcceptance.responsesAccepted()
+
+            assertSoftly {
+                coordinator.admitSettled(
+                    leyline.testkit.selectNResp(listOf(selected)),
+                    published.gameStateId,
+                    requestMsgId + 1,
+                ) shouldBe SettledPromptAdmission.NotOwned
+                coordinator.admitSettled(
+                    leyline.testkit.selectNResp(listOf(selected)),
+                    published.gameStateId + 1,
+                    requestMsgId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                coordinator.admitSettled(
+                    leyline.testkit.orderResp(listOf(selected)),
+                    published.gameStateId,
+                    requestMsgId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                coordinator.admitSettled(
+                    leyline.testkit.selectNResp(emptyList()),
+                    published.gameStateId,
+                    requestMsgId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
+                board.bridge.projectionStateSnapshot() shouldBe projection
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore
+                coordinator
+                    .admitSettled(
+                        leyline.testkit.selectNResp(listOf(selected)),
+                        published.gameStateId,
+                        requestMsgId,
+                    ).shouldBeInstanceOf<SettledPromptAdmission.Accepted>()
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get().handles.single() shouldBe cards[1]
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore + 1
+                coordinator.admitSettled(
+                    leyline.testkit.selectNResp(listOf(selected)),
+                    published.gameStateId,
+                    requestMsgId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedBefore + 1
             }
         }
 
@@ -160,11 +213,7 @@ class SettledPromptOwnerTest :
             timeoutFinished.await(3, TimeUnit.SECONDS) shouldBe true
             assertSoftly {
                 timeoutFailure.get().shouldBeInstanceOf<CardSelectInteractionTimeoutException>()
-                coordinator.cardSelect.submitSelectN(
-                    timeoutPublished.interactionId,
-                    timeoutPublished.gameStateId,
-                    listOf(timeoutId),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(timeoutId)), timeoutPublished.gameStateId) shouldBe
                     false
             }
 
@@ -197,11 +246,7 @@ class SettledPromptOwnerTest :
                 teardownFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 teardownCoordinator.cardSelect.current().shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
-                    teardownCoordinator.cardSelect.submitSelectN(
-                        teardownPublished.interactionId,
-                        teardownPublished.gameStateId,
-                        listOf(1),
-                    )
+                    teardownCoordinator.acceptSettled(leyline.testkit.selectNResp(listOf(1)), teardownPublished.gameStateId)
                 } shouldBe teardownCoordinator.failure()
             }
         }
@@ -222,11 +267,11 @@ class SettledPromptOwnerTest :
             assertSoftly {
                 board.bridge.prioritySignal.awaitSignal(3_000) shouldBe true
                 board.bridge.awaitPriorityWithTimeout(25) shouldBe true
-                coordinator.cardSelect.submitSelectN(
-                    checkNotNull(coordinator.cardSelect.current()).interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.selectNResp(ids(coordinator).take(1)),
                     checkNotNull(coordinator.cardSelect.current()).gameStateId,
-                    ids(coordinator).take(1),
-                ) shouldBe true
+                ) shouldBe
+                    true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
         }
