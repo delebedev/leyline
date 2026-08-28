@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -28,14 +27,11 @@ class EventRegistryTest :
             arr shouldHaveAtLeastSize EventRegistry.queues.size
 
             val bot = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "AIBotMatch" }.jsonObject
+            val play = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "StandardPlay" }.jsonObject
+            val ranked = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "StandardRanked" }.jsonObject
             bot["EventNameBO1"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
-        }
-
-        test("queue config includes native match-entry queues") {
-            val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
-            result shouldContain "AIBotMatch"
-            result shouldContain "\"EventNameBO1\":\"Play\""
-            result shouldContain "\"EventNameBO1\":\"Ladder\""
+            play["EventNameBO1"]?.jsonPrimitive?.content shouldBe "Play"
+            ranked["EventNameBO1"]?.jsonPrimitive?.content shouldBe "Ladder"
         }
 
         test("standard queue events distinguish ranked from unranked") {

@@ -449,11 +449,6 @@ class MatchSession(
     internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) = sendBundledGREDirect(messages)
 
     private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
-        if (gameBridge.matchConfig.dev.copilotAutopush && messages.any { it.type in PROMPT_GRE_TYPES }) {
-            // Native responses retire their client workflow on a later update.
-            // Leave one pacing interval before mounting the next prompt.
-            paceDelay(1)
-        }
         for (m in messages) {
             if (m.type in PROMPT_GRE_TYPES) {
                 lastPrompt = m
