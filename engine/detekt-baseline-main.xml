@@ -19,8 +19,6 @@
     <ID>ElseCaseInsteadOfExhaustiveWhen:TransferCategoryResolver.kt:TransferCategoryResolver$when (event) { is GameEvent.CardMilled -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardSurveiled -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardDestroyed -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } is GameEvent.CardSacrificed -&gt; event.sourceCardId.takeIf { event.cardId == forgeCardId } else -&gt; null }</ID>
     <ID>ElseCaseInsteadOfExhaustiveWhen:ZoneTransferDetector.kt:ZoneTransferDetector$when (event) { is GameEvent.SpellCast -&gt; event .takeIf { event.cardId == sourceCardId &amp;&amp; (event.isAbility || event.isTrigger) }?.let { Triple(it.abilityForgeId, it.rootAbilityForgeId, it.stackAbilityForgeId) } is GameEvent.SpellResolved -&gt; event .takeIf { event.cardId == sourceCardId &amp;&amp; (event.isAbility || event.isTrigger) }?.let { Triple(it.abilityForgeId, it.rootAbilityForgeId, it.stackAbilityForgeId) } else -&gt; null }</ID>
     <ID>ImplicitDefaultLocale:InteractivePromptBridge.kt:InteractivePromptBridge$"%.1f".format(elapsedMs / 1000.0)</ID>
-    <ID>ImplicitDefaultLocale:ProtoDump.kt:ProtoDump$"%03d-%s.bin".format(seq, tag)</ID>
-    <ID>ImplicitDefaultLocale:ProtoDump.kt:ProtoDump$"%03d-%s.txt".format(seq, tag)</ID>
     <ID>LargeClass:GameBridge.kt:GameBridge : IdMappingPlayerLookupAutoPassViewZoneTrackingAnnotationIdsEventDrain</ID>
     <ID>LargeClass:SnapshotCapture.kt:SnapshotCapture</ID>
     <ID>LargeClass:TargetingHandler.kt:TargetingHandler</ID>

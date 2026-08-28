@@ -163,7 +163,6 @@ class LeylineConfigResolverTest :
 
                 assertSoftly {
                     resolved.paths.artifactsRoot.absolutePath shouldBe File(dir, "out/logs").absolutePath
-                    resolved.paths.engineDump.absolutePath shouldBe File(dir, "out/logs/engine").absolutePath
                     resolved.paths.sessionJournal.absolutePath shouldBe File(dir, "out/logs/sessions.jsonl").absolutePath
                 }
             }

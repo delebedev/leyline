@@ -20,7 +20,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 internal class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
-    private val matchRecorder: MatchRecorder? = null,
     private val targetingHandler: TargetingHandler,
     private val priorityPolicy: PriorityPolicyRuntime,
     private val ctx: SessionContext,
@@ -108,7 +107,6 @@ internal class ActionPerformer(
             }
 
             Tap.inboundAction(action)
-            matchRecorder?.recordClientAction(greMsg)
 
             if (!mayDefer) {
                 check(bridge.cutCoordinator.completeActionClaim(claim.actionClaim)) { "Accepted action claim did not complete" }

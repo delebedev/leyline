@@ -104,7 +104,7 @@
 # durable user-level location shared across worktrees.
 # state = "state"
 
-# Per-instance artifact root for logs, protocol dumps, and sessions
+# Per-instance artifact root for logs and sessions
 # (relative to this file).
 # artifacts = "out"
 

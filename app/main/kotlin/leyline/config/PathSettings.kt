@@ -23,7 +23,7 @@ data class PathSettings(
      * Empty = durable user-level location shared across worktrees.
      */
     val state: String = "",
-    /** Per-instance artifact root for logs, protocol dumps, and sessions. */
+    /** Per-instance artifact root for logs and sessions. */
     val artifacts: String = "logs",
 ) {
     fun validate() {

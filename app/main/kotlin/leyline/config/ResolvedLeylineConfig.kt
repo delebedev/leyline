@@ -38,7 +38,6 @@ class ResolvedLeylineConfig(
             appendLine("    state: ${paths.stateDir.absolutePath}")
             appendLine("    player_db: ${paths.playerDb.absolutePath}")
             appendLine("    artifacts: ${paths.artifactsRoot.absolutePath}")
-            appendLine("    engine_dump: ${paths.engineDump.absolutePath}")
             appendLine("    session_journal: ${paths.sessionJournal.absolutePath}")
         }
     }

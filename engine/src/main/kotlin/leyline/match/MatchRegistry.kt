@@ -86,12 +86,9 @@ class MatchRegistry {
         matchId: String,
         reason: MatchTeardownReason,
         seatId: SeatId? = null,
-        recorder: MatchRecorder? = null,
         fallbackBridge: GameBridge? = null,
     ) {
         log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
-
-        recorder?.shutdown()
 
         val matchConnections = connections.remove(matchId)?.values.orEmpty()
         val removedSessions = sessions.remove(matchId)?.values.orEmpty()

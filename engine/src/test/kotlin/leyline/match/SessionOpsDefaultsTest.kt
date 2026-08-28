@@ -2,7 +2,6 @@ package leyline.match
 
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
@@ -64,10 +63,6 @@ class SessionOpsDefaultsTest :
 
         test("onPuzzleStart default is no-op") {
             shouldNotThrowAny { ops.onPuzzleStart() }
-        }
-
-        test("recorder default is null") {
-            ops.recorder.shouldBeNull()
         }
 
         // --- ActionReceiver-only smoke tests ------------------------------------

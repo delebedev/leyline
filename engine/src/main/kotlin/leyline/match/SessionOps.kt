@@ -197,7 +197,6 @@ interface SessionOps :
     GreMessageSink,
     SessionCounters,
     ActionReceiver {
-    val recorder: MatchRecorder? get() = null
     val matchId: String
 }
 
