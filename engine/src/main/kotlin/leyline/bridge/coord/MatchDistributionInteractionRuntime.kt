@@ -140,7 +140,6 @@ internal class MatchDistributionInteractionRuntime(
                 }
                 SinglePromptPublication(
                     Window(published, initial, exact, targetByWireId),
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
                     preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },

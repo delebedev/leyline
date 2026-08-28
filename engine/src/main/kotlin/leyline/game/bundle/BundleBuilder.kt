@@ -984,27 +984,54 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
+        routes: List<ViewerRoute>,
+    ): PreparedViewerCut<BlockingInteractionMaterializer.Prepared> {
+        require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt) {
+            "Optional interaction does not require a state snapshot"
+        }
+        val frame = prepareViewerPromptProjection(game, counter, routes)
+        val playerResult = frame.fold.viewers[frame.playerIndex].result
+        val stateMessages = stateOnlyMessages(playerResult.gsm, frame.playerInput.events.events, counter)
+        val player =
+            interaction.commanderReturn?.let { context ->
+                commanderOptionalInteractionBundle(
+                    game,
+                    counter,
+                    interaction,
+                    context,
+                    frame.fold.transition,
+                    stateMessages,
+                )
+            } ?: blockingInteractions.snapshotOptional(
+                stateMessages,
+                counter,
+                interaction,
+                frame.fold.transition,
+            )
+        return PreparedViewerCut(
+            player,
+            frame.outputs(player.bundle.messages),
+            checkNotNull(player.transition),
+            player.closesPlaybackFrame,
+            player.bundle.actionGameStateId,
+        )
+    }
+
+    internal fun generalOptionalInteractionBundle(
+        counter: LogicalSequencePlanner,
+        interaction: BlockingInteraction.Optional,
     ): BlockingInteractionMaterializer.Prepared =
-        interaction.commanderReturn?.let { commanderOptionalInteractionBundle(game, counter, interaction, it) }
-            ?: if (interaction.forceSnapshotBeforePrompt) {
-                snapshotOptionalInteractionBundle(game, counter, interaction)
-            } else {
-                blockingInteractions.generalOptional(bridge.projectionStateSnapshot(), counter, interaction)
-            }
+        blockingInteractions.generalOptional(bridge.projectionStateSnapshot(), counter, interaction)
 
     private fun commanderOptionalInteractionBundle(
         game: Game,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         context: CommanderReturnPromptContext,
+        transition: ProjectionTransition,
+        stateMessages: List<GREToClientMessage>,
     ): BlockingInteractionMaterializer.Prepared {
-        val input =
-            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
-                StateMapper.resolveUpdateType(snap, seatId)
-            }
-        val compiled = compileFrame(input)
-        val stateMessages = stateOnlyMessages(compiled.gsm, input.state.events.events, counter)
-        val tentative = compiled.transition.nextState.copy(revision = compiled.transition.expectedRevision)
+        val tentative = transition.nextState.copy(revision = transition.expectedRevision)
         val link = counter.nextGameStateLink()
         val (bundle, next) =
             bridge.editProjection(tentative) { editor ->
@@ -1024,23 +1051,9 @@ class BundleBuilder(
             }
         return BlockingInteractionMaterializer.Prepared(
             bundle = bundle,
-            transition = compiled.transition.copy(nextState = next),
+            transition = transition.copy(nextState = next),
             closesPlaybackFrame = true,
         )
-    }
-
-    private fun snapshotOptionalInteractionBundle(
-        game: Game,
-        counter: LogicalSequencePlanner,
-        interaction: BlockingInteraction.Optional,
-    ): BlockingInteractionMaterializer.Prepared {
-        val input =
-            frameInput(game, counter, revealForSeat = null, eventsOverride = null) { snap, _ ->
-                StateMapper.resolveUpdateType(snap, seatId)
-            }
-        val compiled = compileFrame(input)
-        val stateMessages = stateOnlyMessages(compiled.gsm, input.state.events.events, counter)
-        return blockingInteractions.snapshotOptional(compiled, stateMessages, counter, interaction)
     }
 
     private fun stateOnlyMessages(
