@@ -170,14 +170,17 @@ jobs:
         run: just build
 
       - name: Test (integration)
+        id: integration
         run: just test-integration
         continue-on-error: true
 
       - name: Test (simclient)
+        id: simclient
         run: just test-simclient
         continue-on-error: true
 
       - name: Test (acceptance)
+        id: acceptance
         run: just test-acceptance
         continue-on-error: true
 
@@ -198,6 +201,14 @@ jobs:
           path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Propagate test failures
+        if: >-
+          always() &&
+          (steps.integration.outcome == 'failure' ||
+           steps.simclient.outcome == 'failure' ||
+           steps.acceptance.outcome == 'failure')
+        run: exit 1
 
   report:
     name: Report

@@ -5,6 +5,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationFrameFinalizer
+import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
@@ -54,6 +55,7 @@ object StateProjectionCompiler {
     data class FoldResult(
         val viewers: List<ViewerResult>,
         val transition: ProjectionTransition,
+        val phaseTransitionCommitAnnotation: AnnotationInfo? = null,
     )
 
     fun compileOneViewer(
@@ -122,7 +124,27 @@ object StateProjectionCompiler {
                         idReallocations = planned.output.idReallocations + plannedOrder.idReallocations,
                     ),
             )
-        editor.persistentAnnotations = editor.persistentAnnotations.copy(nextAnnotationId = finalized.nextId)
+        val phaseTransitionCommitFrame =
+            if (ProjectionSupplement.PhaseTransition in canonical.intent.supplements) {
+                val frame = GsmFrame.from(stagedCanonical.snapshot)
+                AnnotationFrameFinalizer
+                    .finalize(
+                        listOf(
+                            AnnotationBuilder.phaseOrStepModified(
+                                stagedCanonical.snapshot.phase.activePlayer,
+                                frame.phase.number,
+                                frame.step.number,
+                            ),
+                        ),
+                        finalized.nextId,
+                    )
+            } else {
+                null
+            }
+        editor.persistentAnnotations =
+            editor.persistentAnnotations.copy(
+                nextAnnotationId = phaseTransitionCommitFrame?.nextId ?: finalized.nextId,
+            )
 
         val projected =
             viewers.map { viewer ->
@@ -153,6 +175,7 @@ object StateProjectionCompiler {
                     ViewerResult(seatId, result.copy(transition = transition))
                 },
             transition = transition,
+            phaseTransitionCommitAnnotation = phaseTransitionCommitFrame?.annotations?.single(),
         )
     }
 
@@ -293,6 +316,18 @@ object StateProjectionCompiler {
             when (supplement) {
                 ProjectionSupplement.NewTurnStarted ->
                     annotations += AnnotationBuilder.newTurnStarted(input.snapshot.phase.activePlayer)
+
+                ProjectionSupplement.PhaseTransition -> {
+                    val frame = GsmFrame.from(input.snapshot)
+                    repeat(2) {
+                        annotations +=
+                            AnnotationBuilder.phaseOrStepModified(
+                                input.snapshot.phase.activePlayer,
+                                frame.phase.number,
+                                frame.step.number,
+                            )
+                    }
+                }
 
                 is ProjectionSupplement.PlayerSelectingTargets -> {
                     supplement.reserveTriggeredAbilityForgeId?.let { abilityId ->

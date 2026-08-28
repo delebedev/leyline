@@ -30,6 +30,8 @@ import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.ViewerProjectionCursor
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
@@ -79,18 +81,23 @@ class StateProjectionCompilerTest :
                 )
             val player = compilerInput(current, previous).copy(viewingSeatId = 1)
             val observer = compilerInput(current).copy(viewingSeatId = 2)
+            val actions =
+                ActionsAvailableReq
+                    .newBuilder()
+                    .addActions(Action.newBuilder().setActionType(ActionType.Pass))
+                    .build()
             val onlyPlayer =
                 StateProjectionCompiler.compileViewers(
                     compilerEnvironment(),
                     prior,
-                    listOf(StateProjectionCompiler.ViewerInput(player, actions = ActionsAvailableReq.getDefaultInstance())),
+                    listOf(StateProjectionCompiler.ViewerInput(player, actions = actions)),
                 )
             val both =
                 StateProjectionCompiler.compileViewers(
                     compilerEnvironment(),
                     prior,
                     listOf(
-                        StateProjectionCompiler.ViewerInput(player, actions = ActionsAvailableReq.getDefaultInstance()),
+                        StateProjectionCompiler.ViewerInput(player, actions = actions),
                         StateProjectionCompiler.ViewerInput(observer, role = ProjectionViewerRole.Observer),
                     ),
                 )
@@ -103,8 +110,12 @@ class StateProjectionCompilerTest :
                     .result.gsm.type shouldBe GameStateType.Full
                 both.viewers[0]
                     .result.gsm.pendingMessageCount shouldBe 1
+                both.viewers[0]
+                    .result.gsm.actionsCount shouldBe 1
                 both.viewers[1]
                     .result.gsm.pendingMessageCount shouldBe 0
+                both.viewers[1]
+                    .result.gsm.actionsCount shouldBe 0
                 both.viewers[0]
                     .result.gsm
                     .toByteArray()

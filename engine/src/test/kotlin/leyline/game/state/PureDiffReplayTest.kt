@@ -1,19 +1,18 @@
 package leyline.game.state
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
-import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
-import leyline.game.mapping.ViewerProjectionIntent
 import leyline.testkit.IsolatedBoardLifecycle
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.submitTestAction
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /** One engine-level agreement proving deterministic replay of compiler inputs. */
 class PureDiffReplayTest :
@@ -26,10 +25,8 @@ class PureDiffReplayTest :
         }
 
         data class BundleStep(
-            val input: StateFrameInput,
             val prior: ProjectionState,
-            val intent: ViewerProjectionIntent,
-            val diff: GameStateMessage,
+            val viewers: List<GameBridge.ProjectionFoldViewer>,
         )
 
         test("one-turn scripted scenario replays byte-identically") {
@@ -37,33 +34,34 @@ class PureDiffReplayTest :
             val replay = IsolatedBoardLifecycle()
             try {
                 val (liveBridge, _, _) = live.startGameAtMain1(seed = SCENARIO_SEED)
+                liveBridge.cutCoordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
                 val liveRun = mutableListOf<BundleStep>()
-                liveBridge.diffListener = { input, prior, intent, diff -> liveRun.add(BundleStep(input, prior, intent, diff)) }
+                liveBridge.diffListener = { prior, viewers -> liveRun.add(BundleStep(prior, viewers)) }
 
                 live.playLand(liveBridge)
                 live.castCreature(liveBridge)
                 advanceToEndOfTurn(liveBridge)
                 liveRun.shouldNotBeEmpty()
                 liveBridge.diffListener = null
+                liveRun.map { step -> step.viewers.map { it.input.input.viewingSeatId } } shouldContain listOf(1, 2)
 
                 val (replayBridge, _, _) = replay.startGameAtMain1(seed = SCENARIO_SEED)
                 val replayBytes =
                     liveRun.map { step ->
-                        val replayPrior = replayBridge.projectionStateSnapshot()
-                        // Logical sequence belongs to cut installation; this replay exercises only compiler transitions.
-                        replayPrior.copy(sequence = step.prior.sequence) shouldBe step.prior
                         val result =
-                            StateProjectionCompiler.compileOneViewer(
+                            StateProjectionCompiler.compileViewers(
                                 replayBridge.stateProjectionEnvironment,
-                                step.input.copy(updateType = step.diff.update),
-                                replayPrior,
-                                step.intent,
+                                step.prior,
+                                step.viewers.map { it.input },
                             )
-                        replayBridge.commitProjection(result.transition)
-                        result.gsm.toByteArray().toList()
+                        result.viewers.map {
+                            it.result.gsm
+                                .toByteArray()
+                                .toList()
+                        }
                     }
 
-                replayBytes shouldBe liveRun.map { it.diff.toByteArray().toList() }
+                replayBytes shouldBe liveRun.map { step -> step.viewers.map { it.diff.toByteArray().toList() } }
             } finally {
                 replay.tearDown()
                 live.tearDown()

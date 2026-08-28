@@ -885,7 +885,7 @@ object StateMapper {
     ): Draft {
         if (prev == null) {
             // First bundle — Full GSM with one complete transition.
-            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects, actions) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -914,7 +914,7 @@ object StateMapper {
         // contents (matches the protocol shape Arena uses for cycling /
         // tutor searches).
         if (revealForSeat != null) {
-            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects, actions) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -1198,29 +1198,44 @@ object StateMapper {
     private fun Draft.forViewer(
         viewingSeatId: Int,
         includePrivateObjects: Boolean,
+        actions: ActionsAvailableReq? = null,
     ): Draft {
-        if (viewingSeatId == 0 && includePrivateObjects) return this
-        val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
-        val visibleObjects =
-            gsm.gameObjectsList.filter { obj ->
-                obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+        val projectedBuilder =
+            if (viewingSeatId == 0 && includePrivateObjects) {
+                gsm.toBuilder().clearActions()
+            } else {
+                val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
+                val visibleObjects =
+                    gsm.gameObjectsList.filter { obj ->
+                        obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+                    }
+                gsm
+                    .toBuilder()
+                    .clearZones()
+                    .addAllZones(
+                        gsm.zonesList.map { zone ->
+                            if (!includePrivateObjects && zone.visibility == Visibility.Private) {
+                                zone.toBuilder().clearObjectInstanceIds().build()
+                            } else {
+                                redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                            }
+                        },
+                    ).clearGameObjects()
+                    .addAllGameObjects(visibleObjects)
+                    .clearActions()
             }
-        val projected =
-            gsm
-                .toBuilder()
-                .clearZones()
-                .addAllZones(
-                    gsm.zonesList.map { zone ->
-                        if (!includePrivateObjects && zone.visibility == Visibility.Private) {
-                            zone.toBuilder().clearObjectInstanceIds().build()
-                        } else {
-                            redactOpponentSideboardZone(zone, opponentSideboardZoneId)
-                        }
-                    },
-                ).clearGameObjects()
-                .addAllGameObjects(visibleObjects)
-                .build()
-        return copy(gsm = projected)
+        if (actions != null) {
+            val actionSeat = viewingSeatId.takeIf { it != 0 } ?: gsm.turnInfo.priorityPlayer
+            actions.actionsList.forEach { action ->
+                projectedBuilder.addActions(
+                    ActionInfo
+                        .newBuilder()
+                        .setSeatId(actionSeat)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
+            }
+        }
+        return copy(gsm = projectedBuilder.build())
     }
 
     private fun redactOpponentSideboardZone(

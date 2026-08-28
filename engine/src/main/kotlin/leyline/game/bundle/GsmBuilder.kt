@@ -68,6 +68,15 @@ data class GsmFrame(
  * this class covers everything else.
  */
 object GsmBuilder {
+    fun buildTransitionGameInfo(matchId: String): GameInfo =
+        GameInfo
+            .newBuilder()
+            .setMatchID(matchId)
+            .setStage(GameStage.Play_a920)
+            .setMatchState(MatchState.GameInProgress)
+            .setMulliganType(MulliganType.London)
+            .build()
+
     @Suppress("UnusedPrivateProperty")
     private val log = LoggerFactory.getLogger(GsmBuilder::class.java)
 
@@ -460,14 +469,7 @@ object GsmBuilder {
                 .setUpdate(GameStateUpdate.SendHiFi)
 
         if (isStageTransition) {
-            builder.setGameInfo(
-                GameInfo
-                    .newBuilder()
-                    .setMatchID(matchId)
-                    .setStage(GameStage.Play_a920)
-                    .setMatchState(MatchState.GameInProgress)
-                    .setMulliganType(MulliganType.London),
-            )
+            builder.setGameInfo(buildTransitionGameInfo(matchId))
         }
 
         // Embed stripped-down actions for display only — SendHiFi never carries
