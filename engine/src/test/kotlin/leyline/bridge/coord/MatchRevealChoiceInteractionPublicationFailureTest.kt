@@ -8,11 +8,13 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.PromptJournal
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
@@ -94,11 +96,13 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
                     )
                 }
             assertSoftly {
-                failure.revealChoiceDiagnostic
+                failure.promptMaterializationDiagnostic
                     .shouldNotBeNull()
-                    .interaction.sourceForgeCardId
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                    .sourceForgeCardId
                     ?.value shouldBe Int.MAX_VALUE
-                failure.pendingRevealChoiceCut.shouldBeNull()
+                failure.pendingPromptCut.shouldBeNull()
                 board.bridge
                     .promptBridge(SeatId(1))
                     .journal
@@ -142,7 +146,7 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val prior = board.bridge.projectionStateSnapshot()
-            coordinator.revealChoices.afterInstall = { error("reveal acknowledgement unavailable") }
+            coordinator.prompts.settled.afterInstall = { error("reveal acknowledgement unavailable") }
 
             val failure =
                 shouldThrow<PlaybackTerminalFailure> {
@@ -157,7 +161,11 @@ class MatchRevealChoiceInteractionPublicationFailureTest :
             val retained = coordinator.drain(SeatId(1)).single()
 
             assertSoftly {
-                failure.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe retained
+                failure.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                failure.pendingPromptCut.shouldNotBeNull().messages shouldBe retained
                 retained.any { it.hasSelectNReq() } shouldBe true
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 board.bridge

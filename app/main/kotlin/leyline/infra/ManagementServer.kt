@@ -16,7 +16,8 @@ import java.util.concurrent.Executors
  * Runs on its own port (default 8091) with a minimal fixed thread pool.
  */
 class ManagementServer(
-    private val port: Int = 8091,
+    private val bindAddress: String,
+    private val port: Int,
     /** Probe function: returns true if the data plane is healthy. */
     private val healthCheck: () -> Boolean = { true },
 ) {
@@ -24,7 +25,7 @@ class ManagementServer(
     private var server: HttpServer? = null
 
     fun start() {
-        val srv = HttpServer.create(InetSocketAddress(port), 0)
+        val srv = HttpServer.create(InetSocketAddress(bindAddress, port), 0)
         srv.createContext("/health") { ex -> serveHealth(ex) }
         srv.executor =
             Executors.newFixedThreadPool(2) { r ->
@@ -32,7 +33,7 @@ class ManagementServer(
             }
         srv.start()
         server = srv
-        log.info("Management server: http://localhost:{}/health", port)
+        log.info("Management server: http://{}:{}/health", bindAddress, port)
     }
 
     fun stop() {

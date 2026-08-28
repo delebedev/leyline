@@ -1,8 +1,6 @@
 package leyline.session.rules
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
@@ -63,11 +61,8 @@ class LegendRuleTest :
 
         /** Cast Isamaru, resolve, trigger legend rule, respond to SelectNReq. */
         fun MatchFlowHarness.castAndResolveLegendRule(): Int {
-            castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
-            passPriority()
-
-            val selectNReq = allMessages.last { it.hasSelectNReq() }
-            val legendaryIds = selectNReq.selectNReq.idsList
+            val selectNReq = castSpellUntilSelectNReq("Isamaru, Hound of Konda")
+            val legendaryIds = selectNReq.idsList
             val keepId = findUntappedIsamaru(legendaryIds) ?: legendaryIds.last()
 
             respondToSelectN(listOf(keepId))
@@ -131,7 +126,7 @@ class LegendRuleTest :
             assertSoftly {
                 accumulator.assertConsistent("after legend rule")
                 assertGsIdChain(allMessages, context = "legend rule flow")
-                isGameOver().shouldBeFalse()
+                isGameOver() shouldBe false
             }
         }
     })

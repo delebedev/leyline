@@ -179,7 +179,7 @@ class GameEndTest :
 
         session(
             "spell resolving for lethal produces MatchCompleted room state",
-            puzzleFile = "puzzles/bolt-face.pzl",
+            puzzleFile = "test-puzzles/bolt-face-lethal.pzl",
         ) {
             // Combat damage and stack resolution reach game-over through
             // different handlers; the stack-empty path must check isGameOver

@@ -3,24 +3,19 @@ package leyline.game.bundle
 import leyline.bridge.handoff.GatherCountersWindowValue
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /** Value-only GRE preparation for the bounded GatherCounters PayCosts row. */
-internal class GatherCountersWindowMaterializer(
-    private val seatId: Int,
-) {
+internal class GatherCountersWindowMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: MessageCounter,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: GatherCountersWindowValue,
-    ): PreparedPayCostsCut {
+    ): SettledPromptMaterialization {
         val destinationId =
-            projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(window.promptSource.forgeAbilityId))
+            context.requiredInstanceId(
+                FrameIdResolver.triggerStackAbilityForgeId(window.promptSource.forgeAbilityId),
+                "PayCosts card",
+            )
         val payCosts =
             PayCostsReq
                 .newBuilder()
@@ -39,7 +34,7 @@ internal class GatherCountersWindowMaterializer(
                                         gather.addSources(
                                             GatherSource
                                                 .newBuilder()
-                                                .setSourceId(projection.requireInstanceId(source.forgeCardId))
+                                                .setSourceId(context.requiredInstanceId(source.forgeCardId, "PayCosts card"))
                                                 .setMaxAmount(source.maxAmount),
                                         )
                                     }
@@ -48,38 +43,16 @@ internal class GatherCountersWindowMaterializer(
                 ).build()
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = gameState
+                context.message(GREMessageType.GameStateMessage_695e) {
+                    it.gameStateMessage = context.gameState
                 },
-                makeGRE(GREMessageType.PayCostsReq_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.PayCostsReq_695e) {
                     it.payCostsReq = payCosts
                     it.prompt = promptWithCardId(PromptIds.GATHER_COUNTERS, destinationId)
                     it.allowCancel = AllowCancel.Abort
                     it.allowUndo = true
                 },
             )
-        return PreparedPayCostsCut(
-            BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId),
-            transition,
-            closesPlaybackFrame = true,
-        )
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
-
-    private fun ProjectionState.requireInstanceId(cardId: leyline.bridge.types.ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("PayCosts card ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }

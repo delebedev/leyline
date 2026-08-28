@@ -17,11 +17,12 @@ import leyline.bridge.handoff.OwnerContext
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.SynchronizationContinuation
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PriorityDecision
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
@@ -43,7 +44,8 @@ class PriorityLoopCoordinator(
     private val game: Game,
     private val player: Player,
     private val actionBridge: GameActionBridge,
-    private val phaseStopProfile: PhaseStopProfile?,
+    private val priorityPolicy: PriorityPolicyRuntime,
+    private val runtimeHorizonMode: RuntimeHorizonMode,
     private val smartPhaseSkip: Boolean,
     private val spellExecutor: SpellExecutor,
     interactionRuntime: BlockingInteractionRuntime,
@@ -70,48 +72,44 @@ class PriorityLoopCoordinator(
         }
 
         if (actionBridge.autoPassUntilEndOfTurn) {
-            owner.recordDecision(PriorityDecision.Skip(AutoPassReason.EndTurnFlag))
+            priorityPolicy.recordDecision(game, PriorityDecision.Skip(AutoPassReason.EndTurnFlag))
             return null
         }
 
         val isOwnTurn = handler.playerTurn?.id == player.id
-        // Phase stop check only applies on human's own turn. During opponent's turn
-        // the session layer (advanceOrWait) handles opponent-turn stops separately.
-        if (owner.autoPassState?.isFullControl != true &&
-            isOwnTurn &&
-            phaseStopProfile != null &&
-            !phaseStopProfile.isEnabled(player.id, handler.phase)
-        ) {
-            owner.recordDecision(PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
-            return null
-        }
 
         // Loop so that mana abilities (which don't use the stack) keep priority with the player.
         var forceVisibleAfterMana = false
         while (true) {
             val priorityCandidates = PriorityActionCandidates.query(game, player)
-            val forceVisible = actionBridge.consumeForceNextWindowVisible()
             val continuation = actionBridge.consumeSynchronizationContinuation()
             val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
-            val mode =
-                priorityWindowMode(
-                    fullControl =
-                        owner.autoPassState?.isFullControl == true ||
-                            forceVisible ||
-                            forceVisibleAfterMana ||
-                            continuation == SynchronizationContinuation.RequireVisible,
-                    smartPhaseSkip = smartPhaseSkip,
-                    promptJustResolved = promptJustResolved || continuation == SynchronizationContinuation.AllowSyncOnly,
-                    stackEmpty = game.stack.isEmpty,
-                    opponentStop =
-                        !isOwnTurn &&
-                            handler.phase?.let { owner.autoPassState?.hasOpponentStop(it) } == true,
-                    hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+            val decision =
+                priorityPolicy.classifyPriorityWindow(
+                    PriorityWindowObservation(
+                        isOwnTurn = isOwnTurn,
+                        phase = handler.phase,
+                        smartPhaseSkip = smartPhaseSkip,
+                        promptJustResolved = promptJustResolved,
+                        stackEmpty = game.stack.isEmpty,
+                        forceVisible = forceVisibleAfterMana,
+                        continuation = continuation,
+                        hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+                    ),
                 )
             forceVisibleAfterMana = false
-            if (mode == PriorityWindowMode.Skip) {
-                owner.recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
-                return null
+            val skipped = decision is PriorityWindowDecision.Skip
+            if (skipped) {
+                priorityPolicy.recordDecision(game, PriorityDecision.Skip(decision.reason))
+            }
+            var mode =
+                when (decision) {
+                    is PriorityWindowDecision.Present -> decision.mode
+                    is PriorityWindowDecision.Skip -> PriorityWindowMode.SyncOnly
+                }
+            if (mode == PriorityWindowMode.SyncOnly && runtimeHorizonMode == RuntimeHorizonMode.Direct) {
+                if (skipped) return null
+                mode = PriorityWindowMode.Visible
             }
             owner.notifyStateChanged()
 
@@ -122,12 +120,18 @@ class PriorityLoopCoordinator(
                     activePlayerId = handler.playerTurn?.id ?: -1,
                     priorityPlayerId = player.id,
                     kind = if (mode == PriorityWindowMode.SyncOnly) PendingActionKind.SYNC_ONLY else PendingActionKind.PRIORITY,
+                    synchronizationPresentation =
+                        if (skipped) SynchronizationPresentation.PhaseTransition else SynchronizationPresentation.StateOnly,
                     synchronizationContinuation =
-                        synchronizationContinuation(
-                            mode = mode,
-                            stackEmpty = game.stack.isEmpty,
-                            autoResolve = owner.autoPassState?.shouldAutoPass() == true,
-                        ),
+                        if (skipped) {
+                            SynchronizationContinuation.Reevaluate
+                        } else {
+                            synchronizationContinuation(
+                                mode = mode,
+                                stackEmpty = game.stack.isEmpty,
+                                autoResolve = (decision as PriorityWindowDecision.Present).autoResolve,
+                            )
+                        },
                 )
             val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })
             actionBridge.armSynchronizationContinuation(state.synchronizationContinuation)
@@ -160,20 +164,6 @@ class PriorityLoopCoordinator(
     }
 
     companion object {
-        internal fun priorityWindowMode(
-            fullControl: Boolean,
-            smartPhaseSkip: Boolean,
-            promptJustResolved: Boolean,
-            stackEmpty: Boolean,
-            opponentStop: Boolean,
-            hasMeaningfulAction: Boolean,
-        ): PriorityWindowMode =
-            when {
-                fullControl || opponentStop || hasMeaningfulAction -> PriorityWindowMode.Visible
-                promptJustResolved || !stackEmpty || !smartPhaseSkip -> PriorityWindowMode.SyncOnly
-                else -> PriorityWindowMode.Skip
-            }
-
         internal fun synchronizationContinuation(
             mode: PriorityWindowMode,
             stackEmpty: Boolean,

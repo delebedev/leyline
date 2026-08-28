@@ -40,6 +40,7 @@ fun statsToJson(
         append("\"aiMaxMsByPrompt\":${longMapToJson(stats.aiMaxMsByPrompt)},")
         append("\"targetChoiceCounts\":${mapToJson(stats.targetChoiceCounts)},")
         append("\"targetChoiceSamples\":${stringMapToJson(stats.targetChoiceSamples)},")
+        append("\"advisorUnavailableByReason\":${mapToJson(stats.advisorUnavailableByReason)},")
         append("\"promptHistogram\":$histo,")
         append("\"promptRequestsByKind\":${mapToJson(stats.promptRequestsByKind)},")
         append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")

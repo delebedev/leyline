@@ -30,39 +30,38 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 fun GameBridge.seedDiffBaseline(
     game: Game,
     gameStateId: Int = 0,
-): GsmSnapshot =
-    synchronized(projectionBuildLock) {
-        val priorProjection = projectionStateSnapshot()
-        val (snap, capturedProjection) =
-            editProjection(priorProjection) {
-                GsmSnapshot.capture(game, this, "", gameStateId)
-            }
-        val events = closeBundleFrame()
-        val promptFacts = materializePromptProjectionFacts()
-        val result =
-            StateProjectionCompiler.compileOneViewer(
-                environment = stateProjectionEnvironment,
-                input =
-                    StateFrameInput(
-                        gameStateId = gameStateId,
-                        snapshot = snap,
-                        previousSnapshot = null,
-                        events = events,
-                        promptFacts = promptFacts,
-                        persistentFeedFacts =
-                            PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
-                        effectFacts = materializeEffectProjectionFacts(),
-                        mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
-                        abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
-                        updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
-                        viewingSeatId = 0,
-                        revealForSeat = null,
-                    ),
-                prior = capturedProjection.copy(revision = priorProjection.revision),
-            )
-        commitProjection(result.transition)
-        snap
-    }
+): GsmSnapshot {
+    val priorProjection = projectionStateSnapshot()
+    val (snap, capturedProjection) =
+        editProjection(priorProjection) {
+            GsmSnapshot.capture(game, this, "", gameStateId)
+        }
+    val events = closeBundleFrame()
+    val promptFacts = materializePromptProjectionFacts()
+    val result =
+        StateProjectionCompiler.compileOneViewer(
+            environment = stateProjectionEnvironment,
+            input =
+                StateFrameInput(
+                    gameStateId = gameStateId,
+                    snapshot = snap,
+                    previousSnapshot = null,
+                    events = events,
+                    promptFacts = promptFacts,
+                    persistentFeedFacts =
+                        PersistentFeedFactsCapture.capture(snap, promptFacts, this, stateProjectionEnvironment),
+                    effectFacts = materializeEffectProjectionFacts(),
+                    mechanicSourceFacts = MechanicSourceFactsCapture.capture(this, events.events),
+                    abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snap, this),
+                    updateType = wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
+                    viewingSeatId = seating.humanSeat.value,
+                    revealForSeat = null,
+                ),
+            prior = capturedProjection.copy(revision = priorProjection.revision),
+        )
+    commitProjection(result.transition)
+    return snap
+}
 
 /** Compile one observational projection from an explicit snapshot without installing it. */
 fun GameBridge.projectSnapshotForTest(
@@ -126,7 +125,7 @@ fun awaitFreshPending(
 
 /**
  * Advance the engine to a phase matching [predicate] by submitting one
- * PassPriority at a time via the bridge. No AutoPassEngine involvement —
+ * PassPriority at a time via the bridge. No session progression policy —
  * each pass is a single engine step, so there is no phase overshoot.
  *
  * Returns the [GameActionBridge.PendingAction] at the target phase
@@ -141,6 +140,7 @@ fun advanceTo(
     maxPasses: Int = 50,
     timeoutMs: Long = 15_000,
     predicate: (phase: String, turn: Int) -> Boolean,
+    onSynchronization: (() -> Unit)? = null,
 ): GameActionBridge.PendingAction {
     val game = b.getGame() ?: error("Game was not initialised")
     var lastId: String? = null
@@ -150,9 +150,7 @@ fun advanceTo(
                 ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
         if (predicate(pending.state.phase, pending.state.turn)) return pending
         if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
-            val delivered = checkNotNull(b.playback) { "SyncOnly requires a registered playback feed" }.drainQueue()
-            check(delivered.isNotEmpty()) { "SyncOnly must commit its state batch before engine resume" }
-            check(b.actionBridge(SeatId(1)).completeSyncPass(pending.actionId))
+            checkNotNull(onSynchronization) { "SyncOnly advancement requires a delivery observer" }()
             lastId = pending.actionId
             return@repeat
         }
@@ -179,7 +177,7 @@ fun advanceToPhase(
     phase: String,
     turn: Int? = null,
     maxPasses: Int = 50,
-) = advanceTo(b, maxPasses) { p, t -> p == phase && (turn == null || t == turn) }
+) = advanceTo(b, maxPasses, predicate = { p, t -> p == phase && (turn == null || t == turn) })
 
 /** Advance to COMBAT_DECLARE_ATTACKERS. */
 fun advanceToCombat(

@@ -36,6 +36,8 @@ object PromptIds {
     const val GROUP_SCRY = 92
     const val GROUP_SURVEIL = 129
     const val SEARCH = 1065
+    const val SEARCH_FROM_GROUPS = 3713
+    const val SELECT_REPLACEMENT = 74
 
     /** Static SelectN color choice — "Choose a color." */
     const val CHOOSE_COLOR = 118
@@ -148,4 +150,10 @@ object PromptIds {
 
     /** Order cards being placed on top of a library. */
     const val ORDER_LIBRARY_TOP = 86
+
+    /** Divided damage allocation across already-selected targets. */
+    const val DISTRIBUTE_DAMAGE = 2234
+
+    /** Divided counter allocation across already-selected targets. */
+    const val DISTRIBUTE_COUNTERS = 4051
 }

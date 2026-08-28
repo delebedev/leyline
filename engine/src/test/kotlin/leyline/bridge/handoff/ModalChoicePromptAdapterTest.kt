@@ -43,7 +43,6 @@ class ModalChoicePromptAdapterTest :
             isGameLoopThread = { isGameLoopThread },
             runtime = { error("fallback must not resolve a runtime") },
             prioritySignal = null,
-            timeoutListener = null,
             record = { _, outcome, _, _ -> records += outcome },
         )
 

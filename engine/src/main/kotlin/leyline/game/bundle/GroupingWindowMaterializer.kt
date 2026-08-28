@@ -1,15 +1,10 @@
 package leyline.game.bundle
 
 import leyline.bridge.handoff.GroupingWindowValue
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.GroupSpecification
 import wotc.mtgo.gre.external.messaging.Messages.GroupType
@@ -19,38 +14,30 @@ import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /** Value-only GRE preparation for coordinator-owned Scry and Surveil windows. */
-internal class GroupingWindowMaterializer(
-    private val seatId: Int,
-) {
-    data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
-    )
-
+internal class GroupingWindowMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: MessageCounter,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: GroupingWindowValue,
-    ): Prepared {
-        val candidateIds = window.candidates.map { projection.requireInstanceId(it.forgeCardId) }
-        val hostSourceId = window.source?.hostCardId?.let { projection.requireInstanceId(it) } ?: 0
+    ): SettledPromptMaterialization {
+        val candidateIds = window.candidates.map { context.requiredInstanceId(it.forgeCardId, "Grouping card") }
+        val hostSourceId = window.source?.hostCardId?.let { context.requiredInstanceId(it, "Grouping card") } ?: 0
         val sourceId =
             window.source
                 ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
-                ?.let { projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(it.forgeAbilityId)) }
+                ?.let { context.requiredInstanceId(FrameIdResolver.triggerStackAbilityForgeId(it.forgeAbilityId), "Grouping card") }
                 ?: hostSourceId
         val request = buildRequest(window.context, candidateIds, sourceId)
-        val state = gameState.toBuilder().setPendingMessageCount(1).build()
+        val state =
+            context.gameState
+                .toBuilder()
+                .setPendingMessageCount(1)
+                .build()
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GameStateMessage_695e) {
                     it.gameStateMessage = state
                 },
-                makeGRE(GREMessageType.GroupReq_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GroupReq_695e) {
                     it.groupReq = request
                     it.prompt =
                         Prompt
@@ -61,7 +48,7 @@ internal class GroupingWindowMaterializer(
                     it.allowCancel = AllowCancel.No_a526
                 },
             )
-        return Prepared(BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId), transition, true)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun buildRequest(
@@ -104,22 +91,4 @@ internal class GroupingWindowMaterializer(
             GroupingContext.UNRECOGNIZED,
             -> error("Unsupported coordinator Grouping context $context")
         }
-
-    private fun ProjectionState.requireInstanceId(cardId: ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("Grouping card ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }

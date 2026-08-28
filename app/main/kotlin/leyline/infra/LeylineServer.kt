@@ -12,25 +12,26 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.pkitesting.CertificateBuilder
 import leyline.DevCheck
-import leyline.bridge.bootstrap.CardEntry
-import leyline.bridge.bootstrap.DeckConverter
 import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckRealizationException
 import leyline.bridge.bootstrap.FormatService
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.debug.DebugSinkAdapter
 import leyline.domain.CollationPool
 import leyline.domain.DeckCard
 import leyline.domain.PlayerId
+import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchmakingService
 import leyline.game.data.CardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.persistence.SqlitePlayerStore
 import leyline.native.frontdoor.FrontDoorBootstrapData
@@ -53,18 +54,26 @@ import java.util.concurrent.atomic.AtomicReference
  * Both doors share the same 6-byte header framing (see [ClientFrameDecoder]).
  */
 class LeylineServer(
-    private val frontDoorPort: Int = 30010,
-    private val matchDoorPort: Int = 30003,
+    private val bindAddress: String,
+    private val frontDoorPort: Int,
+    private val matchDoorPort: Int,
     /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
     private val tlsFiles: Pair<File?, File?> = null to null,
-    /** Playtest configuration (decks, seed, die roll, AI speed). */
-    val matchConfig: MatchConfig = MatchConfig(),
+    /** Resolved engine behavior settings (timing, match defaults, draft, diagnostics). */
+    private val engineSettings: EngineSettings,
+    /** Resolved puzzle library root (content root). */
+    private val puzzlesDir: File,
+    /** Resolved booster-draft model directory (content-root anchored). */
+    private val draftModelDir: File,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
-    private val externalHost: String = "localhost",
+    private val externalHost: String,
     /** Card data repository — passed to MatchConnection for grpId↔name lookups. */
     val cardRepo: CardRepository,
     /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
     private val playerDbFile: File,
+    /** Resolved protocol dump output directory (outbound GRE messages). */
+    private val engineDumpDir: File,
+    private val sessionJournalFile: File,
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -80,6 +89,7 @@ class LeylineServer(
 
     // --- Debug infrastructure (wired in start()) ---
     val debugSink = DebugSinkAdapter()
+    val puzzleLibrary = PuzzleLibrary(puzzlesDir)
 
     /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
     val runtimePuzzle = AtomicReference<String?>(null)
@@ -97,10 +107,10 @@ class LeylineServer(
 
     fun start() {
         // Initialize dev-time strict checking from config
-        DevCheck.init(matchConfig.dev.strict, matchConfig.dev.strictPass)
+        DevCheck.init(engineSettings.dev.strict, engineSettings.dev.strictPass)
 
         // Configure proto dump output directory
-        leyline.protocol.ProtoDump.engineDumpDir = leyline.LeylinePaths.ENGINE_DUMP
+        leyline.protocol.ProtoDump.engineDumpDir = engineDumpDir
 
         // Initialize engine card DB on a background thread — server accepts connections
         // immediately while the ~2s card parse runs. GameBridge.start() calls
@@ -138,21 +148,25 @@ class LeylineServer(
         fdSsl: SslContext,
         mdSsl: SslContext,
     ) {
-        val hasDb = playerDbFile.exists()
-        if (!hasDb) log.warn("No player.db found — run `just seed-db` first. Using in-memory DB.")
-
+        // Always use the persistent player database: create the file and schema
+        // when missing. The former in-memory fallback never worked (each pooled
+        // SQLite `:memory:` connection is a separate empty database) and blocked
+        // fresh state paths such as additional instances.
+        playerDbFile.parentFile?.mkdirs()
+        if (!playerDbFile.exists()) {
+            log.info("No player.db at {} — creating a fresh persistent database", playerDbFile.absolutePath)
+        }
         val db =
             org.jetbrains.exposed.v1.jdbc.Database.connect(
-                if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
+                "jdbc:sqlite:${playerDbFile.absolutePath}",
                 "org.sqlite.JDBC",
             )
         val store = SqlitePlayerStore(db)
         store.createTables()
         val pid = PlayerId(playerId)
         store.ensurePlayer(pid, "Player")
-        val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val sealedPoolGen = SealedPoolGenerator(cardRepo)
+        val sealedPoolGen = SealedPoolGenerator(cardRepo::findGrpIdByName)
         val courseService =
             CourseService(store) { setCode ->
                 val pool = sealedPoolGen.generate(setCode)
@@ -163,7 +177,8 @@ class LeylineServer(
                 )
             }
         val draftRepo = store.asDraftSessionRepository()
-        val forgeDriver = ForgeBoosterDraftDriver(cardRepo, matchConfig.draft)
+        val forgeDriver =
+            ForgeBoosterDraftDriver(cardRepo::findGrpIdByName, engineSettings.draft.copy(modelDir = draftModelDir.absolutePath))
         val draftService =
             DraftService(
                 draftRepo,
@@ -212,10 +227,9 @@ class LeylineServer(
         val coordinator =
             AppMatchCoordinator(
                 playerId = pid,
-                deckService = deckService,
+                decks = store,
                 courseService = courseService,
                 draftRepo = draftRepo,
-                nameByGrpId = cardRepo::findNameByGrpId,
             )
         frontDoorChannel =
             bindServer(fdSsl, frontDoorPort) { ch ->
@@ -224,7 +238,7 @@ class LeylineServer(
                     "handler",
                     FrontDoorHandler(
                         playerId = pid,
-                        deckService = deckService,
+                        deckRepository = store,
                         playerService = playerService,
                         matchmaking = matchmakingService,
                         collectionService = CollectionService { cardRepo.findAllGrpIds() },
@@ -236,7 +250,7 @@ class LeylineServer(
                     ),
                 )
             }
-        log.info("Client Front Door (local) listening on :{}", frontDoorPort)
+        log.info("Client Front Door listening on {}:{}", bindAddress, frontDoorPort)
 
         matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
     }
@@ -246,9 +260,11 @@ class LeylineServer(
         val matchId = UUID.randomUUID().toString()
         // Puzzle runs are inferred from runtime puzzle injection because Arena
         // currently has no distinct Front Door event for "this is a puzzle".
-        val source = if (puzzle != null && eventName == "SparkyStarterDeckDuel") "puzzle" else "leyline"
+        val puzzleEvent = eventName == "SparkyStarterDeckDuel" || eventName == "AIBotMatch"
+        val source = if (puzzle != null && puzzleEvent) "puzzle" else "leyline"
         val puzzleRef = if (source == "puzzle") File(puzzle).nameWithoutExtension else null
         ScrySessionJournal.record(
+            journalPath = sessionJournalFile.toPath(),
             matchId = matchId,
             source = source,
             eventName = eventName,
@@ -266,16 +282,18 @@ class LeylineServer(
                 bossGroup = bossGroup,
                 workerGroup = workerGroup,
                 ssl = mdSsl,
+                bindAddress = bindAddress,
                 port = matchDoorPort,
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
+                puzzlesDir = puzzlesDir,
                 coordinator = coordinator,
                 cardRepository = cardRepo,
                 debugSink = debugSink,
-                puzzlePath = { runtimePuzzle.get() },
+                puzzleIdentity = { runtimePuzzle.get() },
                 runtimeMatchConfigs = runtimeMatchConfigs,
                 aiDeckNameOverride = { aiDeckOverride.getAndSet(null) },
             )
-        log.info("Client Match Door (local) listening on :{}", matchDoorPort)
+        log.info("Client Match Door listening on {}:{}", bindAddress, matchDoorPort)
         return ch
     }
 
@@ -288,19 +306,23 @@ class LeylineServer(
     }
 
     /**
-     * Compose DeckConverter + DeckLoader + FormatService into a single validation lambda.
+     * Compose DeckLoader + FormatService into a single validation lambda.
      * Returns null if legal, error string if illegal. Keeps engine deps behind the native composition layer.
+     *
+     * Always realizes through [DeckLoader] rather than short-circuiting on an empty
+     * [mainDeck]/[sideboard]: a deck that fails to realize is illegal, not unvalidated —
+     * treating it as legal here would let matchmaking succeed and defer the failure to
+     * the later match launch.
      */
     private fun buildDeckValidator(nameByGrpId: (Int) -> String?): (List<DeckCard>, List<DeckCard>, String) -> String? =
         { mainDeck, sideboard, formatId ->
-            val mainEntries = mainDeck.map { CardEntry(it.grpId, it.quantity) }
-            val sideEntries = sideboard.map { CardEntry(it.grpId, it.quantity) }
-            val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
-            if (deckText.isBlank()) {
-                null
-            } else {
-                val forgeDeck = DeckLoader.parseDeckList(deckText)
+            try {
+                val forgeDeck = DeckLoader.load(DeckSource.Cards(DeckCards(mainDeck, sideboard)), nameByGrpId)
                 FormatService.validateDeck(forgeDeck, formatId)
+            } catch (e: DeckRealizationException) {
+                e.errors.joinToString("; ")
+            } catch (e: IllegalArgumentException) {
+                e.message ?: "empty deck"
             }
         }
 
@@ -323,6 +345,6 @@ class LeylineServer(
                 ).option(ChannelOption.SO_BACKLOG, 128)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
 
-        return bootstrap.bind(port).sync().channel()
+        return bootstrap.bind(bindAddress, port).sync().channel()
     }
 }

@@ -43,6 +43,7 @@ data class ActivateStep(
     val card: String,
     val zone: AcceptanceZone = AcceptanceZone.Battlefield,
     val abilityIndex: Int = 0,
+    val abilityGrpId: Int? = null,
 ) : AcceptanceStep {
     override val label: String = "activate $card"
 }
@@ -82,6 +83,24 @@ data class TargetStep(
     val target: AcceptanceTargetSpec,
 ) : AcceptanceStep {
     override val label: String = "target ${target.label}"
+}
+
+data class TargetsStep(
+    val targets: List<AcceptanceTargetSpec>,
+) : AcceptanceStep {
+    override val label: String = "targets ${targets.joinToString { it.label }}"
+}
+
+data class DistributionAssignment(
+    val side: AcceptanceSide,
+    val card: String,
+    val amount: Int,
+)
+
+data class DistributeStep(
+    val assignments: List<DistributionAssignment>,
+) : AcceptanceStep {
+    override val label: String = "distribute ${assignments.joinToString { "${it.card}=${it.amount}" }}"
 }
 
 data class BlockStep(

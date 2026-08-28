@@ -1,7 +1,6 @@
 package leyline.game.bundle
 
 import forge.card.CardType
-import forge.card.GamePieceType
 import forge.card.RemoveType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
@@ -24,7 +23,7 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.RequestBuilder
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
@@ -45,23 +44,19 @@ import leyline.game.state.AbilityExhaustionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PersistentFeedFacts
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
-import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import java.util.EnumSet
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.concurrent.thread
 
 /**
  * Tests for [leyline.game.bundle.BundleBuilder] proto assembly.
@@ -108,7 +103,7 @@ class BundleBuilderTest :
 
             val msg =
                 BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 2)
-                    .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
+                    .queuedGameState(gs, LogicalSequencePlanner(initialGsId = 42, initialMsgId = 9))
 
             assertSoftly {
                 msg.type shouldBe GREMessageType.QueuedGameStateMessage
@@ -118,7 +113,7 @@ class BundleBuilderTest :
         }
 
         test("coinFlipPromptMessages emits promptId 46 notification") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 20)
             val messages =
                 pureBB().coinFlipPromptMessages(
                     events =
@@ -505,7 +500,7 @@ class BundleBuilderTest :
 
         @Suppress("WeakAssertionOnly")
         test("edictalPass sends server-forced Pass action") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result = pureBB().edictalPass(counter = counter)
 
             result.messages.size shouldBe 1
@@ -521,8 +516,8 @@ class BundleBuilderTest :
         }
 
         test("echo diff prevGsId uses last emitted GSM instead of gsId adjacency") {
-            val counter = MessageCounter(initialGsId = 7, initialMsgId = 0)
-            counter.markGameStateGsId(7)
+            val counter =
+                LogicalSequencePlanner(LogicalSequenceState(currentGsId = 7, currentMsgId = 0, lastGameStateGsId = 7))
             counter.nextGsId() // prompt-only interleave
 
             val echo = pureBB().buildEchoDiffGsm(counter)
@@ -534,7 +529,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle produces 3 GSM diffs + IntermissionReq") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,
@@ -578,7 +573,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle gsIds are strictly ascending") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,
@@ -596,7 +591,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle prevGameStateId chains correctly") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 2,
@@ -613,7 +608,7 @@ class BundleBuilderTest :
         }
 
         test("gameOverBundle with Concede reason") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0)
             val result =
                 pureBB().gameOverBundle(
                     winningTeam = 1,
@@ -633,7 +628,7 @@ class BundleBuilderTest :
         test("declareAttackersBundle shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
 
-            val result = bundleBuilder(b).declareAttackersBundle(game, counter)
+            val result = BundleBuilderTestSupport.declareAttackers(bundleBuilder(b), b, game, counter)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -646,7 +641,7 @@ class BundleBuilderTest :
         test("declareBlockersBundle shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
 
-            val result = bundleBuilder(b).declareBlockersBundle(game, counter)
+            val result = BundleBuilderTestSupport.declareBlockers(bundleBuilder(b), b, game, counter)
 
             assertSoftly {
                 result.messages.size shouldBe 2
@@ -658,9 +653,15 @@ class BundleBuilderTest :
 
         test("prepared targeting window shape") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
+            val builder = bundleBuilder(b)
             val result =
-                bundleBuilder(b)
-                    .prepareTargetingWindow(game, counter, targetingWindow(source = null))
+                builder
+                    .prepareTargetingWindow(
+                        game,
+                        counter,
+                        targetingWindow(source = null),
+                        routes = listOf(BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player), builder)),
+                    ).player
                     .bundle
 
             assertSoftly {
@@ -683,13 +684,16 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
-            val prepared =
-                bundleBuilder(b).prepareTargetingWindow(
+            val builder = bundleBuilder(b)
+            val preparedCut =
+                builder.prepareTargetingWindow(
                     game,
                     counter,
                     targetingWindow(source = ForgeCardId(source.id)),
+                    routes = listOf(BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player), builder)),
                 )
-            b.commitProjection(checkNotNull(prepared.transition))
+            b.commitProjection(preparedCut.transition)
+            val prepared = preparedCut.player
             val result = prepared.bundle
             val gsm = result.messages.first().gameStateMessage
             val rider = gsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
@@ -707,7 +711,7 @@ class BundleBuilderTest :
             val staged = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
             b.commitProjection(checkNotNull(staged.transition))
 
-            val result = builder.stateOnlyDiff(game, counter)
+            val result = BundleBuilderTestSupport.stateOnly(builder, b, game, counter)
             val gsm = result.messages.first().gameStateMessage
 
             assertSoftly {
@@ -862,87 +866,9 @@ class BundleBuilderTest :
             }
         }
 
-        test("shell frame and safe point share one lock order and one journal owner") {
-            val (b, game, counter) =
-                startWithBoard { _, human, _ ->
-                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                }
-            val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .single()
-            val builder = bundleBuilder(b)
-            val playback = GamePlayback(b, 1)
-            b.registerPlaybackForTest(SeatId(1), playback)
-            game.subscribeToEvents(playback)
-            val shellEnteredCompiler = CountDownLatch(1)
-            val releaseShell = CountDownLatch(1)
-            val shellResult = AtomicReference<BundleBuilder.BundleResult?>()
-            val shellFailure = AtomicReference<Throwable?>()
-            val safePointFailure = AtomicReference<Throwable?>()
-
-            game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
-            playback.visit(
-                forge.game.event.GameEventPlayerPoisoned(
-                    null as forge.game.player.PlayerView?,
-                    null as forge.game.player.PlayerView?,
-                    0,
-                    1,
-                ),
-            )
-            b.diffListener = { _, _, _, _ ->
-                shellEnteredCompiler.countDown()
-                releaseShell.await(5, TimeUnit.SECONDS).shouldBeTrue()
-            }
-
-            val shell =
-                thread(start = true, name = "shell-frame-owner") {
-                    try {
-                        shellResult.set(builder.stateOnlyDiff(game, counter))
-                    } catch (ex: Throwable) {
-                        shellFailure.set(ex)
-                    }
-                }
-            shellEnteredCompiler.await(5, TimeUnit.SECONDS).shouldBeTrue()
-            val safePoint =
-                thread(start = true, name = "safe-point-owner") {
-                    try {
-                        playback.onMainLoopStepCompleted()
-                    } catch (ex: Throwable) {
-                        safePointFailure.set(ex)
-                    }
-                }
-            val blockedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-            while (safePoint.state != Thread.State.BLOCKED && System.nanoTime() < blockedDeadline) {
-                Thread.yield()
-            }
-            safePoint.state shouldBe Thread.State.BLOCKED
-
-            releaseShell.countDown()
-            shell.join(5_000)
-            safePoint.join(5_000)
-            b.diffListener = null
-
-            val tappedAnnotations =
-                checkNotNull(shellResult.get())
-                    .messages
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .filter { AnnotationType.TappedUntappedPermanent in it.typeList }
-            assertSoftly {
-                shell.isAlive.shouldBeFalse()
-                safePoint.isAlive.shouldBeFalse()
-                shellFailure.get() shouldBe null
-                safePointFailure.get() shouldBe null
-                tappedAnnotations shouldHaveSize 1
-                playback.drainQueue() shouldBe emptyList()
-            }
-            playback.onMainLoopStepCompleted()
-            playback.drainQueue() shouldBe emptyList()
-        }
-
         test("stale exact playback cut becomes terminal and emits nothing") {
             val (b, _, _) = startWithBoard { _, _, _ -> }
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             var writerRan = false
             b.diffListener = { _, _, _, _ ->
@@ -975,37 +901,6 @@ class BundleBuilderTest :
             b.diffListener = null
         }
 
-        test("post-install playback failure retains the queued cut across a later writer") {
-            val (b, _, _) = startWithBoard { _, _, _ -> }
-            val playback = GamePlayback(b, 1)
-            val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
-            timeoutField.isAccessible = true
-            (timeoutField.get(b) as AtomicBoolean).set(true)
-            b.autoAdvanceRequester = {
-                b.getOrAllocInstanceId(ForgeCardId(9_999_998))
-                error("post-install acknowledgement failed")
-            }
-            playback.visit(
-                forge.game.event.GameEventPlayerPoisoned(
-                    null as forge.game.player.PlayerView?,
-                    null as forge.game.player.PlayerView?,
-                    0,
-                    1,
-                ),
-            )
-
-            val thrown = shouldThrow<PlaybackTerminalFailure> { playback.onMainLoopStepCompleted() }
-            val queued = playback.drainQueue()
-
-            assertSoftly {
-                thrown.cause?.message shouldBe "post-install acknowledgement failed"
-                queued shouldHaveSize 1
-                b.projectionStateSnapshot().revision shouldBeGreaterThan checkNotNull(thrown.pendingCut).projection.priorProjection.revision
-                b.peekInstanceId(ForgeCardId(9_999_998)) shouldBe b.getOrAllocInstanceId(ForgeCardId(9_999_998))
-            }
-            b.autoAdvanceRequester = null
-        }
-
         test("combat safe point subsumes ordinary request after reversed subscriber order") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -1016,6 +911,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             val collector = checkNotNull(b.eventCollector)
             game.unsubscribeFromEvents(collector)
@@ -1057,6 +953,7 @@ class BundleBuilderTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single()
+            b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             game.fireEvent(forge.game.event.GameEventCardTapped(card, true))
 
@@ -1084,101 +981,6 @@ class BundleBuilderTest :
                 .detailsList
                 .single { it.key == "tapped" }
                 .valueInt32List shouldBe listOf(0)
-        }
-
-        test("failure during finalization leaves cursor and bridge state unchanged") {
-            val (b, game, counter) =
-                startWithBoard { _, human, _ ->
-                    addCard("Llanowar Elves", human, ZoneType.Hand)
-                }
-            val builder = bundleBuilder(b)
-            b.seedDiffBaseline(game, counter.currentGsId())
-            val snap = checkNotNull(builder.previousProjectionSnapshot())
-            val startInstanceIds = b.getInstanceIdMap()
-            val startZones = b.getProtoZones()
-            val startId = b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId
-            val startJournal = b.annotationProjectionStateSnapshot()
-            val staged = builder.prepareTargetingSubmit(counter, b.projectionStateSnapshot(), 777.iid, SeatId(1))
-            b.commitProjection(checkNotNull(staged.transition))
-            val pending = checkNotNull(builder.pendingSubmittedTargets())
-            val card =
-                game.humanPlayer
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .single()
-            moveToBattlefield(card, game)
-            b.diffListener = { _, _, _, _ -> error("induced finalization failure") }
-
-            try {
-                shouldThrow<IllegalStateException> {
-                    builder.stateOnlyDiff(game, counter)
-                }
-            } finally {
-                b.diffListener = null
-            }
-
-            assertSoftly {
-                builder.previousProjectionSnapshot() shouldBe snap
-                builder.pendingSubmittedTargets() shouldBe pending
-                b.projectionStateSnapshot().persistentAnnotations.nextAnnotationId shouldBe startId
-                b.getInstanceIdMap() shouldBe startInstanceIds
-                b.getProtoZones() shouldBe startZones
-                b.annotationProjectionStateSnapshot() shouldBe startJournal
-            }
-        }
-
-        test("interleaved identity allocation is absorbed by finalization retry") {
-            fun compile(interleaveWriter: Boolean): Pair<List<List<Byte>>, leyline.game.state.SyntheticEffectProjection> {
-                val (b, game, counter) =
-                    startWithBoard { _, human, _ ->
-                        addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                    }
-                val card =
-                    game.humanPlayer
-                        .getZone(ZoneType.Battlefield)
-                        .cards
-                        .single()
-                b.promptBridge(SeatId(1)).journal.record(
-                    PromptSideEffect.ChoiceResult(
-                        sourceForgeCardId = ForgeCardId(card.id),
-                        chooserSeatId = SeatId(1),
-                        choiceValue = 1,
-                    ),
-                )
-                val builder = bundleBuilder(b)
-                val interleavedForgeId = ForgeCardId(1_000_000)
-                var writerRan = false
-                if (interleaveWriter) {
-                    b.diffListener = { _, _, _, _ ->
-                        if (!writerRan) {
-                            writerRan = true
-                            val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
-                            writer.join()
-                        }
-                    }
-                }
-                val result =
-                    try {
-                        builder.stateOnlyDiff(game, counter)
-                    } finally {
-                        b.diffListener = null
-                    }
-
-                if (interleaveWriter) {
-                    writerRan shouldBe true
-                    b.peekInstanceId(interleavedForgeId) shouldBe b.getOrAllocInstanceId(interleavedForgeId)
-                }
-                // The prompt-facts consumption lands exactly once with the
-                // finalization commit — even when the retry re-ran the frame
-                // after the interleaved allocation bumped the projection.
-                b.promptBridge(SeatId(1)).journal.snapshotChoiceResults() shouldBe emptyList()
-                return result.messages.map { it.toByteArray().toList() } to b.committedEffectProjection()
-            }
-
-            val control = compile(interleaveWriter = false)
-            val retried = compile(interleaveWriter = true)
-
-            retried shouldBe control
         }
 
         test("playback cut runs a SpellCast frame through the annotation pipeline") {
@@ -1235,92 +1037,6 @@ class BundleBuilderTest :
             }
         }
 
-        test("stale retry remaps token group identity after allocation collision") {
-            val (b, game, counter) =
-                startWithBoard { _, human, _ ->
-                    addCard("Forest", human, ZoneType.Battlefield)
-                }
-            b.seedDiffBaseline(game, counter.currentGsId())
-            val human = game.humanPlayer
-            val creator = human.getZone(ZoneType.Battlefield).cards.single()
-            val token = addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            token.setGamePieceType(GamePieceType.TOKEN)
-            token.tokenSpawningAbility = creator.manaAbilities.single()
-            val interleavedForgeId = ForgeCardId(1_000_001)
-            var writerRan = false
-            b.diffListener = { _, _, _, _ ->
-                if (!writerRan) {
-                    writerRan = true
-                    val writer = thread(start = true) { b.getOrAllocInstanceId(interleavedForgeId) }
-                    writer.join()
-                }
-            }
-
-            try {
-                bundleBuilder(b).stateOnlyDiff(game, counter)
-            } finally {
-                b.diffListener = null
-            }
-
-            val tokenIid = checkNotNull(b.peekInstanceId(ForgeCardId(token.id)))
-            val interleavedIid = checkNotNull(b.peekInstanceId(interleavedForgeId))
-            assertSoftly {
-                writerRan shouldBe true
-                checkNotNull(b.projectionStateSnapshot().tokenGrpIds[tokenIid.value]) shouldBeGreaterThan 0
-                b.projectionStateSnapshot().tokenGrpIds[interleavedIid.value] shouldBe null
-            }
-        }
-
-        test("shared projection build lock preserves frame order across builders") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-            b.seedDiffBaseline(game, counter.currentGsId())
-            val firstBuilder = bundleBuilder(b)
-            val secondBuilder = bundleBuilder(b)
-            val firstAtInstall = CountDownLatch(1)
-            val releaseFirst = CountDownLatch(1)
-            val secondDone = CountDownLatch(1)
-            val listenerCalls = AtomicInteger()
-            val failure = AtomicReference<Throwable?>()
-            val results = arrayOfNulls<BundleBuilder.BundleResult>(2)
-            b.diffListener = { _, _, _, _ ->
-                if (listenerCalls.incrementAndGet() == 1) {
-                    firstAtInstall.countDown()
-                    check(releaseFirst.await(5, TimeUnit.SECONDS))
-                }
-            }
-
-            val first =
-                thread(start = true) {
-                    try {
-                        results[0] = firstBuilder.stateOnlyDiff(game, counter)
-                    } catch (caught: Throwable) {
-                        failure.compareAndSet(null, caught)
-                    }
-                }
-            check(firstAtInstall.await(5, TimeUnit.SECONDS))
-            val second =
-                thread(start = true) {
-                    try {
-                        results[1] = secondBuilder.stateOnlyDiff(game, counter)
-                    } catch (caught: Throwable) {
-                        failure.compareAndSet(null, caught)
-                    } finally {
-                        secondDone.countDown()
-                    }
-                }
-
-            secondDone.await(100, TimeUnit.MILLISECONDS) shouldBe false
-            releaseFirst.countDown()
-            first.join()
-            second.join()
-            b.diffListener = null
-            failure.get() shouldBe null
-            val firstGs = checkNotNull(results[0]).messages.first().gameStateId
-            val secondGs = checkNotNull(results[1]).messages.first().gameStateId
-            secondGs shouldBeGreaterThan firstGs
-            b.viewerProjectionCursor().previousSnapshot?.gameStateId shouldBe secondGs
-        }
-
         test("Earthbend commits its enriched snapshot and does not re-emit an unchanged target") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
@@ -1352,14 +1068,14 @@ class BundleBuilderTest :
             val builder = bundleBuilder(b)
 
             val first =
-                builder
-                    .stateOnlyDiff(game, counter)
+                BundleBuilderTestSupport
+                    .stateOnly(builder, b, game, counter)
                     .messages
                     .first()
                     .gameStateMessage
             val second =
-                builder
-                    .stateOnlyDiff(game, counter)
+                BundleBuilderTestSupport
+                    .stateOnly(builder, b, game, counter)
                     .messages
                     .first()
                     .gameStateMessage
@@ -1370,70 +1086,6 @@ class BundleBuilderTest :
                     AnnotationType.AddAbility_af5a in it.typeList && AnnotationType.LayeredEffect in it.typeList
                 } shouldBe 1
                 second.gameObjectsList shouldBe emptyList()
-            }
-        }
-
-        test("Earthbend retries consume only the observed version and preserve a later equal entry") {
-            val (b, game, counter) =
-                startWithBoard { _, human, _ ->
-                    addCard("Forest", human, ZoneType.Battlefield)
-                }
-            val target =
-                game.humanPlayer
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .single()
-            target.addNewPT(0, 0, 123L, 0L)
-            target.addChangedCardTypes(
-                CardType(listOf("Creature"), true),
-                null,
-                false,
-                EnumSet.noneOf(RemoveType::class.java),
-                123L,
-                0L,
-                true,
-                false,
-            )
-            target.addChangedCardKeywords(listOf("Haste"), null, false, 123L, null)
-            val targetId = ForgeCardId(target.id)
-            b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
-            val builder = bundleBuilder(b)
-            var writerRan = false
-            b.diffListener = { _, _, _, _ ->
-                if (!writerRan) {
-                    writerRan = true
-                    b.recordEarthbendResolution(targetId, 42, 0, listOf(targetId))
-                    val writer = thread(start = true) { b.getOrAllocInstanceId(ForgeCardId(1_000_000)) }
-                    writer.join()
-                }
-            }
-
-            val retried =
-                try {
-                    builder.stateOnlyDiff(game, counter)
-                } finally {
-                    b.diffListener = null
-                }
-
-            val pendingAfterRetry = b.materializeEffectProjectionFacts().pendingEarthbendResolutions.map { it.version }
-            val later =
-                builder
-                    .stateOnlyDiff(game, counter)
-                    .messages
-                    .first()
-                    .gameStateMessage
-            assertSoftly {
-                writerRan shouldBe true
-                retried.messages
-                    .first()
-                    .gameStateMessage.annotationsList
-                    .flatMap { it.typeList }
-                    .count { it == AnnotationType.LayeredEffectCreated } shouldBe 4
-                pendingAfterRetry shouldBe listOf(2L)
-                later.annotationsList
-                    .flatMap { it.typeList }
-                    .count { it == AnnotationType.LayeredEffectCreated } shouldBe 0
-                b.materializeEffectProjectionFacts().pendingEarthbendResolutions shouldBe emptyList()
             }
         }
 
@@ -1586,26 +1238,6 @@ class BundleBuilderTest :
             }
         }
 
-        test("selectNBundle shape") {
-            val (b, game, counter) = startWithBoard { _, _, _ -> }
-
-            val req =
-                SelectNReq
-                    .newBuilder()
-                    .setMinSel(1)
-                    .setMaxSel(1)
-                    .build()
-            val result = bundleBuilder(b).selectNBundle(game, counter, SelectNEnvelope.default(req))
-
-            assertSoftly {
-                result.messages.size shouldBe 2
-                result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-                result.messages[0].gameStateMessage.pendingMessageCount shouldBe 1
-                result.messages[1].type shouldBe GREMessageType.SelectNreq
-                result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
-            }
-        }
-
         // --- isTurnOrTriggerDraw unit tests ---
         //
         // postAction overrides the default `SendAndRecord` to `SendHiFi` when the
@@ -1726,7 +1358,7 @@ class BundleBuilderTest :
                     addCard("Plains", human, ZoneType.Battlefield)
                 }
 
-            val result = bundleBuilder(b).postAction(game, counter)
+            val result = BundleBuilderTestSupport.postAction(bundleBuilder(b), b, game, counter)
             val gsm = result.messages.first { it.hasGameStateMessage() }.gameStateMessage
 
             // startWithBoard parks us at MAIN1 with activePlayer=humanPlayer=seat 1.

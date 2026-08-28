@@ -61,9 +61,20 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
+    /** Competing self-replacement choice owned by the settled replacement slot. */
+    data class SelectReplacement(
+        override val semantic: PromptSemantic,
+    ) : ResolvedPromptRoute
+
     data class Order(
         override val semantic: PromptSemantic,
         val kind: OrderRouteKind,
+    ) : ResolvedPromptRoute
+
+    /** Fixed-total allocation across already-selected targets. */
+    data class Distribution(
+        override val semantic: PromptSemantic,
+        val kind: DistributionRouteKind,
     ) : ResolvedPromptRoute
 
     data class Targeting(
@@ -83,6 +94,11 @@ sealed interface ResolvedPromptRoute {
 enum class OrderRouteKind {
     Bottom,
     Top,
+}
+
+enum class DistributionRouteKind {
+    Damage,
+    Counters,
 }
 
 enum class CardSelectKind {
@@ -269,8 +285,12 @@ object PromptRouteResolver {
             PromptSemantic.GroupingScry -> ResolvedPromptRoute.Grouping(semantic, GroupingContext.Scry_a0f6)
             PromptSemantic.ModalChoice -> ResolvedPromptRoute.ModalChoice(semantic)
             PromptSemantic.Search -> ResolvedPromptRoute.Search(semantic)
+            PromptSemantic.GroupedSearch -> ResolvedPromptRoute.Search(semantic)
+            PromptSemantic.SelectReplacement -> ResolvedPromptRoute.SelectReplacement(semantic)
             PromptSemantic.OrderForBottom -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Bottom)
             PromptSemantic.OrderForTop -> ResolvedPromptRoute.Order(semantic, OrderRouteKind.Top)
+            PromptSemantic.DividedAllocationDamage -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Damage)
+            PromptSemantic.DividedAllocationCounters -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Counters)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)

@@ -3,8 +3,6 @@ package leyline.match
 import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationLossReason
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -20,9 +18,8 @@ class SpectatorSession(
     val sink: MessageSink,
     val gameBridge: GameBridge,
     val playerId: String = "spectator",
-    override var counter: MessageCounter = gameBridge.messageCounter,
+    private val peerSession: () -> SpectatorSession? = { null },
 ) : SessionOps {
-    private val bundleBuilder = BundleBuilder(gameBridge, matchId, seatId.value)
     private var gameOverSent = false
 
     @Volatile private var closed = false
@@ -61,11 +58,9 @@ class SpectatorSession(
         var sent = false
         val playback = gameBridge.playbackFor(seatId)
         if (playback != null && playback.hasPendingMessages()) {
-            for (batch in playback.drainQueue()) {
-                sendBundledGRE(batch)
-                sent = true
-            }
+            sent = deliverCommitted() || sent
         }
+        sent = (peerSession()?.deliverCommitted() == true) || sent
         val game = gameBridge.getGame()
         if (!gameOverSent && game?.isGameOver == true) {
             sendGameOver()
@@ -75,26 +70,27 @@ class SpectatorSession(
         return sent
     }
 
-    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        for (m in messages) {
-            if (m.hasGameStateMessage()) counter.markGameStateGsId(m.gameStateMessage.gameStateId)
-        }
-        sink.send(messages)
-    }
+    override fun sendBundledGRE(messages: List<GREToClientMessage>) = sink.send(messages)
 
     override fun sendRealGameState(
         bridge: GameBridge,
         revealForSeat: Int?,
-    ) = sendLegacySpectatorState(revealForSeat)
-
-    /** Explicit residual projection path until spectator/multi-view ownership migrates. */
-    private fun sendLegacySpectatorState(revealForSeat: Int?) {
-        for (batch in gameBridge.cutCoordinator.drain(seatId)) sendBundledGRE(batch)
-        val game = gameBridge.getGame() ?: return
-        sendBundledGRE(bundleBuilder.stateOnlyDiff(game, counter, revealForSeat).messages)
+    ) {
+        deliverCommitted()
     }
 
-    override fun sendBundle(result: BundleBuilder.BundleResult) = sendBundledGRE(result.messages)
+    internal fun deliverCommitted(): Boolean {
+        var sent = false
+        try {
+            for (batch in gameBridge.cutCoordinator.drain(seatId)) {
+                sendBundledGRE(batch)
+                sent = true
+            }
+        } catch (ex: Exception) {
+            gameBridge.cutCoordinator.failDelivery(ex)
+        }
+        return sent
+    }
 
     override fun sendGameOver(reason: ResultReason) {
         val p1Won = gameBridge.getPlayer(SeatId(1))?.getOutcome()?.hasWon() == true
@@ -108,9 +104,15 @@ class SpectatorSession(
                 lossReason = AnnotationLossReason.LifeTotal,
             ),
         )
-        deliverCommittedCoordinatorBatches(this, gameBridge, seatId)
-        sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
+        deliverTerminal(winningTeam, reason)
+        peerSession()?.deliverTerminal(winningTeam, reason)
     }
 
-    override fun paceDelay(multiplier: Int) {}
+    private fun deliverTerminal(
+        winningTeam: Int,
+        reason: ResultReason,
+    ) {
+        deliverCommitted()
+        sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
+    }
 }

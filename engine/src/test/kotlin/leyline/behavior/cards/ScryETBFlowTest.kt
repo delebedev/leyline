@@ -27,7 +27,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Scry ETB flow — the annotation stream a scry-on-enter trigger must produce.
  *
  * Card: Wall of Runes (grpId 75478), 0/4 Defender Wall, "When ~ enters, scry 1."
- * Fixture: `puzzles/scry-etb.pzl`.
+ * Fixture: `test-puzzles/scry-etb.pzl`.
  *
  * Sequence under test:
  *   1. Play Island (hand → battlefield, ObjectIdChanged + ZoneTransfer/PlayLand)
@@ -45,7 +45,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 class ScryETBFlowTest :
     SessionTest({
 
-        session("play land produces PlayLand zone transfer", puzzleFile = "puzzles/scry-etb.pzl") {
+        session("play land produces PlayLand zone transfer", puzzleFile = "test-puzzles/scry-etb.pzl") {
             val msgs = after { playLand().shouldBeTrue() }.messages
             val allAnnotations =
                 msgs.flatMap { msg ->
@@ -79,7 +79,7 @@ class ScryETBFlowTest :
 
         session(
             "cast Wall of Runes produces CastSpell annotations with mana payment",
-            puzzleFile = "puzzles/scry-etb.pzl",
+            puzzleFile = "test-puzzles/scry-etb.pzl",
         ) {
             // Play land first (need mana to cast)
             playLand().shouldBeTrue()
@@ -111,7 +111,7 @@ class ScryETBFlowTest :
 
         session(
             "Wall of Runes resolution produces Resolve transfer and ETB trigger",
-            puzzleFile = "puzzles/scry-etb.pzl",
+            puzzleFile = "test-puzzles/scry-etb.pzl",
         ) {
             playLand().shouldBeTrue()
 
@@ -119,7 +119,7 @@ class ScryETBFlowTest :
             val groupReq = castSpellUntilGroupReq("Wall of Runes")
 
             // Resolution annotations are deferred until after the GroupReq interaction:
-            // auto-pass detects the pending scry prompt and sends GroupReq directly,
+            // the runtime continuation detects the pending scry prompt and sends GroupReq directly,
             // deferring the resolution state diff. Resolve to release them.
             val cardIds = groupReq.instanceIdsList
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
@@ -144,7 +144,7 @@ class ScryETBFlowTest :
             }
         }
 
-        session("scry ETB emits GroupReq with Scry context and correct specs", puzzleFile = "puzzles/scry-etb.pzl") {
+        session("scry ETB emits GroupReq with Scry context and correct specs", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
@@ -163,7 +163,7 @@ class ScryETBFlowTest :
             }
         }
 
-        session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "puzzles/scry-etb.pzl") {
+        session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
@@ -191,7 +191,7 @@ class ScryETBFlowTest :
             }
         }
 
-        session("scry keep on top does not move card", puzzleFile = "puzzles/scry-etb.pzl") {
+        session("scry keep on top does not move card", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
@@ -204,7 +204,7 @@ class ScryETBFlowTest :
 
         session(
             "ETB trigger emits TriggeringObject persistent annotation, deleted on resolve",
-            puzzleFile = "puzzles/scry-etb.pzl",
+            puzzleFile = "test-puzzles/scry-etb.pzl",
         ) {
             playLand().shouldBeTrue()
 
@@ -239,7 +239,7 @@ class ScryETBFlowTest :
             (triggering.id in deletedIds).shouldBeTrue()
         }
 
-        session("full scry flow state validity", puzzleFile = "puzzles/scry-etb.pzl") {
+        session("full scry flow state validity", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 

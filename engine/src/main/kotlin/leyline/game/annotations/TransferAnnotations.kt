@@ -311,7 +311,7 @@ object TransferAnnotations {
                     instanceId = manaAbilityIid,
                     seatId = ev.seatId,
                     actionType = ActionType.ActivateMana,
-                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId),
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver),
                 ),
             )
             annotations.add(
@@ -371,7 +371,7 @@ object TransferAnnotations {
                     instanceId = manaAbilityIid,
                     seatId = ev.seatId,
                     actionType = ActionType.ActivateMana,
-                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId),
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver),
                 ),
             )
             annotations.add(

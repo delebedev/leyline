@@ -22,7 +22,7 @@ class AcceptanceSuiteLoaderTest :
                     |    steps:
                     |      - wait:
                     |          action: { type: activate, card: Miscalculation }
-                    |      - activate: { card: Miscalculation, zone: hand }
+                    |      - activate: { card: Miscalculation, zone: hand, ability_grp_id: 188841 }
                     |      - choose: { optional_cost: kicker }
                     |      - choose: { cto_id: 1 }
                     |      - mana_type_choices: [green, two_generic, red]
@@ -31,6 +31,12 @@ class AcceptanceSuiteLoaderTest :
                     |      - optional_action: { accept: true }
                     |      - target: { side: ours, zone: battlefield, card: Lunarch Veteran }
                     |      - target: { side: opponent, zone: stack, card: Counterspell }
+                    |      - targets:
+                    |          - { side: opponent, zone: battlefield, card: Coral Merfolk }
+                    |          - { side: opponent, zone: battlefield, card: Savannah Lions }
+                    |      - distribute:
+                    |          - { side: opponent, card: Coral Merfolk, amount: 1 }
+                    |          - { side: opponent, card: Savannah Lions, amount: 2 }
                     |      - block: { blocker: Centaur Courser, attacker: Juggernaut }
                     |      - cast: { card: Think Twice, zone: graveyard, alt_cost: jump_start }
                     |      - select_cost: { zone: hand, cards: [Coral Merfolk] }
@@ -55,9 +61,9 @@ class AcceptanceSuiteLoaderTest :
                 suite.scenarios shouldHaveSize 1
                 val scenario = suite.scenarios.single()
                 scenario.id shouldBe "cast-face"
-                scenario.steps shouldHaveSize 18
+                scenario.steps shouldHaveSize 20
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
-                scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0)
+                scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0, 188841)
                 scenario.steps[2] shouldBe ChooseStep(AcceptanceCastingTimeOption.Kicker, null)
                 scenario.steps[3] shouldBe ChooseStep(null, 1)
                 scenario.steps[4] shouldBe
@@ -73,18 +79,32 @@ class AcceptanceSuiteLoaderTest :
                 scenario.steps[7] shouldBe OptionalActionStep(accept = true)
                 scenario.steps[8] shouldBe TargetStep(CardTargetSpec(AcceptanceSide.Ours, AcceptanceZone.Battlefield, "Lunarch Veteran"))
                 scenario.steps[9] shouldBe TargetStep(CardTargetSpec(AcceptanceSide.Opponent, AcceptanceZone.Stack, "Counterspell"))
-                scenario.steps[10] shouldBe BlockStep("Centaur Courser", "Juggernaut")
-                scenario.steps[11] shouldBe CastStep("Think Twice", AcceptanceZone.Graveyard, AcceptanceAltCost.JumpStart)
-                scenario.steps[12] shouldBe SelectCostStep(zone = AcceptanceZone.Hand, cards = listOf("Coral Merfolk"))
-                scenario.steps[13] shouldBe SelectCardStep(zone = AcceptanceZone.Sideboard, card = "Environmental Sciences")
-                scenario.steps[14] shouldBe SelectCardsStep(zone = AcceptanceZone.Library, cards = listOf("Lightning Bolt", "Counterspell"))
-                scenario.steps[15] shouldBe OrderCardsStep(listOf("Counterspell", "Lightning Bolt"))
-                scenario.steps[16] shouldBe
+                scenario.steps[10] shouldBe
+                    TargetsStep(
+                        listOf(
+                            CardTargetSpec(AcceptanceSide.Opponent, AcceptanceZone.Battlefield, "Coral Merfolk"),
+                            CardTargetSpec(AcceptanceSide.Opponent, AcceptanceZone.Battlefield, "Savannah Lions"),
+                        ),
+                    )
+                scenario.steps[11] shouldBe
+                    DistributeStep(
+                        listOf(
+                            DistributionAssignment(AcceptanceSide.Opponent, "Coral Merfolk", 1),
+                            DistributionAssignment(AcceptanceSide.Opponent, "Savannah Lions", 2),
+                        ),
+                    )
+                scenario.steps[12] shouldBe BlockStep("Centaur Courser", "Juggernaut")
+                scenario.steps[13] shouldBe CastStep("Think Twice", AcceptanceZone.Graveyard, AcceptanceAltCost.JumpStart)
+                scenario.steps[14] shouldBe SelectCostStep(zone = AcceptanceZone.Hand, cards = listOf("Coral Merfolk"))
+                scenario.steps[15] shouldBe SelectCardStep(zone = AcceptanceZone.Sideboard, card = "Environmental Sciences")
+                scenario.steps[16] shouldBe SelectCardsStep(zone = AcceptanceZone.Library, cards = listOf("Lightning Bolt", "Counterspell"))
+                scenario.steps[17] shouldBe OrderCardsStep(listOf("Counterspell", "Lightning Bolt"))
+                scenario.steps[18] shouldBe
                     AttackStep(
                         cards = listOf("Raging Goblin"),
                         target = CardTargetSpec(AcceptanceSide.Opponent, AcceptanceZone.Battlefield, "Liliana of the Veil"),
                     )
-                scenario.steps[17] shouldBe
+                scenario.steps[19] shouldBe
                     ExpectStep(
                         listOf(
                             PromptCondition("OrderReq", 42),

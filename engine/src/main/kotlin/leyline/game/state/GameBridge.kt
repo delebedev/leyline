@@ -19,26 +19,30 @@ import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
 import leyline.bridge.coord.MatchCutCoordinator
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.forge.RevealTrackingAiController
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.MulliganPhase
-import leyline.bridge.types.PhaseStopProfile
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
-import leyline.config.MatchConfig
+import leyline.bridge.types.opponent
+import leyline.config.EngineSettings
+import leyline.domain.deck.DeckSource
 import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
 import leyline.game.codes.CounterTypes
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
@@ -59,7 +63,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -78,6 +81,7 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * through commit is serialized per bridge; engine-thread lifecycle writes must
  * not overlap that boundary.
  */
+@Suppress("LargeClass")
 class GameBridge(
     /** Stable match identifier for cut compilation and outbound envelopes. */
     private val matchId: String = "forge-match-1",
@@ -85,18 +89,19 @@ class GameBridge(
     private val bridgeTimeoutMs: Long? = null,
     /** Timeout for client-visible prompts. Null waits indefinitely. */
     private val promptFailsafeMs: Long? = DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS,
+    /** Whether runtime horizons are observed and delivered outside the engine loop. */
+    private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     /** Playtest config — controls AI speed, die roll, etc. */
-    val matchConfig: MatchConfig = MatchConfig(),
-    /** Shared protocol counter for GRE message sequencing.
-     *  Production: shared with MatchSession. Tests: local default. */
-    val messageCounter: MessageCounter = MessageCounter(),
+    val engineSettings: EngineSettings = EngineSettings(),
+    /** Logical sequence at match creation, normally the protocol defaults. */
+    initialSequence: LogicalSequenceState = LogicalSequenceState(),
     /** Card data repository — lookups for grpId ↔ name, card metadata. */
     val cardRepository: CardRepository,
     /** Proto builder for GameObjectInfo — uses [cardRepository] for static card data. */
     val cardProto: CardProtoBuilder = CardProtoBuilder(cardRepository),
 ) : IdMapping,
     PlayerLookup,
-    AutoPassView,
+    RuntimePriorityView,
     ZoneTracking,
     AnnotationIds,
     EventDrain {
@@ -107,9 +112,14 @@ class GameBridge(
         MatchCutCoordinator(
             bridge = this,
             matchId = matchId,
-            counter = messageCounter,
-            delayMultiplier = matchConfig.aiDelayMultiplier,
+            delayMultiplier = engineSettings.aiDelayMultiplier,
         )
+
+    /** Shell observation state; it does not allocate logical output. */
+    val responseAcceptance = ResponseAcceptanceTracker()
+
+    /** Match-scoped owner of mutable priority policy and client settings. */
+    val priorityPolicy = PriorityPolicyRuntime()
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
     private val setupBlockingInteractionRuntime =
@@ -146,22 +156,29 @@ class GameBridge(
         gameStateId: Int,
     ): ActionsAvailableReq = cutCoordinator.bindInitialActionWindow(actionId, gameStateId)
 
+    /** Bind a client-owned puzzle horizon, or preserve a state-only barrier for runtime delivery. */
+    fun bindInitialPuzzleHorizon(
+        actionId: String,
+        gameStateId: Int,
+    ): ActionsAvailableReq? {
+        val pending = actionBridge(seating.humanSeat).exactPending(actionId) ?: error("Puzzle action window is no longer pending")
+        if (pending.state.kind != PendingActionKind.SYNC_ONLY) return bindInitialActionWindow(actionId, gameStateId)
+        cutCoordinator.replaceWithPhaseTransition(actionId, includePriorityPrompt = false)
+        return null
+    }
+
     /** Immutable reference data shared by every projection path for this match. */
     internal val stateProjectionEnvironment by lazy { StateProjectionEnvironmentCapture.from(this) }
 
     /** Guards the committed projection value and compare-and-set installation. */
     internal val projectionLock = Any()
 
-    /**
-     * Preserves engine-cut order across every bundle builder sharing this match.
-     * Frame producers acquire the shared MessageCounter first and playback queue lock last.
-     */
-    internal val projectionBuildLock = Any()
-
-    private var projectionState = ProjectionState.initial()
+    private var projectionState = ProjectionState.initial(sequence = initialSequence)
     private val activeProjectionEditor = ThreadLocal<ProjectionState.Editor?>()
 
     internal fun projectionStateSnapshot(): ProjectionState = synchronized(projectionLock) { projectionState }
+
+    fun committedSequence(): LogicalSequenceState = projectionStateSnapshot().sequence
 
     @VisibleForTesting
     internal fun replaceProjectionStateForTest(state: ProjectionState) {
@@ -210,17 +227,22 @@ class GameBridge(
             val editor = prior.editor()
             val result = block(editor)
             val next = editor.freeze()
+            check(next.sequence == prior.sequence) { "Direct projection edits cannot change logical sequence" }
             if (next.copy(revision = prior.revision) != prior) {
                 projectionState = next
             }
             result
         }
 
-    internal fun viewerProjectionCursor(): ViewerProjectionCursor = projectionStateSnapshot().viewerCursors[0] ?: ViewerProjectionCursor()
+    internal fun viewerProjectionCursor(seatId: SeatId = seating.humanSeat): ViewerProjectionCursor =
+        projectionStateSnapshot().viewerCursors[seatId] ?: ViewerProjectionCursor()
 
-    internal fun updateViewerProjectionCursor(block: (ViewerProjectionCursor) -> ViewerProjectionCursor) {
+    internal fun updateViewerProjectionCursor(
+        seatId: SeatId = seating.humanSeat,
+        block: (ViewerProjectionCursor) -> ViewerProjectionCursor,
+    ) {
         updateProjection { editor ->
-            editor.viewerCursors[0] = block(editor.viewerCursors[0] ?: ViewerProjectionCursor())
+            editor.viewerCursors[seatId] = block(editor.viewerCursors[seatId] ?: ViewerProjectionCursor())
         }
     }
 
@@ -333,7 +355,7 @@ class GameBridge(
      * Lazy — evaluated once, after [start] seeds the RNG.
      */
     val dieRollWinner: Int by lazy {
-        matchConfig.game.dieRollWinner ?: (MyRandom.getRandom().nextInt(2) + 1)
+        engineSettings.dieRollWinner ?: (MyRandom.getRandom().nextInt(2) + 1)
     }
 
     // --- Per-seat bridge maps ---
@@ -344,13 +366,6 @@ class GameBridge(
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
-
-    @Volatile
-    var autoAdvanceRequester: ((String) -> Unit)? = null
-
-    @Volatile
-    var playbackDrainRequester: (() -> Unit)? = null
-    private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
 
     init {
         configureInteractiveSeat(SeatId(1))
@@ -369,12 +384,11 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
-                autoKeep = matchConfig.game.skipMulligan,
-                timeoutMs = matchConfig.server.mulliganWaitMs,
+                autoKeep = engineSettings.skipMulligan,
+                timeoutMs = engineSettings.mulliganWaitMs,
             )
     }
 
@@ -424,8 +438,6 @@ class GameBridge(
             seat(SeatId(viewingSeatId)).drainReveals()
         }
 
-    fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
-
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
      * Used by tests that need an extra passive seat without AI wiring.
@@ -441,7 +453,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
@@ -532,10 +543,6 @@ class GameBridge(
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
     var eventCollector: GameEventCollector? = null
-        private set
-
-    /** Phase stop profile — controls which phases the engine stops at per player. Null before start(). */
-    var phaseStopProfile: PhaseStopProfile? = null
         private set
 
     /**
@@ -781,9 +788,12 @@ class GameBridge(
         return synchronized(projectionLock) {
             projectionState.identities.forgeIdToInstanceId[forgeCardId]
                 ?: run {
+                    val prior = projectionState
                     val editor = projectionState.editor()
                     val allocated = editor.identities.getOrAlloc(forgeCardId)
-                    projectionState = editor.freeze()
+                    val next = editor.freeze()
+                    check(next.sequence == prior.sequence) { "Direct identity allocation cannot change logical sequence" }
+                    projectionState = next
                     allocated
                 }
         }
@@ -955,10 +965,19 @@ class GameBridge(
         g.subscribeToEvents(collector)
     }
 
+    private fun seedRandom(seed: Long?) {
+        if (seed != null) {
+            log.info("GameBridge: using deterministic seed={}", seed)
+            MyRandom.setRandom(Random(seed))
+        } else {
+            log.info("GameBridge: using random seed")
+        }
+    }
+
     private fun registerHumanController(g: Game) {
         val human = g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi } ?: return
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        priorityPolicy.installPhaseStops(human.id, aiPlayer.id)
         val controller =
             BridgedPlayerController(
                 game = g,
@@ -968,7 +987,8 @@ class GameBridge(
                 seating = seating,
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
-                phaseStopProfile = phaseStopProfile,
+                priorityPolicy = priorityPolicy,
+                runtimeHorizonMode = runtimeHorizonMode,
                 interactionRuntime = cutCoordinator,
             )
         humanController = controller
@@ -997,32 +1017,52 @@ class GameBridge(
         deckList2: String? = null,
         variant: String? = null,
     ) {
-        log.info("GameBridge: initializing card database")
-        GameBootstrap.initializeCardDatabase()
-
-        if (seed != null) {
-            log.info("GameBridge: using deterministic seed={}", seed)
-            MyRandom.setRandom(Random(seed))
-        } else {
-            log.info("GameBridge: using random seed")
-        }
-
         val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
-        val deck1 = DeckLoader.parseDeckList(seat1Str)
-        val deck2 = DeckLoader.parseDeckList(seat2Str)
+        start(
+            seed = seed,
+            deck1 = DeckSource.ForgeText(seat1Str),
+            deck2 = DeckSource.ForgeText(seat2Str),
+            variant = variant,
+        )
+    }
+
+    /**
+     * Initialize card DB, realize both decks through [DeckLoader], create game, start
+     * engine loop, wait for mulligan. Blocks caller until engine has dealt hands and is
+     * waiting for keep/mull.
+     *
+     * Card database initialization runs before deck realization: [DeckSource.ForgeText]
+     * resolves card names against the Forge card database via
+     * [forge.deck.DeckRecognizer], which requires it to already be loaded.
+     *
+     * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
+     * @param deck1 seat 1 (human) deck source.
+     * @param deck2 seat 2 (AI) deck source.
+     */
+    fun start(
+        seed: Long? = null,
+        deck1: DeckSource,
+        deck2: DeckSource,
+        variant: String? = null,
+    ) {
+        log.info("GameBridge: initializing card database")
+        GameBootstrap.initializeCardDatabase()
+        seedRandom(seed)
+        val realizedDeck1 = DeckLoader.load(deck1, cardRepository::findNameByGrpId)
+        val realizedDeck2 = DeckLoader.load(deck2, cardRepository::findNameByGrpId)
         log.info(
             "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
-            deck1.main.countAll(),
-            deck2.main.countAll(),
+            realizedDeck1.main.countAll(),
+            realizedDeck2.main.countAll(),
         )
 
         val g =
             if (variant != null && isCommanderVariantName(variant)) {
                 log.info("GameBridge: creating commander-variant game (variant={})", variant)
-                GameBootstrap.createCommanderGame(deck1, deck2, variant)
+                GameBootstrap.createCommanderGame(realizedDeck1, realizedDeck2, variant)
             } else {
-                GameBootstrap.createConstructedGame(deck1, deck2)
+                GameBootstrap.createConstructedGame(realizedDeck1, realizedDeck2)
             }
         game = g
 
@@ -1031,6 +1071,12 @@ class GameBridge(
         // Wire the interactive seat and retain native AI decisions with reveal observation.
         registerHumanController(g)
 
+        cutCoordinator.registerViewers(
+            listOf(
+                ProjectionViewer(seating.humanSeat, ProjectionViewerRole.Player),
+                ProjectionViewer(seating.humanSeat.opponent, ProjectionViewerRole.Observer),
+            ),
+        )
         registerPlaybackPipeline(g, seating.humanSeat, captureLocalActions = false)
         log.info("GameBridge: registered playback pipeline for seat 1")
 
@@ -1046,7 +1092,7 @@ class GameBridge(
         loop.start()
         loop.awaitStarted()
 
-        if (matchConfig.game.skipMulligan) {
+        if (engineSettings.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
             awaitPriority()
             log.info("GameBridge: engine reached priority after auto-keep")
@@ -1072,25 +1118,43 @@ class GameBridge(
         variant: String? = null,
         startGameHook: Runnable? = null,
     ) {
-        log.info("GameBridge: initializing AI-vs-AI spectator game")
-        GameBootstrap.initializeCardDatabase()
-
-        if (seed != null) {
-            log.info("GameBridge: using deterministic seed={}", seed)
-            MyRandom.setRandom(Random(seed))
-        } else {
-            log.info("GameBridge: using random seed")
-        }
-
         val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
         val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
-        val deck1 = DeckLoader.parseDeckList(seat1Str)
-        val deck2 = DeckLoader.parseDeckList(seat2Str)
+        startAiVsAi(
+            seed = seed,
+            deck1 = DeckSource.ForgeText(seat1Str),
+            deck2 = DeckSource.ForgeText(seat2Str),
+            variant = variant,
+            startGameHook = startGameHook,
+        )
+    }
+
+    /**
+     * Initialize a native Forge AI-vs-AI game for spectator mode, realizing both decks
+     * through [DeckLoader] before Forge card-lookup-dependent construction runs.
+     *
+     * No bridged [PlayerController] is installed; both seats keep Forge's AI
+     * controllers. [startGameHook] runs after opening-hand setup and before the
+     * main loop, giving the observer path a stable point to emit its initial GSM.
+     */
+    fun startAiVsAi(
+        seed: Long? = null,
+        deck1: DeckSource,
+        deck2: DeckSource,
+        variant: String? = null,
+        startGameHook: Runnable? = null,
+    ) {
+        log.info("GameBridge: initializing AI-vs-AI spectator game")
+        GameBootstrap.initializeCardDatabase()
+        seedRandom(seed)
+        val realizedDeck1 = DeckLoader.load(deck1, cardRepository::findNameByGrpId)
+        val realizedDeck2 = DeckLoader.load(deck2, cardRepository::findNameByGrpId)
+
         val g =
             if (variant != null && isCommanderVariantName(variant)) {
-                GameBootstrap.createAiVsAiCommanderGame(deck1, deck2, variant)
+                GameBootstrap.createAiVsAiCommanderGame(realizedDeck1, realizedDeck2, variant)
             } else {
-                GameBootstrap.createAiVsAiGame(deck1, deck2)
+                GameBootstrap.createAiVsAiGame(realizedDeck1, realizedDeck2)
             }
         game = g
         populateSeatMap(g)
@@ -1104,6 +1168,12 @@ class GameBridge(
             )
         }
 
+        cutCoordinator.registerViewers(
+            listOf(
+                ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
+                ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+            ),
+        )
         registerPlaybackPipeline(g, SeatId(1), captureLocalActions = true)
         log.info("GameBridge: registered spectator playback pipeline")
 
@@ -1273,6 +1343,26 @@ class GameBridge(
         }
     }
 
+    /** Wait for this seat's next committed action or routed interaction horizon. */
+    fun awaitSeatHorizonWithTimeout(
+        seatId: SeatId,
+        timeoutMs: Long,
+        ignoredActionId: String? = null,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        val actionBridge = seat(seatId).action
+        while (true) {
+            loopController?.throwIfFailed()
+            val g = game
+            if (g != null && g.isGameOver) return false
+            val pending = actionBridge.getPending()
+            if ((pending != null && pending.actionId != ignoredActionId) || hasPendingNonActionInteraction()) return true
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) return false
+            prioritySignal.awaitSignal(remaining)
+        }
+    }
+
     /**
      * Block until the engine reaches a priority stop, an interactive prompt
      * is pending, or the game ends.
@@ -1322,8 +1412,7 @@ class GameBridge(
         actionBridges.values.any { it.getPending() != null } ||
             hasPendingNonActionInteraction()
 
-    fun hasPendingNonActionInteraction(): Boolean =
-        cutCoordinator.currentBlockingInteraction() != null || cutCoordinator.prompts.hasPendingInteraction()
+    fun hasPendingNonActionInteraction(): Boolean = cutCoordinator.prompts.hasPendingInteraction()
 
     /** Current typed one-shot PayCosts window for harness policy inspection. */
     fun currentOneShotPayCostsInteraction(): PublishedOneShotPayCostsInteraction? = cutCoordinator.prompts.currentOneShotPayCosts()
@@ -1365,7 +1454,7 @@ class GameBridge(
             }
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
             // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
-            val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+            val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
                 val prompt = bridge.pendingPromptAfter(seqBefore)
                 if (prompt != null) {
@@ -1399,7 +1488,7 @@ class GameBridge(
      * publishing a [MulliganPhase.WaitingTuck] prompt.
      */
     fun awaitTuckReady() {
-        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingTuck) return
             Thread.sleep(POLL_INTERVAL_MS)
@@ -1447,6 +1536,36 @@ class GameBridge(
         seed: Long? = null,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
         beforeRuntimeStart: ((Game) -> Unit)? = null,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed,
+        aiControllerFactory,
+        beforeRuntimeStart,
+        startRuntime = true,
+    )
+
+    /** Initialize a disposable puzzle snapshot without launching an autonomous game loop. */
+    internal fun startStaticPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        beforeRuntimeStart: (Game) -> Unit,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed = null,
+        aiControllerFactory = null,
+        beforeRuntimeStart,
+        startRuntime = false,
+    )
+
+    private fun startPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        seed: Long?,
+        aiControllerFactory: ((Game, Player) -> ForgePlayerController)?,
+        beforeRuntimeStart: ((Game) -> Unit)?,
+        startRuntime: Boolean,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
@@ -1503,7 +1622,7 @@ class GameBridge(
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        priorityPolicy.installPhaseStops(human.id, aiPlayer.id)
         if (aiControllerFactory == null) {
             val controller =
                 BridgedPlayerController(
@@ -1514,7 +1633,8 @@ class GameBridge(
                     seating = seating,
                     actionBridge = actionBridge(controlledSeat),
                     mulliganBridge = mulliganBridge(controlledSeat),
-                    phaseStopProfile = phaseStopProfile,
+                    priorityPolicy = priorityPolicy,
+                    runtimeHorizonMode = runtimeHorizonMode,
                     interactionRuntime = cutCoordinator,
                 )
             humanController = controller
@@ -1523,7 +1643,10 @@ class GameBridge(
             human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
         }
 
+        cutCoordinator.registerViewers(listOf(ProjectionViewer(controlledSeat, ProjectionViewerRole.Player)))
         registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
+
+        if (!startRuntime) return
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =
@@ -1572,14 +1695,21 @@ class GameBridge(
         selectedAdditionalCostGrpIds.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
-            projectionState = ProjectionState.initial(projectionState.identities.nextInstanceId)
+            val prior = projectionState
+            val next =
+                ProjectionState.initial(
+                    startInstanceId = prior.identities.nextInstanceId,
+                    sequence = prior.sequence,
+                )
+            check(next.sequence == prior.sequence) { "Puzzle reset cannot change logical sequence" }
+            projectionState = next
         }
 
         // Drain bridge state from previous game
         for (bridge in promptBridges.values) bridge.resetForPuzzle()
 
         cutCoordinator.resetForNewGame()
-        startPuzzle(puzzle, seed = matchConfig.game.seed)
+        startPuzzle(puzzle, seed = engineSettings.seed)
         log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
         return deletedIds
     }
@@ -2026,7 +2156,7 @@ class GameBridge(
      * meaning the engine has dealt the hand and is blocking.
      */
     private fun awaitMulliganReady() {
-        val deadline = System.currentTimeMillis() + matchConfig.server.mulliganWaitMs
+        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
         while (System.currentTimeMillis() < deadline) {
             if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)

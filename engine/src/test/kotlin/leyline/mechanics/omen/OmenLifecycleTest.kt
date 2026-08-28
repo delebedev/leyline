@@ -141,6 +141,10 @@ class OmenLifecycleTest :
                 annotations.singleOrNull {
                     it.isType(AnnotationType.ResolutionComplete) && it.detailInt("grpid") == 95537
                 } ?: error("No Omen ResolutionComplete; types=${annotations.flatMap { it.typeList }}")
+            val tokenCreated =
+                annotations.singleOrNull {
+                    it.isType(AnnotationType.TokenCreated)
+                } ?: error("No TokenCreated; types=${annotations.flatMap { it.typeList }}")
             val resolveObjectIdChanged =
                 annotations.singleOrNull {
                     it.isType(AnnotationType.ObjectIdChanged) && it.detailInt("orig_id") == stackCard.instanceId
@@ -173,6 +177,9 @@ class OmenLifecycleTest :
                 deletedIds.count { it == libraryParent.instanceId } shouldBe 1
                 deletedIds.count { it == libraryCompanion.instanceId } shouldBe 1
                 annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(resolutionComplete)
+                annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(tokenCreated)
+                annotations.indexOf(tokenCreated) shouldBeLessThan annotations.indexOf(resolutionComplete)
+                tokenCreated.affectorId shouldBe stackCard.instanceId
                 annotations.indexOf(resolutionComplete) shouldBeLessThan annotations.indexOf(resolveObjectIdChanged)
                 annotations.indexOf(resolveObjectIdChanged) shouldBeLessThan annotations.indexOf(resolveTransfer)
                 libraryZone.objectInstanceIdsList.count { it == libraryParent.instanceId } shouldBe 1

@@ -51,35 +51,63 @@ sealed interface BlockingInteraction {
 
 /** Immutable declaration response values; the coordinator resolves engine actions. */
 sealed interface DeclarationAnswer {
+    /** Client-domain target identity. Forge resolves it from the published window. */
+    sealed interface Target {
+        data class Player(
+            val seatId: Int,
+        ) : Target
+
+        data class Planeswalker(
+            val instanceId: Int,
+        ) : Target
+    }
+
     @ConsistentCopyVisibility
     data class Attackers internal constructor(
-        val attackerIds: List<ForgeCardId>,
-        val attackAlternativeByAttacker: Map<ForgeCardId, Int>,
-        val defender: Target?,
-        val defenderByAttacker: Map<ForgeCardId, Target>,
+        val attackerInstanceIds: List<Int>,
+        val attackAlternativeByAttacker: Map<Int, Int>,
+        val defenderByAttacker: Map<Int, Target>,
+        val autoDeclare: Boolean,
     ) : DeclarationAnswer {
         companion object {
             fun of(
-                attackerIds: List<ForgeCardId>,
-                attackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap(),
-                defender: Target? = null,
-                defenderByAttacker: Map<ForgeCardId, Target> = emptyMap(),
+                attackerInstanceIds: List<Int>,
+                attackAlternativeByAttacker: Map<Int, Int> = emptyMap(),
+                defenderByAttacker: Map<Int, Target> = emptyMap(),
+                autoDeclare: Boolean = false,
             ): Attackers =
                 Attackers(
-                    attackerIds.toList(),
+                    attackerInstanceIds.toList(),
                     attackAlternativeByAttacker.toMap(),
-                    defender,
                     defenderByAttacker.toMap(),
+                    autoDeclare,
                 )
         }
     }
 
     @ConsistentCopyVisibility
     data class Blockers internal constructor(
-        val blockAssignments: Map<ForgeCardId, ForgeCardId>,
+        val blockAssignments: Map<Int, Int>,
+        val touchedBlockerInstanceIds: List<Int>,
     ) : DeclarationAnswer {
         companion object {
-            fun of(blockAssignments: Map<ForgeCardId, ForgeCardId>): Blockers = Blockers(blockAssignments.toMap())
+            fun of(
+                blockAssignments: Map<Int, Int>,
+                touchedBlockerInstanceIds: List<Int> = blockAssignments.keys.toList(),
+            ): Blockers = Blockers(blockAssignments.toMap(), touchedBlockerInstanceIds.toList())
         }
     }
 }
+
+/** Immutable client-domain damage response; the blocking runtime resolves card handles. */
+data class DamageAssignmentCommand(
+    val attackerInstanceId: Int,
+    val assignments: List<DamageAssignmentRow>,
+    val totalDamage: Int,
+)
+
+/** One raw client row. Duplicate rows remain visible until the runtime validates them. */
+data class DamageAssignmentRow(
+    val targetInstanceId: Int,
+    val assignedDamage: Int,
+)

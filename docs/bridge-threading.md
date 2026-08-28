@@ -1,5 +1,5 @@
 ---
-summary: "Current cross-thread bridge contract: execution domains, lock order, publication, projection commit, and safe points."
+summary: "Current cross-thread bridge contract: execution domains, publication ownership, projection commit, and safe points."
 read_when:
   - "modifying GameBridge, MatchSession, MatchCutCoordinator, BundleBuilder, or engine callbacks"
   - "debugging state-id ordering, snapshot timing, delivery ordering, or stale interactions"
@@ -7,9 +7,8 @@ read_when:
 ---
 # Bridge Threading
 
-This document owns cross-class constraints that the type system does not yet
-express. It describes the current implementation, including transitional
-session and delivery ownership. System shape lives in
+This document owns the cross-class execution and ordering constraints that the
+type system does not express. System shape lives in
 [`architecture.md`](architecture.md); durable direction and rationale live in
 [ADR 0015](decisions/0015-functional-core-imperative-shell.md).
 
@@ -18,86 +17,85 @@ session and delivery ownership. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web/in-process input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Runtime delivery observer | One per live human `MatchConnection` | Waits for coordinator feed notifications, then enters `sessionLock` to drain |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
-| Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
+| Sink caller | Observes committed prompt metadata and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
 Engine confinement makes a live read physically stable only on the engine
-thread. It does not make an event callback a safe projection boundary: callbacks
-can run inside a larger mutation burst.
+thread. It does not make an event callback a safe projection boundary because a
+callback can run inside a larger mutation burst.
 
-The coordinator owns committed feeds and the focused interaction runtimes under
-that boundary. `ProjectionState` installs through a revision-checked transition;
-pending windows use correlated values and bounded retained-handle tables. The
-coordinator's game-over lifecycle cut also materializes any pending resolution
-diff and the terminal sequence before one ordered feed installation; sessions
-only drain that feed and deliver the raw room-state completion message.
+## Mutable-state ownership
 
-### Lock order
+| Mutable place | Owner |
+|---|---|
+| Live Forge graph | Engine thread |
+| Retained executable handles | Owning family runtime under `feedLock`; sessions receive only exact claims or immutable values |
+| Client settings and priority presentation policy | `PriorityPolicyRuntime` |
+| Interaction correlation, committed viewer feeds, and terminal failure | `MatchCutCoordinator` and its family runtimes under `feedLock` |
+| Client-facing identities, cursors, annotations, and logical output | One committed `ProjectionState` behind `GameBridge.projectionLock` |
+| Per-connection admission and delivery | `ConnectionState.sessionLock` |
 
-Frame producers that need all three monitors acquire them in this order:
+Session handlers parse client messages into immutable values. They do not read
+the live Forge graph to reconstruct an action, combat declaration, prompt
+answer, or priority decision.
 
-```text
-MessageCounter -> GameBridge.projectionBuildLock -> MatchCutCoordinator.feedLock
-```
+## Lock order
 
-Drainers take only `feedLock`. Event subscribers requesting a future cut take
-only `feedLock`. No drainer waits for the engine while holding `feedLock`.
+The acquisition order is:
 
-Action-window visibility and prompt correlation are read without `feedLock`, off
-volatile state the runtime writes while holding it. Threads polling for a
-pending window must not block behind a publication in progress.
+1. `sessionLock`, when a connection is admitting or delivering work;
+2. coordinator `feedLock`, for interaction state, cut preparation, installation,
+   and committed feeds;
+3. `projectionLock`, briefly, for the revision-checked `ProjectionState` swap.
 
-A queue type is not a transaction. The close/build/install/enqueue operation
-must remain protected as one publication boundary.
+`feedLock` may be acquired without `sessionLock`. No path acquires `feedLock`
+while holding `projectionLock`, and no drainer waits for the engine while holding
+`feedLock`.
 
-### In-process completion
+Drainers and event subscribers requesting a future cut use `feedLock`.
+Action-window visibility and prompt correlation may be read without `feedLock`
+from volatile state written while holding it. Those reads are observation only;
+they do not claim or complete a window.
 
-`MatchConnection.submitGREMessage` waits for deferred session work scheduled by
-that input before returning. It submits a barrier to the session's single-thread
-executor and repeats when completed work scheduled another task. The barrier is
-never awaited while holding `sessionLock`.
+## Publication transaction
 
-This boundary means output caused by the submitted input is available to an
-in-process caller. It does not mean a client acknowledged delivery, and it does
-not include work started later by a timer or another entrant.
-
-### Current exceptions
-
-Mulligan still drives a pre-game engine interaction outside `sessionLock`.
-Puzzle replacement can install fresh projection state from its own executor.
-Residual output builders still share counters and sequencing with
-coordinator-backed output. These are explicit migration seams, not patterns for
-new entry points.
-
-## Publication before signalling
-
-When the engine blocks for a visible decision, the observer signal means the
-complete interaction batch is already committed and drainable.
+When the engine blocks for a visible decision, the delivery signal means the
+complete interaction batch is already committed and drainable:
 
 ```mermaid
 sequenceDiagram
     participant E as Engine thread
     participant C as MatchCutCoordinator
     participant P as Projection core
-    participant S as PrioritySignal
-    participant M as MatchSession
+    participant S as DeliverySignal
+    participant M as MatchRuntimeDeliveryObserver
 
     E->>C: publish immutable interaction window
     C->>P: compile tentative transition
     P-->>C: messages + next projection state
     C->>C: install and enqueue under feedLock
-    C->>S: signal
+    C->>S: signal after commit
     E->>E: block on exact window
     S-->>M: observer wakes
     M->>C: drain committed batch
 ```
 
-Every coordinator-backed interaction must preserve these rules:
+Under `feedLock`, a prepared cut enqueues all viewer batches, installs its
+projection transition under `projectionLock`, runs its install callbacks,
+acknowledges any playback boundary, and only then signals delivery. Replacement
+batches supplied to the installer are retired after enqueue and restored on a
+pre-install failure. That failure removes only the new cut's batches. Once
+projection installs, allocation and publication are not rewound. Committed
+logical identifiers and output ordinals remain monotonic; sessions and
+transports may read their horizons but cannot allocate them.
+
+Every coordinator-backed interaction preserves these rules:
 
 1. Freeze projection values and exact executable handles on the engine thread.
 2. Commit the complete state-and-request batch before signalling.
-3. Correlate answers to the exact interaction and game-state identifiers.
+3. Correlate answers to the exact request message and game-state identifiers.
 4. Resolve original handles only within the owning runtime.
 5. Retire response, timeout, supersession, and teardown through one winner.
 6. Treat materialization, install, or delivery failure as terminal when Forge
@@ -109,7 +107,12 @@ prompt policy, not permission to continue after failed publication.
 A synchronous default path publishes no window and therefore emits no signal.
 Priority `Skip` likewise closes no journal and allocates no protocol state.
 
-## Projection commit and delivery
+Two current paths sit outside the common transaction. `MulliganHandler` resets
+instance identities before publishing the redraw cut. Phase-action replacement
+installs the new cut, then removes the previous action batch from the installer's
+`afterInstall` callback instead of supplying it as a rollback-aware replacement.
+
+## Delivery limits
 
 Projection and delivery have separate timelines:
 
@@ -122,13 +125,48 @@ Projection and delivery have separate timelines:
 Never use a viewer cursor as client-awareness state. If behavior depends on
 delivery, represent delivery explicitly.
 
-One bridge owns one `ProjectionState` and one shared `MessageCounter` across its
-builders. Failed publication may leave identifier gaps, but no producer rewinds
-the sequence. Producers must still enter the same ordered publication/delivery
-path; atomic allocation does not order independently delivered batches.
+`MatchRuntimeContinuation` waits for one engine horizon, drains committed batches
+in order, and acknowledges an exact `SYNC_ONLY` barrier only after successful
+delivery. An iterative response that does not release the engine does not wait
+for another horizon.
 
-Interactive sends drain older committed playback before delivering a caller's
-newer batch. A producer that bypasses that funnel can expose output out of order.
+The inbound handler drains the horizon released by its accepted response while
+holding `sessionLock`. The connection's delivery observer handles horizons
+published after that handler returns by taking the same lock and using the same
+drain path. The observer consumes only the coordinator delivery notification; it
+does not submit actions or choose progression policy.
+
+In-process harness callers may wait for named sink output, but do not wait on an
+engine horizon or consume the observer notification. Player, Familiar, and
+spectator sessions drain only their own committed viewer feeds. Raw match
+completion is connection-local and follows the committed terminal drain. PvP
+transport is outside this fixed-roster delivery model.
+
+### Initial-publication replay
+
+Constructed reconnect has one bounded repeat-publication exception.
+`MatchLifecycleRuntime` retains the first initial viewer batches and may
+re-enqueue a missing batch under `feedLock` with its original output ordinal and
+logical identifiers. It does not install another projection transition, and it
+does not duplicate a batch already queued. This is initial-handshake replay, not
+a general reconstruction of the latest viewer state after gameplay.
+
+Mulligan is the other pre-game exception: it drives an engine interaction
+outside `sessionLock`, while its output still commits through the coordinator
+lifecycle runtime.
+
+## Teardown
+
+Connection teardown stops and invalidates its delivery observer before the
+connection can be rebound. Puzzle replacement invalidates the old generation,
+publishes and delivers the replacement's initial horizon under `sessionLock`,
+then arms a new observer generation.
+
+Match teardown removes registered connections and sessions, closes session-owned
+workers, detaches connection state, and closes the match. Bridge shutdown
+terminalizes coordinator waiters, rejects later cuts, wakes delivery and engine
+waiters, stops the game loop, and discards registered viewer feeds including any
+committed but undrained batches.
 
 ## Safe points and event subscribers
 
@@ -158,12 +196,3 @@ already present. Such prompts use explicit projection supplements: materialize t
 intended state, commit it with the request, then reconcile it after Forge
 resumes. The supplement is a value owned by the prompt runtime; it is not a
 reason to mutate projection state outside compilation.
-
-## Deletion condition
-
-This document can disappear when all match entrants submit immutable signals to
-one logical runtime owner, every gameplay and lifecycle producer commits through
-one ordered path, and the session/projection/feed locks no longer form a
-cross-class correctness contract. Until then, changes to any named lock,
-publication boundary, or residual producer must update this document in the
-same change.

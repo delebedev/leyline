@@ -87,7 +87,17 @@ fun selectNResp(ids: List<Int>): ClientToGREMessage = leyline.tooling.headless.s
 
 fun orderResp(ids: List<Int>): ClientToGREMessage = leyline.tooling.headless.orderResp(ids)
 
+fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage = leyline.tooling.headless.distributionResp(amounts)
+
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage = leyline.tooling.headless.searchResp(itemsFound)
+
+fun groupedSearchResp(
+    groupId: Int,
+    ids: List<Int>,
+    maxSelect: Int,
+): ClientToGREMessage = leyline.tooling.headless.groupedSearchResp(groupId, ids, maxSelect)
+
+fun groupedSearchFailResp(): ClientToGREMessage = leyline.tooling.headless.groupedSearchFailResp()
 
 fun castingTimeOptionsResp(
     selectedGrpIds: List<Int>,
@@ -114,8 +124,6 @@ fun mana(
     color: ManaColor,
     count: Int,
 ): ManaRequirement = leyline.tooling.headless.mana(color, count)
-
-fun actionsReq(vararg types: ActionType): ActionsAvailableReq = leyline.tooling.headless.actionsReq(*types)
 
 fun greMessage(
     msgId: Int = 1,

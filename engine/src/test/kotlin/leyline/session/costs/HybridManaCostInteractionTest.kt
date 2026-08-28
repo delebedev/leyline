@@ -55,4 +55,11 @@ class HybridManaCostInteractionTest :
 
             human.getZone(ForgeZoneType.Battlefield).cards.map { it.name } shouldContain "Temur Tawnyback"
         }
+
+        session("invalid hybrid identity leaves the exact ManaType prompt answerable", puzzle = tawnybackState) {
+            val cto = after { castSpellByName("Temur Tawnyback").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            respondToManaTypeChoices(listOf(999 to ManaColor.Blue_afc9))
+            lastCastingTimeOptionsReq().castingTimeOptionReqList.map { it.ctoId } shouldBe
+                cto.castingTimeOptionReqList.map { it.ctoId }
+        }
     })

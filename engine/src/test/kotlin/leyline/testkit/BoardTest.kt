@@ -11,10 +11,11 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.PersistentFeedFactsCapture
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
@@ -55,7 +56,7 @@ abstract class BoardTest(
     private var bridge: GameBridge? = null
 
     /** Shared counter for the current test. Reset per test via [startGameAtMain1] et al. */
-    private var testCounter: MessageCounter = MessageCounter()
+    private var testCounter: LogicalSequencePlanner = LogicalSequencePlanner()
 
     init {
         tags(BoardTag)
@@ -66,7 +67,7 @@ abstract class BoardTest(
         afterEach {
             bridge?.shutdown()
             bridge = null
-            testCounter = MessageCounter()
+            testCounter = LogicalSequencePlanner()
         }
         body()
     }
@@ -97,11 +98,14 @@ abstract class BoardTest(
     /**
      * Start a game from an inline puzzle definition — no mulligan, no turn advancement.
      *
-     * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+     * @param puzzleText inline `.pzl` content (see `data/puzzles/` for format)
      */
-    fun startPuzzleAtMain1(puzzleText: String): Board = trackResult(Board.startPuzzleAtMain1(puzzleText))
+    fun startPuzzleAtMain1(
+        puzzleText: String,
+        engineSettings: EngineSettings = EngineSettings(),
+    ): Board = trackResult(Board.startPuzzleAtMain1(puzzleText, engineSettings))
 
-    /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
+    /** Convenience: load a puzzle from a shared identity path or test-private resource. */
     fun startPuzzleAtMain1FromResource(resourcePath: String): Board = trackResult(Board.startPuzzleAtMain1FromResource(resourcePath))
 
     private fun trackResult(result: Board): Board {

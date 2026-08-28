@@ -85,7 +85,7 @@ binding, client projection, frame cuts, visibility, protocol IDs, and delivery.
 
 The current contracts in [`bridge-threading.md`](../bridge-threading.md) remain
 mandatory until ownership has actually moved. In particular, do not remove the
-playback queue, shared counters, cursor coordination, or priority waits merely
+playback queue, committed projection state, cursor coordination, or priority waits merely
 because the target has one owner.
 
 Each migration slice must:

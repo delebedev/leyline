@@ -11,12 +11,15 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.bundle.LifecycleMessageMaterializer
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.Random
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -44,7 +47,7 @@ class HandshakeMessagesTest :
             winner: Int = 2,
         ): Map<Int, Int> {
             val bundle =
-                HandshakeMessages.initialBundle(
+                LifecycleMessageMaterializer.initialBundle(
                     seatId = SeatId(2),
                     matchId = "test",
                     msgIdStart = 1,
@@ -54,7 +57,7 @@ class HandshakeMessagesTest :
                     dieRollWinner = winner,
                 )
             val dieRoll =
-                bundle.first.greToClientEvent.greToClientMessagesList
+                bundle.messages
                     .first { it.type == GREMessageType.DieRollResultsResp_695e }
                     .dieRollResultsResp
             return dieRoll.playerDieRollsList.associate { it.systemSeatId to it.rollValue }
@@ -89,23 +92,26 @@ class HandshakeMessagesTest :
             first shouldBe second
         }
 
-        test("initial bundle can suppress starting-player prompt for spectator seats") {
+        test("initial bundle omits response requests for Observer seats") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 1L)
+            val planner = LogicalSequencePlanner(b.projectionStateSnapshot().sequence)
             val bundle =
-                HandshakeMessages.initialBundle(
-                    seatId = SeatId(2),
+                LifecycleMessageMaterializer.initialBundles(
+                    viewers =
+                        listOf(
+                            ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
+                            ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                        ),
                     matchId = "test",
-                    msgIdStart = 1,
                     gameStateId = 1,
-                    deckMessage = DeckMessage.getDefaultInstance(),
+                    planner = planner,
                     bridge = b,
-                    includeStartingPlayerPrompt = false,
-                    seedProjectionCursor = true,
+                    includeStartingPlayerPrompt = true,
                 )
 
-            val messages = bundle.first.greToClientEvent.greToClientMessagesList
+            val messages = bundle.viewers.single { it.first == SeatId(2) }.second
             assertSoftly {
                 messages.map { it.type } shouldBe
                     listOf(GREMessageType.DieRollResultsResp_695e, GREMessageType.GameStateMessage_695e)
@@ -113,7 +119,10 @@ class HandshakeMessagesTest :
                     .single { it.type == GREMessageType.GameStateMessage_695e }
                     .gameStateMessage
                     .pendingMessageCount shouldBe 0
-                b.projectionStateSnapshot().viewerCursors[0]?.previousSnapshot shouldNotBe null
+                bundle.transition.nextState.viewerCursors[SeatId(1)]
+                    ?.previousSnapshot shouldNotBe null
+                bundle.transition.nextState.viewerCursors[SeatId(2)]
+                    ?.previousSnapshot shouldNotBe null
             }
         }
 
@@ -127,30 +136,30 @@ class HandshakeMessagesTest :
             try {
                 val bundles =
                     listOf(SeatId(1), SeatId(2)).map { seat ->
-                        pool.submit<Pair<MatchServiceToClientMessage, Int>> {
+                        pool.submit<Int> {
                             start.await(5, TimeUnit.SECONDS)
-                            HandshakeMessages.initialBundle(
-                                seatId = seat,
-                                matchId = "concurrent-initial",
-                                msgIdStart = 1,
-                                gameStateId = 1,
-                                deckMessage = DeckMessage.getDefaultInstance(),
-                                bridge = b,
+                            b.cutCoordinator.lifecycle.publishInitial(
+                                seat,
+                                includeStartingPlayerPrompt = true,
                             )
                         }
                     }
                 start.countDown()
-                bundles.map { it.get(10, TimeUnit.SECONDS) }.size shouldBe 2
-                b.projectionStateSnapshot().revision shouldBe beforeRevision + 2
+                assertSoftly {
+                    bundles.map { it.get(10, TimeUnit.SECONDS) }.distinct().size shouldBe 1
+                    b.projectionStateSnapshot().revision shouldBe beforeRevision + 1
+                    b.cutCoordinator.drain(SeatId(1)).size shouldBe 1
+                    b.cutCoordinator.drain(SeatId(2)).size shouldBe 1
+                }
             } finally {
                 pool.shutdownNow()
             }
         }
 
         test("puzzle actions request carries pass-priority prompt") {
-            val (message, nextMsgId) =
-                HandshakeMessages.puzzleActionsReq(7, 5, SeatId(1), ActionMapper.passOnlyActions())
-            val gre = message.greToClientEvent.greToClientMessagesList.single()
+            val (messages, nextMsgId) =
+                LifecycleMessageMaterializer.puzzleActionsReq(7, 5, SeatId(1), ActionMapper.passOnlyActions())
+            val gre = messages.single()
 
             assertSoftly {
                 nextMsgId shouldBe 8

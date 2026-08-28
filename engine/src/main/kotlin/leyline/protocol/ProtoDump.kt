@@ -9,7 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Dumps outgoing client proto messages as text-format + binary files.
  *
- * Always enabled for local debugging. Files go to [LeylinePaths.ENGINE_DUMP].
+ * Always enabled for local debugging. Files go to the resolved engine-dump
+ * directory set by the composition root at startup.
  *
  * Each send produces a sequentially numbered file: `001-GameStateMessage.txt`, etc.
  *

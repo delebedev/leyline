@@ -19,14 +19,17 @@ class ListMessageSink : MessageSink {
     val messages = mutableListOf<GREToClientMessage>()
     val rawMessages = mutableListOf<MatchServiceToClientMessage>()
 
+    @Synchronized
     override fun send(messages: List<GREToClientMessage>) {
         this.messages.addAll(messages)
     }
 
+    @Synchronized
     override fun sendRaw(msg: MatchServiceToClientMessage) {
         rawMessages.add(msg)
     }
 
+    @Synchronized
     fun clear() {
         messages.clear()
         rawMessages.clear()

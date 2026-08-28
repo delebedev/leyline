@@ -46,7 +46,6 @@ class StaticKeywordGrantTest :
                 after {
                     castSpellByName("Pacifism") shouldBe true
                     selectTargets(listOf(targetIid))
-                    submitTargets()
                     passUntilResolved()
                 }
 

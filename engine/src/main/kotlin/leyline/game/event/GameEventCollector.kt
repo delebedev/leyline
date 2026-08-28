@@ -196,19 +196,36 @@ class GameEventCollector(
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
-        val payments =
-            ev.manaPayments().map { mp ->
-                GameEvent.ManaPayment(
-                    sourceCardId = ForgeCardId(mp.sourceCardId()),
-                    color = mp.color().toInt() and 0xFF,
-                )
-            }
         val topSa =
             bridge
                 .getGame()
                 ?.stack
                 ?.peek()
                 ?.spellAbility
+        val payments =
+            ev.manaPayments().map { mp ->
+                val sourceCardId = ForgeCardId(mp.sourceCardId())
+                val abilityDefinitionId = mp.abilityDefinitionId()
+                val abilityGrpId =
+                    if (abilityDefinitionId != 0) {
+                        bridge
+                            .findCard(sourceCardId)
+                            ?.let { source ->
+                                bridge.resolveAbilityIdentity(
+                                    source,
+                                    AbilityDefinitionRef.SpellAbility(abilityDefinitionId),
+                                )
+                            }?.abilityGrpId
+                            ?: 0
+                    } else {
+                        0
+                    }
+                GameEvent.ManaPayment(
+                    sourceCardId = sourceCardId,
+                    color = mp.color().toInt() and 0xFF,
+                    abilityGrpId = abilityGrpId,
+                )
+            }
         val realCard = bridge.findCard(ForgeCardId(card.id))
         val isAdventure =
             realCard != null &&
@@ -1141,7 +1158,18 @@ class GameEventCollector(
     override fun visit(ev: GameEventTokenCreated) {
         for (card in ev.tokens()) {
             val seat = seatOf(card.controller) ?: continue
-            val sourceAbility = card.tokenSpawningAbility?.rootAbility
+            val spawningAbility = card.tokenSpawningAbility?.rootAbility
+            val resolvingAbility =
+                bridge
+                    .getGame()
+                    ?.stack
+                    ?.peek()
+                    ?.spellAbility
+                    ?.takeIf { pendingStackAbilities.contextFor(it.id) != null }
+            val sourceAbility =
+                resolvingAbility
+                    ?.takeIf { spawningAbility == null || it.hostCard?.id == spawningAbility.hostCard?.id }
+                    ?: spawningAbility
             val sourceId = sourceAbility?.hostCard?.id
             val sourceAbilityId =
                 sourceAbility

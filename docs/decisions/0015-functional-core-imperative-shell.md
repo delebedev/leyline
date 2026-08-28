@@ -11,7 +11,10 @@ read_when:
 ## Status
 
 Accepted. The functional projection core and match-scoped blocking-prompt
-ownership are implemented. Broader runtime convergence remains incremental.
+ownership are substantially implemented. The runtime now has one engine-thread
+progression authority, ordered gameplay and lifecycle output, tentative logical
+sequence in `ProjectionState`, atomic multi-view installation, and one
+settled-prompt admission and lifecycle owner.
 
 The implemented milestone provides:
 
@@ -23,11 +26,12 @@ The implemented milestone provides:
 - typed match-scoped owners for blocking prompt families, with exact Forge
   handles retained behind immutable client-facing values.
 
-Explicit remaining work includes `GameBridge` orchestration, the secondary
-live-state action-construction path, mulligan and lifecycle/terminal output,
-`MatchSession` convergence, and atomic multi-view compilation. These are not
-requirements for treating the functional projection and prompt-ownership
-milestone as implemented.
+Remaining work is limited to `GameBridge` engine-shell orchestration and
+safe-point adaptation, the secondary live-state action-construction path,
+session-triggered coordinator publication, and `sessionLock`/`feedLock`
+coordination across classes. These are shell integration seams, not a second
+semantic progression owner, and do not reopen the projection or settled-prompt
+ownership claims above.
 
 This ADR is the durable decision record: it owns the rationale, fixed boundary,
 and rejected alternatives. [`architecture.md`](../architecture.md) describes
@@ -53,12 +57,13 @@ Leyline combines two systems with different interaction models:
   specific state, intermediate frames, prompts, stable object identities,
   monotonically ordered IDs, and replies that resume blocked engine callbacks.
 
-The current bridge makes the combination work, but ownership is distributed.
-The Forge thread mutates rules state and can also build playback output inside
-synchronous event subscribers. Session entrants build ordinary output and
-submit answers from transport, timer, test, and auto-advance threads. A
-spectator pump drains another path. Shared counters, projection cursors,
-futures, semaphores, locks, and queues preserve the resulting order.
+When this decision was made, the bridge made the combination work, but ownership
+was distributed. The Forge thread mutated rules state and could also build
+playback output inside synchronous event subscribers. Session entrants built
+ordinary output and submitted answers from transport, timer, test, and
+auto-advance threads. A spectator pump drained another path. Shared counters,
+projection cursors, futures, semaphores, locks, and queues preserved the
+resulting order.
 
 Four facts must be separated when choosing a replacement:
 
@@ -127,9 +132,11 @@ not disprove the value-only functional core.
 
 The implemented milestone is visible in current types:
 
-- `StateMapper.buildDraft` and `StateProjectionCompiler.compileOneViewer` now
-  form a bridge-free boundary over immutable snapshots, ordered facts, scoped
-  projection facts, and a `StateProjectionEnvironment`.
+- `StateMapper.buildDraft` and `StateProjectionCompiler.compileViewers` now form
+  a bridge-free boundary over immutable snapshots, ordered facts, scoped
+  projection facts, and a `StateProjectionEnvironment`. The ordered viewer fold
+  returns one tentative transition; `compileOneViewer` remains an isolated
+  compatibility entry.
 - `PureDiffReplayTest` covers replay from an explicit `StateFrameInput`, prior
   projection state, and intent. `StateMapperValueBoundaryTest` exercises the
   same direct value boundary without Forge or `GameBridge`.
@@ -139,16 +146,19 @@ The implemented milestone is visible in current types:
 - `MatchCutCoordinator` now owns journal close, immutable cut materialization,
   compilation, projection commit, and viewer feed publication for migrated
   playback, Visible priority/action windows, SyncOnly state cuts, explicitly bound Targeting,
-  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed (including hidden-library Dig resolution, complete chooser-visible card resolution, and Learn), static-enum, and reveal-backed SelectN windows, all PayCosts windows, and Optional, Numeric, and Damage blocking interactions. Safe direct
+  Search, Top/Bottom Order and Scry/Surveil Grouping windows, card-backed (including hidden-library Dig resolution, complete chooser-visible card resolution, and Learn), static-enum, and reveal-backed SelectN windows, all PayCosts windows, Optional, Numeric, and Damage blocking interactions, plus startup, mulligan, and puzzle lifecycle output. Safe direct
   priority skips close no journal and allocate no protocol state. Event
   subscribers only aggregate cut requests; session handlers drain committed
   batches and submit correlated values or opaque action tokens.
-- `MatchPromptRuntimeSet` is the one prompt-runtime registry beneath that
+- `MatchPromptRuntimeSet` is the one prompt-runtime inventory beneath that
   coordinator. It provides one immutable bridge binding and centralizes
   pending visibility, reset, terminal teardown, and delivery-failure dispatch.
-  The closest single-window families share correlation, timeout arbitration,
-  and retirement while retaining family-specific value freezing and
-  materialization.
+  One `SettledPromptOwner` mounts the settled interaction slots so correlation,
+  publication, timeout arbitration, reset, retirement, and terminal evidence
+  follow automatically. It admits raw client messages before residual match
+  routing, matches exact request-message and game-state correlations, and
+  delegates parsing and completion to the owning typed slot. Family runtimes
+  retain value freezing, validation, defaults, cleanup, and exact Forge handles.
 - Forge's target-selection producer binds `TargetSelection` and freezes exact
   stack-object candidates before publication; candidate-backed `Generic` card
   choices bind the SelectTargets-compatible runtime, preserving existing
@@ -162,14 +172,15 @@ The implemented milestone is visible in current types:
   optional-empty or required stable-prefix synchronous default. Candidate-free
   Generic choices use the same explicit synchronous policy, while non-library
   ordering returns its input without allocating a prompt. Modal choice now has
-  a coordinator-owned runtime; mulligan, lifecycle output, and multi-view
-  compilation remain outside the coordinator boundary.
+  a coordinator-owned runtime.
 
-The current milestone completes blocking prompt-response ownership, including
-the residual card compatibility path. It does not claim whole-runtime
-convergence: `GameBridge` orchestration, secondary action construction,
-lifecycle and terminal output, `MatchSession`, and multi-view compilation remain
-separate incremental work.
+The milestone now covers blocking prompt-response ownership, including the
+residual card compatibility path, multi-view projection installation, and
+ordered lifecycle and terminal output. Remaining work is shell integration:
+`GameBridge` orchestration and safe-point adaptation, secondary live-state
+action construction, session-triggered coordinator publication, and
+`sessionLock`/`feedLock` coordination across classes. These seams refine the
+integration around the single progression authority.
 
 ## Decision
 
@@ -435,6 +446,13 @@ fact production, safe-point timing, and adapter agreement.
 The runtime has one fewer semantic handoff. Projection cannot race the Forge
 operation that produced its input because it runs synchronously on the same
 owner after a declared safe point.
+
+The current runtime stores logical GRE identities, emission horizons, and output
+ordinal in `ProjectionState`. Cut preparation uses a private planner fork;
+installation commits its next value with projection, identities,
+acknowledgements, and output ownership. Committed values are monotonic and never
+rewound. Failed, stale, or abandoned preparation consumes nothing. Delivery
+failure after installation does not rewind or reuse an allocation.
 
 The value boundary becomes stricter. Adding a protocol feature may require a
 new typed fact or projection-state field instead of a convenient live read.

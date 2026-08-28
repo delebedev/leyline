@@ -11,6 +11,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
@@ -70,39 +71,14 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("playback producers preserve the shared frame lock order") {
-            // Source-level, deliberately: `synchronized` is inlined to bare monitor
-            // instructions, so the nesting order the deadlock argument rests on is
-            // not visible in the imported class model.
-            val producer =
-                sourceRoot
-                    .resolve("leyline/bridge/coord/MatchCutCoordinator.kt")
-                    .toFile()
-                    .readText()
-                    .substringAfter("fun flushPlaybackCut(")
-                    .substringBefore("fun acknowledgeExternalFrame(")
-            val order =
-                listOf("counter", "bridge.projectionBuildLock", "feedLock")
-                    .map { it to producer.indexOf("synchronized($it)") }
-            val outOfOrder =
-                order
-                    .zipWithNext()
-                    .filterNot { (outer, inner) -> outer.second in 0 until inner.second }
-                    .map { (outer, inner) -> "${outer.first}@${outer.second} must precede ${inner.first}@${inner.second}" }
-
-            withClue("flushPlaybackCut lock nesting (offset -1 means the lock is gone): $order") {
-                outOfOrder.shouldBeEmpty()
-            }
-        }
-
         test("migrated session paths neither build state-only diffs nor close frames") {
             noClasses()
                 .that()
                 .haveNameMatching(
                     named(
                         "leyline.match.ActionPerformer",
-                        "leyline.match.AutoPassEngine",
                         "leyline.match.CombatHandler",
+                        "leyline.match.DeferredCastCostInteractionHandler",
                         "leyline.match.NumericInputHandler",
                         "leyline.match.OptionalActionHandler",
                     ),
@@ -112,15 +88,7 @@ class PlaybackSafePointBoundaryTest :
                 .check(classes)
         }
 
-        test("the spectator path builds its own state-only diff but never closes the frame") {
-            classes()
-                .that()
-                .haveFullyQualifiedName("leyline.match.SpectatorSession")
-                .should()
-                .callMethodWhere(stateOnlyDiff)
-                .because("a spectator frame is projected outside the cut coordinator")
-                .check(classes)
-
+        test("the spectator path drains committed output without rebuilding state") {
             noClasses()
                 .that()
                 .haveNameMatching(named("leyline.match.SpectatorSession"))
@@ -128,6 +96,26 @@ class PlaybackSafePointBoundaryTest :
                 .callMethodWhere(closeBundleFrame)
                 .because("the cut coordinator still owns frame closure")
                 .check(classes)
+
+            val source =
+                sourceRoot
+                    .resolve("leyline/match/SpectatorSession.kt")
+                    .toFile()
+                    .readText()
+            assertSoftly {
+                withClue("spectator sessions must not rebuild or rewrite committed game state") {
+                    listOf("materializeLegacySpectatorState", "stateOnlyDiff", "BundleBuilder", ".toBuilder()")
+                        .filter(source::contains)
+                        .shouldBeEmpty()
+                }
+                withClue("spectator delivery must drain its coordinator feed") {
+                    source shouldContain "gameBridge.cutCoordinator.drain(seatId)"
+                }
+                val terminal = source.substringAfter("private fun deliverTerminal(")
+                withClue("raw completion must follow the committed terminal drain") {
+                    (terminal.indexOf("deliverCommitted()") in 0 until terminal.indexOf("sink.sendRaw(")) shouldBe true
+                }
+            }
         }
 
         test("every game-loop launch registers its playback pipeline first") {

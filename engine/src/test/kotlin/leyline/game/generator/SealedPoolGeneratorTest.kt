@@ -6,15 +6,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.data.AutoMappingCardRepository
-import leyline.game.data.CardRepository
-
-/** Wraps a real repository but reports every name lookup as unmapped, to exercise miss-handling. */
-private class AlwaysMissingSealedCardRepository(
-    delegate: CardRepository = AutoMappingCardRepository(),
-) : CardRepository by delegate {
-    override fun findGrpIdByName(name: String): Int? = null
-}
+import leyline.testkit.SyntheticNameLookup
 
 class SealedPoolGeneratorTest :
     FunSpec({
@@ -26,14 +18,14 @@ class SealedPoolGeneratorTest :
         }
 
         test("generates a 6-pack pool with a mapped grpId per card") {
-            val pool = SealedPoolGenerator(AutoMappingCardRepository()).generate("FDN")
+            val pool = SealedPoolGenerator(SyntheticNameLookup()::findGrpIdByName).generate("FDN")
 
             pool.grpIds.shouldNotBeEmpty()
             pool.collationId shouldBe 100026
         }
 
         test("throws when a card name has no grpId mapping") {
-            val generator = SealedPoolGenerator(AlwaysMissingSealedCardRepository())
+            val generator = SealedPoolGenerator { null }
             shouldThrow<UnmappedCardNamesException> { generator.generate("FDN") }
         }
 

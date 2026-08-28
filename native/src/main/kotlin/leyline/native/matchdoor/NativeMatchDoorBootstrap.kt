@@ -9,10 +9,11 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.protobuf.ProtobufDecoder
 import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.match.MatchConnection
 import leyline.match.MatchDebugSink
 import leyline.match.MatchRegistry
@@ -20,6 +21,7 @@ import leyline.native.protocol.ClientFrameDecoder
 import leyline.native.protocol.ClientHeaderPrepender
 import leyline.native.protocol.ClientHeaderStripper
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import java.io.File
 
 object NativeMatchDoorBootstrap {
     @Suppress("LongParameterList")
@@ -27,16 +29,19 @@ object NativeMatchDoorBootstrap {
         bossGroup: EventLoopGroup,
         workerGroup: EventLoopGroup,
         ssl: SslContext,
+        bindAddress: String,
         port: Int,
-        matchConfig: MatchConfig,
+        engineSettings: EngineSettings,
+        puzzlesDir: File,
         coordinator: MatchCoordinator,
         cardRepository: CardRepository,
         debugSink: MatchDebugSink,
-        puzzlePath: () -> String?,
+        puzzleIdentity: () -> String?,
         runtimeMatchConfigs: RuntimeMatchConfigRegistry,
         aiDeckNameOverride: () -> String? = { null },
     ): Channel {
         val registry = MatchRegistry()
+        debugSink.sessionProvider = { registry.activeHumanSession() }
         return ServerBootstrap()
             .group(bossGroup, workerGroup)
             .channel(NioServerSocketChannel::class.java)
@@ -56,11 +61,11 @@ object NativeMatchDoorBootstrap {
                                     MatchConnection(
                                         registry = registry,
                                         output = output,
-                                        matchConfig = matchConfig,
+                                        engineSettings = engineSettings,
+                                        puzzleLibrary = PuzzleLibrary(puzzlesDir),
                                         coordinator = coordinator,
                                         cardRepository = cardRepository,
-                                        debugSink = debugSink,
-                                        puzzlePath = puzzlePath,
+                                        puzzleIdentity = puzzleIdentity,
                                         runtimeMatchConfigs = runtimeMatchConfigs,
                                         aiDeckNameOverride = aiDeckNameOverride,
                                     )
@@ -69,7 +74,7 @@ object NativeMatchDoorBootstrap {
                         )
                     }
                 },
-            ).bind(port)
+            ).bind(bindAddress, port)
             .sync()
             .channel()
     }

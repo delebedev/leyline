@@ -6,44 +6,36 @@ import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /** Value-only GRE preparation for coordinator-owned one-shot PayCosts windows. */
-internal class OneShotPayCostsMaterializer(
-    private val seatId: Int,
-) {
+internal class OneShotPayCostsMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: MessageCounter,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: OneShotPayCostsWindowValue,
-    ): PreparedPayCostsCut {
+    ): SettledPromptMaterialization {
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
-                    it.gameStateMessage = gameState.toBuilder().setPendingMessageCount(1).build()
+                context.message(GREMessageType.GameStateMessage_695e) {
+                    it.gameStateMessage =
+                        context.gameState
+                            .toBuilder()
+                            .setPendingMessageCount(1)
+                            .build()
                 },
-                makeGRE(GREMessageType.PayCostsReq_695e, gameStateId, counter.nextMsgId()) {
-                    it.payCostsReq = payCostsRequest(window, projection)
-                    it.prompt = paymentPrompt(window, projection)
+                context.message(GREMessageType.PayCostsReq_695e) {
+                    it.payCostsReq = payCostsRequest(window, context)
+                    it.prompt = paymentPrompt(window, context)
                     it.allowCancel = AllowCancel.Abort
                     it.allowUndo = true
                 },
             )
-        return PreparedPayCostsCut(
-            BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId),
-            transition,
-            closesPlaybackFrame = true,
-        )
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun payCostsRequest(
         window: OneShotPayCostsWindowValue,
-        projection: ProjectionState,
+        context: SettledPromptMaterializationContext,
     ): PayCostsReq {
         val selection =
             SelectNReq
@@ -71,7 +63,7 @@ internal class OneShotPayCostsMaterializer(
                     },
                 ).setMaxWeight(Int.MAX_VALUE)
         window.candidates.forEach { candidate ->
-            selection.addIds(projection.requireInstanceId(candidate.forgeCardId))
+            selection.addIds(context.requiredInstanceId(candidate.forgeCardId, "PayCosts card"))
             selection.addWeights(candidate.weight)
         }
         return PayCostsReq
@@ -87,11 +79,11 @@ internal class OneShotPayCostsMaterializer(
 
     private fun paymentPrompt(
         window: OneShotPayCostsWindowValue,
-        projection: ProjectionState,
+        context: SettledPromptMaterializationContext,
     ): Prompt =
         promptWithCardId(
             promptId(window),
-            promptSourceId(window, projection),
+            promptSourceId(window, context),
         )
 
     private fun promptId(window: OneShotPayCostsWindowValue): Int =
@@ -120,30 +112,12 @@ internal class OneShotPayCostsMaterializer(
 
     private fun promptSourceId(
         window: OneShotPayCostsWindowValue,
-        projection: ProjectionState,
+        context: SettledPromptMaterializationContext,
     ): Int =
         when (val source = window.promptSource) {
             is PayCostsPromptSourceValue.StackAbility ->
-                projection.requireInstanceId(FrameIdResolver.triggerStackAbilityForgeId(source.forgeAbilityId))
-            is PayCostsPromptSourceValue.StackCard -> projection.requireInstanceId(source.forgeCardId)
+                context.requiredInstanceId(FrameIdResolver.triggerStackAbilityForgeId(source.forgeAbilityId), "PayCosts card")
+            is PayCostsPromptSourceValue.StackCard -> context.requiredInstanceId(source.forgeCardId, "PayCosts card")
             null -> 0
         }
-
-    private fun ProjectionState.requireInstanceId(cardId: leyline.bridge.types.ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("PayCosts card ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }

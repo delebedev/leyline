@@ -111,13 +111,14 @@ class ProposalTranslatorTest :
         test("select-targets → target intent with resolved entities") {
             val p =
                 ProposalTranslator.translate(
-                    SimDecision.SelectTargets(listOf(21, 22)),
+                    SimDecision.SelectTargets(mapOf(0 to listOf(21, 22))),
                     GREMessageType.SelectTargetsReq_695e,
                     seat = 1,
                     resolve,
                 )
             p.intent shouldBe "target"
             p.targets.map { it.instanceId } shouldBe listOf(21, 22)
+            p.targetGroups shouldBe mapOf("0" to listOf(21, 22))
             p.responseIds shouldBe listOf(21, 22)
         }
 
@@ -299,6 +300,19 @@ class ProposalTranslatorTest :
                 )
             p.intent shouldBe "search"
             p.responseIds shouldBe listOf(1, 2)
+        }
+
+        test("distribution decodes to a fixed-total intent carrying per-target amounts") {
+            val p =
+                ProposalTranslator.translate(
+                    SimDecision.Distribution(linkedMapOf(11 to 2, 12 to 3)),
+                    GREMessageType.DistributionReq_695e,
+                    seat = 1,
+                    resolve,
+                )
+            p.intent shouldBe "distribute"
+            p.distribution.map { it.instanceId to it.amount } shouldBe listOf(11 to 2, 12 to 3)
+            p.responseIds shouldBe listOf(11, 12)
         }
 
         test("truly unmapped decision families → unrealizable with a reason") {

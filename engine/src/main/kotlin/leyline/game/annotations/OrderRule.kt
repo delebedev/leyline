@@ -299,7 +299,7 @@ internal data class IncrementalSpec(
  * - LayeredEffectCreated BEFORE AttachmentCreated
  * - ControllerChanged BEFORE TappedUntapped
  *
- * Validated by puzzle fixtures under `puzzles/` exercising these orderings.
+ * Validated by puzzle fixtures under `data/puzzles/` exercising these orderings.
  */
 internal val INCREMENTAL_SPECS: Map<AnnotationType, IncrementalSpec> =
     mapOf(

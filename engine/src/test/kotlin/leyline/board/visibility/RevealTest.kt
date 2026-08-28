@@ -15,6 +15,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.aiPlayer
 import leyline.testkit.annotation
 import leyline.testkit.annotationOrNull
@@ -101,8 +102,8 @@ class RevealTest :
             board.bridge.seedDiffBaseline(board.game, board.counter.currentGsId())
             coordinator.captureReveal(CardCollection(listOf(revealed)), ZoneType.Hand, board.game.aiPlayer)
             val gsm =
-                bundleBuilder(board.bridge)
-                    .stateOnlyDiff(board.game, board.counter)
+                BundleBuilderTestSupport
+                    .stateOnly(bundleBuilder(board.bridge), board.bridge, board.game, board.counter)
                     .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
             assertSoftly {

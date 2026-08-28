@@ -24,7 +24,8 @@ import java.security.KeyStore
  * Shares the player.db SQLite database with the rest of Leyline.
  */
 class AccountServer(
-    private val port: Int = 9443,
+    private val bindAddress: String,
+    private val port: Int,
     private val certFile: File? = null,
     private val keyFile: File? = null,
     private val fdHost: String = "localhost:30010",
@@ -59,6 +60,7 @@ class AccountServer(
                         keyStorePassword = { KEY_STORE_PASSWORD.toCharArray() },
                         privateKeyPassword = { KEY_STORE_PASSWORD.toCharArray() },
                     ) {
+                        this.host = bindAddress
                         this.port = serverPort
                     }
                 },
@@ -86,7 +88,7 @@ class AccountServer(
                 }
             }.also { it.start(wait = false) }
 
-        log.info("AccountServer: https://localhost:{} (local-only)", port)
+        log.info("AccountServer: https://{}:{}", bindAddress, port)
     }
 
     fun stop() {

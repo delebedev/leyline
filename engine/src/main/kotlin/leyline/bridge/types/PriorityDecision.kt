@@ -14,14 +14,6 @@ sealed class AutoPassReason {
         override fun toString() = "SmartPhaseSkip"
     }
 
-    data object OnlyPassActions : AutoPassReason() {
-        override fun toString() = "OnlyPassActions"
-    }
-
-    data object ClientAutoPass : AutoPassReason() {
-        override fun toString() = "ClientAutoPass"
-    }
-
     data object AutoPassCancelled : AutoPassReason() {
         override fun toString() = "AutoPassCancelled"
     }
@@ -35,13 +27,6 @@ sealed class AutoPassReason {
 
 /** Result of evaluating whether to grant priority. */
 sealed class PriorityDecision {
-    class Grant(
-        val phase: String,
-        val actionCount: Int,
-    ) : PriorityDecision() {
-        override fun toString() = "Grant($phase,$actionCount)"
-    }
-
     class Skip(
         val reason: AutoPassReason,
     ) : PriorityDecision() {

@@ -23,6 +23,7 @@ class CopilotProposalService(
     private val seatId: SeatId,
 ) {
     private val policy = ForgeAiPolicy({ bridge }, seatId)
+    private val advisor = PromptDecisionAdvisor(policy)
     private val resolver = EntityResolver(::resolveEntity)
 
     /** Forge-AI heuristic position score for the seat; null when eval fails. */
@@ -47,129 +48,141 @@ class CopilotProposalService(
         when (prompt.type) {
             // Opening-hand keep. Scripted skip-mulligan puzzles never emit this,
             // so it only fires on the live-client path.
-            GREMessageType.MulliganReq_aa0d -> proposalFor(SimDecision.KeepHand, prompt)
+            GREMessageType.MulliganReq_aa0d -> advisedProposal(prompt)
 
-            GREMessageType.ActionsAvailableReq_695e -> {
-                val actions = prompt.actionsAvailableReq.actionsList
-                val choice = policy.chooseAarAction(actions) ?: policy.chooseMain2ProactivePermanent(actions)
-                proposalFor(choice?.let { SimDecision.PerformAction(it.action) } ?: SimDecision.PassPriority, prompt)
-            }
+            GREMessageType.ActionsAvailableReq_695e -> aarProposal(prompt)
 
             // Two-round-trip targeting: diff the prompt's committed picks
             // against the AI's desired set — select the missing, Submit (stamped
             // with this prompt's msgId) once they match. On the fully-committed
             // re-prompt the AI can no longer re-pick (targets echo as Unselect),
             // so an already-satisfied committed set stands as the desired set.
-            GREMessageType.SelectTargetsReq_695e ->
-                mapDecision(prompt) {
-                    val req = prompt.selectTargetsReq
-                    val committed = TargetSelectionDiff.committedTargets(req)
-                    val desired =
-                        policy.chooseSelectTargets(prompt)
-                            ?: committed.takeIf { TargetSelectionDiff.isValid(req, it) }
-                    desired?.let { TargetSelectionDiff.step(req = req, committed = committed, desired = it) }
-                }
+            GREMessageType.SelectTargetsReq_695e -> targetProposal(prompt)
 
-            GREMessageType.SelectNreq ->
-                mapDecision(prompt) {
-                    (policy.chooseSelectN(prompt.selectNReq) ?: policy.chooseStaticColorSelectN(prompt))
-                        ?.let(SimDecision::SelectN)
-                        ?: DefaultDecisions.selectN(prompt)
-                }
+            GREMessageType.SelectNreq -> advisedProposal(prompt)
 
-            GREMessageType.CastingTimeOptionsReq_695e ->
-                mapDecision(prompt) { policy.chooseCastingTimeOptions(prompt) ?: DefaultDecisions.castingTimeOptions(prompt) }
+            GREMessageType.CastingTimeOptionsReq_695e -> advisedProposal(prompt)
 
-            GREMessageType.OrderReq_695e -> proposalFor(DefaultDecisions.order(prompt), prompt)
+            GREMessageType.OrderReq_695e -> advisedProposal(prompt)
 
-            GREMessageType.SearchReq_695e -> proposalFor(DefaultDecisions.search(prompt), prompt)
+            GREMessageType.SearchReq_695e -> advisedProposal(prompt)
 
-            GREMessageType.NumericInputReq_695e -> proposalFor(DefaultDecisions.numericInput(prompt), prompt)
+            GREMessageType.SearchFromGroupsReq_695e -> advisedProposal(prompt)
 
-            GREMessageType.DistributionReq_695e ->
-                mapDecision(prompt) { DefaultDecisions.forcedDistribution(prompt) }
+            GREMessageType.SelectReplacementReq_695e -> advisedProposal(prompt)
+
+            GREMessageType.NumericInputReq_695e -> advisedProposal(prompt)
+
+            GREMessageType.DistributionReq_695e -> proposalFor(DefaultDecisions.distribution(prompt), prompt)
 
             GREMessageType.PayCostsReq_695e ->
-                // Auto-tap mana confirm ("Auto-Pay") vs an effect's sacrifice
-                // cost. The former offers tap solutions; confirm the first
-                // (the client's re-solve, always legal). The latter needs the
-                // AI to pick what to sacrifice.
-                if (prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount > 0) {
-                    proposalFor(SimDecision.AutoTapPayment(0), prompt)
-                } else {
-                    // Sacrifice cost the AI can pick, else back out. A PayCostsReq
-                    // that is neither an auto-tap mana solve nor a computable
-                    // sacrifice (e.g. an activated ability whose cost we cannot
-                    // realize) would otherwise be unrealizable — no response, and
-                    // the game-loop parks on the half-activated ability. Cancelling
-                    // unwinds it to a priority window so the game keeps moving.
-                    proposalFor(
-                        policy.chooseEffectCostPayment(prompt)?.let(SimDecision::EffectCost) ?: SimDecision.CancelAction,
-                        prompt,
-                    )
-                }
+                advisedProposal(prompt)
 
             // Scry/surveil ordering: keep everything on top (always legal, moves
             // nothing) — enough to never stall the loop on this family.
-            GREMessageType.GroupReq_695e -> proposalFor(DefaultDecisions.group(prompt), prompt)
+            GREMessageType.GroupReq_695e -> advisedProposal(prompt)
 
             // Two-round-trip declaration: diff the prompt's committed set
             // against the AI's desired set — one toggle per consult, Submit
             // (stamped with this prompt's msgId) once they match.
-            GREMessageType.DeclareAttackersReq_695e ->
-                mapDecision(prompt) {
-                    policy.chooseAttackers()?.let { desired ->
-                        val req = prompt.declareAttackersReq
-                        CombatDeclarationDiff.attackerStep(
-                            committed = CombatDeclarationDiff.committedAttackers(req),
-                            desired = CombatDeclarationDiff.qualifiedDesiredAttackers(req, desired.toSet()),
-                        )
-                    }
-                }
+            GREMessageType.DeclareAttackersReq_695e -> attackersProposal(prompt)
 
             // Combat damage assignment: echo the engine's pre-filled per-blocker
             // lethal (+ trample overflow to the player) so the attack resolves.
-            GREMessageType.AssignDamageReq_695e -> proposalFor(DefaultDecisions.assignDamage(prompt), prompt)
+            GREMessageType.AssignDamageReq_695e -> advisedProposal(prompt)
 
             // Send the complete blocker plan once. A re-prompt carrying any
             // committed assignment is the accepted echo and submits without
             // consulting the AI against its own intermediate declaration.
-            GREMessageType.DeclareBlockersReq_695e ->
-                mapDecision(prompt) {
-                    val req = prompt.declareBlockersReq
-                    val committed = CombatDeclarationDiff.committedBlocks(req)
-                    val desired =
-                        if (committed.isEmpty()) {
-                            CombatDeclarationDiff.qualifiedDesiredBlocks(
-                                req,
-                                policy.chooseBlockers(prompt) ?: emptyMap(),
-                            )
-                        } else {
-                            emptyMap()
-                        }
-                    CombatDeclarationDiff.blockerStep(
-                        committed = committed,
-                        desired = desired,
-                    )
-                }
+            GREMessageType.DeclareBlockersReq_695e -> blockersProposal(prompt)
 
-            GREMessageType.OptionalActionMessage_695e ->
-                proposalFor(DefaultDecisions.optionalAction(), prompt)
+            GREMessageType.OptionalActionMessage_695e -> advisedProposal(prompt)
 
             else -> ProposalTranslator.unrealizable(prompt.type, seatId.value, "prompt type ${prompt.type} has no copilot decoder")
         }
 
-    private fun mapDecision(
-        prompt: GREToClientMessage,
-        decide: () -> SimDecision?,
-    ): CopilotProposal {
+    private fun advisedProposal(prompt: GREToClientMessage): CopilotProposal =
+        when (val result = advisor.decide(prompt)) {
+            is PromptDecisionResult.Chosen -> proposalFor(result.decision, prompt)
+            is PromptDecisionResult.Unavailable -> unavailableProposal(prompt, result)
+        }
+
+    private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Chosen) return proposalFor(result.decision, prompt)
+        val proactive = policy.chooseMain2ProactivePermanent(prompt.actionsAvailableReq.actionsList)
+        return proactive?.let { proposalFor(SimDecision.PerformAction(it.action), prompt) }
+            ?: unavailableProposal(prompt, result as PromptDecisionResult.Unavailable)
+    }
+
+    private fun targetProposal(prompt: GREToClientMessage): CopilotProposal {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Unavailable) return unavailableProposal(prompt, result)
+        val desired =
+            (result as PromptDecisionResult.Chosen).decision as? SimDecision.SelectTargets
+                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-target decision")
+        val req = prompt.selectTargetsReq
+        val committed = TargetSelectionDiff.committedTargets(req)
+        val step =
+            TargetSelectionDiff.step(req = req, committed = committed, desired = desired.targetGroups)
+                ?: return ProposalTranslator.unrealizable(
+                    prompt.type,
+                    seatId.value,
+                    "advisor target plan cannot converge from committed groups",
+                )
+        return proposalFor(step, prompt)
+    }
+
+    private fun attackersProposal(prompt: GREToClientMessage): CopilotProposal {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Unavailable) return unavailableProposal(prompt, result)
         val decision =
-            decide() ?: return ProposalTranslator.unrealizable(
+            (result as PromptDecisionResult.Chosen).decision as? SimDecision.DeclareAttackers
+                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-attacker decision")
+        val req = prompt.declareAttackersReq
+        val step =
+            CombatDeclarationDiff.attackerStep(
+                committed = CombatDeclarationDiff.committedAttackers(req),
+                desired = CombatDeclarationDiff.qualifiedDesiredAttackers(req, decision.attackerInstanceIds.toSet()),
+            )
+        return proposalFor(step, prompt)
+    }
+
+    private fun blockersProposal(prompt: GREToClientMessage): CopilotProposal {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Unavailable) return unavailableProposal(prompt, result)
+        val decision = (result as PromptDecisionResult.Chosen).decision
+        if (decision == SimDecision.DeclareNoBlockers) return proposalFor(decision, prompt)
+        val blockers =
+            decision as? SimDecision.DeclareBlockers
+                ?: return ProposalTranslator.unrealizable(prompt.type, seatId.value, "advisor returned a non-blocker decision")
+        val req = prompt.declareBlockersReq
+        val step =
+            CombatDeclarationDiff.blockerStep(
+                committed = CombatDeclarationDiff.committedBlocks(req),
+                desired = CombatDeclarationDiff.qualifiedDesiredBlocks(req, blockers.assignments),
+            )
+        return proposalFor(step, prompt)
+    }
+
+    private fun unavailableProposal(
+        prompt: GREToClientMessage,
+        result: PromptDecisionResult.Unavailable,
+    ): CopilotProposal {
+        val fallback =
+            when {
+                result.reason !in setOf(PromptUnavailableReason.NoForgeChoice, PromptUnavailableReason.RejectedAttempt) -> null
+                prompt.type == GREMessageType.ActionsAvailableReq_695e -> SimDecision.PassPriority
+                prompt.type == GREMessageType.PayCostsReq_695e &&
+                    prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount == 0 -> SimDecision.CancelAction
+                else -> null
+            }
+        return fallback?.let { proposalFor(it, prompt) }
+            ?: ProposalTranslator.unrealizable(
                 prompt.type,
                 seatId.value,
-                "Forge AI produced no mappable response for ${prompt.type}",
+                "advisor unavailable: ${result.reason.name}: ${result.detail}",
             )
-        return proposalFor(decision, prompt)
     }
 
     /** Translate the decision and attach its ordered delivery messages. */

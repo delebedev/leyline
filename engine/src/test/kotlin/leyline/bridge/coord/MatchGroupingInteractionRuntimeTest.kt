@@ -135,7 +135,7 @@ class MatchGroupingInteractionRuntimeTest :
                     )
                 exposed.size shouldBe 2
                 exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, reversed, emptyList()) shouldBe true
+                coordinator.acceptSettled(groupResp(reversed, emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (result.get().topHandles[0] === options[1]) shouldBe true
                 (result.get().topHandles[1] === options[0]) shouldBe true
@@ -172,28 +172,18 @@ class MatchGroupingInteractionRuntimeTest :
             assertSoftly {
                 group.prompt.promptId shouldBe PromptIds.GROUP_SURVEIL
                 group.groupReq.groupSpecsList[1].zoneType shouldBe wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard
-                coordinator.grouping.submit(published.interactionId, published.gameStateId + 1, ids, emptyList()) shouldBe false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), emptyList()) shouldBe
+                coordinator.acceptSettled(groupResp(ids, emptyList()), published.gameStateId + 1) shouldBe false
+                coordinator.acceptSettled(groupResp(listOf(ids[0]), emptyList()), published.gameStateId) shouldBe
                     false
-                coordinator.grouping.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(ids[0], ids[0]),
-                    emptyList(),
-                ) shouldBe
+                coordinator.acceptSettled(groupResp(listOf(ids[0], ids[0]), emptyList()), published.gameStateId) shouldBe
                     false
-                coordinator.grouping.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(ids[0]),
-                    listOf(Int.MAX_VALUE),
-                ) shouldBe
+                coordinator.acceptSettled(groupResp(listOf(ids[0]), listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, listOf(ids[0]), listOf(ids[1])) shouldBe
+                coordinator.acceptSettled(groupResp(listOf(ids[0]), listOf(ids[1])), published.gameStateId) shouldBe
                     true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (result.get().awayHandles.single() === options[1]) shouldBe true
-                coordinator.grouping.submit(published.interactionId, published.gameStateId, ids, emptyList()) shouldBe false
+                coordinator.acceptSettled(groupResp(ids, emptyList()), published.gameStateId) shouldBe false
             }
             coordinator.grouping.finalizeArrangement(result.get(), result.get().topHandles, result.get().awayHandles)
             coordinator.grouping
@@ -237,12 +227,7 @@ class MatchGroupingInteractionRuntimeTest :
             assertSoftly {
                 group.groupReq.sourceId shouldBe exactAbilityId
                 group.groupReq.sourceId shouldNotBe hostId
-                coordinator.grouping.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    group.groupReq.instanceIdsList,
-                    emptyList(),
-                ) shouldBe true
+                coordinator.acceptSettled(groupResp(group.groupReq.instanceIdsList, emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
             coordinator.grouping.finalizeArrangement(result.get(), result.get().topHandles, emptyList())

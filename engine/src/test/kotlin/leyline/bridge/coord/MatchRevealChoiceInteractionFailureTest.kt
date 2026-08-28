@@ -14,18 +14,17 @@ import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedRevealChoiceInteraction
+import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.bundle.BundleBuilder
 import leyline.game.state.GameBridge
 import leyline.match.GreMessageSink
 import leyline.match.drainOneCoordinatorBarrier
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
@@ -126,21 +125,19 @@ class MatchRevealChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.revealChoices.submit("${published.interactionId}-stale", published.gameStateId, listOf(ids[0])) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0])), published.gameStateId + 1) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[0], ids[0])), published.gameStateId) shouldBe
                     false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId + 1, listOf(ids[0])) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[0], ids[0])) shouldBe
-                    false
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
                 coordinator.revealChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(ids[1])) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(ids[1])), published.gameStateId) shouldBe false
             }
         }
 
@@ -183,7 +180,11 @@ class MatchRevealChoiceInteractionFailureTest :
 
             assertSoftly {
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe attempted.get()
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted.get()
                 attempted.get().any { it.hasSelectNReq() } shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
@@ -222,7 +223,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .first()
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.revealChoices.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -240,7 +241,7 @@ class MatchRevealChoiceInteractionFailureTest :
             val responseFinished = CountDownLatch(1)
             Thread {
                 responseStarted.countDown()
-                runCatching { coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id)) }
+                runCatching { coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId) }
                     .onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()
@@ -254,7 +255,11 @@ class MatchRevealChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
-                terminal.pendingRevealChoiceCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<RevealChoiceWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 board.bridge
@@ -266,7 +271,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
             }
-            coordinator.revealChoices.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
 
         test("teardown wakes the exact waiter and clears retained handles") {
@@ -310,7 +315,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
                 shouldThrow<PlaybackTerminalFailure> {
-                    coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id))
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId)
                 } shouldBe coordinator.failure()
             }
         }
@@ -331,16 +336,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     revealForSeat: Int?,
                 ) = Unit
 
-                override fun sendBundle(result: BundleBuilder.BundleResult) = Unit
-
                 override fun sendGameOver(reason: ResultReason) = Unit
-
-                override fun makeGRE(
-                    type: GREMessageType,
-                    gsId: Int,
-                    msgId: Int,
-                    configure: (GREToClientMessage.Builder) -> Unit,
-                ): GREToClientMessage = GREToClientMessage.getDefaultInstance()
             }
     }
 }

@@ -141,6 +141,7 @@ dependencies {
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
+    implementation(libs.tomlkt)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
@@ -170,6 +171,8 @@ dependencies {
     webProfileRuntimeClasspath(project(":web"))
     webProfileRuntimeClasspath(libs.kotlin.stdlib)
     webProfileRuntimeClasspath(libs.serialization.json)
+    // LeylineConfigResolver parses the fixed TOML at web startup.
+    webProfileRuntimeClasspath(libs.tomlkt)
     webProfileRuntimeClasspath(libs.exposed.core)
     webProfileRuntimeClasspath(libs.exposed.jdbc)
     webProfileRuntimeClasspath(libs.sqlite.jdbc)

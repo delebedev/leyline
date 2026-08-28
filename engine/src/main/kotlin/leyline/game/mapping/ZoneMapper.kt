@@ -75,6 +75,7 @@ object ZoneMapper {
                     cardVisibility,
                     "hand",
                     gameObjects,
+                    addViewer = seatId.value,
                 )
             }
         }
@@ -219,7 +220,11 @@ object ZoneMapper {
             buildPlayerCard(snap, fid, instanceId, zoneId, seatId, environment, visibility, zoneName)
                 ?: return
         gameObjects.add(addViewer?.let { card.toBuilder().addViewers(it).build() } ?: card)
+        val disturbIndex = gameObjects.size
         addDisturbBackObject(snap, fid, instanceId, zoneId, seatId, environment, instanceIdLookup, visibility, gameObjects)
+        if (addViewer != null && gameObjects.size > disturbIndex) {
+            gameObjects[disturbIndex] = gameObjects[disturbIndex].toBuilder().addViewers(addViewer).build()
+        }
     }
 
     @Suppress("detekt:LongParameterList")

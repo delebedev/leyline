@@ -33,10 +33,12 @@ import wotc.mtgo.gre.external.messaging.Messages.OrderResp
 import wotc.mtgo.gre.external.messaging.Messages.OrderingType
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.PerformAutoTapActionsResp
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsResp
 import wotc.mtgo.gre.external.messaging.Messages.SearchResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectManaTypeResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectNResp
+import wotc.mtgo.gre.external.messaging.Messages.SelectReplacementResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.Target
@@ -283,11 +285,45 @@ internal object ResponseBuilder {
                         ).build(),
                 )
 
+            is SimDecision.Distribution ->
+                listOf(
+                    base(ClientMessageType.DistributionResp_097b)
+                        .setDistributionResp(
+                            DistributionResp.newBuilder().apply {
+                                decision.amountsByInstanceId.forEach { (instanceId, amount) ->
+                                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                                }
+                            },
+                        ).build(),
+                )
+
             is SimDecision.Search ->
                 listOf(
                     base(ClientMessageType.SearchResp_097b)
                         .setSearchResp(SearchResp.newBuilder().addAllItemsFound(decision.itemsFound))
                         .build(),
+                )
+
+            is SimDecision.GroupedSearch ->
+                listOf(
+                    base(ClientMessageType.SearchFromGroupsResp_097b)
+                        .setSearchFromGroupsResp(
+                            SearchFromGroupsResp.newBuilder().addGroups(
+                                Group
+                                    .newBuilder()
+                                    .setGroupId(decision.groupId)
+                                    .setMaxSelect(decision.maxSelect)
+                                    .addAllIds(decision.itemsFound),
+                            ),
+                        ).build(),
+                )
+
+            is SimDecision.SelectReplacement ->
+                listOf(
+                    base(ClientMessageType.SelectReplacementResp_097b)
+                        .setSelectReplacementResp(
+                            SelectReplacementResp.newBuilder().setReplacement(decision.replacement),
+                        ).build(),
                 )
 
             // Modal "choose one/two" — CastingTimeOptionsReq with the picked grpIds.
@@ -384,18 +420,6 @@ internal object ResponseBuilder {
                     base(ClientMessageType.NumericInputResp_097b)
                         .setNumericInputResp(NumericInputResp.newBuilder().setNumericInputValue(decision.value))
                         .build(),
-                )
-
-            is SimDecision.Distribution ->
-                listOf(
-                    base(ClientMessageType.DistributionResp_097b)
-                        .setDistributionResp(
-                            DistributionResp.newBuilder().apply {
-                                decision.amountsByInstanceId.forEach { (instanceId, amount) ->
-                                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
-                                }
-                            },
-                        ).build(),
                 )
 
             // Combat damage assignment: per attacker, the (target, damage) pairs

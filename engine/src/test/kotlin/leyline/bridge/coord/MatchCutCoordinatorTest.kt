@@ -16,21 +16,33 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.GamePlayback
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.annotations.AnnotationLossReason
 import leyline.game.awaitFreshPending
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -72,7 +84,7 @@ class MatchCutCoordinatorTest :
         }
 
         test("runtime token resolves one live action and closes the old window") {
-            val board = startPuzzleAtMain1(puzzle)
+            val board = startPuzzleAtMain1(puzzle, EngineSettings(timer = true))
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val messages =
                 board.bridge.cutCoordinator
@@ -136,7 +148,7 @@ class MatchCutCoordinatorTest :
                 .drain(SeatId(1))
                 .shouldNotBeEmpty()
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             val priorPromptGsId = pending.promptGameStateId
 
             shouldThrow<IllegalStateException> {
@@ -145,7 +157,7 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.counter.snapshot() shouldBe priorCounter
+                board.bridge.committedSequence() shouldBe priorSequence
                 pending.promptGameStateId shouldBe priorPromptGsId
             }
         }
@@ -172,17 +184,8 @@ class MatchCutCoordinatorTest :
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
-            val residualMsgId = AtomicReference<Int>()
+            val priorSequence = board.bridge.committedSequence()
             board.bridge.cutCoordinator.beforeActionEnqueue = {
-                Thread {
-                    val id = board.counter.nextMsgId()
-                    board.counter.markPromptMsgId(id)
-                    residualMsgId.set(id)
-                }.also {
-                    it.start()
-                    it.join()
-                }
                 error("delivery unavailable")
             }
 
@@ -195,9 +198,7 @@ class MatchCutCoordinatorTest :
             assertSoftly {
                 failure.cause?.message shouldBe "delivery unavailable"
                 board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.counter.currentMsgId() shouldBeGreaterThan priorCounter.currentMsgId
-                board.counter.currentMsgId() shouldBeGreaterThan residualMsgId.get() - 1
-                board.counter.lastPromptMsgId() shouldBe residualMsgId.get()
+                board.bridge.committedSequence() shouldBe priorSequence
                 board.bridge.cutCoordinator.failure() shouldBe failure
                 board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
                 pending.promptGameStateId.shouldBeNull()
@@ -343,6 +344,44 @@ class MatchCutCoordinatorTest :
             }
         }
 
+        test("phase synchronization folds one shared frame for the fixed roster") {
+            val board = startWithBoard { _, _, _ -> }
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
+            val prior = board.bridge.projectionStateSnapshot()
+            val pending =
+                GameActionBridge.PendingAction(
+                    actionId = "phase-sync",
+                    state =
+                        PendingActionState(
+                            phase = "Main1",
+                            turn = 1,
+                            activePlayerId = 1,
+                            priorityPlayerId = 1,
+                            kind = PendingActionKind.SYNC_ONLY,
+                            synchronizationPresentation = SynchronizationPresentation.PhaseTransition,
+                        ),
+                    future = CompletableFuture(),
+                    windowRuntime = coordinator.actionWindowRuntime(SeatId(1)),
+                )
+
+            coordinator.syncOnly.publish(SeatId(1), pending)
+
+            val player = coordinator.drain(SeatId(1)).single()
+            val observer = coordinator.drain(SeatId(2)).single()
+            assertSoftly {
+                player.map { it.gameStateId } shouldBe observer.map { it.gameStateId }
+                player.map { it.type } shouldBe List(3) { GREMessageType.GameStateMessage_695e }
+                observer.map { it.type } shouldBe List(3) { GREMessageType.GameStateMessage_695e }
+                board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
+            }
+        }
+
         test("delivered synchronization pass wins against a paused timeout claim") {
             val board = startPuzzleAtMain1(puzzle)
             board.bridge.cutCoordinator.drain(SeatId(1))
@@ -399,7 +438,7 @@ class MatchCutCoordinatorTest :
         test("phase replacement stale install rolls back new output and terminalizes") {
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             val competing =
                 board.bridge
                     .projectionStateSnapshot()
@@ -416,7 +455,8 @@ class MatchCutCoordinatorTest :
 
             assertSoftly {
                 board.bridge.projectionStateSnapshot() shouldBe competing
-                board.counter.currentMsgId() shouldBeGreaterThan priorCounter.currentMsgId
+                board.bridge.committedSequence() shouldBe competing.sequence
+                board.bridge.committedSequence().currentMsgId shouldBe priorSequence.currentMsgId
                 board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .flatten()
@@ -428,7 +468,7 @@ class MatchCutCoordinatorTest :
             val board = startPuzzleAtMain1(puzzle)
             val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
             val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorCounter = board.counter.snapshot()
+            val priorSequence = board.bridge.committedSequence()
             board.bridge.cutCoordinator.afterActionInstall = { error("acknowledgement unavailable") }
 
             shouldThrow<PlaybackTerminalFailure> {
@@ -441,7 +481,7 @@ class MatchCutCoordinatorTest :
                     .failure()
                     .shouldNotBeNull()
                 board.bridge.projectionStateSnapshot().revision shouldBeGreaterThan priorProjection.revision
-                board.counter.snapshot().currentMsgId shouldBeGreaterThan priorCounter.currentMsgId
+                board.bridge.committedSequence().currentMsgId shouldBeGreaterThan priorSequence.currentMsgId
                 board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .flatten()
@@ -496,6 +536,7 @@ class MatchCutCoordinatorTest :
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Battlefield)
                 }
+            board.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(board.bridge, 1)
             val collector = checkNotNull(board.bridge.eventCollector)
             collector.closeFrame()
@@ -529,7 +570,7 @@ class MatchCutCoordinatorTest :
             val pendingIndex = messages.indexOfFirst { it.hasGameStateMessage() && !it.gameStateMessage.hasGameInfo() }
             assertSoftly {
                 gameOverIndex shouldBeGreaterThan pendingIndex
-                messages.count { it.hasGameStateMessage() } shouldBe 5
+                messages.count { it.hasGameStateMessage() } shouldBe 4
                 board.bridge.projectionStateSnapshot().revision shouldBe prior.revision + 1
                 board.bridge.hasPendingEvents().shouldBeFalse()
             }
@@ -537,6 +578,7 @@ class MatchCutCoordinatorTest :
 
         test("game-over materialization and install failures are terminal without an owned orphan") {
             val materializationBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            materializationBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(materializationBoard.bridge, 1)
             val existing =
                 listOf(
@@ -561,6 +603,7 @@ class MatchCutCoordinatorTest :
             }
 
             val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            installBoard.bridge.cutCoordinator.registerViewer(SeatId(1))
             GamePlayback(installBoard.bridge, 1)
             installBoard.bridge.cutCoordinator.gameOver.beforeInstall = { error("game-over install failed") }
             val installFailure =
@@ -576,6 +619,87 @@ class MatchCutCoordinatorTest :
                     .drain(SeatId(1))
                     .shouldBeEmpty()
                 installBoard.bridge.cutCoordinator.failure() shouldBe installFailure
+            }
+        }
+
+        test("settings acknowledgement commits behind older feed output") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val older = listOf(GREToClientMessage.getDefaultInstance())
+            coordinator.enqueueCommittedBatchForTest(SeatId(1), older)
+            val settings = SettingsMessage.getDefaultInstance()
+
+            coordinator.publishSettings(SeatId(1), settings)
+
+            val batches = coordinator.drain(SeatId(1))
+            assertSoftly {
+                batches.first() shouldBe older
+                batches.last().single().type shouldBe GREMessageType.SetSettingsResp_695e
+                batches
+                    .last()
+                    .single()
+                    .setSettingsResp.settings shouldBe settings
+            }
+        }
+
+        test("delivery failure after installation does not rewind or reuse committed allocation") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val prior = board.bridge.committedSequence()
+
+            coordinator.publishSettings(SeatId(1), SettingsMessage.getDefaultInstance())
+            val installed = board.bridge.committedSequence()
+            coordinator.drain(SeatId(1)).single()
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.failDelivery(IllegalStateException("sink unavailable"))
+            }
+
+            assertSoftly {
+                installed.currentMsgId shouldBeGreaterThan prior.currentMsgId
+                installed.committedOutputOrdinal shouldBe prior.committedOutputOrdinal + 1
+                board.bridge.committedSequence() shouldBe installed
+            }
+        }
+
+        test("illegal response commits in feed order and publication failure leaves no owned batch") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val older = listOf(GREToClientMessage.getDefaultInstance())
+            coordinator.enqueueCommittedBatchForTest(SeatId(1), older)
+            val invalid =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.PerformActionResp_097b)
+                    .setSystemSeatId(1)
+                    .setRespId(7)
+                    .build()
+
+            coordinator.publishIllegalRequest(SeatId(1), invalid, FailureReason.ReqRespMismatch)
+            coordinator.publishSettings(SeatId(1), SettingsMessage.getDefaultInstance())
+
+            val batches = coordinator.drain(SeatId(1))
+            assertSoftly {
+                batches.first() shouldBe older
+                batches[1].single().type shouldBe GREMessageType.IllegalRequest
+                batches[1].single().illegalRequestMessage.invalidMessage shouldBe invalid
+                batches[2].single().type shouldBe GREMessageType.SetSettingsResp_695e
+            }
+
+            val failedBoard = startPuzzleAtMain1(puzzle)
+            val failedCoordinator = failedBoard.bridge.cutCoordinator
+            failedCoordinator.drain(SeatId(1))
+            failedCoordinator.setBeforeBatchEnqueue(SeatId(1)) { _, _ -> error("illegal response feed unavailable") }
+
+            val failure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    failedCoordinator.publishIllegalRequest(SeatId(1), invalid, FailureReason.ReqRespMismatch)
+                }
+            assertSoftly {
+                failure.cause?.message shouldBe "illegal response feed unavailable"
+                failedCoordinator.drain(SeatId(1)).shouldBeEmpty()
             }
         }
     })

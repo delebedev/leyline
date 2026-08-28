@@ -90,8 +90,11 @@ object PromptRouteAuditor {
             is ResolvedPromptRoute.StaticChoice -> "SelectNReq"
             is ResolvedPromptRoute.RevealChoice -> "SelectNReq"
             is ResolvedPromptRoute.PayCosts -> "PayCostsReq"
-            is ResolvedPromptRoute.Search -> "SearchReq"
+            is ResolvedPromptRoute.Search ->
+                if (semantic == PromptSemantic.GroupedSearch) "SearchFromGroupsReq" else "SearchReq"
+            is ResolvedPromptRoute.SelectReplacement -> "SelectReplacementReq"
             is ResolvedPromptRoute.Order -> "OrderReq"
+            is ResolvedPromptRoute.Distribution -> "DistributionReq"
             is ResolvedPromptRoute.Targeting -> "SelectTargetsReq"
             is ResolvedPromptRoute.CompatibilityCostSelection -> "SelectTargetsReq"
             is ResolvedPromptRoute.AutoResolve -> null

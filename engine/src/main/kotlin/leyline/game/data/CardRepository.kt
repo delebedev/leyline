@@ -6,8 +6,8 @@ import kotlin.collections.iterator
 /**
  * Read-only card data repository — abstracts the client's local card database.
  *
- * Production impl ([ExposedCardRepository]) reads from the client's SQLite.
- * Tests use `InMemoryCardRepository` (in test source set) with synthetic data.
+ * Production impl ([SqliteCardRepository]) reads from the client's SQLite via
+ * [ClientCardDatabase]. Tests use `InMemoryCardRepository` with fixture data.
  */
 interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
@@ -37,14 +37,6 @@ interface CardRepository {
      */
     fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = null
 
-    /**
-     * Register modal options for testing (no DB needed).
-     */
-    fun registerModalOptions(
-        cardGrpId: Int,
-        info: ModalAbilityInfo,
-    ) {}
-
     /** Linked face grpIds for multi-face cards (DFC, MDFC, Adventure, Split). */
     fun findLinkedFaces(grpId: Int): List<Int> = findByGrpId(grpId)?.linkedFaceGrpIds ?: emptyList()
 
@@ -53,30 +45,9 @@ interface CardRepository {
      *
      * Returns null if the repository does not carry Abilities-table data
      * (in-memory test repos) or the row is absent. Production impl is
-     * [ExposedCardRepository] which reads the client SQLite.
+     * [SqliteCardRepository] which reads the client SQLite.
      */
     fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = null
-
-    /**
-     * Cost-disambiguated alt-cost lookup: find the ability on [cardGrpId]
-     * whose `BaseId` matches [keywordBaseId] AND whose `OldSchoolManaText`
-     * parses to the same `(ManaColor, Int)` multiset as [payCost]. Used by
-     * Warp/Sneak/Flashback's per-printing cost resolution.
-     */
-    fun findAlternativeCostAbilityGrpId(
-        cardGrpId: Int,
-        keywordBaseId: Int,
-        payCost: List<Pair<ManaColor, Int>>,
-    ): Int? {
-        val data = findByGrpId(cardGrpId) ?: return null
-        val payKey = payCost.toMap()
-        for ((abilityGrpId, _) in data.abilityIds) {
-            val info = findAbilityInfo(abilityGrpId) ?: continue
-            if (info.baseId != keywordBaseId) continue
-            if (info.manaCost.toMap() == payKey) return abilityGrpId
-        }
-        return null
-    }
 
     /**
      * Keyword presence lookup. [keywordAbilityId] is one of the well-known
@@ -111,12 +82,6 @@ interface CardRepository {
         }
         return null
     }
-
-    /** True iff [cardGrpId] carries any keyword ability in [keywordAbilityIds]. */
-    fun hasAnyKeyword(
-        cardGrpId: Int,
-        keywordAbilityIds: Set<Int>,
-    ): Boolean = keywordAbilityIds.any { findKeywordAbilityGrpId(cardGrpId, it) != null }
 
     /**
      * Hidden ability grpId of the first **triggered** ability

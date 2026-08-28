@@ -11,9 +11,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.ManaSourcePaymentTimeoutException
+import leyline.bridge.handoff.ManaSourcePaymentWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -69,6 +71,22 @@ class MatchManaSourcePaymentFailureTest :
             )
         }
 
+        fun searchRequest(board: Board): PromptRequest {
+            val cards = board.human.getZone(ZoneType.Library).cards
+            return PromptRequest(
+                promptType = "choose_cards",
+                message = "Search",
+                options = cards.map { it.name },
+                min = 1,
+                max = 1,
+                candidateRefs =
+                    cards.mapIndexed { index, card ->
+                        PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, ZoneType.Library.name)
+                    },
+                route = PromptRouteResolver.resolve(PromptSemantic.Search),
+            )
+        }
+
         fun awaitPublished(coordinator: MatchCutCoordinator): leyline.bridge.handoff.PublishedManaSourcePaymentInteraction {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             var published = coordinator.manaSourcePayments.current()
@@ -94,9 +112,11 @@ class MatchManaSourcePaymentFailureTest :
                 }
             assertSoftly {
                 terminal.cause?.message shouldBe "mana-source feed unavailable"
-                terminal.pendingManaSourcePaymentCut
+                terminal.pendingPromptCut
                     .shouldNotBeNull()
-                    .interaction.candidates.size shouldBe 2
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                    .candidates.size shouldBe 2
                 coordinator.drain(SeatId(1)) shouldContainExactly listOf(existing)
                 board.bridge.projectionStateSnapshot() shouldBe prior
                 coordinator.manaSourcePayments
@@ -129,9 +149,11 @@ class MatchManaSourcePaymentFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 engineFailure.get() shouldBe terminal
-                terminal.pendingManaSourcePaymentCut
+                terminal.pendingPromptCut
                     .shouldNotBeNull()
-                    .interaction.selections
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                    .selections
                     .map { it.originalOptionIndex } shouldBe
                     listOf(0)
                 coordinator.drain(SeatId(1)) shouldBe emptyList()
@@ -195,10 +217,54 @@ class MatchManaSourcePaymentFailureTest :
                 acknowledgementFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 terminal.cause shouldBe cause
-                terminal.pendingManaSourcePaymentCut.shouldNotBeNull().messages shouldBe attempted
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe attempted
                 coordinator.manaSourcePayments
                     .current()
                     .shouldBeNull()
+            }
+        }
+
+        test("delivery retains mana ahead of a lower-priority settled child") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val searchFailure = AtomicReference<Throwable>()
+            val searchFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.search.awaitSearch(searchRequest(board), null) }
+                    .onFailure(searchFailure::set)
+                searchFinished.countDown()
+            }.start()
+            val searchDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (coordinator.search.current() == null && System.nanoTime() < searchDeadline) {
+                Thread.onSpinWait()
+            }
+            checkNotNull(coordinator.search.current())
+
+            val manaFailure = AtomicReference<Throwable>()
+            val manaFinished = CountDownLatch(1)
+            Thread {
+                runCatching { coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), null) }
+                    .onFailure(manaFailure::set)
+                manaFinished.countDown()
+            }.start()
+            awaitPublished(coordinator)
+
+            val terminal = shouldThrow<PlaybackTerminalFailure> { coordinator.failDelivery(IllegalStateException("delivery unavailable")) }
+
+            assertSoftly {
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<ManaSourcePaymentWindowValue>()
+                searchFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                manaFinished.await(3, TimeUnit.SECONDS) shouldBe true
+                searchFailure.get() shouldBe terminal
+                manaFailure.get() shouldBe terminal
             }
         }
 
@@ -275,13 +341,12 @@ class MatchManaSourcePaymentFailureTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            val autoAdvance = CountDownLatch(1)
+            val signal = PrioritySignal()
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             val bridge =
-                InteractivePromptBridge(timeoutMs = 25).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
                 result.set(bridge.requestManaSourcePayment(request(board).copy(defaultIndex = 1), candidates(board)))
@@ -293,7 +358,7 @@ class MatchManaSourcePaymentFailureTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
-                autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.manaSourcePayments
                     .current()
                     .shouldBeNull()

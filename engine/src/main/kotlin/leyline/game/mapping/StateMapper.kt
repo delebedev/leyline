@@ -312,6 +312,24 @@ object StateMapper {
                 editor.identities,
                 FrameIdResolver.postReallocIids(transferResult),
             )
+        val tokenParents =
+            eventsMutable
+                .filterIsInstance<GameEvent.TokenCreated>()
+                .mapNotNull { event ->
+                    val sourceCardId = event.sourceCardId ?: return@mapNotNull null
+                    if (event.sourceAbilityForgeId == 0) return@mapNotNull null
+                    frameIds.cardIid(event.cardId).value to
+                        AnnotationContext.stackAbilityIid(event.sourceAbilityForgeId, sourceCardId, frameIds)
+                }.toMap()
+        if (tokenParents.isNotEmpty()) {
+            transferResult =
+                transferResult.copy(
+                    patchedObjects =
+                        transferResult.patchedObjects.map { obj ->
+                            tokenParents[obj.instanceId]?.let { obj.toBuilder().setParentId(it).build() } ?: obj
+                        },
+                )
+        }
         val (opponentKnowledge, nextOpponentKnowledge) =
             OpponentKnowledgeTracker.plan(editor.opponentKnowledge, snap, frameIds, eventsMutable)
         editor.opponentKnowledge = nextOpponentKnowledge
@@ -729,6 +747,62 @@ object StateMapper {
             priorProjection = priorProjection,
         )
 
+    /** Plans causal projection lifecycle once without applying a viewer visibility baseline. */
+    internal fun planSharedDraft(
+        input: StateFrameInput,
+        environment: StateProjectionEnvironment,
+        editor: ProjectionState.Editor,
+    ): Draft =
+        buildFromSnapshotInternal(
+            rawSnap = input.snapshot,
+            gameStateId = input.gameStateId,
+            matchId = input.snapshot.matchId,
+            environment = environment,
+            updateType = input.updateType,
+            viewingSeatId = 0,
+            revealForSeat = input.revealForSeat,
+            prev = input.previousSnapshot,
+            events = input.events,
+            promptFacts = input.promptFacts,
+            persistentFeedFacts = input.persistentFeedFacts,
+            effectFacts = input.effectFacts,
+            mechanicSourceFacts = input.mechanicSourceFacts,
+            abilityExhaustionFacts = input.abilityExhaustionFacts,
+            editor = editor,
+        )
+
+    /** Renders one viewer from an already planned shared lifecycle draft. */
+    internal fun renderViewerDraft(
+        shared: Draft,
+        input: StateFrameInput,
+        environment: StateProjectionEnvironment,
+        priorProjection: ProjectionState,
+        editor: ProjectionState.Editor,
+        actions: ActionsAvailableReq? = null,
+        includePrivateObjects: Boolean = true,
+    ): Draft =
+        buildDiffInternal(
+            prev = input.previousSnapshot,
+            cur = input.snapshot,
+            events = input.events,
+            promptFacts = input.promptFacts,
+            effectFacts = input.effectFacts,
+            mechanicSourceFacts = input.mechanicSourceFacts,
+            abilityExhaustionFacts = input.abilityExhaustionFacts,
+            persistentFeedFacts = input.persistentFeedFacts,
+            gameStateId = input.gameStateId,
+            matchId = input.snapshot.matchId,
+            environment = environment,
+            actions = actions,
+            updateType = input.updateType,
+            viewingSeatId = input.viewingSeatId,
+            revealForSeat = input.revealForSeat,
+            editor = editor,
+            priorProjection = priorProjection,
+            sharedDraft = shared,
+            includePrivateObjects = includePrivateObjects,
+        )
+
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     private fun buildDiffInternal(
         prev: GsmSnapshot?,
@@ -748,10 +822,12 @@ object StateMapper {
         revealForSeat: Int? = null,
         editor: ProjectionState.Editor,
         priorProjection: ProjectionState,
+        sharedDraft: Draft? = null,
+        includePrivateObjects: Boolean = true,
     ): Draft {
         if (prev == null) {
             // First bundle — Full GSM with one complete transition.
-            return buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -780,7 +856,7 @@ object StateMapper {
         // contents (matches the protocol shape Arena uses for cycling /
         // tutor searches).
         if (revealForSeat != null) {
-            return buildFromSnapshotInternal(
+            return sharedDraft?.forViewer(viewingSeatId, includePrivateObjects) ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -802,7 +878,7 @@ object StateMapper {
 
         // Build current full GSM (viewingSeatId=0 to include all objects for accurate diff).
         val fullResult =
-            buildFromSnapshotInternal(
+            sharedDraft ?: buildFromSnapshotInternal(
                 rawSnap = cur,
                 gameStateId = gameStateId,
                 matchId = matchId,
@@ -1049,14 +1125,44 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return Draft(
-            gsm = built,
-            projectionSnapshot = projectedCur,
-            output = fullResult.output,
-            firstAnnotationId = fullResult.firstAnnotationId,
-            idResolver = fullResult.idResolver,
-            objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
-        )
+        val draft =
+            Draft(
+                gsm = built,
+                projectionSnapshot = projectedCur,
+                output = fullResult.output,
+                firstAnnotationId = fullResult.firstAnnotationId,
+                idResolver = fullResult.idResolver,
+                objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
+            )
+        return if (includePrivateObjects) draft else draft.forViewer(viewingSeatId, includePrivateObjects = false)
+    }
+
+    private fun Draft.forViewer(
+        viewingSeatId: Int,
+        includePrivateObjects: Boolean,
+    ): Draft {
+        if (viewingSeatId == 0 && includePrivateObjects) return this
+        val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
+        val visibleObjects =
+            gsm.gameObjectsList.filter { obj ->
+                obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+            }
+        val projected =
+            gsm
+                .toBuilder()
+                .clearZones()
+                .addAllZones(
+                    gsm.zonesList.map { zone ->
+                        if (!includePrivateObjects && zone.visibility == Visibility.Private) {
+                            zone.toBuilder().clearObjectInstanceIds().build()
+                        } else {
+                            redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                        }
+                    },
+                ).clearGameObjects()
+                .addAllGameObjects(visibleObjects)
+                .build()
+        return copy(gsm = projected)
     }
 
     private fun redactOpponentSideboardZone(

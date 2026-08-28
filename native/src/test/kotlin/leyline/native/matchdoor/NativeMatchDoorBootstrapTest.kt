@@ -6,13 +6,14 @@ import io.netty.channel.MultiThreadIoEventLoopGroup
 import io.netty.channel.nio.NioIoHandler
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.pkitesting.CertificateBuilder
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.match.MatchDebugSink
 import leyline.native.NativeTag
+import java.io.File
 
 class NativeMatchDoorBootstrapTest :
     FunSpec({
@@ -38,12 +39,14 @@ class NativeMatchDoorBootstrapTest :
                     bossGroup = bossGroup,
                     workerGroup = workerGroup,
                     ssl = ssl,
+                    bindAddress = "127.0.0.1",
                     port = 0,
-                    matchConfig = MatchConfig(),
+                    engineSettings = EngineSettings(),
+                    puzzlesDir = File("data/puzzles"),
                     coordinator = MatchCoordinator.NOOP,
                     cardRepository = EmptyCardRepository,
                     debugSink = debugSink,
-                    puzzlePath = { null },
+                    puzzleIdentity = { null },
                     runtimeMatchConfigs = RuntimeMatchConfigRegistry(),
                 )
 

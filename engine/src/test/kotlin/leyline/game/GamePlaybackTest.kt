@@ -14,7 +14,7 @@ import leyline.UnitTag
 import leyline.bridge.coord.CombatPlaybackFramePlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.DamageSourceKind
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
@@ -34,8 +34,9 @@ class GamePlaybackTest :
 
         tags(UnitTag)
 
-        fun createMinimalPlayback(counter: MessageCounter = MessageCounter()): GamePlayback {
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository(), messageCounter = counter)
+        fun createMinimalPlayback(counter: LogicalSequencePlanner = LogicalSequencePlanner()): GamePlayback {
+            val bridge = GameBridge(cardRepository = InMemoryCardRepository(), initialSequence = counter.snapshot())
+            bridge.cutCoordinator.registerViewer(SeatId(1))
             return GamePlayback(bridge, 1)
         }
 
@@ -140,8 +141,8 @@ class GamePlaybackTest :
             queue.shouldBeEmpty()
         }
 
-        test("Shared MessageCounter is used by playback — no local atomics") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+        test("Shared LogicalSequencePlanner is used by playback — no local atomics") {
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 20)
 
             @Suppress("UnusedPrivateProperty")
             val pb = createMinimalPlayback(counter)
@@ -154,7 +155,7 @@ class GamePlaybackTest :
         }
 
         test("No duplicate msgIds when two threads use the same counter") {
-            val counter = MessageCounter(initialGsId = 10, initialMsgId = 10)
+            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 10)
 
             val sessionMsgIds = (1..3).map { counter.nextMsgId() }
             val engineMsgIds = (1..2).map { counter.nextMsgId() }

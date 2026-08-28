@@ -8,9 +8,10 @@ import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.advanceToMain1
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
@@ -28,13 +29,13 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 class Board(
     val bridge: GameBridge,
     val game: Game,
-    val counter: MessageCounter,
+    val counter: LogicalSequencePlanner,
 ) {
     operator fun component1(): GameBridge = bridge
 
     operator fun component2(): Game = game
 
-    operator fun component3(): MessageCounter = counter
+    operator fun component3(): LogicalSequencePlanner = counter
 
     /** The human (non-AI) player. */
     val human: Player get() = game.humanPlayer
@@ -48,7 +49,9 @@ class Board(
     fun bundleBuilder(): BundleBuilder = BundleBuilder(bridge, TEST_MATCH_ID, SEAT_ID)
 
     /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
-    fun stateOnlyDiff(): GameStateMessage = bundleBuilder().stateOnlyDiff(game, counter).gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+    fun stateOnlyDiff(): GameStateMessage =
+        BundleBuilderTestSupport.stateOnly(bundleBuilder(), bridge, game, counter).gsmOrNull
+            ?: error("stateOnlyDiff returned no GSM")
 
     /**
      * Seed the diff baseline, run [action], build a stateOnlyDiff, return the GSM.
@@ -71,13 +74,13 @@ class Board(
                 ?.drainQueue()
                 .orEmpty()
                 .flatten()
-        val result = bundleBuilder().postAction(game, counter)
+        val result = BundleBuilderTestSupport.postAction(bundleBuilder(), bridge, game, counter)
         if (playbackMessages.isEmpty()) return result
         return BundleBuilder.BundleResult(playbackMessages + result.messages)
     }
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
-    fun gameStart(): BundleBuilder.BundleResult = bundleBuilder().phaseTransitionDiff(game, counter)
+    fun gameStart(): BundleBuilder.BundleResult = BundleBuilderTestSupport.phaseTransition(bundleBuilder(), bridge, game, counter)
 
     // ----- Board actions -----
 
@@ -185,8 +188,8 @@ class Board(
          * @param board lambda that receives (game, human, ai) to set up zones
          */
         fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board {
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b = GameBridge(initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
 
             val game = GameBootstrap.createGame()
             b.wrapGame(game)
@@ -223,8 +226,8 @@ class Board(
             if (deckList != null) {
                 TestCardRegistry.ensureDeckRegistered(deckList)
             }
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b = GameBridge(initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
             // Forge's MyRandom is a static Random. b.start(seed) replaces it via
             // MyRandom.setRandom(Random(seed)), so two concurrent Kotest specs
             // calling this race — one overwrites the other's RNG mid-shuffle and
@@ -255,16 +258,26 @@ class Board(
          * Much faster than [startGameAtMain1] (~0.3s vs ~1.5s) because it skips:
          * deck shuffle, mulligan keep, and priority-passing through upkeep/draw.
          *
-         * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+         * @param puzzleText inline `.pzl` content (see `data/puzzles/` for format)
          */
-        fun startPuzzleAtMain1(puzzleText: String): Board = startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText))
+        fun startPuzzleAtMain1(
+            puzzleText: String,
+            engineSettings: EngineSettings = EngineSettings(),
+        ): Board = startPuzzleAtMain1(PuzzleSource.loadFromText(puzzleText), engineSettings)
 
-        /** Convenience: load a puzzle from a test resource path (e.g. "puzzles/foo.pzl"). */
-        fun startPuzzleAtMain1FromResource(resourcePath: String): Board = startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath))
+        /** Convenience: load a puzzle from a shared identity path or test-private resource. */
+        fun startPuzzleAtMain1FromResource(
+            resourcePath: String,
+            engineSettings: EngineSettings = EngineSettings(),
+        ): Board = startPuzzleAtMain1(PuzzleSource.loadFromResource(resourcePath), engineSettings)
 
-        private fun startPuzzleAtMain1(puzzle: forge.gamemodes.puzzle.Puzzle): Board {
-            val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
-            val b = GameBridge(messageCounter = counter, cardRepository = TestCardRegistry.repo)
+        private fun startPuzzleAtMain1(
+            puzzle: forge.gamemodes.puzzle.Puzzle,
+            engineSettings: EngineSettings,
+        ): Board {
+            val counter = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0)
+            val b =
+                GameBridge(engineSettings = engineSettings, initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
 
             b.startPuzzle(puzzle)
 

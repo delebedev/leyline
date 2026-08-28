@@ -4,7 +4,6 @@ import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 
 /** Value-only session adapter for coordinator-owned iterative and one-shot PayCosts windows. */
 internal class ManaSourcePaymentHandler(
@@ -14,14 +13,13 @@ internal class ManaSourcePaymentHandler(
 ) {
     private val log = LoggerFactory.getLogger(ManaSourcePaymentHandler::class.java)
 
-    fun tryHandlePerformAction(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
+    fun tryHandlePerformAction(greMsg: ClientToGREMessage): HandlerResult {
         val actions = greMsg.performActionResp.actionsList
-        if (actions.none { it.actionType == ActionType.MakePayment || it.actionType == ActionType.Pass }) return false
+        if (actions.none { it.actionType == ActionType.MakePayment || it.actionType == ActionType.Pass }) {
+            return HandlerResult.NotHandled
+        }
         val runtime = ctx.bridge.cutCoordinator.manaSourcePayments
-        val pending = runtime.current() ?: return false
+        val pending = runtime.current() ?: return HandlerResult.NotHandled
         val selectedIds =
             actions
                 .flatMap { action ->
@@ -39,107 +37,37 @@ internal class ManaSourcePaymentHandler(
         if (receipt == null) {
             log.warn("Mana-source payment action did not match the current interaction")
             DevCheck.failOnAutoPass { "Mana-source payment action did not match the current interaction" }
-            return true
+            return HandlerResult.Waiting
         }
-        deliver(receipt, autoPass)
-        return true
+        return if (deliver(receipt)) HandlerResult.Resume else HandlerResult.Waiting
     }
 
-    fun tryHandleCancel(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
+    fun tryHandleCancel(greMsg: ClientToGREMessage): HandlerResult {
         val runtime = ctx.bridge.cutCoordinator.manaSourcePayments
-        val pending = runtime.current() ?: return false
+        val pending = runtime.current() ?: return HandlerResult.NotHandled
         val receipt = runtime.cancel(pending.interactionId, greMsg.gameStateId)
         if (receipt == null) {
             log.warn("Mana-source payment cancel did not match the current interaction")
             DevCheck.failOnAutoPass { "Mana-source payment cancel did not match the current interaction" }
-            return true
+            return HandlerResult.Waiting
         }
-        deliver(receipt, autoPass)
-        return true
+        return if (deliver(receipt)) HandlerResult.Resume else HandlerResult.Waiting
     }
 
-    fun tryHandleEffectCost(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
+    fun tryHandleEffectCost(greMsg: ClientToGREMessage): HandlerResult {
         val runtime = ctx.bridge.cutCoordinator.manaSourcePayments
-        val pending = runtime.current() ?: return false
+        val pending = runtime.current() ?: return HandlerResult.NotHandled
         val selectedIds = greMsg.effectCostResp.costSelection.idsList
         val receipt = runtime.complete(pending.interactionId, greMsg.gameStateId, selectedIds)
         if (receipt == null) {
             log.warn("Mana-source EffectCost response did not match the current interaction")
             DevCheck.failOnAutoPass { "Mana-source EffectCost response did not match the current interaction" }
-            return true
+            return HandlerResult.Waiting
         }
-        deliver(receipt, autoPass)
-        return true
+        return if (deliver(receipt)) HandlerResult.Resume else HandlerResult.Waiting
     }
 
-    fun tryHandleOneShotEffectCost(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
-        if (greMsg.effectCostResp.effectCostType != EffectCostType.Select_a59c) return false
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return false
-        val accepted =
-            runtime.submit(
-                pending.interactionId,
-                greMsg.gameStateId,
-                greMsg.effectCostResp.costSelection.idsList,
-            )
-        if (!accepted) {
-            log.warn("One-shot PayCosts response did not match the current interaction")
-            DevCheck.failOnAutoPass { "One-shot PayCosts response did not match the current interaction" }
-            return true
-        }
-        ctx.bridge.awaitPriority()
-        autoPass()
-        return true
-    }
-
-    fun tryHandleGatherCounters(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
-        if (greMsg.effectCostResp.effectCostType != EffectCostType.GatherCounters) return false
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return false
-        if (pending.windowKind != leyline.bridge.handoff.OneShotPayCostsWindowKind.GatherCounters) return false
-        val selections =
-            greMsg.effectCostResp.gatherResp.gatheringsList.map {
-                leyline.bridge.handoff.GatherCountersSelection(it.instanceId, it.amount)
-            }
-        val accepted = runtime.submitGatherCounters(pending.interactionId, greMsg.gameStateId, selections)
-        if (!accepted) {
-            log.warn("GatherCounters response did not match the current interaction")
-            DevCheck.failOnAutoPass { "GatherCounters response did not match the current interaction" }
-            return true
-        }
-        ctx.bridge.awaitPriority()
-        autoPass()
-        return true
-    }
-
-    fun tryHandleOneShotCancel(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
-        val runtime = ctx.bridge.cutCoordinator.oneShotPayCosts
-        val pending = runtime.current() ?: return false
-        if (!runtime.cancel(pending.interactionId, greMsg.gameStateId)) return true
-        ctx.bridge.awaitPriority()
-        autoPass()
-        return true
-    }
-
-    private fun deliver(
-        receipt: leyline.bridge.handoff.ManaSourcePaymentCommandReceipt,
-        autoPass: () -> Unit,
-    ) {
+    private fun deliver(receipt: leyline.bridge.handoff.ManaSourcePaymentCommandReceipt): Boolean {
         val bridge = ctx.bridge
         receipt.deliveryToken?.let { token ->
             val batches = bridge.cutCoordinator.drain(counters.seatId)
@@ -152,9 +80,6 @@ internal class ManaSourcePaymentHandler(
                 "Mana-source payment delivery acknowledgement was stale"
             }
         }
-        if (receipt.completed) {
-            bridge.awaitPriority()
-            autoPass()
-        }
+        return receipt.completed
     }
 }

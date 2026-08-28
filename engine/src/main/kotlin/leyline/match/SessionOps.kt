@@ -1,8 +1,6 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -22,17 +20,7 @@ interface GreMessageSink {
 
     fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
 
-    fun sendBundle(result: BundleBuilder.BundleResult)
-
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
-
-    /** Build a single GRE message with explicit IDs. */
-    fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage
 }
 
 internal enum class SynchronizationDrain {
@@ -49,29 +37,43 @@ internal data class DrainOutcome(
     val progressed: Boolean get() = sent || synchronization == SynchronizationDrain.Completed
 }
 
-/** Deliver committed batches, then release at most the synchronization stop observed at entry. */
+/** Deliver committed batches, then release each exact synchronization stop observed at the boundary. */
 internal fun drainCoordinatorBarrier(
     sink: GreMessageSink,
     bridge: GameBridge,
     seatId: SeatId,
     betweenBatches: () -> Unit = {},
     beforeDrain: () -> Unit = {},
-): DrainOutcome =
-    drainOneCoordinatorBarrier(
-        sink = sink,
-        synchronizationActionId =
-            bridge
-                .actionBridge(seatId)
-                .getPending()
-                ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
-                ?.actionId,
-        drainCommitted = { bridge.cutCoordinator.drain(seatId) },
-        completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
-        awaitNext = bridge::awaitPriority,
-        failDelivery = bridge.cutCoordinator::failDelivery,
-        betweenBatches = betweenBatches,
-        beforeDrain = beforeDrain,
-    )
+): DrainOutcome {
+    var outcome = DrainOutcome(sent = false)
+    while (true) {
+        val step =
+            drainOneCoordinatorBarrier(
+                sink = sink,
+                synchronizationActionId =
+                    bridge
+                        .actionBridge(seatId)
+                        .getPending()
+                        ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
+                        ?.actionId,
+                drainCommitted = { bridge.cutCoordinator.drain(seatId) },
+                completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
+                awaitNext = bridge::awaitPriority,
+                failDelivery = bridge.cutCoordinator::failDelivery,
+                betweenBatches = betweenBatches,
+                beforeDrain = beforeDrain,
+            )
+        outcome =
+            DrainOutcome(
+                sent = outcome.sent || step.sent,
+                synchronization = step.synchronization,
+                synchronizationActionId = step.synchronizationActionId,
+            )
+        if (step.synchronization != SynchronizationDrain.Completed) return outcome
+        val pending = bridge.actionBridge(seatId).getPending()
+        if (pending?.state?.kind != leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) return outcome
+    }
+}
 
 @org.jetbrains.annotations.VisibleForTesting
 internal fun drainOneCoordinatorBarrier(
@@ -127,31 +129,10 @@ internal fun deliverCommittedCoordinatorBatches(
 }
 
 /**
- * Session identity and the shared protocol counter.
- *
- * `counter` is a `var` so sessions can adopt a peer's counter when paired —
- * e.g. the Familiar seat shares the human seat's [MessageCounter] via the
- * bridge.
+ * Session identity. Logical protocol allocation remains inside tentative runtime cuts.
  */
 interface SessionCounters {
     val seatId: SeatId
-    var counter: MessageCounter
-}
-
-/**
- * Accessor for the per-session [BundleBuilder].
- *
- * Implemented by sessions that drive game logic ([MatchSession]). Read-only
- * sessions that never build bundles ([FamiliarSession]) do not implement this
- * interface — the type system enforces the absence rather than a runtime null.
- */
-interface BundleBuilderHolder {
-    val bundleBuilder: BundleBuilder
-}
-
-/** Engine pacing (AI turn delay, etc.). */
-interface Pacing {
-    fun paceDelay(multiplier: Int)
 }
 
 /**
@@ -171,19 +152,11 @@ interface ActionReceiver {
 
     fun onSubmitTargets(greMsg: ClientToGREMessage) {}
 
-    fun onSelectN(greMsg: ClientToGREMessage) {}
-
-    fun onOrderResp(greMsg: ClientToGREMessage) {}
-
     fun onEffectCost(greMsg: ClientToGREMessage) {}
-
-    fun onGroupResp(greMsg: ClientToGREMessage) {}
 
     fun onCancelAction(greMsg: ClientToGREMessage) {}
 
     fun onCastingTimeOptions(greMsg: ClientToGREMessage) {}
-
-    fun onSearch(greMsg: ClientToGREMessage) {}
 
     fun onAssignDamage(greMsg: ClientToGREMessage) {}
 
@@ -214,10 +187,8 @@ interface ActionReceiver {
  *   the full [ActionReceiver] surface)
  * - Whole-surface test doubles (e.g. `SessionTraceOps`).
  *
- * [BundleBuilderHolder] and a non-null `gameBridge` are NOT part of this
- * contract — sessions that drive game logic ([MatchSession]) implement
- * those separately via [GameOps]. Read-only sessions ([FamiliarSession])
- * do not, and the type system enforces the asymmetry.
+ * A non-null `gameBridge` is NOT part of this contract. Sessions that drive
+ * game logic ([MatchSession]) implement that separately via [GameOps].
  *
  * [HandlerConstructorContractTest] pins each concrete handler's
  * primary-constructor parameter types to this narrow-interface contract.
@@ -225,28 +196,9 @@ interface ActionReceiver {
 interface SessionOps :
     GreMessageSink,
     SessionCounters,
-    Pacing,
     ActionReceiver {
     val recorder: MatchRecorder? get() = null
     val matchId: String
-
-    /** Build a single GRE message with an explicit msgId (no side-effect on counters). */
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage {
-        val gre =
-            GREToClientMessage
-                .newBuilder()
-                .setType(type)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(seatId.value)
-        configure(gre)
-        return gre.build()
-    }
 }
 
 /**
@@ -254,8 +206,6 @@ interface SessionOps :
  * to [SessionOps]. Implemented by [MatchSession]; not implemented by
  * [FamiliarSession].
  */
-interface GameOps :
-    SessionOps,
-    BundleBuilderHolder {
+interface GameOps : SessionOps {
     val gameBridge: GameBridge
 }

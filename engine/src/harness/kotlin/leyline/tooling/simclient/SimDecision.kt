@@ -17,12 +17,21 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
                 "ability=${action.abilityGrpId}",
                 "alt=${action.alternativeGrpId}",
             ).joinToString(":")
-        is SimDecision.SelectTargets -> "select-targets:${targetInstanceIds.sorted().joinToString("+")}"
+        is SimDecision.SelectTargets ->
+            "select-targets:" +
+                targetGroups.entries
+                    .sortedBy { it.key }
+                    .joinToString("+") { (idx, ids) ->
+                        "$idx=${ids.sorted().joinToString(",")}"
+                    }
         is SimDecision.UnselectTargets -> "unselect-targets:${targetInstanceIds.sorted().joinToString("+")}"
         SimDecision.SubmitTargets -> "submit-targets"
         is SimDecision.SelectN -> "select-n:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.Order -> "order:${orderedInstanceIds.joinToString("+")}"
         is SimDecision.Search -> "search:${itemsFound.sorted().joinToString("+")}"
+        is SimDecision.GroupedSearch -> "grouped-search:$groupId:${itemsFound.sorted().joinToString("+")}"
+        is SimDecision.SelectReplacement ->
+            "select-replacement:${replacement.affectedObject}:${replacement.abilityGrpId}:${replacement.replacementEffectId}"
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.AutoTapPayment -> "auto-tap-payment:$solutionIndex"
         SimDecision.KeepHand -> "keep-hand"
@@ -97,13 +106,23 @@ internal class SimDecisionSubmitter(
     fun submit(decision: SimDecision): SimSubmitResult =
         when (decision) {
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
-            is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetInstanceIds) }
+            is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetGroups) }
             SimDecision.SubmitTargets -> submitted { harness.submitTargets() }
             // Consult/live-client path only; simclient uses full-list SelectTargets.
             is SimDecision.UnselectTargets -> SimSubmitResult.NotSubmitted
             is SimDecision.SelectN -> submitted { harness.respondToSelectN(decision.selectedInstanceIds) }
             is SimDecision.Order -> submitted { harness.respondToOrder(decision.orderedInstanceIds) }
+            is SimDecision.Distribution -> submitted { harness.respondToDistribution(decision.amountsByInstanceId.toList()) }
             is SimDecision.Search -> submitted { harness.respondToSearch(decision.itemsFound) }
+            is SimDecision.GroupedSearch ->
+                submitted {
+                    harness.respondToGroupedSearch(
+                        decision.groupId,
+                        decision.itemsFound,
+                        decision.maxSelect,
+                    )
+                }
+            is SimDecision.SelectReplacement -> submitted { harness.respondToSelectReplacement(decision.replacement) }
             is SimDecision.EffectCost -> submitted { harness.respondToEffectCost(decision.selectedInstanceIds) }
             // Consult/live-client path only; leyline's own server auto-resolves mana.
             is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted
@@ -143,8 +162,6 @@ internal class SimDecisionSubmitter(
             is SimDecision.ModalChoice -> submitted { harness.respondModalChoice(decision.selectedGrpIds) }
             is SimDecision.ManaTypeChoices -> submitted { harness.respondToManaTypeChoices(decision.choicesByCtoId) }
             is SimDecision.NumericInput -> submitted { harness.respondToNumericInput(decision.value) }
-            // Consult/live-client path only; leyline does not currently emit this prompt.
-            is SimDecision.Distribution -> SimSubmitResult.NotSubmitted
             is SimDecision.AssignDamage ->
                 submitted {
                     harness.assignDamage(

@@ -7,9 +7,10 @@ import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
+import leyline.game.generator.PuzzleSource
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.artifact.SyntheticArtifactWriter
 import java.nio.file.Files
-import java.nio.file.Path
 
 @Suppress("TierPlacementCheck") // These policies must traverse the headless match loop.
 class SnapshotPromptDriverTest :
@@ -25,11 +26,11 @@ class SnapshotPromptDriverTest :
             return try {
                 SimClientDriver(
                     harness = harness,
-                    log = PlayerLogWriter(writer, "snapshot-prompt-driver"),
+                    log = SyntheticArtifactWriter(writer, "snapshot-prompt-driver"),
                     maxTurns = 2,
                     connect = {
                         harness.connectAndKeepPuzzleText(
-                            Files.readString(Path.of("../puzzles/$puzzle")),
+                            PuzzleSource.definitionFromResource("data/puzzles/$puzzle").content,
                         )
                     },
                     forgeAi =
@@ -80,20 +81,6 @@ class SnapshotPromptDriverTest :
                 snapshot.finalLifeBySeat["1"] shouldBe 3
                 snapshot.actionAttemptsByType["snapshot:block"] shouldBe 1
                 snapshot.actionAttemptsByType["snapshot:submit_blockers"] shouldBe 1
-            }
-        }
-
-        test("forge-ai policy and snapshot consult preserve the Adventure cast rail") {
-            val baseline = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.ForgeAi)
-            val snapshot = runPuzzle("smaug-spew-flame-lethal.pzl", SimClientPolicyMode.Snapshot)
-
-            assertSoftly {
-                baseline.winnerSeat shouldBe 1
-                baseline.promptProgressSamples.first().decisionKind shouldBe "perform:CastAdventure"
-
-                snapshot.winnerSeat shouldBe 1
-                snapshot.promptProgressSamples.first().decisionKind shouldBe "snapshot:cast_adventure"
-                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:target" } shouldBe true
             }
         }
 

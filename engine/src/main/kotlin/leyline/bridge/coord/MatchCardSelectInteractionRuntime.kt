@@ -9,45 +9,36 @@ import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedCardSelectInteraction
-import leyline.game.CardSelectMaterializationDiagnostic
-import leyline.game.PendingCardSelectCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import java.util.concurrent.CompletableFuture
 
 /** Exact card-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchCardSelectInteractionRuntime(
     private val owner: MatchCutCoordinator,
+    settled: SettledPromptOwner,
 ) : CardSelectInteractionRuntime {
     private data class Window(
         val published: PublishedCardSelectInteraction,
         val value: CardSelectWindowValue,
-        override val cut: PendingCardSelectCut,
+        override val cut: PendingPromptCut<CardSelectWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<CardSelectInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<CardSelectInteractionResult, PendingCardSelectCut> {
+    ) : SettledPromptOwner.Window<CardSelectInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingCardSelectCut, CardSelectInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingCardSelectCut, CardSelectInteractionResult>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failCardSelect(cause, failed.cut) },
+    private val slot =
+        settled.mount<Window, CardSelectInteractionResult>(
+            PromptTerminalPriority.CardSelect,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = ::owns,
+            admitLocked = ::admitLocked,
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -63,65 +54,57 @@ internal class MatchCardSelectInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedCardSelectInteraction? = windows.current()?.published
+    fun current(): PublishedCardSelectInteraction? = slot.current()?.published
 
-    fun submitSelectN(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
+    private fun owns(
+        pending: Window,
+        message: ClientToGREMessage,
     ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            completeSelection(pending, selectedInstanceIds)
-        }
+        message.type == ClientMessageType.SelectNresp ||
+            (
+                message.type == ClientMessageType.EffectCostResp_097b &&
+                    message.effectCostResp.effectCostType == EffectCostType.Select_a59c &&
+                    pending.value.kind in effectCostKinds
+            )
 
-    fun submitEffectCost(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            when (pending.value.kind) {
-                CardSelectKind.LegendRule,
-                CardSelectKind.LibraryPutback,
-                CardSelectKind.ManifestDread,
-                CardSelectKind.Resolution,
-                CardSelectKind.ResolutionMapped,
-                CardSelectKind.Learn,
-                -> return false
-                CardSelectKind.Discard,
-                CardSelectKind.SacrificeEffect,
-                CardSelectKind.Suspect,
-                CardSelectKind.MutateTopBottom,
-                -> Unit
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<CardSelectInteractionResult>? {
+        val selectedInstanceIds =
+            if (message.type == ClientMessageType.SelectNresp) {
+                message.selectNResp.idsList
+            } else {
+                if (!message.effectCostResp.hasCostSelection()) return null
+                message.effectCostResp.costSelection.idsList
             }
-            completeSelection(pending, selectedInstanceIds)
-        }
-
-    fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    fun reset() = windows.reset()
-
-    internal fun pendingCutLocked(): PendingCardSelectCut? = windows.pendingCutLocked()
+        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return null
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
+        return SettledPromptOwner.SlotAdmission(
+            result,
+            beforeComplete = { recordChoiceResults(pending, selectedInstanceIds) },
+        )
+    }
 
     private fun publish(initial: CardSelectWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A CardSelect interaction is already pending",
-            prepare = { interactionId, feed, game ->
-                val diagnostic = CardSelectMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+            prepare = { interactionId, feed, game, planner ->
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
+                val preparedViewers =
                     try {
                         feed.builder.prepareCardSelectWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
-                        owner.failCardSelect(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedCardSelectInteraction(
                         interactionId,
@@ -129,7 +112,7 @@ internal class MatchCardSelectInteractionRuntime(
                         initial.value.kind,
                     )
                 val exact =
-                    PendingCardSelectCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -141,19 +124,20 @@ internal class MatchCardSelectInteractionRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                ?: owner.failCardSelect(IllegalStateException("CardSelect candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("CardSelect candidate was not projected"), exact)
                         instanceId to candidate.originalOptionIndex
                     }
                 val optionByInstanceId = entries.toMap()
                 if (optionByInstanceId.size != entries.size) {
-                    owner.failCardSelect(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("CardSelect candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -172,20 +156,18 @@ internal class MatchCardSelectInteractionRuntime(
         }
     }
 
-    private fun completeSelection(
-        pending: Window,
-        selectedInstanceIds: List<Int>,
-    ): Boolean {
-        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
-        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-        recordChoiceResults(pending, selectedInstanceIds)
-        val result = CardSelectInteractionResult(options, options.map(pending.handlesByOption::getValue))
-        return windows.completeLocked(pending, result)
+    private companion object {
+        val effectCostKinds =
+            setOf(
+                CardSelectKind.Discard,
+                CardSelectKind.SacrificeEffect,
+                CardSelectKind.Suspect,
+                CardSelectKind.MutateTopBottom,
+            )
     }
 
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): CardSelectInteractionResult = kernel.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException, beforeTimeoutClaim)
+    ): CardSelectInteractionResult = slot.await(pending, timeoutMs, ::CardSelectInteractionTimeoutException)
 }

@@ -1,11 +1,11 @@
 package leyline.match
 
-import leyline.config.MatchConfig
+import leyline.bridge.handoff.RuntimeHorizonMode
+import leyline.config.EngineSettings
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
-import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
-import leyline.infra.MatchOutput
 import org.slf4j.LoggerFactory
 
 internal data class ConnectAttempt(
@@ -17,17 +17,16 @@ internal data class ConnectAttempt(
 @Suppress("LongParameterList")
 internal class MatchConnectFlow(
     private val registry: MatchRegistry,
-    private val matchConfig: MatchConfig,
+    private val engineSettings: EngineSettings,
     private val coordinator: MatchCoordinator?,
     private val cardRepository: CardRepository,
     private val puzzleHandler: PuzzleHandler,
-    private val output: MatchOutput,
     private val createMatchSession: (GameBridge) -> MatchSession,
-    private val createFamiliarSession: (MessageCounter) -> FamiliarSession,
+    private val createFamiliarSession: () -> FamiliarSession,
     private val createSpectatorSession: (GameBridge) -> SpectatorSession,
     private val sendRoomState: () -> Unit,
     private val sendInitialBundle: () -> Unit,
-    private val resolveSeatDecks: () -> Pair<String, String>,
+    private val resolveSeatDecks: () -> Pair<DeckSource, DeckSource>,
     private val resolveGameVariant: () -> String?,
     private val isSpectatorMode: () -> Boolean,
     private val onLocalPlayerConnected: (GameBridge) -> Unit,
@@ -59,7 +58,7 @@ internal class MatchConnectFlow(
         }
         val bridge = puzzleHandler.getOrCreatePuzzleBridge(attempt.matchId)
         val ms = createMatchSession(bridge)
-        puzzleHandler.sendPuzzleInitialBundle(output, ms, attempt.matchId, attempt.seatId)
+        puzzleHandler.sendPuzzleInitialBundle(ms, attempt.matchId, attempt.seatId)
     }
 
     private fun connectConstructed(attempt: ConnectAttempt) {
@@ -70,10 +69,10 @@ internal class MatchConnectFlow(
                 val bridge =
                     GameBridge(
                         matchId = attempt.matchId,
-                        bridgeTimeoutMs = matchConfig.server.bridgeTimeoutMs,
-                        promptFailsafeMs = matchConfig.server.promptFailsafeMs,
-                        matchConfig = matchConfig,
-                        messageCounter = MessageCounter(),
+                        bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
+                        promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        runtimeHorizonMode = RuntimeHorizonMode.Observed,
+                        engineSettings = engineSettings,
                         cardRepository = cardRepository,
                     )
                 Match(attempt.matchId, bridge).also { newMatch ->
@@ -84,16 +83,16 @@ internal class MatchConnectFlow(
                     val decks = resolveSeatDecks()
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
-                            seed = matchConfig.game.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            seed = engineSettings.seed,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
-                            seed = matchConfig.game.seed,
-                            deckList1 = decks.first,
-                            deckList2 = decks.second,
+                            seed = engineSettings.seed,
+                            deck1 = decks.first,
+                            deck2 = decks.second,
                             variant = gameVariant,
                         )
                     }
@@ -103,7 +102,7 @@ internal class MatchConnectFlow(
         if (isSpectatorMode()) {
             connectSpectator(attempt, match)
         } else if (attempt.familiar) {
-            createFamiliarSession(bridge.messageCounter)
+            createFamiliarSession()
             sendRoomState()
             sendInitialBundle()
         } else {
@@ -116,11 +115,7 @@ internal class MatchConnectFlow(
         match: Match,
     ) {
         // The game is already running (started at match creation). Both connections
-        // send their initial bundle: seat 2 (familiar) carries the
-        // ChooseStartingPlayerReq handshake the client needs to leave the connecting
-        // state and render — a bare room-state no-op left it on a blank board.
-        // onChooseStartingPlayerResp is spectator-safe (deals hands;
-        // SpectatorSession.onMulliganKeep is a no-op). Only the primary streams.
+        // drain their initial observer batches. Only the primary streams gameplay.
         val spectator = createSpectatorSession(match.bridge)
         sendRoomState()
         sendInitialBundle()

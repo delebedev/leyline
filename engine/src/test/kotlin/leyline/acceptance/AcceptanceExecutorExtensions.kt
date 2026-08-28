@@ -31,11 +31,13 @@ private val PROMPT_TYPES: List<Pair<String, GREToClientMessage.() -> Boolean>> =
         "CastingTimeOptionsReq" to GREToClientMessage::hasCastingTimeOptionsReq,
         "DeclareAttackersReq" to GREToClientMessage::hasDeclareAttackersReq,
         "DeclareBlockersReq" to GREToClientMessage::hasDeclareBlockersReq,
+        "DistributionReq" to GREToClientMessage::hasDistributionReq,
         "GroupReq" to GREToClientMessage::hasGroupReq,
         "OptionalActionMessage" to GREToClientMessage::hasOptionalActionMessage,
         "OrderReq" to GREToClientMessage::hasOrderReq,
         "PayCostsReq" to GREToClientMessage::hasPayCostsReq,
         "SearchReq" to GREToClientMessage::hasSearchReq,
+        "SearchFromGroupsReq" to GREToClientMessage::hasSearchFromGroupsReq,
         "SelectNReq" to GREToClientMessage::hasSelectNReq,
         "SelectTargetsReq" to GREToClientMessage::hasSelectTargetsReq,
     )

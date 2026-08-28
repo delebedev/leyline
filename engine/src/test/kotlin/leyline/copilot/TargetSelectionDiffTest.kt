@@ -101,10 +101,10 @@ class TargetSelectionDiffTest :
 
             TargetSelectionDiff
                 .step(r, committed = mapOf(1 to emptyList(), 2 to emptyList()), desired = desired)
-                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(listOf(101), targetIdx = 1)
+                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(mapOf(1 to listOf(101)))
             TargetSelectionDiff
                 .step(r, committed = mapOf(1 to listOf(101), 2 to emptyList()), desired = desired)
-                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(listOf(201), targetIdx = 2)
+                .shouldBeInstanceOf<SimDecision.SelectTargets>() shouldBe SimDecision.SelectTargets(mapOf(2 to listOf(201)))
             TargetSelectionDiff.step(r, committed = desired, desired = desired) shouldBe SimDecision.SubmitTargets
         }
 
@@ -120,6 +120,6 @@ class TargetSelectionDiffTest :
             TargetSelectionDiff.isValid(r, committed) shouldBe false
             TargetSelectionDiff.step(r, committed = committed, desired = committed) shouldBe null
             TargetSelectionDiff.step(r, committed = committed, desired = desired) shouldBe
-                SimDecision.UnselectTargets(listOf(202), targetIdx = 2)
+                SimDecision.UnselectTargets(mapOf(2 to listOf(202)))
         }
     })

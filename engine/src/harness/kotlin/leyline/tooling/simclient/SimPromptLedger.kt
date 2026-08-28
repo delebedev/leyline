@@ -164,6 +164,18 @@ internal class SimPromptLedger(
                 "SelectN:${selectNReq.minSel}:${selectNReq.maxSel}:${selectNReq.idsList.joinToString(",")}"
             hasOrderReq() ->
                 "Order:${orderReq.idsList.joinToString(",")}"
+            hasDistributionReq() ->
+                "Distribution:${distributionReq.minAmount}:${distributionReq.maxAmount}:${distributionReq.targetIdsList.joinToString(",")}"
+            hasSearchFromGroupsReq() ->
+                "SearchFromGroups:" +
+                    searchFromGroupsReq.groupsList.joinToString("|") { group ->
+                        "${group.groupId}:${group.maxSelect}:${group.idsList.joinToString(",")}"
+                    }
+            hasSelectReplacementReq() ->
+                "SelectReplacement:" +
+                    selectReplacementReq.replacementsList.joinToString("|") { row ->
+                        "${row.objectInstance}:${row.affectedObject}:${row.uniqueAbilityId}:${row.abilityGrpId}:${row.replacementEffectId}"
+                    }
             hasSelectTargetsReq() ->
                 "SelectTargets:" +
                     selectTargetsReq.targetsList.joinToString("|") { sel ->
@@ -186,7 +198,10 @@ internal fun isSimPrompt(msg: GREToClientMessage): Boolean =
         msg.hasGroupReq() ||
         msg.hasSelectNReq() ||
         msg.hasOrderReq() ||
+        msg.hasDistributionReq() ||
         msg.hasSearchReq() ||
+        msg.hasSearchFromGroupsReq() ||
+        msg.hasSelectReplacementReq() ||
         msg.hasPayCostsReq() ||
         msg.hasAssignDamageReq() ||
         msg.hasMulliganReq() ||

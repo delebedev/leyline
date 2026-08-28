@@ -2,24 +2,29 @@ package leyline
 
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
-import leyline.config.MatchConfig
+import leyline.config.ConfigException
+import leyline.config.EngineSettings
+import leyline.config.LeylineConfigResolver
+import leyline.config.PuzzleDefinition
+import leyline.config.ResolvedLeylineConfig
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.config.WebSettings
 import leyline.domain.CollationPool
 import leyline.domain.PlayerId
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
-import leyline.game.data.AutoMappingCardRepository
 import leyline.game.data.CardRepository
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
 import leyline.infra.AppMatchCoordinator
 import leyline.infra.persistence.SqlitePlayerStore
 import leyline.web.AuthRateLimitConfig
+import leyline.web.ChallengeCatalog
 import leyline.web.DEV_WEB_AUTH_SECRET
 import leyline.web.DevEmailSender
 import leyline.web.DirectWebGreEngineSession
@@ -38,27 +43,24 @@ import java.io.File
 import java.util.UUID
 
 fun main(args: Array<String>) {
-    val options = parseArgs(args)
-    val port = options["--web-port"]?.toIntOrNull() ?: System.getenv("LEYLINE_WEBDOOR_PORT")?.toIntOrNull() ?: 8080
-    val host = options["--web-host"] ?: System.getenv("LEYLINE_WEBDOOR_HOST")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
-    // Browser clients animate on their own; server-side pacing between engine
-    // steps only delays frame delivery, so the web profile runs the engine
-    // at full speed unless LEYLINE_AI_SPEED asks for pacing.
-    val aiSpeed = System.getenv("LEYLINE_AI_SPEED")?.toDoubleOrNull() ?: 0.0
-    val config =
-        MatchConfig
-            .load(options["--config"]?.let(::File) ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME))
-            .let { it.copy(ai = it.ai.copy(speed = aiSpeed)) }
+    val resolved = resolveWebConfig()
+    val web = resolved.config.web
+    validateWebHead(web)
+    System.setProperty("LEYLINE_LOG_DIR", resolved.paths.artifactsRoot.absolutePath)
+    val paths = resolved.paths.also { it.ensureDirectories() }
+    val engineSettings = resolved.config.engine
+
+    println(resolved.report(head = "web"))
+
     val cardRepo = resolveCardRepository()
-    val playerDb = resolvePlayerDb(config)
+    val playerDb = paths.playerDb
     val playerDatabase = Database.connect("jdbc:sqlite:${playerDb.absolutePath}", "org.sqlite.JDBC")
     val playerStore = SqlitePlayerStore(playerDatabase).also { it.createTables() }
     val authStore = SqliteWebAuthStore(playerDatabase).also { it.createTables() }
-    val defaultPlayerId = PlayerId(System.getenv("LEYLINE_WEB_PLAYER_ID") ?: "web-player")
+    val defaultPlayerId = PlayerId(web.playerId)
     playerStore.ensurePlayer(defaultPlayerId, "Web Player")
 
-    val deckService = DeckService(playerStore)
-    val sealedPoolGenerator = SealedPoolGenerator(cardRepo)
+    val sealedPoolGenerator = SealedPoolGenerator(cardRepo::findGrpIdByName)
     val courseService =
         CourseService(playerStore) { setCode ->
             val pool = sealedPoolGenerator.generate(setCode)
@@ -69,7 +71,11 @@ fun main(args: Array<String>) {
             )
         }
     val draftRepo = playerStore.asDraftSessionRepository()
-    val draftDriver = ForgeBoosterDraftDriver(cardRepo, config.draft)
+    val draftDriver =
+        ForgeBoosterDraftDriver(
+            cardRepo::findGrpIdByName,
+            engineSettings.draft.copy(modelDir = paths.draftModelDir(engineSettings.draft.modelDir).absolutePath),
+        )
     val draftService =
         DraftService(
             draftRepo,
@@ -94,29 +100,32 @@ fun main(args: Array<String>) {
             },
             courseService,
         ).also { it.discardIncompleteSessions() }
-    val coordinator = AppMatchCoordinator(defaultPlayerId, deckService, courseService, draftRepo, cardRepo::findNameByGrpId)
+    val coordinator = AppMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val relay = InProcessWebGreRelay()
     val runtimeMatches = RuntimeMatchConfigRegistry()
+    val challengeCatalog = ChallengeCatalog.default()
     val launcher =
         WebRuntimeMatchLauncher(
-            config = config,
+            engineSettings = engineSettings,
+            puzzlesDir = paths.puzzlesDir,
+            challengeCatalog = challengeCatalog,
             coordinator = coordinator,
             cardRepo = cardRepo,
             runtimeMatches = runtimeMatches,
             relay = relay,
         )
     val emailSender =
-        System
-            .getenv("RESEND_API_KEY")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { ResendEmailSender(it, System.getenv("RESEND_FROM") ?: "login@localhost") }
-            ?: DevEmailSender()
+        if (web.resendApiKey.isNotBlank()) {
+            ResendEmailSender(web.resendApiKey, web.resendFrom)
+        } else {
+            DevEmailSender()
+        }
 
     val services =
         WebServices(
             draftService = draftService,
             courseService = courseService,
-            deckService = deckService,
+            decks = playerStore,
             collectionService = CollectionService { cardRepo.findAllGrpIds() },
             cardRepository = cardRepo,
             matchLauncher = launcher,
@@ -125,10 +134,16 @@ fun main(args: Array<String>) {
                 WebAuthService(
                     authStore,
                     emailSender,
-                    secret = resolveWebAuthSecret(),
-                    rateLimitConfig = AuthRateLimitConfig.fromEnv(),
-                    fixedLoginCode = resolveFixedLoginCode(System.getenv()),
+                    secret = web.authSecret,
+                    rateLimitConfig =
+                        AuthRateLimitConfig(
+                            enabled = web.rateLimitEnabled,
+                            loginLimit = web.rateLimit,
+                            loginWindowMs = web.rateLimitWindowMs,
+                        ),
+                    fixedLoginCode = web.loginCode.takeIf { it.isNotBlank() },
                 ),
+            challengeCatalog = challengeCatalog,
             sealedSets = {
                 SealedPoolGenerator.supportedSets().map {
                     LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
@@ -136,11 +151,13 @@ fun main(args: Array<String>) {
             },
         )
 
-    embeddedServer(Netty, host = host, port = port) { installWeb(services) }.start(wait = true)
+    embeddedServer(Netty, host = web.host, port = web.port) { installWeb(services) }.start(wait = true)
 }
 
 private class WebRuntimeMatchLauncher(
-    private val config: MatchConfig,
+    private val engineSettings: EngineSettings,
+    private val puzzlesDir: File,
+    private val challengeCatalog: ChallengeCatalog,
     private val coordinator: AppMatchCoordinator,
     private val cardRepo: CardRepository,
     private val runtimeMatches: RuntimeMatchConfigRegistry,
@@ -151,16 +168,20 @@ private class WebRuntimeMatchLauncher(
         request: GreStartRequest,
     ): DraftPlayResponse {
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
+        val challenge = resolveChallenge(request, challengeCatalog)
         // Watch requests may arrive without decklists; an AI-vs-AI match still
         // needs two decks, so blank spectator seats fall back to defaults.
         val spectator = request.spectatorMode == true
+        val seat1Text = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator }
+        val seat2Text = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator }
         runtimeMatches.configure(
             RuntimeMatchConfig(
                 matchId = matchId,
-                seat1Deck = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator },
-                seat2Deck = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator },
+                seat1 = seat1Text?.let(DeckSource::ForgeText),
+                seat2 = seat2Text?.let(DeckSource::ForgeText),
                 gameVariant = request.gameVariant,
                 puzzle = request.puzzle,
+                puzzleDefinition = challenge,
                 spectatorMode = request.spectatorMode,
             ),
         )
@@ -173,7 +194,9 @@ private class WebRuntimeMatchLauncher(
     ): DraftPlayResponse {
         val matchId = "web-${UUID.randomUUID()}"
         val (seat1, seat2) = coordinator.configureCourseMatch(matchId, playerId, eventName)
-        runtimeMatches.configure(RuntimeMatchConfig(matchId = matchId, seat1Deck = seat1, seat2Deck = seat2))
+        runtimeMatches.configure(
+            RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.Cards(seat1), seat2 = DeckSource.Cards(seat2)),
+        )
         return register(matchId, playerId)
     }
 
@@ -187,40 +210,53 @@ private class WebRuntimeMatchLauncher(
             ownerPlayerId = playerId,
             publicAccess = publicAccess,
             onClose = { runtimeMatches.remove(matchId) },
-        ) { onFrame, onClosed -> DirectWebGreEngineSession(config, coordinator, cardRepo, runtimeMatches, onFrame, onClosed) }
+        ) { onFrame, onClosed ->
+            DirectWebGreEngineSession(
+                engineSettings,
+                coordinator,
+                cardRepo,
+                runtimeMatches,
+                onFrame,
+                onClosed,
+                puzzlesDir,
+            )
+        }
         return DraftPlayResponse(matchId, matchId)
     }
 }
 
-private fun resolveCardDb(): File {
-    val path = System.getenv("LEYLINE_CARD_DB")?.takeIf { it.isNotBlank() } ?: detectArenaCardDb()
-    requireNotNull(path) { "Card database not found. Set LEYLINE_CARD_DB." }
-    return File(path).also { validateCardDbFile(it) }
-}
+internal fun resolveChallenge(
+    request: GreStartRequest,
+    catalog: ChallengeCatalog,
+): PuzzleDefinition? =
+    request.challengeId?.let { challengeId ->
+        require(request.puzzle == null) { "challengeId and puzzle are mutually exclusive" }
+        requireNotNull(catalog.find(challengeId)) { "unknown challenge: $challengeId" }.puzzle
+    }
+
+private fun resolveWebConfig(): ResolvedLeylineConfig =
+    try {
+        LeylineConfigResolver(baseDir = File(System.getProperty("user.dir")), env = System.getenv()).resolve()
+    } catch (e: ConfigException) {
+        System.err.println("Configuration error: ${e.message}")
+        kotlin.system.exitProcess(1)
+    }
 
 private fun resolveCardRepository(): CardRepository =
-    when (System.getenv("LEYLINE_CARD_MODE")?.lowercase()) {
-        "auto" -> AutoMappingCardRepository(useFixtures = true)
-        null,
-        "sqlite",
-        -> ExposedCardRepository(Database.connect("jdbc:sqlite:${resolveCardDb().absolutePath}", "org.sqlite.JDBC"))
+    ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
 
-        else -> error("LEYLINE_CARD_MODE must be 'sqlite' or 'auto'")
+/**
+ * Head-specific validation for the browser-facing web head. The web
+ * authentication secret is required, must not reuse the dev default, and must
+ * be strong enough to sign sessions; the optional fixed login code requires
+ * explicit opt-in and exactly six digits.
+ */
+internal fun validateWebHead(web: WebSettings) {
+    require(web.authSecret.isNotBlank()) { "web.auth_secret is required for the web head (set LEYLINE_WEB_AUTH_SECRET)" }
+    require(web.authSecret != DEV_WEB_AUTH_SECRET) { "web.auth_secret must not use the dev default" }
+    require(web.authSecret.length >= 32) { "web.auth_secret must be at least 32 characters" }
+    if (web.loginCode.isNotBlank()) {
+        require(web.allowFixedLoginCode) { "web.login_code requires web.allow_fixed_login_code=true" }
+        require(Regex("^[0-9]{6}$").matches(web.loginCode)) { "web.login_code must be a six-digit code" }
     }
-
-private fun resolveWebAuthSecret(): String {
-    val secret = System.getenv("LEYLINE_WEB_AUTH_SECRET")?.takeIf { it.isNotBlank() }
-    require(secret != null) { "LEYLINE_WEB_AUTH_SECRET is required for the web profile" }
-    require(secret != DEV_WEB_AUTH_SECRET) { "LEYLINE_WEB_AUTH_SECRET must not use the dev default" }
-    require(secret.length >= 32) { "LEYLINE_WEB_AUTH_SECRET must be at least 32 characters" }
-    return secret
-}
-
-internal fun resolveFixedLoginCode(env: Map<String, String>): String? {
-    val code = env["LEYLINE_WEB_LOGIN_CODE"]?.takeIf { it.isNotBlank() } ?: return null
-    require(env["LEYLINE_ALLOW_FIXED_LOGIN_CODE"] == "true") {
-        "LEYLINE_WEB_LOGIN_CODE requires LEYLINE_ALLOW_FIXED_LOGIN_CODE=true"
-    }
-    require(Regex("^[0-9]{6}$").matches(code)) { "LEYLINE_WEB_LOGIN_CODE must be a six-digit code" }
-    return code
 }

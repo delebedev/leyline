@@ -57,7 +57,7 @@ class MechanicSourceProjectionTest :
             }
         }
 
-        test("token source precedence covers explicit ability resolving spell source card fallback and unresolved") {
+        test("token source precedence covers explicit ability resolving spell source card fallback and sole resolving spell") {
             val resolving = mapOf(sourceId to InstanceId(501))
             val stackAbility: (Int, ForgeCardId) -> InstanceId = { abilityId, cardId ->
                 InstanceId(abilityId * 100 + cardId.value)
@@ -69,7 +69,7 @@ class MechanicSourceProjectionTest :
             val explicitSpell = explicitAbility.copy(sourceAbilityForgeId = 0)
             val explicitCard = explicitSpell.copy(sourceCardId = triggeringId)
             val fallback = GameEvent.TokenCreated(tokenId, SeatId(1))
-            val unresolved = fallback.copy(cardId = ForgeCardId(99))
+            val soleResolvingSpell = fallback.copy(cardId = ForgeCardId(99))
 
             assertSoftly {
                 MechanicSourceProjection.tokenCreatedAffectorId(explicitAbility, facts, resolving, stackAbility, cardIid) shouldBe
@@ -80,7 +80,8 @@ class MechanicSourceProjectionTest :
                     InstanceId(1011)
                 MechanicSourceProjection.tokenCreatedAffectorId(fallback, facts, resolving, stackAbility, cardIid) shouldBe
                     InstanceId(7113)
-                MechanicSourceProjection.tokenCreatedAffectorId(unresolved, facts, resolving, stackAbility, cardIid) shouldBe null
+                MechanicSourceProjection.tokenCreatedAffectorId(soleResolvingSpell, facts, resolving, stackAbility, cardIid) shouldBe
+                    InstanceId(501)
             }
         }
 

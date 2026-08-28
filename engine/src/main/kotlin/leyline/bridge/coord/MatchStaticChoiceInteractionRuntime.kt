@@ -7,47 +7,37 @@ import leyline.bridge.handoff.StaticChoiceInteractionRuntime
 import leyline.bridge.handoff.StaticChoiceInteractionTimeoutException
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
-import leyline.game.PendingStaticChoiceCut
-import leyline.game.StaticChoiceMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.concurrent.CompletableFuture
 
 /** Exact static enum SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchStaticChoiceInteractionRuntime(
     private val owner: MatchCutCoordinator,
+    settled: SettledPromptOwner,
 ) : StaticChoiceInteractionRuntime {
     private data class Window(
         val published: PublishedStaticChoiceInteraction,
         val value: StaticChoiceWindowValue,
-        override val cut: PendingStaticChoiceCut,
+        override val cut: PendingPromptCut<StaticChoiceWindowValue>,
         val optionByValue: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>, PendingStaticChoiceCut> {
+    ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingStaticChoiceCut, List<Int>>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingStaticChoiceCut, List<Int>>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failStaticChoice(cause, failed.cut) },
+    private val slot =
+        settled.mount<Window, List<Int>>(
+            PromptTerminalPriority.StaticChoice,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.SelectNresp },
+            admitLocked = ::admitLocked,
         )
 
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
     internal var beforeResponseComplete: (() -> Unit)? = null
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -62,45 +52,42 @@ internal class MatchStaticChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedStaticChoiceInteraction? = windows.current()?.published
+    fun current(): PublishedStaticChoiceInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedValues: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedValues.size !in pending.value.min..pending.value.max) return false
-            if (selectedValues.size != selectedValues.distinct().size) return false
-            val options = selectedValues.map { pending.optionByValue[it] ?: return false }
-            recordChoiceResults(pending, selectedValues)
-            beforeResponseComplete?.invoke()
-            windows.completeLocked(pending, options)
-        }
-
-    fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    fun reset() = windows.reset()
-
-    internal fun pendingCutLocked(): PendingStaticChoiceCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<List<Int>>? {
+        val selectedValues = message.selectNResp.idsList
+        if (selectedValues.size !in pending.value.min..pending.value.max) return null
+        if (selectedValues.size != selectedValues.distinct().size) return null
+        val options = selectedValues.map { pending.optionByValue[it] ?: return null }
+        return SettledPromptOwner.SlotAdmission(
+            options,
+            beforeComplete = {
+                recordChoiceResults(pending, selectedValues)
+                beforeResponseComplete?.invoke()
+            },
+        )
+    }
 
     private fun publish(initial: StaticChoiceWindowValue): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A StaticChoice interaction is already pending",
-            prepare = { interactionId, feed, game ->
-                val diagnostic = StaticChoiceMaterializationDiagnostic(interactionId, initial)
-                val prepared =
+            prepare = { interactionId, feed, game, planner ->
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial)
+                val preparedViewers =
                     try {
                         feed.builder.prepareStaticChoiceWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
-                        owner.failStaticChoice(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedStaticChoiceInteraction(
                         interactionId,
@@ -108,7 +95,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                         initial.kind,
                     )
                 val exact =
-                    PendingStaticChoiceCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial,
@@ -117,11 +104,12 @@ internal class MatchStaticChoiceInteractionRuntime(
                     )
                 val optionByValue = initial.options.associate { it.protocolValue to it.originalOptionIndex }
                 val created = Window(published, initial, exact, optionByValue)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -150,7 +138,7 @@ internal class MatchStaticChoiceInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): List<Int> = kernel.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException, beforeTimeoutClaim)
+    ): List<Int> = slot.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException)
 
     private fun StaticChoiceKind.choiceDomain(): Int =
         when (this) {

@@ -21,7 +21,7 @@ import kotlin.reflect.KClass
  * Enforces the coordinator-owned prompt boundary, one row per prompt-route family.
  *
  * Every family is built the same way: a window materializer and its handoff
- * values are pure values, the match-layer response handler holds no live Forge
+ * values are pure values, any match-layer response handler holds no live Forge
  * or [leyline.game.state.GameBridge] handle, [leyline.game.bundle.BundleBuilder]
  * owns the single window-preparation entry point that only that family's
  * coordinator runtime may call, and the family's semantics resolve to its route.
@@ -211,17 +211,42 @@ private val promptRouteFamilies =
             name = "Order",
             materializers = listOf("$MATERIALIZERS.OrderWindowMaterializer"),
             handoffValues = "$HANDOFF.Order(Window|Candidate|Move)Value",
-            handler = "$MATCH.OrderInteractionHandler",
             prepareMethod = "prepareOrderWindow",
             runtime = "$COORD.MatchOrderInteractionRuntime",
             routeType = ResolvedPromptRoute.Order::class,
             semantics = listOf(PromptSemantic.OrderForBottom, PromptSemantic.OrderForTop),
         ),
         PromptRouteFamily(
+            name = "Distribution",
+            materializers = listOf("$MATERIALIZERS.DistributionWindowMaterializer"),
+            handoffValues = "$HANDOFF.DistributionWindowValue",
+            prepareMethod = "prepareDistributionWindow",
+            runtime = "$COORD.MatchDistributionInteractionRuntime",
+            routeType = ResolvedPromptRoute.Distribution::class,
+            semantics = listOf(PromptSemantic.DividedAllocationDamage, PromptSemantic.DividedAllocationCounters),
+        ),
+        PromptRouteFamily(
+            name = "Search",
+            materializers = listOf("$MATERIALIZERS.SearchWindowMaterializer"),
+            handoffValues = "$HANDOFF.(Search.*Value|PublishedSearchInteraction)",
+            prepareMethod = "prepareSearchWindow",
+            runtime = "$COORD.MatchSearchInteractionRuntime",
+            routeType = ResolvedPromptRoute.Search::class,
+            semantics = listOf(PromptSemantic.Search, PromptSemantic.GroupedSearch),
+        ),
+        PromptRouteFamily(
+            name = "SelectReplacement",
+            materializers = listOf("$MATERIALIZERS.ReplacementWindowMaterializer"),
+            handoffValues = "$HANDOFF.(Replacement.*Value|PublishedReplacementInteraction)",
+            prepareMethod = "prepareReplacementWindow",
+            runtime = "$COORD.MatchReplacementInteractionRuntime",
+            routeType = ResolvedPromptRoute.SelectReplacement::class,
+            semantics = listOf(PromptSemantic.SelectReplacement),
+        ),
+        PromptRouteFamily(
             name = "Grouping",
             materializers = listOf("$MATERIALIZERS.GroupingWindowMaterializer"),
             handoffValues = "$HANDOFF.(Grouping.*Value|PublishedGroupingInteraction)",
-            handler = "$MATCH.GroupingInteractionHandler",
             prepareMethod = "prepareGroupingWindow",
             runtime = "$COORD.MatchGroupingInteractionRuntime",
             routeType = ResolvedPromptRoute.Grouping::class,
@@ -231,7 +256,6 @@ private val promptRouteFamilies =
             name = "CardSelect",
             materializers = listOf("$MATERIALIZERS.CardSelectWindowMaterializer"),
             handoffValues = "$HANDOFF.CardSelect.*Value",
-            handler = "$MATCH.CardSelectInteractionHandler",
             prepareMethod = "prepareCardSelectWindow",
             runtime = "$COORD.MatchCardSelectInteractionRuntime",
             routeType = ResolvedPromptRoute.CardSelect::class,
@@ -251,7 +275,6 @@ private val promptRouteFamilies =
             name = "StaticChoice",
             materializers = listOf("$MATERIALIZERS.StaticChoiceWindowMaterializer"),
             handoffValues = "$HANDOFF.(StaticChoice.*Value|PublishedStaticChoiceInteraction)",
-            handler = "$MATCH.StaticChoiceInteractionHandler",
             prepareMethod = "prepareStaticChoiceWindow",
             runtime = "$COORD.MatchStaticChoiceInteractionRuntime",
             routeType = ResolvedPromptRoute.StaticChoice::class,
@@ -266,7 +289,6 @@ private val promptRouteFamilies =
             name = "RevealChoice",
             materializers = listOf("$MATERIALIZERS.RevealChoiceWindowMaterializer"),
             handoffValues = "$HANDOFF.(RevealChoice.*Value|PublishedRevealChoiceInteraction)",
-            handler = "$MATCH.RevealChoiceInteractionHandler",
             prepareMethod = "prepareRevealChoiceWindow",
             runtime = "$COORD.MatchRevealChoiceInteractionRuntime",
             routeType = ResolvedPromptRoute.RevealChoice::class,

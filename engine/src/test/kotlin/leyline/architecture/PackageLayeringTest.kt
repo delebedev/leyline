@@ -22,7 +22,7 @@ import java.nio.file.Files
  * ```
  * Tier 0 — foundation (leaves, import nothing from engine):
  *   bridge         Forge adapter (forge/, handoff/, bootstrap/, types/)
- *   config         MatchConfig TOML data class
+ *   config         EngineSettings + runtime match config
  *
  * Imperative shell:
  *   bridge/coord   match runtime orchestration; may depend on game + config

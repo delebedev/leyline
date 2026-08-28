@@ -2,14 +2,9 @@ package leyline.game.bundle
 
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
-import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.PromptIds
-import leyline.game.state.ProjectionState
-import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
@@ -19,38 +14,26 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
 
 /** Value-only GRE preparation for coordinator-owned static enum SelectN windows. */
-internal class StaticChoiceWindowMaterializer(
-    private val seatId: Int,
-) {
-    data class Prepared(
-        val bundle: BundleBuilder.BundleResult,
-        val transition: ProjectionTransition,
-        val closesPlaybackFrame: Boolean,
-    )
-
+internal class StaticChoiceWindowMaterializer {
     fun prepare(
-        gameState: GameStateMessage,
-        gameStateId: Int,
-        counter: MessageCounter,
-        projection: ProjectionState,
-        transition: ProjectionTransition,
+        context: SettledPromptMaterializationContext,
         window: StaticChoiceWindowValue,
-    ): Prepared {
-        val request = buildRequest(window, projection)
-        val predecessor = counter.lastGameStateGsId()
+    ): SettledPromptMaterialization {
+        val request = buildRequest(window, context)
+        val predecessor = context.sequence.lastGameStateGsId()
         val state =
-            gameState
+            context.gameState
                 .toBuilder()
                 .apply {
-                    if (predecessor in 1 until gameStateId) prevGameStateId = predecessor
+                    if (predecessor in 1 until context.gameStateId) prevGameStateId = predecessor
                 }.setPendingMessageCount(1)
                 .build()
         val messages =
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.GameStateMessage_695e) {
                     it.gameStateMessage = state
                 },
-                makeGRE(GREMessageType.SelectNreq, gameStateId, counter.nextMsgId()) {
+                context.message(GREMessageType.SelectNreq) {
                     it.selectNReq = request
                     it.prompt =
                         Prompt
@@ -61,12 +44,12 @@ internal class StaticChoiceWindowMaterializer(
                     it.allowCancel = AllowCancel.No_a526
                 },
             )
-        return Prepared(BundleBuilder.BundleResult(messages, actionGameStateId = gameStateId), transition, true)
+        return context.prepared(messages, awaitedRequest = messages.last())
     }
 
     private fun buildRequest(
         window: StaticChoiceWindowValue,
-        projection: ProjectionState,
+        context: SettledPromptMaterializationContext,
     ): SelectNReq =
         SelectNReq
             .newBuilder()
@@ -86,7 +69,7 @@ internal class StaticChoiceWindowMaterializer(
             .setStaticList(staticList(window.kind))
             .setPrompt(Prompt.newBuilder())
             .apply {
-                window.sourceForgeCardId?.let { sourceId = projection.requireInstanceId(it) }
+                window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "StaticChoice source") }
                 if (window.kind == StaticChoiceKind.Subtype) addAllIds(window.options.map { it.protocolValue })
             }.build()
 
@@ -104,22 +87,4 @@ internal class StaticChoiceWindowMaterializer(
             StaticChoiceKind.Parity,
             -> PromptIds.CHOOSE_TYPE
         }
-
-    private fun ProjectionState.requireInstanceId(cardId: ForgeCardId): Int =
-        identities.forgeIdToInstanceId[cardId]?.value ?: error("StaticChoice source ${cardId.value} has no projected instance id")
-
-    private fun makeGRE(
-        type: GREMessageType,
-        gameStateId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .addSystemSeatIds(seatId)
-            .also(configure)
-            .build()
 }

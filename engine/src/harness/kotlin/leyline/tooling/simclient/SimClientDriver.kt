@@ -3,6 +3,7 @@ package leyline.tooling.simclient
 import leyline.bridge.types.SeatId
 import leyline.copilot.ForgeAiPolicy
 import leyline.copilot.SimDecision
+import leyline.tooling.artifact.SyntheticArtifactSink
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.simclient.GameStats
 import leyline.tooling.simclient.SimClientFinding
@@ -11,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * Drives one match end-to-end against a [MatchFlowHarness] using a greedy
- * policy, and emits scry-ts-parseable Player.log lines via [PlayerLogWriter].
+ * policy, and emits scry-ts-parseable Player.log lines via [SyntheticArtifactSink].
  *
  * v0 policy:
  *   - mulligan: always keep (delegated to harness.connectAndKeep)
@@ -24,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  */
 class SimClientDriver(
     val harness: MatchFlowHarness,
-    private val log: PlayerLogWriter,
+    private val log: SyntheticArtifactSink,
     private val maxTurns: Int = 50,
     private val maxIterations: Int = 2_000,
     private val turnStallThreshold: Int = TURN_STALL_THRESHOLD,
@@ -187,6 +188,7 @@ class SimClientDriver(
             aiMaxMsByPrompt = policyTelemetry.maxMs,
             targetChoiceCounts = policyTelemetry.targetChoices,
             targetChoiceSamples = policyTelemetry.targetChoiceSamples,
+            advisorUnavailableByReason = policyTelemetry.advisorUnavailableByReason,
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,
@@ -298,33 +300,28 @@ class SimClientDriver(
         }
 
         // Race guard: if no action is currently pending, the engine has already
-        // auto-passed past whatever priority window produced our last observed
-        // prompt. Submitting now triggers
-        // `WARN ActionPerformer: PerformActionResp but no pending action`.
-        // Drain instead so the auto-pass loop's outbound messages flush and we
-        // pick up the next real prompt on the next iteration.
+        // published the next horizon for the last observed prompt. Submitting
+        // now can target a retired action. Observe the committed output instead
+        // and pick up the next real prompt on the next iteration.
         if (!harness.hasPendingAction()) {
             if (prompt != null) {
                 promptLedger.retire(prompt, "no-pending")
                 attemptLedger.markNoPending("pre-submit:${prompt.type.name}")
             }
-            return triggerAutoPassAndDrain()
+            return awaitClientOutputAndDrain()
         }
         val active =
             prompt ?: run {
-                if (harness.isAiTurn()) return triggerAutoPassAndDrain()
+                if (harness.isAiTurn()) return awaitClientOutputAndDrain()
                 harness.passPriority()
                 return true
             }
         return respondToPrompt(active)
     }
 
-    private fun triggerAutoPassAndDrain(): Boolean {
+    private fun awaitClientOutputAndDrain(): Boolean {
         val before = harness.allMessages.size
-        val autoPassT0 = System.nanoTime()
-        runCatching { harness.triggerAutoPass() }
-        harness.drainSink()
-        recordAutoPass(elapsedMsSince(autoPassT0))
+        harness.awaitNextClientOutput()
         return harness.allMessages.size > before
     }
 

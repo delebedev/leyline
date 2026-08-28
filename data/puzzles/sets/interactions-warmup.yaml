@@ -1,0 +1,194 @@
+name: interactions-warmup
+description: Activated ability and simple zone movement protocol smoke.
+scenarios:
+  - id: distribution-arc-lightning
+    puzzle: distribution-arc-lightning
+    run: cast Arc Lightning, target both opposing creatures, assign one and two damage, and resolve
+    expect: fixed-total allocation uses DistributionReq and both creatures die
+    steps:
+      - expect:
+          action: { type: cast, card: Arc Lightning }
+      - cast: Arc Lightning
+      - targets:
+          - { side: opponent, zone: battlefield, card: Coral Merfolk }
+          - { side: opponent, zone: battlefield, card: Savannah Lions }
+      - pass_until:
+          prompt: DistributionReq
+      - distribute:
+          - { side: opponent, card: Coral Merfolk, amount: 1 }
+          - { side: opponent, card: Savannah Lions, amount: 2 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Coral Merfolk }
+            - zone_contains: { side: opponent, zone: graveyard, card: Savannah Lions }
+            - stack_empty: true
+  - id: commander-return-after-destroy
+    puzzle: commander-return-self-bolt
+    run: destroy Arabella, accept the state-based command-zone move, and verify the commander returns
+    expect: a commander reaches the graveyard before the optional command-zone move completes
+    steps:
+      - expect:
+          action: { type: cast, card: Lightning Bolt }
+      - cast: Lightning Bolt
+      - target: { side: ours, zone: battlefield, card: "Arabella, Abandoned Doll" }
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: "Arabella, Abandoned Doll" }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: graveyard, card: "Arabella, Abandoned Doll" }
+            - action: { type: cast, card: "Arabella, Abandoned Doll" }
+            - stack_empty: true
+  - id: circuitous-route-library-search
+    puzzle: circuitous-route-library-search
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
+    run: cast Circuitous Route, choose two library lands, and finish resolving
+    expect: hidden library land selection uses SearchReq and completes after choosing two cards
+    steps:
+      - expect:
+          action: { type: cast, card: Circuitous Route }
+      - cast: Circuitous Route
+      - pass_until:
+          prompt: { type: SearchReq }
+      - search_cards: { side: ours, cards: [Forest, Island] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - stack_empty: true
+  - id: mystical-teachings-grouped-search
+    puzzle: mystical-teachings-grouped-search
+    web:
+      skip: Browser runner does not implement grouped library search responses.
+    run: cast Mystical Teachings, choose Nightpack Ambusher from its grouped search, and finish resolving
+    expect: SearchFromGroupsReq returns Nightpack Ambusher to hand
+    steps:
+      - expect:
+          action: { type: cast, card: Mystical Teachings }
+      - cast: Mystical Teachings
+      - pass_until:
+          prompt: { type: SearchFromGroupsReq, prompt_id: 3713 }
+      - search_cards: { side: ours, cards: [Nightpack Ambusher] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Nightpack Ambusher }
+            - stack_empty: true
+  - id: kami-hand-land-select
+    puzzle: kami-hand-land-select
+    web:
+      skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
+    run: cast Kami of Bamboo Groves and put a land from hand onto the battlefield
+    expect: known hand land selection uses SelectNReq
+    steps:
+      - expect:
+          action: { type: cast, card: Kami of Bamboo Groves }
+      - cast: { card: Kami of Bamboo Groves, arena_modal_index: 0 }
+      - resolve_stack: {}
+      - optional_action: { accept: true }
+      - play_land: Island
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - zone_contains: { side: ours, zone: battlefield, card: Kami of Bamboo Groves }
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 3 }
+            - stack_empty: true
+  - id: activated-ability
+    puzzle: activated-ability
+    run: activate Goblin Fireslinger
+    expect: opponent takes one damage
+    steps:
+      - expect:
+          action: { type: activate, card: Goblin Fireslinger }
+      - activate: Goblin Fireslinger
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 19
+  - id: channel-twinshot
+    puzzle: channel-twinshot
+    run: channel Twinshot Sniper at opponent
+    expect: opponent takes 2 damage from hand-zone activation
+    steps:
+      - expect:
+          action: { type: activate, card: Twinshot Sniper }
+      - activate: { card: Twinshot Sniper, zone: hand }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 3
+            - zone_contains: { side: ours, zone: graveyard, card: Twinshot Sniper }
+  - id: dfc-transform-concealing-curtains
+    puzzle: dfc-transform-activate
+    run: activate Concealing Curtains and resolve its transform trigger
+    expect: Concealing Curtains becomes Revealing Eye on the battlefield
+    steps:
+      - expect:
+          action: { type: activate, card: Concealing Curtains }
+      - activate: Concealing Curtains
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Revealing Eye }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Concealing Curtains }
+            - stack_empty: true
+  - id: evolved-sleeper-activation-chain
+    puzzle: evolved-sleeper-activation-chain
+    run: activate Evolved Sleeper through all three ability choices
+    expect: Evolved Sleeper becomes 4/4, draws a card, and costs one life
+    native:
+      xfail: Client battlefield projection remains 2/2 after the second activation.
+    steps:
+      - expect:
+          action: { type: activate, card: Evolved Sleeper }
+      - activate: { card: Evolved Sleeper, ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 2, toughness: 2 }
+      - activate: { card: Evolved Sleeper, ability_index: 1 }
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 3, toughness: 3 }
+      - activate: { card: Evolved Sleeper, ability_index: 2 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats_at_least: { side: ours, card: Evolved Sleeper, power: 4, toughness: 4 }
+            - zone_count_at_least: { side: ours, zone: hand, count: 1 }
+            - our_life: 19
+            - stack_empty: true
+  - id: electroduplicate-copy-token
+    puzzle: electroduplicate-copy
+    run: copy Grizzly Bears with Electroduplicate
+    expect: copy token is created and Electroduplicate leaves hand
+    steps:
+      - expect:
+          action: { type: cast, card: Electroduplicate }
+      - cast: Electroduplicate
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: hand, card: Electroduplicate }
+            - stack_empty: true
+  - id: bite-down-fight-removal
+    puzzle: bite-down
+    run: cast Bite Down using Grizzly Bears to remove opposing Grizzly Bears
+    expect: opposing Grizzly Bears leaves battlefield
+    steps:
+      - expect:
+          action: { type: cast, card: Bite Down }
+      - cast: Bite Down
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true

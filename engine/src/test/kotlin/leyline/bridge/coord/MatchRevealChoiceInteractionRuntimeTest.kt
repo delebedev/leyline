@@ -18,6 +18,7 @@ import leyline.bridge.handoff.PublishedRevealChoiceInteraction
 import leyline.bridge.handoff.RevealChoiceInteractionResult
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -174,7 +175,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 req.prompt.promptId shouldBe PromptIds.SELECT_N
                 message.prompt.promptId shouldBe PromptIds.SELECT_N
                 message.allowCancel shouldBe AllowCancel.No_a526
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(candidateId)) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(candidateId)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 (result.get().handles.single() === candidates.single()) shouldBe true
                 result.get().optionIndices shouldContainExactly listOf(0)
@@ -227,7 +228,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 req.unfilteredIdsCount shouldBe 2
                 req.minSel shouldBe 0
                 req.maxSel shouldBe 0
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().handles.shouldBeEmpty()
                 board.bridge
@@ -244,15 +245,14 @@ class MatchRevealChoiceInteractionRuntimeTest :
             coordinator.drain(SeatId(1))
             val candidates = revealed(board)
             val entry = revealEntry(board)
-            var timedOut = false
+            val signal = PrioritySignal()
             val publishedAtTimeout = AtomicReference<PublishedRevealChoiceInteraction>()
-            coordinator.revealChoices.beforeTimeoutClaim = {
+            coordinator.prompts.settled.beforeTimeoutClaim = {
                 publishedAtTimeout.set(checkNotNull(coordinator.revealChoices.current()))
             }
             val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal, strict = false).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
                 }
 
             val result =
@@ -269,7 +269,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 result.optionIndices shouldContainExactly listOf(1)
                 (result.handles.single() === candidates[1]) shouldBe true
                 result.timedOut shouldBe true
-                timedOut shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.revealChoices
                     .current()
                     .shouldBeNull()
@@ -278,11 +278,11 @@ class MatchRevealChoiceInteractionRuntimeTest :
                     .journal
                     .activeRevealEntry()
                     .shouldBeNull()
-                coordinator.revealChoices.submit(
-                    published.interactionId,
+                coordinator.acceptSettled(
+                    leyline.testkit.selectNResp(listOf(requestMessage.selectNReq.idsList[0])),
                     published.gameStateId,
-                    listOf(requestMessage.selectNReq.idsList[0]),
-                ) shouldBe false
+                ) shouldBe
+                    false
             }
         }
 
@@ -316,7 +316,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val replacement = checkNotNull(journal.activeRevealEntry())
 
             assertSoftly {
-                coordinator.revealChoices.submit(published.interactionId, published.gameStateId, listOf(id)) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(id)), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 journal.activeRevealEntry() shouldBe replacement
             }

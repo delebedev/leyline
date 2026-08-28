@@ -105,7 +105,7 @@ class NinjutsuPuzzleTest :
             val postCostMessages = messagesSince(postCostSnap)
 
             passUntil(maxPasses = 10) {
-                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Ninja of the Deep Hours" }
+                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Ninja of the Deep Hours" } && ai.life == 18
             }.shouldBeTrue()
 
             val ninja =

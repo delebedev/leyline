@@ -9,9 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.types.SeatId
-import leyline.config.AiConfig
-import leyline.config.MatchConfig
-import leyline.config.ServerConfig
+import leyline.config.EngineSettings
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
@@ -23,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class BrainstormOrderTest :
     SessionTest({
-        session("Brainstorm emits OrderReq for chosen top-library cards", puzzleFile = "puzzles/brainstorm-order.pzl") {
+        session("Brainstorm emits OrderReq for chosen top-library cards", puzzleFile = "data/puzzles/brainstorm-order.pzl") {
             val selectReq = castSpellUntilSelectNReq("Brainstorm")
             val selectMsg = allMessages.last { it.hasSelectNReq() }
             val selectedIids = selectReq.idsList.take(2)
@@ -94,20 +92,17 @@ class BrainstormOrderTest :
         test("Brainstorm timeout advances its default card through the one-card order path") {
             val h =
                 MatchFlowHarness(
-                    matchConfig =
-                        MatchConfig(
-                            ai = AiConfig(speed = 0.0),
-                            server =
-                                ServerConfig(
-                                    bridgeTimeoutMs = 5_000L,
-                                    promptFailsafeMs = 100L,
-                                    aiTurnWaitMs = 500L,
-                                    mulliganWaitMs = 500L,
-                                ),
+                    engineSettings =
+                        EngineSettings(
+                            aiSpeed = 0.0,
+                            bridgeTimeoutMs = 5_000L,
+                            promptFailsafeMs = 100L,
+                            aiTurnWaitMs = 500L,
+                            mulliganWaitMs = 500L,
                         ),
                 )
             try {
-                h.connectAndKeepPuzzle("puzzles/brainstorm-order.pzl")
+                h.connectAndKeepPuzzle("data/puzzles/brainstorm-order.pzl")
                 val selectReq = h.castSpellUntilSelectNReq("Brainstorm")
                 val selectMsg = h.allMessages.last { it.hasSelectNReq() }
                 val defaultName =

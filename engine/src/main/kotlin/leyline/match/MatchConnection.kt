@@ -1,20 +1,17 @@
 package leyline.match
 
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import leyline.bridge.bootstrap.CardEntry
-import leyline.bridge.bootstrap.DeckConverter
+import leyline.bridge.coord.SettledPromptAdmission
+import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.domain.json.productionJson
+import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
-import leyline.game.bundle.GsmBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.state.GameBridge
 import leyline.infra.MatchOutput
 import leyline.infra.MatchOutputMessageSink
@@ -33,28 +30,32 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Mulligan and puzzle sub-flows are extracted into [MulliganHandler] / [PuzzleHandler]
  * to keep this class a thin message-routing layer.
  */
+@Suppress("LongParameterList")
 class MatchConnection(
     private val registry: MatchRegistry,
     private val output: MatchOutput,
-    private val matchConfig: MatchConfig = MatchConfig(),
+    private val engineSettings: EngineSettings,
+    private val puzzleLibrary: PuzzleLibrary,
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cardRepository: CardRepository,
-    /** Debug server wiring — session/bridge providers. Null in tests. */
-    private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session action recorders. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
-    /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
-    private val puzzlePath: () -> String? = { null },
+    /** Runtime puzzle identity supplier — non-null activates puzzle mode. */
+    private val puzzleIdentity: () -> String? = { null },
+    /** Runtime inline puzzle definition supplier for product challenge launches. */
+    private val puzzleDefinition: () -> PuzzleDefinition? = { null },
     /** MatchId-keyed runtime config for web/native clients. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
-    /** Run post-response advancement inline for in-process callers. */
-    private val deferGameplayAdvance: Boolean = true,
+    /** Optional setup after puzzle loading and before its runtime loop starts. */
+    internal val beforePuzzleRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
+    private var runtimeDeliveryObserver: MatchRuntimeDeliveryObserver? = null
+    private var runtimeDeliveryGeneration: MatchRuntimeDeliveryGeneration? = null
 
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
@@ -110,30 +111,37 @@ class MatchConnection(
             bindSession(value ?: error("session cannot be cleared via assignment"))
         }
 
-    private var spectatorRandomDeckPair: Pair<String, String>? = null
+    private var spectatorRandomDeckPair: Pair<DeckCards, DeckCards>? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler =
         MulliganHandler(
-            matchConfig,
+            engineSettings,
             registry,
             sessionProvider = { session as? GameOps },
-            outputProvider = { output },
             matchIdProvider = { matchId },
             seatIdProvider = { SeatId(seatId) },
         )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(::resolvePuzzlePath, cardRepository, registry, matchConfig)
+    private val puzzleHandler =
+        PuzzleHandler(
+            ::resolvePuzzleIdentity,
+            cardRepository,
+            registry,
+            engineSettings,
+            puzzleLibrary,
+            ::resolvePuzzleDefinition,
+            beforePuzzleRuntimeStart,
+        )
 
     private val connectFlow =
         MatchConnectFlow(
             registry = registry,
-            matchConfig = matchConfig,
+            engineSettings = engineSettings,
             coordinator = coordinator,
             cardRepository = cardRepository,
             puzzleHandler = puzzleHandler,
-            output = output,
             createMatchSession = ::createAndRegisterMatchSession,
             createFamiliarSession = ::createAndRegisterFamiliarSession,
             createSpectatorSession = ::createAndRegisterSpectatorSession,
@@ -145,28 +153,18 @@ class MatchConnection(
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
 
-    companion object {
-        private val lenientJson =
-            productionJson {
-                ignoreUnknownKeys = true
-                isLenient = true
-            }
-    }
-
-    init {
-        // Wire local-control bridge/session providers once per handler instance.
-        debugSink?.sessionProvider = { session as? MatchSession }
-    }
-
-    private fun resolvePuzzlePath(matchId: String): String? {
+    private fun resolvePuzzleIdentity(matchId: String): String? {
         val config = runtimeMatchConfigs?.get(matchId)
         if (config != null) return config.puzzle?.takeIf { it.isNotBlank() }
-        return puzzlePath()
+        return puzzleIdentity()
     }
+
+    private fun resolvePuzzleDefinition(matchId: String): PuzzleDefinition? =
+        runtimeMatchConfigs?.get(matchId)?.puzzleDefinition ?: puzzleDefinition()
 
     private fun resolveRuntimeMatchConfig(): RuntimeMatchConfig? = runtimeMatchConfigs?.get(matchId)
 
-    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: matchConfig.game.spectatorMode
+    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: engineSettings.spectatorMode
 
     fun opened() {
         log.info("Match connection opened")
@@ -188,22 +186,28 @@ class MatchConnection(
         }
     }
 
-    /**
-     * Submit one parsed gameplay message and wait for deferred session work caused
-     * by that message to publish its output. Connection setup still enters through
-     * [receive], where the outer service envelope establishes match identity.
-     */
-    fun submitGREMessage(
-        greMsg: ClientToGREMessage,
-        timeoutMs: Long = 15_000L,
-    ) {
-        processGREMessage(greMsg)
-        awaitQuiescence(timeoutMs)
+    /** Submit one parsed gameplay message through the connection-owned session. */
+    fun submitGREMessage(greMsg: ClientToGREMessage) = processGREMessage(greMsg)
+
+    /** Arm delivery after the initial client-owned horizon has been bound. */
+    fun armRuntimeDeliveryObserver() {
+        stopRuntimeDeliveryObserver()
+        val active = session as? MatchSession ?: return
+        val generation = MatchRuntimeDeliveryGeneration()
+        runtimeDeliveryGeneration = generation
+        runtimeDeliveryObserver =
+            MatchRuntimeDeliveryObserver(
+                session = active,
+                seatId = active.seatId,
+                generation = generation,
+            ).also { it.start() }
     }
 
-    /** Wait for all deferred session work scheduled before this call to finish. */
-    fun awaitQuiescence(timeoutMs: Long = 15_000L) {
-        (session as? MatchSession)?.awaitQuiescence(timeoutMs)
+    internal fun stopRuntimeDeliveryObserver() {
+        runtimeDeliveryGeneration?.invalidate()
+        runtimeDeliveryObserver?.stop()
+        runtimeDeliveryGeneration = null
+        runtimeDeliveryObserver = null
     }
 
     private fun handleMatchAuth(msg: ClientToMatchServiceMessage) {
@@ -265,6 +269,7 @@ class MatchConnection(
         handshaking?.let { return it }
         val prior = connected ?: error("Expected handshaking state but connection is already established")
         log.info("Match Door: reconnect on already-established matchId={} seatId={}, resyncing", prior.matchId, prior.seatId)
+        stopRuntimeDeliveryObserver()
         (prior.session as? MatchSession)?.close()
         val reopened =
             MatchHandlerState.Handshaking().also {
@@ -310,8 +315,7 @@ class MatchConnection(
             MatchSession(
                 connection = connection,
                 gameBridge = bridge,
-                paceDelayMs = matchConfig.paceDelayMs,
-                deferNetworkAdvance = deferGameplayAdvance,
+                paceDelayMs = engineSettings.paceDelayMs,
             )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
@@ -319,10 +323,11 @@ class MatchConnection(
         return s
     }
 
-    /** Create and register a [FamiliarSession] sharing [counter] with the paired match's bridge. */
-    private fun createAndRegisterFamiliarSession(counter: MessageCounter): FamiliarSession {
+    /** Create and register a read-only familiar session. */
+    private fun createAndRegisterFamiliarSession(): FamiliarSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = false)
-        val s = FamiliarSession(SeatId(seatId), matchId, sink, counter = counter)
+        val bridge = checkNotNull(registry.getMatch(matchId)?.bridge) { "Familiar match is unavailable" }
+        val s = FamiliarSession(SeatId(seatId), matchId, sink, bridge)
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
@@ -331,7 +336,16 @@ class MatchConnection(
 
     private fun createAndRegisterSpectatorSession(bridge: GameBridge): SpectatorSession {
         val sink = MatchOutputMessageSink(output, dumpEnabled = true)
-        val s = SpectatorSession(SeatId(seatId), matchId, sink, bridge, playerId = clientId.removeSuffix("_Familiar"))
+        val sessionSeat = SeatId(seatId)
+        val s =
+            SpectatorSession(
+                sessionSeat,
+                matchId,
+                sink,
+                bridge,
+                playerId = clientId.removeSuffix("_Familiar"),
+                peerSession = { registry.getPeer(matchId, sessionSeat) as? SpectatorSession },
+            )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
         registry.registerConnection(matchId, SeatId(seatId), this)
@@ -347,6 +361,11 @@ class MatchConnection(
     private fun processGREMessage(greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
 
+        if (greMsg.type != ClientMessageType.ConnectReq_097b) {
+            val admission = (session as? MatchSession)?.admitSettled(greMsg)
+            if (admission != null && admission != SettledPromptAdmission.NotOwned) return
+        }
+
         // Pre-session messages drive the handshake/mulligan flow, which read session
         // state defensively through providers. Everything else is a post-handshake
         // game action that requires a live session — dispatched against Connected,
@@ -355,35 +374,26 @@ class MatchConnection(
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> connectFlow.onConnect(ConnectAttempt(matchId, seatId, isFamiliar))
 
-            ClientMessageType.ChooseStartingPlayerResp_097b ->
-                withConnectionOwnedResponse(greMsg) { mulliganHandler.onChooseStartingPlayer() }
+            // Startup is server-owned. Legacy responses are inert and cannot replay it.
+            ClientMessageType.ChooseStartingPlayerResp_097b -> {}
 
             ClientMessageType.MulliganResp_097b ->
                 withConnectionOwnedResponse(greMsg) { mulliganHandler.onMulliganResp(greMsg) }
 
-            // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
-            // During mulligan phase, route to mulligan handler; otherwise to session.
-            ClientMessageType.GroupResp_097b -> dispatchGroupResp(greMsg)
+            ClientMessageType.GroupResp_097b -> dispatchLondonTuck(greMsg)
 
             else -> dispatchToSession(greMsg)
         }
     }
 
-    private fun dispatchGroupResp(greMsg: ClientToGREMessage) {
+    private fun dispatchLondonTuck(greMsg: ClientToGREMessage) {
         val gameSession = session as? GameOps
         val bridge = gameSession?.gameBridge
-        when (
-            groupResponseRoute(
-                groupingPending = bridge?.cutCoordinator?.grouping?.current() != null,
-                mulliganPhase = bridge?.mulliganBridge(SeatId(seatId))?.pendingPrompt()?.phase,
-            )
-        ) {
-            GroupResponseRoute.Grouping -> checkNotNull(gameSession).onGroupResp(greMsg)
-            GroupResponseRoute.LondonTuck -> {
-                checkNotNull(gameSession)
-                withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
-            }
-            GroupResponseRoute.Stale -> log.warn("Match Door GRE: stale GroupResp without Grouping or London-tuck window")
+        if (bridge?.mulliganBridge(SeatId(seatId))?.pendingPrompt()?.phase == MulliganPhase.WaitingTuck) {
+            checkNotNull(gameSession)
+            withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
+        } else {
+            log.warn("Match Door GRE: stale GroupResp without London-tuck window")
         }
     }
 
@@ -393,7 +403,14 @@ class MatchConnection(
         block: () -> Unit,
     ) {
         val activeSession = session ?: return
-        if (!ResponseEnvelopeGuard.rejectMismatch(greMsg, activeSession.counter, activeSession)) block()
+        val bridge = registry.getMatch(matchId)?.bridge ?: return
+        val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, bridge.committedSequence(), bridge.responseAcceptance)
+        if (failure == null) {
+            block()
+        } else {
+            bridge.cutCoordinator.publishIllegalRequest(activeSession.seatId, greMsg, failure)
+            deliverCommittedCoordinatorBatches(activeSession, bridge, activeSession.seatId)
+        }
     }
 
     /** Dispatch a post-handshake game action against the live [Connected] session. */
@@ -450,28 +467,14 @@ class MatchConnection(
     private fun sendInitialBundle() {
         val s = session ?: return
         val bridge = registry.getMatch(matchId)?.bridge ?: return
-        val gsId = s.counter.nextGsId()
         val seat = SeatId(seatId)
-        val deckGrpIds = bridge.getDeckGrpIds(seat)
-        val deck = GsmBuilder.buildDeckMessage(deckGrpIds, bridge.getCommanderGrpIds(seat))
-        val (msg, nextMsgId) =
-            HandshakeMessages.initialBundle(
-                SeatId(seatId),
-                matchId,
-                s.counter.currentMsgId(),
-                gsId,
-                deck,
-                bridge,
-                dieRollWinner = bridge.dieRollWinner,
-                includeStartingPlayerPrompt = !isSpectatorMode(),
-                seedProjectionCursor = isSpectatorMode(),
-            )
-        s.counter.setMsgId(nextMsgId)
-        s.counter.markGameStateGsId(gsId)
-        leyline.game.bundle.markPrompts(s.counter, msg)
+        bridge.cutCoordinator.lifecycle.publishInitial(
+            seat,
+            includeStartingPlayerPrompt = !isSpectatorMode(),
+        )
         Tap.outboundTemplate("InitialBundle seat=$seatId")
-        ProtoDump.dump(msg, "InitialBundle-seat$seatId")
-        output.send(msg)
+        s.deliverLifecycle(bridge)
+        if (!isSpectatorMode()) mulliganHandler.startFamiliarIfReady()
     }
 
     private fun onLocalPlayerConnected(bridge: GameBridge) {
@@ -490,6 +493,7 @@ class MatchConnection(
 
     fun disconnected() {
         log.info("Match Door: client disconnected")
+        stopRuntimeDeliveryObserver()
         if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
             return
@@ -505,6 +509,7 @@ class MatchConnection(
 
     fun failed(cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
+        stopRuntimeDeliveryObserver()
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
@@ -517,6 +522,7 @@ class MatchConnection(
 
     internal fun detachAfterTeardown() {
         // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
+        stopRuntimeDeliveryObserver()
         state = MatchHandlerState.Handshaking()
     }
 
@@ -555,8 +561,8 @@ class MatchConnection(
     }
 
     private data class SeatDecks(
-        val seat1: String,
-        val seat2: String,
+        val seat1: DeckSource,
+        val seat2: DeckSource,
     )
 
     private fun resolveSeatDecks(): SeatDecks {
@@ -571,35 +577,34 @@ class MatchConnection(
     }
 
     /**
-     * Resolve seat 1 deck: FD stored a deckId from 612 → look it up in player.db
-     * and convert grpIds → card names for Forge engine.
+     * Resolve seat 1 deck: FD stored a deckId from 612 → look it up in player.db.
      */
     private fun resolveSeat1Deck(
-        randomDecks: Pair<String, String>?,
+        randomDecks: Pair<DeckCards, DeckCards>?,
         runtimeMatchConfig: RuntimeMatchConfig?,
-    ): String {
+    ): DeckSource {
         randomDecks?.first?.let {
             log.info("Match Door: spectator seat 1 deck from random pair")
-            return convertArenaCardsToDeckText(it)
+            return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat1Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat1?.let {
             log.info("Match Door: seat 1 deck from runtime override")
             return it
         }
         val deckId = coordinator?.selectedDeckId
         if (deckId != null) {
-            val cardsJson = coordinator.resolveDeckJson(deckId)
-            if (cardsJson != null) {
+            val cards = coordinator.resolveDeckCards(deckId)
+            if (cards != null) {
                 log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: deckId {} not in DB", deckId)
         }
         // Fallback: pick first deck from DB (AI bot events don't send deckId)
-        val fallback = coordinator?.resolveFirstDeck()
+        val fallback = coordinator?.resolveFirstDeckCards()
         if (fallback != null) {
             log.info("Match Door: seat 1 using fallback deck (no deckId from client)")
-            return convertArenaCardsToDeckText(fallback)
+            return DeckSource.Cards(fallback)
         }
         error("No deck selected for seat 1 — select a deck in the Arena client before queuing")
     }
@@ -610,90 +615,68 @@ class MatchConnection(
      * Priority:
      *   1. Pod-bot deck for the active event (Quick Draft → one of the 7 bots that
      *      drafted alongside the player). Falls through if the event has no pod.
-     *   2. AI deck name from `matchConfig.game.aiDeck` looked up in player.db.
+     *   2. AI deck name from `engineSettings.aiDeck` looked up in player.db.
      *   3. Mirror seat 1's deck.
      */
     private fun resolveSeat2Deck(
-        randomDecks: Pair<String, String>?,
+        randomDecks: Pair<DeckCards, DeckCards>?,
         runtimeMatchConfig: RuntimeMatchConfig?,
         opponentDeckName: String?,
-        seat1Deck: String,
-    ): String {
+        seat1Deck: DeckSource,
+    ): DeckSource {
         randomDecks?.second?.let {
             log.info("Match Door: spectator seat 2 deck from random pair")
-            return convertArenaCardsToDeckText(it)
+            return DeckSource.Cards(it)
         }
-        runtimeMatchConfig?.seat2Deck?.takeIf { it.isNotBlank() }?.let {
+        runtimeMatchConfig?.seat2?.let {
             log.info("Match Door: seat 2 deck from runtime override")
             return it
         }
         opponentDeckName?.takeIf { it.isNotBlank() }?.let { name ->
-            val cardsJson = coordinator?.resolveDeckJsonByName(name)
-            if (cardsJson != null) {
+            val cards = coordinator?.resolveDeckCardsByName(name)
+            if (cards != null) {
                 log.info("Match Door: seat 2 deck from one-shot override name={}", name)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: one-shot AI deck '{}' not in DB, falling back", name)
         }
         val event = coordinator?.selectedEventName
         if (event != null) {
-            val podJson = coordinator.resolveOpponentDeckJson(event)
-            if (podJson != null) {
+            val podCards = coordinator.resolveOpponentDeckCards(event)
+            if (podCards != null) {
                 log.info("Match Door: seat 2 deck from draft pod event={}", event)
-                return convertArenaCardsToDeckText(podJson)
+                return DeckSource.Cards(podCards)
             }
         }
 
-        val aiDeckName = matchConfig.game.aiDeck
+        val aiDeckName = engineSettings.aiDeck
         if (aiDeckName != null && coordinator != null) {
-            val cardsJson = coordinator.resolveDeckJsonByName(aiDeckName)
-            if (cardsJson != null) {
+            val cards = coordinator.resolveDeckCardsByName(aiDeckName)
+            if (cards != null) {
                 log.info("Match Door: seat 2 deck from DB name={}", aiDeckName)
-                return convertArenaCardsToDeckText(cardsJson)
+                return DeckSource.Cards(cards)
             }
             log.warn("Match Door: AI deck '{}' not in DB, mirroring seat 1", aiDeckName)
         }
         return seat1Deck
     }
 
-    private fun spectatorRandomDecksIfEnabled(): Pair<String, String>? {
+    private fun spectatorRandomDecksIfEnabled(): Pair<DeckCards, DeckCards>? {
         if (!isSpectatorMode()) return null
-        if (!matchConfig.game.aiDeck.equals("random", ignoreCase = true)) return null
+        if (!engineSettings.aiDeck.equals("random", ignoreCase = true)) return null
         return spectatorRandomDecks()
     }
 
-    private fun spectatorRandomDecks(): Pair<String, String>? {
+    private fun spectatorRandomDecks(): Pair<DeckCards, DeckCards>? {
         spectatorRandomDeckPair?.let { return it }
-        val pair = coordinator?.resolveRandomDeckPairJson()
+        val pair = coordinator?.resolveRandomDeckCardsPair()
         spectatorRandomDeckPair = pair
         if (pair == null) log.warn("Match Door: spectator random deck pair unavailable, falling back to selected deck")
         return pair
     }
 
-    /** Parse Arena cards JSON → Forge deck text (qty + name per line). Delegates to [DeckConverter]. */
-    private fun convertArenaCardsToDeckText(cardsJson: String): String {
-        val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
-        val mainDeck = parseDeckSection(obj, "MainDeck")
-        val sideboard = parseDeckSection(obj, "Sideboard")
-        val commandZone = parseDeckSection(obj, "CommandZone")
-        return DeckConverter.toDeckText(mainDeck, sideboard, commandZone, cardRepository::findNameByGrpId)
-    }
-
     /** A runtime launch overrides the selected event; event selection remains the client-match fallback. */
     private fun resolveGameVariant(): String? = runtimeGameVariant(resolveRuntimeMatchConfig(), coordinator?.selectedEventName)
-
-    private fun parseDeckSection(
-        obj: kotlinx.serialization.json.JsonObject,
-        section: String,
-    ): List<CardEntry> {
-        val arr = obj[section]?.jsonArray ?: return emptyList()
-        return arr.mapNotNull { entry ->
-            val cardObj = entry.jsonObject
-            val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: return@mapNotNull null
-            val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: return@mapNotNull null
-            CardEntry(grpId, qty)
-        }
-    }
 }
 
 /** Runtime spectator launches own their format; other matches retain event-selected format inference. */

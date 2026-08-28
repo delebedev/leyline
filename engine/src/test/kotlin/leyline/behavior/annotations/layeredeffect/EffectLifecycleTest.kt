@@ -25,6 +25,27 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import java.util.concurrent.TimeUnit
 import leyline.testkit.StateMapperShell as StateMapper
 
+private val PROWESS_ANNOTATION_PUZZLE =
+    """
+    [metadata]
+    Name:Prowess Annotation Shape
+    Goal:Cast noncreature → prowess trigger → verify LayeredEffect annotations.
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    removesummoningsickness=true
+
+    humanbattlefield=Monastery Swiftspear;Mountain;Forest
+    humanhand=Giant Growth
+    humanlibrary=Forest;Forest;Forest;Forest;Forest
+    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    """.trimIndent()
+
 /**
  * Integration test: verifies the LayeredEffect lifecycle wiring
  * using a real Forge game. Boots a game, builds GSMs, and checks
@@ -99,7 +120,7 @@ class EffectLifecycleTest :
         }
 
         test("prowess cast produces correct LayeredEffect annotation shape") {
-            val puzzle = PuzzleSource.loadFromResource("puzzles/prowess-annotation.pzl")
+            val puzzle = PuzzleSource.loadFromText(PROWESS_ANNOTATION_PUZZLE, "prowess-annotation")
             val b = GameBridge(bridgeTimeoutMs = 10_000, cardRepository = TestCardRegistry.repo)
             bridge = b
             b.priorityWaitMs = 10_000

@@ -31,7 +31,7 @@ class GamePlayback(
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
 
     init {
-        bridge.cutCoordinator.registerViewer(SeatId(seatId))
+        bridge.cutCoordinator.requireViewer(SeatId(seatId))
     }
 
     /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */
@@ -152,7 +152,7 @@ class GamePlayback(
         // Capture for BOTH local and remote attackers. The client expects a
         // combat-state diff (tapped creatures + attackState=Attacking) after
         // attackers are declared regardless of whose turn it is. Without this,
-        // the human-seat auto-pass loop overshoots past combat before building
+        // the transport continuation overshoots past combat before building
         // a diff, and the client never sees attackers tapped.
         if (isRemoteActing()) {
             requestCut(PlaybackCutReason.AttackersDeclared, COMBAT_DELAY, boundary = PlaybackCutBoundary.AttackersDeclared)

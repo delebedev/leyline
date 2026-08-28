@@ -10,6 +10,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.game.event.FrameEventLog
 import leyline.game.state.GameBridge
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.haveManaCost
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -71,7 +72,7 @@ class NaiveActionsTest :
                 }
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(crabId)).value
-            val legalActions = bundleBuilder(bridge).buildActions()
+            val legalActions = BundleBuilderTestSupport.buildActions(bridge)
             val legalAction =
                 (legalActions.actionsList + legalActions.inactiveActionsList)
                     .first { it.actionType == ActionType.Cast && it.instanceId == instanceId }

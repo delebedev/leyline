@@ -13,6 +13,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
+import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 private val PRINCE_FLICKER_PUZZLE =
@@ -83,7 +84,7 @@ class ModalETBFlowTest :
             )
         }
 
-        session("modal ETB emits CastingTimeOptionsReq", puzzleFile = "puzzles/modal-etb.pzl") {
+        session("modal ETB emits CastingTimeOptionsReq", puzzleFile = "data/puzzles/modal-etb.pzl") {
             val req = castSpellUntilCastingTimeOptionsReq("Trufflesnout")
             req.castingTimeOptionReqCount shouldBe 1
 
@@ -107,7 +108,7 @@ class ModalETBFlowTest :
             }
         }
 
-        session("modal choice resolves life gain", puzzleFile = "puzzles/modal-etb.pzl") {
+        session("modal choice resolves life gain", puzzleFile = "data/puzzles/modal-etb.pzl") {
             val startLife = human.life
 
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
@@ -119,7 +120,7 @@ class ModalETBFlowTest :
             (human.life - startLife) shouldBe 4
         }
 
-        session("modal choice resolves +1/+1 counter", puzzleFile = "puzzles/modal-etb.pzl") {
+        session("modal choice resolves +1/+1 counter", puzzleFile = "data/puzzles/modal-etb.pzl") {
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose counter mode (index 0 → counterModeGrpId)
@@ -137,7 +138,7 @@ class ModalETBFlowTest :
 
         session(
             "Charming Prince ETB modal uses ability instanceId, not card instanceId",
-            puzzleFile = "puzzles/prince-etb.pzl",
+            puzzleFile = "test-puzzles/prince-etb.pzl",
         ) {
             val req = castSpellUntilCastingTimeOptionsReq("Charming Prince")
             req.castingTimeOptionReqCount shouldBe 1
@@ -183,7 +184,7 @@ class ModalETBFlowTest :
             }
         }
 
-        session("ETB modal GSM has ability on stack and pendingMessageCount", puzzleFile = "puzzles/modal-etb.pzl") {
+        session("ETB modal GSM has ability on stack and pendingMessageCount", puzzleFile = "data/puzzles/modal-etb.pzl") {
             val msgs = after { castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
 
             // Find the GSM that accompanies the CTO
@@ -212,7 +213,7 @@ class ModalETBFlowTest :
             abilityObj.instanceId shouldBe affectedId
         }
 
-        session("ETB ability object has correct parentId and objectSourceGrpId", puzzleFile = "puzzles/modal-etb.pzl") {
+        session("ETB ability object has correct parentId and objectSourceGrpId", puzzleFile = "data/puzzles/modal-etb.pzl") {
             val trufflesnoutGrpId = TestCardRegistry.repo.findGrpIdByName("Trufflesnout")!!
 
             val msgs = after { castSpellUntilCastingTimeOptionsReq("Trufflesnout") }.messages
@@ -233,7 +234,7 @@ class ModalETBFlowTest :
 
         session(
             "synthesized ability cleaned up after modal resolves",
-            puzzleFile = "puzzles/modal-etb.pzl",
+            puzzleFile = "data/puzzles/modal-etb.pzl",
         ) {
             castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
@@ -254,7 +255,7 @@ class ModalETBFlowTest :
             cleaned shouldBe true
         }
 
-        session("Charming Prince gain 3 life mode resolves", puzzleFile = "puzzles/prince-etb.pzl") {
+        session("Charming Prince gain 3 life mode resolves", puzzleFile = "test-puzzles/prince-etb.pzl") {
             val startLife = human.life
 
             castSpellUntilCastingTimeOptionsReq("Charming Prince")
@@ -267,12 +268,8 @@ class ModalETBFlowTest :
             "Charming Prince flicker exposes and retires pending trigger visuals",
             puzzle = PRINCE_FLICKER_PUZZLE,
         ) {
-            val targetIid = human.battlefield.iid("Grizzly Bears")
-
             castSpellUntilCastingTimeOptionsReq("Charming Prince")
             respondModalChoice(listOf(princeFlickerModeGrpId))
-            selectTargets(listOf(targetIid))
-            passUntilResolved()
 
             val gameStates = allMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             val holder =
@@ -306,7 +303,18 @@ class ModalETBFlowTest :
                 displayCardUnderCard.affectedIdsList shouldContain exiledIid
             }
 
-            bridge.phaseStopProfile?.setEnabled(human.id, forge.game.phase.PhaseType.END_OF_TURN, true)
+            bridge.priorityPolicy.submit(
+                settingsMessage {
+                    addStops(
+                        Stop
+                            .newBuilder()
+                            .setStopType(StopType.EndStep_ad1f)
+                            .setAppliesTo(SettingScope.Team_ac6e)
+                            .setStatus(SettingStatus.Set)
+                            .build(),
+                    )
+                },
+            )
             passUntil(maxPasses = 30) {
                 allMessages
                     .filter { it.hasGameStateMessage() }

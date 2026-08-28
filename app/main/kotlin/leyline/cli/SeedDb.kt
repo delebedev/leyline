@@ -1,14 +1,18 @@
 package leyline.cli
 
-import leyline.LeylinePaths
+import leyline.config.LeylineConfigResolver
 import leyline.domain.Deck
-import leyline.domain.DeckCard
 import leyline.domain.DeckId
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.SystemPlayers
+import leyline.domain.deck.DeckCards
+import leyline.domain.deck.DecklistException
+import leyline.domain.deck.parseDecklist
+import leyline.domain.deck.resolveCards
 import leyline.domain.repo.DeckRepository
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.CardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.infra.persistence.SqlitePlayerStore
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
@@ -23,55 +27,6 @@ object SeedDb {
     private const val PLAYER_NAME = "Denis"
     private const val SPECTATOR_ROTATION_FILE = "data/spectator-rotation.txt"
 
-    /** A card entry: qty, name, optional set code for precise lookup. */
-    private data class CardEntry(
-        val quantity: Int,
-        val name: String,
-        val setCode: String? = null,
-    )
-
-    /** Arena decklist line: `4 Hallowed Priest (ANB) 9` or simple: `4 Hallowed Priest` */
-    private val ARENA_LINE = Regex("""^(\d+)\s+(.+?)\s+\((\w+)\)\s+\d+\s*$""")
-    private val SIMPLE_LINE = Regex("""^(\d+)\s+(.+?)\s*$""")
-
-    /** Parsed decklist with optional commander zone. */
-    private data class ParsedDeck(
-        val mainDeck: List<CardEntry>,
-        val commandZone: List<CardEntry>,
-    )
-
-    /** Parse a decklist string (Arena or simple format) into sections. */
-    private fun parseDeckList(text: String): ParsedDeck {
-        var section = "deck"
-        val main = mutableListOf<CardEntry>()
-        val commander = mutableListOf<CardEntry>()
-
-        for (raw in text.lines()) {
-            val line = raw.trim()
-            if (line.isBlank()) continue
-            if (line.equals("Commander", ignoreCase = true)) {
-                section = "commander"
-                continue
-            }
-            if (line.equals("Deck", ignoreCase = true) || line.equals("Sideboard", ignoreCase = true)) {
-                section = "deck"
-                continue
-            }
-            val entry =
-                ARENA_LINE.matchEntire(line)?.let { m ->
-                    CardEntry(m.groupValues[1].toInt(), m.groupValues[2], m.groupValues[3])
-                } ?: SIMPLE_LINE.matchEntire(line)?.let { m ->
-                    CardEntry(m.groupValues[1].toInt(), m.groupValues[2])
-                } ?: continue
-
-            when (section) {
-                "commander" -> commander.add(entry)
-                else -> main.add(entry)
-            }
-        }
-        return ParsedDeck(main, commander)
-    }
-
     /**
      * The subset of [deckFiles] the spectator feed rotates through, in the order
      * the rotation file lists them. An unmatched name is reported, since a typo
@@ -79,8 +34,8 @@ object SeedDb {
      */
     private fun loadRotation(
         projectDir: File,
-        deckFiles: List<Pair<String, ParsedDeck>>,
-    ): List<Pair<String, ParsedDeck>> {
+        deckFiles: List<Pair<String, File>>,
+    ): List<Pair<String, File>> {
         val file = File(projectDir, SPECTATOR_ROTATION_FILE)
         if (!file.isFile) return emptyList()
         val byName = deckFiles.toMap()
@@ -89,34 +44,30 @@ object SeedDb {
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .mapNotNull { name ->
-                val deck = byName[name]
-                if (deck == null) {
+                val deckFile = byName[name]
+                if (deckFile == null) {
                     println("Spectator rotation: no deck file named '$name' — skipped")
                     null
                 } else {
-                    name to deck
+                    name to deckFile
                 }
             }
     }
 
     /** Load deck files from data/decks/. Filename (minus .txt) becomes deck name. */
-    private fun loadDeckFiles(decksDir: File): List<Pair<String, ParsedDeck>> {
+    private fun loadDeckFiles(decksDir: File): List<Pair<String, File>> {
         if (!decksDir.isDirectory) return emptyList()
         return decksDir
             .listFiles()
             ?.filter { it.extension == "txt" }
             ?.sortedBy { it.name }
-            ?.map { file ->
-                val name = file.nameWithoutExtension
-                val deck = parseDeckList(file.readText())
-                name to deck
-            } ?: emptyList()
+            ?.map { file -> file.nameWithoutExtension to file } ?: emptyList()
     }
 
     @JvmStatic
     fun main(args: Array<String>) {
         val projectDir = findProjectDir()
-        val dbFile = File(System.getenv("LEYLINE_PLAYER_DB") ?: LeylinePaths.PLAYER_DB.absolutePath)
+        val dbFile = LeylineConfigResolver(baseDir = projectDir, env = System.getenv()).resolve().paths.playerDb
         dbFile.parentFile.mkdirs()
         println("Seeding ${dbFile.absolutePath}")
 
@@ -128,24 +79,14 @@ object SeedDb {
         println("Player: $PLAYER_NAME ($PLAYER_ID)")
 
         // Seed starter decks (resolve card names → grpIds via card DB)
-        val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        val cardDbFile =
-            if (cardDbPath != null) {
-                File(cardDbPath).takeIf { it.exists() }
-            } else {
-                // Auto-detect from Arena install
-                val raw = leyline.detectArenaDownloadsDir()?.resolve("Raw")
-                raw?.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-            }
+        val cardRepo = ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
         // Seed decks from data/decks/*.txt
         val decksDir = File(projectDir, "data/decks")
         val deckFiles = loadDeckFiles(decksDir)
         if (deckFiles.isEmpty()) {
             println("No deck files in ${decksDir.absolutePath} — skipping deck seeding")
             reconcileSpectatorDecks(store, emptySet())
-        } else if (cardDbFile != null) {
-            val cardDb = Database.connect("jdbc:sqlite:${cardDbFile.absolutePath}", "org.sqlite.JDBC")
-            val cardRepo = ExposedCardRepository(cardDb)
+        } else {
             val flavorNameAliases = ForgeFlavorNameAliases.load(projectDir)
             seedDecks(store, cardRepo, deckFiles, flavorNameAliases)
 
@@ -159,8 +100,6 @@ object SeedDb {
             val activeRotationDeckIds =
                 seedDecks(store, cardRepo, rotation, flavorNameAliases, SystemPlayers.SPECTATOR, "spectator/")
             reconcileSpectatorDecks(store, activeRotationDeckIds)
-        } else {
-            println("CardDb not available — skipping deck seeding")
         }
 
         // Summary
@@ -173,16 +112,15 @@ object SeedDb {
 
     private fun seedDecks(
         store: SqlitePlayerStore,
-        cardRepo: ExposedCardRepository,
-        deckFiles: List<Pair<String, ParsedDeck>>,
+        cardRepo: CardRepository,
+        deckFiles: List<Pair<String, File>>,
         flavorNameAliases: Map<String, String>,
         ownerId: PlayerId = PlayerId(PLAYER_ID),
         deckIdPrefix: String = "",
     ): Set<DeckId> {
         data class ResolvedDeck(
             val name: String,
-            val mainDeck: List<DeckCard>,
-            val commandZone: List<DeckCard>,
+            val cards: DeckCards,
         )
 
         val resolved = mutableListOf<ResolvedDeck>()
@@ -194,29 +132,12 @@ object SeedDb {
                 flavorNameAliases = flavorNameAliases,
             )
 
-        for ((deckName, parsed) in deckFiles) {
-            fun resolve(
-                entries: List<CardEntry>,
-                label: String,
-            ): List<DeckCard> {
-                val cards = mutableListOf<DeckCard>()
-                for (entry in entries) {
-                    val grpId = cardNameResolver.resolve(entry.name, entry.setCode)
-                    if (grpId != null) {
-                        cards.add(DeckCard(grpId, entry.quantity))
-                    } else {
-                        errors.add("  $deckName ($label): '${entry.name}' (${entry.setCode ?: "any set"}) not found")
-                    }
-                }
-                return cards
-            }
-
-            val mainDeck = resolve(parsed.mainDeck, "main")
-            val commandZone = resolve(parsed.commandZone, "commander")
-            if (mainDeck.isNotEmpty()) {
-                resolved.add(ResolvedDeck(deckName, mainDeck, commandZone))
-            } else {
-                errors.add("  $deckName: no cards resolved at all")
+        for ((deckName, deckFile) in deckFiles) {
+            try {
+                val cards = parseDecklist(deckFile.readText()).resolveCards(cardNameResolver::resolve)
+                resolved.add(ResolvedDeck(deckName, cards))
+            } catch (e: DecklistException) {
+                e.errors.forEach { errors.add("  $deckName: $it") }
             }
         }
 
@@ -228,8 +149,17 @@ object SeedDb {
 
         return resolved.mapTo(mutableSetOf()) { rd ->
             val deckId = UUID.nameUUIDFromBytes((deckIdPrefix + rd.name).toByteArray()).toString()
-            val isBrawl = rd.commandZone.isNotEmpty()
-            val tileId = if (isBrawl) rd.commandZone.first().grpId else rd.mainDeck.first().grpId
+            val isBrawl = rd.cards.commandZone.isNotEmpty()
+            val tileId =
+                if (isBrawl) {
+                    rd.cards.commandZone
+                        .first()
+                        .grpId
+                } else {
+                    rd.cards.mainDeck
+                        .first()
+                        .grpId
+                }
             val deck =
                 Deck(
                     id = DeckId(deckId),
@@ -237,13 +167,13 @@ object SeedDb {
                     name = rd.name,
                     format = if (isBrawl) Format.Brawl else Format.Standard,
                     tileId = tileId,
-                    mainDeck = rd.mainDeck,
-                    sideboard = emptyList(),
-                    commandZone = rd.commandZone,
-                    companions = emptyList(),
+                    mainDeck = rd.cards.mainDeck,
+                    sideboard = rd.cards.sideboard,
+                    commandZone = rd.cards.commandZone,
+                    companions = rd.cards.companions,
                 )
             store.save(deck)
-            val total = rd.mainDeck.sumOf { it.quantity } + rd.commandZone.sumOf { it.quantity }
+            val total = rd.cards.mainDeck.sumOf { it.quantity } + rd.cards.commandZone.sumOf { it.quantity }
             val suffix = if (isBrawl) " [Brawl]" else ""
             println("Seeded: ${rd.name} ($total cards)$suffix")
             deck.id

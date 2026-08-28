@@ -27,11 +27,11 @@ import leyline.testkit.StateMapperShell as StateMapper
 /**
  * Treasure token grpId resolution — regression test for NPE crash.
  *
- * Crash: Treasure tokens get grpId=0 → ExposedCardRepository.findByGrpId
+ * Crash: Treasure tokens get grpId=0 → SqliteCardRepository.findByGrpId
  * puts null into ConcurrentHashMap → NPE in ActionMapper's action builders.
  *
  * Fix: ActionMapper uses GrpIdResolver.resolve (token-aware) instead
- * of findGrpIdByName (filters isToken=0). ExposedCardRepository guards
+ * of findGrpIdByName (filters isToken=0). SqliteCardRepository guards
  * against null cache puts.
  *
  * Tests the full flow: cast Innkeeper → ETB Treasure → assert grpId →

@@ -36,20 +36,19 @@ import leyline.domain.DraftSession
 import leyline.domain.Format
 import leyline.domain.PlayerId
 import leyline.domain.json.productionJson
+import leyline.domain.repo.DeckRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
-import leyline.domain.service.DeckService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
 import leyline.game.data.CardRepository
-import leyline.game.generator.PuzzleCatalog
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 data class WebServices(
     val draftService: DraftService,
     val courseService: CourseService,
-    val deckService: DeckService,
+    val decks: DeckRepository,
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
@@ -58,20 +57,8 @@ data class WebServices(
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     /** Which pair the spectator feed serves next. Per server, not persisted. */
     val spectatorRotationCursor: AtomicInteger = AtomicInteger(),
-    val puzzleCatalog: () -> List<PuzzleSummaryView> = { defaultPuzzleCatalog() },
+    val challengeCatalog: ChallengeCatalog = ChallengeCatalog.default(),
 )
-
-private fun defaultPuzzleCatalog(): List<PuzzleSummaryView> =
-    PuzzleCatalog.list().map {
-        PuzzleSummaryView(
-            filename = it.filename,
-            name = it.name,
-            goal = it.goal,
-            turns = it.turns,
-            difficulty = it.difficulty,
-            description = it.description,
-        )
-    }
 
 interface WebMatchLauncher {
     fun launchGreMatch(
@@ -110,7 +97,7 @@ fun Application.installWeb(services: WebServices) {
             post("/gre/start") {
                 val player = call.authenticatedPlayer(services)
                 val request = call.receive<GreStartRequest>()
-                if (isGuestEmail(player.email) && !request.isCatalogPuzzle(services.puzzleCatalog())) {
+                if (isGuestEmail(player.email) && !request.isCatalogChallenge(services.challengeCatalog)) {
                     call.respond(HttpStatusCode.Forbidden)
                     return@post
                 }
@@ -138,21 +125,21 @@ fun Application.installWeb(services: WebServices) {
             route("/decks") {
                 get {
                     val playerId = call.ownedPlayerId(services, call.request.queryParameters["playerId"])
-                    call.respond(services.deckService.listForPlayer(playerId).map(::deckView))
+                    call.respond(services.decks.findAllForPlayer(playerId).map(::deckView))
                 }
                 post {
                     val request = call.receive<CreateDeckRequest>()
                     val playerId = call.ownedPlayerId(services, request.playerId)
                     val deck = request.toDeck(playerId)
-                    services.deckService.save(deck)
+                    services.decks.save(deck)
                     call.respond(deckView(deck))
                 }
                 get("/{deckId}") {
-                    val deck = services.deckService.getById(DeckId(call.parameters["deckId"].orEmpty()))
+                    val deck = services.decks.findById(DeckId(call.parameters["deckId"].orEmpty()))
                     if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deckView(deck))
                 }
                 delete("/{deckId}") {
-                    services.deckService.delete(DeckId(call.parameters["deckId"].orEmpty()))
+                    services.decks.delete(DeckId(call.parameters["deckId"].orEmpty()))
                     call.respond(HttpStatusCode.NoContent)
                 }
             }
@@ -164,6 +151,9 @@ fun Application.installWeb(services: WebServices) {
 
 private fun Application.installErrorHandling() {
     install(StatusPages) {
+        exception<leyline.domain.deck.DecklistException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, ParseDecklistErrorResponse(cause.errors))
+        }
         exception<IllegalArgumentException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
         }
@@ -286,8 +276,8 @@ private suspend fun ApplicationCall.playCourse(services: WebServices) {
 private fun Route.installPublicRoutes(services: WebServices) {
     installPublicCardRoutes(services)
     installPublicSpectatorRoutes(services)
-    get("/puzzles") {
-        call.respond(services.puzzleCatalog())
+    get("/challenges") {
+        call.respond(services.challengeCatalog.summaries())
     }
 }
 
@@ -385,9 +375,10 @@ private suspend fun ApplicationCall.respondLoginSuccess(result: VerifyLoginResul
 internal fun ApplicationCall.requiredQuery(name: String): String =
     requireNotNull(request.queryParameters[name]?.takeIf { it.isNotBlank() }) { "$name is required" }
 
-private fun GreStartRequest.isCatalogPuzzle(catalog: List<PuzzleSummaryView>): Boolean =
-    puzzle != null &&
-        catalog.any { it.filename == puzzle } &&
+private fun GreStartRequest.isCatalogChallenge(catalog: ChallengeCatalog): Boolean =
+    challengeId != null &&
+        puzzle == null &&
+        catalog.find(challengeId) != null &&
         matchId == null &&
         wireMatchId == null &&
         seat1Deck == null &&

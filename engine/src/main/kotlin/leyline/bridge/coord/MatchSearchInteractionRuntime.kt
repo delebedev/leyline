@@ -6,47 +6,45 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchInteractionRuntime
 import leyline.bridge.handoff.SearchInteractionTimeoutException
 import leyline.bridge.handoff.SearchWindowValue
-import leyline.game.PendingSearchCut
-import leyline.game.SearchMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact library-search lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchSearchInteractionRuntime(
     private val owner: MatchCutCoordinator,
+    settled: SettledPromptOwner,
 ) : SearchInteractionRuntime {
     private data class Window(
         val published: PublishedSearchInteraction,
         val value: SearchWindowValue,
-        override val cut: PendingSearchCut,
+        override val cut: PendingPromptCut<SearchWindowValue>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<List<Int>> = CompletableFuture(),
-    ) : SinglePromptWindow<List<Int>, PendingSearchCut> {
+    ) : SettledPromptOwner.Window<List<Int>> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
     private val capture = SearchWindowCapture(owner)
-    private val windows = SinglePromptWindowState<Window, PendingSearchCut, List<Int>>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingSearchCut, List<Int>>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failSearch(cause, failed.cut) },
+    private val slot =
+        settled.mount<Window, List<Int>>(
+            PromptTerminalPriority.Search,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { pending, message ->
+                message.type ==
+                    if (pending.value.groups.isEmpty()) {
+                        ClientMessageType.SearchResp_097b
+                    } else {
+                        ClientMessageType.SearchFromGroupsResp_097b
+                    }
+            },
+            admitLocked = ::admitLocked,
         )
 
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
+    internal var beforeBaselineResetInstall: (() -> Unit)? = null
     internal var afterBaselineResetBeforeRelease: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitSearch(
         request: PromptRequest,
@@ -63,63 +61,75 @@ internal class MatchSearchInteractionRuntime(
         return await(pending, timeoutMs)
     }
 
-    fun current(): PublishedSearchInteraction? = windows.current()?.published
+    fun current(): PublishedSearchInteraction? = slot.current()?.published
 
-    internal fun pendingCutLocked(): PendingSearchCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
-
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.bridge.projectionBuildLock) {
-            synchronized(owner.feedLock) {
-                owner.ensureOpen()
-                val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-                if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-                val selectedOptions =
-                    if (selectedInstanceIds.isEmpty()) {
-                        if (pending.value.minFind != 0) return false
-                        listOf(pending.value.optionCount)
-                    } else {
-                        if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return false
-                        selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
+    @Suppress("ReturnCount")
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<List<Int>>? {
+        val selectedOptions =
+            if (pending.value.groups.isEmpty()) {
+                if (!message.hasSearchResp()) return null
+                val selectedInstanceIds = message.searchResp.itemsFoundList
+                if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+                if (selectedInstanceIds.isEmpty()) {
+                    if (pending.value.minFind != 0) return null
+                    listOf(pending.value.optionCount)
+                } else {
+                    if (selectedInstanceIds.size !in pending.value.minFind..pending.value.maxFind) return null
+                    selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+                }
+            } else {
+                if (!message.hasSearchFromGroupsResp()) return null
+                val responseGroups = message.searchFromGroupsResp.groupsList
+                if (responseGroups.isEmpty()) {
+                    if (pending.value.minFind != 0) return null
+                    listOf(pending.value.optionCount)
+                } else {
+                    if (responseGroups.size != 1) return null
+                    val response = responseGroups.single()
+                    val group = pending.value.groups.singleOrNull { it.groupId == response.groupId } ?: return null
+                    if (response.maxSelect != group.maxSelect) return null
+                    val selectedInstanceIds = response.idsList
+                    if (selectedInstanceIds.isEmpty()) return null
+                    if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+                    if (selectedInstanceIds.size !in pending.value.minFind..minOf(pending.value.maxFind, group.maxSelect)) return null
+                    val allowedOptions = group.candidateCardIdsByOption.keys
+                    selectedInstanceIds.map { instanceId ->
+                        pending.optionByInstanceId[instanceId]?.takeIf(allowedOptions::contains) ?: return null
                     }
+                }
+            }
+        return SettledPromptOwner.SlotAdmission(
+            selectedOptions,
+            beforeComplete = {
                 resetBaseline()
                 afterBaselineResetBeforeRelease?.invoke()
-                windows.completeLocked(pending, selectedOptions)
-            }
-        }
-
-    fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    fun failDelivery(cause: Throwable): Nothing =
-        synchronized(owner.feedLock) {
-            val pending = windows.pendingCutLocked()
-            afterDeliveryCutLookup?.invoke()
-            pending?.let { owner.failSearch(cause, it) } ?: owner.fail(cause)
-        }
-
-    fun reset() = windows.reset()
+            },
+        )
+    }
 
     private fun publish(value: SearchWindowValue): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A search interaction is already pending",
-            prepare = { interactionId, feed, game ->
-                val diagnostic = SearchMaterializationDiagnostic(interactionId, value)
-                val prepared =
+            prepare = { interactionId, feed, game, planner ->
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, value)
+                val preparedViewers =
                     try {
                         feed.builder.prepareSearchWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
-                        owner.failSearch(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published = PublishedSearchInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
-                    PendingSearchCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         value,
@@ -131,19 +141,20 @@ internal class MatchSearchInteractionRuntime(
                     value.candidateCardIdsByOption.map { (option, cardId) ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[cardId]?.value
-                                ?: owner.failSearch(IllegalStateException("Search candidate ${cardId.value} was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("Search candidate ${cardId.value} was not projected"), exact)
                         instanceId to option
                     }
                 val optionByInstanceId = optionEntries.toMap()
                 if (optionByInstanceId.size != optionEntries.size) {
-                    owner.failSearch(IllegalStateException("Search candidates have ambiguous client identities"), exact)
+                    owner.failPrompt(IllegalStateException("Search candidates have ambiguous client identities"), exact)
                 }
                 val created = Window(published, value, exact, optionByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -152,16 +163,10 @@ internal class MatchSearchInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): List<Int> =
-        kernel.await(
+        slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = ::SearchInteractionTimeoutException,
-            beforeTimeoutClaim = beforeTimeoutClaim,
-            timeoutClaim = { claim ->
-                synchronized(owner.bridge.projectionBuildLock) {
-                    synchronized(owner.feedLock) { claim() }
-                }
-            },
             beforeTimeoutCompleteLocked = {
                 resetBaseline()
                 afterBaselineResetBeforeRelease?.invoke()
@@ -170,10 +175,7 @@ internal class MatchSearchInteractionRuntime(
 
     private fun resetBaseline() {
         val transition = owner.feed(owner.humanSeat).builder.prepareSearchBaselineReset(owner.bridge.projectionStateSnapshot())
-        try {
-            owner.bridge.commitProjection(transition)
-        } catch (ex: Exception) {
-            owner.fail(ex)
-        }
+        beforeBaselineResetInstall?.invoke()
+        owner.cutInstaller.installProjectionOnly(transition, owner::fail)
     }
 }
