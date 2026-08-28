@@ -4,7 +4,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.UnitTag
 import leyline.match.ActionPerformer
-import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.DeferredCastCostInteractionHandler
 import leyline.match.MatchSession
@@ -45,7 +44,6 @@ class HandlerConstructorContractTest :
             listOf(
                 TargetingHandler::class,
                 CombatHandler::class,
-                AutoPassEngine::class,
                 OptionalActionHandler::class,
                 NumericInputHandler::class,
                 DeferredCastCostInteractionHandler::class,

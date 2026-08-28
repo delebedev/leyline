@@ -79,8 +79,7 @@ class DistributionReqSessionTest :
                 ailibrary=Mountain
                 """,
         ) {
-            castSpellByName("Gandalf, Spark Starter") shouldBe true
-            passPriority()
+            castSpellUntilSelectTargetsReq("Gandalf, Spark Starter")
 
             val gandalfIid = human.battlefield.iid("Gandalf, Spark Starter")
             val lionsIid = ai.battlefield.iid("Savannah Lions")

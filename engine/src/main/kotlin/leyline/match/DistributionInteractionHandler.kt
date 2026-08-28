@@ -10,24 +10,20 @@ internal class DistributionInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(DistributionInteractionHandler::class.java)
 
-    fun onDistributionResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    fun onDistributionResp(greMsg: ClientToGREMessage): Boolean {
         val runtime = ctx.bridge.cutCoordinator.distribution
         val pending = runtime.current()
         if (pending == null) {
             log.warn("DistributionResp did not match a published Distribution interaction")
             DevCheck.failOnAutoPass { "DistributionResp did not match a published Distribution interaction" }
-            return
+            return false
         }
         val rows = greMsg.distributionResp.distributionsList.map { it.instanceId to it.amount }
         if (!runtime.submitWire(pending.interactionId, greMsg.gameStateId, rows)) {
             log.warn("DistributionResp did not match or validate against the current Distribution interaction")
             DevCheck.failOnAutoPass { "DistributionResp did not match or validate against the current Distribution interaction" }
-            return
+            return false
         }
-        ctx.bridge.awaitPriority()
-        autoPass()
+        return true
     }
 }

@@ -136,8 +136,10 @@ class OptionalCostInteractionTest :
             after { castSpellByName("Burst Lightning").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
             val promptGameStateId = allMessages.last { it.hasCastingTimeOptionsReq() }.gameStateId
             val stale = optionalCostResp(999).toBuilder().setGameStateId(promptGameStateId - 1).build()
-            submit(stale)
-            submit(optionalCostResp(999))
+            // These invalid responses intentionally have no owned successor.
+            send(stale)
+            send(optionalCostResp(999))
+            drainSink()
 
             after { declineKicker() }.expectOneSelectTargetsReq().targetsList shouldHaveSize 1
         }

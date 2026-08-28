@@ -15,6 +15,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -199,11 +200,10 @@ class MatchOrderInteractionRuntimeTest :
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
             val options = cards(board)
-            var timedOut = false
+            val signal = PrioritySignal()
             val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal, strict = false).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
                 }
             val result = prompt.requestOrder(request(board, OrderRouteKind.Top), options)
             val publishedBatch = coordinator.drain(SeatId(1)).single()
@@ -212,7 +212,7 @@ class MatchOrderInteractionRuntimeTest :
                 result.optionIndices shouldContainExactly listOf(0, 1)
                 (result.handles[0] === options[0]) shouldBe true
                 publishedBatch.last().hasOrderReq() shouldBe true
-                timedOut shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.order
                     .current()
                     .shouldBeNull()

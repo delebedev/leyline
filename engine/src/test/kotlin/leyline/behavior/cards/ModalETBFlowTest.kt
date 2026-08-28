@@ -268,12 +268,8 @@ class ModalETBFlowTest :
             "Charming Prince flicker exposes and retires pending trigger visuals",
             puzzle = PRINCE_FLICKER_PUZZLE,
         ) {
-            val targetIid = human.battlefield.iid("Grizzly Bears")
-
             castSpellUntilCastingTimeOptionsReq("Charming Prince")
             respondModalChoice(listOf(princeFlickerModeGrpId))
-            selectTargets(listOf(targetIid))
-            passUntilResolved()
 
             val gameStates = allMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             val holder =

@@ -67,21 +67,12 @@ class DisplayCardUnderCardTest :
         ) {
             phase() shouldBe "MAIN1"
 
-            val bearsIid = ai.battlefield.iid("Grizzly Bears")
-
             // --- Phase 1: Cast Banishing Light, target Grizzly Bears ---
             val phase1 =
                 after {
                     castSpellByName("Banishing Light").shouldBeTrue()
 
-                    // Banishing Light is on the stack — pass to resolve it
-                    // ETB trigger will fire and need a target
-                    passPriority() // resolve Banishing Light → ETB trigger on stack
-
-                    // Select Grizzly Bears as target for the exile trigger
-                    selectTargets(listOf(bearsIid))
-
-                    // Pass until the trigger resolves and Grizzly Bears is exiled
+                    // The only legal target is selected by the engine.
                     passUntil(maxPasses = 10) {
                         ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }
                     }.shouldBeTrue()
@@ -117,12 +108,9 @@ class DisplayCardUnderCardTest :
 
             val phase2 =
                 after {
-                    castSpellByName("Disenchant").shouldBeTrue()
-
-                    // Disenchant targets Banishing Light
+                    castSpellUntilSelectTargetsReq("Disenchant")
                     selectTargets(listOf(banishingIid))
 
-                    // Pass to resolve — Banishing Light destroyed, Grizzly Bears returns
                     passUntil(maxPasses = 15) {
                         ai.getZone(ZoneType.Battlefield).cards.any { it.name == "Grizzly Bears" }
                     }.shouldBeTrue()

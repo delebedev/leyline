@@ -14,6 +14,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -245,13 +246,12 @@ class MatchSearchInteractionRuntimeTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            val autoAdvance = CountDownLatch(1)
+            val signal = PrioritySignal()
             val result = AtomicReference<List<Int>>()
             val finished = CountDownLatch(1)
             val bridge =
-                InteractivePromptBridge(timeoutMs = 25).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
                 result.set(bridge.requestChoice(request(board, min = 0, defaultIndex = 1)))
@@ -263,7 +263,7 @@ class MatchSearchInteractionRuntimeTest :
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(1)
-                autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.search
                     .current()
                     .shouldBeNull()

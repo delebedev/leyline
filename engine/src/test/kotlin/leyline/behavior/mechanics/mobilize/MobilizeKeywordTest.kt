@@ -38,8 +38,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  *   - sacrifice ZoneTransfer (category=Sacrifice) at next end step
  *
  * The token is short-lived (it gets sacrificed at end of turn) so the test
- * doesn't poll the live battlefield. Instead it lets MatchSession's auto-pass
- * run through the whole human turn and asserts on the message stream.
+ * doesn't poll the live battlefield. Instead it lets the engine runtime
+ * continuation run through the whole human turn and asserts on the message
+ * stream.
  */
 class MobilizeKeywordTest :
     SessionTest({
@@ -161,10 +162,10 @@ class MobilizeKeywordTest :
             }
 
             // Snapshot fidelity: the Mobilize ability ideally appears as a stack
-            // gameObject during a priority window. With auto-pass at paceDelayMs=0
-            // the trigger fires + resolves between snapshots so the gameObject
-            // never surfaces — the event-driven path above is what gives the
-            // client the lifecycle annotations. Documented gap, not a hard fail.
+            // gameObject during a priority window. With zero pacing the trigger
+            // fires and resolves between snapshots so the gameObject never
+            // surfaces. The event-driven path above gives the client the
+            // lifecycle annotations. Documented gap, not a hard fail.
         }
 
         val mobilize3Puzzle =

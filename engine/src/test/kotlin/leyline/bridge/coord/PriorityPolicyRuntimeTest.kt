@@ -192,7 +192,7 @@ class PriorityPolicyRuntimeTest :
                     PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
                 runtime.classifyPriorityWindow(observation(stackEmpty = false)) shouldBe
                     PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = false)
-                runtime.classifyPriorityWindow(observation()) shouldBe
+                runtime.classifyPriorityWindow(observation(isOwnTurn = false, phase = PhaseType.DRAW)) shouldBe
                     PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
                 runtime.classifyPriorityWindow(observation(hasMeaningfulAction = true)) shouldBe
                     PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
@@ -215,6 +215,33 @@ class PriorityPolicyRuntimeTest :
 
             runtime.classifyPriorityWindow(observation(phase = PhaseType.DRAW)) shouldBe
                 PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+        }
+
+        test("configured phase stops keep pass-only windows visible") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+
+            listOf(
+                PhaseType.MAIN1,
+                PhaseType.COMBAT_DECLARE_ATTACKERS,
+                PhaseType.COMBAT_DECLARE_BLOCKERS,
+            ).forEach { phase ->
+                runtime.classifyPriorityWindow(observation(phase = phase)) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+            }
+        }
+
+        test("ordinary pass-only continuation still skips") {
+            val runtime = PriorityPolicyRuntime()
+            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+
+            runtime.classifyPriorityWindow(
+                observation(
+                    isOwnTurn = false,
+                    phase = PhaseType.MAIN2,
+                    continuation = SynchronizationContinuation.RequireVisible,
+                ),
+            ) shouldBe PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
         }
 
         test("classification carries the runtime auto-resolve value") {

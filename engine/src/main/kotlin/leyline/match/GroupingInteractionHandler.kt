@@ -10,31 +10,27 @@ internal class GroupingInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(GroupingInteractionHandler::class.java)
 
-    fun onGroupResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    fun onGroupResp(greMsg: ClientToGREMessage): Boolean {
         val runtime = ctx.bridge.cutCoordinator.grouping
         val pending = runtime.current()
         if (pending == null) {
             log.warn("GroupResp did not match a published Grouping interaction")
             DevCheck.failOnAutoPass { "GroupResp did not match a published Grouping interaction" }
-            return
+            return false
         }
         val groups = greMsg.groupResp.groupsList
         if (groups.size != 2) {
             log.warn("GroupResp must contain the exact top and away groups")
             DevCheck.failOnAutoPass { "GroupResp must contain the exact top and away groups" }
-            return
+            return false
         }
         val topIds = groups.getOrNull(0)?.idsList.orEmpty()
         val awayIds = groups.getOrNull(1)?.idsList.orEmpty()
         if (!runtime.submit(pending.interactionId, greMsg.gameStateId, topIds, awayIds)) {
             log.warn("GroupResp did not match the current Grouping interaction")
             DevCheck.failOnAutoPass { "GroupResp did not match the current Grouping interaction" }
-            return
+            return false
         }
-        ctx.bridge.awaitPriority()
-        autoPass()
+        return true
     }
 }

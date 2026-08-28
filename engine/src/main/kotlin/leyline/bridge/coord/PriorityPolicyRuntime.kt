@@ -134,9 +134,10 @@ class PriorityPolicyRuntime {
         synchronized(stateLock) {
             val fullControl = autoPassPriority == AutoPassPriority.No_a099
             val ownTurnStopped =
-                observation.phase?.let { phase ->
-                    humanPlayerId?.let { phaseStops[it]?.contains(phase) }
-                } == true
+                observation.isOwnTurn &&
+                    observation.phase?.let { phase ->
+                        humanPlayerId?.let { phaseStops[it]?.contains(phase) }
+                    } == true
             if (!fullControl && observation.isOwnTurn && !ownTurnStopped) {
                 return@synchronized PriorityWindowDecision.Skip(
                     AutoPassReason.PhaseNotStopped(observation.phase?.name ?: "UNKNOWN"),
@@ -146,9 +147,13 @@ class PriorityPolicyRuntime {
             val opponentStop =
                 !observation.isOwnTurn &&
                     observation.phase?.let { it in opponentStops } == true
+            val intentionalPhaseStop =
+                ownTurnStopped &&
+                    observation.stackEmpty
             val mode =
                 priorityWindowMode(
                     fullControl = fullControl,
+                    phaseStop = intentionalPhaseStop,
                     smartPhaseSkip = observation.smartPhaseSkip,
                     promptJustResolved = observation.promptJustResolved,
                     stackEmpty = observation.stackEmpty,
@@ -207,6 +212,7 @@ class PriorityPolicyRuntime {
 
     private fun priorityWindowMode(
         fullControl: Boolean,
+        phaseStop: Boolean,
         smartPhaseSkip: Boolean,
         promptJustResolved: Boolean,
         stackEmpty: Boolean,
@@ -218,11 +224,15 @@ class PriorityPolicyRuntime {
         when {
             fullControl ||
                 forceVisible ||
-                continuation == SynchronizationContinuation.RequireVisible ||
                 opponentStop ||
-                hasMeaningfulAction ->
+                hasMeaningfulAction ||
+                (phaseStop && !promptJustResolved && smartPhaseSkip) ||
+                (continuation == SynchronizationContinuation.RequireVisible && phaseStop) ->
                 PriorityWindowMode.Visible
-            promptJustResolved || continuation == SynchronizationContinuation.AllowSyncOnly || !stackEmpty || !smartPhaseSkip ->
+            promptJustResolved ||
+                continuation == SynchronizationContinuation.AllowSyncOnly ||
+                !stackEmpty ||
+                !smartPhaseSkip ->
                 PriorityWindowMode.SyncOnly
             else -> PriorityWindowMode.Skip
         }

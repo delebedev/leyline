@@ -8,8 +8,8 @@ read_when:
 # Bridge Threading
 
 This document owns cross-class constraints that the type system does not yet
-express. It describes the current implementation, including transitional
-session and delivery ownership. System shape lives in
+express. It describes the current implementation and delivery ownership.
+System shape lives in
 [`architecture.md`](architecture.md); durable direction and rationale live in
 [ADR 0015](decisions/0015-functional-core-imperative-shell.md).
 
@@ -18,7 +18,8 @@ session and delivery ownership. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web/in-process input, timers, auto-advance, tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Runtime delivery observer | One per live human `MatchConnection` | Waits for coordinator feed notifications, then enters `sessionLock` to drain |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Assigns outbound bookkeeping and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
@@ -62,22 +63,36 @@ pending window must not block behind a publication in progress.
 A queue type is not a transaction. The close/build/install/enqueue operation
 must remain protected as one publication boundary.
 
-### In-process completion
+### Runtime horizons
 
-`MatchConnection.submitGREMessage` waits for deferred session work scheduled by
-that input before returning. It submits a barrier to the session's single-thread
-executor and repeats when completed work scheduled another task. The barrier is
-never awaited while holding `sessionLock`.
+`MatchRuntimeContinuation` is the transport seam for one engine horizon.
+Accepted responses are validated and submitted by `MatchSession`; the handler's
+single continuation wait drains committed batches in order and acknowledges
+each exact `SYNC_ONLY` barrier only after successful delivery. A response that
+only updates an iterative prompt returns without releasing the engine.
 
-This boundary means output caused by the submitted input is available to an
-in-process caller. It does not mean a client acknowledged delivery, and it does
-not include work started later by a timer or another entrant.
+Every live human `MatchConnection` arms one
+`MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.
+It waits on the coordinator's delivery feed, enters the same session lock,
+drains committed batches, and terminalizes after delivery when the horizon is
+game-over. An inbound handler drains the exact horizon released by its accepted
+response under that same lock; the observer owns horizons published after the
+handler returns. These claims cannot race, and the observer is the only
+consumer of the delivery notification. Teardown invalidates the observer
+generation. Puzzle replacement arms a new generation only after its initial
+bundle and horizon are delivered. It never submits an engine action or makes
+priority decisions.
+
+In-process harness callers wait only for named client output when observer
+delivery is asynchronous. That wait observes sink completion; it does not
+wait on an engine horizon, release a synchronization barrier, or consume the
+observer notification.
 
 ### Current exceptions
 
 Mulligan still drives a pre-game engine interaction outside `sessionLock`.
-Puzzle replacement can install fresh projection state from its own executor.
-Residual output builders still share counters and sequencing with
+Puzzle replacement can install fresh projection state through its lifecycle
+boundary. Residual output builders still share counters and sequencing with
 coordinator-backed output. These are explicit migration seams, not patterns for
 new entry points.
 
@@ -91,14 +106,14 @@ sequenceDiagram
     participant E as Engine thread
     participant C as MatchCutCoordinator
     participant P as Projection core
-    participant S as PrioritySignal
-    participant M as MatchSession
+    participant S as DeliverySignal
+    participant M as MatchRuntimeDeliveryObserver
 
     E->>C: publish immutable interaction window
     C->>P: compile tentative transition
     P-->>C: messages + next projection state
     C->>C: install and enqueue under feedLock
-    C->>S: signal
+    C->>S: signal after commit
     E->>E: block on exact window
     S-->>M: observer wakes
     M->>C: drain committed batch

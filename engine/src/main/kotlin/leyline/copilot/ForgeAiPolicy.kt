@@ -148,7 +148,7 @@ private fun costPartsForRoute(
  *
  * 3. **Skip AI consult on Pass-only AARs** (caller side — see
  *    `SimClientDriver.hasCastableActionsInAar`). Forge AI's search costs
- *    50-200ms; during that window an auto-pass loop can consume the priority
+ *    50-200ms; during that window engine continuation can consume the priority
  *    window, and a subsequent submit lands "no pending action", causing a
  *    state resync. The driver's race guard handles this; translators here
  *    don't need to.

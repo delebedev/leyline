@@ -33,8 +33,6 @@ class SessionOpsDefaultsTest :
                 override fun sendBundle(result: BundleBuilder.BundleResult) {}
 
                 override fun sendGameOver(reason: ResultReason) {}
-
-                override fun paceDelay(multiplier: Int) {}
             }
 
         val dummyMsg = ClientToGREMessage.getDefaultInstance()

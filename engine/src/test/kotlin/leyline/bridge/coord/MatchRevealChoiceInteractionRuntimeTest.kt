@@ -18,6 +18,7 @@ import leyline.bridge.handoff.PublishedRevealChoiceInteraction
 import leyline.bridge.handoff.RevealChoiceInteractionResult
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
@@ -244,15 +245,14 @@ class MatchRevealChoiceInteractionRuntimeTest :
             coordinator.drain(SeatId(1))
             val candidates = revealed(board)
             val entry = revealEntry(board)
-            var timedOut = false
+            val signal = PrioritySignal()
             val publishedAtTimeout = AtomicReference<PublishedRevealChoiceInteraction>()
             coordinator.revealChoices.beforeTimeoutClaim = {
                 publishedAtTimeout.set(checkNotNull(coordinator.revealChoices.current()))
             }
             val prompt =
-                InteractivePromptBridge(timeoutMs = 25, strict = false).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal, strict = false).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = { timedOut = true }
                 }
 
             val result =
@@ -269,7 +269,7 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 result.optionIndices shouldContainExactly listOf(1)
                 (result.handles.single() === candidates[1]) shouldBe true
                 result.timedOut shouldBe true
-                timedOut shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.revealChoices
                     .current()
                     .shouldBeNull()

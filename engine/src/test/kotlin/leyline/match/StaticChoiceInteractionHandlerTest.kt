@@ -65,18 +65,14 @@ class StaticChoiceInteractionHandlerTest :
             }
             val exact = checkNotNull(published)
             coordinator.drain(SeatId(1))
-            var autoPassed = false
-
             StaticChoiceInteractionHandler(SessionContext(checkNotNull(board.bridge.getGame()), board.bridge))
                 .tryHandleSelectN(
                     selectNResp(listOf(0)).toBuilder().setGameStateId(exact.gameStateId).build(),
-                ) { autoPassed = true }
-                .shouldBeTrue()
+                ).shouldBeTrue()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldBe listOf(1)
-                autoPassed shouldBe true
                 coordinator.staticChoices
                     .current()
                     .shouldBeNull()

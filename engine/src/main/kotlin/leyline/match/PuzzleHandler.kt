@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
@@ -30,6 +31,7 @@ class PuzzleHandler(
     private val engineSettings: EngineSettings,
     private val puzzleLibrary: PuzzleLibrary,
     private val puzzleDefinition: (String) -> PuzzleDefinition? = { null },
+    private val beforeRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
@@ -52,13 +54,18 @@ class PuzzleHandler(
                         matchId = matchId,
                         bridgeTimeoutMs = engineSettings.bridgeTimeoutMs,
                         promptFailsafeMs = engineSettings.promptFailsafeMs,
+                        runtimeHorizonMode = RuntimeHorizonMode.Observed,
                         engineSettings = engineSettings,
                         messageCounter = MessageCounter(),
                         cardRepository = cardRepository,
                     )
                 Match(matchId, bridge).also {
                     val puzzle = loadPuzzleForMatch(matchId)
-                    bridge.startPuzzle(puzzle, seed = engineSettings.seed)
+                    bridge.startPuzzle(
+                        puzzle,
+                        seed = engineSettings.seed,
+                        beforeRuntimeStart = beforeRuntimeStart?.let { hook -> { hook(bridge) } },
+                    )
                 }
             }
         return match.bridge
@@ -93,7 +100,11 @@ class PuzzleHandler(
         bridge.awaitPriority()
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
-        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
+        val actions = bridge.bindInitialPuzzleHorizon(pending.actionId, gsId)
+        if (actions == null) {
+            registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
+            return
+        }
 
         // Expose the request only after its executable catalog is installed.
         val (actionsMsg, nextMsgId2) =
@@ -108,6 +119,12 @@ class PuzzleHandler(
         Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
         ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
         output.send(actionsMsg)
+        if (pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_ATTACKERS ||
+            pending.state.kind == leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS
+        ) {
+            check(bridge.cutCoordinator.republishDeclaration(pending.actionId))
+        }
+        registry.getConnection(matchId, SeatId(seatId))?.armRuntimeDeliveryObserver()
     }
 
     /**

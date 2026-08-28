@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Handles targeting-related client messages and prompt detection.
+ * Handles targeting-related client messages.
  *
  * Protocol sequencing uses the shared
  * [MessageCounter][leyline.game.bundle.MessageCounter] via `counters.counter` —
@@ -61,10 +61,7 @@ class TargetingHandler(
      *
      * Player targets use seatId (1/2) as instanceId.
      */
-    fun onSelectTargets(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    internal fun onSelectTargets(greMsg: ClientToGREMessage): HandlerResult {
         val bridge = ctx.bridge
         val resp = greMsg.selectTargetsResp
         val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
@@ -77,9 +74,8 @@ class TargetingHandler(
                     resp.target.targetsList.map { target ->
                         TargetToggleValue(target.targetInstanceId, target.legalAction != SelectAction.Unselect)
                     },
-                ) ?: return
-            deliverCompatibilityReceipt(receipt, autoPass)
-            return
+                ) ?: return HandlerResult.Waiting
+            return deliverCompatibilityReceipt(receipt)
         }
         val targeting =
             bridge.cutCoordinator.targeting
@@ -97,12 +93,12 @@ class TargetingHandler(
                             selected = target.legalAction != SelectAction.Unselect,
                         )
                     },
-                ) ?: return
-            deliverTargetingReceipt(receipt, autoPass)
-            return
+                ) ?: return HandlerResult.Waiting
+            return deliverTargetingReceipt(receipt)
         }
         log.warn("TargetingHandler: SelectTargetsResp did not match a coordinator-owned window")
         DevCheck.failOnAutoPass { "SelectTargetsResp but no coordinator-owned window" }
+        return HandlerResult.NotHandled
     }
 
     /**
@@ -110,10 +106,7 @@ class TargetingHandler(
      *
      * Type-only message (no payload). Uses selection stored by [onSelectTargets].
      */
-    fun onSubmitTargets(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    internal fun onSubmitTargets(greMsg: ClientToGREMessage): HandlerResult {
         val bridge = ctx.bridge
         val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
         val compatibilityReceipt =
@@ -122,8 +115,7 @@ class TargetingHandler(
                 greMsg.gameStateId,
             )
         if (compatibilityReceipt != null) {
-            deliverCompatibilityReceipt(compatibilityReceipt, autoPass)
-            return
+            return deliverCompatibilityReceipt(compatibilityReceipt)
         }
         val targeting =
             bridge.cutCoordinator.targeting
@@ -131,101 +123,48 @@ class TargetingHandler(
                 ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
         val migrated = bridge.cutCoordinator.targeting.submitTargets(targeting?.interactionId, greMsg.gameStateId)
         if (migrated != null) {
-            deliverTargetingReceipt(migrated, autoPass)
-            return
+            return deliverTargetingReceipt(migrated)
         }
         log.warn("TargetingHandler: SubmitTargetsReq did not match a coordinator-owned window")
         DevCheck.failOnAutoPass { "SubmitTargetsReq but no coordinator-owned window" }
+        return HandlerResult.NotHandled
     }
 
     /**
      * Handle SelectNResp: map client instanceIds back to prompt option indices and submit.
      * Mirrors [onSelectTargets] but for "choose N cards" prompts.
      */
-    fun onSelectN(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
-        if (revealChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
-        if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
-        if (cardSelectInteractionHandler.tryHandleSelectN(greMsg, autoPass)) return
+    internal fun onSelectN(greMsg: ClientToGREMessage): HandlerResult {
+        if (revealChoiceInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
+        if (staticChoiceInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
+        if (cardSelectInteractionHandler.tryHandleSelectN(greMsg)) return HandlerResult.Resume
         log.warn("TargetingHandler: SelectNResp did not match a coordinator-owned window")
         DevCheck.failOnAutoPass { "SelectNResp but no coordinator-owned window" }
+        return HandlerResult.NotHandled
     }
 
-    fun onEffectCost(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
-        if (manaSourcePaymentHandler.tryHandleEffectCost(greMsg, autoPass)) return
-        if (manaSourcePaymentHandler.tryHandleGatherCounters(greMsg, autoPass)) return
-        if (manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg, autoPass)) return
-        if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg, autoPass)) return
+    internal fun onEffectCost(greMsg: ClientToGREMessage): HandlerResult {
+        val bridge = ctx.bridge
+        val payment = manaSourcePaymentHandler.tryHandleEffectCost(greMsg)
+        if (payment != HandlerResult.NotHandled) return payment
+        val gather = manaSourcePaymentHandler.tryHandleGatherCounters(greMsg)
+        if (gather != HandlerResult.NotHandled) return gather
+        val oneShot = manaSourcePaymentHandler.tryHandleOneShotEffectCost(greMsg)
+        if (oneShot != HandlerResult.NotHandled) return oneShot
+        if (cardSelectInteractionHandler.tryHandleEffectCost(greMsg)) {
+            return if (bridge.cutCoordinator.cardSelect.current() == null) HandlerResult.Resume else HandlerResult.Waiting
+        }
         log.warn("TargetingHandler: EffectCostResp did not match a coordinator-owned window")
         DevCheck.failOnAutoPass { "EffectCostResp but no coordinator-owned window" }
+        return HandlerResult.NotHandled
     }
 
     /**
      * Native PayCostsReq mana-payment UIs answer through PerformActionResp.
      * Waterbend reducer clicks are MakePayment actions; the Done button is Pass.
      */
-    fun tryHandlePayCostsPerformAction(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean = manaSourcePaymentHandler.tryHandlePerformAction(greMsg, autoPass)
-
-    /**
-     * After a cast, check for a pending targeting prompt or intermediate stack state.
-     * Returns true if handled (caller should return), false to continue normal flow.
-     *
-     * @param clientAutoResolve true when the client's autoPassOption signals
-     *   "resolve my stack effects" — skips the stack prompt when the player has
-     *   no meaningful responses, matching client behavior (#92).
-     */
-    @Suppress("ReturnCount")
-    fun handlePostCastPrompt(clientAutoResolve: Boolean = false): Boolean {
-        val bridge = ctx.bridge
-        val game = ctx.game
-        if (checkPendingPrompt() == PromptResult.SENT_TO_CLIENT) return true
-        if (!game.stack.isEmpty) {
-            // When auto-resolve is active and the player has no meaningful responses
-            // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
-            // resolution transparently, matching client behavior (#92).
-            val actionWindow = bridge.seat(counters.seatId).action.getPending()
-            if (clientAutoResolve &&
-                actionWindow != null &&
-                !bridge.cutCoordinator.hasMeaningfulPriorityAction(actionWindow.actionId)
-            ) {
-                return false
-            }
-            sink.sendRealGameState(bridge)
-            return true
-        }
-        return false
-    }
-
-    /** Result from [checkPendingPrompt]. */
-    enum class PromptResult {
-        /** No prompt pending. */
-        NONE,
-
-        /** Targeting prompt sent to client — caller should exit loop and wait. */
-        SENT_TO_CLIENT,
-    }
-
-    /**
-     * Check whether a coordinator-owned prompt is visible to the session.
-     * Targeting and compatibility card windows publish SelectTargetsReq;
-     * typed runtimes own their response mapping and retirement. Other
-     * coordinator windows remain on their named dispatch paths.
-     */
-    fun checkPendingPrompt(): PromptResult {
-        val bridge = ctx.bridge
-        if (hasCoordinatorPrompt(bridge)) return PromptResult.SENT_TO_CLIENT
-        return PromptResult.NONE
-    }
-
-    private fun hasCoordinatorPrompt(bridge: leyline.game.state.GameBridge): Boolean = bridge.cutCoordinator.prompts.hasPendingInteraction()
+    internal fun tryHandlePayCostsPerformAction(greMsg: ClientToGREMessage): HandlerResult =
+        manaSourcePaymentHandler.tryHandlePerformAction(greMsg)
 
     /**
      * Handle CancelActionReq: player backed out of targeting (cancel spell cast).
@@ -236,21 +175,16 @@ class TargetingHandler(
      * returns mana). We then resend the game state so the client sees the
      * board return to pre-cast state with available actions.
      */
-    fun onCancelAction(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    internal fun onCancelAction(greMsg: ClientToGREMessage): HandlerResult {
         val bridge = ctx.bridge
         if (bridge.cutCoordinator.deferredCast.hasPrompt()) {
-            cancelDeferredCast(greMsg.gameStateId, autoPass)
-            return
+            return cancelDeferredCast(greMsg.gameStateId)
         }
 
         val compatibility = bridge.cutCoordinator.compatibilityCostSelection.current()
         if (compatibility != null) {
             bridge.cutCoordinator.compatibilityCostSelection.cancel(compatibility.interactionId, greMsg.gameStateId)?.let { receipt ->
-                deliverCompatibilityReceipt(receipt, autoPass)
-                return
+                return deliverCompatibilityReceipt(receipt)
             }
         }
         val targeting =
@@ -259,82 +193,71 @@ class TargetingHandler(
                 ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
         if (targeting != null) {
             bridge.cutCoordinator.targeting.cancel(targeting.interactionId, greMsg.gameStateId)?.let { receipt ->
-                deliverTargetingReceipt(receipt, autoPass)
-                return
+                return deliverTargetingReceipt(receipt)
             }
         }
 
         val modal = bridge.cutCoordinator.modalChoices.current()
-        if (modal != null && cancelModalChoice(modal, greMsg.gameStateId, autoPass)) return
+        if (modal != null) return cancelModalChoice(modal, greMsg.gameStateId)
 
         val distribution = bridge.cutCoordinator.distribution.current()
         if (distribution != null) {
             if (bridge.cutCoordinator.distribution.cancel(distribution.interactionId, greMsg.gameStateId)) {
-                bridge.awaitPriority()
-                autoPass()
-                return
+                return HandlerResult.Resume
             }
         }
 
-        if (manaSourcePaymentHandler.tryHandleCancel(greMsg, autoPass)) return
-        if (manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg, autoPass)) return
+        val payment = manaSourcePaymentHandler.tryHandleCancel(greMsg)
+        if (payment != HandlerResult.NotHandled) return payment
+        val oneShot = manaSourcePaymentHandler.tryHandleOneShotCancel(greMsg)
+        if (oneShot != HandlerResult.NotHandled) return oneShot
 
         log.warn("TargetingHandler: CancelActionReq but no coordinator-owned window")
         DevCheck.failOnAutoPass { "CancelActionReq but no coordinator-owned window" }
+        return HandlerResult.NotHandled
     }
 
     private fun cancelModalChoice(
         modal: leyline.bridge.handoff.PublishedModalChoiceInteraction,
         gameStateId: Int,
-        autoPass: () -> Unit,
-    ): Boolean {
+    ): HandlerResult {
         val bridge = ctx.bridge
-        if (!bridge.cutCoordinator.modalChoices.cancel(modal.interactionId, gameStateId)) {
+        val cleanup = bridge.cutCoordinator.modalChoices.cancelAndClaim(modal.interactionId, gameStateId)
+        if (cleanup == null) {
             log.warn("TargetingHandler: CancelActionReq did not match current modal window")
             DevCheck.failOnAutoPass { "CancelActionReq did not match current modal window" }
-            return false
+            return HandlerResult.Waiting
         }
         log.info("TargetingHandler: CancelActionReq — cancelling modal choice")
-        bridge.awaitPriority()
-        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
-        autoPass()
-        return true
+        return HandlerResult.ResumeAfterEngineResume(cleanup)
     }
 
-    private fun cancelDeferredCast(
-        gameStateId: Int,
-        autoPass: () -> Unit,
-    ) {
+    private fun cancelDeferredCast(gameStateId: Int): HandlerResult {
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
         if (!deferredCast.cancel(gameStateId)) {
             log.warn("TargetingHandler: CancelActionReq did not match current deferred cast window")
-            return
+            return HandlerResult.Waiting
         }
         log.info("TargetingHandler: CancelActionReq — cancelling deferred cast before engine submit")
-        autoPass()
+        return HandlerResult.Resume
     }
 
-    private fun deliverTargetingReceipt(
-        receipt: TargetingCommandReceipt,
-        autoPass: () -> Unit,
-    ) = deliverReceipt(receipt, autoPass) { interactionId, deliveryToken ->
-        ctx.bridge.cutCoordinator.targeting
-            .acknowledgeDelivery(interactionId, deliveryToken)
-    }
+    private fun deliverTargetingReceipt(receipt: TargetingCommandReceipt): HandlerResult =
+        deliverReceipt(receipt) { interactionId, deliveryToken ->
+            ctx.bridge.cutCoordinator.targeting
+                .acknowledgeDelivery(interactionId, deliveryToken)
+        }
 
-    private fun deliverCompatibilityReceipt(
-        receipt: TargetingCommandReceipt,
-        autoPass: () -> Unit,
-    ) = deliverReceipt(receipt, autoPass) { interactionId, deliveryToken ->
-        ctx.bridge.cutCoordinator.compatibilityCostSelection
-            .acknowledgeDelivery(interactionId, deliveryToken)
-    }
+    private fun deliverCompatibilityReceipt(receipt: TargetingCommandReceipt): HandlerResult =
+        deliverReceipt(receipt) { interactionId, deliveryToken ->
+            ctx.bridge.cutCoordinator.compatibilityCostSelection
+                .acknowledgeDelivery(interactionId, deliveryToken)
+        }
 
     private fun deliverReceipt(
         receipt: TargetingCommandReceipt,
-        autoPass: () -> Unit,
         acknowledge: (interactionId: String, deliveryToken: Long) -> Boolean,
-    ) {
+    ): HandlerResult {
         val bridge = ctx.bridge
         receipt.deliveryToken?.let { deliveryToken ->
             val batches = bridge.cutCoordinator.drain(counters.seatId)
@@ -347,10 +270,7 @@ class TargetingHandler(
                 "Targeting delivery acknowledgement was stale"
             }
         }
-        if (receipt.engineWillResume) {
-            bridge.awaitPriority()
-            autoPass()
-        }
+        return if (receipt.engineWillResume) HandlerResult.Resume else HandlerResult.Waiting
     }
 
     /**
@@ -359,16 +279,13 @@ class TargetingHandler(
      * @param itemsFound instanceIds the client selected (from SearchResp.itemsFound).
      *        Empty = player declined ("fail to find").
      */
-    fun onSearchResp(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    internal fun onSearchResp(greMsg: ClientToGREMessage): HandlerResult {
         val bridge = ctx.bridge
         val pending = bridge.cutCoordinator.search.current()
         if (pending == null) {
             log.warn("SearchResp but no coordinator-owned search window")
             DevCheck.failOnAutoPass { "SearchResp but no search window" }
-            return
+            return HandlerResult.Waiting
         }
         val accepted =
             bridge.cutCoordinator.search.submit(
@@ -379,10 +296,9 @@ class TargetingHandler(
         if (!accepted) {
             log.warn("SearchResp did not match the current search window")
             DevCheck.failOnAutoPass { "SearchResp did not match the current search window" }
-            return
+            return HandlerResult.Waiting
         }
-        bridge.awaitPriority()
-        autoPass()
+        return HandlerResult.Resume
     }
 
     // --- Helpers ---
@@ -390,13 +306,11 @@ class TargetingHandler(
     /**
      * Handle CastingTimeOptionsResp: dispatches to modal or kicker/optional cost handler.
      */
-    fun onCastingTimeOptions(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ) {
+    internal fun onCastingTimeOptions(greMsg: ClientToGREMessage): HandlerResult {
         // Deferred cast costs retain the cast action claim; modal ability choices use the coordinator window below.
-        if (deferredCastCostInteractionHandler.onCastingTimeOptions(greMsg, autoPass)) {
-            return
+        val deferredResult = deferredCastCostInteractionHandler.onCastingTimeOptions(greMsg)
+        if (deferredResult != HandlerResult.NotHandled) {
+            return deferredResult
         }
         val bridge = ctx.bridge
         val modal = bridge.cutCoordinator.modalChoices.current()
@@ -406,18 +320,17 @@ class TargetingHandler(
             }
             log.warn("TargetingHandler: CastingTimeOptionsResp but no modal or deferred-cost window")
             DevCheck.failOnAutoPass { "CastingTimeOptionsResp but no modal or deferred-cost window" }
-            return
+            return HandlerResult.Waiting
         }
         val chosenGrpIds = greMsg.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList
-        if (!bridge.cutCoordinator.modalChoices.submit(modal.interactionId, greMsg.gameStateId, chosenGrpIds)) {
+        val cleanup = bridge.cutCoordinator.modalChoices.submitAndClaim(modal.interactionId, greMsg.gameStateId, chosenGrpIds)
+        if (cleanup == null) {
             log.warn("TargetingHandler: CastingTimeOptionsResp did not match current modal window")
             DevCheck.failOnAutoPass { "CastingTimeOptionsResp did not match current modal window" }
-            return
+            return HandlerResult.Waiting
         }
         log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={}", chosenGrpIds)
-        bridge.awaitPriority()
-        bridge.cutCoordinator.modalChoices.releaseAfterEngineResume(modal.interactionId)
-        autoPass()
+        return HandlerResult.ResumeAfterEngineResume(cleanup)
     }
 
     internal fun checkHybridManaTypeOptions(actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim): Boolean =

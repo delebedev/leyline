@@ -262,6 +262,7 @@ internal class MatchBlockingInteractionRuntime(
                         }
                     val feed = owner.feed(owner.humanSeat)
                     feed.queue.add(feed.builder.damageAssignmentConfirmation(owner.counter).messages)
+                    owner.signalDelivery()
                     pending.future.complete(Answer.Damage(assignments))
                 }
             }

@@ -17,6 +17,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import leyline.testkit.haveOnTop
+import leyline.testkit.selectTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -81,7 +82,9 @@ class LibraryOrderInteractionTest :
                     .current()
                     .shouldNotBeNull()
 
-            selectTargetsIterative(emptyList())
+            // This intentionally sends the wrong response family and has no successor to await.
+            send(submitWithGsId(selectTargetsResp(emptyList())))
+            drainSink()
 
             bridge
                 .cutCoordinator

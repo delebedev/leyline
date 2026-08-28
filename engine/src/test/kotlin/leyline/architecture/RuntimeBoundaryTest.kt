@@ -121,27 +121,7 @@ class RuntimeBoundaryTest :
         }
 
         test("opponent priority suppression stays behind the coordinator") {
-            val autoPassEngine = "leyline.match.AutoPassEngine"
             val cutCoordinator = "leyline.bridge.coord.MatchCutCoordinator"
-            val policyRuntime = "leyline.bridge.coord.PriorityPolicyRuntime"
-
-            noClasses()
-                .that()
-                .haveFullyQualifiedName(autoPassEngine)
-                .should()
-                .callMethodWhere(
-                    methodCall(cutCoordinator, "suppressPriorityPresentation", "mutate priority visibility")
-                        .or(methodCall(policyRuntime, "shouldSuppressOpponentPresentation", "classify opponent priority")),
-                ).because("the pump delegates exact-window suppression to the engine coordinator")
-                .check(classes)
-
-            classes()
-                .that()
-                .haveFullyQualifiedName(autoPassEngine)
-                .should()
-                .callMethodWhere(methodCall(cutCoordinator, "suppressPassOnlyAiPriority", "suppress one exact AI window"))
-                .because("the pump requests one coordinator operation before draining")
-                .check(classes)
 
             classes()
                 .that()
@@ -155,6 +135,60 @@ class RuntimeBoundaryTest :
                     ),
                 ).because("the coordinator owns the action-window visibility mutation")
                 .check(classes)
+        }
+
+        test("session progression is owned by engine runtime continuation") {
+            val session = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchSession.kt"))
+            val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
+            val bridge = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/game/state/GameBridge.kt"))
+            val continuation = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeContinuation.kt"))
+            val forbidden =
+                listOf(
+                    "Executor",
+                    "requestAutoAdvance",
+                    "autoAdvanceRequester",
+                    "playbackDrainRequester",
+                    "awaitQuiescence",
+                    "awaitRuntimeHorizon",
+                )
+
+            assertSoftly {
+                forbidden shouldHaveSize 6
+                forbidden.forEach { name ->
+                    withClue("session runtime must not retain $name") { session shouldNotContain name }
+                    withClue("connection runtime must not retain $name") { connection shouldNotContain name }
+                    withClue("bridge runtime must not retain $name") { bridge shouldNotContain name }
+                }
+                continuation shouldContain "drainCoordinatorBarrier"
+                continuation shouldContain "awaitSeatHorizonWithTimeout"
+                continuation shouldNotContain "ENGINE_PASS_TOKEN"
+                continuation shouldNotContain "BundleBuilder.shouldAutoPass"
+                continuation shouldNotContain "submitRuntimeToken"
+                continuation shouldNotContain "continuePassOnly"
+                continuation shouldNotContain "isPassOnlyPriority"
+            }
+        }
+
+        test("post-handler horizons have one transport delivery observer") {
+            val observer = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeDeliveryObserver.kt"))
+            val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
+            val coordinator = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord/MatchCutCoordinator.kt"))
+
+            assertSoftly {
+                listOf(
+                    observer.contains("deliverySignal"),
+                    observer.contains("deliverRuntimeHorizon"),
+                    coordinator.contains("internal val deliverySignal"),
+                ).count { it } shouldBe 3
+                observer shouldContain "deliverySignal"
+                observer shouldContain "deliverRuntimeHorizon"
+                observer shouldNotContain "prioritySignal"
+                observer shouldNotContain "submitGREMessage"
+                observer shouldNotContain "awaitPriority"
+                connection shouldContain "armRuntimeDeliveryObserver()"
+                connection shouldContain "stopRuntimeDeliveryObserver()"
+                coordinator shouldContain "internal val deliverySignal"
+            }
         }
 
         test("accumulated settings state has one runtime owner") {
@@ -219,7 +253,6 @@ class RuntimeBoundaryTest :
 private val forgeCoupledMatchClasses =
     listOf(
         "leyline.match.ActionPerformer",
-        "leyline.match.AutoPassEngine",
         "leyline.match.CombatHandler",
         "leyline.match.MatchSession",
         "leyline.match.MatchSessionKt",

@@ -26,7 +26,9 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.MulliganBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PublishedOneShotPayCostsInteraction
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -60,7 +62,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -79,6 +80,7 @@ import leyline.bridge.forge.PlayerController as BridgedPlayerController
  * through commit is serialized per bridge; engine-thread lifecycle writes must
  * not overlap that boundary.
  */
+@Suppress("LargeClass")
 class GameBridge(
     /** Stable match identifier for cut compilation and outbound envelopes. */
     private val matchId: String = "forge-match-1",
@@ -86,6 +88,8 @@ class GameBridge(
     private val bridgeTimeoutMs: Long? = null,
     /** Timeout for client-visible prompts. Null waits indefinitely. */
     private val promptFailsafeMs: Long? = DEFAULT_PROMPT_FAILSAFE_TIMEOUT_MS,
+    /** Whether runtime horizons are observed and delivered outside the engine loop. */
+    private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     /** Playtest config — controls AI speed, die roll, etc. */
     val engineSettings: EngineSettings = EngineSettings(),
     /** Shared protocol counter for GRE message sequencing.
@@ -97,7 +101,7 @@ class GameBridge(
     val cardProto: CardProtoBuilder = CardProtoBuilder(cardRepository),
 ) : IdMapping,
     PlayerLookup,
-    AutoPassView,
+    RuntimePriorityView,
     ZoneTracking,
     AnnotationIds,
     EventDrain {
@@ -149,6 +153,17 @@ class GameBridge(
         actionId: String,
         gameStateId: Int,
     ): ActionsAvailableReq = cutCoordinator.bindInitialActionWindow(actionId, gameStateId)
+
+    /** Bind a client-owned puzzle horizon, or preserve a state-only barrier for runtime delivery. */
+    fun bindInitialPuzzleHorizon(
+        actionId: String,
+        gameStateId: Int,
+    ): ActionsAvailableReq? {
+        val pending = actionBridge(seating.humanSeat).exactPending(actionId) ?: error("Puzzle action window is no longer pending")
+        if (pending.state.kind != PendingActionKind.SYNC_ONLY) return bindInitialActionWindow(actionId, gameStateId)
+        cutCoordinator.replaceWithPhaseTransition(actionId, includePriorityPrompt = false)
+        return null
+    }
 
     /** Immutable reference data shared by every projection path for this match. */
     internal val stateProjectionEnvironment by lazy { StateProjectionEnvironmentCapture.from(this) }
@@ -349,13 +364,6 @@ class GameBridge(
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
     private val mulliganBridges = mutableMapOf<Int, MulliganBridge>()
 
-    @Volatile
-    var autoAdvanceRequester: ((String) -> Unit)? = null
-
-    @Volatile
-    var playbackDrainRequester: (() -> Unit)? = null
-    private val promptTimeoutNeedsAutoAdvance = AtomicBoolean(false)
-
     init {
         configureInteractiveSeat(SeatId(1))
     }
@@ -373,7 +381,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -428,8 +435,6 @@ class GameBridge(
             seat(SeatId(viewingSeatId)).drainReveals()
         }
 
-    fun consumePromptTimeoutNeedsAutoAdvance(): Boolean = promptTimeoutNeedsAutoAdvance.getAndSet(false)
-
     /**
      * Pre-populate auto-pass bridges for a synthetic seat.
      * Used by tests that need an extra passive seat without AI wiring.
@@ -445,7 +450,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.timeoutListener = { promptTimeoutNeedsAutoAdvance.set(true) }
             }
         mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
@@ -978,6 +982,7 @@ class GameBridge(
                 actionBridge = actionBridge(SeatId(1)),
                 mulliganBridge = mulliganBridge(SeatId(1)),
                 priorityPolicy = priorityPolicy,
+                runtimeHorizonMode = runtimeHorizonMode,
                 interactionRuntime = cutCoordinator,
             )
         humanController = controller
@@ -1320,6 +1325,26 @@ class GameBridge(
         }
     }
 
+    /** Wait for this seat's next committed action or routed interaction horizon. */
+    fun awaitSeatHorizonWithTimeout(
+        seatId: SeatId,
+        timeoutMs: Long,
+        ignoredActionId: String? = null,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        val actionBridge = seat(seatId).action
+        while (true) {
+            loopController?.throwIfFailed()
+            val g = game
+            if (g != null && g.isGameOver) return false
+            val pending = actionBridge.getPending()
+            if ((pending != null && pending.actionId != ignoredActionId) || hasPendingNonActionInteraction()) return true
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) return false
+            prioritySignal.awaitSignal(remaining)
+        }
+    }
+
     /**
      * Block until the engine reaches a priority stop, an interactive prompt
      * is pending, or the game ends.
@@ -1493,6 +1518,36 @@ class GameBridge(
         seed: Long? = null,
         aiControllerFactory: ((Game, Player) -> ForgePlayerController)? = null,
         beforeRuntimeStart: ((Game) -> Unit)? = null,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed,
+        aiControllerFactory,
+        beforeRuntimeStart,
+        startRuntime = true,
+    )
+
+    /** Initialize a disposable puzzle snapshot without launching an autonomous game loop. */
+    internal fun startStaticPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        beforeRuntimeStart: (Game) -> Unit,
+    ) = startPuzzle(
+        puzzle,
+        controlledSeat,
+        seed = null,
+        aiControllerFactory = null,
+        beforeRuntimeStart,
+        startRuntime = false,
+    )
+
+    private fun startPuzzle(
+        puzzle: Puzzle,
+        controlledSeat: SeatId,
+        seed: Long?,
+        aiControllerFactory: ((Game, Player) -> ForgePlayerController)?,
+        beforeRuntimeStart: ((Game) -> Unit)?,
+        startRuntime: Boolean,
     ) {
         log.info("GameBridge: starting puzzle mode")
         GameBootstrap.initializeCardDatabase()
@@ -1561,6 +1616,7 @@ class GameBridge(
                     actionBridge = actionBridge(controlledSeat),
                     mulliganBridge = mulliganBridge(controlledSeat),
                     priorityPolicy = priorityPolicy,
+                    runtimeHorizonMode = runtimeHorizonMode,
                     interactionRuntime = cutCoordinator,
                 )
             humanController = controller
@@ -1570,6 +1626,8 @@ class GameBridge(
         }
 
         registerPlaybackPipeline(g, controlledSeat, captureLocalActions = false)
+
+        if (!startRuntime) return
 
         // Start game loop from current state (skip Match.startGame/mulligan)
         val loop =

@@ -186,7 +186,6 @@ class GameActionBridge(
      * Matches desktop Forge "End Turn" behavior.
      */
     private val _autoPassUntilEndOfTurn = AtomicBoolean(false)
-    private val forceNextVisible = AtomicBoolean(false)
     private val synchronizationContinuation = AtomicReference(SynchronizationContinuation.Reevaluate)
 
     val autoPassUntilEndOfTurn: Boolean get() = _autoPassUntilEndOfTurn.get()
@@ -194,12 +193,6 @@ class GameActionBridge(
     fun setAutoPassUntilEndOfTurn(value: Boolean) {
         _autoPassUntilEndOfTurn.set(value)
     }
-
-    internal fun forceNextWindowVisible() {
-        forceNextVisible.set(true)
-    }
-
-    internal fun consumeForceNextWindowVisible(): Boolean = forceNextVisible.compareAndSet(true, false)
 
     /** Arm the next engine priority decision after a synchronization wait returned successfully. */
     internal fun armSynchronizationContinuation(continuation: SynchronizationContinuation) {

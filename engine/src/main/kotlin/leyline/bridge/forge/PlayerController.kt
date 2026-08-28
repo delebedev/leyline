@@ -76,6 +76,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.Seating
@@ -202,6 +203,7 @@ class PlayerController(
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
     priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
+    private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
     interactionRuntime: BlockingInteractionRuntime,
@@ -239,6 +241,7 @@ class PlayerController(
                 player = player,
                 actionBridge = ab,
                 priorityPolicy = priorityPolicy,
+                runtimeHorizonMode = runtimeHorizonMode,
                 smartPhaseSkip = smartPhaseSkip,
                 spellExecutor = spellExecutor,
                 interactionRuntime = interactionRuntime,

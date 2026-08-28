@@ -58,7 +58,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import java.util.EnumSet
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
@@ -973,37 +972,6 @@ class BundleBuilderTest :
                 } shouldBe thrown
             }
             b.diffListener = null
-        }
-
-        test("post-install playback failure retains the queued cut across a later writer") {
-            val (b, _, _) = startWithBoard { _, _, _ -> }
-            val playback = GamePlayback(b, 1)
-            val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
-            timeoutField.isAccessible = true
-            (timeoutField.get(b) as AtomicBoolean).set(true)
-            b.autoAdvanceRequester = {
-                b.getOrAllocInstanceId(ForgeCardId(9_999_998))
-                error("post-install acknowledgement failed")
-            }
-            playback.visit(
-                forge.game.event.GameEventPlayerPoisoned(
-                    null as forge.game.player.PlayerView?,
-                    null as forge.game.player.PlayerView?,
-                    0,
-                    1,
-                ),
-            )
-
-            val thrown = shouldThrow<PlaybackTerminalFailure> { playback.onMainLoopStepCompleted() }
-            val queued = playback.drainQueue()
-
-            assertSoftly {
-                thrown.cause?.message shouldBe "post-install acknowledgement failed"
-                queued shouldHaveSize 1
-                b.projectionStateSnapshot().revision shouldBeGreaterThan checkNotNull(thrown.pendingCut).projection.priorProjection.revision
-                b.peekInstanceId(ForgeCardId(9_999_998)) shouldBe b.getOrAllocInstanceId(ForgeCardId(9_999_998))
-            }
-            b.autoAdvanceRequester = null
         }
 
         test("combat safe point subsumes ordinary request after reversed subscriber order") {

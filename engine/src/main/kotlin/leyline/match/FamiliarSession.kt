@@ -41,8 +41,6 @@ class FamiliarSession(
 
     override fun sendGameOver(reason: ResultReason) {}
 
-    override fun paceDelay(multiplier: Int) {}
-
     // Action methods: all inherited no-ops from ActionReceiver defaults.
     // SubmitAttackersReq/SubmitBlockersReq may arrive on the Familiar channel.
     // No-op is correct — the player's main session handles combat.

@@ -50,10 +50,12 @@ class MatchConnection(
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
-    /** Run post-response advancement inline for in-process callers. */
-    private val deferGameplayAdvance: Boolean = true,
+    /** Optional setup after puzzle loading and before its runtime loop starts. */
+    internal val beforePuzzleRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
+    private var runtimeDeliveryObserver: MatchRuntimeDeliveryObserver? = null
+    private var runtimeDeliveryGeneration: MatchRuntimeDeliveryGeneration? = null
 
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
@@ -131,6 +133,7 @@ class MatchConnection(
             engineSettings,
             puzzleLibrary,
             ::resolvePuzzleDefinition,
+            beforePuzzleRuntimeStart,
         )
 
     private val connectFlow =
@@ -185,22 +188,28 @@ class MatchConnection(
         }
     }
 
-    /**
-     * Submit one parsed gameplay message and wait for deferred session work caused
-     * by that message to publish its output. Connection setup still enters through
-     * [receive], where the outer service envelope establishes match identity.
-     */
-    fun submitGREMessage(
-        greMsg: ClientToGREMessage,
-        timeoutMs: Long = 15_000L,
-    ) {
-        processGREMessage(greMsg)
-        awaitQuiescence(timeoutMs)
+    /** Submit one parsed gameplay message through the connection-owned session. */
+    fun submitGREMessage(greMsg: ClientToGREMessage) = processGREMessage(greMsg)
+
+    /** Arm delivery after the initial client-owned horizon has been bound. */
+    fun armRuntimeDeliveryObserver() {
+        stopRuntimeDeliveryObserver()
+        val active = session as? MatchSession ?: return
+        val generation = MatchRuntimeDeliveryGeneration()
+        runtimeDeliveryGeneration = generation
+        runtimeDeliveryObserver =
+            MatchRuntimeDeliveryObserver(
+                session = active,
+                seatId = active.seatId,
+                generation = generation,
+            ).also { it.start() }
     }
 
-    /** Wait for all deferred session work scheduled before this call to finish. */
-    fun awaitQuiescence(timeoutMs: Long = 15_000L) {
-        (session as? MatchSession)?.awaitQuiescence(timeoutMs)
+    internal fun stopRuntimeDeliveryObserver() {
+        runtimeDeliveryGeneration?.invalidate()
+        runtimeDeliveryObserver?.stop()
+        runtimeDeliveryGeneration = null
+        runtimeDeliveryObserver = null
     }
 
     private fun handleMatchAuth(msg: ClientToMatchServiceMessage) {
@@ -262,6 +271,7 @@ class MatchConnection(
         handshaking?.let { return it }
         val prior = connected ?: error("Expected handshaking state but connection is already established")
         log.info("Match Door: reconnect on already-established matchId={} seatId={}, resyncing", prior.matchId, prior.seatId)
+        stopRuntimeDeliveryObserver()
         (prior.session as? MatchSession)?.close()
         val reopened =
             MatchHandlerState.Handshaking().also {
@@ -308,7 +318,6 @@ class MatchConnection(
                 connection = connection,
                 gameBridge = bridge,
                 paceDelayMs = engineSettings.paceDelayMs,
-                deferNetworkAdvance = deferGameplayAdvance,
             )
         bindSession(s)
         registry.registerSession(matchId, SeatId(seatId), s)
@@ -487,6 +496,7 @@ class MatchConnection(
 
     fun disconnected() {
         log.info("Match Door: client disconnected")
+        stopRuntimeDeliveryObserver()
         if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
             return
@@ -502,6 +512,7 @@ class MatchConnection(
 
     fun failed(cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
+        stopRuntimeDeliveryObserver()
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
@@ -514,6 +525,7 @@ class MatchConnection(
 
     internal fun detachAfterTeardown() {
         // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
+        stopRuntimeDeliveryObserver()
         state = MatchHandlerState.Handshaking()
     }
 

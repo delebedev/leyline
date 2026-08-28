@@ -1,8 +1,6 @@
 package leyline.match
 
 import leyline.bridge.coord.PriorityPolicyRuntime
-import leyline.bridge.handoff.PendingActionKind
-import leyline.game.bundle.BundleBuilder
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -10,8 +8,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Handles the `PerformActionResp` dispatch cycle: validate the inbound action,
  * submit a correlated value response to the coordinator, and drive the
- * post-action flow (awaitPriority → post-cast prompt → modal ETB check →
- * auto-pass advance). The engine thread resolves the retained executable action.
+ * post-action continuation. The engine thread resolves the retained executable
+ * action and owns all progression after that point.
  *
  * **Threading:** Callers invoke inside the session lock. This class adds no
  * locking of its own.
@@ -19,14 +17,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * **State:** Stateless between calls. Priority settings are submitted to the
  * match runtime, which remains the sole owner of mutable policy state.
  */
-class ActionPerformer(
+internal class ActionPerformer(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
     private val matchRecorder: MatchRecorder? = null,
     private val targetingHandler: TargetingHandler,
-    private val autoPassEngine: AutoPassEngine,
     private val priorityPolicy: PriorityPolicyRuntime,
     private val ctx: SessionContext,
+    private val continuation: MatchRuntimeContinuation,
 ) {
     private val log = LoggerFactory.getLogger(ActionPerformer::class.java)
 
@@ -35,7 +33,10 @@ class ActionPerformer(
      * advance the engine to the next priority stop.
      */
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
-    fun perform(greMsg: ClientToGREMessage) {
+    fun perform(
+        greMsg: ClientToGREMessage,
+        completedActionId: String?,
+    ) {
         var acceptedClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim? = null
         try {
             val bridge = ctx.bridge
@@ -59,19 +60,21 @@ class ActionPerformer(
                 return
             }
 
-            if (targetingHandler.tryHandlePayCostsPerformAction(greMsg) { autoPassEngine.autoPassAndAdvance() }) {
+            val paymentResult = targetingHandler.tryHandlePayCostsPerformAction(greMsg)
+            when (paymentResult) {
+                HandlerResult.Resume -> continuation.awaitHorizon(completedActionId)
+                is HandlerResult.ResumeAfterEngineResume -> continuation.awaitHorizon(completedActionId, paymentResult)
+                HandlerResult.Waiting -> Unit
+                HandlerResult.NotHandled -> Unit
+            }
+            if (paymentResult != HandlerResult.NotHandled) {
                 return
             }
 
             val pending =
                 seatBridge.action.getPending() ?: run {
-                    when (targetingHandler.checkPendingPrompt()) {
-                        TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                        TargetingHandler.PromptResult.NONE -> {
-                            log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
-                            bridge.cutCoordinator.drain(counters.seatId).forEach { sink.sendBundle(BundleBuilder.BundleResult(it)) }
-                        }
-                    }
+                    log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
+                    bridge.cutCoordinator.drain(counters.seatId).forEach { sink.sendBundledGRE(it) }
                     return
                 }
             val action = greMsg.performActionResp.actionsList.firstOrNull()
@@ -108,19 +111,6 @@ class ActionPerformer(
             Tap.inboundAction(action)
             matchRecorder?.recordClientAction(greMsg)
 
-            // ActivateMana excluded: mana abilities don't use the stack (MTG 605.3),
-            // so they don't reach handlePostCastPrompt or the post-stack-resolution check.
-            val isCastOrActivate =
-                action.actionType == ActionType.Cast ||
-                    action.actionType == ActionType.Activate_add3 ||
-                    action.actionType == ActionType.CastAdventure ||
-                    action.actionType == ActionType.CastLeftRoom ||
-                    action.actionType == ActionType.CastRightRoom ||
-                    action.actionType == ActionType.CastOmen ||
-                    action.actionType == ActionType.CastMdfc ||
-                    action.actionType == ActionType.SpecialTurnFaceUp_add3
-            val game = ctx.game
-            val stackWasNonEmpty = !game.stack.isEmpty
             if (!mayDefer) {
                 check(bridge.cutCoordinator.completeActionClaim(claim.actionClaim)) { "Accepted action claim did not complete" }
                 acceptedClaim = null
@@ -155,60 +145,7 @@ class ActionPerformer(
                 }
             }
 
-            // Wait for engine to reach next priority stop
-            bridge.awaitPriority()
-            val drainOutcome = autoPassEngine.drainPlayback()
-            if (drainOutcome.synchronization == SynchronizationDrain.Completed) {
-                // A routed prompt may have become the resulting horizon while
-                // Forge resolved the synchronized stack item. Surface it before
-                // returning; do not advance a second synchronization stop here.
-                val promptResult = targetingHandler.checkPendingPrompt()
-                if (shouldDelegateSynchronization(promptResult, priorityPolicy.shouldAutoPass())) {
-                    autoPassEngine.autoPassAndAdvance()
-                }
-                return
-            }
-
-            if (action.actionType == ActionType.ActivateMana) {
-                sink.sendRealGameState(bridge)
-                return
-            }
-
-            // After a cast or activate, check for targeting prompt or intermediate stack state.
-            // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
-            if (isCastOrActivate && targetingHandler.handlePostCastPrompt(priorityPolicy.shouldAutoPass())) return
-
-            // After stack resolution: check for modal ETB prompt before sending state.
-            // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
-            // during resolution, blocking in chooseModeForAbility.
-            if (stackWasNonEmpty) {
-                val g = ctx.game
-                // Check for pending modal prompt from ETB trigger
-                when (targetingHandler.checkPendingPrompt()) {
-                    TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
-                    TargetingHandler.PromptResult.NONE -> {
-                        if (g.stack.isEmpty) {
-                            val nextPending = seatBridge.action.getPending()
-                            if (nextPending?.state?.kind == PendingActionKind.DECLARE_ATTACKERS ||
-                                nextPending?.state?.kind == PendingActionKind.DECLARE_BLOCKERS
-                            ) {
-                                autoPassEngine.autoPassAndAdvance()
-                                return
-                            }
-                            log.info("ActionPerformer: stack resolved, sending intermediate resolution state")
-                            sink.sendRealGameState(bridge)
-                            if (g.isGameOver) {
-                                log.info("ActionPerformer: game over after stack resolution")
-                                sink.sendGameOver()
-                                return
-                            }
-                            return
-                        }
-                    }
-                }
-            }
-
-            autoPassEngine.autoPassAndAdvance()
+            continuation.awaitClientVisibleHorizon(ignoredActionId = completedActionId)
         } catch (ex: Exception) {
             acceptedClaim?.let { ctx.bridge.cutCoordinator.failActionClaim(it, ex) }
             ctx.bridge.cutCoordinator.fail(ex)
@@ -235,12 +172,5 @@ class ActionPerformer(
         }
         check(ctx.bridge.cutCoordinator.completeActionClaim(actionClaim)) { "Deferred action claim did not complete" }
         return true
-    }
-
-    companion object {
-        internal fun shouldDelegateSynchronization(
-            promptResult: TargetingHandler.PromptResult,
-            autoResolveEnabled: Boolean,
-        ): Boolean = promptResult == TargetingHandler.PromptResult.NONE && autoResolveEnabled
     }
 }

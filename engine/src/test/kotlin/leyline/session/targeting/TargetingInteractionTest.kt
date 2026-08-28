@@ -24,6 +24,7 @@ import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
+import leyline.testkit.castingTimeOptionsResp
 import leyline.testkit.clientMessage
 import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
@@ -31,12 +32,16 @@ import leyline.testkit.findZoneTransfer
 import leyline.testkit.firstWithTransferCategory
 import leyline.testkit.gameStateMessages
 import leyline.testkit.gsm
+import leyline.testkit.orderResp
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.testkit.searchResp
+import leyline.testkit.selectNResp
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GroupResp
 import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsResp
@@ -52,8 +57,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * mechanic: single-target creature (Giant Growth), player-targeted burn (Lightning
  * Bolt), two-phase protocol, and multi-group fight (Bite Down).
  *
- * The #92 auto-resolve regression test is parked here pending an AutoPass
- * consolidation file — see the TODO near the test.
+ * The #92 auto-resolve regression test remains here pending a shared
+ * runtime-horizon fixture — see the TODO near the test.
  */
 class TargetingInteractionTest :
     SessionTest({
@@ -146,11 +151,19 @@ class TargetingInteractionTest :
                     .current()
                     .shouldNotBeNull()
 
-            respondToSelectN(emptyList())
-            respondToOrder(emptyList())
-            respondToSearch(emptyList())
-            respondModalChoice(emptyList())
-            respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = emptyList())
+            // These responses intentionally use the wrong family and have no successor to await.
+            send(submitWithGsId(selectNResp(emptyList())))
+            send(submitWithGsId(orderResp(emptyList())))
+            send(submitWithGsId(searchResp(emptyList())))
+            send(submitWithGsId(castingTimeOptionsResp(emptyList())))
+            send(
+                submitWithGsId(
+                    clientMessage(ClientMessageType.GroupResp_097b) {
+                        setGroupResp(GroupResp.getDefaultInstance())
+                    },
+                ),
+            )
+            drainSink()
 
             bridge
                 .cutCoordinator
@@ -741,10 +754,10 @@ class TargetingInteractionTest :
             }
         }
 
-        // ─── Auto-resolve regression #92 ───────────────────────────────────────
+        // ─── Runtime-horizon regression #92 ────────────────────────────────────
 
-        // TODO: Relocate to an AutoPass consolidation file when one exists —
-        // this test is about handlePostCastPrompt / auto-resolve, not targeting.
+        // TODO: Relocate to a shared runtime-horizon fixture when one exists —
+        // this test is about handlePostCastPrompt / auto-resolution, not targeting.
         session(
             "#92 — non-targeted spell does not prompt Resolve while on stack",
             puzzle = """

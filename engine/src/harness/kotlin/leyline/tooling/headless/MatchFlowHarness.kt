@@ -1,5 +1,6 @@
 package leyline.tooling.headless
 
+import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
@@ -31,6 +32,7 @@ import leyline.match.MatchSession
 import leyline.match.isGameplayResponse
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 /**
  * Test harness driving a real match through [MatchConnection].
@@ -112,11 +114,14 @@ class MatchFlowHarness(
         MatchFlowCombatDriver(
             seatId = seatId,
             bridge = { bridge },
-            submit = { message -> localConnection.submitGREMessage(message) },
+            submit = { message, description -> submitAndAwaitClientResult(message, description) },
+            submitAndAwaitPrompt = { message, description, predicate ->
+                submitAndAwaitClientResult(message, description, predicate)
+            },
             messageSnapshot = { messageLog.snapshot() },
             messagesSince = { snapshot -> messageLog.since(snapshot) },
             submitWithGsId = { msg -> submitWithGsId(msg) },
-            drainSink = { drainSink() },
+            awaitClientOutput = { description, predicate -> awaitNextClientOutput(description, predicate) },
         )
 
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
@@ -128,6 +133,7 @@ class MatchFlowHarness(
     private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
     private lateinit var localConnection: MatchConnection
+    private lateinit var localOutput: SinkMatchOutput
     private var familiarConnection: MatchConnection? = null
 
     lateinit var bridge: GameBridge
@@ -179,13 +185,15 @@ class MatchFlowHarness(
         GameBootstrap.initializeCardDatabase(quiet = true)
         val repo = cardRepositoryForConstructedDecks()
         val runtimeConfigs = runtimeConfigs(puzzle = null)
-        localConnection = newConnection(repo, runtimeConfigs, effectiveSink)
+        localOutput = SinkMatchOutput(effectiveSink)
+        localConnection = newConnection(repo, runtimeConfigs, localOutput)
         val familiarSink = ListMessageSink()
-        familiarConnection = newConnection(repo, runtimeConfigs, familiarSink)
+        familiarConnection = newConnection(repo, runtimeConfigs, SinkMatchOutput(familiarSink))
 
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         authenticateAndConnect(checkNotNull(familiarConnection), opponentSeatId.value, "headless-player_Familiar")
         bindEngineHandles()
+        if (aiScript != null) installScriptedAi(aiScript)
         drainSink()
 
         val familiarPrompt = familiarSink.messages.last { it.type == GREMessageType.ChooseStartingPlayerReq_695e }
@@ -207,6 +215,8 @@ class MatchFlowHarness(
         drainSink()
 
         val mulliganPrompt = allMessages.last { it.type == GREMessageType.MulliganReq_aa0d }
+        val outputEpoch = localOutput.snapshot()
+        val outputStart = messageSnapshot()
         localConnection.submitGREMessage(
             ClientToGREMessage
                 .newBuilder()
@@ -218,8 +228,14 @@ class MatchFlowHarness(
                 .build(),
         )
         drainSink()
-
-        if (aiScript != null) installScriptedAi(aiScript)
+        val humanMain1: (GREToClientMessage) -> Boolean = { message ->
+            message.hasActionsAvailableReq() &&
+                accumulator.turnInfo?.activePlayer == seatId.value &&
+                accumulator.turnInfo?.phase == Phase.Main1_a549
+        }
+        if (messagesSince(outputStart).none(humanMain1)) {
+            awaitNamedOutput(outputEpoch, outputStart, "initial human main phase") { humanMain1(it) }
+        }
     }
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
@@ -238,7 +254,7 @@ class MatchFlowHarness(
      * Board state is defined declaratively — no multi-turn setup loops.
      *
      * @param aiScript optional scripted actions for the AI — installed before
-     *                 auto-pass runs so the AI follows the script on its first turn.
+     *                 the first engine-owned runtime horizon is delivered.
      */
     fun connectAndKeepPuzzleText(
         puzzleText: String,
@@ -253,11 +269,48 @@ class MatchFlowHarness(
         aiScript: List<ScriptedAction>?,
     ) {
         val repo = cardRepositoryForPuzzle()
-        localConnection = newConnection(repo, runtimeConfigs(PuzzleSource.definitionFromText(puzzleText, matchId)), effectiveSink)
+        localOutput = SinkMatchOutput(effectiveSink)
+        val beforeRuntimeStart =
+            aiScript?.let { script ->
+                { puzzleBridge: GameBridge ->
+                    val game = checkNotNull(puzzleBridge.getGame())
+                    val aiPlayer = game.players.first { it.lobbyPlayer is LobbyPlayerAi }
+                    aiPlayer.addController(
+                        Long.MAX_VALUE,
+                        aiPlayer,
+                        ScriptedPlayerController(game, aiPlayer, script),
+                        false,
+                    )
+                }
+            }
+        localConnection =
+            newConnection(
+                repo,
+                runtimeConfigs(PuzzleSource.definitionFromText(puzzleText, matchId)),
+                localOutput,
+                beforeRuntimeStart,
+            )
+        val outputEpoch = localOutput.snapshot()
+        val outputStart = messageSnapshot()
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         bindEngineHandles()
-        if (aiScript != null) installScriptedAi(aiScript)
         drainSink()
+        val pendingKind =
+            bridge
+                .actionBridge(seatId)
+                .getPending()
+                ?.state
+                ?.kind
+        awaitNamedOutput(outputEpoch, outputStart, "initial puzzle prompt") { message ->
+            when (pendingKind) {
+                PendingActionKind.DECLARE_ATTACKERS -> message.hasDeclareAttackersReq()
+                PendingActionKind.DECLARE_BLOCKERS -> message.hasDeclareBlockersReq()
+                PendingActionKind.PRIORITY -> message.hasActionsAvailableReq()
+                PendingActionKind.SYNC_ONLY,
+                null,
+                -> message.hasActionsAvailableReq() || message.hasDeclareAttackersReq() || message.hasDeclareBlockersReq()
+            }
+        }
     }
 
     private fun runtimeConfigs(puzzle: leyline.config.PuzzleDefinition?): RuntimeMatchConfigRegistry =
@@ -276,16 +329,17 @@ class MatchFlowHarness(
     private fun newConnection(
         repo: CardRepository,
         runtimeConfigs: RuntimeMatchConfigRegistry,
-        outputSink: MessageSink,
+        output: MatchOutput,
+        beforePuzzleRuntimeStart: ((GameBridge) -> Unit)? = null,
     ): MatchConnection =
         MatchConnection(
             registry = registry,
-            output = SinkMatchOutput(outputSink),
+            output = output,
             engineSettings = effectiveMatchConfig,
             puzzleLibrary = leyline.game.generator.PuzzleLibrary(Path.of("data/puzzles")),
             cardRepository = repo,
             runtimeMatchConfigs = runtimeConfigs,
-            deferGameplayAdvance = false,
+            beforePuzzleRuntimeStart = beforePuzzleRuntimeStart,
         )
 
     private fun authenticateAndConnect(
@@ -322,7 +376,6 @@ class MatchFlowHarness(
                     .toByteString(),
             ),
         )
-        connection.awaitQuiescence()
     }
 
     private fun serviceMessage(
@@ -340,8 +393,6 @@ class MatchFlowHarness(
         gameRef = checkNotNull(bridge.getGame())
         cacheSeatPlayers()
     }
-
-    private fun matchSession(): MatchSession = localConnection.session as? MatchSession ?: error("No active match session")
 
     private fun cardRepositoryForConstructedDecks(): CardRepository =
         if (cardRepositoryOverride != null) {
@@ -380,8 +431,8 @@ class MatchFlowHarness(
      *             first land in hand, which is shuffle-dependent — and shuffle
      *             order shifts with upstream forge edition data because
      *             PaperCard.hashCode is printing-specific. A wrong-coloured
-     *             land then makes the follow-up spell uncastable, autoPass
-     *             advances through phases unblocked, and the turn counter
+     *             land then makes the follow-up spell uncastable, runtime
+     *             continuation advances through phases unblocked, and the turn counter
      *             skips past T1 before the test asserts.
      */
     fun playLand(name: String? = null): Boolean {
@@ -391,16 +442,18 @@ class MatchFlowHarness(
             (if (name != null) handCards.firstOrNull { it.isLand && it.name.equals(name, ignoreCase = true) } else null)
                 ?: handCards.firstOrNull { it.isLand }
                 ?: return false
+        val pending = bridge.actionBridge(seatId).getPending()?.takeIf { it.state.kind == PendingActionKind.PRIORITY } ?: return false
+        val instanceId = bridge.instanceId(land)
+        val action =
+            allMessages
+                .asReversed()
+                .firstOrNull { it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId }
+                ?.actionsAvailableReq
+                ?.actionsList
+                ?.singleOrNull { it.actionType == ActionType.Play_add3 && it.instanceId == instanceId }
+                ?: return false
 
-        val msg =
-            performAction {
-                actionType = ActionType.Play_add3
-                instanceId = bridge.instanceId(land)
-                grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
-            }
-
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(performAction(action)), "land play")
         return true
     }
 
@@ -420,8 +473,7 @@ class MatchFlowHarness(
                 grpId = bridge.cardRepository.findGrpIdByName(creature.name) ?: 0
             }
 
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "creature cast")
         return true
     }
 
@@ -480,43 +532,18 @@ class MatchFlowHarness(
             performAction {
                 mergeFrom(action)
             }
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "mana activation")
         return true
     }
 
     private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
 
     /** Advance one exact priority or state-only synchronization stop. */
-    fun passPriority() {
-        val pass =
-            accumulator.actions
-                ?.actionsList
-                ?.singleOrNull { it.actionType == ActionType.Pass }
-        if (pass != null) {
-            localConnection.submitGREMessage(submitWithGsId(performAction(pass)))
-            drainSink()
-            return
-        }
-        val pending = bridge.actionBridge(seatId).getPending()
-        if (pending?.state?.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY) {
-            matchSession().sendPriorityState(bridge)
-            drainSink()
-            return
-        }
-        localConnection.submitGREMessage(submitWithGsId(performAction { actionType = ActionType.Pass }))
-        drainSink()
-    }
+    fun passPriority() = passPriorityUntil(messageSnapshot(), "priority horizon")
 
     /** Submit an offered action without rebuilding or dropping action fields. */
     fun submitAction(action: Action) {
-        submit(submitWithGsId(performAction(action)))
-    }
-
-    /** Submit one typed client response through the production routing table. */
-    fun submit(message: ClientToGREMessage) {
-        send(message)
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(performAction(action)), "offered action")
     }
 
     /** Route one typed response without consuming the emitted output. */
@@ -526,11 +553,12 @@ class MatchFlowHarness(
 
     /** Apply client settings through SetSettingsReq. */
     fun updateSettings(settings: SettingsMessage) {
-        submit(
+        send(
             clientMessage(ClientMessageType.SetSettingsReq_097b) {
                 setSetSettingsReq(SetSettingsReq.newBuilder().setSettings(settings))
             },
         )
+        drainSink()
     }
 
     fun concede() {
@@ -567,19 +595,19 @@ class MatchFlowHarness(
             unanswered != null -> respondToSelectN(unanswered.ids.take(unanswered.count))
             pendingKind == PendingActionKind.DECLARE_ATTACKERS -> declareNoAttackers()
             pendingKind == PendingActionKind.DECLARE_BLOCKERS -> declareNoBlockers()
-            pendingKind == PendingActionKind.PRIORITY || pendingKind == PendingActionKind.SYNC_ONLY -> passPriority()
+            pendingKind == PendingActionKind.PRIORITY || pendingKind == PendingActionKind.SYNC_ONLY ->
+                passPriorityUntil(messageSnapshot(), "priority horizon", stopAtInteraction = true)
             prompt?.hasPayCostsReq() == true ->
-                submit(
+                submitAndAwaitClientResult(
                     submitWithGsId(
                         performAction { actionType = ActionType.Pass }
                             .toBuilder()
                             .setGameStateId(latestPromptGsId())
                             .build(),
                     ),
+                    "cost cancellation",
                 )
-            else -> {
-                submit(submitWithGsId(performAction { actionType = ActionType.Pass }))
-            }
+            else -> passPriorityUntil(messageSnapshot(), "priority pass", stopAtInteraction = true)
         }
     }
 
@@ -631,13 +659,12 @@ class MatchFlowHarness(
      * Pass priority until the stack is empty. Use after cast + target to resolve.
      *
      * Always passes at least once: the stack may already be empty before the
-     * action's effect lands, because auto-pass can resolve it during
+     * action's effect lands, because the engine can resolve it during
      * `selectTargets` / `drainSink`.
      */
     fun passUntilResolved(maxPasses: Int = 10) {
         repeat(maxPasses) {
             if (isGameOver()) return
-            passPriority()
             val retainedSynchronization =
                 bridge
                     .actionBridge(seatId)
@@ -645,20 +672,15 @@ class MatchFlowHarness(
                     ?.state
                     ?.kind == PendingActionKind.SYNC_ONLY
             if (game().stackZone.size() == 0 && !retainedSynchronization) return
+            passPriority()
         }
     }
 
     /**
      * Keep passing until a target turn is reached (or game over / max iterations).
      *
-     * TODO(multi-turn-overshoot): A single [passPriority] call triggers
-     *  [MatchSession.autoPassAndAdvance] which loops up to 50 times, auto-passing
-     *  every phase where only Pass is available. This means one call can skip
-     *  entire turns — e.g. with seed 42, land + creature + resolve + pass jumps
-     *  from turn 1 to turn 3. Tests that need exact turn control should use haste
-     *  creatures (turn-1 combat) or assert turn >= N instead of turn == N. A proper
-     *  fix would be to add a turn-boundary stop in autoPassAndAdvance so the client
-     *  always gets priority at the start of each new turn.
+     * Each pass response reaches one engine-owned horizon. This helper submits
+     * those responses until the observed game state reaches the requested turn.
      */
     fun passUntilTurn(
         targetTurn: Int,
@@ -678,16 +700,179 @@ class MatchFlowHarness(
         advanceUntil(maxPasses) { isGameOver() || turn() > startTurn }
     }
 
-    /**
-     * Trigger autoPassAndAdvance directly — without submitting an action first.
-     *
-     * Use when the engine is already blocked at a combat phase (e.g.
-     * COMBAT_DECLARE_BLOCKERS) and you need CombatHandler to send the
-     * prompt message. Calling [passPriority] would submit Pass to the
-     * combat pending, which is not what you want.
-     */
-    fun triggerAutoPass() {
-        matchSession().triggerAutoPass()
+    internal fun awaitNextClientOutput(
+        description: String = "client output",
+        predicate: (GREToClientMessage) -> Boolean = { true },
+    ) {
+        val epoch = localOutput.snapshot()
+        val messageStart = messageSnapshot()
+        awaitNamedOutput(epoch, messageStart, description, predicate)
+    }
+
+    private fun submitAndAwaitClientResult(
+        message: ClientToGREMessage,
+        description: String,
+        expected: ((GREToClientMessage) -> Boolean)? = null,
+        autoRespond: Boolean = true,
+    ) = awaitClientOperation(
+        description,
+        response = {
+            submitWithGsId(
+                message
+                    .toBuilder()
+                    .clearGameStateId()
+                    .clearRespId()
+                    .build(),
+            )
+        },
+        expected = expected,
+        autoRespond = autoRespond,
+    )
+
+    private fun awaitClientOperation(
+        description: String,
+        complete: () -> Boolean = { false },
+        response: () -> ClientToGREMessage?,
+        expected: ((GREToClientMessage) -> Boolean)? = null,
+        continueAfterSubmit: Boolean = false,
+        autoRespond: Boolean = true,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (true) {
+            collectSinkMessages()
+            if (isGameOver()) return
+            var epoch = 0L
+            var messageStart = 0
+            var submitted = false
+            var completed = false
+            withSessionLock {
+                collectSinkMessages()
+                if (complete()) {
+                    completed = true
+                    return@withSessionLock
+                }
+                epoch = localOutput.snapshot()
+                messageStart = messageSnapshot()
+                response()?.let {
+                    localConnection.submitGREMessage(it)
+                    submitted = true
+                }
+            }
+            if (completed) return
+            if (submitted && !continueAfterSubmit) {
+                if (expected == null) {
+                    val remainingNanos = deadline - System.nanoTime()
+                    check(
+                        remainingNanos > 0 &&
+                            localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
+                    ) { "Timed out waiting for $description" }
+                    collectSinkMessages()
+                } else {
+                    awaitNamedOutput(epoch, messageStart, description, expected)
+                }
+                if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
+                return
+            }
+            val remainingNanos = deadline - System.nanoTime()
+            check(
+                remainingNanos > 0 && localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
+            ) { "Timed out waiting for $description" }
+        }
+    }
+
+    private fun submitTargetingResponse(
+        description: String,
+        buildResponse: (GREToClientMessage) -> ClientToGREMessage,
+        expected: ((GREToClientMessage) -> Boolean)? = null,
+    ) = awaitClientOperation(
+        description,
+        response = {
+            val current = bridge.cutCoordinator.targeting.current()
+            val prompt =
+                allMessages.asReversed().firstOrNull {
+                    it.hasSelectTargetsReq() && it.gameStateId == current?.gameStateId
+                }
+            prompt?.let {
+                buildResponse(it)
+                    .toBuilder()
+                    .setGameStateId(it.gameStateId)
+                    .setRespId(it.msgId)
+                    .build()
+            }
+        },
+        expected = expected,
+    )
+
+    private fun passPriorityUntil(
+        messageStart: Int,
+        description: String,
+        expectedPrompt: ((GREToClientMessage) -> Boolean)? = null,
+        stopAtInteraction: Boolean = false,
+    ) = awaitClientOperation(
+        description,
+        complete = {
+            (stopAtInteraction && bridge.hasPendingNonActionInteraction()) ||
+                (expectedPrompt != null && messagesSince(messageStart).any(expectedPrompt))
+        },
+        response = {
+            if (bridge.hasPendingNonActionInteraction()) {
+                check(expectedPrompt != null) { "The current prompt requires its typed response, not a priority pass" }
+                return@awaitClientOperation null
+            }
+            val pending = bridge.actionBridge(seatId).getPending()
+            when (pending?.state?.kind) {
+                PendingActionKind.SYNC_ONLY -> null
+                PendingActionKind.DECLARE_ATTACKERS, PendingActionKind.DECLARE_BLOCKERS ->
+                    error("A declaration horizon requires a declaration response, not a priority pass")
+                PendingActionKind.PRIORITY -> {
+                    val prompt =
+                        allMessages.asReversed().firstOrNull {
+                            it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId
+                        }
+                    val pass = prompt?.actionsAvailableReq?.actionsList?.singleOrNull { it.actionType == ActionType.Pass }
+                    if (pass == null) {
+                        null
+                    } else {
+                        performAction(pass)
+                            .toBuilder()
+                            .setGameStateId(prompt.gameStateId)
+                            .setRespId(prompt.msgId)
+                            .build()
+                    }
+                }
+                else -> null
+            }
+        },
+        continueAfterSubmit = expectedPrompt != null,
+        autoRespond = false,
+    )
+
+    private inline fun <T> withSessionLock(block: () -> T): T {
+        val session = localConnection.session as? MatchSession ?: error("Match session is not connected")
+        return synchronized(session.connection.sessionLock) { block() }
+    }
+
+    private fun awaitNamedOutput(
+        epoch: Long,
+        messageStart: Int,
+        description: String,
+        predicate: (GREToClientMessage) -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        var deliveredEpoch = epoch
+        collectSinkMessages()
+        while (messagesSince(messageStart).none(predicate)) {
+            val remainingNanos = deadline - System.nanoTime()
+            if (remainingNanos <= 0 ||
+                !localOutput.awaitAfter(deliveredEpoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1)
+            ) {
+                collectSinkMessages()
+                check(messagesSince(messageStart).any(predicate)) { "Timed out waiting for $description" }
+                return
+            }
+            deliveredEpoch = localOutput.snapshot()
+            collectSinkMessages()
+        }
     }
 
     /**
@@ -706,25 +891,66 @@ class MatchFlowHarness(
         return controller
     }
 
-    // --- Phase-precise advancement (bridge-level, no AutoPassEngine) ---
+    // --- Phase-precise advancement (bridge-level) ---
 
     /**
      * Advance to a specific phase via bridge — one PassPriority at a time.
-     * No AutoPassEngine involvement, no phase overshoot.
+     * No session policy is involved, so there is no phase overshoot.
      */
     fun advanceToPhase(
         phase: String,
         turn: Int? = null,
-    ) = leyline.game.advanceToPhase(bridge, phase, turn)
+    ): leyline.bridge.handoff.GameActionBridge.PendingAction {
+        drainSink()
+        val pendingAtStart = bridge.actionBridge(seatId).getPending()
+        val messageStart = messageLog.snapshot()
+        var epoch = localOutput.snapshot()
+        val pending =
+            leyline.game.advanceTo(
+                bridge,
+                predicate = { currentPhase, currentTurn -> currentPhase == phase && (turn == null || currentTurn == turn) },
+                onSynchronization = {
+                    val synchronizationStart = messageSnapshot()
+                    awaitNamedOutput(epoch, synchronizationStart, "synchronization delivery") { it.hasGameStateMessage() }
+                    epoch = localOutput.snapshot()
+                },
+            )
+        drainSink()
+        val alreadyVisible =
+            pendingHorizonVisible(pending, allMessages.subList(0, messageStart)) &&
+                (pending.state.kind != PendingActionKind.SYNC_ONLY || pendingAtStart?.actionId == pending.actionId)
+        if (!alreadyVisible && !pendingHorizonVisible(pending, messagesSince(messageStart))) {
+            awaitNamedOutput(epoch, messageStart, "${pending.state.kind} delivery") { message ->
+                pendingHorizonVisible(pending, listOf(message))
+            }
+        }
+        return pending
+    }
+
+    private fun pendingHorizonVisible(
+        pending: leyline.bridge.handoff.GameActionBridge.PendingAction,
+        messages: List<GREToClientMessage>,
+    ): Boolean {
+        val gameStateId = pending.promptGameStateId
+        return messages.asReversed().any { message ->
+            (pending.state.kind == PendingActionKind.SYNC_ONLY || message.gameStateId == gameStateId) &&
+                when (pending.state.kind) {
+                    PendingActionKind.PRIORITY -> message.hasActionsAvailableReq()
+                    PendingActionKind.DECLARE_ATTACKERS -> message.hasDeclareAttackersReq()
+                    PendingActionKind.DECLARE_BLOCKERS -> message.hasDeclareBlockersReq()
+                    PendingActionKind.SYNC_ONLY -> message.hasGameStateMessage()
+                }
+        }
+    }
 
     /** Advance to Main1 via bridge. */
-    fun advanceToMain1() = leyline.game.advanceToMain1(bridge)
+    fun advanceToMain1() = advanceToPhase("MAIN1")
 
     /** Advance to COMBAT_DECLARE_ATTACKERS via bridge. */
-    fun advanceToCombat(turn: Int? = null) = leyline.game.advanceToCombat(bridge, turn)
+    fun advanceToCombat(turn: Int? = null) = advanceToPhase("COMBAT_DECLARE_ATTACKERS", turn)
 
     /** Advance to MAIN2 via bridge. */
-    fun advanceToMain2(turn: Int? = null) = leyline.game.advanceToMain2(bridge, turn)
+    fun advanceToMain2(turn: Int? = null) = advanceToPhase("MAIN2", turn)
 
     // --- Combat helpers ---
 
@@ -744,7 +970,25 @@ class MatchFlowHarness(
     ) = combatDriver.declareAttackers(attackerInstanceIds, damageRecipients)
 
     /** Declare no attackers (skip combat). Sends empty selection then submits. */
-    fun declareNoAttackers() = combatDriver.declareNoAttackers()
+    fun declareNoAttackers() {
+        if (bridge
+                .actionBridge(seatId)
+                .getPending()
+                ?.state
+                ?.kind != PendingActionKind.DECLARE_ATTACKERS
+        ) {
+            passPriority()
+            if (bridge
+                    .actionBridge(seatId)
+                    .getPending()
+                    ?.state
+                    ?.kind != PendingActionKind.DECLARE_ATTACKERS
+            ) {
+                return
+            }
+        }
+        combatDriver.declareNoAttackers()
+    }
 
     /**
      * Send only the iterative DeclareAttackersResp (no Submit) — simulates an Arena
@@ -786,7 +1030,25 @@ class MatchFlowHarness(
     fun declareBlockers(assignments: Map<Int, Int>) = combatDriver.declareBlockers(assignments)
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
-    fun declareNoBlockers() = combatDriver.declareNoBlockers()
+    fun declareNoBlockers() {
+        if (bridge
+                .actionBridge(seatId)
+                .getPending()
+                ?.state
+                ?.kind != PendingActionKind.DECLARE_BLOCKERS
+        ) {
+            passPriority()
+            if (bridge
+                    .actionBridge(seatId)
+                    .getPending()
+                    ?.state
+                    ?.kind != PendingActionKind.DECLARE_BLOCKERS
+            ) {
+                return
+            }
+        }
+        combatDriver.declareNoBlockers()
+    }
 
     /**
      * Send only the iterative DeclareBlockersResp (no Submit) — simulates a single
@@ -832,10 +1094,11 @@ class MatchFlowHarness(
         require(targetGroups.isNotEmpty()) { "targetGroups must not be empty" }
         targetGroups.forEach { (targetIdx, targetInstanceIds) ->
             val before = allMessages.size
-            localConnection.submitGREMessage(
-                submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx)),
+            submitTargetingResponse(
+                "target selection",
+                { selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx) },
+                GREToClientMessage::hasSelectTargetsReq,
             )
-            drainSink()
             // Each iterative response echoes a fresh prompt. This helper owns
             // those intermediate prompts so the caller only sees the final
             // submitted interaction.
@@ -844,8 +1107,10 @@ class MatchFlowHarness(
                 if (msg.hasSelectTargetsReq()) consumedPromptMsgIds += msg.msgId
             }
         }
-        localConnection.submitGREMessage(submitWithGsId(submitTargetsReq()))
-        drainSink()
+        submitTargetingResponse(
+            "target submission",
+            { submitTargetsReq() },
+        )
     }
 
     /** Prompt msgIds answered inside a multi-phase responder; drained by the caller. */
@@ -860,10 +1125,17 @@ class MatchFlowHarness(
      * Use to inspect the echo-back re-prompt before confirming.
      */
     fun selectTargetsIterative(targetInstanceIds: List<Int>) {
-        localConnection.submitGREMessage(
-            submitWithGsId(selectTargetsResp(targets = targetInstanceIds, targetIdx = currentTargetIndex())),
+        submitTargetingResponse(
+            "target selection",
+            {
+                val targetIdx =
+                    it.selectTargetsReq.targetsList
+                        .singleOrNull()
+                        ?.targetIdx ?: 1
+                selectTargetsResp(targets = targetInstanceIds, targetIdx = targetIdx)
+            },
+            GREToClientMessage::hasSelectTargetsReq,
         )
-        drainSink()
     }
 
     private val consumedPromptMsgIds = mutableSetOf<Int>()
@@ -879,14 +1151,18 @@ class MatchFlowHarness(
 
     /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {
-        localConnection.submitGREMessage(submitWithGsId(submitTargetsReq()))
-        drainSink()
+        submitTargetingResponse(
+            "target submission",
+            { submitTargetsReq() },
+        )
     }
 
     /** Cancel a pending targeting action (backs out of spell cast). */
     fun cancelAction() {
-        localConnection.submitGREMessage(submitWithGsId(cancelActionReq()))
-        drainSink()
+        submitAndAwaitClientResult(
+            submitWithGsId(cancelActionReq()),
+            "action cancellation",
+        )
     }
 
     /**
@@ -922,8 +1198,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.None_a455),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "group response")
     }
 
     /**
@@ -956,8 +1231,7 @@ class MatchFlowHarness(
                                 .setSubZoneType(SubZoneType.Bottom),
                         ).setGroupType(GroupType.Ordered),
                 ).build()
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "scry response")
     }
 
     /**
@@ -985,8 +1259,7 @@ class MatchFlowHarness(
                 if (alternativeGrpId != 0) this.alternativeGrpId = alternativeGrpId
             }
 
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "$cardName cast")
         return true
     }
 
@@ -1051,33 +1324,54 @@ class MatchFlowHarness(
 
     fun castSpellUntilSelectNReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
-    ): SelectNReq {
-        val before = messageSnapshot()
-        check(castSpellByName(cardName)) { "Could not cast $cardName" }
-        if (messagesSince(before).none { it.hasSelectNReq() }) {
-            advanceAfterCast()
-        }
-        return messagesSince(before).asReversed().firstNotNullOfOrNull { msg ->
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
+    ): SelectNReq =
+        castSpellUntilPriorityPrompt(cardName, "SelectNReq", advanceAfterCast) { msg ->
             if (msg.hasSelectNReq()) msg.selectNReq else null
-        } ?: error("Expected SelectNReq after casting $cardName")
-    }
+        }
+
+    fun castSpellUntilSelectTargetsReq(cardName: String): SelectTargetsReq =
+        castSpellUntilPriorityPrompt(cardName, "SelectTargetsReq", null) { msg ->
+            if (msg.hasSelectTargetsReq()) msg.selectTargetsReq else null
+        }
+
+    fun castSpellUntilSearchReq(cardName: String): SearchReq =
+        castSpellUntilPriorityPrompt(cardName, "SearchReq", null) { msg ->
+            if (msg.hasSearchReq()) msg.searchReq else null
+        }
 
     fun castSpellUntilOrderReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
     ): OrderReq =
-        castSpellUntil(cardName, promptName = "OrderReq", advanceAfterCast = advanceAfterCast) { msg ->
+        castSpellUntilPriorityPrompt(cardName, "OrderReq", advanceAfterCast) { msg ->
             if (msg.hasOrderReq()) msg.orderReq else null
         }
 
     fun castSpellUntilCastingTimeOptionsReq(
         cardName: String,
-        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)? = null,
     ): CastingTimeOptionsReq =
-        castSpellUntil(cardName, promptName = "CastingTimeOptionsReq", advanceAfterCast = advanceAfterCast) { msg ->
+        castSpellUntilPriorityPrompt(cardName, "CastingTimeOptionsReq", advanceAfterCast) { msg ->
             if (msg.hasCastingTimeOptionsReq()) msg.castingTimeOptionsReq else null
         }
+
+    private fun <T> castSpellUntilPriorityPrompt(
+        cardName: String,
+        promptName: String,
+        advanceAfterCast: (MatchFlowHarness.() -> Unit)?,
+        extract: (GREToClientMessage) -> T?,
+    ): T {
+        val messageStart = messageSnapshot()
+        check(castSpellByName(cardName)) { "Could not cast $cardName" }
+        if (advanceAfterCast == null) {
+            passPriorityUntil(messageStart, promptName, expectedPrompt = { extract(it) != null })
+        } else {
+            advanceAfterCast()
+        }
+        return messagesSince(messageStart).asReversed().firstNotNullOfOrNull(extract)
+            ?: error("Expected $promptName after casting $cardName")
+    }
 
     /**
      * Activate a non-mana ability on a battlefield card by name and ability index.
@@ -1141,8 +1435,7 @@ class MatchFlowHarness(
                 this.grpId = grpId
                 this.abilityGrpId = abilityGrpId
             }
-        localConnection.submitGREMessage(submitWithGsId(msg))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(msg), "ability activation")
         return true
     }
 
@@ -1154,49 +1447,44 @@ class MatchFlowHarness(
      * @param selectedInstanceIds the instanceIds the player chose (e.g. the legendary to keep)
      */
     fun respondToSelectN(selectedInstanceIds: List<Int>) {
-        localConnection.submitGREMessage(submitWithGsId(selectNResp(ids = selectedInstanceIds)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(selectNResp(ids = selectedInstanceIds)), "selection response")
     }
 
     fun respondToOrder(orderedInstanceIds: List<Int>) {
-        localConnection.submitGREMessage(submitWithGsId(orderResp(ids = orderedInstanceIds)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(orderResp(ids = orderedInstanceIds)), "order response")
     }
 
     fun respondToDistribution(amounts: List<Pair<Int, Int>>) {
-        localConnection.submitGREMessage(submitWithGsId(distributionResp(amounts)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(distributionResp(amounts)), "distribution response")
     }
 
     fun respondToSearch(itemsFound: List<Int>) {
-        localConnection.submitGREMessage(submitWithGsId(searchResp(itemsFound)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(searchResp(itemsFound)), "search response")
     }
 
     fun respondToEffectCost(selectedInstanceIds: List<Int>) {
-        localConnection.submitGREMessage(submitWithGsId(effectCostResp(selectedInstanceIds)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(effectCostResp(selectedInstanceIds)), "cost response")
     }
 
     fun respondToGatherCounters(gatherings: List<Pair<Int, Int>>) {
-        localConnection.submitGREMessage(submitWithGsId(gatherCountersResp(gatherings)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(gatherCountersResp(gatherings)), "counter response")
     }
 
     // --- Modal helpers ---
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */
     fun respondModalChoice(selectedGrpIds: List<Int>) {
-        localConnection.submitGREMessage(submitWithGsId(castingTimeOptionsResp(selectedGrpIds = selectedGrpIds)))
-        drainSink()
+        submitAndAwaitClientResult(
+            submitWithGsId(castingTimeOptionsResp(selectedGrpIds = selectedGrpIds)),
+            "modal response",
+        )
     }
 
     // --- Optional cost helpers ---
 
     /** Respond to a CastingTimeOptionsReq with the given ctoId (kicker, buyback). */
     fun respondToOptionalCost(ctoId: Int) {
-        localConnection.submitGREMessage(submitWithGsId(optionalCostResp(ctoId)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(optionalCostResp(ctoId)), "optional cost response")
     }
 
     /** Respond to a required ChooseX option embedded in CastingTimeOptionsReq. */
@@ -1204,8 +1492,7 @@ class MatchFlowHarness(
         ctoId: Int,
         value: Int,
     ) {
-        localConnection.submitGREMessage(submitWithGsId(castingTimeXResp(ctoId, value)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(castingTimeXResp(ctoId, value)), "X cost response")
     }
 
     /** Respond to a required alternate-additional-cost CastingTimeOptionsReq. */
@@ -1213,13 +1500,11 @@ class MatchFlowHarness(
         ctoId: Int,
         optionIndex: Int,
     ) {
-        localConnection.submitGREMessage(submitWithGsId(alternateCostResp(ctoId, optionIndex)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(alternateCostResp(ctoId, optionIndex)), "alternate cost response")
     }
 
     fun respondToManaTypeChoices(choicesByCtoId: List<Pair<Int, ManaColor>>) {
-        localConnection.submitGREMessage(submitWithGsId(manaTypeResp(choicesByCtoId)))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(manaTypeResp(choicesByCtoId)), "mana type response")
     }
     // --- Message inspection ---
 
@@ -1380,7 +1665,7 @@ class MatchFlowHarness(
      * submit we make will trigger
      * `WARN ActionPerformer: PerformActionResp but no pending action` and a
      * spurious state resync. Use as a guard before submitting an action
-     * in long-running drivers (simclient) where the auto-pass loop frequently
+     * in long-running drivers (simclient) where runtime horizons frequently
      * advances past priority windows between observe and submit.
      */
     fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
@@ -1416,10 +1701,9 @@ class MatchFlowHarness(
      * 0 pre-handshake or before any prompt has been received.
      *
      * Walks [allMessages] in reverse — that's the harness's view of what
-     * the "client" has seen. Deliberately does not consult
-     * `bridge.messageCounter.lastPromptGsId()`: the bridge counter is
-     * shared mutable state advanced from the engine thread, so reading it
-     * races against in-flight emissions.
+     * the "client" has seen. For an action response, the coordinator's exact
+     * pending window is authoritative because another seat may have advanced
+     * the shared message counter in the meantime.
      */
     fun latestPromptGsId(): Int = messageLog.latestPromptGsId()
 
@@ -1442,7 +1726,17 @@ class MatchFlowHarness(
     internal fun submitWithGsId(msg: ClientToGREMessage): ClientToGREMessage {
         val prompt = messageLog.latestPrompt() ?: return msg
         val builder = msg.toBuilder()
-        if (msg.gameStateId == 0) builder.gameStateId = prompt.gameStateId
+        val pendingActionGsId =
+            when (msg.type) {
+                ClientMessageType.PerformActionResp_097b,
+                ClientMessageType.DeclareAttackersResp_097b,
+                ClientMessageType.SubmitAttackersReq,
+                ClientMessageType.DeclareBlockersResp_097b,
+                ClientMessageType.SubmitBlockersReq,
+                -> bridge.actionBridge(seatId).getPending()?.promptGameStateId
+                else -> null
+            }
+        if (msg.gameStateId == 0) builder.gameStateId = pendingActionGsId ?: prompt.gameStateId
         if (msg.respId == 0 && msg.type in leyline.match.CORRELATED_CLIENT_MESSAGE_TYPES) {
             builder.respId = prompt.msgId
         }
@@ -1508,10 +1802,12 @@ class MatchFlowHarness(
     }
 
     private fun collectSinkMessages() {
-        allMessages.addAll(sink.messages)
-        allRawMessages.addAll(sink.rawMessages)
-        accumulator.processAll(sink.messages)
-        sink.clear()
+        synchronized(sink) {
+            allMessages.addAll(sink.messages)
+            allRawMessages.addAll(sink.rawMessages)
+            accumulator.processAll(sink.messages)
+            sink.clear()
+        }
     }
 
     internal fun drainSink() {
@@ -1519,6 +1815,10 @@ class MatchFlowHarness(
 
         if (responseMode != HeadlessResponseMode.AutoForTests) return
 
+        drainAutomaticResponses()
+    }
+
+    private fun drainAutomaticResponses() {
         // Auto-respond to engine-initiated prompts so the engine can continue.
         // Loops because chained prompts (e.g. Wildborn Preserver: optional
         // accept → numeric input → potentially another optional on the next
@@ -1532,8 +1832,7 @@ class MatchFlowHarness(
     /** Submit an already encoded gameplay response through the production dispatcher. */
     internal fun submitGameplayResponse(message: ClientToGREMessage): Boolean {
         if (!isGameplayResponse(message.type)) return false
-        localConnection.submitGREMessage(submitWithGsId(message))
-        drainSink()
+        submitAndAwaitClientResult(submitWithGsId(message), message.type.name)
         return true
     }
 
@@ -1564,10 +1863,7 @@ class MatchFlowHarness(
                         .newBuilder()
                         .setResponse(response),
                 ).build()
-        localConnection.submitGREMessage(greMsg)
-
-        // Drain follow-up messages without recursing
-        collectSinkMessages()
+        submitAndAwaitClientResult(greMsg, "optional action response", autoRespond = false)
         return true
     }
 
@@ -1606,9 +1902,7 @@ class MatchFlowHarness(
                         .newBuilder()
                         .setNumericInputValue(value),
                 ).build()
-        localConnection.submitGREMessage(greMsg)
-
-        collectSinkMessages()
+        submitAndAwaitClientResult(greMsg, "numeric input response", autoRespond = false)
         return true
     }
 
@@ -1637,8 +1931,7 @@ class MatchFlowHarness(
                         .newBuilder()
                         .setNumericInputValue(value),
                 ).build()
-        localConnection.submitGREMessage(greMsg)
-        collectSinkMessages()
+        submitAndAwaitClientResult(greMsg, "numeric input response")
     }
 
     /**
@@ -1659,20 +1952,44 @@ class MatchFlowHarness(
                         .newBuilder()
                         .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
                 ).build()
-        localConnection.submitGREMessage(greMsg)
-        collectSinkMessages()
+        submitAndAwaitClientResult(greMsg, "optional action response")
     }
 }
 
 private class SinkMatchOutput(
     private val sink: MessageSink,
 ) : MatchOutput {
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    private val monitor = java.lang.Object()
+    private var deliveredEpoch = 0L
+
     override fun send(message: MatchServiceToClientMessage) {
         sink.sendRaw(message)
-        if (message.hasGreToClientEvent()) {
-            sink.send(message.greToClientEvent.greToClientMessagesList)
+        if (!message.hasGreToClientEvent()) return
+        val greMessages = message.greToClientEvent.greToClientMessagesList
+        synchronized(monitor) {
+            sink.send(greMessages)
+            deliveredEpoch++
+            monitor.notifyAll()
         }
     }
 
     override fun close() = Unit
+
+    fun snapshot(): Long = synchronized(monitor) { deliveredEpoch }
+
+    fun awaitAfter(
+        epoch: Long,
+        timeoutMs: Long = 5_000L,
+    ): Boolean {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        synchronized(monitor) {
+            while (deliveredEpoch <= epoch) {
+                val remainingNanos = deadline - System.nanoTime()
+                if (remainingNanos <= 0) return false
+                TimeUnit.NANOSECONDS.timedWait(monitor, remainingNanos)
+            }
+            return true
+        }
+    }
 }

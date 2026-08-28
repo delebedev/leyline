@@ -6,7 +6,6 @@ import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GameActionBridge
-import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
@@ -43,6 +42,7 @@ internal class MatchCutCoordinator(
     )
 
     internal val feedLock = Any()
+    internal val deliverySignal = MatchDeliverySignal()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
@@ -107,21 +107,7 @@ internal class MatchCutCoordinator(
         includePriorityPrompt: Boolean = true,
     ): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId, includePriorityPrompt)
 
-    fun hasMeaningfulPriorityAction(actionId: String): Boolean = actions.hasMeaningfulAction(actionId)
-
     fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
-
-    /** Suppress one pass-only AI priority window before its committed feed is drained. */
-    fun suppressPassOnlyAiPriority(seatId: SeatId): Boolean {
-        val human = bridge.getPlayer(seatId) ?: return false
-        val game = bridge.getGame() ?: return false
-        if (game.phaseHandler.playerTurn == human) return false
-        val pending = bridge.seat(seatId).action.getPending() ?: return false
-        if (pending.state.kind != PendingActionKind.PRIORITY) return false
-        val hasLegalAction = hasMeaningfulPriorityAction(pending.actionId)
-        if (!bridge.priorityPolicy.shouldSuppressOpponentPresentation(game, isAiTurn = true, hasLegalAction)) return false
-        return suppressPriorityPresentation(pending.actionId)
-    }
 
     fun claimPriorityResponse(
         actionId: String,
@@ -214,6 +200,7 @@ internal class MatchCutCoordinator(
     fun shutdown(cause: Throwable = CancellationException("Match projection coordinator shut down")) {
         synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
+        deliverySignal.signal()
         bridge.prioritySignal.signal()
     }
 
@@ -244,7 +231,6 @@ internal class MatchCutCoordinator(
             ensureOpen()
             bridge.closeBundleFrame(seatId.value)
             feed(seatId).requestedCut = null
-            bridge.actionBridge(seatId).forceNextWindowVisible()
         }
     }
 
@@ -309,9 +295,6 @@ internal class MatchCutCoordinator(
                             bridge.commitProjection(prepared.transition) { installed = true }
                             feed.pendingCut = null
                             feed.requestedCut = null
-                            if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                            }
                         } catch (ex: Exception) {
                             if (!installed) removeEnqueuedBatches(feed, enqueued)
                             failPlayback(ex, pending = pending)
@@ -321,7 +304,8 @@ internal class MatchCutCoordinator(
                 }
             }
         pacePlayback(request.delayMs, delayMultiplier)
-        bridge.playbackDrainRequester?.invoke()
+        deliverySignal.signal()
+        bridge.prioritySignal.signal()
     }
 
     fun acknowledgeExternalFrame(seatId: SeatId) {
@@ -354,6 +338,10 @@ internal class MatchCutCoordinator(
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
 
+    internal fun signalDelivery() {
+        deliverySignal.signal()
+    }
+
     fun failure(): PlaybackTerminalFailure? = terminal.current()
 
     fun setBeforeBatchEnqueue(
@@ -370,6 +358,7 @@ internal class MatchCutCoordinator(
         batch: List<GREToClientMessage>,
     ) {
         synchronized(feedLock) { feed(seatId).queue.add(batch) }
+        deliverySignal.signal()
     }
 
     internal fun feed(seatId: SeatId): ViewerFeed = feeds[seatId] ?: error("No projection feed registered for seat ${seatId.value}")

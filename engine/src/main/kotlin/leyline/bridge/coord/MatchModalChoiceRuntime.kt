@@ -4,6 +4,7 @@ import forge.game.card.Card
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.ModalChoiceAiContext
+import leyline.bridge.handoff.ModalChoiceCleanupToken
 import leyline.bridge.handoff.ModalChoiceInteractionResult
 import leyline.bridge.handoff.ModalChoiceInteractionRuntime
 import leyline.bridge.handoff.ModalChoiceWindowValue
@@ -35,7 +36,7 @@ internal class MatchModalChoiceRuntime(
     }
 
     private data class CleanupReceipt(
-        val interactionId: String,
+        val token: ModalChoiceCleanupToken,
         val sourceInstanceId: Int,
         val triggered: Boolean,
         val cut: PendingPromptCut<ModalChoiceWindowValue>,
@@ -91,38 +92,52 @@ internal class MatchModalChoiceRuntime(
         interactionId: String,
         gameStateId: Int,
         selectedGrpIds: List<Int>,
-    ): Boolean =
+    ): Boolean = submitAndClaim(interactionId, gameStateId, selectedGrpIds) != null
+
+    internal fun submitAndClaim(
+        interactionId: String,
+        gameStateId: Int,
+        selectedGrpIds: List<Int>,
+    ): ModalChoiceCleanupToken? =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedGrpIds.size !in pending.value.min..pending.value.max) return false
-            if (!pending.value.allowRepeat && selectedGrpIds.size != selectedGrpIds.distinct().size) return false
-            val optionIndices = selectedGrpIds.map { pending.optionIndexByGrpId[it] ?: return false }
-            detachAndCompleteLocked(pending, optionIndices, selectedGrpIds, timedOut = false)
-            true
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return null
+            if (selectedGrpIds.size !in pending.value.min..pending.value.max) return null
+            if (!pending.value.allowRepeat && selectedGrpIds.size != selectedGrpIds.distinct().size) return null
+            val optionIndices = selectedGrpIds.map { pending.optionIndexByGrpId[it] ?: return null }
+            detachAndCompleteLocked(pending, optionIndices, selectedGrpIds, timedOut = false).token
         }
 
     /** Correlated client cancellation; empty selection unwinds the Forge ability. */
     fun cancel(
         interactionId: String,
         gameStateId: Int,
-    ): Boolean =
+    ): Boolean = cancelAndClaim(interactionId, gameStateId) != null
+
+    internal fun cancelAndClaim(
+        interactionId: String,
+        gameStateId: Int,
+    ): ModalChoiceCleanupToken? =
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            detachAndCompleteLocked(pending, emptyList(), emptyList(), timedOut = false)
-            true
+            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return null
+            detachAndCompleteLocked(pending, emptyList(), emptyList(), timedOut = false).token
         }
 
     /** Release Forge after its response was accepted, then remove synthetic trigger state. */
-    fun releaseAfterEngineResume(interactionId: String): Boolean =
+    fun releaseAfterEngineResume(token: ModalChoiceCleanupToken): Boolean =
         synchronized(owner.counter) {
             synchronized(owner.feedLock) {
-                val receipt = cleanupReceipts.remove(interactionId) ?: return false
+                val receipt = cleanupReceipts.remove(token.interactionId) ?: return false
                 queueCleanupLocked(receipt)
                 true
             }
         }
+
+    fun releaseAfterEngineResume(interactionId: String): Boolean =
+        releaseAfterEngineResume(
+            ModalChoiceCleanupToken(interactionId),
+        )
 
     override fun terminate(cause: Throwable) {
         synchronized(owner.feedLock) {
@@ -232,7 +247,7 @@ internal class MatchModalChoiceRuntime(
         }
         val receipt =
             CleanupReceipt(
-                pending.published.interactionId,
+                ModalChoiceCleanupToken(pending.published.interactionId),
                 pending.published.sourceInstanceId,
                 pending.value.triggered,
                 pending.cut,
@@ -256,6 +271,7 @@ internal class MatchModalChoiceRuntime(
         try {
             feed.beforeBatchEnqueue?.invoke(0, listOf(cleanup))
             feed.queue.add(listOf(cleanup))
+            owner.signalDelivery()
         } catch (ex: Exception) {
             owner.failPrompt(ex, pending = receipt.cut)
         }

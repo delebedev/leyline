@@ -37,8 +37,8 @@ private val MULTI_BLOCKER_AI_SCRIPT =
  *
  * DO NOT call passPriority() after declareNoAttackers() to "advance" —
  * it submits Pass to the COMBAT_DECLARE_BLOCKERS pending (= no blockers)
- * and skips the entire DeclareBlockersReq flow. Use advanceToPhase +
- * triggerAutoPass instead, as below.
+ * and skips the entire DeclareBlockersReq flow. Use advanceToPhase plus a
+ * client-output wait instead, as below.
  */
 private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
@@ -46,20 +46,17 @@ private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     castSpellByName("Raging Goblin").shouldBeTrue()
     passPriority() // resolve
 
-    // Human combat: decline if prompted. The autoPassAndAdvance inside
-    // declareNoAttackers processes the AI turn (land, cast, attack)
-    // and may send DeclareBlockersReq in the same call.
+    // Human combat: decline if prompted. Runtime horizons may process the AI
+    // turn (land, cast, attack) and publish DeclareBlockersReq in the same call.
     if (allMessages.any { it.hasDeclareAttackersReq() }) declareNoAttackers()
 
     // If DeclareBlockersReq isn't in messages yet, the AI turn hasn't
     // completed. Use bridge-level advanceTo to reach COMBAT_DECLARE_BLOCKERS
     // without intercepting the pending (passPriority would submit Pass
-    // to the blocker pending = "no blockers"). Then trigger autoPassAndAdvance
-    // directly — CombatHandler detects the combat phase and sends
-    // DeclareBlockersReq before any action is submitted.
+    // to the blocker pending = "no blockers"). The next runtime horizon then
+    // publishes DeclareBlockersReq before any action is submitted.
     if (allMessages.none { it.hasDeclareBlockersReq() }) {
         advanceToPhase("COMBAT_DECLARE_BLOCKERS")
-        triggerAutoPass()
         drainSink()
     }
 
@@ -252,11 +249,7 @@ class BlockerDeclarationInteractionTest :
             """,
             turns = 1,
         ) {
-            // checkCombatPhase runs again during the priority window that follows
-            // a blocker submission, so without the pendingBlockersSent latch it
-            // re-sends the request and the client stalls waiting on a prompt it
-            // already answered. declareNoBlockers drives autoPassAndAdvance
-            // internally, so any re-entry fires inside this synchronous call.
+            advanceToPhase("COMBAT_DECLARE_BLOCKERS")
             declareNoBlockers()
 
             allMessages.count { it.hasDeclareBlockersReq() } shouldBe 1

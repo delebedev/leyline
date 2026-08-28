@@ -20,12 +20,9 @@ internal class DeferredCastCostInteractionHandler(
 ) {
     private val log = LoggerFactory.getLogger(DeferredCastCostInteractionHandler::class.java)
 
-    fun onCastingTimeOptions(
-        greMsg: ClientToGREMessage,
-        autoPass: () -> Unit,
-    ): Boolean {
+    fun onCastingTimeOptions(greMsg: ClientToGREMessage): HandlerResult {
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
-        if (!deferredCast.hasPrompt()) return false
+        if (!deferredCast.hasPrompt()) return HandlerResult.NotHandled
         val resp = greMsg.castingTimeOptionsResp
         val optionResponses =
             if (resp.castingTimeOptionRespsCount > 0) {
@@ -52,7 +49,7 @@ internal class DeferredCastCostInteractionHandler(
                         },
                 ),
             )
-        when (admission) {
+        return when (admission) {
             is DeferredCastAdmission.Rejected -> {
                 ResponseEnvelopeGuard.reject(
                     greMsg,
@@ -64,30 +61,31 @@ internal class DeferredCastCostInteractionHandler(
                     counters.counter,
                     sink,
                 )
+                HandlerResult.Waiting
             }
             is DeferredCastAdmission.Optional -> {
-                bridgeAfterDeferredResponse(autoPass)
+                bridgeAfterDeferredResponse()
+                HandlerResult.Resume
             }
             is DeferredCastAdmission.Hybrid -> {
                 val plan = deferredCast.deferredCostPlan(admission.receipt)
                 if (plan != null && checkOptionalCosts(admission.receipt, plan, preserveHybridStash = true)) {
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent after hybrid mana type")
+                    HandlerResult.Waiting
                 } else {
                     check(deferredCast.complete(admission.receipt)) { "Deferred hybrid action claim did not complete" }
-                    bridgeAfterDeferredResponse(autoPass)
+                    bridgeAfterDeferredResponse()
+                    HandlerResult.Resume
                 }
             }
             is DeferredCastAdmission.Alternate -> {
-                bridgeAfterDeferredResponse(autoPass)
+                bridgeAfterDeferredResponse()
+                HandlerResult.Resume
             }
         }
-        return true
     }
 
-    private fun bridgeAfterDeferredResponse(autoPass: () -> Unit) {
-        ctx.bridge.awaitPriority()
-        autoPass()
-    }
+    private fun bridgeAfterDeferredResponse() = Unit
 
     fun checkHybridManaTypeOptions(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false

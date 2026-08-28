@@ -96,7 +96,7 @@ object SnapshotHydration {
                 engineSettings = engineSettings,
                 cardRepository = cardRepository,
             )
-        bridge.startPuzzle(
+        bridge.startStaticPuzzle(
             puzzle,
             controlledSeat = SeatId(consultSeat),
             beforeRuntimeStart = { restoreCombatState(gsm, puzzle, bridge, consultSeat) },

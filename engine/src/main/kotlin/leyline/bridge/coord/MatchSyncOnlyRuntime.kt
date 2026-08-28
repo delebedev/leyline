@@ -1,7 +1,11 @@
 package leyline.bridge.coord
 
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.types.SeatId
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /** State-only pre-block publication for a pass-only synchronization stop. */
 internal class MatchSyncOnlyRuntime(
@@ -15,7 +19,6 @@ internal class MatchSyncOnlyRuntime(
         seatId: SeatId,
         pending: GameActionBridge.PendingAction,
     ) {
-        var requestAutoAdvance = false
         owner.beforePublicationLock?.invoke()
         synchronized(owner.counter) {
             synchronized(owner.bridge.projectionBuildLock) {
@@ -26,27 +29,55 @@ internal class MatchSyncOnlyRuntime(
                     val prepared =
                         try {
                             beforeMaterialization?.invoke()
-                            feed.builder.prepareStateOnlyDiff(game, owner.counter)
+                            val phaseMessages =
+                                if (pending.state.synchronizationPresentation == SynchronizationPresentation.PhaseTransition) {
+                                    feed.builder
+                                        .preparePhaseTransitionDiff(
+                                            game,
+                                            owner.counter,
+                                            priorityActions = ActionsAvailableReq.getDefaultInstance(),
+                                            includePriorityPrompt = false,
+                                        ).bundle.messages
+                                } else {
+                                    emptyList()
+                                }
+                            feed.builder
+                                .prepareStateOnlyDiff(game, owner.counter)
+                                .let { it to phaseMessages }
                         } catch (ex: Exception) {
                             owner.fail(ex)
                         }
+                    val (state, phaseMessages) = prepared
+                    val messages =
+                        if (phaseMessages.isEmpty()) {
+                            state.bundle.messages
+                        } else {
+                            phaseMessages + coalescePhaseAnnotations(state.bundle.messages)
+                        }
                     owner.cutInstaller.install(
                         feed,
-                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
+                        PreparedCut(messages, state.transition, state.closesPlaybackFrame),
                         CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
                     ) { ex -> owner.fail(ex) }
                     feed.requestedCut = null
-                    owner.actions.markSynchronizationPublished(seatId, pending.actionId)
-                    requestAutoAdvance = owner.bridge.consumePromptTimeoutNeedsAutoAdvance()
+                    owner.actions.markSynchronizationPublished(seatId, pending.actionId, messages)
                 }
             }
         }
-        if (requestAutoAdvance) {
-            try {
-                owner.bridge.autoAdvanceRequester?.invoke("prompt timeout synchronization queued")
-            } catch (ex: Exception) {
-                owner.fail(ex)
-            }
-        }
     }
+
+    private fun coalescePhaseAnnotations(messages: List<GREToClientMessage>): List<GREToClientMessage> =
+        messages.map { message ->
+            if (!message.hasGameStateMessage()) return@map message
+            val annotations = message.gameStateMessage.annotationsList
+            val phases = annotations.filter { AnnotationType.PhaseOrStepModified in it.typeList }
+            if (phases.size <= 1) return@map message
+            val state =
+                message.gameStateMessage
+                    .toBuilder()
+                    .clearAnnotations()
+                    .addAnnotations(phases.last())
+                    .addAllAnnotations(annotations.filterNot { AnnotationType.PhaseOrStepModified in it.typeList })
+            message.toBuilder().setGameStateMessage(state).build()
+        }
 }
