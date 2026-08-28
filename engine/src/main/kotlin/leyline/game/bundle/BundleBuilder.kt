@@ -22,6 +22,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationLossReason
+import leyline.game.codes.DetailKeys
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -298,7 +299,10 @@ class BundleBuilder(
         intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
     ): FrameDiff {
         val result = compileFrame(input, intent = intent)
-        bridge.diffListener?.invoke(input.state, input.priorProjection, intent, result.gsm)
+        bridge.diffListener?.invoke(
+            input.priorProjection,
+            listOf(GameBridge.ProjectionFoldViewer(StateProjectionCompiler.ViewerInput(input.state, intent), result.gsm)),
+        )
         return FrameDiff(
             input.state.gameStateId,
             result.projectionSnapshot,
@@ -345,7 +349,10 @@ class BundleBuilder(
                     }.orEmpty(),
             )
         val compiled = compileFrame(input, intent = intent)
-        bridge.diffListener?.invoke(input.state, input.priorProjection, intent, compiled.gsm)
+        bridge.diffListener?.invoke(
+            input.priorProjection,
+            listOf(GameBridge.ProjectionFoldViewer(StateProjectionCompiler.ViewerInput(input.state, intent), compiled.gsm)),
+        )
         val tentative = compiled.transition.nextState.copy(revision = compiled.transition.expectedRevision)
         val (projection, next) =
             bridge.editProjection(tentative) {
@@ -544,9 +551,12 @@ class BundleBuilder(
         val pending = bridge.projectionStateSnapshot().viewerCursors[SeatId(seatId)]?.pendingSubmittedTargets
         val intent =
             ViewerProjectionIntent.of(
-                pending
-                    ?.let { listOf(ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)) }
-                    .orEmpty(),
+                listOfNotNull(
+                    pending?.let {
+                        ProjectionSupplement.SubmitPendingTargets(it.spellInstanceId, it.casterSeatId, it.version)
+                    },
+                    ProjectionSupplement.PhaseTransition.takeIf { phaseTransition },
+                ),
             )
         val frame =
             prepareViewerPromptProjection(
@@ -598,30 +608,62 @@ class BundleBuilder(
         commitLink: LogicalSequencePlanner.GameStateLink,
         commitMsgId: Int,
     ): List<GREToClientMessage> {
-        val contentState = state.toBuilder().setUpdate(GameStateUpdate.SendHiFi).build()
-        val commitState =
+        val contentAnnotations = applicablePhaseTransitionAnnotations(state)
+        val contentState =
+            state
+                .toBuilder()
+                .setGameInfo(GsmBuilder.buildTransitionGameInfo(matchId))
+                .clearAnnotations()
+                .addAllAnnotations(contentAnnotations)
+                .setUpdate(GameStateUpdate.SendHiFi)
+                .build()
+        val echoStateBuilder =
+            GameStateMessage
+                .newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(echoLink.gsId)
+                .setPrevGameStateId(state.gameStateId)
+                .setUpdate(GameStateUpdate.SendHiFi)
+        if (state.hasTurnInfo()) echoStateBuilder.setTurnInfo(state.turnInfo)
+        val commitStateBuilder =
             GameStateMessage
                 .newBuilder()
                 .setType(GameStateType.Diff)
                 .setGameStateId(commitLink.gsId)
-                .setPrevGameStateId(commitLink.prevGsId)
-                .setTurnInfo(state.turnInfo)
+                .setPrevGameStateId(echoLink.gsId)
                 .addAllAnnotations(
-                    state.annotationsList
+                    contentAnnotations
                         .filter { AnnotationType.PhaseOrStepModified in it.typeList }
                         .takeLast(1),
                 ).addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.SendAndRecord)
-                .build()
+        if (state.hasTurnInfo()) commitStateBuilder.setTurnInfo(state.turnInfo)
         return listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, contentMsgId) {
                 it.gameStateMessage = contentState
             },
-            buildEchoDiffGsm(echoLink, echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId),
+            makeGRE(GREMessageType.GameStateMessage_695e, echoLink.gsId, echoMsgId) {
+                it.gameStateMessage = echoStateBuilder.build()
+            },
             makeGRE(GREMessageType.GameStateMessage_695e, commitLink.gsId, commitMsgId) {
-                it.gameStateMessage = commitState
+                it.gameStateMessage = commitStateBuilder.build()
             },
         )
+    }
+
+    private fun applicablePhaseTransitionAnnotations(state: GameStateMessage): List<AnnotationInfo> {
+        if (!state.hasTurnInfo() || state.annotationsList.none { AnnotationType.DamageDealt_af5a in it.typeList }) {
+            return state.annotationsList
+        }
+        val applicable =
+            state.annotationsList.lastOrNull { annotation ->
+                AnnotationType.PhaseOrStepModified in annotation.typeList &&
+                    annotation.detailsList.any { detail ->
+                        detail.key == DetailKeys.STEP && state.turnInfo.step.number in detail.valueInt32List
+                    }
+            } ?: return state.annotationsList
+        return listOf(applicable) +
+            state.annotationsList.filterNot { AnnotationType.PhaseOrStepModified in it.typeList }
     }
 
     private fun resolveFrameUpdateType(
@@ -733,12 +775,15 @@ class BundleBuilder(
                     )
                 }
             val fold = StateProjectionCompiler.compileViewers(stateProjectionEnvironment, framePrior, inputs)
+            bridge.diffListener?.invoke(
+                framePrior,
+                inputs.zip(fold.viewers) { input, projected -> GameBridge.ProjectionFoldViewer(input, projected.result.gsm) },
+            )
             routes.zip(fold.viewers).forEach { entry ->
                 val (viewer, builder) = entry.first
                 val projected = entry.second
                 check(viewer.seatId == projected.seatId)
                 val state = inputs.first { it.input.viewingSeatId == viewer.seatId.value }.input
-                bridge.diffListener?.invoke(state, framePrior, frame.intent, projected.result.gsm)
                 val content =
                     builder.makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, frame.contentMsgId) {
                         it.gameStateMessage = projected.result.gsm

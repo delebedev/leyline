@@ -585,19 +585,18 @@ class GameBridge(
 
     // --- Composed components ---
 
-    /**
-     * Test-only observability hook — invoked per bundle after state projection
-     * and immediately before commit. Receives the exact input, prior state,
-     * typed viewer intent, and finalized diff GSM.
-     */
+    data class ProjectionFoldViewer(
+        val input: leyline.game.mapping.StateProjectionCompiler.ViewerInput,
+        val diff: GameStateMessage,
+    )
+
+    /** Test-only hook invoked once per ordered viewer fold immediately before commit. */
     @VisibleForTesting
     @Volatile
     var diffListener: (
         (
-            input: leyline.game.mapping.StateFrameInput,
             prior: ProjectionState,
-            intent: leyline.game.mapping.ViewerProjectionIntent,
-            diff: GameStateMessage,
+            viewers: List<ProjectionFoldViewer>,
         ) -> Unit
     )? = null
 

@@ -169,7 +169,7 @@ class GamePlaybackCombatSafePointTest :
             val fixture = setup()
             val before = fixture.bridge.projectionStateSnapshot()
             var compileCount = 0
-            fixture.bridge.diffListener = { _, _, _, _ ->
+            fixture.bridge.diffListener = { _, _ ->
                 compileCount++
                 if (compileCount == 2) error("frame two failed")
             }
@@ -211,7 +211,7 @@ class GamePlaybackCombatSafePointTest :
             val fixture = setup()
             val competingId = ForgeCardId(9_999_997)
             var wrote = false
-            fixture.bridge.diffListener = { _, _, _, _ ->
+            fixture.bridge.diffListener = { _, _ ->
                 if (!wrote) {
                     wrote = true
                     fixture.bridge.getOrAllocInstanceId(competingId)

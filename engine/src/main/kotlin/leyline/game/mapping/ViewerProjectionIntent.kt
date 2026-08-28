@@ -62,6 +62,8 @@ class PrivateCardPromptProjection private constructor(
 sealed interface ProjectionSupplement {
     data object NewTurnStarted : ProjectionSupplement
 
+    data object PhaseTransition : ProjectionSupplement
+
     data class PlayerSelectingTargets(
         val sourceForgeId: ForgeCardId,
         val seatId: SeatId,

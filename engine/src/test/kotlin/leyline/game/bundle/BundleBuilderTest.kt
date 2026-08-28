@@ -848,7 +848,7 @@ class BundleBuilderTest :
                 )
             val committed = b.projectionStateSnapshot()
             var compileCount = 0
-            b.diffListener = { _, _, _, _ ->
+            b.diffListener = { _, _ ->
                 compileCount++
                 if (compileCount == 2) error("second playback frame failed")
             }
@@ -871,7 +871,7 @@ class BundleBuilderTest :
             b.cutCoordinator.registerViewer(SeatId(1))
             val playback = GamePlayback(b, 1)
             var writerRan = false
-            b.diffListener = { _, _, _, _ ->
+            b.diffListener = { _, _ ->
                 if (!writerRan) {
                     writerRan = true
                     b.getOrAllocInstanceId(ForgeCardId(9_999_999))
