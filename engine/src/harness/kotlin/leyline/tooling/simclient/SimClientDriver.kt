@@ -339,12 +339,13 @@ class SimClientDriver(
             key = prompt.type.name,
             elapsedMs = elapsedMsSince(policyT0),
         )
-        val submittedAction = (response.decision as? SimDecision.PerformAction)?.action
+        val decision = (response.value as? SimPromptResponseValue.Decision)?.decision
+        val submittedAction = (decision as? SimDecision.PerformAction)?.action
         val submitT0 = System.nanoTime()
-        val submitResult = submitter.submit(response.decision)
+        val submitResult = submitter.submit(response.value)
         promptProgress.record(
             prompt = prompt,
-            decision = response.decision,
+            value = response.value,
             submitResult = submitResult,
             beforeMessages = beforeMessages,
             beforeLast = beforeLast,
@@ -353,21 +354,21 @@ class SimClientDriver(
         recordMapTiming(
             totals = submitTotalMsByDecision,
             maxes = submitMaxMsByDecision,
-            key = response.decision.kind,
+            key = response.value.kind,
             elapsedMs = elapsedMsSince(submitT0),
         )
         when (submitResult) {
             SimSubmitResult.Submitted -> {
                 if (response.aarActionFingerprint != null && submittedAction != null) {
-                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.decision.kind)
+                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.value.kind)
                 }
             }
             SimSubmitResult.NoPending -> {
                 promptLedger.retire(prompt, "no-pending-submit")
-                attemptLedger.markNoPending(response.decision.kind)
+                attemptLedger.markNoPending(response.value.kind)
             }
             SimSubmitResult.NotSubmitted -> {
-                if (response.decision == SimDecision.RetirePrompt) promptLedger.retire(prompt, "policy-retired")
+                if (response.value == SimPromptResponseValue.RetirePrompt) promptLedger.retire(prompt, "policy-retired")
             }
         }
         response.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
@@ -377,7 +378,7 @@ class SimClientDriver(
         // Without this the echo looks outstanding, and answering it later reaches a
         // window that closed when the pair completed.
         harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
-        if (response.decision == SimDecision.Terminal) sawTerminalIntermission = true
+        if (response.value == SimPromptResponseValue.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
     }
 

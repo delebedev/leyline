@@ -162,6 +162,14 @@ class SimClientDriverPolicyTest :
                 .addCardTypes(type)
                 .build()
 
+        test("simclient lifecycle controls never enter the submission path") {
+            val submitter = SimDecisionSubmitter(MatchFlowHarness())
+
+            submitter.submit(SimPromptResponseValue.RetirePrompt) shouldBe SimSubmitResult.NotSubmitted
+            submitter.submit(SimPromptResponseValue.WaitForEngine) shouldBe SimSubmitResult.NotSubmitted
+            submitter.submit(SimPromptResponseValue.Terminal) shouldBe SimSubmitResult.NotSubmitted
+        }
+
         fun MatchFlowHarness.addBattlefieldLands(count: Int) {
             repeat(count) { idx ->
                 val id = 900 + idx
@@ -200,7 +208,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.Search(listOf(101, 102))
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.Search(listOf(101, 102)))
         }
 
         test("an already-satisfied targeting prompt submits rather than cancelling") {
@@ -211,7 +219,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.SubmitTargets
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.SubmitTargets)
         }
 
         test("a targeting prompt with nothing selectable and nothing selected cancels") {
@@ -222,7 +230,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.CancelAction
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.CancelAction)
         }
 
         test("forge-ai search adapter prefers lands before the fourth land") {
@@ -404,7 +412,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.EffectCost(listOf(201, 202))
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.EffectCost(listOf(201, 202)))
         }
 
         test("greedy PayCosts policy selects until minimum weight is met") {
@@ -438,7 +446,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.EffectCost(listOf(301, 302))
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.EffectCost(listOf(301, 302)))
         }
 
         test("greedy SelectN policy prefers sideboard Lesson candidate when Learn can discard") {
@@ -474,7 +482,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.SelectN(listOf(402))
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.SelectN(listOf(402)))
         }
 
         test("greedy SelectN policy accepts Suspect choice prompts") {
@@ -498,7 +506,7 @@ class SimClientDriverPolicyTest :
             val prompt = SimPromptLedger(harness).activePrompt()!!
             val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.SelectN(listOf(501))
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.SelectN(listOf(501)))
         }
 
         test("Forge AI attacker advice can choose no attackers") {
@@ -519,7 +527,7 @@ class SimClientDriverPolicyTest :
                     override fun advisedAttackers(): List<Int>? = emptyList()
                 }.respondToPrompt(prompt, ActionAttemptLedger { 1 })
 
-            response.decision shouldBe SimDecision.DeclareAttackers(emptyList())
+            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.DeclareAttackers(emptyList()))
         }
 
         test("simclient findings flag repeated target choices as replay loop suspects") {
@@ -627,7 +635,8 @@ class SimClientDriverPolicyTest :
             val replacementDecision =
                 GreedyPromptPolicy(harness)
                     .respondToPrompt(replacementPrompt, ActionAttemptLedger { 1 })
-                    .decision
+                    .value
+                    .let { (it as SimPromptResponseValue.Decision).decision }
             replacementDecision shouldBe SimDecision.SelectReplacement(replacement)
             recorder.record(
                 prompt = replacementPrompt,

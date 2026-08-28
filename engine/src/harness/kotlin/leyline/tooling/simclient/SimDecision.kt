@@ -7,7 +7,38 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
-internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
+internal sealed interface SimPromptResponseValue {
+    val kind: String
+
+    data class Decision(
+        val decision: SimDecision,
+    ) : SimPromptResponseValue {
+        override val kind: String get() = decision.kind
+    }
+
+    data object RetirePrompt : SimPromptResponseValue {
+        override val kind: String = "retire-prompt"
+    }
+
+    data object WaitForEngine : SimPromptResponseValue {
+        override val kind: String = "wait-for-engine"
+    }
+
+    data object Terminal : SimPromptResponseValue {
+        override val kind: String = "terminal"
+    }
+}
+
+internal fun SimPromptResponseValue.auditDigest(prompt: ActivePrompt? = null): String =
+    when (this) {
+        is SimPromptResponseValue.Decision -> decision.auditDigest(prompt)
+        SimPromptResponseValue.RetirePrompt,
+        SimPromptResponseValue.WaitForEngine,
+        SimPromptResponseValue.Terminal,
+        -> kind
+    }
+
+private fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
     when (this) {
         is SimDecision.PerformAction ->
             listOf(
@@ -35,7 +66,6 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         is SimDecision.EffectCost -> "effect-cost:${selectedInstanceIds.sorted().joinToString("+")}"
         is SimDecision.AutoTapPayment -> "auto-tap-payment:$solutionIndex"
         SimDecision.KeepHand -> "keep-hand"
-        SimDecision.ChooseStartingPlayer -> "choose-starting-player"
         is SimDecision.GroupTop -> "group-top:${instanceIds.joinToString("+")}"
         is SimDecision.GroupAway -> "group-away:${awayInstanceIds.sorted().joinToString("+")}:context=${context.name}"
         is SimDecision.OptionalAction -> "optional-action:${if (accept) "yes" else "no"}"
@@ -83,9 +113,6 @@ internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
         SimDecision.SubmitBlockers -> "submit-blockers"
         SimDecision.CancelAction -> "cancel-action"
         SimDecision.PassPriority -> "pass-priority"
-        SimDecision.RetirePrompt -> "retire-prompt"
-        SimDecision.WaitForEngine -> "wait-for-engine"
-        SimDecision.Terminal -> "terminal"
     }
 
 internal enum class SimSubmitResult {
@@ -95,16 +122,37 @@ internal enum class SimSubmitResult {
 }
 
 internal data class SimPromptResponse(
-    val decision: SimDecision,
+    val value: SimPromptResponseValue,
     val markHandled: Boolean = true,
     val markAllHandledOfType: GREMessageType? = null,
     val aarActionFingerprint: String? = null,
-)
+) {
+    constructor(
+        decision: SimDecision,
+        markHandled: Boolean = true,
+        markAllHandledOfType: GREMessageType? = null,
+        aarActionFingerprint: String? = null,
+    ) : this(
+        value = SimPromptResponseValue.Decision(decision),
+        markHandled = markHandled,
+        markAllHandledOfType = markAllHandledOfType,
+        aarActionFingerprint = aarActionFingerprint,
+    )
+}
 
 internal class SimDecisionSubmitter(
     private val harness: MatchFlowHarness,
 ) {
-    fun submit(decision: SimDecision): SimSubmitResult =
+    fun submit(value: SimPromptResponseValue): SimSubmitResult =
+        when (value) {
+            is SimPromptResponseValue.Decision -> submitDecision(value.decision)
+            SimPromptResponseValue.RetirePrompt,
+            SimPromptResponseValue.WaitForEngine,
+            SimPromptResponseValue.Terminal,
+            -> SimSubmitResult.NotSubmitted
+        }
+
+    private fun submitDecision(decision: SimDecision): SimSubmitResult =
         when (decision) {
             is SimDecision.PerformAction -> submitPerformAction(decision.action)
             is SimDecision.SelectTargets -> submitted { harness.selectTargets(decision.targetGroups) }
@@ -129,7 +177,6 @@ internal class SimDecisionSubmitter(
             is SimDecision.AutoTapPayment -> SimSubmitResult.NotSubmitted
             // Consult/live-client path only; scripted puzzles skip the mulligan.
             SimDecision.KeepHand -> SimSubmitResult.NotSubmitted
-            SimDecision.ChooseStartingPlayer -> SimSubmitResult.NotSubmitted
             is SimDecision.GroupTop ->
                 submitted {
                     harness.respondToScry(
@@ -194,10 +241,6 @@ internal class SimDecisionSubmitter(
                 } else {
                     SimSubmitResult.NoPending
                 }
-            SimDecision.RetirePrompt,
-            SimDecision.WaitForEngine,
-            SimDecision.Terminal,
-            -> SimSubmitResult.NotSubmitted
         }
 
     private fun submitPerformAction(action: Action): SimSubmitResult {

@@ -20,8 +20,24 @@ internal class PromptProgressRecorder(
         sourceBefore: String,
     ) = record(
         prompt = prompt,
-        decisionKind = decision.kind,
-        targetIds = decision.targetIds(),
+        value = SimPromptResponseValue.Decision(decision),
+        submitResult = submitResult,
+        beforeMessages = beforeMessages,
+        beforeLast = beforeLast,
+        sourceBefore = sourceBefore,
+    )
+
+    fun record(
+        prompt: ActivePrompt,
+        value: SimPromptResponseValue,
+        submitResult: SimSubmitResult,
+        beforeMessages: Int,
+        beforeLast: GREToClientMessage?,
+        sourceBefore: String,
+    ) = record(
+        prompt = prompt,
+        decisionKind = value.kind,
+        targetIds = value.targetIds(),
         submitResult = submitResult,
         beforeMessages = beforeMessages,
         beforeLast = beforeLast,
@@ -109,7 +125,15 @@ private fun ActivePrompt.sourceFields(): Triple<Int, Int, Int> =
         else -> Triple(0, 0, 0)
     }
 
-@Suppress("ElseCaseInsteadOfExhaustiveWhen")
+private fun SimPromptResponseValue.targetIds(): List<Int> =
+    when (this) {
+        is SimPromptResponseValue.Decision -> this.decision.targetIds()
+        SimPromptResponseValue.RetirePrompt,
+        SimPromptResponseValue.WaitForEngine,
+        SimPromptResponseValue.Terminal,
+        -> emptyList()
+    }
+
 private fun SimDecision.targetIds(): List<Int> =
     when (this) {
         is SimDecision.SelectTargets -> targetInstanceIds
@@ -125,5 +149,24 @@ private fun SimDecision.targetIds(): List<Int> =
         is SimDecision.DeclareAttackers -> attackerInstanceIds
         is SimDecision.DeclareBlockers -> assignments.keys.toList()
         is SimDecision.PerformAction -> listOfNotNull(action.instanceId.takeIf { it != 0 })
-        else -> emptyList()
+        is SimDecision.UnselectTargets,
+        SimDecision.SubmitTargets,
+        is SimDecision.AutoTapPayment,
+        SimDecision.KeepHand,
+        is SimDecision.OptionalAction,
+        is SimDecision.OptionalCost,
+        is SimDecision.CastingTimeX,
+        is SimDecision.ModalChoice,
+        is SimDecision.AlternateCost,
+        is SimDecision.ManaTypeChoices,
+        is SimDecision.NumericInput,
+        is SimDecision.AssignDamage,
+        SimDecision.DeclareAllAttackers,
+        SimDecision.DeclareNoBlockers,
+        is SimDecision.UndeclareBlocker,
+        SimDecision.SubmitAttackers,
+        SimDecision.SubmitBlockers,
+        SimDecision.CancelAction,
+        SimDecision.PassPriority,
+        -> emptyList()
     }

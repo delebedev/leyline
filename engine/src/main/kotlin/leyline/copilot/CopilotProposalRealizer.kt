@@ -72,6 +72,27 @@ internal object CopilotProposalRealizer {
             reason = reason,
         )
 
+    fun chooseStartingPlayer(
+        promptType: GREMessageType,
+        seat: Int,
+        gsId: Int = 0,
+        respId: Int = 0,
+    ): CopilotProposal =
+        withResponses(
+            base("choose_starting_player", promptType, seat),
+            listOf(
+                message(ClientMessageType.ChooseStartingPlayerResp_097b, gsId, seat, respId) {
+                    setChooseStartingPlayerResp(
+                        ChooseStartingPlayerResp
+                            .newBuilder()
+                            .setTeamType(TeamType.Individual)
+                            .setSystemSeatId(seat)
+                            .setTeamId(seat),
+                    )
+                },
+            ),
+        )
+
     @Suppress("CyclomaticComplexMethod", "LongMethod")
     fun realize(
         decision: SimDecision,
@@ -212,22 +233,6 @@ internal object CopilotProposalRealizer {
                     listOf(
                         message(ClientMessageType.MulliganResp_097b, gsId, seat, respId) {
                             setMulliganResp(MulliganResp.newBuilder().setDecision(MulliganOption.AcceptHand))
-                        },
-                    ),
-                )
-
-            SimDecision.ChooseStartingPlayer ->
-                withResponses(
-                    base("choose_starting_player", promptType, seat),
-                    listOf(
-                        message(ClientMessageType.ChooseStartingPlayerResp_097b, gsId, seat, respId) {
-                            setChooseStartingPlayerResp(
-                                ChooseStartingPlayerResp
-                                    .newBuilder()
-                                    .setTeamType(TeamType.Individual)
-                                    .setSystemSeatId(seat)
-                                    .setTeamId(seat),
-                            )
                         },
                     ),
                 )
@@ -614,11 +619,6 @@ internal object CopilotProposalRealizer {
                     base("cancel", promptType, seat),
                     listOf(message(ClientMessageType.CancelActionReq_097b, gsId, seat, respId)),
                 )
-
-            SimDecision.RetirePrompt,
-            SimDecision.WaitForEngine,
-            SimDecision.Terminal,
-            -> unrealizable(promptType, seat, "decision kind '${decision.kind}' has no autoplay executor yet")
         }
 
     private fun fromAction(
