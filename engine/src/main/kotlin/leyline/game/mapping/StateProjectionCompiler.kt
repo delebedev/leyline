@@ -55,6 +55,7 @@ object StateProjectionCompiler {
     data class FoldResult(
         val viewers: List<ViewerResult>,
         val transition: ProjectionTransition,
+        val phaseTransitionCommitAnnotation: AnnotationInfo? = null,
     )
 
     fun compileOneViewer(
@@ -123,7 +124,27 @@ object StateProjectionCompiler {
                         idReallocations = planned.output.idReallocations + plannedOrder.idReallocations,
                     ),
             )
-        editor.persistentAnnotations = editor.persistentAnnotations.copy(nextAnnotationId = finalized.nextId)
+        val phaseTransitionCommitFrame =
+            if (ProjectionSupplement.PhaseTransition in canonical.intent.supplements) {
+                val frame = GsmFrame.from(stagedCanonical.snapshot)
+                AnnotationFrameFinalizer
+                    .finalize(
+                        listOf(
+                            AnnotationBuilder.phaseOrStepModified(
+                                stagedCanonical.snapshot.phase.activePlayer,
+                                frame.phase.number,
+                                frame.step.number,
+                            ),
+                        ),
+                        finalized.nextId,
+                    )
+            } else {
+                null
+            }
+        editor.persistentAnnotations =
+            editor.persistentAnnotations.copy(
+                nextAnnotationId = phaseTransitionCommitFrame?.nextId ?: finalized.nextId,
+            )
 
         val projected =
             viewers.map { viewer ->
@@ -154,6 +175,7 @@ object StateProjectionCompiler {
                     ViewerResult(seatId, result.copy(transition = transition))
                 },
             transition = transition,
+            phaseTransitionCommitAnnotation = phaseTransitionCommitFrame?.annotations?.single(),
         )
     }
 

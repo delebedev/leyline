@@ -1,11 +1,13 @@
 package leyline.game.state
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.testkit.IsolatedBoardLifecycle
@@ -32,6 +34,7 @@ class PureDiffReplayTest :
             val replay = IsolatedBoardLifecycle()
             try {
                 val (liveBridge, _, _) = live.startGameAtMain1(seed = SCENARIO_SEED)
+                liveBridge.cutCoordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
                 val liveRun = mutableListOf<BundleStep>()
                 liveBridge.diffListener = { prior, viewers -> liveRun.add(BundleStep(prior, viewers)) }
 
@@ -40,6 +43,7 @@ class PureDiffReplayTest :
                 advanceToEndOfTurn(liveBridge)
                 liveRun.shouldNotBeEmpty()
                 liveBridge.diffListener = null
+                liveRun.map { step -> step.viewers.map { it.input.input.viewingSeatId } } shouldContain listOf(1, 2)
 
                 val (replayBridge, _, _) = replay.startGameAtMain1(seed = SCENARIO_SEED)
                 val replayBytes =

@@ -88,8 +88,7 @@ class AiTurnInteractionTest :
             val gsm0 = gsms[ptStart]
             val phaseAnns0 =
                 gsm0.annotationsList
-                    .flatMap { it.typeList }
-                    .count { it == AnnotationType.PhaseOrStepModified }
+                    .filter { AnnotationType.PhaseOrStepModified in it.typeList }
 
             // GSM N+1: SendHiFi echo with turnInfo
             val gsm1 = gsms[ptStart + 1]
@@ -98,14 +97,13 @@ class AiTurnInteractionTest :
             val gsm2 = gsms[ptStart + 2]
             val phaseAnns2 =
                 gsm2.annotationsList
-                    .flatMap { it.typeList }
-                    .count { it == AnnotationType.PhaseOrStepModified }
+                    .filter { AnnotationType.PhaseOrStepModified in it.typeList }
 
             assertSoftly {
                 gsm0.type shouldBe GameStateType.Diff
                 gsm0.update shouldBe GameStateUpdate.SendHiFi
                 gsm0.hasGameInfo().shouldBeTrue()
-                phaseAnns0 shouldBeGreaterThanOrEqual 2
+                phaseAnns0.size shouldBeGreaterThanOrEqual 2
 
                 gsm1.type shouldBe GameStateType.Diff
                 gsm1.update shouldBe GameStateUpdate.SendHiFi
@@ -113,7 +111,8 @@ class AiTurnInteractionTest :
 
                 gsm2.type shouldBe GameStateType.Diff
                 gsm2.update shouldBe GameStateUpdate.SendAndRecord
-                phaseAnns2 shouldBe 1
+                phaseAnns2 shouldHaveSize 1
+                phaseAnns2.single().id shouldBe gsm0.annotationsList.maxOf { it.id } + 1
             }
         }
 

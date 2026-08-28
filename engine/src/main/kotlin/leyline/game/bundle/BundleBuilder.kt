@@ -582,6 +582,7 @@ class BundleBuilder(
                     if (phaseTransition) {
                         builder.phaseTransitionStateMessages(
                             state,
+                            checkNotNull(frame.fold.phaseTransitionCommitAnnotation),
                             contentMsgId,
                             checkNotNull(echoLink),
                             checkNotNull(echoMsgId),
@@ -602,6 +603,7 @@ class BundleBuilder(
 
     private fun phaseTransitionStateMessages(
         state: GameStateMessage,
+        commitPhaseAnnotation: AnnotationInfo,
         contentMsgId: Int,
         echoLink: LogicalSequencePlanner.GameStateLink,
         echoMsgId: Int,
@@ -631,11 +633,8 @@ class BundleBuilder(
                 .setType(GameStateType.Diff)
                 .setGameStateId(commitLink.gsId)
                 .setPrevGameStateId(echoLink.gsId)
-                .addAllAnnotations(
-                    contentAnnotations
-                        .filter { AnnotationType.PhaseOrStepModified in it.typeList }
-                        .takeLast(1),
-                ).addAllTimers(PlayerMapper.buildTimers())
+                .addAnnotations(commitPhaseAnnotation)
+                .addAllTimers(PlayerMapper.buildTimers())
                 .setUpdate(GameStateUpdate.SendAndRecord)
         if (state.hasTurnInfo()) commitStateBuilder.setTurnInfo(state.turnInfo)
         return listOf(
