@@ -22,7 +22,7 @@ class AcceptanceSuiteLoaderTest :
                     |    steps:
                     |      - wait:
                     |          action: { type: activate, card: Miscalculation }
-                    |      - activate: { card: Miscalculation, zone: hand }
+                    |      - activate: { card: Miscalculation, zone: hand, ability_grp_id: 188841 }
                     |      - choose: { optional_cost: kicker }
                     |      - choose: { cto_id: 1 }
                     |      - mana_type_choices: [green, two_generic, red]
@@ -63,7 +63,7 @@ class AcceptanceSuiteLoaderTest :
                 scenario.id shouldBe "cast-face"
                 scenario.steps shouldHaveSize 20
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
-                scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0)
+                scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0, 188841)
                 scenario.steps[2] shouldBe ChooseStep(AcceptanceCastingTimeOption.Kicker, null)
                 scenario.steps[3] shouldBe ChooseStep(null, 1)
                 scenario.steps[4] shouldBe

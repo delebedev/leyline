@@ -202,6 +202,7 @@ object AcceptanceSuiteLoader {
                     card = map.requiredString("card", context),
                     zone = map.optionalString("zone", context)?.let(AcceptanceZone::parse) ?: AcceptanceZone.Battlefield,
                     abilityIndex = map.optionalInt("ability_index", context) ?: 0,
+                    abilityGrpId = map.optionalInt("ability_grp_id", context),
                 )
             }
         }

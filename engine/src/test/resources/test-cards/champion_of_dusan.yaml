@@ -1,0 +1,12 @@
+name: "Champion of Dusan"
+grpId: 95659
+titleId: 927074
+abilities:
+  - id: 14
+    textId: 28
+    category: 3
+  - id: 188841
+    textId: 927076
+    category: 1
+    mana: "o1oG"
+expansionCode: "TDM"
