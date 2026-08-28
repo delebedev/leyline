@@ -35,7 +35,6 @@ import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PrivateCardPromptProjection
 import leyline.game.mapping.ProjectionSupplement
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.ShouldStopEvaluator
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateMapper
 import leyline.game.mapping.StateProjectionCompiler
@@ -2285,13 +2284,6 @@ class BundleBuilder(
     companion object {
         private const val COIN_FLIP_WIN_LOCALIZATION_ID = 47
         private const val COIN_FLIP_LOSS_LOCALIZATION_ID = 48
-
-        /**
-         * Pure function — no instance state needed. Checks if the only action
-         * available is Pass (no Cast, Play, Activate).
-         */
-        fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-            actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
 
         /**
          * True when the drained [events] describe a turn-boundary or trigger-driven

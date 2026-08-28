@@ -7,9 +7,8 @@ read_when:
 ---
 # Bridge Threading
 
-This document owns cross-class constraints that the type system does not yet
-express. It describes the current implementation and delivery ownership.
-System shape lives in
+This document owns the cross-class execution and ordering constraints that the
+type system does not express. System shape lives in
 [`architecture.md`](architecture.md); durable direction and rationale live in
 [ADR 0015](decisions/0015-functional-core-imperative-shell.md).
 
@@ -24,95 +23,46 @@ System shape lives in
 | Sink caller | Observes committed prompt metadata and calls `MessageSink.send` | Runs on the initiating session or pump domain |
 
 Engine confinement makes a live read physically stable only on the engine
-thread. It does not make an event callback a safe projection boundary: callbacks
-can run inside a larger mutation burst.
+thread. It does not make an event callback a safe projection boundary because a
+callback can run inside a larger mutation burst.
 
-The coordinator owns committed feeds and the focused interaction runtimes under
-that boundary. `ProjectionState` installs through a revision-checked transition;
-pending windows use correlated values and bounded retained-handle tables. The
-coordinator's game-over lifecycle cut also materializes any pending resolution
-diff and the terminal sequence before one ordered feed installation; sessions
-only drain that feed and deliver the raw room-state completion message.
+## Mutable-state ownership
 
-`GameBridge.priorityPolicy` owns mutable client priority settings. Settings and
-priority response metadata cross into it as immutable values; session code does
-not classify, suppress, or independently store priority policy.
+| Mutable place | Owner |
+|---|---|
+| Live Forge graph | Engine thread |
+| Retained executable handles | Owning family runtime under `feedLock`; sessions receive only exact claims or immutable values |
+| Client settings and priority presentation policy | `PriorityPolicyRuntime` |
+| Interaction correlation, committed viewer feeds, and terminal failure | `MatchCutCoordinator` and its family runtimes under `feedLock` |
+| Client-facing identities, cursors, annotations, and logical output | One committed `ProjectionState` behind `GameBridge.projectionLock` |
+| Per-connection admission and delivery | `ConnectionState.sessionLock` |
 
-Action, combat declaration, and deferred cast-cost handlers parse protocol
-messages into immutable values only. `MatchActionWindowRuntime` validates the
-exact action and game-state correlation, resolves the retained executable or
-combat handle, and atomically claims it. `MatchBlockingInteractionRuntime`
-performs the equivalent client-instance lookup for damage assignments. Session
-code does not rebuild these responses from the live Forge graph.
-`DeferredCastWindowRuntime` validates the retained action claim, materializes
-casting-time prompts with the viewer feed builder, and installs their complete
-cut before replacing its correlated prompt state.
+Session handlers parse client messages into immutable values. They do not read
+the live Forge graph to reconstruct an action, combat declaration, prompt
+answer, or priority decision.
 
-`SettledPromptOwner` admits raw settled-prompt messages under `feedLock` before
-the residual match routes run. It resolves the exact request message and
-game-state correlation, then delegates family-local parsing and completion to
-the mounted typed slot. Only successful completion retires the correlation and
-marks the response accepted. Cancel controls claim by exact active game state,
-complete under the same lock, and mark the prompt handled without counting an
-accepted response.
+## Lock order
 
-### Publication lock
+The acquisition order is:
 
-The coordinator `feedLock` owns cut preparation, installation, committed feeds,
-and focused interaction windows. `GameBridge.projectionLock` protects only the
-committed `ProjectionState` value and its revision-checked swap; installation
-briefly acquires it while already holding `feedLock`. No path acquires `feedLock`
-while holding `projectionLock`.
+1. `sessionLock`, when a connection is admitting or delivering work;
+2. coordinator `feedLock`, for interaction state, cut preparation, installation,
+   and committed feeds;
+3. `projectionLock`, briefly, for the revision-checked `ProjectionState` swap.
 
-Drainers and event subscribers requesting a future cut use `feedLock`. No
-drainer waits for the engine while holding it.
+`feedLock` may be acquired without `sessionLock`. No path acquires `feedLock`
+while holding `projectionLock`, and no drainer waits for the engine while holding
+`feedLock`.
 
-Action-window visibility and prompt correlation are read without `feedLock`, off
-volatile state the runtime writes while holding it. Threads polling for a
-pending window must not block behind a publication in progress.
+Drainers and event subscribers requesting a future cut use `feedLock`.
+Action-window visibility and prompt correlation may be read without `feedLock`
+from volatile state written while holding it. Those reads are observation only;
+they do not claim or complete a window.
 
-A queue type is not a transaction. The close/build/install/enqueue operation
-must remain protected as one publication boundary.
+## Publication transaction
 
-### Runtime horizons
-
-`MatchRuntimeContinuation` is the transport seam for one engine horizon.
-`MatchSession` serializes admission and waits once after an accepted settled
-answer. After the next horizon is published, the continuation invokes any
-opaque one-shot post-resume cleanup supplied by the owning family, then drains
-committed batches in order and acknowledges each exact `SYNC_ONLY` barrier only
-after successful delivery. A response that only updates an iterative prompt
-returns without releasing the engine.
-
-Every live human `MatchConnection` arms one
-`MatchRuntimeDeliveryObserver` after its initial client-owned horizon is bound.
-It waits on the coordinator's delivery feed, enters the same session lock,
-drains committed batches, and terminalizes after delivery when the horizon is
-game-over. An inbound handler drains the exact horizon released by its accepted
-response under that same lock; the observer owns horizons published after the
-handler returns. These claims cannot race, and the observer is the only
-consumer of the delivery notification. Teardown invalidates the observer
-generation. Puzzle replacement arms a new generation only after its initial
-bundle and horizon are delivered. It never submits an engine action or makes
-priority decisions.
-
-In-process harness callers wait only for named client output when observer
-delivery is asynchronous. That wait observes sink completion; it does not
-wait on an engine horizon, release a synchronization barrier, or consume the
-observer notification.
-
-### Current exceptions
-
-Mulligan still drives a pre-game engine interaction outside `sessionLock`, but
-its gameplay output commits through the coordinator lifecycle runtime.
-Player, Familiar, and spectator sessions drain only their own committed viewer
-feeds. Raw match completion remains connection-local and follows the committed
-terminal drain. PvP transport is outside this fixed-roster model.
-
-## Publication before signalling
-
-When the engine blocks for a visible decision, the observer signal means the
-complete interaction batch is already committed and drainable.
+When the engine blocks for a visible decision, the delivery signal means the
+complete interaction batch is already committed and drainable:
 
 ```mermaid
 sequenceDiagram
@@ -132,7 +82,16 @@ sequenceDiagram
     M->>C: drain committed batch
 ```
 
-Every coordinator-backed interaction must preserve these rules:
+Under `feedLock`, a prepared cut enqueues all viewer batches, installs its
+projection transition under `projectionLock`, runs its install callbacks,
+acknowledges any playback boundary, and only then signals delivery. Replacement
+batches supplied to the installer are retired after enqueue and restored on a
+pre-install failure. That failure removes only the new cut's batches. Once
+projection installs, allocation and publication are not rewound. Committed
+logical identifiers and output ordinals remain monotonic; sessions and
+transports may read their horizons but cannot allocate them.
+
+Every coordinator-backed interaction preserves these rules:
 
 1. Freeze projection values and exact executable handles on the engine thread.
 2. Commit the complete state-and-request batch before signalling.
@@ -148,7 +107,12 @@ prompt policy, not permission to continue after failed publication.
 A synchronous default path publishes no window and therefore emits no signal.
 Priority `Skip` likewise closes no journal and allocates no protocol state.
 
-## Projection commit and delivery
+Two current paths sit outside the common transaction. `MulliganHandler` resets
+instance identities before publishing the redraw cut. Phase-action replacement
+installs the new cut, then removes the previous action batch from the installer's
+`afterInstall` callback instead of supplying it as a rollback-aware replacement.
+
+## Delivery limits
 
 Projection and delivery have separate timelines:
 
@@ -161,22 +125,48 @@ Projection and delivery have separate timelines:
 Never use a viewer cursor as client-awareness state. If behavior depends on
 delivery, represent delivery explicitly.
 
-One bridge owns one committed `ProjectionState`. Each cut forks a private
-`LogicalSequencePlanner` from that state, assigns its output ordinal, and carries
-the resulting value in the prepared transition. Installation commits logical
-identifiers, emission horizons, projection, identities, acknowledgements, and
-owned output in one ordered boundary.
+`MatchRuntimeContinuation` waits for one engine horizon, drains committed batches
+in order, and acknowledges an exact `SYNC_ONLY` barrier only after successful
+delivery. An iterative response that does not release the engine does not wait
+for another horizon.
 
-Committed identifiers and output ordinals increase monotonically and are never
-rewound. Failed materialization, failed enqueue before installation, stale
-transitions, and abandoned preparation commit nothing, so they consume no
-identifier or ordinal. A delivery failure after installation does not rewind or
-reuse the installed allocation. Sessions, transports, and sinks may read the
-committed horizons needed for admission or prompt handling, but cannot allocate
-or catch up logical sequence or output order.
+The inbound handler drains the horizon released by its accepted response while
+holding `sessionLock`. The connection's delivery observer handles horizons
+published after that handler returns by taking the same lock and using the same
+drain path. The observer consumes only the coordinator delivery notification; it
+does not submit actions or choose progression policy.
 
-Interactive sends drain older committed playback before delivering a caller's
-newer batch. A producer that bypasses that funnel can expose output out of order.
+In-process harness callers may wait for named sink output, but do not wait on an
+engine horizon or consume the observer notification. Player, Familiar, and
+spectator sessions drain only their own committed viewer feeds. Raw match
+completion is connection-local and follows the committed terminal drain. PvP
+transport is outside this fixed-roster delivery model.
+
+### Initial-publication replay
+
+Constructed reconnect has one bounded repeat-publication exception.
+`MatchLifecycleRuntime` retains the first initial viewer batches and may
+re-enqueue a missing batch under `feedLock` with its original output ordinal and
+logical identifiers. It does not install another projection transition, and it
+does not duplicate a batch already queued. This is initial-handshake replay, not
+a general reconstruction of the latest viewer state after gameplay.
+
+Mulligan is the other pre-game exception: it drives an engine interaction
+outside `sessionLock`, while its output still commits through the coordinator
+lifecycle runtime.
+
+## Teardown
+
+Connection teardown stops and invalidates its delivery observer before the
+connection can be rebound. Puzzle replacement invalidates the old generation,
+publishes and delivers the replacement's initial horizon under `sessionLock`,
+then arms a new observer generation.
+
+Match teardown removes registered connections and sessions, closes session-owned
+workers, detaches connection state, and closes the match. Bridge shutdown
+terminalizes coordinator waiters, rejects later cuts, wakes delivery and engine
+waiters, stops the game loop, and discards registered viewer feeds including any
+committed but undrained batches.
 
 ## Safe points and event subscribers
 
@@ -206,12 +196,3 @@ already present. Such prompts use explicit projection supplements: materialize t
 intended state, commit it with the request, then reconcile it after Forge
 resumes. The supplement is a value owned by the prompt runtime; it is not a
 reason to mutate projection state outside compilation.
-
-## Deletion condition
-
-This document can disappear when all match entrants submit immutable signals to
-one logical runtime owner, every gameplay and lifecycle producer commits through
-one ordered path, and the session and feed locks no longer form a cross-class
-correctness contract. Until then, changes to any named lock,
-publication monitor, or residual producer must update this document in the
-same change.

@@ -1,8 +1,6 @@
 package leyline.architecture
 
-import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.JavaFieldAccess
-import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
@@ -172,23 +170,6 @@ class RuntimeBoundaryTest :
             }
         }
 
-        test("opponent priority suppression stays behind the coordinator") {
-            val cutCoordinator = "leyline.bridge.coord.MatchCutCoordinator"
-
-            classes()
-                .that()
-                .haveFullyQualifiedName(cutCoordinator)
-                .should()
-                .callMethodWhere(
-                    methodCall(
-                        "leyline.bridge.coord.MatchActionWindowRuntime",
-                        "suppressPriorityPresentation",
-                        "mutate priority visibility",
-                    ),
-                ).because("the coordinator owns the action-window visibility mutation")
-                .check(classes)
-        }
-
         test("session progression is owned by engine runtime continuation") {
             val session = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchSession.kt"))
             val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
@@ -354,14 +335,6 @@ private val forgeCoupledMatchClasses =
         "leyline.match.SpectatorSession",
         "leyline.match.TargetingHandler",
     )
-
-private fun methodCall(
-    owner: String,
-    name: String,
-    description: String,
-) = object : DescribedPredicate<JavaMethodCall>(description) {
-    override fun test(call: JavaMethodCall): Boolean = call.targetOwner.name == owner && kotlinName(call.target.name) == name
-}
 
 private fun preparedCutCalls(source: String): List<String> {
     val marker = "PreparedCut.prepare("
