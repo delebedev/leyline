@@ -54,7 +54,7 @@ class CopilotProposalService(
             // so it only fires on the live-client path.
             GREMessageType.MulliganReq_aa0d -> advisedProposal(prompt)
 
-            GREMessageType.ChooseStartingPlayerReq_695e -> proposalFor(SimDecision.ChooseStartingPlayer, prompt)
+            GREMessageType.ChooseStartingPlayerReq_695e -> startingPlayerProposal(prompt)
 
             GREMessageType.ActionsAvailableReq_695e -> aarProposal(prompt)
 
@@ -112,6 +112,17 @@ class CopilotProposalService(
             is PromptDecisionResult.Chosen -> proposalFor(result.decision, prompt)
             is PromptDecisionResult.Unavailable -> unavailableProposal(prompt, result)
         }
+
+    private fun startingPlayerProposal(prompt: GREToClientMessage): CopilotProposal =
+        stampPrompt(
+            CopilotProposalRealizer.chooseStartingPlayer(
+                promptType = prompt.type,
+                seat = seatId.value,
+                gsId = prompt.gameStateId,
+                respId = prompt.msgId,
+            ),
+            prompt,
+        )
 
     private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
         val result = advisor.decide(prompt)
@@ -196,19 +207,27 @@ class CopilotProposalService(
         decision: SimDecision,
         prompt: GREToClientMessage,
     ): CopilotProposal =
-        CopilotProposalRealizer
-            .realize(
+        stampPrompt(
+            CopilotProposalRealizer.realize(
                 decision = decision,
                 promptType = prompt.type,
                 seat = seatId.value,
                 resolve = resolver,
                 gsId = prompt.gameStateId,
                 respId = prompt.msgId,
-            ).copy(
-                promptKey = "${prompt.gameStateId}:${prompt.msgId}",
-                gameStateId = prompt.gameStateId,
-                respId = prompt.msgId,
-            )
+            ),
+            prompt,
+        )
+
+    private fun stampPrompt(
+        proposal: CopilotProposal,
+        prompt: GREToClientMessage,
+    ): CopilotProposal =
+        proposal.copy(
+            promptKey = "${prompt.gameStateId}:${prompt.msgId}",
+            gameStateId = prompt.gameStateId,
+            respId = prompt.msgId,
+        )
 
     private fun resolveEntity(instanceId: Int): EntityRef {
         val card =

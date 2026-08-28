@@ -105,10 +105,6 @@ internal sealed interface SimDecision {
         override val kind: String = "keep-hand"
     }
 
-    data object ChooseStartingPlayer : SimDecision {
-        override val kind: String = "choose-starting-player"
-    }
-
     data class GroupTop(
         val instanceIds: List<Int>,
     ) : SimDecision {
@@ -241,17 +237,5 @@ internal sealed interface SimDecision {
 
     data object PassPriority : SimDecision {
         override val kind: String = "pass-priority"
-    }
-
-    data object RetirePrompt : SimDecision {
-        override val kind: String = "retire-prompt"
-    }
-
-    data object WaitForEngine : SimDecision {
-        override val kind: String = "wait-for-engine"
-    }
-
-    data object Terminal : SimDecision {
-        override val kind: String = "terminal"
     }
 }

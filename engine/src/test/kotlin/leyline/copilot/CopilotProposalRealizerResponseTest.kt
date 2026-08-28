@@ -180,7 +180,13 @@ class CopilotProposalRealizerResponseTest :
         }
 
         test("starting-player response chooses the requesting seat") {
-            val msgs = bytesOf(SimDecision.ChooseStartingPlayer, gsId = 1, seat = 2, respId = 5)
+            val msgs =
+                decode(
+                    CopilotProposalRealizer
+                        .chooseStartingPlayer(GREMessageType.ChooseStartingPlayerReq_695e, seat = 2, gsId = 1, respId = 5)
+                        .responses
+                        .single(),
+                )
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.ChooseStartingPlayerResp_097b
             msgs[0].gameStateId shouldBe 1

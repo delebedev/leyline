@@ -321,12 +321,6 @@ class CopilotProposalRealizerTest :
             p.responseIds shouldBe listOf(11, 12)
         }
 
-        test("truly unmapped decision families → unrealizable with a reason") {
-            val p = CopilotProposalRealizer.realize(SimDecision.RetirePrompt, GREMessageType.PromptReq, seat = 1, resolve)
-            p.intent shouldBe "unrealizable"
-            p.reason.shouldNotBeNull()
-        }
-
         test("explicit unrealizable carries prompt type and reason") {
             val p = CopilotProposalRealizer.unrealizable(GREMessageType.SelectTargetsReq_695e, seat = 2, reason = "no game")
             p.intent shouldBe "unrealizable"

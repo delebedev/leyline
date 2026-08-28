@@ -96,7 +96,7 @@ internal open class GreedyPromptPolicy(
             GREMessageType.AssignDamageReq_695e ->
                 SimPromptResponse(respondAssignDamage(prompt.msg))
             GREMessageType.IntermissionReq_695e ->
-                SimPromptResponse(SimDecision.Terminal)
+                SimPromptResponse(SimPromptResponseValue.Terminal)
             else ->
                 SimPromptResponse(SimDecision.PassPriority)
         }
@@ -152,7 +152,7 @@ internal open class GreedyPromptPolicy(
         firstPlayableLand(prompt, attempts)?.let { return it.toAarResponse() }
         firstCastableSpell(prompt, attempts)?.let { return it.toAarResponse() }
         firstPass(prompt)?.let { return it.toAarResponse() }
-        return SimPromptResponse(SimDecision.RetirePrompt, markHandled = false)
+        return SimPromptResponse(SimPromptResponseValue.RetirePrompt, markHandled = false)
     }
 
     private fun firstPlayableLand(
@@ -369,7 +369,6 @@ internal class ForgeAiPromptPolicy(
         return response
     }
 
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun recordTargetChoice(
         prompt: ActivePrompt,
         response: SimPromptResponse,
@@ -377,12 +376,12 @@ internal class ForgeAiPromptPolicy(
     ) {
         if (prompt.type != GREMessageType.SelectTargetsReq_695e) return
         val req = prompt.msg.selectTargetsReq
-        val decision = response.decision
+        val decision = (response.value as SimPromptResponseValue.Decision).decision
         val targetKey =
-            when (decision) {
-                is SimDecision.SelectTargets ->
-                    decision.targetInstanceIds.joinToString("+") { targetChoiceObjectKey(it) }
-                else -> decision.kind
+            if (decision is SimDecision.SelectTargets) {
+                decision.targetInstanceIds.joinToString("+") { targetChoiceObjectKey(it) }
+            } else {
+                decision.kind
             }
         val sourceKey = targetChoiceObjectKey(req.sourceId)
         val key = "source=$source|abilityGrpId=${req.abilityGrpId}|from=$sourceKey|to=$targetKey"
