@@ -9,9 +9,10 @@ import kotlinx.serialization.Serializable
  *
  * [intent] is the acceptance verb (`play_land`, `cast`, `cast_mdfc`,
  * `activate`, `target`, `pay_cost`, `select_n`, `modal`, `mana_type`,
- * `optional_cost`, `numeric`, `attack`, `attack_all`, `block`, `pass`) or the
- * sentinel `unrealizable` when the AI produced no response the current decoder
- * can map. [responseIds] is the flat list of instance ids (or grpIds/ctoIds)
+ * `optional_cost`, `numeric`, `attack`, `attack_all`, `block`, `pass`,
+ * `choose_starting_player`) or the sentinel `unrealizable` when the AI produced
+ * no response the current decoder can map. [responseIds] is the flat list of
+ * instance ids (or grpIds/ctoIds)
  * the client would submit — the surface for diffing a client-submitted
  * response against this proposed one.
  *
