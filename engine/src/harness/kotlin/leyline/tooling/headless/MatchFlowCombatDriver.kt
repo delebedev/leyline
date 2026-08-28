@@ -11,12 +11,11 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 internal class MatchFlowCombatDriver(
     private val seatId: SeatId,
     private val bridge: () -> GameBridge,
-    private val submit: (ClientToGREMessage, String) -> Unit,
-    private val submitAndAwaitPrompt: (ClientToGREMessage, String, (GREToClientMessage) -> Boolean) -> Unit,
+    private val submitOperation: (ClientToGREMessage, String, () -> Boolean) -> Boolean,
+    private val submitAndAwaitPromptOperation: (ClientToGREMessage, String, (GREToClientMessage) -> Boolean, () -> Boolean) -> Boolean,
     private val messageSnapshot: () -> Int,
     private val messagesSince: (Int) -> List<GREToClientMessage>,
     private val submitWithGsId: (ClientToGREMessage) -> ClientToGREMessage,
-    private val awaitClientOutput: (String, (GREToClientMessage) -> Boolean) -> Unit,
 ) {
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
@@ -29,30 +28,39 @@ internal class MatchFlowCombatDriver(
             .map { bridge.instanceId(it) to it.name }
     }
 
-    fun declareAttackers(attackerInstanceIds: List<Int>) {
-        declareAttackers(attackerInstanceIds, defaultDamageRecipients(attackerInstanceIds))
+    fun declareAttackers(
+        attackerInstanceIds: List<Int>,
+        completeWhen: () -> Boolean = { false },
+    ) {
+        declareAttackers(attackerInstanceIds, defaultDamageRecipients(attackerInstanceIds), completeWhen)
     }
 
     fun declareAttackers(
         attackerInstanceIds: List<Int>,
         damageRecipients: Map<Int, DamageRecipient>,
+        completeWhen: () -> Boolean = { false },
     ) {
-        submitAndAwaitPrompt(
-            submitWithGsId(
-                declareAttackersResp(
-                    attackers = attackerInstanceIds,
-                    damageRecipients = damageRecipients,
+        if (
+            submitAndAwaitPrompt(
+                submitWithGsId(
+                    declareAttackersResp(
+                        attackers = attackerInstanceIds,
+                        damageRecipients = damageRecipients,
+                    ),
                 ),
-            ),
-            "attacker selection",
-            GREToClientMessage::hasDeclareAttackersReq,
-        )
+                "attacker selection",
+                GREToClientMessage::hasDeclareAttackersReq,
+                completeWhen,
+            )
+        ) {
+            return
+        }
 
-        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration")
+        submit(submitWithGsId(submitAttackersReq(seatId.value)), "attacker declaration", completeWhen)
     }
 
-    fun declareNoAttackers() {
-        declareAttackers(emptyList())
+    fun declareNoAttackers(completeWhen: () -> Boolean = { false }) {
+        declareAttackers(emptyList(), completeWhen)
     }
 
     fun toggleAttackers(
@@ -97,28 +105,26 @@ internal class MatchFlowCombatDriver(
         )
     }
 
-    fun declareBlockers(assignments: Map<Int, Int>) {
-        submitAndAwaitPrompt(
-            submitWithGsId(declareBlockersResp(assignments)),
-            "blocker selection",
-            GREToClientMessage::hasDeclareBlockersReq,
-        )
-
-        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration")
-    }
-
-    fun declareNoBlockers() {
-        val pendingKind =
-            bridge()
-                .actionBridge(seatId)
-                .getPending()
-                ?.state
-                ?.kind
-        if (pendingKind != leyline.bridge.handoff.PendingActionKind.DECLARE_BLOCKERS) {
-            awaitClientOutput("client output") { true }
+    fun declareBlockers(
+        assignments: Map<Int, Int>,
+        completeWhen: () -> Boolean = { false },
+    ) {
+        if (
+            submitAndAwaitPrompt(
+                submitWithGsId(declareBlockersResp(assignments)),
+                "blocker selection",
+                GREToClientMessage::hasDeclareBlockersReq,
+                completeWhen,
+            )
+        ) {
             return
         }
-        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration")
+
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration", completeWhen)
+    }
+
+    fun declareNoBlockers(completeWhen: () -> Boolean = { false }) {
+        submit(submitWithGsId(submitBlockersReq(seatId.value)), "blocker declaration", completeWhen)
     }
 
     fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
@@ -148,6 +154,19 @@ internal class MatchFlowCombatDriver(
     fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
         submit(submitWithGsId(assignDamageResp(assigners)), "damage assignment")
     }
+
+    private fun submit(
+        message: ClientToGREMessage,
+        description: String,
+        completeWhen: () -> Boolean = { false },
+    ): Boolean = submitOperation(message, description, completeWhen)
+
+    private fun submitAndAwaitPrompt(
+        message: ClientToGREMessage,
+        description: String,
+        predicate: (GREToClientMessage) -> Boolean,
+        completeWhen: () -> Boolean = { false },
+    ): Boolean = submitAndAwaitPromptOperation(message, description, predicate, completeWhen)
 
     private fun defaultDamageRecipients(attackerInstanceIds: List<Int>): Map<Int, DamageRecipient> =
         attackerInstanceIds.associateWith {
