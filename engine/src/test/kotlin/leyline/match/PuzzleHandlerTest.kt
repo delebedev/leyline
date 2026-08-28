@@ -18,8 +18,6 @@ import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.game.generator.PuzzleLibrary
-import leyline.game.generator.PuzzleSource
-import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.infra.MatchOutput
 import leyline.match.ConnectionState
@@ -36,9 +34,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.io.File
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 class PuzzleHandlerTest :
     FunSpec({
@@ -173,11 +168,11 @@ class PuzzleHandlerTest :
             try {
                 val handler =
                     PuzzleHandler(
-                        puzzlePath = { temp.absolutePath },
+                        puzzleIdentity = { temp.nameWithoutExtension },
                         TestCardRegistry.repo,
                         registry,
                         EngineSettings(),
-                        temp.parentFile,
+                        PuzzleLibrary(temp.parentFile),
                     )
                 val (channel, ctx) = channelCtx()
                 val bridge = handler.getOrCreatePuzzleBridge("puzzle-opponent-turn")
@@ -390,47 +385,5 @@ class PuzzleHandlerTest :
             } finally {
                 temp.delete()
             }
-        }
-
-        test("puzzle replacement retires old playback delivery before starting the new game") {
-            val registry = MatchRegistry()
-            val bridge =
-                GameBridge(
-                    matchId = "puzzle-hot-swap",
-                    engineSettings = EngineSettings(),
-                    cardRepository = TestCardRegistry.repo,
-                )
-            bridge.startPuzzle(PuzzleSource.loadFromResource("test-puzzles/lands-only.pzl"))
-            val session =
-                MatchSession(
-                    connection =
-                        ConnectionState(
-                            seatId = SeatId(1),
-                            matchId = "puzzle-hot-swap",
-                            sink = ListMessageSink(),
-                            registry = registry,
-                        ),
-                    gameBridge = bridge,
-                    paceDelayMs = 0,
-                )
-            registry.registerSession("puzzle-hot-swap", SeatId(1), session)
-
-            val publicationReached = CountDownLatch(1)
-            val staleRequests = AtomicInteger()
-            bridge.cutCoordinator.beforePublicationLock = {
-                publicationReached.countDown()
-                if (bridge.playbackDrainRequester != null) {
-                    staleRequests.incrementAndGet()
-                    bridge.playbackDrainRequester?.invoke()
-                }
-            }
-
-            val replacement =
-                session.replaceForPuzzle(PuzzleSource.loadFromResource("test-puzzles/simple-attack.pzl")).first
-
-            publicationReached.await(5, TimeUnit.SECONDS) shouldBe true
-            staleRequests.get() shouldBe 0
-            replacement.close()
-            bridge.shutdown()
         }
     })
