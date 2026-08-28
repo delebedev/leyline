@@ -110,6 +110,8 @@ internal class PromptDecisionAdvisor(
 
             GREMessageType.SearchFromGroupsReq_695e -> defaulted(DefaultDecisions.groupedSearch(prompt))
 
+            GREMessageType.SelectReplacementReq_695e -> defaulted(DefaultDecisions.selectReplacement(prompt))
+
             GREMessageType.NumericInputReq_695e -> defaulted(DefaultDecisions.numericInput(prompt))
 
             GREMessageType.DistributionReq_695e ->

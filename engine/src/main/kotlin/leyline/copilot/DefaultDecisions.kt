@@ -51,6 +51,10 @@ internal object DefaultDecisions {
         return SimDecision.GroupedSearch(group.groupId, group.idsList.take(count), group.maxSelect)
     }
 
+    /** Echo the first complete replacement row as the documented default. */
+    fun selectReplacement(msg: GREToClientMessage): SimDecision =
+        SimDecision.SelectReplacement(msg.selectReplacementReq.replacementsList.first())
+
     /** Pick a small legal value (min, capped at [NUMERIC_INPUT_DEFAULT_MAX]). */
     fun numericInput(msg: GREToClientMessage): SimDecision {
         val req = msg.numericInputReq

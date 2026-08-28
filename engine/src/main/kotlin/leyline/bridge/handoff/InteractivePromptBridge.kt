@@ -2,6 +2,7 @@ package leyline.bridge.handoff
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
@@ -695,6 +696,36 @@ class InteractivePromptBridge(
         }
     }
 
+    /** Route one competing replacement choice with its exact Forge handles. */
+    fun requestReplacement(
+        request: PromptRequest,
+        possibleReplacers: List<ReplacementEffect>,
+    ): ReplacementInteractionResult? {
+        check(request.route is ResolvedPromptRoute.SelectReplacement) { "SelectReplacement route required" }
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) return null
+        val runtime = checkNotNull(runtimeBindings.replacement) { "Replacement runtime is not registered" }
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = runtime.awaitReplacement(request, possibleReplacers, timeoutMs)
+            if (result == null) {
+                record(request, PromptCallStatus.DEFAULTED_POLICY, emptyList(), System.currentTimeMillis() - startMs)
+                null
+            } else {
+                record(
+                    request,
+                    if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+                    listOf(result.optionIndex),
+                    System.currentTimeMillis() - startMs,
+                )
+                if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
+                result
+            }
+        } catch (ex: Exception) {
+            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            throw ex
+        }
+    }
+
     private fun requestMigratedChoice(
         request: PromptRequest,
         targetingSa: SpellAbility?,
@@ -735,6 +766,9 @@ enum class PromptSemantic {
     SelectNDiscard,
     Search,
     GroupedSearch,
+
+    /** Choose which of several competing self-replacement effects applies first. */
+    SelectReplacement,
 
     /** Order cards going to the bottom of a library. */
     OrderForBottom,

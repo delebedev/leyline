@@ -34,6 +34,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
@@ -600,5 +601,42 @@ class SimClientDriverPolicyTest :
                 sourceBefore = recorder.sourceSnapshot(groupedPrompt),
             )
             recorder.snapshot().last().targetIds shouldBe listOf(105)
+
+            val replacement =
+                ReplacementEffect
+                    .newBuilder()
+                    .setObjectInstance(107)
+                    .setAffectedObject(107)
+                    .setUniqueAbilityId(101)
+                    .setAbilityGrpId(202)
+                    .setReplacementEffectId(9001)
+                    .build()
+            val replacementMsg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(10)
+                    .setGameStateId(20)
+                    .setType(GREMessageType.SelectReplacementReq_695e)
+                    .setSelectReplacementReq(
+                        wotc.mtgo.gre.external.messaging.Messages.SelectReplacementReq
+                            .newBuilder()
+                            .addReplacements(replacement),
+                    ).build()
+            harness.allMessages += replacementMsg
+            val replacementPrompt = SimPromptLedger(harness).activePrompt()!!
+            val replacementDecision =
+                GreedyPromptPolicy(harness)
+                    .respondToPrompt(replacementPrompt, ActionAttemptLedger { 1 })
+                    .decision
+            replacementDecision shouldBe SimDecision.SelectReplacement(replacement)
+            recorder.record(
+                prompt = replacementPrompt,
+                decision = replacementDecision,
+                submitResult = SimSubmitResult.Submitted,
+                beforeMessages = 3,
+                beforeLast = replacementMsg,
+                sourceBefore = recorder.sourceSnapshot(replacementPrompt),
+            )
+            recorder.snapshot().last().targetIds shouldBe listOf(107)
         }
     })

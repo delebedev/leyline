@@ -651,6 +651,25 @@ class PlayerController(
         return result.firstOrNull() == 0
     }
 
+    override fun chooseSingleReplacementEffect(possibleReplacers: List<ReplacementEffect>): ReplacementEffect {
+        val first = possibleReplacers.first()
+        if (possibleReplacers.size == 1) return first
+        val firstDescription = first.toString()
+        if (possibleReplacers.all { it.toString() == firstDescription }) return first
+        val request =
+            PromptRequest(
+                promptType = "select_replacement",
+                message = "Choose which replacement effect applies first",
+                options = possibleReplacers.map(ReplacementEffect::toString),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+                route = PromptRouteResolver.resolve(PromptSemantic.SelectReplacement),
+            )
+        return bridge.requestReplacement(request, possibleReplacers)?.handle
+            ?: super.chooseSingleReplacementEffect(possibleReplacers)
+    }
+
     private fun awaitCommanderReturn(
         hostCard: Card?,
         sa: SpellAbility?,

@@ -7,6 +7,7 @@ import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 
 /**
  * Pins the injectable response bytes per decision. The combat cases guard the
@@ -192,6 +193,23 @@ class ResponseBuilderTest :
             group.groupId shouldBe 5004
             group.maxSelect shouldBe 1
             group.idsList shouldBe listOf(105)
+        }
+
+        test("replacement echoes the complete identity-rich row") {
+            val row =
+                ReplacementEffect
+                    .newBuilder()
+                    .setObjectInstance(7)
+                    .setAffectedObject(7)
+                    .setUniqueAbilityId(101)
+                    .setAbilityGrpId(202)
+                    .setReplacementEffectId(9000)
+                    .build()
+            val msg = bytesOf(SimDecision.SelectReplacement(row), gsId = 44, respId = 78).single()
+            msg.type shouldBe ClientMessageType.SelectReplacementResp_097b
+            msg.gameStateId shouldBe 44
+            msg.respId shouldBe 78
+            msg.selectReplacementResp.replacement shouldBe row
         }
 
         test("optional cost decline sends the Done option by type (no ctoId)") {

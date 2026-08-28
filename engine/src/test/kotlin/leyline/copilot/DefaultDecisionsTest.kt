@@ -14,6 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Group
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
@@ -146,5 +147,25 @@ class DefaultDecisionsTest :
                         ),
                     ).build()
             DefaultDecisions.groupedSearch(prompt) shouldBe SimDecision.GroupedSearch(5004, listOf(105), 1)
+        }
+
+        test("replacement default echoes the complete first row") {
+            val row =
+                ReplacementEffect
+                    .newBuilder()
+                    .setObjectInstance(7)
+                    .setAffectedObject(7)
+                    .setReplacementEffectId(9000)
+                    .build()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SelectReplacementReq_695e)
+                    .setSelectReplacementReq(
+                        wotc.mtgo.gre.external.messaging.Messages.SelectReplacementReq
+                            .newBuilder()
+                            .addReplacements(row),
+                    ).build()
+            DefaultDecisions.selectReplacement(prompt) shouldBe SimDecision.SelectReplacement(row)
         }
     })

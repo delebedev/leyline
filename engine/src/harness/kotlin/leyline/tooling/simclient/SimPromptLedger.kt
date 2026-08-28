@@ -171,6 +171,11 @@ internal class SimPromptLedger(
                     searchFromGroupsReq.groupsList.joinToString("|") { group ->
                         "${group.groupId}:${group.maxSelect}:${group.idsList.joinToString(",")}"
                     }
+            hasSelectReplacementReq() ->
+                "SelectReplacement:" +
+                    selectReplacementReq.replacementsList.joinToString("|") { row ->
+                        "${row.objectInstance}:${row.affectedObject}:${row.uniqueAbilityId}:${row.abilityGrpId}:${row.replacementEffectId}"
+                    }
             hasSelectTargetsReq() ->
                 "SelectTargets:" +
                     selectTargetsReq.targetsList.joinToString("|") { sel ->
@@ -196,6 +201,7 @@ internal fun isSimPrompt(msg: GREToClientMessage): Boolean =
         msg.hasDistributionReq() ||
         msg.hasSearchReq() ||
         msg.hasSearchFromGroupsReq() ||
+        msg.hasSelectReplacementReq() ||
         msg.hasPayCostsReq() ||
         msg.hasAssignDamageReq() ||
         msg.hasMulliganReq() ||
