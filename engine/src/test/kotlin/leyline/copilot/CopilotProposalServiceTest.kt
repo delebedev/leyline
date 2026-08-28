@@ -61,6 +61,7 @@ class CopilotProposalServiceTest :
 
         test("starting-player prompt chooses the requesting seat") {
             val harness = MatchFlowHarness(seed = 7L, deckList = "60 Forest")
+            harness.connectAndKeep()
             val prompt =
                 GREToClientMessage
                     .newBuilder()
