@@ -31,9 +31,6 @@ class MatchRegistry {
     /** Look up a match by id. */
     fun getMatch(matchId: String): Match? = matches[matchId]
 
-    /** Convenience: get the bridge for a match directly. */
-    fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
-
     fun registerSession(
         matchId: String,
         seatId: SeatId,
@@ -51,6 +48,13 @@ class MatchRegistry {
         val peerSeat = SeatId(if (seatId.value == 1) 2 else 1)
         return sessions[matchId]?.get(peerSeat.value)
     }
+
+    /** Return the active human session; Familiar registration never replaces it. */
+    fun activeHumanSession(): MatchSession? =
+        sessions.values
+            .asSequence()
+            .mapNotNull { it[1] as? MatchSession }
+            .firstOrNull()
 
     /**
      * Remove all matches and sessions except [currentMatchId].
@@ -114,12 +118,4 @@ class MatchRegistry {
             match != null || fallbackBridge != null,
         )
     }
-
-    /** Get seat 1 MatchSession for any active match (for debug injection). */
-    fun activeSession(): MatchSession? =
-        sessions.values
-            .firstOrNull()
-            ?.values
-            ?.filterIsInstance<MatchSession>()
-            ?.firstOrNull()
 }

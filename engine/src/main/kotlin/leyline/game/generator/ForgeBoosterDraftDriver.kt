@@ -5,8 +5,7 @@ import forge.gamemodes.limited.IBoosterDraft
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.DraftConfig
-import leyline.game.data.CardRepository
+import leyline.config.DraftSettings
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -14,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
  * [BoosterDraftDriver] backed by Forge's `BoosterDraft` engine.
  *
  * Holds one [HeadlessBoosterDraft] per active session. Translates between
- * Forge `PaperCard` and Arena `grpId` via [CardRepository].
+ * Forge `PaperCard` and Arena `grpId` via a name-to-grpId lookup.
  *
  * Falls back to FDN when [start] is given a set with no Forge booster template
  * (matches the pre-existing `DraftPackGenerator` behaviour so QuickDraft keeps
@@ -30,8 +29,8 @@ import java.util.concurrent.ConcurrentHashMap
  *   re-init (different player, same QuickDraft event) is allowed.
  */
 class ForgeBoosterDraftDriver(
-    private val cards: CardRepository,
-    private val draftConfig: DraftConfig = DraftConfig(),
+    private val findGrpIdByName: (String) -> Int?,
+    private val draftSettings: DraftSettings = DraftSettings(),
 ) : BoosterDraftDriver {
     private val log = LoggerFactory.getLogger(ForgeBoosterDraftDriver::class.java)
 
@@ -67,8 +66,8 @@ class ForgeBoosterDraftDriver(
                 "(LAND_SET_CODE[0] is process-global)"
         }
         val strategy =
-            when (draftConfig.picker) {
-                "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftConfig.modelDir)
+            when (draftSettings.picker) {
+                "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftSettings.modelDir)
                 else -> DraftPickStrategies.default()
             }
         val draft = HeadlessBoosterDraft(effectiveSet, strategy)
@@ -89,7 +88,7 @@ class ForgeBoosterDraftDriver(
 
         val pack = draft.currentPackPaperCards()
         val card =
-            pack.firstOrNull { cards.findGrpIdByName(it.name) == grpId }
+            pack.firstOrNull { findGrpIdByName(it.name) == grpId }
                 ?: error("Card grpId=$grpId not in current pack (session=$sessionKey)")
 
         val accepted = draft.chooseLocally(card)
@@ -133,7 +132,7 @@ class ForgeBoosterDraftDriver(
                 val grpIds = mutableListOf<Int>()
                 val unmapped = mutableListOf<String>()
                 for (entry in main) {
-                    val grpId = cards.findGrpIdByName(entry.key.name)
+                    val grpId = findGrpIdByName(entry.key.name)
                     if (grpId != null) {
                         repeat(entry.value) { grpIds.add(grpId) }
                     } else {
@@ -159,7 +158,7 @@ class ForgeBoosterDraftDriver(
         val out = mutableListOf<Int>()
         val unmapped = mutableListOf<String>()
         for (card in pack) {
-            val grpId = cards.findGrpIdByName(card.name)
+            val grpId = findGrpIdByName(card.name)
             if (grpId != null) {
                 out.add(grpId)
             } else {

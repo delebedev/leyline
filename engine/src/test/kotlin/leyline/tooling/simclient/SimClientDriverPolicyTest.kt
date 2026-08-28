@@ -27,12 +27,15 @@ import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.Group
 import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
+import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
 import wotc.mtgo.gre.external.messaging.Messages.SearchReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
@@ -552,7 +555,7 @@ class SimClientDriverPolicyTest :
 
             recorder.record(
                 prompt = prompt,
-                decision = SimDecision.SelectTargets(listOf(2)),
+                decision = SimDecision.SelectTargets(mapOf(0 to listOf(2))),
                 submitResult = SimSubmitResult.Submitted,
                 beforeMessages = 1,
                 beforeLast = msg,
@@ -571,5 +574,69 @@ class SimClientDriverPolicyTest :
             sample.abilityGrpId shouldBe 204314
             sample.targetIds shouldBe listOf(2)
             sample.sourceBefore shouldBe "id=42;grp=59671;zone=STACK;ctrl=1;type=None_a4aa"
+
+            val groupedMsg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(9)
+                    .setGameStateId(19)
+                    .setType(GREMessageType.SearchFromGroupsReq_695e)
+                    .setSearchFromGroupsReq(
+                        SearchFromGroupsReq.newBuilder().addGroups(
+                            Group
+                                .newBuilder()
+                                .setGroupId(5004)
+                                .setMaxSelect(1)
+                                .addIds(105),
+                        ),
+                    ).build()
+            harness.allMessages += groupedMsg
+            val groupedPrompt = SimPromptLedger(harness).activePrompt()!!
+            recorder.record(
+                prompt = groupedPrompt,
+                decision = SimDecision.GroupedSearch(groupId = 5004, itemsFound = listOf(105), maxSelect = 1),
+                submitResult = SimSubmitResult.Submitted,
+                beforeMessages = 2,
+                beforeLast = groupedMsg,
+                sourceBefore = recorder.sourceSnapshot(groupedPrompt),
+            )
+            recorder.snapshot().last().targetIds shouldBe listOf(105)
+
+            val replacement =
+                ReplacementEffect
+                    .newBuilder()
+                    .setObjectInstance(107)
+                    .setAffectedObject(107)
+                    .setUniqueAbilityId(101)
+                    .setAbilityGrpId(202)
+                    .setReplacementEffectId(9001)
+                    .build()
+            val replacementMsg =
+                GREToClientMessage
+                    .newBuilder()
+                    .setMsgId(10)
+                    .setGameStateId(20)
+                    .setType(GREMessageType.SelectReplacementReq_695e)
+                    .setSelectReplacementReq(
+                        wotc.mtgo.gre.external.messaging.Messages.SelectReplacementReq
+                            .newBuilder()
+                            .addReplacements(replacement),
+                    ).build()
+            harness.allMessages += replacementMsg
+            val replacementPrompt = SimPromptLedger(harness).activePrompt()!!
+            val replacementDecision =
+                GreedyPromptPolicy(harness)
+                    .respondToPrompt(replacementPrompt, ActionAttemptLedger { 1 })
+                    .decision
+            replacementDecision shouldBe SimDecision.SelectReplacement(replacement)
+            recorder.record(
+                prompt = replacementPrompt,
+                decision = replacementDecision,
+                submitResult = SimSubmitResult.Submitted,
+                beforeMessages = 3,
+                beforeLast = replacementMsg,
+                sourceBefore = recorder.sourceSnapshot(replacementPrompt),
+            )
+            recorder.snapshot().last().targetIds shouldBe listOf(107)
         }
     })

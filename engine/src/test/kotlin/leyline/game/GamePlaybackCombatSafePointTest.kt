@@ -12,11 +12,13 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequenceState
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.StaleProjectionTransitionException
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -26,7 +28,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.EnumSet
-import java.util.concurrent.atomic.AtomicBoolean
 
 class GamePlaybackCombatSafePointTest :
     BoardTest({
@@ -65,6 +66,12 @@ class GamePlaybackCombatSafePointTest :
             )
             bridge.recordEarthbendResolution(sourceId, 42, 0, listOf(sourceId))
             setOpenFrame(bridge, events ?: combatDamageFrame(sourceId))
+            bridge.cutCoordinator.registerViewers(
+                listOf(
+                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ),
+            )
             val playback = GamePlayback(bridge, 1, captureLocalActions)
             playback.visit(forge.game.event.GameEventCombatEnded(emptyList(), emptyList()))
             return CombatPlaybackFixture(
@@ -234,34 +241,6 @@ class GamePlaybackCombatSafePointTest :
             }
             fixture.bridge.diffListener = null
         }
-
-        test("post-install failure retains all batches and committed acknowledgements without replay") {
-            val fixture = setup()
-            val timeoutField = GameBridge::class.java.getDeclaredField("promptTimeoutNeedsAutoAdvance")
-            timeoutField.isAccessible = true
-            (timeoutField.get(fixture.bridge) as AtomicBoolean).set(true)
-            fixture.bridge.autoAdvanceRequester = { error("post-install failure") }
-
-            val thrown = shouldThrow<PlaybackTerminalFailure> { fixture.playback.onCombatEndedCompleted() }
-            val batches = fixture.playback.drainQueue()
-
-            assertSoftly {
-                thrown.cause?.message shouldBe "post-install failure"
-                batches shouldHaveSize 3
-                fixture.bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .snapshotChoiceResults()
-                    .shouldBeEmpty()
-                fixture.bridge
-                    .materializeEffectProjectionFacts()
-                    .pendingEarthbendResolutions
-                    .shouldBeEmpty()
-                shouldThrow<PlaybackTerminalFailure> { fixture.playback.onCombatEndedCompleted() } shouldBe thrown
-                fixture.playback.drainQueue().shouldBeEmpty()
-            }
-            fixture.bridge.autoAdvanceRequester = null
-        }
     })
 
 private fun combatDamageFrame(sourceId: ForgeCardId): FrameEventLog =
@@ -303,7 +282,7 @@ private fun setOpenFrame(
 private data class CombatPlaybackFixture(
     val bridge: GameBridge,
     val playback: GamePlayback,
-    val counterBefore: MessageCounter.Snapshot,
+    val counterBefore: LogicalSequenceState,
     val choiceVersion: Long,
     val earthbendVersion: Long,
 )

@@ -96,7 +96,7 @@ class AdventurePuzzleTest :
                     grpId = adventureAction.grpId
                 }
             val beforeCast = messageSnapshot()
-            session.onPerformAction(submitWithGsId(castMsg))
+            send(submitWithGsId(castMsg))
             drainSink()
             val castFlow = messagesSince(beforeCast)
             val stackMessageIndex =

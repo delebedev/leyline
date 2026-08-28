@@ -6,6 +6,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.gsm
 import leyline.testkit.humanPlayer
@@ -25,24 +26,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  */
 class GsIdChainTest :
     BoardTest({
-
-        test("stateOnlyDiff produces content GSM plus echo with chained gsIds and no pendingMessageCount") {
-            val board =
-                startWithBoard { _, human, _ ->
-                    addCard("Plains", human, ZoneType.Hand)
-                }
-
-            val result = bundleBuilder(board.bridge).stateOnlyDiff(board.game, board.counter)
-            result.messages.size shouldBe 2
-            val content = result.messages[0].gameStateMessage
-            val echo = result.messages[1].gameStateMessage
-            assertSoftly {
-                content.pendingMessageCount shouldBe 0
-                echo.pendingMessageCount shouldBe 0
-                echo.prevGameStateId shouldBe content.gameStateId
-                echo.gameStateId shouldBe content.gameStateId + 1
-            }
-        }
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {
             val board =
@@ -70,7 +53,8 @@ class GsIdChainTest :
                     addCard("Plains", human, ZoneType.Hand)
                 }
 
-            val result = bundleBuilder(board.bridge).phaseTransitionDiff(board.game, board.counter)
+            val result =
+                BundleBuilderTestSupport.phaseTransition(bundleBuilder(board.bridge), board.bridge, board.game, board.counter)
             result.messages.size shouldBe 5
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }

@@ -11,6 +11,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
+import leyline.bridge.handoff.StaticChoiceWindowValue
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.PlaybackTerminalFailure
@@ -91,30 +92,20 @@ class MatchStaticChoiceInteractionFailureTest :
             val counter = board.counter.snapshot()
 
             assertSoftly {
-                coordinator.staticChoices.submit(
-                    "${published.interactionId}-stale",
-                    published.gameStateId,
-                    listOf(values[0]),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0])), published.gameStateId + 1) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId + 1, listOf(values[0])) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0], values[0])), published.gameStateId) shouldBe
                     false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, emptyList()) shouldBe false
-                coordinator.staticChoices.submit(
-                    published.interactionId,
-                    published.gameStateId,
-                    listOf(values[0], values[0]),
-                ) shouldBe
-                    false
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(Int.MAX_VALUE)) shouldBe
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe
                     false
                 coordinator.staticChoices.current() shouldBe published
                 board.bridge.projectionStateSnapshot() shouldBe projection
                 board.counter.snapshot() shouldBe counter
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[1])) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[1])), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
-                coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[1])) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[1])), published.gameStateId) shouldBe false
             }
         }
 
@@ -138,7 +129,7 @@ class MatchStaticChoiceInteractionFailureTest :
                     .snapshotChoiceResults()
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.staticChoices.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -157,7 +148,7 @@ class MatchStaticChoiceInteractionFailureTest :
             Thread {
                 responseStarted.countDown()
                 runCatching {
-                    coordinator.staticChoices.submit(published.interactionId, published.gameStateId, listOf(values[0]))
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(values[0])), published.gameStateId)
                 }.onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()
@@ -171,7 +162,11 @@ class MatchStaticChoiceInteractionFailureTest :
                 engineFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = deliveryFailure.get().shouldBeInstanceOf<PlaybackTerminalFailure>()
                 terminal.cause shouldBe cause
-                terminal.pendingStaticChoiceCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<StaticChoiceWindowValue>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
                 engineFailure.get() shouldBe terminal
                 board.bridge
@@ -182,6 +177,6 @@ class MatchStaticChoiceInteractionFailureTest :
                     .current()
                     .shouldBeNull()
             }
-            coordinator.staticChoices.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
     })

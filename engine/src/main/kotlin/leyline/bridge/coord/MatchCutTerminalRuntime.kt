@@ -1,28 +1,9 @@
 package leyline.bridge.coord
 
-import leyline.game.CardSelectMaterializationDiagnostic
-import leyline.game.GroupingMaterializationDiagnostic
-import leyline.game.ManaSourcePaymentMaterializationDiagnostic
 import leyline.game.MaterializationDiagnostic
-import leyline.game.ModalChoiceMaterializationDiagnostic
-import leyline.game.OneShotPayCostsMaterializationDiagnostic
-import leyline.game.OrderMaterializationDiagnostic
-import leyline.game.PendingCardSelectCut
 import leyline.game.PendingCut
-import leyline.game.PendingGroupingCut
-import leyline.game.PendingInteractionCut
-import leyline.game.PendingManaSourcePaymentCut
-import leyline.game.PendingModalChoiceCut
-import leyline.game.PendingOneShotPayCostsCut
-import leyline.game.PendingOrderCut
-import leyline.game.PendingRevealChoiceCut
-import leyline.game.PendingSearchCut
-import leyline.game.PendingStaticChoiceCut
 import leyline.game.PlaybackTerminalFailure
-import leyline.game.PromptTerminalFailureContext
-import leyline.game.RevealChoiceMaterializationDiagnostic
-import leyline.game.SearchMaterializationDiagnostic
-import leyline.game.StaticChoiceMaterializationDiagnostic
+import leyline.game.PromptTerminalEvidence
 
 /** Write-once terminal state and waiter teardown for one match cut coordinator. */
 internal class MatchCutTerminalRuntime(
@@ -31,25 +12,7 @@ internal class MatchCutTerminalRuntime(
     data class Context(
         val pending: PendingCut? = null,
         val diagnostic: MaterializationDiagnostic? = null,
-        val pendingInteraction: PendingInteractionCut? = null,
-        val pendingSearch: PendingSearchCut? = null,
-        val searchDiagnostic: SearchMaterializationDiagnostic? = null,
-        val pendingOrder: PendingOrderCut? = null,
-        val orderDiagnostic: OrderMaterializationDiagnostic? = null,
-        val pendingGrouping: PendingGroupingCut? = null,
-        val groupingDiagnostic: GroupingMaterializationDiagnostic? = null,
-        val pendingCardSelect: PendingCardSelectCut? = null,
-        val cardSelectDiagnostic: CardSelectMaterializationDiagnostic? = null,
-        val pendingStaticChoice: PendingStaticChoiceCut? = null,
-        val staticChoiceDiagnostic: StaticChoiceMaterializationDiagnostic? = null,
-        val pendingRevealChoice: PendingRevealChoiceCut? = null,
-        val revealChoiceDiagnostic: RevealChoiceMaterializationDiagnostic? = null,
-        val pendingModalChoice: PendingModalChoiceCut? = null,
-        val modalChoiceDiagnostic: ModalChoiceMaterializationDiagnostic? = null,
-        val pendingManaSourcePayment: PendingManaSourcePaymentCut? = null,
-        val manaSourcePaymentDiagnostic: ManaSourcePaymentMaterializationDiagnostic? = null,
-        val pendingOneShotPayCosts: PendingOneShotPayCostsCut? = null,
-        val oneShotPayCostsDiagnostic: OneShotPayCostsMaterializationDiagnostic? = null,
+        val promptEvidence: PromptTerminalEvidence? = null,
     )
 
     @Volatile
@@ -74,34 +37,13 @@ internal class MatchCutTerminalRuntime(
             PlaybackTerminalFailure(
                 pendingCut = context.pending,
                 diagnostic = context.diagnostic,
-                pendingInteractionCut = context.pendingInteraction,
-                prompt =
-                    PromptTerminalFailureContext(
-                        pendingSearchCut = context.pendingSearch,
-                        searchDiagnostic = context.searchDiagnostic,
-                        pendingOrderCut = context.pendingOrder,
-                        orderDiagnostic = context.orderDiagnostic,
-                        pendingGroupingCut = context.pendingGrouping,
-                        groupingDiagnostic = context.groupingDiagnostic,
-                        pendingCardSelectCut = context.pendingCardSelect,
-                        cardSelectDiagnostic = context.cardSelectDiagnostic,
-                        pendingStaticChoiceCut = context.pendingStaticChoice,
-                        staticChoiceDiagnostic = context.staticChoiceDiagnostic,
-                        pendingRevealChoiceCut = context.pendingRevealChoice,
-                        revealChoiceDiagnostic = context.revealChoiceDiagnostic,
-                        pendingModalChoiceCut = context.pendingModalChoice,
-                        modalChoiceDiagnostic = context.modalChoiceDiagnostic,
-                        pendingManaSourcePaymentCut = context.pendingManaSourcePayment,
-                        manaSourcePaymentDiagnostic = context.manaSourcePaymentDiagnostic,
-                        pendingOneShotPayCostsCut = context.pendingOneShotPayCosts,
-                        oneShotPayCostsDiagnostic = context.oneShotPayCostsDiagnostic,
-                    ),
+                promptEvidence = context.promptEvidence,
                 cause = cause,
             ).also { terminal ->
                 context.pending?.let(owner::retainPendingCut)
                 failure = terminal
-                owner.interactions.terminate(terminal)
                 owner.actions.terminate()
+                owner.deferredCast.discard()
                 owner.prompts.terminate(terminal)
                 owner.bridge.failActionWindows(terminal)
                 owner.bridge.prioritySignal.signal()

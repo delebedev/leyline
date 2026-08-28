@@ -1,73 +1,130 @@
 # Leyline — Server Configuration
 #
-# Changes take effect on next server start.
-# Decks are managed through the Arena client UI (stored in player.db).
+# Code defaults form the normal profile. Set only intentional overrides here;
+# this file is optional. Changes take effect on next start.
+#
+# Precedence: typed default < leyline.toml < LEYLINE_* environment override.
+# The environment name derives mechanically from the canonical key path:
+# `native.fd_port` → `LEYLINE_NATIVE_FD_PORT`, `paths.artifacts` →
+# `LEYLINE_PATHS_ARTIFACTS`. Unknown keys, malformed overrides, and invalid
+# combinations fail startup.
+#
+# Relative path values resolve against this file's directory, never the
+# process working directory. `LEYLINE_INSTANCE=<name>` starts an additional
+# instance with isolated state and artifact paths beneath the configured bases.
 
-[server]
-# Network ports. CLI args (--fd-port, etc.) override these.
-#fd_port = 30010
-#md_port = 30003
-#debug_port = 8090
-#account_port = 9443
-#management_port = 8091
+[native]
+# Front Door listener port (client auth + deck management).
+# fd_port = 30010
+# Match Door listener port (game protocol).
+# md_port = 30003
+# Local control HTTP listener port.
+# debug_port = 8090
+# Account (auth) HTTPS listener port.
+# account_port = 9443
+# Management HTTP (health checks) listener port.
+# management_port = 8091
+# Advertised Front Door authority. A bare host advertises `host:<fd_port>`;
+# a `host:port` value is used verbatim.
+# external_host = "localhost"
+# Bind address for all native-head listeners.
+# bind = "127.0.0.1"
 
-# Bridge timeout — how long the engine waits for human priority/action responses (ms).
-# Leave unset for local gameplay: priority/action windows wait indefinitely.
-#bridge_timeout_ms = 45000
+[engine]
+# Bridge timeout — how long the engine waits for human priority/action
+# responses (ms). Unset = priority/action windows wait indefinitely.
+# bridge_timeout_ms = 45000
 
-# Prompt fail-safe — how long targeted/modal/search prompts wait before defaulting (ms).
-# Leave set for smoke/playtest robustness; unset only for fully manual prompt debugging.
-#prompt_failsafe_ms = 45000
+# Prompt fail-safe — how long targeted/modal/search prompts wait before
+# defaulting (ms). Unset = no prompt timeout.
+# prompt_failsafe_ms = 45000
 
-# AI turn wait — how long the engine waits for the AI's turn to return priority
-# before giving up and suppressing action prompts (ms).
-#ai_turn_wait_ms = 30000
+# AI turn wait — how long the engine waits for the AI's turn to return
+# priority before giving up and suppressing action prompts (ms).
+# ai_turn_wait_ms = 30000
 
 # Mulligan wait — how long the engine waits for a keep/mulligan response (ms).
-# Must exceed the client-visible mulligan timer to avoid stale dialogs.
-#mulligan_wait_ms = 45000
+# mulligan_wait_ms = 45000
 
-# Player database path (relative to CWD or absolute).
-#player_db = "data/player.db"
-
-[game]
-# RNG seed for deterministic shuffles. Remove or comment out for random.
-#seed = 2
+# RNG seed for deterministic shuffles. Unset = random each game.
+# seed = 2
 
 # Which seat wins the die roll and goes first (1 = human, 2 = AI).
-# Omit or leave unset for random (default).
-#die_roll_winner = 1
+# Unset = random (default).
+# die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
 # Leave disabled when exercising mulligan flow; enable only for scripted probes
 # where the opening-hand dialog would obscure the scenario under test.
-skip_mulligan = true
+# skip_mulligan = true
 
 # Send decision timer (rope) on priority grant. Disable to suppress countdown.
-timer = false
+# timer = true
 
-# AI opponent deck (name from player.db). Use "random" for a random non-selected deck.
-# In spectator_mode, "random" picks a random pair for both AI seats.
-# Omit for mirror match (same as seat 1).
-#ai_deck = "Green stompy"
+# AI opponent deck (name from player.db). Use "random" for a random
+# non-selected deck. In spectator_mode, "random" picks a random pair for both
+# AI seats. Unset = mirror match (same as seat 1).
+# ai_deck = "Green stompy"
 
 # Run both game seats under Forge AI; attach the client as a read-only viewer.
-#spectator_mode = false
+# spectator_mode = true
 
-[ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
-speed = 1.0
+# ai_speed = 0.0
 
-[draft]
-# Bot draft picker: "forge" uses Forge's built-in picker, "model" uses a bundled local model.
-#picker = "model"
-#model_dir = "data/draft-models"
+[engine.draft]
+# Bot draft picker: "forge" uses Forge's built-in picker, "model" uses a
+# bundled local model.
+# picker = "model"
+# Directory (relative to this file) containing one subdirectory per set with
+# weights.json(.gz) and card_meta.json.
+# model_dir = "data/draft-models"
 
-[dev]
+[engine.dev]
 # Crash on unexpected nulls/fallbacks (missing grpId, instanceId not in map,
 # protocol sequencing errors). Off = warn + fallback (production behavior).
-strict = false
+# strict = true
 
 # Crash when auto-pass fires from missing data (bridge timeouts, prompt
 # timeouts, auto-resolve). Off = pass priority silently (production behavior).
-strict_pass = false
+# strict_pass = true
+
+# Enables automatic local prompt handling. Off by default.
+# copilot_autopush = true
+
+# Endpoint for local prompt handling.
+# copilot_bridge_url = "http://127.0.0.1:8092"
+
+[paths]
+# Read-only bundled content root (decks, draft models, puzzles). Unset = this
+# file's directory.
+# content = "data"
+
+# Persistent mutable state directory; `player.db` lives inside. Unset = the
+# durable user-level location shared across worktrees.
+# state = "state"
+
+# Per-instance artifact root for logs, protocol dumps, and sessions
+# (relative to this file).
+# artifacts = "out"
+
+[web]
+# Web head listener port and bind address (loopback by default).
+# port = 8081
+# host = "0.0.0.0"
+# Default local player identity used for web matches.
+# player_id = "web-player"
+# Web authentication signing secret — required when the web head is active.
+# Supplied externally, never stored here: LEYLINE_WEB_AUTH_SECRET.
+# auth_secret = ""
+# Optional fixed six-digit login code; requires allow_fixed_login_code = true.
+# login_code = ""
+# allow_fixed_login_code = false
+# Transactional email (Resend). Empty = in-memory dev sender.
+# Supplied externally: LEYLINE_WEB_RESEND_API_KEY.
+# resend_api_key = ""
+# resend_from = "login@localhost"
+# Auth rate limiting.
+# rate_limit_enabled = true
+# rate_limit = 10
+# rate_limit_window_ms = 60000

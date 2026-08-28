@@ -56,13 +56,6 @@ class MatchRegistryTest :
             created shouldBe 1
         }
 
-        test("getBridge returns bridge from match") {
-            val registry = MatchRegistry()
-            val bridge = GameBridge(cardRepository = InMemoryCardRepository())
-            registry.getOrCreateMatch("m1") { Match("m1", bridge) }
-            registry.getBridge("m1") shouldBeSameInstanceAs bridge
-        }
-
         test("getMatch returns match or null") {
             val registry = MatchRegistry()
             registry.getMatch("nope").shouldBeNull()
@@ -180,7 +173,7 @@ class MatchRegistryTest :
             }
         }
 
-        test("registerSession accepts FamiliarSession via SessionOps interface") {
+        test("Familiar registration preserves the active seat-1 human session") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
             val human =
@@ -198,29 +191,11 @@ class MatchRegistryTest :
             val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", SeatId(1), human)
             registry.registerSession("m1", SeatId(2), familiar)
-            registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs familiar
-            registry.getPeer("m1", SeatId(2)) shouldBeSameInstanceAs human
-        }
-
-        test("activeSession returns MatchSession, not FamiliarSession") {
-            val registry = MatchRegistry()
-            val sink = ListMessageSink()
-            val human =
-                MatchSession(
-                    connection =
-                        ConnectionState(
-                            seatId = SeatId(1),
-                            matchId = "m1",
-                            sink = sink,
-                            registry = registry,
-                        ),
-                    gameBridge = stubBridge(),
-                    paceDelayMs = 0,
-                )
-            val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
-            registry.registerSession("m1", SeatId(1), human)
-            registry.registerSession("m1", SeatId(2), familiar)
-            registry.activeSession() shouldBeSameInstanceAs human
+            assertSoftly {
+                registry.getPeer("m1", SeatId(1)) shouldBeSameInstanceAs familiar
+                registry.getPeer("m1", SeatId(2)) shouldBeSameInstanceAs human
+                registry.activeHumanSession() shouldBeSameInstanceAs human
+            }
         }
 
         test("onStateChanged callback enables auto-removal from registry") {
@@ -284,7 +259,7 @@ class MatchRegistryTest :
 
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
             val channel = EmbeddedChannel(handler)
-            handler.session = session
+            handler.connection.session = session
             registry.registerSession(matchId, SeatId(1), session)
             registry.registerConnection(matchId, SeatId(1), handler.connection)
 
@@ -292,10 +267,9 @@ class MatchRegistryTest :
 
             assertSoftly {
                 match.state shouldBe MatchState.FINISHED
-                handler.session.shouldBeNull()
+                handler.connection.session.shouldBeNull()
                 registry.getMatch(matchId).shouldBeNull()
                 registry.getConnection(matchId, SeatId(1)).shouldBeNull()
-                registry.activeSession().shouldBeNull()
             }
 
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, stubBridge()) }
@@ -316,7 +290,6 @@ class MatchRegistryTest :
             assertSoftly {
                 recreated.state shouldBe MatchState.WAITING
                 registry.getMatch(matchId) shouldBeSameInstanceAs recreated
-                registry.activeSession() shouldBeSameInstanceAs replacement
             }
         }
     })

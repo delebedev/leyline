@@ -25,6 +25,7 @@ data class GameStats(
     val aiMaxMsByPrompt: Map<String, Long> = emptyMap(),
     val targetChoiceCounts: Map<String, Int> = emptyMap(),
     val targetChoiceSamples: Map<String, String> = emptyMap(),
+    val advisorUnavailableByReason: Map<String, Int> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
     val logErrorSamples: List<String> = emptyList(),

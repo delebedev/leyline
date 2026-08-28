@@ -3,12 +3,12 @@ package leyline.game.generator
 import forge.item.generation.UnOpenedProduct
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
 
 /**
  * Generates sealed card pools using Forge's booster templates.
- * Opens 6 packs for the given set, maps each card to its Arena grpId.
+ * Opens 6 packs for the given set, maps each card to its Arena grpId
+ * via a name-to-grpId lookup.
  *
  * Lives in engine because it depends on Forge's card database
  * and booster template engine ([UnOpenedProduct]). Frontdoor consumes it via an
@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory
  * composition layer.
  */
 class SealedPoolGenerator(
-    private val cards: CardRepository,
+    private val findGrpIdByName: (String) -> Int?,
 ) {
     private val log = LoggerFactory.getLogger(SealedPoolGenerator::class.java)
 
@@ -45,7 +45,7 @@ class SealedPoolGenerator(
         repeat(6) {
             val pack = supplier.get()
             for (card in pack) {
-                val grpId = cards.findGrpIdByName(card.name)
+                val grpId = findGrpIdByName(card.name)
                 if (grpId != null) {
                     grpIds.add(grpId)
                 } else {

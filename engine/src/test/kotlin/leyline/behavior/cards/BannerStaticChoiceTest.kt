@@ -55,7 +55,7 @@ class BannerStaticChoiceTest :
     SessionTest({
         session(
             "Patchwork Banner exposes the full creature subtype static subset",
-            puzzleFile = "puzzles/patchwork-banner-static-choice.pzl",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
         ) {
             val req = castSpellUntilSelectNReq("Patchwork Banner")
             val ids = req.idsList
@@ -73,7 +73,7 @@ class BannerStaticChoiceTest :
 
         session(
             "Patchwork Banner static subtype choice emits ChoiceResult and LinkInfo",
-            puzzleFile = "puzzles/patchwork-banner-static-choice.pzl",
+            puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",
         ) {
             castSpellUntilSelectNReq("Patchwork Banner")
             val goblinId = StaticChoiceIds.subtypeIdFor("Goblin")!!

@@ -2,23 +2,25 @@ package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
+import leyline.game.generator.PuzzleLibrary
 import leyline.infra.MatchOutput
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import java.io.File
 
 /** Test-only Netty edge adapter for legacy match-flow fixtures. */
 class MatchHandler(
     private val registry: MatchRegistry,
-    private val matchConfig: MatchConfig = MatchConfig(),
+    private val engineSettings: EngineSettings = EngineSettings(),
+    private val puzzlesDir: File = File("data/puzzles"),
     private val coordinator: MatchCoordinator? = null,
     private val cardRepository: CardRepository,
-    private val debugSink: MatchDebugSink? = null,
     private val recorderFactory: (() -> MatchRecorder)? = null,
-    private val puzzlePath: () -> String? = { null },
+    private val puzzleIdentity: () -> String? = { null },
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     private val aiDeckNameOverride: () -> String? = { null },
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
@@ -39,12 +41,12 @@ class MatchHandler(
                             ctx.close()
                         }
                     },
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
+                puzzleLibrary = PuzzleLibrary(puzzlesDir),
                 coordinator = coordinator,
                 cardRepository = cardRepository,
-                debugSink = debugSink,
                 recorderFactory = recorderFactory,
-                puzzlePath = puzzlePath,
+                puzzleIdentity = puzzleIdentity,
                 runtimeMatchConfigs = runtimeMatchConfigs,
                 aiDeckNameOverride = aiDeckNameOverride,
             )
@@ -71,10 +73,4 @@ class MatchHandler(
     ) {
         connection.failed(cause)
     }
-
-    var session: SessionOps?
-        get() = connection.session
-        set(value) {
-            connection.session = value
-        }
 }

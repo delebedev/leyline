@@ -46,7 +46,7 @@
                 }
             }
         },
-        "/api/puzzles": {
+        "/api/challenges": {
             "get": {
                 "responses": {
                     "200": {
@@ -56,7 +56,7 @@
                                 "schema": {
                                     "type": "array",
                                     "items": {
-                                        "$ref": "#/components/schemas/PuzzleSummaryView"
+                                        "$ref": "#/components/schemas/ChallengeSummary"
                                     }
                                 }
                             }
@@ -844,6 +844,10 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "challengeId": {
+                        "type": "string",
+                        "nullable": true
+                    },
                     "puzzle": {
                         "type": "string",
                         "nullable": true
@@ -1259,34 +1263,18 @@
                 },
                 "additionalProperties": false
             },
-            "PuzzleSummaryView": {
+            "ChallengeSummary": {
                 "type": "object",
                 "properties": {
-                    "filename": {
+                    "challengeId": {
                         "type": "string"
                     },
                     "name": {
                         "type": "string"
-                    },
-                    "goal": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "turns": {
-                        "type": "integer",
-                        "nullable": true
-                    },
-                    "difficulty": {
-                        "type": "string",
-                        "nullable": true
-                    },
-                    "description": {
-                        "type": "string",
-                        "nullable": true
                     }
                 },
                 "required": [
-                    "filename",
+                    "challengeId",
                     "name"
                 ],
                 "additionalProperties": false
@@ -1488,21 +1476,14 @@
                 ],
                 "additionalProperties": false
             },
-            "ParsedCardDto": {
+            "DecklistCardDto": {
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string"
-                    },
                     "grpId": {
-                        "type": "integer",
-                        "nullable": true
+                        "type": "integer"
                     },
                     "quantity": {
                         "type": "integer"
-                    },
-                    "found": {
-                        "type": "boolean"
                     },
                     "card": {
                         "type": "object",
@@ -1548,14 +1529,13 @@
                         "required": [
                             "name"
                         ],
-                        "additionalProperties": false,
-                        "nullable": true
+                        "additionalProperties": false
                     }
                 },
                 "required": [
-                    "name",
+                    "grpId",
                     "quantity",
-                    "found"
+                    "card"
                 ],
                 "additionalProperties": false
             },
@@ -1567,18 +1547,11 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
                                 "grpId": {
-                                    "type": "integer",
-                                    "nullable": true
+                                    "type": "integer"
                                 },
                                 "quantity": {
                                     "type": "integer"
-                                },
-                                "found": {
-                                    "type": "boolean"
                                 },
                                 "card": {
                                     "type": "object",
@@ -1624,14 +1597,13 @@
                                     "required": [
                                         "name"
                                     ],
-                                    "additionalProperties": false,
-                                    "nullable": true
+                                    "additionalProperties": false
                                 }
                             },
                             "required": [
-                                "name",
+                                "grpId",
                                 "quantity",
-                                "found"
+                                "card"
                             ],
                             "additionalProperties": false
                         }
@@ -1641,18 +1613,11 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
                                 "grpId": {
-                                    "type": "integer",
-                                    "nullable": true
+                                    "type": "integer"
                                 },
                                 "quantity": {
                                     "type": "integer"
-                                },
-                                "found": {
-                                    "type": "boolean"
                                 },
                                 "card": {
                                     "type": "object",
@@ -1698,92 +1663,27 @@
                                     "required": [
                                         "name"
                                     ],
-                                    "additionalProperties": false,
-                                    "nullable": true
+                                    "additionalProperties": false
                                 }
                             },
                             "required": [
-                                "name",
+                                "grpId",
                                 "quantity",
-                                "found"
+                                "card"
                             ],
                             "additionalProperties": false
                         }
-                    },
-                    "commander": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
-                                "grpId": {
-                                    "type": "integer",
-                                    "nullable": true
-                                },
-                                "quantity": {
-                                    "type": "integer"
-                                },
-                                "found": {
-                                    "type": "boolean"
-                                },
-                                "card": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "grpId": {
-                                            "type": "integer",
-                                            "nullable": true
-                                        },
-                                        "manaCost": {
-                                            "type": "string",
-                                            "nullable": true
-                                        },
-                                        "typeLine": {
-                                            "type": "string",
-                                            "nullable": true
-                                        },
-                                        "rarity": {
-                                            "type": "string",
-                                            "nullable": true
-                                        },
-                                        "colors": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string"
-                                            }
-                                        },
-                                        "setCode": {
-                                            "type": "string",
-                                            "nullable": true
-                                        },
-                                        "collectorNumber": {
-                                            "type": "string",
-                                            "nullable": true
-                                        },
-                                        "score": {
-                                            "type": "string",
-                                            "nullable": true
-                                        }
-                                    },
-                                    "required": [
-                                        "name"
-                                    ],
-                                    "additionalProperties": false,
-                                    "nullable": true
-                                }
-                            },
-                            "required": [
-                                "name",
-                                "quantity",
-                                "found"
-                            ],
-                            "additionalProperties": false
-                        }
-                    },
+                    }
+                },
+                "required": [
+                    "mainboard",
+                    "sideboard"
+                ],
+                "additionalProperties": false
+            },
+            "ParseDecklistErrorResponse": {
+                "type": "object",
+                "properties": {
                     "errors": {
                         "type": "array",
                         "items": {
@@ -1792,9 +1692,6 @@
                     }
                 },
                 "required": [
-                    "mainboard",
-                    "sideboard",
-                    "commander",
                     "errors"
                 ],
                 "additionalProperties": false

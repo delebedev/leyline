@@ -77,7 +77,7 @@ enum class SlotKind {
          * [Activated] (treat unknown as activate-able for compat). Anything
          * else (2 = trigger, 3+ = static/passive) → [Intrinsic].
          *
-         * Single source of truth shared by [ExposedCardRepository] (prod)
+         * Single source of truth shared by [leyline.game.data.SqliteCardRepository] (prod)
          * and the YAML fixture loader (test). Keeps prod and test on the
          * same mapping rule.
          */

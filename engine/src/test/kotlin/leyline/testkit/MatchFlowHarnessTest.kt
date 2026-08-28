@@ -14,11 +14,10 @@ import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
-import leyline.game.awaitFreshPending
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -71,7 +70,7 @@ class MatchFlowHarnessTest :
             // Pass priority to end turn
             h.passPriority()
 
-            // After auto-pass through AI turn, should be back at human's turn
+            // The runtime continuation returns after the AI turn at the next human horizon.
             val missingAfterTurn = h.accumulator.actionInstanceIdsMissingFromObjects()
             assertSoftly {
                 h.isGameOver().shouldBeFalse()
@@ -135,7 +134,7 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             assertSoftly {
-                // After connectAndKeep + autoPass, we should have valid state
+                // connectAndKeep completes through the first client-owned horizon.
                 h.isGameOver().shouldBeFalse()
 
                 h.accumulator.assertConsistent("after AI-first connect")
@@ -175,7 +174,7 @@ class MatchFlowHarnessTest :
             h.connectAndKeep()
 
             assertSoftly {
-                // After connectAndKeep, AI went first and we auto-passed through
+                // After connectAndKeep, the engine-owned continuation crossed the AI turn.
                 h.isGameOver().shouldBeFalse()
 
                 // Validate full gsId chain from game start
@@ -247,7 +246,7 @@ class MatchFlowHarnessTest :
                         .setGameStateId(h.latestPromptGsId() - delta)
                         .setRespId(h.latestPromptMsgId())
                         .build()
-                h.session.onPerformAction(stalePass)
+                h.send(stalePass)
                 h.drainSink()
 
                 // Stale action ignored — no state change, no further messages.
@@ -267,7 +266,7 @@ class MatchFlowHarnessTest :
                     .setRespId(h.latestPromptMsgId())
                     .build()
 
-            h.session.onPerformAction(freshPass)
+            h.send(freshPass)
             h.drainSink()
 
             // Either we changed phase/turn or the engine produced bundles
@@ -289,8 +288,9 @@ class MatchFlowHarnessTest :
             val oldPending = actionBridge.getPending().shouldNotBeNull()
             oldPending.promptGameStateId shouldBe oldPromptGsId
 
-            h.bridge.submitTestAction(oldPending.actionId, PlayerAction.PassPriority)
-            val nextPending = awaitFreshPending(h.bridge, oldPending.actionId, timeoutMs = 5_000).shouldNotBeNull()
+            h.passPriority()
+            val nextPending = actionBridge.getPending().shouldNotBeNull()
+            nextPending.actionId shouldNotBe oldPending.actionId
             val nextPromptGsId = nextPending.promptGameStateId.shouldNotBeNull()
             nextPromptGsId shouldBeGreaterThan oldPromptGsId
 
@@ -300,7 +300,7 @@ class MatchFlowHarnessTest :
                     .setGameStateId(oldPromptGsId)
                     .setRespId(h.latestPromptMsgId())
                     .build()
-            h.session.onPerformAction(latePass)
+            h.send(latePass)
             h.drainSink()
 
             val stillPending = actionBridge.getPending().shouldNotBeNull()

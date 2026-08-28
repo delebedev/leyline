@@ -15,7 +15,6 @@ data class SimClientConfig(
     val maxTurns: Int = 25,
     val gameTimeoutSeconds: Long = 120,
     val outDir: File = File("engine/build/simclient"),
-    val cardDbPath: String? = null,
     val continueOnException: Boolean = true,
     val strict: Boolean = false,
     val resume: Boolean = false,
@@ -57,7 +56,6 @@ data class SimClientConfig(
                     policy = SimClientPolicyMode.parse(envOrDefault("SIMCLIENT_POLICY") ?: "greedy"),
                     maxTurns = (envOrDefault("SIMCLIENT_MAX_TURNS") ?: "25").toInt().coerceAtLeast(1),
                     gameTimeoutSeconds = (envOrDefault("SIMCLIENT_GAME_TIMEOUT_SECONDS") ?: "120").toLong().coerceAtLeast(1),
-                    cardDbPath = envOrDefault("LEYLINE_CARD_DB"),
                     continueOnException = envOrDefault("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.equals("true", ignoreCase = true) ?: true,
                     excludeCards = envOrDefault("SIMCLIENT_EXCLUDE_CARDS").orEmpty(),
                     excludeCardsFile = envOrDefault("SIMCLIENT_EXCLUDE_CARDS_FILE")?.let(::File) ?: defaultQuarantineFile(),
@@ -90,7 +88,6 @@ data class SimClientConfig(
                         "--max-turns" -> config.copy(maxTurns = value().toInt())
                         "--game-timeout-seconds" -> config.copy(gameTimeoutSeconds = value().toLong())
                         "--out-dir" -> config.copy(outDir = File(value()))
-                        "--card-db" -> config.copy(cardDbPath = value())
                         "--continue-on-exception" -> config.copy(continueOnException = true)
                         "--fail-on-exception" -> config.copy(continueOnException = false)
                         "--strict" -> config.copy(strict = true)
@@ -121,7 +118,11 @@ data class SimClientConfig(
                 """
                 Usage: simclient [options]
 
-                  --decks <a,b>                 Deck matrix, built-in names or data/decks basenames.
+                Card data comes from the client database — LEYLINE_CARD_DB
+                override or standard-location autodiscovery; every row
+                requires it.
+
+                  --decks <a,b>                 Deck matrix, data/decks basenames.
                   --opponent-deck <name>        Fixed seat-2 deck; omitted means mirror.
                   --puzzles <a.pzl,b.pzl>       Puzzle matrix instead of decks.
                   --seeds <1..20|1,2,3>         Seed matrix.
@@ -130,7 +131,6 @@ data class SimClientConfig(
                   --max-turns <n>               Turn cap.
                   --game-timeout-seconds <n>    Per-game wall-clock watchdog.
                   --out-dir <path>              Artifact directory.
-                  --card-db <path>              Card database path.
                   --continue-on-exception       Keep running and write exception rows.
                   --fail-on-exception           Abort on exception rows.
                   --resume                      Skip rows with existing stats.

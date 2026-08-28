@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 class GameLoopControllerTest :
     BoardTest({
         test("puzzle teardown does not record coordinator cancellation as a loop failure") {
-            val board = startPuzzleAtMain1FromResource("puzzles/lands-only.pzl")
+            val board = startPuzzleAtMain1FromResource("test-puzzles/lands-only.pzl")
             val controller = checkNotNull(board.bridge.gameLoopControllerForTest())
 
             board.bridge.teardownResources()
@@ -24,7 +24,7 @@ class GameLoopControllerTest :
         }
 
         test("coordinator failure during play remains a loop failure") {
-            val board = startPuzzleAtMain1FromResource("puzzles/lands-only.pzl")
+            val board = startPuzzleAtMain1FromResource("test-puzzles/lands-only.pzl")
             val controller = checkNotNull(board.bridge.gameLoopControllerForTest())
             val cause = IllegalStateException("projection delivery failed")
 

@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.domain.deck.DeckSource
 import leyline.game.state.GameBridge
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,6 +36,18 @@ class Match(
         }
     }
 
+    fun start(
+        seed: Long? = null,
+        deck1: DeckSource,
+        deck2: DeckSource,
+        variant: String? = null,
+    ) {
+        bridge.start(seed, deck1, deck2, variant)
+        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            onStateChanged?.invoke(MatchState.RUNNING)
+        }
+    }
+
     @Synchronized
     fun startAiVsAi(
         seed: Long? = null,
@@ -46,6 +59,21 @@ class Match(
     ) {
         if (stateRef.get() != MatchState.WAITING) return
         bridge.startAiVsAi(seed, deckList, deckList1, deckList2, variant, startGameHook)
+        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            onStateChanged?.invoke(MatchState.RUNNING)
+        }
+    }
+
+    @Synchronized
+    fun startAiVsAi(
+        seed: Long? = null,
+        deck1: DeckSource,
+        deck2: DeckSource,
+        variant: String? = null,
+        startGameHook: Runnable? = null,
+    ) {
+        if (stateRef.get() != MatchState.WAITING) return
+        bridge.startAiVsAi(seed, deck1, deck2, variant, startGameHook)
         if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }

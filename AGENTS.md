@@ -38,7 +38,7 @@ Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `p
 ## Build & Run
 
 ```bash
-just bootstrap    # fresh clone/worktree → submodules → forge install → build → seed DB
+just bootstrap    # fresh clone/worktree → submodules → forge install → build → hooks
 just hooks-install # enable repo-tracked git hooks for this clone
 just build        # gradle: proto-sync + compile + jar
 just serve        # start server (restart after code changes — JVM holds old bytecode)
@@ -83,9 +83,15 @@ Kotest FunSpec (JUnit Platform). Engine test guidance lives in
 
 ## Puzzles
 
-Primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics.
+Primary deterministic acceptance fixture. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics.
 Read `docs/puzzle-harness.md` before starting fixtures from exile, face-down state, prepared/plotted/foretold/adventured state, or any other history-sensitive state.
 Read `docs/ai-solved-acceptance.md` when converting a direct Forge-AI puzzle solution into scripted acceptance YAML.
+
+Proof ownership: `MatchFlowHarness` executes YAML acceptance; simclient owns
+synthetic Playthrough discovery and fixed-seed reproduction; the live client
+reuses the same scripted intent; Copilot/Pilot measures autonomous robustness;
+conformance compares protocol fidelity. Forge AI is an upstream rules-engine solver or
+autonomous advisor, not the acceptance executor.
 
 - `just puzzle <file>` — set puzzle via debug API (hot-swaps if in match, queues for next local AI match)
 - `just puzzle-check <file>` — mandatory before commit (missing grpId = NPE)

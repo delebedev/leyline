@@ -22,7 +22,6 @@
     <ID>UnnecessarySafeCall:BoundCardParityTest.kt:BoundCardParityTest$realBound.data?.grpId</ID>
     <ID>UnusedVariable:AbilityRegistryTest.kt:AbilityRegistryTest$game</ID>
     <ID>UnusedVariable:AiTurnConformanceTest.kt:AiTurnConformanceTest$i</ID>
-    <ID>UnusedVariable:AutoPassEngineTest.kt:AutoPassEngineTest$game</ID>
     <ID>UnusedVariable:CombatInteractionTest.kt:CombatInteractionTest$val attackerIid = setupWithAiBlocker()</ID>
     <ID>UnusedVariable:EffectLifecycleTest.kt:EffectLifecycleTest$val gsm1 = StateMapper.buildFromSnapshot(snapEff2, 1, "test", b).gsm</ID>
     <ID>UnusedVariable:EndureLifecycleTest.kt:EndureLifecycleTest$val oam = endureOams.single()</ID>

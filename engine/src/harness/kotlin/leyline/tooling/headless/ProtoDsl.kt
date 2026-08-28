@@ -317,6 +317,18 @@ fun orderResp(ids: List<Int>): ClientToGREMessage =
         )
     }
 
+/** Respond to a fixed-total DistributionReq with one amount per target. */
+fun distributionResp(amounts: List<Pair<Int, Int>>): ClientToGREMessage =
+    clientMessage(ClientMessageType.DistributionResp_097b) {
+        setDistributionResp(
+            DistributionResp.newBuilder().apply {
+                amounts.forEach { (instanceId, amount) ->
+                    addDistributions(Distribution.newBuilder().setInstanceId(instanceId).setAmount(amount))
+                }
+            },
+        )
+    }
+
 /** [SearchResp] — respond to a library/search prompt with selected instanceIds. */
 fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
     clientMessage(ClientMessageType.SearchResp_097b) {
@@ -325,6 +337,29 @@ fun searchResp(itemsFound: List<Int>): ClientToGREMessage =
                 addAllItemsFound(itemsFound)
             },
         )
+    }
+
+/** [SearchFromGroupsResp] — respond with one echoed group row. */
+fun groupedSearchResp(
+    groupId: Int,
+    ids: List<Int>,
+    maxSelect: Int,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchFromGroupsResp_097b) {
+        setSearchFromGroupsResp(
+            SearchFromGroupsResp.newBuilder().addGroups(
+                Group
+                    .newBuilder()
+                    .setGroupId(groupId)
+                    .setMaxSelect(maxSelect)
+                    .addAllIds(ids),
+            ),
+        )
+    }
+
+fun groupedSearchFailResp(): ClientToGREMessage =
+    clientMessage(ClientMessageType.SearchFromGroupsResp_097b) {
+        setSearchFromGroupsResp(SearchFromGroupsResp.getDefaultInstance())
     }
 
 // ---------------------------------------------------------------------------
@@ -508,14 +543,6 @@ fun mana(
         .addColor(color)
         .setCount(count)
         .build()
-
-/** Build an [ActionsAvailableReq] from a list of action types. */
-fun actionsReq(vararg types: ActionType): ActionsAvailableReq =
-    ActionsAvailableReq
-        .newBuilder()
-        .apply {
-            for (type in types) addActions(Action.newBuilder().setActionType(type))
-        }.build()
 
 // ===========================================================================
 // Outbound GRE fixtures — for unit tests that hand-build server messages

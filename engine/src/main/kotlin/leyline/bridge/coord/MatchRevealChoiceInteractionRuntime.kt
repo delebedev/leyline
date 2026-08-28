@@ -9,50 +9,45 @@ import leyline.bridge.handoff.RevealChoiceInteractionResult
 import leyline.bridge.handoff.RevealChoiceInteractionRuntime
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.types.ForgeCardId
-import leyline.game.PendingRevealChoiceCut
-import leyline.game.RevealChoiceMaterializationDiagnostic
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact reveal-backed SelectN lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchRevealChoiceInteractionRuntime(
     private val owner: MatchCutCoordinator,
+    settled: SettledPromptOwner,
 ) : RevealChoiceInteractionRuntime {
     private data class Window(
         val published: PublishedRevealChoiceInteraction,
         val value: RevealChoiceWindowValue,
         val revealEntry: PromptJournal.RevealEntry,
-        override val cut: PendingRevealChoiceCut,
+        override val cut: PendingPromptCut<RevealChoiceWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<RevealChoiceInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<RevealChoiceInteractionResult, PendingRevealChoiceCut> {
+    ) : SettledPromptOwner.Window<RevealChoiceInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingRevealChoiceCut, RevealChoiceInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingRevealChoiceCut, RevealChoiceInteractionResult>(
-            owner,
-            windows,
+    private val slot =
+        settled.mount<Window, RevealChoiceInteractionResult>(
+            PromptTerminalPriority.RevealChoice,
             publicationFailure = { cause, failed ->
                 clearReveal(failed.revealEntry, failed.value.journalSeatId)
-                owner.failRevealChoice(cause, failed.cut)
+                owner.failPrompt(cause, failed.cut)
+            },
+            owns = { _, message -> message.type == ClientMessageType.SelectNresp },
+            admitLocked = ::admitLocked,
+            onTerminateLocked = { pending, _ ->
+                pending?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
+            },
+            onResetLocked = { pending ->
+                pending?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
             },
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitSelection(
         request: PromptRequest,
@@ -77,72 +72,43 @@ internal class MatchRevealChoiceInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedRevealChoiceInteraction? = windows.current()?.published
+    fun current(): PublishedRevealChoiceInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        selectedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return false
-            if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return false
-            val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            completeLocked(pending, options, timedOut = false)
-        }
-
-    fun terminate(cause: Throwable) {
-        synchronized(owner.feedLock) {
-            windows.current()?.let { pending ->
-                clearReveal(pending.revealEntry, pending.value.journalSeatId)
-            }
-            windows.terminate(cause)
-        }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<RevealChoiceInteractionResult>? {
+        val selectedInstanceIds = message.selectNResp.idsList
+        if (selectedInstanceIds.size !in pending.value.min..pending.value.max) return null
+        if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null
+        val options = selectedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        val handles = options.map(pending.handlesByOption::getValue)
+        return SettledPromptOwner.SlotAdmission(
+            RevealChoiceInteractionResult(options, handles, timedOut = false),
+            beforeComplete = { completeFamilyState(pending, handles) },
+        )
     }
-
-    fun failDelivery(cause: Throwable): Nothing =
-        synchronized(owner.feedLock) {
-            val pending = windows.current()
-            afterDeliveryCutLookup?.invoke()
-            if (pending != null) {
-                clearReveal(pending.revealEntry, pending.value.journalSeatId)
-                owner.failRevealChoice(cause, pending.cut)
-            }
-            owner.fail(cause)
-        }
-
-    fun reset() {
-        synchronized(owner.feedLock) {
-            windows.current()?.let { clearReveal(it.revealEntry, it.value.journalSeatId) }
-            windows.reset()
-        }
-    }
-
-    internal fun pendingCutLocked(): PendingRevealChoiceCut? =
-        windows
-            .pendingCutLocked()
-            .also { afterDeliveryCutLookup?.invoke() }
 
     private fun publish(initial: RevealChoiceWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "A RevealChoice interaction is already pending",
-            prepare = { interactionId, feed, game ->
-                val diagnostic = RevealChoiceMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+            prepare = { interactionId, feed, game, planner ->
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
+                val preparedViewers =
                     try {
                         feed.builder.prepareRevealChoiceWindow(
                             game ?: failInitial(IllegalStateException("Game unavailable"), initial),
-                            owner.counter,
+                            planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
                         failInitial(ex, initial, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published = PublishedRevealChoiceInteraction(interactionId, checkNotNull(prepared.bundle.actionGameStateId))
                 val exact =
-                    PendingRevealChoiceCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -170,11 +136,12 @@ internal class MatchRevealChoiceInteractionRuntime(
                         initial.handlesByOption,
                         optionByInstanceId,
                     )
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -183,11 +150,10 @@ internal class MatchRevealChoiceInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): RevealChoiceInteractionResult =
-        kernel.await(
+        slot.await(
             pending = pending,
             timeoutMs = timeoutMs,
             timeoutException = { error("RevealChoice timeout should complete with a default") },
-            beforeTimeoutClaim = beforeTimeoutClaim,
             beforeTimeoutCompleteLocked = {
                 val fallback = listOf(pending.value.defaultOptionIndex).filter(pending.handlesByOption::containsKey)
                 completeLocked(pending, fallback, timedOut = true)
@@ -200,6 +166,14 @@ internal class MatchRevealChoiceInteractionRuntime(
         timedOut: Boolean,
     ): Boolean {
         val handles = options.map(pending.handlesByOption::getValue)
+        completeFamilyState(pending, handles)
+        return slot.completeLocked(pending, RevealChoiceInteractionResult(options, handles, timedOut))
+    }
+
+    private fun completeFamilyState(
+        pending: Window,
+        handles: List<Card>,
+    ) {
         pending.value.exileUnderSourceForgeCardId?.let { source ->
             handles.forEach { card ->
                 journal(pending.value.journalSeatId).record(
@@ -208,17 +182,16 @@ internal class MatchRevealChoiceInteractionRuntime(
             }
         }
         clearReveal(pending.revealEntry, pending.value.journalSeatId)
-        return windows.completeLocked(pending, RevealChoiceInteractionResult(options, handles, timedOut))
     }
 
     private fun failInitial(
         cause: Throwable,
         initial: RevealChoiceWindowCapture.Initial,
-        pending: PendingRevealChoiceCut? = null,
-        diagnostic: RevealChoiceMaterializationDiagnostic? = null,
+        pending: PendingPromptCut<RevealChoiceWindowValue>? = null,
+        diagnostic: PromptMaterializationDiagnostic<RevealChoiceWindowValue>? = null,
     ): Nothing {
         clearReveal(initial.revealEntry, initial.value.journalSeatId)
-        owner.failRevealChoice(cause, pending, diagnostic)
+        owner.failPrompt(cause, pending, diagnostic)
     }
 
     private fun clearReveal(

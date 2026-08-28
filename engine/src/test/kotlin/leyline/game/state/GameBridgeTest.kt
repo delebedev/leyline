@@ -18,18 +18,18 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailString
 import leyline.testkit.submitTestAction
@@ -251,9 +251,11 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
             val messages = result.messages
 
@@ -334,12 +336,12 @@ class GameBridgeTest :
         }
 
         test("dieRollWinner respects config override") {
-            val config1 = MatchConfig(game = GameConfig(dieRollWinner = 1))
-            val b1 = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config1)
+            val config1 = EngineSettings(dieRollWinner = 1)
+            val b1 = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config1)
             b1.dieRollWinner shouldBe 1
 
-            val config2 = MatchConfig(game = GameConfig(dieRollWinner = 2))
-            val b2 = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config2)
+            val config2 = EngineSettings(dieRollWinner = 2)
+            val b2 = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config2)
             b2.dieRollWinner shouldBe 2
         }
 
@@ -371,9 +373,11 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
 
             assertSoftly {
@@ -457,9 +461,11 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val result =
-                BundleBuilder(b, "test-match", 1).phaseTransitionDiff(
+                BundleBuilderTestSupport.phaseTransition(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
 
             var prevGsId = 0
@@ -520,9 +526,11 @@ class GameBridgeTest :
             b.seedDiffBaseline(game)
 
             val result =
-                BundleBuilder(b, "test-match", 1).postAction(
+                BundleBuilderTestSupport.postAction(
+                    BundleBuilder(b, "test-match", 1),
+                    b,
                     game,
-                    MessageCounter(initialGsId = 10, initialMsgId = 0),
+                    LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
             val gs = result.messages.first().gameStateMessage
 
@@ -564,8 +572,8 @@ class GameBridgeTest :
         // --- skipMulligan tests ---
 
         test("skip mulligan advances to priority without keep") {
-            val config = MatchConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config)
+            val config = EngineSettings(skipMulligan = true)
+            val b = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config)
             bridge = b
             b.start(seed = 42L)
 
@@ -584,8 +592,8 @@ class GameBridgeTest :
         }
 
         test("skip mulligan produces valid game state") {
-            val config = MatchConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(cardRepository = InMemoryCardRepository(), matchConfig = config)
+            val config = EngineSettings(skipMulligan = true)
+            val b = GameBridge(cardRepository = InMemoryCardRepository(), engineSettings = config)
             bridge = b
             b.start(seed = 42L)
             b.awaitPriority()

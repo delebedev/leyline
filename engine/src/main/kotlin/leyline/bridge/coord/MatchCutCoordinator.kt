@@ -2,24 +2,34 @@ package leyline.bridge.coord
 
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
+import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
-import leyline.game.PendingInteractionCut
+import leyline.game.PendingPromptCut
 import leyline.game.PlaybackCutBoundary
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionViewer
+import leyline.game.state.ProjectionViewerRole
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
-import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.FailureReason
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.IllegalRequestMessage
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
+import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
+import wotc.mtgo.gre.external.messaging.Messages.SetSettingsResp
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CancellationException
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Owns journal close, exact cuts, projection install, committed viewer feeds,
@@ -27,33 +37,37 @@ import java.util.concurrent.ConcurrentLinkedQueue
  */
 internal class MatchCutCoordinator(
     internal val bridge: GameBridge,
-    private val matchId: String,
-    internal val counter: MessageCounter,
+    internal val matchId: String,
     private val delayMultiplier: Double,
 ) : BlockingInteractionRuntime {
     internal data class ViewerFeed(
         val seatId: SeatId,
         val builder: BundleBuilder,
-        val queue: ConcurrentLinkedQueue<List<GREToClientMessage>> = ConcurrentLinkedQueue(),
+        val queue: ArrayDeque<CommittedOutputBatch> = ArrayDeque(),
         var requestedCut: PlaybackCutRequest? = null,
         var pendingCut: PendingCut? = null,
         var beforeBatchEnqueue: ((Int, List<GREToClientMessage>) -> Unit)? = null,
     )
 
     internal val feedLock = Any()
+    internal val deliverySignal = MatchDeliverySignal()
     private val feeds = mutableMapOf<SeatId, ViewerFeed>()
+    private val viewers = linkedMapOf<SeatId, ProjectionViewer>()
     internal val cutInstaller = CoordinatorCutInstaller(this)
     internal val syncOnly = MatchSyncOnlyRuntime(this)
     internal val gameOver = MatchGameOverRuntime(this)
+    internal val lifecycle = MatchLifecycleRuntime(this)
     internal val actions = MatchActionWindowRuntime(this)
-    internal val interactions = MatchBlockingInteractionRuntime(this)
+    internal val deferredCast = DeferredCastWindowRuntime(this, actions)
     internal val prompts = MatchPromptRuntimeSet(this)
 
     // Read-only views; [prompts] remains the sole lifecycle owner.
     internal val targeting get() = prompts.targeting
     internal val compatibilityCostSelection get() = prompts.compatibilityCostSelection
     internal val search get() = prompts.search
+    internal val replacement get() = prompts.replacement
     internal val order get() = prompts.order
+    internal val distribution get() = prompts.distribution
     internal val grouping get() = prompts.grouping
     internal val cardSelect get() = prompts.cardSelect
     internal val staticChoices get() = prompts.staticChoices
@@ -61,6 +75,7 @@ internal class MatchCutCoordinator(
     internal val modalChoices get() = prompts.modalChoices
     internal val manaSourcePayments get() = prompts.manaSourcePayments
     internal val oneShotPayCosts get() = prompts.oneShotPayCosts
+    internal val interactions get() = prompts.blocking
 
     private val terminal = MatchCutTerminalRuntime(this)
 
@@ -79,28 +94,93 @@ internal class MatchCutCoordinator(
         intent: GameOverIntent,
     ) = gameOver.publish(seatId, intent)
 
+    /** Commit the settings acknowledgement behind older coordinator output. */
+    fun publishSettings(
+        seatId: SeatId,
+        settings: SettingsMessage?,
+    ) {
+        registerViewer(seatId)
+        synchronized(feedLock) {
+            ensureOpen()
+            val prior = bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val msgId = planner.currentMsgId()
+            val response = SetSettingsResp.newBuilder()
+            settings?.let(response::setSettings)
+            val message =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.SetSettingsResp_695e)
+                    .addSystemSeatIds(seatId.value)
+                    .setMsgId(msgId)
+                    .setGameStateId(planner.currentGsId())
+                    .setSetSettingsResp(response)
+                    .build()
+            planner.setMsgId(msgId + 1)
+            cutInstaller.install(
+                feed(seatId),
+                PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                onFailure = ::fail,
+            )
+        }
+    }
+
+    /** Materialize and commit one rejected client response in gameplay order. */
+    fun publishIllegalRequest(
+        seatId: SeatId,
+        invalid: ClientToGREMessage,
+        reason: FailureReason,
+    ) {
+        registerViewer(seatId)
+        synchronized(feedLock) {
+            ensureOpen()
+            val prior = bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val message =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.IllegalRequest)
+                    .setMsgId(planner.nextMsgId())
+                    .setGameStateId(planner.currentGsId())
+                    .addSystemSeatIds(invalid.systemSeatId)
+                    .setPrompt(
+                        Prompt
+                            .newBuilder()
+                            .setPromptId(3)
+                            .addParameters(
+                                PromptParameter
+                                    .newBuilder()
+                                    .setParameterName("FailureReason")
+                                    .setType(ParameterType.Number)
+                                    .setNumberValue(reason.number),
+                            ),
+                    ).setIllegalRequestMessage(
+                        IllegalRequestMessage
+                            .newBuilder()
+                            .setInvalidMessage(invalid)
+                            .setReason(reason),
+                    ).build()
+            cutInstaller.install(
+                feed(seatId),
+                PreparedCut.prepare(prior, planner, listOf(message), projection = null, closesPlaybackFrame = false),
+                onFailure = ::fail,
+            )
+        }
+    }
+
     fun legalAttackerIds(actionId: String): List<Int> = actions.legalAttackerIds(actionId)
+
+    fun hasLegalAttackers(actionId: String): Boolean = actions.hasLegalAttackers(actionId)
 
     fun legalBlockerCount(actionId: String): Int = actions.legalBlockerCount(actionId)
 
-    fun updateAttackerPresentation(
+    fun updateDeclaration(
         actionId: String,
-        selectedAttackerIds: List<Int>,
-        allLegalAttackerIds: List<Int>,
-        selectedAttackAlternatives: Map<Int, Int>,
-        selectedDamageRecipients: Map<Int, DamageRecipient>,
-    ) = actions.updateAttackers(
-        actionId,
-        selectedAttackerIds,
-        allLegalAttackerIds,
-        selectedAttackAlternatives,
-        selectedDamageRecipients,
-    )
+        responseGameStateId: Int,
+        answer: DeclarationAnswer,
+    ): Boolean = actions.updateDeclaration(actionId, responseGameStateId, answer)
 
-    fun updateBlockerPresentation(
-        actionId: String,
-        blockAssignments: Map<Int, Int>,
-    ) = actions.updateBlockers(actionId, blockAssignments)
+    fun republishDeclaration(actionId: String): Boolean = actions.republishDeclaration(actionId)
 
     fun bindInitialActionWindow(
         actionId: String,
@@ -111,10 +191,6 @@ internal class MatchCutCoordinator(
         actionId: String,
         includePriorityPrompt: Boolean = true,
     ): List<GREToClientMessage> = actions.replaceWithPhaseTransition(actionId, includePriorityPrompt)
-
-    fun hasMeaningfulPriorityAction(actionId: String): Boolean = actions.hasMeaningfulAction(actionId)
-
-    fun suppressPriorityPresentation(actionId: String): Boolean = actions.suppressPriorityPresentation(actionId)
 
     fun claimPriorityResponse(
         actionId: String,
@@ -138,9 +214,7 @@ internal class MatchCutCoordinator(
     fun submitDeclaredAction(
         actionId: String,
         responseGameStateId: Int,
-        answer: DeclarationAnswer,
-        confirmation: (() -> GREToClientMessage)? = null,
-    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId, answer, confirmation)
+    ): Boolean = actions.submitDeclaration(actionId, responseGameStateId)
 
     fun currentBlockingInteraction(): PublishedBlockingInteraction? = interactions.current()
 
@@ -156,11 +230,11 @@ internal class MatchCutCoordinator(
         value: Int,
     ): Boolean = interactions.submitNumeric(interactionId, gameStateId, value)
 
-    fun submitDamageAnswer(
+    fun submitDamageCommand(
         interactionId: String,
         gameStateId: Int,
-        assignments: List<DamageAssignmentValue>,
-    ): Boolean = interactions.submitDamage(interactionId, gameStateId, assignments)
+        assignments: List<DamageAssignmentCommand>,
+    ): Boolean = interactions.submitDamageCommand(interactionId, gameStateId, assignments)
 
     override fun awaitOptional(
         interaction: BlockingInteraction.Optional,
@@ -187,21 +261,52 @@ internal class MatchCutCoordinator(
         blockers: forge.game.card.CardCollectionView,
     ): MutableMap<forge.game.card.Card?, Int>? = interactions.takeCachedDamage(attacker, blockers)
 
-    fun registerViewer(seatId: SeatId) {
+    fun registerViewer(
+        seatId: SeatId,
+        role: ProjectionViewerRole = ProjectionViewerRole.Player,
+    ) {
         synchronized(feedLock) {
+            viewers.putIfAbsent(seatId, ProjectionViewer(seatId, role))
             feeds.getOrPut(seatId) { ViewerFeed(seatId, BundleBuilder(bridge, matchId, seatId.value)) }
         }
     }
 
+    fun registerViewers(registered: List<ProjectionViewer>) {
+        require(registered.map { it.seatId }.distinct().size == registered.size) { "Viewer seats must be unique" }
+        synchronized(feedLock) {
+            if (viewers.isNotEmpty()) {
+                check(viewers.values.toList() == registered) { "Viewer roster is already registered" }
+                return
+            }
+            registered.forEach { viewer ->
+                viewers[viewer.seatId] = viewer
+                feeds[viewer.seatId] = ViewerFeed(viewer.seatId, BundleBuilder(bridge, matchId, viewer.seatId.value))
+            }
+        }
+    }
+
+    internal fun registeredViewers(): List<ProjectionViewer> = synchronized(feedLock) { viewers.values.toList() }
+
+    internal fun viewerRoutes(): List<BundleBuilder.ViewerRoute> =
+        registeredViewers().map { BundleBuilder.ViewerRoute(it, feed(it.seatId).builder) }
+
+    internal fun requireViewer(seatId: SeatId) {
+        synchronized(feedLock) { check(seatId in viewers) { "Viewer $seatId is not registered" } }
+    }
+
     /** Teardown disposition: committed-but-undrained batches are discarded with their viewer feeds. */
     fun unregisterViewers() {
-        synchronized(feedLock) { feeds.clear() }
+        synchronized(feedLock) {
+            feeds.clear()
+            viewers.clear()
+        }
     }
 
     /** Terminalize every owned waiter and reject later cuts/interactions. */
     fun shutdown(cause: Throwable = CancellationException("Match projection coordinator shut down")) {
         synchronized(feedLock) { terminal.current() ?: terminal.terminate(cause) }
         synchronized(feedLock) { feeds.values.forEach { it.requestedCut = null } }
+        deliverySignal.signal()
         bridge.prioritySignal.signal()
     }
 
@@ -210,6 +315,7 @@ internal class MatchCutCoordinator(
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
             terminal.reset()
             actions.reset()
+            deferredCast.discard()
             prompts.reset()
         }
     }
@@ -231,7 +337,6 @@ internal class MatchCutCoordinator(
             ensureOpen()
             bridge.closeBundleFrame(seatId.value)
             feed(seatId).requestedCut = null
-            bridge.actionBridge(seatId).forceNextWindowVisible()
         }
     }
 
@@ -241,74 +346,71 @@ internal class MatchCutCoordinator(
     ) {
         val game = bridge.getGame()
         val request =
-            synchronized(counter) {
-                synchronized(bridge.projectionBuildLock) {
-                    synchronized(feedLock) {
-                        ensureOpen()
-                        val feed = feed(seatId)
-                        val request = feed.requestedCut ?: return
-                        if (request.boundary != boundary) return
-                        if (game == null) {
-                            failPlayback(
-                                IllegalStateException("Game unavailable"),
-                                diagnostic = MaterializationDiagnostic(request, null),
-                            )
-                        }
-                        val events =
-                            try {
-                                bridge.closeBundleFrame(seatId.value)
-                            } catch (ex: Exception) {
-                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
-                            }
-                        val pending =
-                            try {
-                                PendingCut(
-                                    request,
-                                    feed.builder.materializePlaybackCut(
-                                        game,
-                                        counter,
-                                        PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
-                                    ),
-                                )
-                            } catch (ex: Exception) {
-                                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
-                            }
-                        feed.pendingCut = pending
-                        val prepared =
-                            try {
-                                feed.builder.compilePlaybackCut(pending.projection)
-                            } catch (ex: Exception) {
-                                failPlayback(ex, pending = pending)
-                            }
-                        val enqueued = mutableListOf<List<GREToClientMessage>>()
-                        try {
-                            prepared.batches.forEachIndexed { index, batch ->
-                                feed.beforeBatchEnqueue?.invoke(index, batch)
-                                feed.queue.add(batch)
-                                enqueued += batch
-                            }
-                        } catch (ex: Exception) {
-                            removeEnqueuedBatches(feed, enqueued)
-                            failPlayback(ex, pending = pending)
-                        }
-                        var installed = false
-                        try {
-                            bridge.commitProjection(prepared.transition) { installed = true }
-                            feed.pendingCut = null
-                            feed.requestedCut = null
-                            if (bridge.consumePromptTimeoutNeedsAutoAdvance()) {
-                                bridge.autoAdvanceRequester?.invoke("prompt timeout playback queued")
-                            }
-                        } catch (ex: Exception) {
-                            if (!installed) removeEnqueuedBatches(feed, enqueued)
-                            failPlayback(ex, pending = pending)
-                        }
-                        request
-                    }
+            synchronized(feedLock) {
+                ensureOpen()
+                val feed = feed(seatId)
+                val prior = bridge.projectionStateSnapshot()
+                val planner = LogicalSequencePlanner(prior.sequence)
+                val request = feed.requestedCut ?: return
+                if (request.boundary != boundary) return
+                if (game == null) {
+                    failPlayback(
+                        IllegalStateException("Game unavailable"),
+                        diagnostic = MaterializationDiagnostic(request, null),
+                    )
                 }
+                val events =
+                    try {
+                        bridge.closeBundleFrame(seatId.value)
+                    } catch (ex: Exception) {
+                        failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
+                    }
+                val pending =
+                    try {
+                        PendingCut(
+                            request,
+                            feed.builder.materializePlaybackCut(
+                                game,
+                                planner,
+                                PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
+                            ),
+                        )
+                    } catch (ex: Exception) {
+                        failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
+                    }
+                feed.pendingCut = pending
+                val prepared =
+                    try {
+                        feed.builder.compilePlaybackCut(
+                            pending.projection,
+                            viewerRoutes(),
+                        )
+                    } catch (ex: Exception) {
+                        failPlayback(ex, pending = pending)
+                    }
+                val cut =
+                    PreparedCut.prepareForViewers(
+                        prior,
+                        planner,
+                        prepared.viewers.map { output ->
+                            PreparedViewerOutput(output.seatId, output.batches)
+                        },
+                        prepared.transition,
+                        closesPlaybackFrame = true,
+                        playbackOwnerSeatId = seatId,
+                    )
+                cutInstaller.install(
+                    cut = cut,
+                    onInstalled = {
+                        feed.pendingCut = null
+                        feed.requestedCut = null
+                    },
+                    onFailure = { failPlayback(it, pending = pending) },
+                )
+                request
             }
         pacePlayback(request.delayMs, delayMultiplier)
-        bridge.playbackDrainRequester?.invoke()
+        bridge.prioritySignal.signal()
     }
 
     fun acknowledgeExternalFrame(seatId: SeatId) {
@@ -324,22 +426,26 @@ internal class MatchCutCoordinator(
             val queue = feeds[seatId]?.queue ?: return emptyList()
             buildList {
                 while (true) {
-                    val batch = queue.peek() ?: break
+                    val batch = queue.firstOrNull() ?: break
                     if (beforeMsgId != null) {
-                        val firstMsgId = batch.firstOrNull()?.msgId ?: Int.MAX_VALUE
-                        val firstGsId = batch.firstGameStateId()
+                        val firstMsgId = batch.messages.firstOrNull()?.msgId ?: Int.MAX_VALUE
+                        val firstGsId = batch.messages.firstGameStateId()
                         if (maxGsId != 0 && firstGsId != null) {
                             if (firstGsId >= maxGsId) break
                         } else if (firstMsgId >= beforeMsgId) {
                             break
                         }
                     }
-                    add(queue.poll() ?: break)
+                    add(queue.removeFirstOrNull()?.messages ?: break)
                 }
             }
         }
 
     fun hasCommittedBatches(seatId: SeatId): Boolean = synchronized(feedLock) { feeds[seatId]?.queue?.isNotEmpty() == true }
+
+    internal fun signalDelivery() {
+        deliverySignal.signal()
+    }
 
     fun failure(): PlaybackTerminalFailure? = terminal.current()
 
@@ -356,7 +462,11 @@ internal class MatchCutCoordinator(
         seatId: SeatId,
         batch: List<GREToClientMessage>,
     ) {
-        synchronized(feedLock) { feed(seatId).queue.add(batch) }
+        synchronized(feedLock) {
+            val feed = feed(seatId)
+            feed.queue.add(CommittedOutputBatch(TEST_OUTPUT_ORDINAL, 0, batch))
+        }
+        deliverySignal.signal()
     }
 
     internal fun feed(seatId: SeatId): ViewerFeed = feeds[seatId] ?: error("No projection feed registered for seat ${seatId.value}")
@@ -367,22 +477,32 @@ internal class MatchCutCoordinator(
 
     internal fun removeOwnedBatch(
         feed: ViewerFeed,
-        batch: List<GREToClientMessage>,
-    ): Boolean {
-        val iterator = feed.queue.iterator()
-        while (iterator.hasNext()) {
-            if (iterator.next() === batch) {
-                iterator.remove()
-                return true
-            }
-        }
-        return false
+        batch: CommittedOutputBatch,
+    ): Boolean = feed.queue.remove(batch)
+
+    internal fun takeOwnedBatch(
+        feed: ViewerFeed,
+        messages: List<GREToClientMessage>,
+    ): CommittedOutputBatch? {
+        val batch = feed.queue.firstOrNull { it.messages === messages } ?: return null
+        feed.queue.remove(batch)
+        return batch
     }
+
+    internal fun removeOwnedBatch(
+        feed: ViewerFeed,
+        messages: List<GREToClientMessage>,
+    ): Boolean = takeOwnedBatch(feed, messages) != null
 
     internal fun fail(
         cause: Throwable,
-        pendingInteraction: PendingInteractionCut? = null,
-    ): Nothing = failTerminal(cause, MatchCutTerminalRuntime.Context(pendingInteraction = pendingInteraction))
+        pendingPrompt: PendingPromptCut<*>? = null,
+    ): Nothing =
+        if (pendingPrompt == null) {
+            failTerminal(cause, MatchCutTerminalRuntime.Context())
+        } else {
+            failPrompt(cause, pendingPrompt)
+        }
 
     internal fun failDelivery(cause: Throwable): Nothing = prompts.failDelivery(cause)
 
@@ -401,12 +521,9 @@ internal class MatchCutCoordinator(
         feeds.values.firstOrNull { it.pendingCut === pending }?.pendingCut = pending
     }
 
-    private fun removeEnqueuedBatches(
-        feed: ViewerFeed,
-        enqueued: List<List<GREToClientMessage>>,
-    ) {
-        enqueued.forEach { removeOwnedBatch(feed, it) }
-    }
-
     private fun List<GREToClientMessage>.firstGameStateId(): Int? = firstOrNull { it.hasGameStateMessage() }?.gameStateMessage?.gameStateId
+
+    private companion object {
+        const val TEST_OUTPUT_ORDINAL = -1L
+    }
 }

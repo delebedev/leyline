@@ -125,6 +125,20 @@ class PurePipelineTest :
             affector shouldBe InstanceId(421)
         }
 
+        test("tokenCreated affector uses the sole resolving spell when the source is absent") {
+            val event = GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1))
+
+            val affector =
+                AnnotationPipeline.tokenCreatedAffectorId(
+                    event,
+                    resolvingStackIidsByCard = mapOf(ForgeCardId(42) to InstanceId(404)),
+                    stackAbilityIid = { _, _ -> error("spell source should not use ability iid") },
+                    cardIid = { error("resolving spell iid is already known") },
+                )
+
+            affector shouldBe InstanceId(404)
+        }
+
         // -----------------------------------------------------------------------
         // Test 1: hand-to-battlefield — PlayLand
         // -----------------------------------------------------------------------
@@ -230,6 +244,40 @@ class PurePipelineTest :
                 transfer.origId shouldBe 100
                 transfer.newId shouldBe 100
                 result.retiredIds.shouldBeEmpty()
+            }
+        }
+
+        test("detectZoneTransfers reallocates Resolve into graveyard") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.P1_GRAVEYARD, ownerSeatId = 1)
+            val zones =
+                listOf(
+                    zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
+                    zone(ZoneIds.LIMBO, ZoneType.Limbo),
+                )
+            val events = listOf(GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false))
+
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(obj),
+                    zones = zones,
+                    events = events,
+                    context =
+                        zoneTransferContext(
+                            previousZones = mapOf(100 to ZoneIds.STACK),
+                            forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                            idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                            idLookup = { fid -> InstanceId(fid.value + 1000) },
+                        ),
+                )
+
+            val transfer = result.transfers.single()
+            assertSoftly {
+                transfer.category shouldBe TransferCategory.Resolve
+                transfer.origId shouldBe 100
+                transfer.newId shouldBe 200
+                result.retiredIds shouldBe listOf(100)
+                result.patchedObjects.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.instanceId shouldBe 200
+                result.patchedZones.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldBe listOf(200)
             }
         }
 

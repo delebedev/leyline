@@ -1,14 +1,10 @@
 package leyline.match
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -21,7 +17,6 @@ class SessionOpsDefaultsTest :
             object : SessionOps {
                 override val seatId = SeatId(1)
                 override val matchId = "test-match"
-                override var counter = MessageCounter()
 
                 override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
 
@@ -30,11 +25,7 @@ class SessionOpsDefaultsTest :
                     revealForSeat: Int?,
                 ) {}
 
-                override fun sendBundle(result: BundleBuilder.BundleResult) {}
-
                 override fun sendGameOver(reason: ResultReason) {}
-
-                override fun paceDelay(multiplier: Int) {}
             }
 
         val dummyMsg = ClientToGREMessage.getDefaultInstance()
@@ -53,14 +44,6 @@ class SessionOpsDefaultsTest :
 
         test("onSelectTargets default is no-op") {
             shouldNotThrowAny { ops.onSelectTargets(dummyMsg) }
-        }
-
-        test("onSelectN default is no-op") {
-            shouldNotThrowAny { ops.onSelectN(dummyMsg) }
-        }
-
-        test("onGroupResp default is no-op") {
-            shouldNotThrowAny { ops.onGroupResp(dummyMsg) }
         }
 
         test("onCancelAction default is no-op") {
@@ -85,17 +68,6 @@ class SessionOpsDefaultsTest :
 
         test("recorder default is null") {
             ops.recorder.shouldBeNull()
-        }
-
-        test("makeGRE default builds envelope fields") {
-            val gre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId = 7, msgId = 11) {}
-
-            assertSoftly(gre) {
-                type shouldBe GREMessageType.GameStateMessage_695e
-                msgId shouldBe 11
-                gameStateId shouldBe 7
-                systemSeatIdsList shouldBe listOf(1)
-            }
         }
 
         // --- ActionReceiver-only smoke tests ------------------------------------

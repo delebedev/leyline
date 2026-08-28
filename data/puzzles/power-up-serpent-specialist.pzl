@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Activate Serpent Specialist's Power Up once for its full {3}{G} cost.
+# Forcing: The scripted path waits until the starting permanent is not newly entered, then requires its exact 3/3 result.
+# AI behavior: Empty hands and deterministic libraries leave no competing spell or targeting decisions.
+# Failure modes:
+#   WIN = the activation resolves and the assertions observe the powered-up creature.
+#   LOSE = the turn limit expires before the activation resolves.
+#   TIMEOUT = activation, mana payment, or stack resolution stops advancing.
+# Card roles:
+#   Serpent Specialist — Power Up source and recipient of the printed counter effect.
+#   Forest — four exact mana sources plus deterministic human draw padding.
+#   Mountain — deterministic opponent draw padding.
+# Protocol path: activated action, ability stack object, mana payment, exhaustion marker, counter resolution, and repeat-offer suppression.
+
+[metadata]
+Name:Power Up Serpent Specialist
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Activate Serpent Specialist's Power Up once for its full cost and resolve two +1/+1 counters.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Serpent Specialist;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain

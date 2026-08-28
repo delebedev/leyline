@@ -4,11 +4,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-/**
- * Resolves a path given relative to the module dir, one level up, or two levels up — covers
- * running from the module root vs. the repo root depending on how the test task is invoked.
- */
+/** Resolves acceptance data from one explicit repository root. */
 internal object AcceptancePaths {
+    private val root = Paths.get(System.getProperty("leyline.content.root", ".")).toAbsolutePath().normalize()
+
     fun resolveOrNull(
         relative: String,
         exists: (Path) -> Boolean = Files::exists,
@@ -20,8 +19,7 @@ internal object AcceptancePaths {
         exists: (Path) -> Boolean = Files::exists,
     ): Path =
         resolveOrNull(relative, exists)
-            ?: error("$notFoundMessage in ${candidates(relative)} (cwd=${Paths.get("").toAbsolutePath()})")
+            ?: error("$notFoundMessage at ${root.resolve(relative)}")
 
-    private fun candidates(relative: String): List<Path> =
-        listOf(Paths.get(relative), Paths.get("../$relative"), Paths.get("../../$relative"))
+    private fun candidates(relative: String): List<Path> = listOf(root.resolve(relative))
 }

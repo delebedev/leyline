@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Foretell Depart the Realm from hand, then cast it from exile on a later turn.
+# Forcing: The scripted scenario must create the foretold state before the exile cast rail exists.
+# AI behavior: The opponent has no hand and one vanilla permanent, so it has no protocol decisions.
+# Failure modes:
+#   WIN = the standalone Survive goal completed after the scripted path.
+#   LOSE = turn progression or the bounce path failed before the deadline.
+#   TIMEOUT = the Foretell action, later cast offer, targeting, or resolution stalled.
+# Card roles:
+#   Depart the Realm — Foretell lifecycle and targeted spell under test.
+#   Grizzly Bears — deterministic nonland target for the foretold cast.
+#   Islands — pay the {2} Foretell action and later {U} cast cost.
+#   Basic lands in libraries — deterministic draw padding.
+# Protocol path: Foretell hand-to-exile, face-down state, alternate cast, targeting, resolution, and cleanup.
+
+[metadata]
+Name:Foretell Depart the Realm
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Foretell Depart the Realm, then cast it from exile to return Grizzly Bears to its owner's hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Depart the Realm
+humanbattlefield=Island;Island
+humanlibrary=Island;Island;Island
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest

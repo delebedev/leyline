@@ -2,6 +2,10 @@ package leyline.tooling.simclient
 
 import leyline.copilot.DefaultDecisions
 import leyline.copilot.ForgeAiPolicy
+import leyline.copilot.PromptDecisionAdvisor
+import leyline.copilot.PromptDecisionBoard
+import leyline.copilot.PromptDecisionContext
+import leyline.copilot.PromptDecisionResult
 import leyline.copilot.SimDecision
 import leyline.copilot.isCopilotCastOffer
 import leyline.game.mapping.PromptIds
@@ -30,6 +34,7 @@ internal data class SimPromptPolicyTelemetry(
     val maxMs: Map<String, Long>,
     val targetChoices: Map<String, Int>,
     val targetChoiceSamples: Map<String, String>,
+    val advisorUnavailableByReason: Map<String, Int>,
 ) {
     val consultedTotal: Int get() = consulted.values.sum()
     val choseTotal: Int get() = chose.values.sum()
@@ -44,6 +49,7 @@ internal data class SimPromptPolicyTelemetry(
                 maxMs = emptyMap(),
                 targetChoices = emptyMap(),
                 targetChoiceSamples = emptyMap(),
+                advisorUnavailableByReason = emptyMap(),
             )
     }
 }
@@ -69,8 +75,14 @@ internal open class GreedyPromptPolicy(
                 SimPromptResponse(respondSelectN(prompt.msg))
             GREMessageType.OrderReq_695e ->
                 SimPromptResponse(respondOrder(prompt.msg))
+            GREMessageType.DistributionReq_695e ->
+                SimPromptResponse(respondDistribution(prompt.msg))
             GREMessageType.SearchReq_695e ->
                 SimPromptResponse(respondSearch(prompt.msg))
+            GREMessageType.SearchFromGroupsReq_695e ->
+                SimPromptResponse(DefaultDecisions.groupedSearch(prompt.msg))
+            GREMessageType.SelectReplacementReq_695e ->
+                SimPromptResponse(DefaultDecisions.selectReplacement(prompt.msg))
             GREMessageType.PayCostsReq_695e ->
                 SimPromptResponse(respondPayCosts(prompt.msg))
             GREMessageType.GroupReq_695e ->
@@ -191,7 +203,20 @@ internal open class GreedyPromptPolicy(
                         .map { it.targetInstanceId }
                 }.filter { it != 0 }
                 .distinct()
-        if (ids.isNotEmpty()) return SimDecision.SelectTargets(ids)
+        if (ids.isNotEmpty()) {
+            val grouped =
+                selections.associate { selection ->
+                    selection.targetIdx to
+                        selection.targetsList
+                            .filter { it.legalAction == wotc.mtgo.gre.external.messaging.Messages.SelectAction.Select_a1ad }
+                            .sortedByDescending { it.highlight.targetPreference() }
+                            .take(selection.minTargets.coerceAtLeast(0))
+                            .map { it.targetInstanceId }
+                            .filter { it != 0 }
+                            .distinct()
+                }
+            return SimDecision.SelectTargets(grouped)
+        }
         // Nothing left to select. A re-offer of an already-chosen target carries
         // only Unselect, and the selection is complete — submit it. Cancelling
         // there unwinds the cast, which the policy then proposes again, so the
@@ -219,6 +244,8 @@ internal open class GreedyPromptPolicy(
     }
 
     private fun respondOrder(msg: GREToClientMessage): SimDecision = DefaultDecisions.order(msg)
+
+    private fun respondDistribution(msg: GREToClientMessage): SimDecision = DefaultDecisions.distribution(msg)
 
     private fun respondSearch(msg: GREToClientMessage): SimDecision = DefaultDecisions.search(msg)
 
@@ -283,18 +310,8 @@ internal class ForgeAiPromptPolicy(
     private val aiMaxMsByPrompt = mutableMapOf<String, Long>()
     private val targetChoiceCounts = mutableMapOf<String, Int>()
     private val targetChoiceSamples = mutableMapOf<String, String>()
-    private val adapters: Map<GREMessageType, ForgeAiPromptAdapter> =
-        listOf(
-            ForgeAiAarAdapter,
-            ForgeAiDeclareAttackersAdapter,
-            ForgeAiDeclareBlockersAdapter,
-            ForgeAiSelectNAdapter,
-            ForgeAiSelectTargetsAdapter,
-            ForgeAiSearchAdapter,
-            ForgeAiGroupAdapter,
-            ForgeAiCastingTimeOptionsAdapter,
-            ForgeAiPayCostsAdapter,
-        ).associateBy { it.promptType }
+    private val advisorUnavailableByReason = mutableMapOf<String, Int>()
+    private val advisor = PromptDecisionAdvisor(forgeAi)
 
     fun telemetry(): SimPromptPolicyTelemetry =
         SimPromptPolicyTelemetry(
@@ -304,21 +321,47 @@ internal class ForgeAiPromptPolicy(
             maxMs = aiMaxMsByPrompt.toMap(),
             targetChoices = targetChoiceCounts.toMap(),
             targetChoiceSamples = targetChoiceSamples.toMap(),
+            advisorUnavailableByReason = advisorUnavailableByReason.toMap(),
         )
 
     override fun respondToPrompt(
         prompt: ActivePrompt,
         attempts: ActionAttemptLedger,
     ): SimPromptResponse {
-        val adapter = adapters[prompt.type]
-        val context = ForgeAiPromptContext(harness, forgeAi, attempts)
-        if (adapter != null && adapter.shouldConsult(prompt, context)) {
-            bumpConsulted(adapter.telemetryName)
-            val response = timed(adapter.telemetryName) { adapter.decide(prompt, context) }
-            if (response != null) {
-                bumpChose(adapter.telemetryName)
-                recordTargetChoice(prompt, response, source = "forge-ai")
-                return response
+        val telemetryName = prompt.type.telemetryName()
+        val consultedAt = System.nanoTime()
+        val result =
+            advisor.decide(
+                prompt.msg,
+                context =
+                    PromptDecisionContext(
+                        isSkippedAction = { action -> action.isSkippedBy(attempts.skipFingerprints()) },
+                        board = PromptDecisionBoard(harness.accumulator.objects.toMap()),
+                    ),
+            )
+        if (result.forgeAiAttempted) {
+            bumpConsulted(telemetryName)
+            recordConsultationTime(telemetryName, (System.nanoTime() - consultedAt) / 1_000_000)
+        }
+        when (result) {
+            is PromptDecisionResult.Chosen -> {
+                if (result.source == leyline.copilot.PromptDecisionSource.ForgeAi) {
+                    bumpChose(telemetryName)
+                    val response = SimPromptResponse(result.decision)
+                    recordTargetChoice(prompt, response, source = "forge-ai")
+                    return response
+                }
+                // Preserve SelectN's prompt-specific greedy branches (Learn,
+                // Suspect, and reveal choices) while shared defaults own the
+                // other pure families.
+                if (prompt.type != GREMessageType.SelectNreq) {
+                    val response = SimPromptResponse(result.decision)
+                    recordTargetChoice(prompt, response, source = "advisor-default")
+                    return response
+                }
+            }
+            is PromptDecisionResult.Unavailable -> {
+                advisorUnavailableByReason.merge(result.reason.name, 1) { a, b -> a + b }
             }
         }
         val response = super.respondToPrompt(prompt, attempts)
@@ -365,27 +408,36 @@ internal class ForgeAiPromptPolicy(
         return "object:${objectInfo.type.name}:grp:${objectInfo.grpId}:$name:ctrl:${objectInfo.controllerSeatId}:types:$types"
     }
 
-    private inline fun <T> timed(
-        prompt: String,
-        block: () -> T,
-    ): T {
-        val t0 = System.nanoTime()
-        return try {
-            block()
-        } finally {
-            val elapsedMs = (System.nanoTime() - t0) / 1_000_000
-            aiTotalMsByPrompt.merge(prompt, elapsedMs) { a, b -> a + b }
-            aiMaxMsByPrompt.merge(prompt, elapsedMs) { a, b -> maxOf(a, b) }
-        }
-    }
-
     private fun bumpConsulted(prompt: String) {
         aiConsultedByPrompt.merge(prompt, 1) { a, b -> a + b }
+    }
+
+    private fun recordConsultationTime(
+        prompt: String,
+        elapsedMs: Long,
+    ) {
+        aiTotalMsByPrompt.merge(prompt, elapsedMs) { a, b -> a + b }
+        aiMaxMsByPrompt.merge(prompt, elapsedMs) { a, b -> maxOf(a, b) }
     }
 
     private fun bumpChose(prompt: String) {
         aiChoseByPrompt.merge(prompt, 1) { a, b -> a + b }
     }
+
+    private fun GREMessageType.telemetryName(): String =
+        when (this) {
+            GREMessageType.ActionsAvailableReq_695e -> "ActionsAvailableReq"
+            GREMessageType.DeclareAttackersReq_695e -> "DeclareAttackersReq"
+            GREMessageType.DeclareBlockersReq_695e -> "DeclareBlockersReq"
+            GREMessageType.SelectNreq -> "SelectNReq"
+            GREMessageType.SelectTargetsReq_695e -> "SelectTargetsReq"
+            GREMessageType.SearchReq_695e -> "SearchReq"
+            GREMessageType.SearchFromGroupsReq_695e -> "SearchFromGroupsReq"
+            GREMessageType.GroupReq_695e -> "GroupReq"
+            GREMessageType.CastingTimeOptionsReq_695e -> "CastingTimeOptionsReq"
+            GREMessageType.PayCostsReq_695e -> "PayCostsReq"
+            else -> name
+        }
 }
 
 private fun HighlightType.targetPreference(): Int =

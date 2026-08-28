@@ -38,7 +38,7 @@ Keep `BundleBuilder` as the owner of bundle and frame coordination:
 - Capture and diff game state.
 - Advance and invalidate the shared `BundleCursor`.
 - Pair GSMs with prompt requests and set `pendingMessageCount`.
-- Allocate message/game-state ids through the shared counter.
+- Allocate message/game-state ids through the cut-private logical sequence planner.
 - Keep prompt-specific GSM augmentation that depends on the just-built frame.
 
 Move pure request proto construction into focused builders:

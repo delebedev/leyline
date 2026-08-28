@@ -15,12 +15,10 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
-import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
-import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import java.nio.file.Files
 
@@ -57,7 +55,7 @@ class MatchdoorAcceptanceExecutor(
 
 private fun readPuzzleText(puzzle: String): String {
     val fileName = if (puzzle.endsWith(".pzl")) puzzle else "$puzzle.pzl"
-    return Files.readString(AcceptancePaths.resolve("puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
+    return Files.readString(AcceptancePaths.resolve("data/puzzles/$fileName", notFoundMessage = "puzzle not found: $fileName"))
 }
 
 private val OUR_SEAT = SeatId(1)
@@ -69,6 +67,7 @@ internal fun stackResolutionNeedsAdvance(
     pendingKind: PendingActionKind?,
 ): Boolean =
     when {
+        pendingKind == PendingActionKind.DECLARE_ATTACKERS || pendingKind == PendingActionKind.DECLARE_BLOCKERS -> false
         !stackEmpty -> true
         pendingKind == PendingActionKind.PRIORITY -> false
         passCount == 0 -> true
@@ -115,6 +114,7 @@ private class ScenarioRun(
 ) {
     lateinit var context: String
         private set
+    private var observationStart = 0
 
     @Suppress("CyclomaticComplexMethod")
     fun executeStep(
@@ -123,8 +123,14 @@ private class ScenarioRun(
     ) {
         context = "$scenarioId step ${index + 1} (${step.label})"
         when (step) {
-            is WaitStep -> assertConditions(step.conditions)
-            is ExpectStep -> assertConditions(step.conditions)
+            is WaitStep -> {
+                assertConditions(step.conditions)
+                observationStart = harness.allMessages.size
+            }
+            is ExpectStep -> {
+                assertConditions(step.conditions)
+                observationStart = harness.allMessages.size
+            }
             is PassUntilStep -> passUntil(step)
             is ActivateStep -> activate(step)
             is ChooseStep -> choose(step)
@@ -133,6 +139,8 @@ private class ScenarioRun(
             is StaticChoiceStep -> staticChoice(step)
             is OptionalActionStep -> respondToOptionalAction(step)
             is TargetStep -> target(step.target)
+            is TargetsStep -> targets(step.targets)
+            is DistributeStep -> distribute(step)
             is SelectCostStep -> selectCost(step)
             is SelectCardStep -> selectCard(step)
             is SelectCardsStep -> selectCards(step)
@@ -273,6 +281,21 @@ private class ScenarioRun(
 
     private fun selectCard(step: SelectCardStep) = selectCards(SelectCardsStep(step.side, step.zone, listOf(step.card)))
 
+    private fun distribute(step: DistributeStep) {
+        val prompt = latestPromptMessage()
+        require(prompt?.hasDistributionReq() == true) {
+            "$context expected latest prompt DistributionReq"
+        }
+        val amounts =
+            step.assignments.map { assignment ->
+                resolveCardInZone(assignment.side, AcceptanceZone.Battlefield, assignment.card) to assignment.amount
+            }
+        require(amounts.map { it.first }.toSet() == prompt.distributionReq.targetIdsList.toSet()) {
+            "$context assignments ${amounts.map { it.first }} do not match DistributionReq targets ${prompt.distributionReq.targetIdsList}"
+        }
+        harness.respondToDistribution(amounts)
+    }
+
     private fun selectCards(step: SelectCardsStep) {
         val prompt = latestPromptMessage()
         require(prompt?.hasSelectNReq() == true) {
@@ -294,16 +317,42 @@ private class ScenarioRun(
 
     private fun searchCards(step: SearchCardsStep) {
         val prompt = latestPromptMessage()
-        require(prompt?.hasSearchReq() == true) {
-            "$context expected latest prompt SearchReq"
+        require(prompt?.let { it.hasSearchReq() || it.hasSearchFromGroupsReq() } == true) {
+            "$context expected latest prompt SearchReq or SearchFromGroupsReq"
         }
-        val selectedIds = step.cards.map { resolveCardInZone(step.side, AcceptanceZone.Library, it) }
+        val selectedIds =
+            if (prompt.hasSearchFromGroupsReq()) {
+                val candidates = prompt.searchFromGroupsReq.groupsList.flatMap { it.idsList }
+                step.cards.map { card ->
+                    candidates.firstOrNull { iid -> cardNameByInstanceId(iid).equals(card, ignoreCase = true) }
+                        ?: error("$context could not find $card in grouped-search candidates ${promptCardNames(candidates)}")
+                }
+            } else {
+                step.cards.map { resolveCardInZone(step.side, AcceptanceZone.Library, it) }
+            }
         selectedIds.zip(step.cards).forEach { (selectedId, card) ->
-            require(selectedId in prompt.searchReq.itemsSoughtList) {
-                "$context selected $card iid=$selectedId is not in SearchReq candidates ${prompt.searchReq.itemsSoughtList}"
+            val candidates =
+                if (prompt.hasSearchFromGroupsReq()) {
+                    prompt.searchFromGroupsReq.groupsList.flatMap {
+                        it.idsList
+                    }
+                } else {
+                    prompt.searchReq.itemsSoughtList
+                }
+            require(selectedId in candidates) {
+                "$context selected $card iid=$selectedId is not in search candidates $candidates"
             }
         }
-        harness.respondToSearch(selectedIds)
+        if (prompt.hasSearchFromGroupsReq()) {
+            if (selectedIds.isEmpty()) {
+                harness.respondToGroupedSearchFail()
+            } else {
+                val group = prompt.searchFromGroupsReq.groupsList.single { it.idsList.containsAll(selectedIds) }
+                harness.respondToGroupedSearch(group.groupId, selectedIds, group.maxSelect)
+            }
+        } else {
+            harness.respondToSearch(selectedIds)
+        }
     }
 
     private fun orderCards(step: OrderCardsStep) {
@@ -320,12 +369,14 @@ private class ScenarioRun(
             harness.accumulator.actions?.actionsList.orEmpty().filter { action ->
                 action.actionType == ActionType.Activate_add3 &&
                     actionCardName(action).equals(step.card, ignoreCase = true) &&
-                    actionMatchesZone(action, step.zone)
+                    actionMatchesZone(action, step.zone) &&
+                    (step.abilityGrpId == null || action.abilityGrpId == step.abilityGrpId)
             }
         val action =
             matching.getOrNull(step.abilityIndex)
                 ?: error(
-                    "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}",
+                    "$context no activate action index ${step.abilityIndex} for ${step.card} in ${step.zone.yamlName}" +
+                        step.abilityGrpId?.let { " with ability_grp_id $it" }.orEmpty(),
                 )
         submitAction(action)
     }
@@ -393,6 +444,15 @@ private class ScenarioRun(
             "$context expected latest prompt SelectTargetsReq; actual=${latestPromptNameWithId() ?: "none"}"
         }
         harness.selectTargets(listOf(resolveTargetInstanceId(target)))
+    }
+
+    private fun targets(targets: List<AcceptanceTargetSpec>) {
+        require(latestPromptMatches("SelectTargetsReq")) {
+            "$context expected latest prompt SelectTargetsReq; actual=${latestPromptNameWithId() ?: "none"}"
+        }
+        val targetIds = targets.map(::resolveTargetInstanceId)
+        harness.selectTargetsIterative(targetIds)
+        harness.submitTargets()
     }
 
     private fun block(step: BlockStep) {
@@ -471,15 +531,16 @@ private class ScenarioRun(
 
     private fun resolveStack() {
         repeat(12) { index ->
-            val pendingKind =
+            if (harness.isGameOver()) return
+            val pending =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
                     .getPending()
-                    ?.state
-                    ?.kind
-            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pendingKind)) return
-            if (harness.isGameOver()) return
-            harness.passPriority()
+            if (!stackResolutionNeedsAdvance(index, harness.game().stack.isEmpty, pending?.state?.kind)) {
+                pending?.let(harness::awaitPendingActionHorizon)
+                return
+            }
+            harness.advance()
             if (harness.isGameOver()) return
             if (harness.bridge.cutCoordinator
                     .currentBlockingInteraction()
@@ -488,13 +549,14 @@ private class ScenarioRun(
             ) {
                 return
             }
-            val nextSynchronization =
+            val nextPending =
                 harness.bridge
                     .actionBridge(OUR_SEAT)
                     .getPending()
-                    ?.state
-                    ?.kind == PendingActionKind.SYNC_ONLY
-            if (harness.game().stack.isEmpty && !nextSynchronization) return
+            if (harness.game().stack.isEmpty && nextPending?.state?.kind != PendingActionKind.SYNC_ONLY) {
+                nextPending?.let(harness::awaitPendingActionHorizon)
+                return
+            }
         }
         error(
             "$context did not resolve stack; stack size=${harness.game().stack.size()}",
@@ -507,6 +569,10 @@ private class ScenarioRun(
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
+                "turn=${harness.turn()} phase=${harness.phase()} pending=${harness.bridge.actionBridge(
+                    OUR_SEAT,
+                ).getPending()?.state?.kind}; " +
+                "life=${harness.human.life}/${harness.ai.life}; " +
                 "prompts=${harness.allMessages.filter { it.isPromptMessage() }.map { it.promptName() + "#" + it.prompt.promptId }}; " +
                 "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}"
         }
@@ -590,13 +656,13 @@ private class ScenarioRun(
             }
 
             is BattlefieldStatsAtLeastCondition ->
-                battlefieldStatsResult(condition.side, condition.card) { card ->
-                    card.netPower >= condition.power && card.netToughness >= condition.toughness
+                battlefieldStatsResult(condition.side, condition.card) { power, toughness ->
+                    power >= condition.power && toughness >= condition.toughness
                 }
 
             is BattlefieldStatsCondition ->
-                battlefieldStatsResult(condition.side, condition.card) { card ->
-                    card.netPower == condition.power && card.netToughness == condition.toughness
+                battlefieldStatsResult(condition.side, condition.card) { power, toughness ->
+                    power == condition.power && toughness == condition.toughness
                 }
 
             is PhaseCondition ->
@@ -624,7 +690,7 @@ private class ScenarioRun(
     private fun battlefieldStatsResult(
         side: AcceptanceSide,
         cardName: String,
-        matches: (Card) -> Boolean,
+        matches: (Int, Int) -> Boolean,
     ): ConditionResult {
         val card =
             player(side)
@@ -634,7 +700,22 @@ private class ScenarioRun(
         return if (card == null) {
             ConditionResult(false, "battlefield=${zoneCardNames(side, AcceptanceZone.Battlefield)}")
         } else {
-            ConditionResult(matches(card), "stats=${card.netPower}/${card.netToughness}")
+            val instanceId = harness.bridge.instanceId(card)
+            val observed =
+                harness.allMessages
+                    .drop(observationStart)
+                    .asSequence()
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList.asSequence() }
+                    .filter { it.instanceId == instanceId && it.hasPower() && it.hasToughness() }
+                    .map { it.power.value to it.toughness.value }
+                    .toList()
+            val observedMatch =
+                observed.any { (power, toughness) -> matches(power, toughness) }
+            ConditionResult(
+                matches(card.netPower, card.netToughness) || observedMatch,
+                "current=${card.netPower}/${card.netToughness} observed=$observed",
+            )
         }
     }
 
@@ -842,16 +923,7 @@ private class ScenarioRun(
     }
 
     private fun submitAction(action: Action) {
-        harness.session.onPerformAction(
-            harness.submitWithGsId(
-                wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-                    .newBuilder()
-                    .setType(ClientMessageType.PerformActionResp_097b)
-                    .setPerformActionResp(PerformActionResp.newBuilder().addActions(action))
-                    .build(),
-            ),
-        )
-        harness.drainSink()
+        harness.submitAction(action)
     }
 
     private fun resolveTargetInstanceId(target: AcceptanceTargetSpec): Int =

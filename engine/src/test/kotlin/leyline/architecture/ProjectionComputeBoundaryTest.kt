@@ -71,20 +71,31 @@ class ProjectionComputeBoundaryTest :
                 .check(classes)
         }
 
-        test("single-view compiler exposes one complete explicit-value entrypoint") {
-            val method =
+        test("multi-view compiler owns the fold and exposes a one-view convenience") {
+            val oneViewer =
                 StateProjectionCompiler::class.java.declaredMethods.single {
                     it.name == "compileOneViewer" && it.parameterCount == 4
                 }
+            val viewers =
+                StateProjectionCompiler::class.java.declaredMethods.single {
+                    it.name == "compileViewers" && it.parameterCount == 3
+                }
             assertSoftly {
-                method.parameterTypes.toList() shouldBe
+                oneViewer.parameterTypes.toList() shouldBe
                     listOf(
                         StateProjectionEnvironment::class.java,
                         StateFrameInput::class.java,
                         ProjectionState::class.java,
                         ViewerProjectionIntent::class.java,
                     )
-                method.returnType shouldBe StateProjectionCompiler.Result::class.java
+                oneViewer.returnType shouldBe StateProjectionCompiler.Result::class.java
+                viewers.parameterTypes.toList() shouldBe
+                    listOf(
+                        StateProjectionEnvironment::class.java,
+                        ProjectionState::class.java,
+                        List::class.java,
+                    )
+                viewers.returnType shouldBe StateProjectionCompiler.FoldResult::class.java
                 StateMapper::class.java.declaredMethods
                     .filter { it.name == "buildFromSnapshot" || it.name == "buildDiff" }
                     .shouldBeEmpty()

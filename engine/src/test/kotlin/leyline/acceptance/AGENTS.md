@@ -1,18 +1,21 @@
 # acceptance
 
-Puzzle-backed scripted acceptance tests for MatchDoor.
+Puzzle-backed deterministic acceptance tests for `MatchFlowHarness`.
 
-- Scenario suites live under `puzzles/sets/*.yaml` next to their `.pzl` files.
+- Scenario suites live under `data/puzzles/sets/*.yaml` next to their `.pzl` files.
 - For direct puzzle-state limits, read `../../../../../../docs/puzzle-harness.md`.
 - Keep `steps` backend-neutral: game intent only, no UI coordinates or client gestures.
-- This package maps scenario steps to `MatchFlowHarness`; the live-client smoke runner consumes the same YAML.
+- Do not add acceptance assertions for internal projection or conformance invariants; prove those in focused contract tests.
+- This package interprets scenario steps through `MatchFlowHarness`; the live-client smoke runner consumes the same YAML.
+- Forge AI may solve a puzzle upstream or advise an autonomous run. It is not the acceptance executor.
+- Simclient is the synthetic discovery and fixed-seed proof lane. It does not replace a YAML acceptance contract.
 - Run with `just test-acceptance`.
 
-`AcceptanceSuitesTest` discovers every `puzzles/sets/*.yaml` stem and runs it; a suite opts a runner out via top-level metadata (for example `web: {skip: reason}`) rather than by omission from a hard-coded list.
+`AcceptanceSuitesTest` discovers every `data/puzzles/sets/*.yaml` stem and runs it; a suite opts a runner out via top-level metadata (for example `web: {skip: reason}`) rather than by omission from a hard-coded list.
 
 ## Current durable patterns
 
-- One gameplay intent per step: `cast`, `activate`, `choose`, `target`, `block`, `attack`, `attack_all`, `turn_face_up`, `optional_action`.
+- One gameplay intent per step: `cast`, `activate`, `choose`, `target`, `targets`, `distribute`, `block`, `attack`, `attack_all`, `turn_face_up`, `optional_action`.
 - Cast/activate execution should consume the live `ActionsAvailableReq` row, not re-derive from zone state. Disturb proved that zone-name lookup is the wrong abstraction.
 - Keep prompt responses separate from the initiating action. `cast` does not implicitly target; `choose` does not implicitly resolve.
 - Use `expect: annotation_seen` for transient effects that should not require lasting board state, such as token creation or counter placement during resolution.

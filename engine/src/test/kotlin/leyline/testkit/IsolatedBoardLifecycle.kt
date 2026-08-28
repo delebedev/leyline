@@ -7,7 +7,7 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
-import leyline.game.bundle.MessageCounter
+import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.GameBridge
 
 /**
@@ -24,12 +24,12 @@ import leyline.game.state.GameBridge
  */
 class IsolatedBoardLifecycle {
     var bridge: GameBridge? = null
-    var testCounter: MessageCounter = MessageCounter()
+    var testCounter: LogicalSequencePlanner = LogicalSequencePlanner()
 
     fun tearDown() {
         bridge?.shutdown()
         bridge = null
-        testCounter = MessageCounter()
+        testCounter = LogicalSequencePlanner()
     }
 
     fun startWithBoard(board: (game: Game, human: Player, ai: Player) -> Unit): Board = trackResult(Board.startWithBoard(board))

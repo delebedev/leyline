@@ -35,7 +35,7 @@ import leyline.testkit.SessionTest
 class WardTaxTest :
     SessionTest({
 
-        session("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}", puzzleFile = "puzzles/ward-tax.pzl") {
+        session("accept — auto-tap consumes the Ward {2} on top of Bolt's {R}", puzzleFile = "test-puzzles/ward-tax.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
             // selectTargets drains the sink, which auto-accepts the Ward OAM
@@ -62,7 +62,7 @@ class WardTaxTest :
             }
         }
 
-        session("decline — Counter SA proceeds, Forests stay untapped", puzzleFile = "puzzles/ward-tax.pzl") {
+        session("decline — Counter SA proceeds, Forests stay untapped", puzzleFile = "test-puzzles/ward-tax.pzl") {
             castSpellByName("Lightning Bolt").shouldBeTrue()
             val targetIid = ai.battlefield.iid("Sovereign Okinec Ahau")
 

@@ -1,7 +1,9 @@
 package leyline.bridge.coord
 
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.LogicalSequencePlanner
 
 /** State-only pre-block publication for a pass-only synchronization stop. */
 internal class MatchSyncOnlyRuntime(
@@ -15,38 +17,44 @@ internal class MatchSyncOnlyRuntime(
         seatId: SeatId,
         pending: GameActionBridge.PendingAction,
     ) {
-        var requestAutoAdvance = false
         owner.beforePublicationLock?.invoke()
-        synchronized(owner.counter) {
-            synchronized(owner.bridge.projectionBuildLock) {
-                synchronized(owner.feedLock) {
-                    owner.ensureOpen()
-                    val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
-                    val feed = owner.feed(seatId)
-                    val prepared =
-                        try {
-                            beforeMaterialization?.invoke()
-                            feed.builder.prepareStateOnlyDiff(game, owner.counter)
-                        } catch (ex: Exception) {
-                            owner.fail(ex)
-                        }
-                    owner.cutInstaller.install(
-                        feed,
-                        PreparedCut(prepared.bundle.messages, prepared.transition, prepared.closesPlaybackFrame),
-                        CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
-                    ) { ex -> owner.fail(ex) }
-                    feed.requestedCut = null
-                    owner.actions.markSynchronizationPublished(seatId, pending.actionId)
-                    requestAutoAdvance = owner.bridge.consumePromptTimeoutNeedsAutoAdvance()
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
+            val feed = owner.feed(seatId)
+            val routes = owner.viewerRoutes()
+            val prepared =
+                try {
+                    beforeMaterialization?.invoke()
+                    feed.builder
+                        .prepareStateOnlyDiff(
+                            game,
+                            planner,
+                            routes,
+                            phaseTransition =
+                                pending.state.synchronizationPresentation == SynchronizationPresentation.PhaseTransition,
+                        )
+                } catch (ex: Exception) {
+                    owner.fail(ex)
                 }
-            }
-        }
-        if (requestAutoAdvance) {
-            try {
-                owner.bridge.autoAdvanceRequester?.invoke("prompt timeout synchronization queued")
-            } catch (ex: Exception) {
-                owner.fail(ex)
-            }
+            val outputs =
+                prepared.viewers.map { output -> PreparedViewerOutput(output.seatId, output.batches) }
+            val messages = outputs.single { it.seatId == seatId }.batches.single()
+            owner.cutInstaller.install(
+                PreparedCut.prepareForViewers(
+                    prior,
+                    planner,
+                    outputs,
+                    prepared.transition,
+                    prepared.closesPlaybackFrame,
+                    playbackOwnerSeatId = seatId,
+                ),
+                CutInstallHooks(beforeEnqueue = beforeEnqueue, beforeInstall = beforeInstall),
+            ) { ex -> owner.fail(ex) }
+            feed.requestedCut = null
+            owner.actions.markSynchronizationPublished(seatId, pending.actionId, messages)
         }
     }
 }

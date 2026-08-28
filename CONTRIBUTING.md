@@ -15,7 +15,7 @@ pick one. Bug fixes with a test get merged fastest.
 ```bash
 git clone --recursive https://github.com/delebedev/leyline.git
 cd leyline
-just bootstrap   # submodules, forge, build, seed DB
+just bootstrap   # submodules, forge, build, hooks
 just serve        # verify it runs
 ```
 

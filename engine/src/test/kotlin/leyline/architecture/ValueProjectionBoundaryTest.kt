@@ -157,7 +157,7 @@ private val productionShells =
     listOf(
         "leyline.game.bundle.BundleBuilder",
         "leyline.game.bundle.StateFrameInputCapture",
-        "leyline.protocol.HandshakeMessages",
+        "leyline.game.bundle.LifecycleMessageMaterializer",
     )
 
 /** Harness equivalents of [productionShells], used by the headless match runtime. */

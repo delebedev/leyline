@@ -65,3 +65,7 @@ All ADRs remain part of the decision history, including superseded decisions.
   superseded command/yield boundary
 - [`0015`](decisions/0015-functional-core-imperative-shell.md) — functional
   projection core and imperative Forge shell
+- [`0016`](decisions/0016-drive-headless-through-match-port.md) — route
+  in-process drivers through the match-connection port
+- [`0017`](decisions/0017-autonomous-proof-ownership.md) — separate prompt
+  decisions from proof execution

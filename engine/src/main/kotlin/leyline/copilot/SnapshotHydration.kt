@@ -5,7 +5,7 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.game.codes.DetailKeys
 import leyline.game.data.CardRepository
 import leyline.game.state.GameBridge
@@ -16,7 +16,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
+import forge.card.CardType as ForgeCardType
 import forge.game.card.CounterType as ForgeCounterType
 
 /**
@@ -62,14 +64,14 @@ object SnapshotHydration {
         gsm: GameStateMessage,
         consultSeat: Int,
         cardRepository: CardRepository,
-        matchConfig: MatchConfig = MatchConfig(),
-    ): GameBridge = hydrateWithReport(gsm, consultSeat, cardRepository, matchConfig).bridge
+        engineSettings: EngineSettings = EngineSettings(),
+    ): GameBridge = hydrateWithReport(gsm, consultSeat, cardRepository, engineSettings).bridge
 
     fun hydrateWithReport(
         gsm: GameStateMessage,
         consultSeat: Int,
         cardRepository: CardRepository,
-        matchConfig: MatchConfig = MatchConfig(),
+        engineSettings: EngineSettings = EngineSettings(),
     ): HydratedSnapshot {
         val projection = project(gsm, consultSeat, cardRepository)
         val lines = projection.lines
@@ -91,10 +93,10 @@ object SnapshotHydration {
             )
         val bridge =
             GameBridge(
-                matchConfig = matchConfig,
+                engineSettings = engineSettings,
                 cardRepository = cardRepository,
             )
-        bridge.startPuzzle(
+        bridge.startStaticPuzzle(
             puzzle,
             controlledSeat = SeatId(consultSeat),
             beforeRuntimeStart = { restoreCombatState(gsm, puzzle, bridge, consultSeat) },
@@ -126,7 +128,7 @@ object SnapshotHydration {
     }
 
     /**
-     * Reconcile the disposable advisor's current power/toughness to the GSM.
+     * Reconcile the disposable advisor's current type and power/toughness to the GSM.
      * Puzzle application already rebuilds printed characteristics, counters,
      * attachments, and static effects. The residual is observable state from
      * effects whose source or duration is not reconstructable from one Full
@@ -140,6 +142,20 @@ object SnapshotHydration {
         val idToCard = idToCardOf(puzzle)
         for (source in gsm.gameObjectsList) {
             val card = idToCard[source.instanceId] ?: continue
+            visibleTypeOf(source)?.let { visibleType ->
+                if (!visibleType.matches(card.type)) {
+                    card.addChangedCardTypes(
+                        visibleType,
+                        ForgeCardType(card.type),
+                        false,
+                        emptySet(),
+                        card.game.nextTimestamp,
+                        0L,
+                        true,
+                        false,
+                    )
+                }
+            }
             if (!card.isInPlay) continue
             val powerDelta = if (source.hasPower()) source.power.value - card.netPower else 0
             val toughnessDelta = if (source.hasToughness()) source.toughness.value - card.netToughness else 0
@@ -216,6 +232,7 @@ object SnapshotHydration {
                     .singleOrNull()
                     ?.name
                     ?.substringBefore('_')
+            val keywords = if (SubType.Role in obj.subtypesList) "Enchant:Creature" else ""
             return buildString {
                 append("t:").append(name.replace(',', ' '))
                 append(",P:").append(obj.power.value)
@@ -223,7 +240,7 @@ object SnapshotHydration {
                 append(",Cost:0")
                 color?.let { append(",Color:").append(it) }
                 append(",Types:").append(types.joinToString("-"))
-                append(",Keywords:,Image:")
+                append(",Keywords:").append(keywords).append(",Image:")
             }
         }
 
@@ -380,7 +397,8 @@ object SnapshotHydration {
             gsm.gameObjectsList
                 .filter { source ->
                     val card = idToCard[source.instanceId] ?: return@filter false
-                    (source.hasPower() && card.netPower != source.power.value) ||
+                    (visibleTypeOf(source)?.matches(card.type) == false) ||
+                        (source.hasPower() && card.netPower != source.power.value) ||
                         (source.hasToughness() && card.netToughness != source.toughness.value)
                 }.map { it.instanceId }
 
@@ -456,6 +474,19 @@ object SnapshotHydration {
         val combat: Boolean,
         val exactPhase: Boolean,
     )
+
+    private fun visibleTypeOf(source: GameObjectInfo): ForgeCardType? {
+        val names =
+            (source.superTypesList + source.cardTypesList + source.subtypesList)
+                .map { it.name.substringBefore('_') }
+                .filterNot { it.startsWith("None") }
+        return names.takeIf { it.isNotEmpty() }?.let { ForgeCardType(it, false) }
+    }
+
+    private fun ForgeCardType.matches(other: forge.card.CardTypeView): Boolean =
+        coreTypes.toSet() == other.coreTypes.toSet() &&
+            supertypes.toSet() == other.supertypes.toSet() &&
+            subtypes.toSet() == other.subtypes.toSet()
 
     /**
      * Counter state rides Counter annotations (state tier), one annotation per

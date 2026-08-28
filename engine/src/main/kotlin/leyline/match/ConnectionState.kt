@@ -1,17 +1,16 @@
 package leyline.match
 
-import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
 import leyline.infra.MessageSink
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 /**
  * Per-channel state that survives game-level lifecycle events (puzzle hot-swap,
  * game-end). Owned by [MatchHandler]; referenced by [MatchSession].
  *
- * Identity, transport, and client-driven settings live here so they remain
- * stable when the underlying [forge.game.Game] is replaced.
+ * Identity and transport live here so they remain stable when the underlying
+ * [forge.game.Game] is replaced. Client-driven priority settings live on the
+ * match-scoped engine runtime.
  */
 class ConnectionState(
     val seatId: SeatId,
@@ -23,12 +22,6 @@ class ConnectionState(
 ) {
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
     var playerId: String = "forge-player-1"
-
-    /** Saved client settings for echoing in SetSettingsResp. */
-    var clientSettings: SettingsMessage? = null
-
-    /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
-    val autoPassState = ClientAutoPassState()
 
     /**
      * Serializes all game-logic entry points (Netty I/O threads are concurrent).

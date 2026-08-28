@@ -31,33 +31,39 @@ class AbilityExhaustionFactsTest :
             }
         }
 
-        test("shell materializes ordered used Boast and Exhaust rows before registry lookup") {
+        test("shell materializes ordered used Boast, Exhaust, and Power Up rows before registry lookup") {
             var unrelatedId: ForgeCardId? = null
             var usherId: ForgeCardId? = null
             var jeongId: ForgeCardId? = null
             var lootId: ForgeCardId? = null
+            var serpentId: ForgeCardId? = null
             val board =
                 startWithBoard { _, human, _ ->
                     val unrelated = addCard("Grizzly Bears", human, ZoneType.Battlefield)
                     val usher = addCard("Usher of the Fallen", human, ZoneType.Battlefield)
                     val jeong = addCard("Jeong Jeong, the Deserter", human, ZoneType.Battlefield)
                     val loot = addCard("Loot, the Pathfinder", human, ZoneType.Battlefield)
+                    val serpent = addCard("Serpent Specialist", human, ZoneType.Battlefield)
                     unrelatedId = ForgeCardId(unrelated.id)
                     usherId = ForgeCardId(usher.id)
                     jeongId = ForgeCardId(jeong.id)
                     lootId = ForgeCardId(loot.id)
+                    serpentId = ForgeCardId(serpent.id)
                 }
             val unrelatedForgeId = checkNotNull(unrelatedId)
             val usherForgeId = checkNotNull(usherId)
             val jeongForgeId = checkNotNull(jeongId)
             val lootForgeId = checkNotNull(lootId)
+            val serpentForgeId = checkNotNull(serpentId)
             val bridge = board.bridge
             val usher = checkNotNull(bridge.findCard(usherForgeId))
             val jeong = checkNotNull(bridge.findCard(jeongForgeId))
             val loot = checkNotNull(bridge.findCard(lootForgeId))
+            val serpent = checkNotNull(bridge.findCard(serpentForgeId))
             val boast = usher.allSpellAbilities.first { it.isBoast }
             val exhaust = jeong.allSpellAbilities.first { it.isExhaust }
             val manaExhaust = loot.manaAbilities.first { it.isExhaust }
+            val powerUp = serpent.allSpellAbilities.first { it.isPowerUp }
             val unmappedExhaust =
                 object : AbilityActivated(jeong, Cost("1", true), null) {
                     override fun resolve() = Unit
@@ -73,6 +79,7 @@ class AbilityExhaustionFactsTest :
             jeong.addAbilityActivated(exhaust)
             jeong.addAbilityActivated(unmappedExhaust)
             loot.addAbilityActivated(manaExhaust)
+            serpent.addAbilityActivated(powerUp)
             val snapshot = GsmSnapshot.capture(board.game, bridge, "ability-exhaustion", 21)
             bridge.clearAbilityRegistryCacheForTesting()
 
@@ -84,8 +91,10 @@ class AbilityExhaustionFactsTest :
                         AbilityExhaustionFacts.Row(usherForgeId, 139868, 0, 374),
                         AbilityExhaustionFacts.Row(jeongForgeId, 192720, 2, 51),
                         AbilityExhaustionFacts.Row(lootForgeId, 176608, 0, 53),
+                        AbilityExhaustionFacts.Row(serpentForgeId, 206280, 0, 51),
                     )
-                bridge.cachedAbilityRegistryCardIds() shouldBe setOf(usherForgeId, jeongForgeId, lootForgeId)
+                bridge.cachedAbilityRegistryCardIds() shouldBe
+                    setOf(usherForgeId, jeongForgeId, lootForgeId, serpentForgeId)
                 bridge.cachedAbilityRegistryCardIds() shouldNotContain unrelatedForgeId
             }
 

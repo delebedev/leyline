@@ -112,7 +112,7 @@ class ManifestDreadSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            session.onPerformAction(
+            send(
                 submitWithGsId(
                     performAction(turnUp),
                 ),

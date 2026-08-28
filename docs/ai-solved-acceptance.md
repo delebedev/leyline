@@ -7,9 +7,27 @@ read_when:
 ---
 # AI-Solved Acceptance
 
-AI-solved acceptance turns a rules-solvable puzzle into a scripted acceptance contract.
+AI-solved acceptance turns a rules-solvable puzzle into a deterministic scripted
+acceptance contract.
 
-Use it when direct Forge AI can find a line, but the same line needs to survive the leyline bridge, prompt adapters, and client-compatible action path.
+Use it when the Forge-AI solver can find a line, but the same line must survive
+the Leyline bridge and client-compatible action path.
+
+## Proof ownership
+
+- Forge AI is an upstream rules-engine solver. It establishes that the intended line is
+  rules-solvable and may advise an autonomous run.
+- `MatchFlowHarness` is the headless acceptance executor. It interprets the YAML
+  intent deterministically and owns the acceptance verdict.
+- Simclient is the synthetic discovery, fixed-seed reproduction, and
+  policy-realization probe lane. Its logs and metadata are synthetic game
+  output, not acceptance verdicts.
+- The live client reuses the same YAML intent through the Arena head. Copilot and
+  Pilot exercise autonomous robustness and native delivery.
+- Conformance compares protocol fidelity against the appropriate evidence lane.
+
+Do not use a Forge-AI or autonomous soak run as a substitute for deterministic
+YAML acceptance.
 
 Track generic policy-realization gaps separately from broad scout failures. The
 workflow can start from a hand-authored puzzle, a rules-engine regression, or
@@ -22,16 +40,17 @@ stats-first loop from `docs/simclient-iteration.md` until the direct Forge-AI
 baseline is green and the GRE/headless path has a distinct mismatch.
 
 Keep workflow/tooling friction separate from probe-specific policy bugs. That
-backlog covers terminal live-proof batching, suite discovery, result oracles,
+backlog covers terminal live-proof batching, suite discovery, result checks,
 prompt handoff after activation/modal choices, proof-video publishing,
 smoke-scoped config overrides, and active-server checkout preflight.
 
 ## Loop
 
 1. Write a focused `.pzl` with a deterministic board and one intended line.
-2. Run it directly through Forge AI to prove the puzzle is rules-solvable.
-3. Convert the compact solution facts into existing acceptance YAML under `puzzles/sets/*.yaml`.
-4. Run `just test-acceptance`, or target one suite/scenario with Gradle properties.
+2. Run it through the Forge-AI solver to prove the puzzle is rules-solvable.
+3. Convert the compact solution facts into existing acceptance YAML under `data/puzzles/sets/*.yaml`.
+4. Run `just test-acceptance`, or target one suite/scenario with the current
+   `:engine:testAcceptance` Gradle properties.
 5. Fix bridge, prompt, action, or engine behavior until the scripted suite is green.
 6. Reuse the same YAML through native-client acceptance when available; classify failures by layer.
 
@@ -57,7 +76,7 @@ Turns:1
 
 For one-turn automated runs, allow the engine to execute turn 1 by using a two-turn runtime cap, for example `--max-turns 2`.
 
-Prefer terminal win fixtures when possible. `Goal:Win` gives the direct AI a strong objective, and the final result provides a sharper oracle than "some mechanic happened". The acceptance YAML can still assert the discriminating intermediate state instead of relying only on game end.
+Prefer terminal win fixtures when possible. `Goal:Win` gives the direct AI a strong objective, and the final result provides a sharper verdict than "some mechanic happened". The acceptance YAML can still assert the discriminating intermediate state instead of relying only on game end.
 
 ## YAML Shape
 
@@ -114,12 +133,16 @@ Fix the lowest layer that owns the mismatch. Do not paper over a bridge or adapt
 
 ## Adapter Principle
 
-The direct Forge-AI run is the decision oracle. The GRE path should reuse the same Forge-AI choice wherever possible, then translate that choice into the client-compatible response shape.
+The Forge-AI run is the decision baseline. The shared `PromptDecisionAdvisor`
+returns a complete desired `SimDecision` for simclient and Copilot. Simclient
+submits through its headless policy and fallback path; Copilot incrementally
+realizes the same desired decision as native responses. Neither host moves its
+run strategy into the advisor.
 
-That oracle is only useful after direct Forge AI is green. Some legal puzzle
+That baseline is only useful after direct Forge AI is green. Some legal puzzle
 lines are direct-red because Forge AI's candidate selection or per-ability
 heuristics decline the line before GRE is involved. In that case, do not infer a
-bridge or adapter gap from GRE failure; keep the puzzle in scout/oracle triage
+bridge or adapter gap from GRE failure; keep the puzzle in solver triage
 or adjust the fixture until direct AI takes the intended line.
 
 Do not replace a missing adapter with a bespoke local policy. For example, if direct AI pays a sacrifice cost by choosing a specific Forge card, the GRE `PayCostsReq` handler should consult or recover that Forge-AI cost decision and map the chosen card to a PayCosts id. A heuristic such as "sacrifice the lowest board-value permanent" can make one puzzle green while hiding the actual parity gap.

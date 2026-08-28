@@ -62,7 +62,7 @@ class WarpActionTest :
         }
 
         test("ActionMapper emits warp offer when production-shape CardData lacks keywordAbilityGrpIds") {
-            // ExposedCardRepository does not populate
+            // SqliteCardRepository does not populate
             // keywordAbilityGrpIds (no column in the Cards table), so CardData arrives
             // at the mapper with an empty keyword-name → grpId map. The fix resolves
             // the per-card warp row via the Arena DB Abilities table (BaseId=371 for

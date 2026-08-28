@@ -10,7 +10,7 @@ class MatchdoorAcceptanceExecutorPolicyTest :
     FunSpec({
         tags(UnitTag)
 
-        test("an exact Visible post-action horizon proves empty-stack resolution completed") {
+        test("an empty stack at client priority needs no further pass") {
             stackResolutionNeedsAdvance(
                 passCount = 0,
                 stackEmpty = true,
@@ -27,6 +27,13 @@ class MatchdoorAcceptanceExecutorPolicyTest :
                     pendingKind = PendingActionKind.SYNC_ONLY,
                 ) shouldBe true
                 stackResolutionNeedsAdvance(passCount = 1, stackEmpty = true, pendingKind = null) shouldBe false
+            }
+        }
+
+        test("stack resolution stops at a client combat decision") {
+            assertSoftly {
+                stackResolutionNeedsAdvance(0, stackEmpty = false, PendingActionKind.DECLARE_ATTACKERS) shouldBe false
+                stackResolutionNeedsAdvance(0, stackEmpty = false, PendingActionKind.DECLARE_BLOCKERS) shouldBe false
             }
         }
     })

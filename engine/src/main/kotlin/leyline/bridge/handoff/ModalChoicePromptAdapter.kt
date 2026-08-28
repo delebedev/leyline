@@ -14,7 +14,6 @@ internal class ModalChoicePromptAdapter(
     private val isGameLoopThread: () -> Boolean,
     private val runtime: () -> ModalChoiceInteractionRuntime?,
     private val prioritySignal: PrioritySignal?,
-    private val timeoutListener: (() -> Unit)?,
     private val record: (PromptRequest, PromptCallStatus, List<Int>, Long) -> Unit,
 ) {
     private val log = LoggerFactory.getLogger(ModalChoicePromptAdapter::class.java)
@@ -79,7 +78,7 @@ internal class ModalChoicePromptAdapter(
                 result.optionIndices,
                 System.currentTimeMillis() - startMs,
             )
-            if (result.timedOut) timeoutListener?.invoke() else prioritySignal?.markPromptResolved()
+            if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
             result.handles
         } catch (ex: Exception) {
             record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)

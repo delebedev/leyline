@@ -12,6 +12,7 @@ import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotation
+import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotation
@@ -23,7 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 class LocalStackMicrostepTest :
     SessionTest({
         fun MatchFlowHarness.enableStackAutoResolve() {
-            session.autoPassState.update(
+            updateSettings(
                 SettingsMessage
                     .newBuilder()
                     .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
@@ -90,12 +91,26 @@ class LocalStackMicrostepTest :
                 ) {
                     resolveGsm.shouldNotBeNull()
                 }
+            val stackIid =
+                castFrame.annotationsList
+                    .first { AnnotationType.ZoneTransfer_af5a in it.typeList }
+                    .affectedIdsList
+                    .single()
+            val battlefieldIid =
+                resolveFrame.annotationsList
+                    .first { AnnotationType.ZoneTransfer_af5a in it.typeList }
+                    .affectedIdsList
+                    .single()
             assertSoftly {
                 castFrame.gameStateId shouldBeLessThan resolveFrame.gameStateId
                 castFrame.annotationTypes() shouldNotContain AnnotationType.ResolutionStart
                 castFrame.annotationTypes() shouldNotContain AnnotationType.ResolutionComplete
                 resolveFrame.annotationTypes() shouldContain AnnotationType.ResolutionStart
                 resolveFrame.annotationTypes() shouldContain AnnotationType.ResolutionComplete
+                battlefieldIid shouldBe stackIid
+                resolveFrame.annotationsList.none {
+                    AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == stackIid
+                } shouldBe true
             }
         }
 

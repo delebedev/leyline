@@ -5,6 +5,7 @@ import forge.deck.CardPool
 import forge.game.GameEntityView
 import forge.game.GameState
 import forge.game.GameView
+import forge.game.ability.ApiType
 import forge.game.card.CardView
 import forge.game.event.GameEvent
 import forge.game.event.GameEventSpellAbilityCast
@@ -12,6 +13,7 @@ import forge.game.event.GameEventSpellRemovedFromStack
 import forge.game.phase.PhaseType
 import forge.game.player.DelayedReveal
 import forge.game.player.IHasIcon
+import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
 import forge.game.spellability.SpellAbilityView
@@ -28,11 +30,16 @@ import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.DevCheck
+import leyline.bridge.handoff.DistributionRouteKind
+import leyline.bridge.handoff.DistributionTargetRef
+import leyline.bridge.handoff.DistributionWindowValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.TargetingCandidateValue
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import org.slf4j.LoggerFactory
 
 /**
@@ -50,7 +57,11 @@ class ClientGuiGame(
     private val currentStackTargetingAbility: () -> SpellAbility? = { null },
     private val currentStackTargetIndex: () -> Int = { 1 },
     private val currentStackTargetPromptId: () -> Int? = { null },
+    private val playerSeatOf: (Player) -> Int? = { null },
+    private val playerViewSeatOf: (PlayerView) -> Int? = { null },
     private val stackTargetCandidate: (Int, Any?) -> TargetingCandidateValue.StackObject? = { _, _ -> null },
+    private val currentDividedAllocationAbility: () -> SpellAbility? = { null },
+    private val beforeDividedAllocation: (SpellAbility) -> List<DistributionTargetRef> = { emptyList() },
 ) : IGuiGame {
     private data class StackTargetOptionSet(
         val candidates: List<TargetingCandidateValue.StackObject>,
@@ -616,6 +627,66 @@ class ClientGuiGame(
         atLeastOne: Boolean,
         amountLabel: String,
     ): Map<Any, Int> {
+        val ability = currentDividedAllocationAbility() ?: return evenDistribution(target, amount, effectSource, amountLabel)
+        val semantic =
+            when {
+                ability.api == ApiType.DealDamage -> PromptSemantic.DividedAllocationDamage
+                ability.api == ApiType.PutCounter -> PromptSemantic.DividedAllocationCounters
+                else -> return evenDistribution(target, amount, effectSource, amountLabel)
+            }
+        if (atLeastOne && target.size >= 2 && amount > target.size && effectSource.id > 0) {
+            val targetRefs =
+                target.keys.map {
+                    distributionTargetRef(it)
+                        ?: return evenDistribution(target, amount, effectSource, amountLabel)
+                }
+            if (targetRefs.distinct().size != targetRefs.size || ability.id <= 0) {
+                return evenDistribution(target, amount, effectSource, amountLabel)
+            }
+            val orderedTargets = beforeDividedAllocation(ability)
+            if (orderedTargets.size != targetRefs.size || orderedTargets.toSet() != targetRefs.toSet()) {
+                return evenDistribution(target, amount, effectSource, amountLabel)
+            }
+            val window =
+                DistributionWindowValue(
+                    kind =
+                        if (semantic ==
+                            PromptSemantic.DividedAllocationDamage
+                        ) {
+                            DistributionRouteKind.Damage
+                        } else {
+                            DistributionRouteKind.Counters
+                        },
+                    targets = orderedTargets,
+                    amount = amount,
+                    minPerTarget = 1,
+                    sourceForgeCardId = effectSource.id,
+                    sourceForgeAbilityId = ability.id,
+                    sourceIsSpell = ability.isSpell,
+                )
+            val request =
+                PromptRequest(
+                    promptType = "distribution",
+                    message = amountLabel,
+                    options = target.keys.map { (it as? GameEntityView)?.name ?: it.toString() },
+                    min = target.size,
+                    max = target.size,
+                    defaultIndex = 0,
+                    route = PromptRouteResolver.resolve(semantic),
+                    sourceEntityId = effectSource.id,
+                )
+            val result = bridge.requestDistribution(request, window)
+            return target.keys.associateWith { key -> distributionTargetRef(key)?.let(result.amounts::get) ?: 0 }
+        }
+        return evenDistribution(target, amount, effectSource, amountLabel)
+    }
+
+    private fun evenDistribution(
+        target: Map<Any, Int>,
+        amount: Int,
+        effectSource: CardView,
+        amountLabel: String,
+    ): Map<Any, Int> {
         // Simplified: distribute evenly, no manual allocation UI.
         if (target.isEmpty()) return emptyMap()
         log.warn(
@@ -637,6 +708,14 @@ class ClientGuiGame(
             perTarget + extra
         }
     }
+
+    internal fun distributionTargetRef(entity: Any): DistributionTargetRef? =
+        when (entity) {
+            is Player -> playerSeatOf(entity)?.let { DistributionTargetRef.Player(SeatId(it)) }
+            is PlayerView -> playerViewSeatOf(entity)?.let { DistributionTargetRef.Player(SeatId(it)) }
+            is GameEntityView -> DistributionTargetRef.Card(ForgeCardId(entity.id))
+            else -> null
+        }
 
     override fun sideboard(
         sideboard: CardPool,

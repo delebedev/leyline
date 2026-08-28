@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.game.event.FrameEventLog
 import leyline.testkit.BoardTest
+import leyline.testkit.BundleBuilderTestSupport
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
@@ -52,7 +53,7 @@ class ShapeIntegrationTest :
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 }
 
-            val messages = bundleBuilder(b).declareAttackersBundle(game, counter).messages
+            val messages = BundleBuilderTestSupport.declareAttackers(bundleBuilder(b), b, game, counter).messages
 
             assertSoftly {
                 messages.size shouldBe 2

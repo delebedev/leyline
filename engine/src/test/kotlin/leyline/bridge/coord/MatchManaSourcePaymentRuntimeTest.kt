@@ -16,9 +16,11 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -103,6 +105,53 @@ class MatchManaSourcePaymentRuntimeTest :
                 published = coordinator.manaSourcePayments.current()
             }
             return checkNotNull(published)
+        }
+
+        test("initial payment keeps Player bytes and gives observers projected state only") {
+            data class Published(
+                val player: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+                val observer: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+            )
+
+            fun publish(withObserver: Boolean): Published {
+                val board = startPuzzleAtMain1(puzzle.replace("humanlibrary=Forest", "humanhand=Mountain\nhumanlibrary=Forest"))
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                if (withObserver) coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+                val finished = CountDownLatch(1)
+                Thread {
+                    coordinator.manaSourcePayments.awaitPayment(request(board), candidates(board), 3_000)
+                    finished.countDown()
+                }.start()
+
+                val interaction = awaitPublished(coordinator)
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
+                coordinator.manaSourcePayments.cancel(interaction.interactionId, interaction.gameStateId).shouldNotBeNull()
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                return Published(player, observer)
+            }
+
+            val playerOnly = publish(withObserver = false)
+            val withObserver = publish(withObserver = true)
+
+            assertSoftly {
+                withObserver.player.map { it.toByteArray().toList() } shouldBe
+                    playerOnly.player.map { it.toByteArray().toList() }
+                withObserver.player.any { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer.size shouldBe 1
+                withObserver.observer.single().hasGameStateMessage() shouldBe true
+                withObserver.observer.none { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldBe emptyList()
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.gameObjectsList
+                    .none { it.visibility == Visibility.Private } shouldBe true
+            }
         }
 
         test("initial payment and re-prompt commit before the engine is released") {

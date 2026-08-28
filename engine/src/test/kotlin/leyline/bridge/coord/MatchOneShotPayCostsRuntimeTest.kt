@@ -17,10 +17,12 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -31,6 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -95,6 +98,63 @@ class MatchOneShotPayCostsRuntimeTest :
                 published = coordinator.oneShotPayCosts.current()
             }
             return checkNotNull(published)
+        }
+
+        test("initial PayCosts keeps Player bytes and gives observers projected state only") {
+            data class Published(
+                val player: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+                val observer: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+            )
+
+            fun publish(withObserver: Boolean): Published {
+                val board = startPuzzleAtMain1(puzzle.replace("humanlibrary=Mountain", "humanhand=Mountain\nhumanlibrary=Mountain"))
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                if (withObserver) coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+                val cards = candidates(board)
+                val source =
+                    board.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Forest" }
+                val finished = CountDownLatch(1)
+                Thread {
+                    coordinator.oneShotPayCosts.awaitPayment(
+                        request(cards, PayCostsRouteKind.Sacrifice, source.id),
+                        cards,
+                        3_000,
+                    )
+                    finished.countDown()
+                }.start()
+
+                val interaction = awaitPublished(coordinator)
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = if (withObserver) coordinator.drain(SeatId(2)).single() else emptyList()
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), interaction.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                return Published(player, observer)
+            }
+
+            val playerOnly = publish(withObserver = false)
+            val withObserver = publish(withObserver = true)
+
+            assertSoftly {
+                withObserver.player.map { it.toByteArray().toList() } shouldBe
+                    playerOnly.player.map { it.toByteArray().toList() }
+                withObserver.player.any { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer.size shouldBe 1
+                withObserver.observer.single().hasGameStateMessage() shouldBe true
+                withObserver.observer.none { it.hasPayCostsReq() } shouldBe true
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldBe emptyList()
+                withObserver.observer
+                    .single()
+                    .gameStateMessage.gameObjectsList
+                    .none { it.visibility == Visibility.Private } shouldBe true
+            }
         }
 
         test("all seven routes publish one atomic state and PayCosts cut and resolve exact option") {
@@ -205,7 +265,7 @@ class MatchOneShotPayCostsRuntimeTest :
                     PayCostsRouteKind.WaterbendCost,
                     -> error("Iterative route entered one-shot materializer proof")
                 }
-                val accepted = coordinator.oneShotPayCosts.submit(published.interactionId, published.gameStateId, listOf(selected))
+                val accepted = coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(selected)), published.gameStateId)
                 assertSoftly {
                     accepted shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
@@ -281,11 +341,7 @@ class MatchOneShotPayCostsRuntimeTest :
                     selection.minWeight shouldBe Int.MIN_VALUE
                     selection.maxWeight shouldBe Int.MAX_VALUE
                     selection.weightsList shouldContainExactly emittedWeights
-                    coordinator.oneShotPayCosts.submit(
-                        published.interactionId,
-                        published.gameStateId,
-                        selectedIds,
-                    ) shouldBe true
+                    coordinator.acceptSettled(leyline.testkit.effectCostResp(selectedIds), published.gameStateId) shouldBe true
                     finished.await(3, TimeUnit.SECONDS) shouldBe true
                     result.get().handles shouldHaveSize selectedIds.size
                 }
@@ -328,23 +384,21 @@ class MatchOneShotPayCostsRuntimeTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
-                coordinator.oneShotPayCosts.submit("stale", exact.gameStateId, listOf(exactIds.first())) shouldBe false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId + 1, listOf(exactIds.first())) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId + 1) shouldBe
                     false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(Int.MAX_VALUE)) shouldBe false
-                coordinator.oneShotPayCosts.submit(
-                    exact.interactionId,
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(Int.MAX_VALUE)), exact.gameStateId) shouldBe false
+                coordinator.acceptSettled(
+                    leyline.testkit.effectCostResp(listOf(exactIds.first(), exactIds.first())),
                     exact.gameStateId,
-                    listOf(exactIds.first(), exactIds.first()),
                 ) shouldBe
                     false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, emptyList()) shouldBe false
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, exactIds) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(emptyList()), exact.gameStateId) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(exactIds), exact.gameStateId) shouldBe false
                 coordinator.oneShotPayCosts.current() shouldBe exact
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(exactIds.first())) shouldBe true
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId) shouldBe true
                 exactFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 exactResult.get().optionIndices shouldContainExactly listOf(0)
-                coordinator.oneShotPayCosts.submit(exact.interactionId, exact.gameStateId, listOf(exactIds.first())) shouldBe false
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(exactIds.first())), exact.gameStateId) shouldBe false
             }
 
             val (weightedResult, weightedFinished) = launch(request(cards, PayCostsRouteKind.CollectEvidence, source.id))
@@ -356,18 +410,10 @@ class MatchOneShotPayCostsRuntimeTest :
                     .single { it.hasPayCostsReq() }
                     .payCostsReq.effectCostReq.costSelection.idsList
             assertSoftly {
-                coordinator.oneShotPayCosts.submit(
-                    weighted.interactionId,
-                    weighted.gameStateId,
-                    listOf(weightedIds.last()),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(weightedIds.last())), weighted.gameStateId) shouldBe
                     false
                 coordinator.oneShotPayCosts.current() shouldBe weighted
-                coordinator.oneShotPayCosts.submit(
-                    weighted.interactionId,
-                    weighted.gameStateId,
-                    listOf(weightedIds.first()),
-                ) shouldBe
+                coordinator.acceptSettled(leyline.testkit.effectCostResp(listOf(weightedIds.first())), weighted.gameStateId) shouldBe
                     true
                 weightedFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 weightedResult.get().optionIndices shouldContainExactly listOf(0)
@@ -376,7 +422,7 @@ class MatchOneShotPayCostsRuntimeTest :
             val (cancelResult, cancelFinished) = launch(request(cards, PayCostsRouteKind.EnlistCost, source.id))
             val cancellable = awaitPublished(coordinator)
             coordinator.drain(SeatId(1))
-            coordinator.oneShotPayCosts.cancel(cancellable.interactionId, cancellable.gameStateId) shouldBe true
+            coordinator.acceptSettled(leyline.testkit.cancelActionReq(), cancellable.gameStateId) shouldBe true
             assertSoftly {
                 cancelFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 cancelResult.get().optionIndices shouldBe emptyList()
@@ -394,13 +440,12 @@ class MatchOneShotPayCostsRuntimeTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .single { it.name == "Forest" }
-            val autoAdvance = CountDownLatch(1)
+            val signal = PrioritySignal()
             val result = AtomicReference<leyline.bridge.handoff.OneShotPayCostsResult>()
             val finished = CountDownLatch(1)
             val bridge =
-                InteractivePromptBridge(timeoutMs = 25).also {
+                InteractivePromptBridge(timeoutMs = 25, prioritySignal = signal).also {
                     it.runtimeBindings = coordinator.prompts.bindings(SeatId(1))
-                    it.timeoutListener = autoAdvance::countDown
                 }
             Thread {
                 result.set(
@@ -418,7 +463,7 @@ class MatchOneShotPayCostsRuntimeTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get().optionIndices shouldContainExactly listOf(1)
                 (result.get().handles.single() === cards[1]) shouldBe true
-                autoAdvance.await(3, TimeUnit.SECONDS) shouldBe true
+                signal.awaitSignal(3_000) shouldBe true
                 coordinator.oneShotPayCosts
                     .current()
                     .shouldBeNull()

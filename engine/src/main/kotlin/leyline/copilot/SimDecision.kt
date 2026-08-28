@@ -3,6 +3,9 @@ package leyline.copilot
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
+
+internal typealias TargetGroupSelections = Map<Int, List<Int>>
 
 /**
  * Backend-neutral description of the response the Forge-AI decision brain
@@ -25,18 +28,24 @@ internal sealed interface SimDecision {
     }
 
     data class SelectTargets(
-        val targetInstanceIds: List<Int>,
-        /** The prompt target group's targetIdx; a stricter host binds the pick to it. */
-        val targetIdx: Int = 0,
+        /** Desired ids grouped by the target request's targetIdx. */
+        val targetGroups: TargetGroupSelections,
     ) : SimDecision {
+        val targetInstanceIds: List<Int> get() = targetGroups.values.flatten()
+
+        /** The group for a one-tap host response. */
+        val targetIdx: Int get() = targetGroups.keys.singleOrNull() ?: 0
+
         override val kind: String = "select-targets"
     }
 
     /** Un-toggle already-committed targets (Unselect taps) in an iterative SelectTargetsReq. */
     data class UnselectTargets(
-        val targetInstanceIds: List<Int>,
-        val targetIdx: Int = 0,
+        val targetGroups: TargetGroupSelections,
     ) : SimDecision {
+        val targetInstanceIds: List<Int> get() = targetGroups.values.flatten()
+        val targetIdx: Int get() = targetGroups.keys.singleOrNull() ?: 0
+
         override val kind: String = "unselect-targets"
     }
 
@@ -61,6 +70,21 @@ internal sealed interface SimDecision {
         val itemsFound: List<Int>,
     ) : SimDecision {
         override val kind: String = "search"
+    }
+
+    data class GroupedSearch(
+        val groupId: Int,
+        val itemsFound: List<Int>,
+        val maxSelect: Int,
+    ) : SimDecision {
+        override val kind: String = "grouped-search:$groupId"
+    }
+
+    /** Echo one complete published replacement row for a SelectReplacementReq. */
+    data class SelectReplacement(
+        val replacement: ReplacementEffect,
+    ) : SimDecision {
+        override val kind: String = "select-replacement"
     }
 
     data class EffectCost(

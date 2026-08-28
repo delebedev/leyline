@@ -59,7 +59,7 @@ class CopilotAutopushTest :
                 val actionBridge = bridge.seat(SeatId(1)).action
                 val pending = actionBridge.getPending() ?: error("expected a pending priority action")
                 onSubmit.set {
-                    bridge.messageCounter.markResponseAccepted()
+                    bridge.responseAcceptance.markResponseAccepted(prompt.msgId)
                     bridge.submitTestAction(pending.actionId, PlayerAction.PassPriority)
                 }
 
@@ -104,7 +104,10 @@ class CopilotAutopushTest :
 
             try {
                 val prompt = allMessages.last { it.type == GREMessageType.ActionsAvailableReq_695e }
-                bridge.messageCounter.markPromptMsgId(prompt.msgId + 1)
+                val state = bridge.projectionStateSnapshot()
+                bridge.replaceProjectionStateForTest(
+                    state.copy(sequence = state.sequence.copy(lastPromptMsgId = prompt.msgId + 1)),
+                )
 
                 val autopush =
                     CopilotAutopush(
@@ -242,9 +245,9 @@ class CopilotAutopushTest :
             try {
                 val seatAction = bridge.seat(SeatId(1)).action
                 val pending = seatAction.getPending() ?: error("expected a pending priority window")
-                val baseline = bridge.messageCounter.responsesAccepted()
+                val baseline = bridge.responseAcceptance.responsesAccepted()
 
-                bridge.messageCounter.markResponseAccepted()
+                bridge.responseAcceptance.markResponseAccepted(1)
                 autopush.landed(baseline, pending.actionId) shouldBe false
                 autopush.landed(baseline, null) shouldBe true
 

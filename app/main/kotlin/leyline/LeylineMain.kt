@@ -1,88 +1,77 @@
 package leyline
 
-import leyline.config.MatchConfig
+import leyline.config.ConfigException
+import leyline.config.LeylineConfigResolver
+import leyline.config.ResolvedLeylineConfig
 import leyline.debug.DebugServer
-import leyline.game.data.ExposedCardRepository
+import leyline.game.data.CardRepository
+import leyline.game.data.ClientCardDatabase
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
 import leyline.native.account.AccountServer
-import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 
 /**
- * Standalone entry point for the local Leyline server.
+ * Standalone entry point for the local Leyline server (native head).
  *
  * Run via justfile target: `just serve`.
  * See AGENTS.md for mode descriptions.
  *
- * TLS: self-signed certs by default. Pass --cert/--key for explicit certs.
- *
- * Configuration layering (highest priority wins):
- *   CLI args > env vars > leyline.toml > code defaults
+ * Configuration is resolved once from code defaults, optional `leyline.toml`,
+ * and `LEYLINE_*` environment overrides; see [LeylineConfigResolver]. `--cert`/`--key` still
+ * select explicit TLS certificates.
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
 
-    val config = loadConfig(a)
-    val sc = config.server
+    val resolved = resolveLaunchConfig()
+    val native = resolved.config.native
+    val paths = resolved.paths.also { it.ensureDirectories() }
+    System.setProperty("LEYLINE_LOG_DIR", paths.artifactsRoot.absolutePath)
+
     val tls = resolveTls(a)
     val cardRepo = openCardRepo()
-    val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
-    val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
-    val fdHost =
-        a["--fd-host"]
-            ?: System.getenv("LEYLINE_FD_HOST")
-            ?: "localhost:$fdPort"
-
-    val playerDbFile = resolvePlayerDb(config)
-
     val server =
         LeylineServer(
-            frontDoorPort = fdPort,
-            matchDoorPort = mdPort,
+            bindAddress = native.bind,
+            frontDoorPort = native.fdPort,
+            matchDoorPort = native.mdPort,
             tlsFiles = tls,
-            matchConfig = config,
-            externalHost = fdHost.substringBefore(":"),
+            engineSettings = resolved.config.engine,
+            puzzlesDir = paths.puzzlesDir,
+            draftModelDir = paths.draftModelDir(resolved.config.engine.draft.modelDir),
+            externalHost = native.matchDoorHost,
             cardRepo = cardRepo,
-            playerDbFile = playerDbFile,
+            playerDbFile = paths.playerDb,
+            engineDumpDir = paths.engineDump,
+            sessionJournalFile = paths.sessionJournal,
         )
 
-    val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
-    val mgmtPort = a["--management-port"]?.toIntOrNull() ?: sc.managementPort
-    val accountPort = a["--account-port"]?.toIntOrNull() ?: sc.accountPort
-
-    val debugServer = buildDebugServer(debugPort, server)
-    val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
+    val debugServer = buildDebugServer(native.debugPort, native.bind, server)
+    val mgmtServer = ManagementServer(native.bind, native.managementPort, healthCheck = { server.isHealthy() })
     val accountDb =
         org.jetbrains.exposed.v1.jdbc.Database.connect(
-            "jdbc:sqlite:${playerDbFile.absolutePath}",
+            "jdbc:sqlite:${paths.playerDb.absolutePath}",
             "org.sqlite.JDBC",
         )
-    val accountServer = buildAccountServer(a, accountPort, tls, fdHost, accountDb)
+    val accountServer = buildAccountServer(a, native.bind, native.accountPort, tls, native.advertisedFdUri, accountDb)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
-    printBanner(config, mgmtPort, debugPort, accountPort, fdHost)
+    printBanner(resolved)
 
     Thread.currentThread().join()
 }
 
 // -- Config & resources -------------------------------------------------------
 
-private fun loadConfig(a: Map<String, String>): MatchConfig {
-    val configFile =
-        a["--config"]?.let { File(it) }
-            ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
-    return MatchConfig.load(configFile)
-}
-
-/** Resolve the player DB file from env → config → default, coercing relative paths and ensuring the parent dir exists. */
-internal fun resolvePlayerDb(config: MatchConfig): File {
-    val path = System.getenv("LEYLINE_PLAYER_DB") ?: config.server.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
-    val file = File(path).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), path) }
-    file.parentFile?.mkdirs()
-    return file
-}
+private fun resolveLaunchConfig(): ResolvedLeylineConfig =
+    try {
+        LeylineConfigResolver(baseDir = File(System.getProperty("user.dir")), env = System.getenv()).resolve()
+    } catch (e: ConfigException) {
+        System.err.println("Configuration error: ${e.message}")
+        kotlin.system.exitProcess(1)
+    }
 
 private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
@@ -92,59 +81,19 @@ private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     return if (cert != null && key != null) cert to key else null to null
 }
 
-private fun openCardRepo(): ExposedCardRepository {
-    val cardDbPath =
-        System.getenv("LEYLINE_CARD_DB")
-            ?: detectArenaCardDb()
-    requireNotNull(cardDbPath) {
-        "Card database not found. Set LEYLINE_CARD_DB or install the compatible client.\n" +
-            "  macOS: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga\n" +
-            "  Windows: C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga"
-    }
-    val cardDbFile = File(cardDbPath)
-    validateCardDbFile(cardDbFile, cardDbPath)
-    val repo =
-        ExposedCardRepository(
-            Database.connect(
-                "jdbc:sqlite:${cardDbFile.absolutePath}",
-                "org.sqlite.JDBC",
-            ),
-        )
-    requireUsableCardRows(cardDbPath, repo.findAllGrpIds())
-    return repo
-}
-
-internal fun validateCardDbFile(
-    cardDbFile: File,
-    cardDbPath: String = cardDbFile.path,
-) {
-    require(cardDbFile.exists()) { "Card database not found at: $cardDbPath" }
-    require(cardDbFile.length() >= MIN_CARD_DB_BYTES) {
-        "Card database at $cardDbPath is ${cardDbFile.length()} bytes — too small to be a real DB.\n" +
-            "Likely an in-progress download placeholder alongside a real file in the same directory.\n" +
-            "Remove the empty file and rerun, or set LEYLINE_CARD_DB to the full DB explicitly."
-    }
-}
-
-internal fun requireUsableCardRows(
-    cardDbPath: String,
-    grpIds: Iterable<Int>,
-) {
-    check(grpIds.any()) {
-        "Card database at $cardDbPath has no usable Cards rows. Wrong file, or schema changed."
-    }
-}
-
-private const val MIN_CARD_DB_BYTES = 1_000_000L
+private fun openCardRepo(): CardRepository = ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
 
 // -- Server builders ----------------------------------------------------------
 
 private fun buildDebugServer(
     port: Int,
+    bindAddress: String,
     server: LeylineServer,
 ) = DebugServer(
     port = port,
+    bindAddress = bindAddress,
     sessionProvider = { server.debugSink.sessionProvider?.invoke() as? leyline.match.MatchSession },
+    puzzleLibrary = server.puzzleLibrary,
     runtimePuzzle = server.runtimePuzzle,
     cardRepositoryProvider = { server.cardRepo },
     aiDeckOverride = server.aiDeckOverride,
@@ -152,6 +101,7 @@ private fun buildDebugServer(
 
 private fun buildAccountServer(
     a: Map<String, String>,
+    bindAddress: String,
     port: Int,
     tls: Pair<File?, File?>,
     fdHost: String,
@@ -162,6 +112,7 @@ private fun buildAccountServer(
     val cachedManifests = detectCachedManifests()
 
     return AccountServer(
+        bindAddress = bindAddress,
         port = port,
         certFile = a["--account-cert"]?.let { File(it) } ?: tls.first,
         keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
@@ -182,7 +133,7 @@ private fun buildAccountServer(
  * existing local cache entries remain valid.
  */
 private fun detectCachedManifests(): String? {
-    val downloadsDir = detectArenaDownloadsDir() ?: return null
+    val downloadsDir = ClientCardDatabase.detectArenaDownloadsDir() ?: return null
     if (!downloadsDir.isDirectory) return null
 
     // Manifest_<hex>.mtga → main
@@ -239,68 +190,17 @@ private fun startAll(
     accountServer.start()
 }
 
-private fun printBanner(
-    config: MatchConfig,
-    mgmtPort: Int,
-    debugPort: Int,
-    accountPort: Int,
-    fdHost: String,
-) {
-    val mode = "local"
-
-    println("Starting Leyline server ($mode mode)...")
+private fun printBanner(resolved: ResolvedLeylineConfig) {
+    val native = resolved.config.native
+    println(resolved.report(head = "native"))
     println("Leyline server running. Press Ctrl+C to stop.")
-    println("Management: http://localhost:$mgmtPort/health")
-    println("Debug controls: http://localhost:$debugPort")
-    println("Account:     https://localhost:$accountPort")
-    println("Doorbell:    FdURI=$fdHost")
-    println("Config: ${config.summary()}")
+    println("Management: http://${native.bind}:${native.managementPort}/health")
+    println("Debug controls: http://${native.bind}:${native.debugPort}")
+    println("Account:     https://${native.bind}:${native.accountPort}")
+    println("Doorbell:    FdURI=${native.advertisedFdUri}")
 }
 
 // -- Utilities ----------------------------------------------------------------
-
-internal fun detectArenaCardDb(): String? {
-    val rawDir = detectArenaDownloadsDir()?.resolve("Raw") ?: return null
-    if (!rawDir.isDirectory) return null
-    return rawDir
-        .listFiles()
-        ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-        ?.filter { it.length() >= MIN_CARD_DB_BYTES }
-        ?.maxByOrNull { it.lastModified() }
-        ?.absolutePath
-}
-
-/**
- * Locate the local client Downloads directory across platforms.
- *
- * macOS: ~/Library/Application Support/com.wizards.mtga/Downloads
- * Windows: <Epic install>/MTGA_Data/Downloads (card data lives inside the install)
- */
-internal fun detectArenaDownloadsDir(): File? {
-    val home = File(System.getProperty("user.home"))
-    val os = System.getProperty("os.name").lowercase()
-
-    // macOS: user-local application support
-    if (os.contains("mac")) {
-        val dir = home.resolve("Library/Application Support/com.wizards.mtga/Downloads")
-        if (dir.isDirectory) return dir
-    }
-
-    // Windows: inside Epic Games or Steam install directory
-    if (os.contains("win")) {
-        val programFiles = System.getenv("PROGRAMFILES") ?: "C:/Program Files"
-        val programFilesX86 = System.getenv("PROGRAMFILES(X86)") ?: "C:/Program Files (x86)"
-        val candidates =
-            listOf(
-                File(programFiles, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-                File(programFilesX86, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-                File(programFilesX86, "Steam/steamapps/common/MTGA/MTGA_Data/Downloads"),
-            )
-        candidates.firstOrNull { it.isDirectory }?.let { return it }
-    }
-
-    return null
-}
 
 internal fun parseArgs(args: Array<String>): Map<String, String> {
     val map = mutableMapOf<String, String>()

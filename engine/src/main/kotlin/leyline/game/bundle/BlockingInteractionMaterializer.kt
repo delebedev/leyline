@@ -13,7 +13,6 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.ProjectionState
@@ -32,7 +31,7 @@ internal class BlockingInteractionMaterializer(
 
     fun generalOptional(
         prior: ProjectionState,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
     ): Prepared =
         edit(prior) { editor ->
@@ -62,14 +61,14 @@ internal class BlockingInteractionMaterializer(
         }
 
     fun snapshotOptional(
-        compiled: StateProjectionCompiler.Result,
         stateMessages: List<GREToClientMessage>,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
+        transition: ProjectionTransition,
     ): Prepared {
         val sourceId =
             interaction.sourceId?.let {
-                compiled.transition.nextState.identities.forgeIdToInstanceId[it]
+                transition.nextState.identities.forgeIdToInstanceId[it]
                     ?.value
             }
                 ?: error("Optional interaction requires a source")
@@ -96,7 +95,7 @@ internal class BlockingInteractionMaterializer(
                     ),
                 actionGameStateId = link.gsId,
             ),
-            compiled.transition,
+            transition,
             closesPlaybackFrame = true,
         )
     }
@@ -105,8 +104,8 @@ internal class BlockingInteractionMaterializer(
         stateMessages: List<GREToClientMessage>,
         snapshot: GsmSnapshot,
         actions: ActionsAvailableReq,
-        link: MessageCounter.GameStateLink,
-        counter: MessageCounter,
+        link: LogicalSequencePlanner.GameStateLink,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         context: CommanderReturnPromptContext,
         editor: ProjectionState.Editor,
@@ -162,8 +161,8 @@ internal class BlockingInteractionMaterializer(
     fun commanderCleanup(
         prior: ProjectionState,
         snapshot: GsmSnapshot,
-        link: MessageCounter.GameStateLink,
-        counter: MessageCounter,
+        link: LogicalSequencePlanner.GameStateLink,
+        counter: LogicalSequencePlanner,
         context: CommanderReturnPromptContext,
     ): Prepared =
         edit(prior) { editor ->
@@ -197,7 +196,7 @@ internal class BlockingInteractionMaterializer(
 
     fun numeric(
         prior: ProjectionState,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Numeric,
     ): Prepared =
         edit(prior) { editor ->
@@ -237,7 +236,7 @@ internal class BlockingInteractionMaterializer(
 
     fun damage(
         prior: ProjectionState,
-        counter: MessageCounter,
+        counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Damage,
         blockerToughness: Map<ForgeCardId, Int>,
     ): Prepared =
@@ -286,7 +285,7 @@ internal class BlockingInteractionMaterializer(
             )
         }
 
-    fun damageConfirmation(counter: MessageCounter): BundleBuilder.BundleResult =
+    fun damageConfirmation(counter: LogicalSequencePlanner): BundleBuilder.BundleResult =
         BundleBuilder.BundleResult(
             listOf(
                 makeGRE(GREMessageType.AssignDamageConfirmation_695e, counter.currentGsId(), counter.nextMsgId()) {
@@ -378,7 +377,7 @@ internal class BlockingInteractionMaterializer(
         return id
     }
 
-    private fun pendingMessage(link: MessageCounter.GameStateLink): GameStateMessage =
+    private fun pendingMessage(link: LogicalSequencePlanner.GameStateLink): GameStateMessage =
         GameStateMessage
             .newBuilder()
             .setType(GameStateType.Diff)

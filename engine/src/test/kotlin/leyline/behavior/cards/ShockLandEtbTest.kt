@@ -53,7 +53,7 @@ class ShockLandEtbTest :
                     instanceId = human.hand.iid(land)
                     grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            session.onPerformAction(submitWithGsId(msg))
+            send(submitWithGsId(msg))
 
             // Drain sink to keep OAM (without auto-responding)
             allMessages.addAll(sink.messages)
@@ -88,7 +88,7 @@ class ShockLandEtbTest :
                     instanceId = human.hand.iid(land)
                     grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
                 }
-            session.onPerformAction(submitWithGsId(msg))
+            send(submitWithGsId(msg))
 
             // Drain sink to keep OAM
             allMessages.addAll(sink.messages)

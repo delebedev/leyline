@@ -8,8 +8,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.game.bundle.InvariantCheck
-import leyline.game.bundle.InvariantSelection
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -188,11 +186,6 @@ class LocalTriggerPlaybackTest :
         session(
             "mandatory non-interactive investigate trigger enters before resolving",
             puzzle = noviceInspectorPuzzle,
-            validation =
-                InvariantSelection.except(
-                    "Clue token ZoneTransfer affectedIds are unresolved until token projection is fixed",
-                    InvariantCheck.AnnotationReferences,
-                ),
         ) {
             val post =
                 after {
@@ -206,10 +199,22 @@ class LocalTriggerPlaybackTest :
                 }.messages
 
             assertTriggerSplit(post)
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .filter { it.name.contains("Clue", ignoreCase = true) && it.isToken }
-                .shouldNotBeEmpty()
+            val investigateStarted =
+                post
+                    .annotationsOfType(AnnotationType.ResolutionStart)
+                    .single { it.detailUint("grpid") == 86969 }
+            assertSoftly {
+                post.annotationsOfType(AnnotationType.TokenCreated).single().affectorId shouldBe investigateStarted.affectorId
+                post
+                    .gameStateMessages()
+                    .flatMap { it.gameObjectsList }
+                    .single { it.grpId == 89236 }
+                    .parentId shouldBe investigateStarted.affectorId
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .filter { it.name.contains("Clue", ignoreCase = true) && it.isToken }
+                    .shouldNotBeEmpty()
+            }
         }
     })

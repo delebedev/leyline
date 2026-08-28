@@ -211,6 +211,9 @@ private fun describeMessagePayload(message: GREToClientMessage): String =
                 "context=${message.selectNReq.context} ids=${message.selectNReq.idsList}"
         message.hasGroupReq() -> "context=${message.groupReq.context} ids=${message.groupReq.instanceIdsList}"
         message.hasOrderReq() -> "context=${message.orderReq.orderingContext} ids=${message.orderReq.idsList}"
+        message.hasDistributionReq() ->
+            "min=${message.distributionReq.minAmount} max=${message.distributionReq.maxAmount} " +
+                "targets=${message.distributionReq.targetIdsList}"
         message.hasCastingTimeOptionsReq() -> "options=${message.castingTimeOptionsReq.castingTimeOptionReqCount}"
         message.hasDeclareAttackersReq() -> "declareAttackers"
         message.hasDeclareBlockersReq() -> "declareBlockers"

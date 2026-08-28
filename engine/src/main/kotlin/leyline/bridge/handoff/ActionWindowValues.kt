@@ -42,9 +42,14 @@ data class PendingActionState(
     val kind: PendingActionKind = PendingActionKind.PRIORITY,
     /** Frozen engine policy for the priority point following this synchronization barrier. */
     val synchronizationContinuation: SynchronizationContinuation = SynchronizationContinuation.Reevaluate,
+    val synchronizationPresentation: SynchronizationPresentation = SynchronizationPresentation.StateOnly,
 )
 
 enum class SynchronizationContinuation { Reevaluate, RequireVisible, AllowSyncOnly }
+
+enum class SynchronizationPresentation { StateOnly, PhaseTransition }
+
+enum class RuntimeHorizonMode { Direct, Observed }
 
 enum class PendingActionKind {
     PRIORITY,

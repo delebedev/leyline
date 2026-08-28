@@ -65,7 +65,7 @@ class BrawlCommanderPromptSessionTest :
     SessionTest({
         session(
             "commander return prompt uses zone-transfer optional action and cleans up accepted prompt object",
-            puzzleFile = "puzzles/commander-return-self-bolt.pzl",
+            puzzleFile = "data/puzzles/commander-return-self-bolt.pzl",
         ) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)
@@ -102,7 +102,7 @@ class BrawlCommanderPromptSessionTest :
 
         session(
             "commander return prompt retires the temporary prompt object after a declined response",
-            puzzleFile = "puzzles/commander-return-self-bolt.pzl",
+            puzzleFile = "data/puzzles/commander-return-self-bolt.pzl",
         ) {
             val commanderName = "Arabella, Abandoned Doll"
             val oldIid = instanceIdOf(commanderName, zone = ZoneType.Battlefield)

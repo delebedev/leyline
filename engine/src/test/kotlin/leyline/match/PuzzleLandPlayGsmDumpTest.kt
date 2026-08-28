@@ -10,7 +10,8 @@ import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
+import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.testkit.TestCardRegistry
@@ -155,11 +156,16 @@ class PuzzleLandPlayGsmDumpTest :
             val temp = tempPuzzleFile()
 
             try {
-                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = temp.absolutePath))
+                runtimeMatchConfigs.put(
+                    RuntimeMatchConfig(
+                        matchId = matchId,
+                        puzzleDefinition = PuzzleDefinition(temp.nameWithoutExtension, temp.readText()),
+                    ),
+                )
                 val handler =
                     MatchHandler(
                         registry = registry,
-                        matchConfig = MatchConfig(),
+                        engineSettings = EngineSettings(),
                         cardRepository = TestCardRegistry.repo,
                         runtimeMatchConfigs = runtimeMatchConfigs,
                     )

@@ -295,7 +295,7 @@ object ZoneTransferDetector {
                 // Allocate new instanceId for zone transfer (protocol requires this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
                 val handoff =
-                    if ((!category.keepsSameInstanceId || obj.zoneId in libraryZoneIds) && forgeCardId != null) {
+                    if (!keepsSameInstanceId(category, obj.zoneId) && forgeCardId != null) {
                         ZoneHandoff.fromRealloc(idAllocator(forgeCardId), obj.zoneId)
                     } else {
                         ZoneHandoff.keepingSameInstanceId(InstanceId(obj.instanceId), obj.zoneId)
@@ -415,12 +415,11 @@ object ZoneTransferDetector {
                     spellCastEvent?.manaPayments?.map { mp ->
                         val landIid = idLookup(mp.sourceCardId).value
                         val manaAbilityIid = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value
-                        val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value
                         ManaPaymentRecord(
                             landInstanceId = landIid,
                             manaAbilityInstanceId = manaAbilityIid,
                             color = mp.color,
-                            abilityGrpId = abilityGrpId,
+                            abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                             spellInstanceId = newId,
                         )
                     } ?: emptyList()
@@ -942,7 +941,7 @@ object ZoneTransferDetector {
                     landInstanceId = idLookup(mp.sourceCardId).value,
                     manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId)).value,
                     color = mp.color,
-                    abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId).value,
+                    abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                     spellInstanceId = stackId,
                 )
             } ?: emptyList()
@@ -1078,7 +1077,7 @@ object ZoneTransferDetector {
                     null
                 }
             val handoff =
-                if (!category.keepsSameInstanceId || destZone in libraryZoneIds) {
+                if (!keepsSameInstanceId(category, destZone)) {
                     ZoneHandoff.fromRealloc(idAllocator(forgeCardId), destZone)
                 } else {
                     ZoneHandoff.keepingSameInstanceId(InstanceId(iid), destZone)
@@ -1115,6 +1114,11 @@ object ZoneTransferDetector {
         gameObjectIds: Set<Int>,
         transfers: List<AppliedTransfer>,
     ): Boolean = iid !in gameObjectIds && destZone != ZoneIds.LIMBO && transfers.none { it.origId == iid || it.newId == iid }
+
+    private fun keepsSameInstanceId(
+        category: TransferCategory,
+        destinationZoneId: Int,
+    ): Boolean = category == TransferCategory.Resolve && destinationZoneId == ZoneIds.BATTLEFIELD
 
     private fun isCollapsedCastResolveToLibrary(
         ledgerIntents: List<ZoneMoveIntent>,
@@ -1159,8 +1163,6 @@ object ZoneTransferDetector {
             ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD, ZoneIds.REVEALED_P2 -> 2
             else -> null
         }
-
-    private val libraryZoneIds = setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
 
     private inline fun <T> MutableList<T>.removeFirstOrNull(predicate: (T) -> Boolean): T? {
         val index = indexOfFirst(predicate)
@@ -1406,7 +1408,7 @@ object ZoneTransferDetector {
      * and [TransferCategory.Return] transfers with two fresh allocations so
      * the client sees the expected ObjectIdChanged + ZoneTransfer pairs.
      *
-     * Expected wire shape:
+     * Expected shape:
      * `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
      * `ObjectIdChanged(B→C)` + `ZT(C, Exile→BF, "Return")`.
      */
@@ -1633,7 +1635,7 @@ object ZoneTransferDetector {
                 landInstanceId = origId,
                 manaAbilityInstanceId = idLookup(FrameIdResolver.manaAbilityForgeId(forgeCardId)).value,
                 color = mp.color,
-                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId).value,
+                abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )

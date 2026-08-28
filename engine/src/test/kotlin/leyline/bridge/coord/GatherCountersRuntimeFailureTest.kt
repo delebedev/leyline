@@ -10,10 +10,11 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.handoff.GatherCounterType
-import leyline.bridge.handoff.GatherCountersSelection
 import leyline.bridge.handoff.GatherCountersSourceValue
 import leyline.bridge.handoff.GatherCountersWindowInput
+import leyline.bridge.handoff.OneShotPayCostsWindow
 import leyline.bridge.handoff.PayCostsPromptSourceInput
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -96,7 +97,7 @@ class GatherCountersRuntimeFailureTest :
                     )
                 }
             assertSoftly {
-                captureFailure.pendingOneShotPayCostsCut.shouldBeNull()
+                captureFailure.pendingPromptCut.shouldBeNull()
                 capture.board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .shouldBeEmpty()
@@ -116,7 +117,10 @@ class GatherCountersRuntimeFailureTest :
                     )
                 }
             assertSoftly {
-                enqueueFailure.pendingOneShotPayCostsCut.shouldNotBeNull()
+                enqueueFailure.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
                 enqueue.board.bridge.cutCoordinator
                     .drain(SeatId(1))
                     .shouldBeEmpty()
@@ -145,7 +149,7 @@ class GatherCountersRuntimeFailureTest :
                     .map { it.sourceId }
             val cutLocated = CountDownLatch(1)
             val releaseDelivery = CountDownLatch(1)
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = {
+            coordinator.prompts.settled.afterDeliveryCutLookup = {
                 cutLocated.countDown()
                 check(releaseDelivery.await(3, TimeUnit.SECONDS))
             }
@@ -161,11 +165,7 @@ class GatherCountersRuntimeFailureTest :
             val responseFinished = CountDownLatch(1)
             Thread {
                 runCatching {
-                    coordinator.oneShotPayCosts.submitGatherCounters(
-                        published.interactionId,
-                        published.gameStateId,
-                        sourceIds.map { GatherCountersSelection(it, 1) },
-                    )
+                    coordinator.acceptSettled(leyline.testkit.gatherCountersResp(sourceIds.map { it to 1 }), published.gameStateId)
                 }.onFailure(responseFailure::set)
                 responseFinished.countDown()
             }.start()
@@ -177,10 +177,14 @@ class GatherCountersRuntimeFailureTest :
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 val terminal = terminalFailure.get() as PlaybackTerminalFailure
                 engineFailure.get() shouldBe terminal
-                terminal.pendingOneShotPayCostsCut.shouldNotBeNull().messages shouldBe committed
+                terminal.pendingPromptCut
+                    .shouldNotBeNull()
+                    .interaction
+                    .shouldBeInstanceOf<OneShotPayCostsWindow>()
+                terminal.pendingPromptCut.shouldNotBeNull().messages shouldBe committed
                 responseFailure.get() shouldBe terminal
             }
-            coordinator.oneShotPayCosts.afterDeliveryCutLookup = null
+            coordinator.prompts.settled.afterDeliveryCutLookup = null
         }
 
         test("teardown wakes the pending Gather engine") {

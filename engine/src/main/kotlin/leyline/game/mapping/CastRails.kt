@@ -30,7 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *  1. Add an [AltCostKind] entry with the keyword's `KeywordAbilityIds`
  *     constant.
  *  2. Add one or more rail rows (Hand / Exile / Graveyard) below.
- *  3. Confirm with the relevant fixture under `puzzles/`.
+ *  3. Confirm with the relevant fixture under `data/puzzles/`.
  *
  * Madness has its own rail (`OptionalActionMessage`, not the Cast offer) and
  * is intentionally **not** in this table.

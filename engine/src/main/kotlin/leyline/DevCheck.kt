@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 /**
  * Global strict-checking guards for development.
  *
- * Initialized once at startup from [leyline.config.MatchConfig.dev]. In production mode
+ * Initialized once at startup from [leyline.config.EngineSettings.dev]. In production mode
  * (defaults), all checks degrade to the existing warn+fallback behavior.
  * In strict mode, they throw so bugs surface immediately.
  *

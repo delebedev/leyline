@@ -1,12 +1,10 @@
 package leyline.match
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.bundle.BundleBuilder
-import leyline.game.bundle.MessageCounter
-import leyline.game.state.GameBridge
+import leyline.game.bundle.LogicalSequenceState
+import leyline.game.state.ResponseAcceptanceTracker
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class ResponseEnvelopeGuardTest :
@@ -14,68 +12,68 @@ class ResponseEnvelopeGuardTest :
         tags(UnitTag)
 
         test("accepts a response correlated to the latest prompt") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
-            val sink = CollectingSink()
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.rejectMismatch(response(respId = 17), counter, sink) shouldBe false
-            sink.messages shouldBe emptyList()
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 17), sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 1
         }
 
-        test("rejects a response correlated to another prompt") {
-            val counter = MessageCounter(initialMsgId = 20)
-            counter.markPromptMsgId(17)
-            val sink = CollectingSink()
-            val invalid = response(respId = 16)
+        test("classifies a response correlated to another prompt without advancing response state") {
+            val sequence = LogicalSequenceState(currentMsgId = 20, lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.rejectMismatch(invalid, counter, sink) shouldBe true
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 16), sequence, responses) shouldBe FailureReason.ReqRespMismatch
 
-            val rejection = sink.messages.single()
-            assertSoftly {
-                rejection.type shouldBe GREMessageType.IllegalRequest
-                rejection.illegalRequestMessage.reason shouldBe FailureReason.ReqRespMismatch
-                rejection.illegalRequestMessage.invalidMessage shouldBe invalid
-                rejection.msgId shouldBe 21
-                rejection.prompt.promptId shouldBe 3
-                rejection.prompt.parametersList
-                    .single()
-                    .numberValue shouldBe FailureReason.ReqRespMismatch.number
-            }
+            responses.responsesAccepted() shouldBe 0
         }
 
         test("rejects a response when no prompt has been emitted") {
-            val sink = CollectingSink()
-
-            ResponseEnvelopeGuard.rejectMismatch(response(respId = 0), MessageCounter(), sink) shouldBe true
-            sink.messages
-                .single()
-                .illegalRequestMessage.reason shouldBe FailureReason.ReqRespMismatch
+            ResponseEnvelopeGuard.mismatchReason(response(respId = 0), LogicalSequenceState(), ResponseAcceptanceTracker()) shouldBe
+                FailureReason.ReqRespMismatch
         }
 
         test("does not correlate control messages") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
-            val sink = CollectingSink()
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
             val control =
                 ClientToGREMessage
                     .newBuilder()
                     .setType(ClientMessageType.CancelActionReq_097b)
                     .build()
 
-            ResponseEnvelopeGuard.rejectMismatch(control, counter, sink) shouldBe false
-            sink.messages shouldBe emptyList()
+            ResponseEnvelopeGuard.mismatchReason(control, sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 0
         }
 
         test("correlates numeric input responses") {
-            val counter = MessageCounter()
-            counter.markPromptMsgId(17)
-            val sink = CollectingSink()
-
-            ResponseEnvelopeGuard.rejectMismatch(
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            ResponseEnvelopeGuard.mismatchReason(
                 response(respId = 16, type = ClientMessageType.NumericInputResp_097b),
-                counter,
-                sink,
-            ) shouldBe true
+                sequence,
+                ResponseAcceptanceTracker(),
+            ) shouldBe FailureReason.ReqRespMismatch
+        }
+
+        test("correlates London tuck group responses") {
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
+
+            ResponseEnvelopeGuard.mismatchReason(
+                response(respId = 16, type = ClientMessageType.GroupResp_097b),
+                sequence,
+                responses,
+            ) shouldBe FailureReason.ReqRespMismatch
+            responses.responsesAccepted() shouldBe 0
+        }
+
+        test("leaves settled responses to the settled prompt owner") {
+            val sequence = LogicalSequenceState(lastPromptMsgId = 17)
+            val responses = ResponseAcceptanceTracker()
+            val settled = response(respId = 16, type = ClientMessageType.SelectNresp)
+
+            ResponseEnvelopeGuard.mismatchReason(settled, sequence, responses) shouldBe null
+            responses.responsesAccepted() shouldBe 0
         }
     })
 
@@ -89,36 +87,3 @@ private fun response(
         .setSystemSeatId(1)
         .setRespId(respId)
         .build()
-
-private class CollectingSink : GreMessageSink {
-    val messages = mutableListOf<GREToClientMessage>()
-
-    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        this.messages += messages
-    }
-
-    override fun sendRealGameState(
-        bridge: GameBridge,
-        revealForSeat: Int?,
-    ) = Unit
-
-    override fun sendBundle(result: BundleBuilder.BundleResult) {
-        messages += result.messages
-    }
-
-    override fun sendGameOver(reason: ResultReason) = Unit
-
-    override fun makeGRE(
-        type: GREMessageType,
-        gsId: Int,
-        msgId: Int,
-        configure: (GREToClientMessage.Builder) -> Unit,
-    ): GREToClientMessage =
-        GREToClientMessage
-            .newBuilder()
-            .setType(type)
-            .setGameStateId(gsId)
-            .setMsgId(msgId)
-            .apply(configure)
-            .build()
-}

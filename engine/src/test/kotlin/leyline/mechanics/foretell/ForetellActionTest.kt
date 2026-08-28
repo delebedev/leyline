@@ -35,7 +35,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * to already be in face-down Exile with the foretold flag. That state can't
  * be programmatically synthesized without driving the action, so this file
  * focuses on the hand activation. The exile-cast leg is empirically verified
- * via `puzzles/foretell-demon-bolt.pzl` + bot-match.
+ * via `data/puzzles/foretell-demon-bolt.pzl` + bot-match.
  *
  * Card: Demon Bolt (Sorcery R, Foretell {2} / cast for {R} from foretell).
  */

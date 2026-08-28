@@ -6,28 +6,22 @@ import leyline.infra.MatchOutput
 import leyline.match.MatchConnection
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
-import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
-import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.TeamType
 
-private const val PLAYER_SEAT_ID = 1
 private const val FAMILIAR_SEAT_ID = 2
 
 /**
  * The opponent seat's channel, driven inside the server for browser clients.
  *
  * The match handshake is written for a two-channel client: seat 1 plays, and
- * seat 2 — the Familiar — mirrors the match and answers
- * [GREMessageType.ChooseStartingPlayerReq_695e]. That answer is what starts the
- * deal-and-mulligan flow *for both seats*, so without it seat 1 sits on the
- * initial bundle forever and no cards are ever dealt.
+ * seat 2 — the Familiar — joins the match and starts the deal-and-mulligan flow
+ * for both seats without receiving an interactive request.
  *
  * The native transport supplies the second channel for free: every connection
  * gets its own [MatchConnection]. The web relay cannot. It keys one engine per
@@ -37,16 +31,15 @@ private const val FAMILIAR_SEAT_ID = 2
  * join.
  *
  * So the server supplies the seat. This drives a second [MatchConnection] over
- * the same registry as the browser's, sinks its outbound frames (they belong to
- * a seat nobody is watching), and answers the starting-player prompt the moment
- * it appears.
+ * the same registry as the browser's and sinks its outbound frames because they
+ * belong to a seat nobody is watching.
  */
 internal class WebFamiliarSeat(
     private val openConnection: (MatchOutput) -> MatchConnection,
     /**
      * Whether [matchId] is one the seat belongs in. A puzzle starts from a
      * prepared board and a spectated match already has both seats, so neither
-     * raises the starting-player prompt this exists to answer.
+     * needs the server-owned Familiar progression this supplies.
      */
     private val needsFamiliarSeat: (String) -> Boolean,
 ) {
@@ -55,22 +48,10 @@ internal class WebFamiliarSeat(
     private var connection: MatchConnection? = null
     private var playerClientId: String = ""
 
-    /** msgId of a [GREMessageType.ChooseStartingPlayerReq_695e] seen but not yet answered. */
-    private var unansweredPromptMsgId: Int? = null
-
-    /**
-     * Sink for the Familiar's outbound frames. Everything here is addressed to
-     * seat 2 and duplicates what seat 1 already has, so the only frame worth
-     * reading is the starting-player prompt.
-     */
+    /** Sink for the Familiar's read-only outbound frames. */
     private val output =
         object : MatchOutput {
-            override fun send(message: MatchServiceToClientMessage) {
-                if (!message.hasGreToClientEvent()) return
-                message.greToClientEvent.greToClientMessagesList
-                    .lastOrNull { it.type == GREMessageType.ChooseStartingPlayerReq_695e }
-                    ?.let { unansweredPromptMsgId = it.msgId }
-            }
+            override fun send(message: MatchServiceToClientMessage) = Unit
 
             override fun close() = Unit
         }
@@ -109,27 +90,6 @@ internal class WebFamiliarSeat(
         familiar.opened()
         familiar.receive(authenticate("${playerClientId}_Familiar"))
         familiar.receive(connectTo(matchId))
-        answerStartingPlayer(familiar)
-    }
-
-    /**
-     * Answer the prompt raised by the connect above.
-     *
-     * Deferred until [join]'s connect returns rather than answered from inside
-     * [output], so the response is never dispatched re-entrantly through a
-     * connection that is still handling its own connect.
-     */
-    private fun answerStartingPlayer(familiar: MatchConnection) {
-        val respId = unansweredPromptMsgId
-        if (respId == null) {
-            // Nothing else will deal the opening hands, so the match is now
-            // stalled on its initial bundle. Say so — silence here reads as a
-            // client that never rendered rather than a handshake that stopped.
-            log.warn("Familiar seat: connected without a starting-player prompt; opening hands will not be dealt")
-            return
-        }
-        unansweredPromptMsgId = null
-        familiar.receive(chooseStartingPlayer(respId))
     }
 
     private fun authenticate(clientId: String): ClientToMatchServiceMessage =
@@ -156,32 +116,6 @@ internal class WebFamiliarSeat(
                         .setConnectReq(ConnectReq.newBuilder())
                         .build()
                         .toByteString(),
-                ).build()
-                .toByteString(),
-        )
-
-    /**
-     * The starting-player choice.
-     *
-     * The engine reads no field of the response — the handler it reaches takes
-     * no argument. Who plays first was settled by the die roll before the
-     * initial bundle went out; this message is the trigger for the deal, not the
-     * decision, and the payload only has to be well-formed.
-     */
-    private fun chooseStartingPlayer(respId: Int): ClientToMatchServiceMessage =
-        serviceMessage(
-            ClientToMatchServiceMessageType.ClientToGremessage,
-            ClientToGREMessage
-                .newBuilder()
-                .setSystemSeatId(FAMILIAR_SEAT_ID)
-                .setType(ClientMessageType.ChooseStartingPlayerResp_097b)
-                .setRespId(respId)
-                .setChooseStartingPlayerResp(
-                    ChooseStartingPlayerResp
-                        .newBuilder()
-                        .setTeamType(TeamType.Individual)
-                        .setSystemSeatId(PLAYER_SEAT_ID)
-                        .setTeamId(PLAYER_SEAT_ID),
                 ).build()
                 .toByteString(),
         )

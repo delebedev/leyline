@@ -73,7 +73,7 @@ class PuzzleBridgeTest :
 
         test("a seeded puzzle start is independent of the games that ran before it") {
             fun seededRoll(): Int {
-                startPuzzle("puzzles/lands-only.pzl", seed = 7L)
+                startPuzzle("test-puzzles/lands-only.pzl", seed = 7L)
                 val roll = MyRandom.getRandom().nextInt(1_000_000)
                 bridge?.shutdown()
                 bridge = null
@@ -84,7 +84,7 @@ class PuzzleBridgeTest :
 
             // An unrelated game moves the static RNG on. A seeded puzzle must not
             // inherit that position.
-            startPuzzle("puzzles/simple-attack.pzl", seed = 99L)
+            startPuzzle("test-puzzles/simple-attack.pzl", seed = 99L)
             MyRandom.getRandom().nextInt(1_000_000)
             bridge?.shutdown()
             bridge = null
@@ -93,26 +93,26 @@ class PuzzleBridgeTest :
         }
 
         test("start puzzle sets GameType Puzzle") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val game = b.getGame()!!
             game.rules.gameType shouldBe GameType.Puzzle
             b.isPuzzle.shouldBeTrue()
         }
 
         test("start puzzle sets GameStage Play") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val game = b.getGame()!!
             game.age shouldBe GameStage.Play
         }
 
         test("start puzzle reaches Main1") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val game = b.getGame()!!
             game.phaseHandler.phase shouldBe PhaseType.MAIN1
         }
 
         test("start puzzle has pending actions") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val pending = checkNotNull(b.actionBridge(SeatId(1)).getPending())
             assertSoftly {
                 pending.state.phase shouldBe "MAIN1"
@@ -121,7 +121,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle cards registered in repository") {
-            val b = startPuzzle("puzzles/simple-attack.pzl")
+            val b = startPuzzle("test-puzzles/simple-attack.pzl")
             // Grizzly Bears should be registered
             val grpId = b.cardRepository.findGrpIdByName("Grizzly Bears")
             grpId.shouldNotBeNull()
@@ -129,7 +129,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle cards registered in InstanceIdRegistry") {
-            val b = startPuzzle("puzzles/simple-attack.pzl")
+            val b = startPuzzle("test-puzzles/simple-attack.pzl")
             val game = b.getGame()!!
             val human = b.getPlayer(SeatId(1))!!
             val bears = human.battlefield.card("Grizzly Bears")
@@ -141,7 +141,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle life totals match spec") {
-            val b = startPuzzle("puzzles/custom-life.pzl")
+            val b = startPuzzle("test-puzzles/custom-life.pzl")
             val human = b.getPlayer(SeatId(1))!!
             val ai = b.getPlayer(SeatId(2))!!
             human.life shouldBe 7
@@ -149,21 +149,21 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle battlefield matches spec") {
-            val b = startPuzzle("puzzles/simple-attack.pzl")
+            val b = startPuzzle("test-puzzles/simple-attack.pzl")
             val human = b.getPlayer(SeatId(1))!!
             val battlefield = human.getZone(ZoneType.Battlefield).cards.map { it.name }
             battlefield.groupingBy { it }.eachCount() shouldBe mapOf("Forest" to 2, "Grizzly Bears" to 1)
         }
 
         test("puzzle hand matches spec") {
-            val b = startPuzzle("puzzles/simple-attack.pzl")
+            val b = startPuzzle("test-puzzles/simple-attack.pzl")
             val human = b.getPlayer(SeatId(1))!!
             val hand = human.getZone(ZoneType.Hand).cards.map { it.name }
             hand shouldBe listOf("Giant Growth")
         }
 
         test("puzzle buildFromSnapshot has stage Play") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
             val gsm =
@@ -181,7 +181,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle buildFromSnapshot has correct life totals") {
-            val b = startPuzzle("puzzles/custom-life.pzl")
+            val b = startPuzzle("test-puzzles/custom-life.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
             val gsm =
@@ -202,7 +202,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle buildFromSnapshot has battlefield objects") {
-            val b = startPuzzle("puzzles/simple-attack.pzl")
+            val b = startPuzzle("test-puzzles/simple-attack.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
             val gsm =
@@ -220,7 +220,7 @@ class PuzzleBridgeTest :
         }
 
         test("puzzle can perform action") {
-            val b = startPuzzle("puzzles/lands-only.pzl")
+            val b = startPuzzle("test-puzzles/lands-only.pzl")
             val pending = checkNotNull(b.actionBridge(SeatId(1)).getPending())
             assertSoftly {
                 pending.state.phase shouldBe "MAIN1"
@@ -234,7 +234,7 @@ class PuzzleBridgeTest :
         // --- WEB_ puzzle smoke tests ---
 
         test("web test 00 one bolt loads") {
-            val b = startPuzzle("puzzles/bolt-face.pzl")
+            val b = startPuzzle("test-puzzles/bolt-face-lethal.pzl")
             val game = b.getGame()!!
             b.isPuzzle.shouldBeTrue()
             game.phaseHandler.phase shouldBe PhaseType.MAIN1
@@ -253,7 +253,7 @@ class PuzzleBridgeTest :
         }
 
         test("web test 00 produces valid GSM") {
-            val b = startPuzzle("puzzles/bolt-face.pzl")
+            val b = startPuzzle("test-puzzles/bolt-face-lethal.pzl")
             val game = b.getGame()!!
             val snap = GsmSnapshot.capture(game, b, "test-puzzle", 1)
             val gsm =
@@ -278,7 +278,7 @@ class PuzzleBridgeTest :
         }
 
         test("web test 00 actions include Cast") {
-            val b = startPuzzle("puzzles/bolt-face.pzl")
+            val b = startPuzzle("test-puzzles/bolt-face-lethal.pzl")
             val game = b.getGame()!!
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
             actions.actionsList.count { it.actionType.name == "Cast" } shouldBe 1
@@ -287,7 +287,7 @@ class PuzzleBridgeTest :
         // --- Puzzle race bug (seat 2 auto-passes seat 1's pending action) ---
 
         test("seat 2 onPuzzleStart does not advance past Main1") {
-            val puzzle = PuzzleSource.loadFromResource("puzzles/lands-only.pzl")
+            val puzzle = PuzzleSource.loadFromResource("test-puzzles/lands-only.pzl")
             val registry = MatchRegistry()
             val matchId = "test-puzzle-race"
 

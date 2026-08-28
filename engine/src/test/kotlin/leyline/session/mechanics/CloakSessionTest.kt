@@ -35,7 +35,9 @@ class CloakSessionTest :
             turns = 4,
         ) {
             castSpellByName("Cryptic Coat") shouldBe true
-            passUntilResolved()
+            passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.isCloaked }
+            } shouldBe true
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
             val coat = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Cryptic Coat" }
@@ -74,7 +76,7 @@ class CloakSessionTest :
                 turnUp should haveManaCost(generic = 2, green = 1)
             }
 
-            session.onPerformAction(submitWithGsId(performAction(turnUp)))
+            send(submitWithGsId(performAction(turnUp)))
             drainSink()
 
             assertSoftly {
@@ -90,7 +92,9 @@ class CloakSessionTest :
             turns = 4,
         ) {
             castSpellByName("Cryptic Coat") shouldBe true
-            passUntilResolved()
+            passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.isCloaked }
+            } shouldBe true
 
             val cloaked = human.getZone(ZoneType.Battlefield).cards.single { it.isCloaked }
             val cloakedIid = bridge.instanceId(cloaked)

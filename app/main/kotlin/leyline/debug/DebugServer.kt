@@ -5,14 +5,13 @@ import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.PuzzleDefinition
 import leyline.copilot.CopilotProposalService
 import leyline.domain.json.productionJson
-import leyline.game.bundle.BundleBuilder
+import leyline.game.generator.PuzzleLibrary
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import leyline.match.MatchSession
 import org.slf4j.LoggerFactory
@@ -36,15 +35,17 @@ import java.util.concurrent.atomic.AtomicReference
  * - `GET /api/puzzle`       → current puzzle state
  * - `POST /api/puzzle`      → set/clear/hot-swap puzzle
  *
- * Binds loopback-only by default. Set `LEYLINE_DEBUG_BIND=0.0.0.0` to expose
- * these local controls on all interfaces.
+ * The native head supplies its listener bind address.
  */
 @Suppress("LargeClass") // Debug routes share the same local server and session providers.
 class DebugServer(
     private val port: Int = 8090,
+    /** Bind address for local controls (loopback by default). */
+    private val bindAddress: String = "127.0.0.1",
     private val sessionProvider: (() -> MatchSession?)? = null,
     /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
     private val runtimePuzzle: AtomicReference<String?>? = null,
+    private val puzzleLibrary: PuzzleLibrary = PuzzleLibrary(File("data/puzzles")),
     /** Card repository for session-less consults (`POST /api/copilot-consult`). */
     private val cardRepositoryProvider: (() -> leyline.game.data.CardRepository)? = null,
     /** One-shot seat-2 (AI) deck override by name — set via POST /api/ai-deck, consumed per match. */
@@ -130,8 +131,7 @@ class DebugServer(
         server = null
     }
 
-    /** Loopback by default; `LEYLINE_DEBUG_BIND=0.0.0.0` opts into binding all interfaces. */
-    private fun resolveBindAddress(): String = System.getenv("LEYLINE_DEBUG_BIND")?.takeIf { it.isNotBlank() } ?: "127.0.0.1"
+    private fun resolveBindAddress(): String = bindAddress
 
     /** Register a POST-only endpoint with standard error handling. */
     private fun HttpServer.postContext(
@@ -403,42 +403,13 @@ class DebugServer(
             respond(ex, 404, "text/plain", "No active session")
             return
         }
-        val bridge = session.gameBridge
-        val game = bridge.getGame()
-        if (game == null) {
+        if (session.gameBridge.getGame() == null) {
             respond(ex, 404, "text/plain", "No game")
             return
         }
-
-        val counter = session.counter
-        val gsId = counter.nextGsId()
-        val msgId = counter.nextMsgId()
-
-        val full = BundleBuilder(bridge, session.matchId, session.seatId.value).fullState(game, gsId)
-
-        val greGsm =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setGameStateMessage(full.gsm)
-                .build()
-
-        val greActions =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(counter.nextMsgId())
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setActionsAvailableReq(full.actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
-
-        session.sendBundledGRE(listOf(greGsm, greActions))
-        val info = "Pushed full state gsId=$gsId objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}"
+        val published = session.injectFullState()
+        val info =
+            "Pushed full state gsId=${published.gameStateId} objects=${published.objectCount} zones=${published.zoneCount}"
         log.info(info)
         respond(ex, 200, "text/plain", info)
     }
@@ -490,14 +461,14 @@ class DebugServer(
             return
         }
 
-        val puzzlePath =
+        val puzzleDefinition =
             if (fileParam != null) {
-                resolvePuzzleFile(fileParam) ?: run {
+                puzzleLibrary.find(fileParam) ?: run {
                     respond(
                         ex,
                         404,
                         "text/plain",
-                        "Puzzle not found: $fileParam (checked engine test resources, root puzzles/, and classpath)",
+                        "Puzzle not found: $fileParam in the configured puzzle library",
                     )
                     return
                 }
@@ -505,15 +476,13 @@ class DebugServer(
                 null
             }
 
-        if (puzzlePath != null) {
-            runtimePuzzle?.set(puzzlePath)
+        if (puzzleDefinition != null) {
+            runtimePuzzle?.set(puzzleDefinition.identity)
         }
 
         val session = sessionProvider?.invoke()
-        val bridge = session?.gameBridge
-
-        if (session != null && bridge != null) {
-            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex) ?: return
+        if (session != null) {
+            val label = hotSwapPuzzle(session, body, fileParam, puzzleDefinition, ex) ?: return
             respond(ex, 200, "text/plain", label)
         } else {
             if (fileParam != null) {
@@ -527,99 +496,33 @@ class DebugServer(
     /** Hot-swap puzzle into active session. Returns label string on success, null if error was sent. */
     private fun hotSwapPuzzle(
         session: MatchSession,
-        bridge: GameBridge,
         body: String,
         fileParam: String?,
-        puzzlePath: String?,
+        puzzleDefinition: PuzzleDefinition?,
         ex: HttpExchange,
     ): String? {
-        GameBootstrap.initializeLocalization()
-
         val puzzle =
             when {
                 body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
-                puzzlePath != null -> PuzzleSource.loadFromFile(puzzlePath)
+                puzzleDefinition != null -> PuzzleSource.load(puzzleDefinition)
                 else -> {
                     respond(ex, 400, "text/plain", "Unexpected state")
                     return null
                 }
             }
 
-        val (newSession, deletedIds) = session.replaceForPuzzle(puzzle)
-        bridge.awaitPriority()
-        val actionBridge = newSession.gameBridge.seat(newSession.seatId).action
-        val pending = checkNotNull(actionBridge.getPending()) { "Puzzle hot-swap has no pending priority window" }
-
-        val counter = newSession.counter
-        val gsId = counter.nextGsId()
-        val msgId = counter.nextMsgId()
-
-        val game = bridge.getGame()!!
-        val full = BundleBuilder(bridge, newSession.matchId, newSession.seatId.value).fullState(game, gsId)
-        val actions = bridge.bindInitialActionWindow(pending.actionId, gsId)
-
-        val gsmWithDeletes =
-            if (deletedIds.isNotEmpty()) {
-                full.gsm
-                    .toBuilder()
-                    .addAllDiffDeletedInstanceIds(deletedIds)
-                    .build()
-            } else {
-                full.gsm
-            }
-
-        val greGsm =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(newSession.seatId.value)
-                .setGameStateMessage(gsmWithDeletes)
-                .build()
-
-        val greActions =
-            GREToClientMessage
-                .newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(counter.nextMsgId())
-                .setGameStateId(gsId)
-                .addSystemSeatIds(newSession.seatId.value)
-                .setActionsAvailableReq(actions)
-                .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-                .build()
-
-        newSession.sendBundledGRE(listOf(greGsm, greActions))
-        val advanced = BundleBuilder.shouldAutoPass(actions)
-        if (advanced) {
-            newSession.triggerAutoPass()
-        }
-        val advancedSuffix = if (advanced) " + advanced" else ""
+        val published = session.replaceForPuzzle(puzzle)
 
         return if (fileParam != null) {
-            "Puzzle '$fileParam' set + injected gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
+            "Puzzle '$fileParam' set + injected gsId=${published.gameStateId} " +
+                "objects=${published.objectCount} zones=${published.zoneCount}"
                     .also { log.info(it) }
         } else {
             val meta = PuzzleSource.parseMetadata(body)
-            "Injected puzzle '${meta.name}' gsId=$gsId " +
-                "objects=${full.gsm.gameObjectsCount} zones=${full.gsm.zonesCount}$advancedSuffix"
+            "Injected puzzle '${meta.name}' gsId=${published.gameStateId} " +
+                "objects=${published.objectCount} zones=${published.zoneCount}"
                     .also { log.info(it) }
         }
-    }
-
-    /** Resolve a puzzle file name to an absolute path. Checks test resources, root puzzles/, then classpath. */
-    private fun resolvePuzzleFile(name: String): String? {
-        val testRes = File("engine/src/test/resources/puzzles", "$name.pzl")
-        if (testRes.exists()) return testRes.absolutePath
-
-        val rootPuzzles = File("puzzles", "$name.pzl")
-        if (rootPuzzles.exists()) return rootPuzzles.absolutePath
-
-        val resource = javaClass.classLoader.getResource("puzzles/$name.pzl")
-        if (resource != null && resource.protocol == "file") return File(resource.toURI()).absolutePath
-
-        return null
     }
 
     // --- Helpers ---

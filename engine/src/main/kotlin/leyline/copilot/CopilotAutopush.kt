@@ -30,7 +30,7 @@ class CopilotAutopush(
             runCatching {
                 // Older prompts cannot change the current state; skip them rather
                 // than consuming retry capacity needed by the active prompt.
-                if (gameBridge.messageCounter.lastPromptMsgId() > prompt.msgId) {
+                if (gameBridge.committedSequence().lastPromptMsgId > prompt.msgId) {
                     log.debug("autopush: {} msgId={} superseded at dequeue, skipping", prompt.type, prompt.msgId)
                     return@submit
                 }
@@ -48,7 +48,7 @@ class CopilotAutopush(
                         responses.size - 1,
                     )
                 }
-                val baseline = gameBridge.messageCounter.responsesAccepted()
+                val baseline = gameBridge.responseAcceptance.responsesAccepted()
                 // Priority windows need both acceptance and a changed pending action;
                 // the acceptance counter alone does not prove the action advanced.
                 val answeredActionId =
@@ -63,7 +63,7 @@ class CopilotAutopush(
                     }
                 val delivery =
                     transport.submit(prompt, responses.first()) {
-                        gameBridge.messageCounter.lastPromptMsgId() > prompt.msgId
+                        gameBridge.committedSequence().lastPromptMsgId > prompt.msgId
                     }
                 when (delivery.outcome) {
                     NativeSubmitOutcome.SUBMITTED ->
@@ -123,14 +123,14 @@ class CopilotAutopush(
     ): Outcome {
         repeat(landPollChecks) {
             if (landed(baseline, answeredActionId)) return Outcome.LANDED
-            if (gameBridge.messageCounter.lastPromptMsgId() > promptMsgId) return Outcome.SUPERSEDED
+            if (gameBridge.committedSequence().lastPromptMsgId > promptMsgId) return Outcome.SUPERSEDED
             Thread.sleep(landPollMs)
         }
         return when {
             landed(baseline, answeredActionId) -> Outcome.LANDED
-            gameBridge.messageCounter.lastPromptMsgId() > promptMsgId -> Outcome.SUPERSEDED
+            gameBridge.committedSequence().lastPromptMsgId > promptMsgId -> Outcome.SUPERSEDED
             else -> {
-                if (answeredActionId != null && gameBridge.messageCounter.responsesAccepted() > baseline) {
+                if (answeredActionId != null && gameBridge.responseAcceptance.responsesAccepted() > baseline) {
                     log.warn(
                         "autopush: envelope accepted but priority window {} did not advance",
                         answeredActionId.take(8),
@@ -148,7 +148,7 @@ class CopilotAutopush(
         baseline: Int,
         answeredActionId: String?,
     ): Boolean {
-        if (gameBridge.messageCounter.responsesAccepted() <= baseline) return false
+        if (gameBridge.responseAcceptance.responsesAccepted() <= baseline) return false
         if (answeredActionId == null) return true
         return gameBridge
             .seat(seatId)

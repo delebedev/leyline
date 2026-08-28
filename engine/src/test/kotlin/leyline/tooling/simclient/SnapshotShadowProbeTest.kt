@@ -5,6 +5,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.SimClientTag
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.artifact.SyntheticArtifactWriter
 import java.nio.file.Files
 import java.time.LocalDateTime
 
@@ -39,7 +40,7 @@ class SnapshotShadowProbeTest :
             var fakeNow = LocalDateTime.of(2026, 5, 1, 12, 0, 0)
             val writer = tempLog.bufferedWriter()
             val playerLog =
-                PlayerLogWriter(
+                SyntheticArtifactWriter(
                     out = writer,
                     matchId = "snapshot-shadow-test",
                     clock = {

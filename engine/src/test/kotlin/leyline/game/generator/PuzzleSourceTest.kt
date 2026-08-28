@@ -65,7 +65,7 @@ class PuzzleSourceTest :
         }
 
         test("loadFromResource returns valid puzzle") {
-            val puzzle = PuzzleSource.loadFromResource("puzzles/lands-only.pzl")
+            val puzzle = PuzzleSource.loadFromResource("test-puzzles/lands-only.pzl")
             puzzle.name shouldBe "Lands Only"
         }
 

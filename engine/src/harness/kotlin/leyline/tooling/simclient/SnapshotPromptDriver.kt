@@ -58,6 +58,7 @@ internal class SnapshotPromptDriver(
             maxMs = maxMs.toMap(),
             targetChoices = emptyMap(),
             targetChoiceSamples = emptyMap(),
+            advisorUnavailableByReason = emptyMap(),
         )
 
     private fun decode(hex: String): ClientToGREMessage {

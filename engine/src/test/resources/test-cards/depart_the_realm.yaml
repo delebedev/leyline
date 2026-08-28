@@ -1,0 +1,13 @@
+name: "Depart the Realm"
+grpId: 75092
+titleId: 477150
+abilities:
+  - id: 94618
+    textId: 95082
+    category: 4
+  - id: 139890
+    textId: 477152
+    category: 8
+    baseId: 208
+    mana: "oU"
+expansionCode: "KHM"

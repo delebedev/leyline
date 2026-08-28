@@ -61,8 +61,10 @@ class AiTurnInteractionTest :
         // ─── Boot wire conformance (seed-based, real game start) ────────────────
 
         session("AI-first boot — ≤1 Full post-handshake + phaseTransitionDiff pattern", seed = AI_FIRST_SEED) {
+            val handshakeEnd = allMessages.indexOfLast { it.type == GREMessageType.MulliganReq_aa0d }
+            val postHandshakeMessages = allMessages.drop(handshakeEnd + 1)
             val gsms =
-                allMessages
+                postHandshakeMessages
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }
 
@@ -79,7 +81,7 @@ class AiTurnInteractionTest :
 
                 ptStart shouldBeGreaterThanOrEqual 0
                 gsms.size shouldBeGreaterThanOrEqual (ptStart + 3)
-                aiTurnActionsAvailableReqs(allMessages).shouldBeEmpty()
+                aiTurnActionsAvailableReqs(postHandshakeMessages).shouldBeEmpty()
             }
 
             // GSM N+0: SendHiFi with 2+ PhaseOrStepModified + gameInfo

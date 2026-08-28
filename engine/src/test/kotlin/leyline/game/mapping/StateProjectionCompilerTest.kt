@@ -17,6 +17,7 @@ import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SeatSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
 import leyline.game.snapshot.ZoneSnapshot
@@ -26,9 +27,12 @@ import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.ViewerProjectionCursor
+import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -62,6 +66,120 @@ class StateProjectionCompilerTest :
             }
         }
 
+        test("one shared plan renders distinct viewer baselines without renumbering Player output") {
+            val previous = GsmSnapshot.forTest(matchId = "compiler", gameStateId = 4)
+            val current = GsmSnapshot.forTest(matchId = "compiler", gameStateId = 5)
+            val prior =
+                ProjectionState.initial().copy(
+                    viewerCursors =
+                        mapOf(
+                            SeatId(1) to ViewerProjectionCursor(previousSnapshot = previous),
+                            SeatId(2) to ViewerProjectionCursor(previousSnapshot = null),
+                        ),
+                )
+            val player = compilerInput(current, previous).copy(viewingSeatId = 1)
+            val observer = compilerInput(current).copy(viewingSeatId = 2)
+            val onlyPlayer =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    prior,
+                    listOf(StateProjectionCompiler.ViewerInput(player, actions = ActionsAvailableReq.getDefaultInstance())),
+                )
+            val both =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    prior,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(player, actions = ActionsAvailableReq.getDefaultInstance()),
+                        StateProjectionCompiler.ViewerInput(observer, role = ProjectionViewerRole.Observer),
+                    ),
+                )
+
+            assertSoftly {
+                both.viewers.map { it.seatId } shouldContainExactly listOf(SeatId(1), SeatId(2))
+                both.viewers[0]
+                    .result.gsm.type shouldBe GameStateType.Diff
+                both.viewers[1]
+                    .result.gsm.type shouldBe GameStateType.Full
+                both.viewers[0]
+                    .result.gsm.pendingMessageCount shouldBe 1
+                both.viewers[1]
+                    .result.gsm.pendingMessageCount shouldBe 0
+                both.viewers[0]
+                    .result.gsm
+                    .toByteArray()
+                    .toList() shouldBe
+                    onlyPlayer.viewers
+                        .single()
+                        .result.gsm
+                        .toByteArray()
+                        .toList()
+                both.transition.nextState.identities shouldBe onlyPlayer.transition.nextState.identities
+                both.transition.nextState.revision shouldBe prior.revision + 1
+                prior.viewerCursors[SeatId(1)]?.previousSnapshot shouldBe previous
+                prior.viewerCursors[SeatId(2)]?.previousSnapshot shouldBe null
+            }
+        }
+
+        test("Observer role redacts seat-private objects in Full and Diff") {
+            val playerCard = ForgeCardId(10)
+            val observerCard = ForgeCardId(20)
+            val initial = privateHandsSnapshot(1, playerCard, observerCard, "Player card", "Observer card")
+            val prior = ProjectionState.initial()
+            val full =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    prior,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(compilerInput(initial).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.Observer,
+                        ),
+                    ),
+                )
+            val playerId =
+                full.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(playerCard)
+                    .value
+            val changed = privateHandsSnapshot(2, playerCard, observerCard, "Player changed", "Observer changed")
+            val diff =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    full.transition.nextState,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(compilerInput(changed, initial).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(changed, initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.Observer,
+                        ),
+                    ),
+                )
+
+            assertSoftly {
+                full.viewers[0]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly listOf(playerId)
+                full.viewers[1]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly emptyList()
+                diff.viewers[0]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly listOf(playerId)
+                diff.viewers[1]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly emptyList()
+                full.viewers[1]
+                    .result.gsm.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly emptyList()
+                diff.viewers[1]
+                    .result.gsm.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly emptyList()
+            }
+        }
+
         test("one compile stages order move then supplements and clears exact submitted targets") {
             val cardId = ForgeCardId(10)
             val sourceId = ForgeCardId(20)
@@ -69,7 +187,7 @@ class StateProjectionCompilerTest :
             val prior =
                 ProjectionState
                     .initial()
-                    .copy(viewerCursors = mapOf(0 to ViewerProjectionCursor(pendingSubmittedTargets = pending)))
+                    .copy(viewerCursors = mapOf(SeatId(1) to ViewerProjectionCursor(pendingSubmittedTargets = pending)))
             val input = compilerInput(orderSnapshot(cardId))
             val intent =
                 ViewerProjectionIntent.of(
@@ -135,8 +253,8 @@ class StateProjectionCompilerTest :
                 submitted.affectedIdsList shouldContainExactly listOf(777)
                 next.identities.forgeIdToInstanceId shouldContainKey FrameIdResolver.triggerStackAbilityForgeId(9)
                 next.identities.forgeIdToInstanceId shouldContainKey FrameIdResolver.triggerStackAbilityForgeId(10)
-                next.viewerCursors.getValue(0).previousSnapshot shouldBe first.projectionSnapshot
-                next.viewerCursors.getValue(0).pendingSubmittedTargets shouldBe null
+                next.viewerCursors.getValue(SeatId(1)).previousSnapshot shouldBe first.projectionSnapshot
+                next.viewerCursors.getValue(SeatId(1)).pendingSubmittedTargets shouldBe null
                 next.limboInstanceIds shouldBe setOf(100)
                 next.protoZones[newCardId.value] shouldBe ZoneIds.P1_LIBRARY
                 first.gsm.annotationsList.map { it.id } shouldContainExactly
@@ -323,5 +441,34 @@ private fun orderSnapshot(cardId: ForgeCardId): GsmSnapshot =
                     ZoneSnapshot(ZoneIds.P1_HAND, ZoneType.Hand, SeatId(1), Visibility.Private, listOf(cardId)),
                 ZoneIds.P1_LIBRARY to
                     ZoneSnapshot(ZoneIds.P1_LIBRARY, ZoneType.Library, SeatId(1), Visibility.Hidden, emptyList()),
+            ),
+    )
+
+private fun privateHandsSnapshot(
+    gameStateId: Int,
+    playerCard: ForgeCardId,
+    observerCard: ForgeCardId,
+    playerName: String,
+    observerName: String,
+): GsmSnapshot =
+    GsmSnapshot.forTest(
+        matchId = "compiler",
+        gameStateId = gameStateId,
+        seats =
+            listOf(
+                SeatSnapshot(SeatId(1), 20, 20, 7),
+                SeatSnapshot(SeatId(2), 20, 20, 7),
+            ),
+        objects =
+            mapOf(
+                playerCard to CardSnapshot(playerCard, playerName, 9001, SeatId(1), SeatId(1)),
+                observerCard to CardSnapshot(observerCard, observerName, 9002, SeatId(2), SeatId(2)),
+            ),
+        zones =
+            linkedMapOf(
+                ZoneIds.P1_HAND to
+                    ZoneSnapshot(ZoneIds.P1_HAND, ZoneType.Hand, SeatId(1), Visibility.Private, listOf(playerCard)),
+                ZoneIds.P2_HAND to
+                    ZoneSnapshot(ZoneIds.P2_HAND, ZoneType.Hand, SeatId(2), Visibility.Private, listOf(observerCard)),
             ),
     )

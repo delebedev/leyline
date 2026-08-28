@@ -57,7 +57,7 @@ object AbilityWordScanner {
      * Maps Forge `Condition$` name → emission shape for the ability-word badge. Key
      * doubles as the `AbilityWordName` detail value on the emitted annotation.
      *
-     * VERIFIED entries are exercised by a puzzle fixture under `puzzles/` plus a
+     * VERIFIED entries are exercised by a puzzle fixture under `data/puzzles/` plus a
      * `BoardTag` test asserting the annotation contents. UNVERIFIED entries
      * have a Forge contract but no fixture asserting the emission contents; their
      * value/threshold/perPlayer shape is inferred from the Threshold/Morbid pattern

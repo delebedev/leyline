@@ -79,7 +79,7 @@ class TargetingWindowMaterializerTest :
                 TargetingWindowMaterializer(seatId = 1).initial(
                     gameState = GameStateMessage.newBuilder().build(),
                     gameStateId = 10,
-                    counter = MessageCounter(),
+                    counter = LogicalSequencePlanner(),
                     projection = projection,
                     transition = ProjectionTransition(prior.revision, projection),
                     window = window,
@@ -135,7 +135,7 @@ class TargetingWindowMaterializerTest :
                 TargetingWindowMaterializer(seatId = 1).initial(
                     gameState = GameStateMessage.newBuilder().build(),
                     gameStateId = 10,
-                    counter = MessageCounter(),
+                    counter = LogicalSequencePlanner(),
                     projection = projection,
                     transition = ProjectionTransition(projection.revision, projection),
                     window = window,

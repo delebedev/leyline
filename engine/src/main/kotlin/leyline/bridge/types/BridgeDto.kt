@@ -56,9 +56,3 @@ data class PromptOptionDto(
     val id: String,
     val label: String,
 )
-
-@Serializable
-data class PlayerPhaseStopsDto(
-    val playerId: Int,
-    val enabled: List<String>,
-)

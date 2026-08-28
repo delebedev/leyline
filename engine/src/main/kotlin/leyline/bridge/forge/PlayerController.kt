@@ -59,6 +59,7 @@ import forge.util.collect.FCollectionView
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
@@ -75,11 +76,9 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
+import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
-import leyline.bridge.types.ClientAutoPassState
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.PhaseStopProfile
-import leyline.bridge.types.PriorityDecision
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
@@ -134,13 +133,13 @@ import java.util.function.Predicate
  * ## State ownership
  *
  * Interaction windows and live response handles belong to the match coordinator.
- * [autoPassState] remains here because the priority loop consumes it directly:
- * it is written via [setAutoPassState] (called by
- *   `MatchSession.connectBridge`); read by [PriorityLoopCoordinator.chooseSpellAbility].
- * Priority decisions are emitted as structured log entries by [recordDecision].
+ * Priority policy and settings state live in [PriorityPolicyRuntime]. This
+ * controller only supplies Forge's callback surface and delegates decisions to
+ * the runtime owner.
  *
- * Coordinators read and write these through [OwnerContext]; external callers use
- * the public field path. Prompt side-effects (reveal lifecycle, legend-rule
+ * Coordinators receive the callback surface through [OwnerContext]. The priority
+ * coordinator receives [PriorityPolicyRuntime] explicitly because policy state is
+ * not part of that handoff. Prompt side-effects (reveal lifecycle, legend-rule
  * victims, searched-to-hand cards, optional-cost stash) flow through the typed
  * [leyline.bridge.handoff.PromptJournal] on [InteractivePromptBridge]; the priority-loop "prompt just
  * resolved" flag lives on [leyline.bridge.types.PrioritySignal].
@@ -183,7 +182,7 @@ import java.util.function.Predicate
  *
  * Every override runs on the Forge engine thread. Input callbacks publish a complete
  * committed interaction before blocking; the session thread submits immutable answers.
- * Match-cut publication follows the shared counter → projection-build → feed lock order.
+ * Match-cut preparation and publication run under the coordinator feed lock.
  * Consequences for every coordinator:
  *
  * - A missing or slow override blocks the entire game loop.
@@ -203,22 +202,13 @@ class PlayerController(
     private val seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
-    private val phaseStopProfile: PhaseStopProfile? = null,
+    priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
+    private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
-    autoPassState: ClientAutoPassState? = null,
     interactionRuntime: BlockingInteractionRuntime,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
-    @Volatile
-    override var autoPassState: ClientAutoPassState? = autoPassState
-        private set
-
-    /** Set client auto-pass state (called by MatchSession after bridge connection). */
-    fun setAutoPassState(state: ClientAutoPassState) {
-        autoPassState = state
-    }
-
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
     private val numericInputGate = NumericInputGate(actionBridge, interactionRuntime)
     private val spellExecutor = SpellExecutor(game, player, bridge)
@@ -242,6 +232,7 @@ class PlayerController(
     private var activeSpellSourceId: Int? = null
     private var activeSourceIsSpell: Boolean = false
     private var activeStackTargetingAbility: SpellAbility? = null
+    private var activeDividedAllocationAbility: SpellAbility? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -249,7 +240,8 @@ class PlayerController(
                 game = game,
                 player = player,
                 actionBridge = ab,
-                phaseStopProfile = phaseStopProfile,
+                priorityPolicy = priorityPolicy,
+                runtimeHorizonMode = runtimeHorizonMode,
                 smartPhaseSkip = smartPhaseSkip,
                 spellExecutor = spellExecutor,
                 interactionRuntime = interactionRuntime,
@@ -271,7 +263,19 @@ class PlayerController(
                 currentStackTargetPromptId = {
                     activeStackTargetingAbility?.let(targetingCoordinator::effectiveTargetPromptId)
                 },
+                playerSeatOf = { target ->
+                    if (target.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                },
+                playerViewSeatOf = { target ->
+                    game.players
+                        .firstOrNull { it.id == target.id }
+                        ?.let {
+                            if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                        }
+                },
                 stackTargetCandidate = ::stackTargetCandidate,
+                currentDividedAllocationAbility = { activeDividedAllocationAbility },
+                beforeDividedAllocation = targetingCoordinator::recordCompletedTargetSpec,
             ),
         )
     }
@@ -281,15 +285,6 @@ class PlayerController(
     }
 
     private var pendingManaColorChoice: Byte? = null
-
-    override fun recordDecision(decision: PriorityDecision) {
-        log.info(
-            "event=priority_decision source=engine phase={} turn={} decision={}",
-            game.phaseHandler.phase?.name,
-            game.phaseHandler.turn,
-            decision,
-        )
-    }
 
     fun <T> withManaColorChoice(
         colorMask: Byte?,
@@ -656,6 +651,25 @@ class PlayerController(
         return result.firstOrNull() == 0
     }
 
+    override fun chooseSingleReplacementEffect(possibleReplacers: List<ReplacementEffect>): ReplacementEffect {
+        val first = possibleReplacers.first()
+        if (possibleReplacers.size == 1) return first
+        val firstDescription = first.toString()
+        if (possibleReplacers.all { it.toString() == firstDescription }) return first
+        val request =
+            PromptRequest(
+                promptType = "select_replacement",
+                message = "Choose which replacement effect applies first",
+                options = possibleReplacers.map(ReplacementEffect::toString),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+                route = PromptRouteResolver.resolve(PromptSemantic.SelectReplacement),
+            )
+        return bridge.requestReplacement(request, possibleReplacers)?.handle
+            ?: super.chooseSingleReplacementEffect(possibleReplacers)
+    }
+
     private fun awaitCommanderReturn(
         hostCard: Card?,
         sa: SpellAbility?,
@@ -926,13 +940,20 @@ class PlayerController(
         activeStackTargetingAbility =
             currentAbility
                 .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val previousDividedAllocationAbility = activeDividedAllocationAbility
+        activeDividedAllocationAbility = currentAbility
         val chosen =
             try {
                 super.chooseTargetsFor(currentAbility)
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
+                activeDividedAllocationAbility = previousDividedAllocationAbility
             }
-        if (chosen) targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        if (chosen) {
+            targetingCoordinator.recordCompletedTargetSpec(currentAbility)
+        } else {
+            targetingCoordinator.discardCompletedTargetSpec(currentAbility)
+        }
         return chosen
     }
 
@@ -986,15 +1007,21 @@ class PlayerController(
         activeStackTargetingAbility =
             ability
                 .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+        val previousDividedAllocationAbility = activeDividedAllocationAbility
+        activeDividedAllocationAbility = ability
         val selected =
             try {
                 super.chooseNewTargetsFor(ability, filter, optional)
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
+                activeDividedAllocationAbility = previousDividedAllocationAbility
             }
         if (selected != null) {
             val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
             targetingCoordinator.recordCompletedTargetSpec(targetAbility)
+        } else {
+            val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
+            targetingCoordinator.discardCompletedTargetSpec(targetAbility)
         }
         return selected
     }

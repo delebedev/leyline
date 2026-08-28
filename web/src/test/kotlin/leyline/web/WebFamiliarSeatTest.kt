@@ -6,11 +6,10 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
+import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
-import leyline.config.ServerConfig
+import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -33,15 +32,14 @@ class WebFamiliarSeatTest :
         val deck = "60 Forest"
 
         fun matchConfig() =
-            MatchConfig(
-                server =
-                    ServerConfig(
-                        bridgeTimeoutMs = 2_000L,
-                        promptFailsafeMs = 2_000L,
-                        aiTurnWaitMs = 2_000L,
-                        mulliganWaitMs = 2_000L,
-                    ),
-                game = GameConfig(seed = 42L, dieRollWinner = 1, skipMulligan = false),
+            EngineSettings(
+                seed = 42L,
+                dieRollWinner = 1,
+                skipMulligan = false,
+                bridgeTimeoutMs = 2_000L,
+                promptFailsafeMs = 2_000L,
+                aiTurnWaitMs = 2_000L,
+                mulliganWaitMs = 2_000L,
             )
 
         fun greTypes(frames: List<ByteArray>): List<GREMessageType> =
@@ -55,13 +53,14 @@ class WebFamiliarSeatTest :
             frames: MutableList<ByteArray>,
         ): DirectWebGreEngineSession {
             val configs = RuntimeMatchConfigRegistry()
-            configs.put(RuntimeMatchConfig(matchId = matchId, seat1Deck = deck, seat2Deck = deck))
+            configs.put(RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deck), seat2 = DeckSource.ForgeText(deck)))
             return DirectWebGreEngineSession(
                 matchConfig(),
                 MatchCoordinator.NOOP,
                 InMemoryCardRepository(),
                 configs,
                 frames::add,
+                puzzlesDir = java.io.File("."),
             )
         }
 
@@ -99,6 +98,12 @@ class WebFamiliarSeatTest :
                 session.receiveFromBrowser(authRequestBytes("web-player"))
                 session.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
                 val dealt = greTypes(frames).count { it == GREMessageType.MulliganReq_aa0d }
+                val initialGameStateId =
+                    frames
+                        .map(MatchServiceToClientMessage::parseFrom)
+                        .flatMap { it.greToClientEvent.greToClientMessagesList }
+                        .first { it.type == GREMessageType.GameStateMessage_695e }
+                        .gameStateId
 
                 // Page reload: the same socket-level client hands the engine a
                 // second handshake, which re-seats seat 1 and resyncs it.
@@ -109,6 +114,11 @@ class WebFamiliarSeatTest :
                 assertSoftly {
                     dealt shouldBe 1
                     greTypes(frames) shouldContain GREMessageType.GameStateMessage_695e
+                    frames
+                        .map(MatchServiceToClientMessage::parseFrom)
+                        .flatMap { it.greToClientEvent.greToClientMessagesList }
+                        .filter { it.type == GREMessageType.GameStateMessage_695e }
+                        .map { it.gameStateId } shouldBe listOf(initialGameStateId)
                     // A second Familiar join would deal a second opening hand.
                     greTypes(frames) shouldNotContain GREMessageType.MulliganReq_aa0d
                 }

@@ -25,6 +25,11 @@ internal object MechanicSourceProjection {
         sourceForgeCardId: ForgeCardId,
     ): GrpId = GrpId(snapshot.boundCards[sourceForgeCardId]?.snapshot?.basicLandManaAbilityGrpId ?: 0)
 
+    fun paymentAbilityGrpId(
+        payment: GameEvent.ManaPayment,
+        fallback: (ForgeCardId) -> GrpId,
+    ): GrpId = payment.abilityGrpId.takeIf { it != 0 }?.let(::GrpId) ?: fallback(payment.sourceCardId)
+
     fun tokenCreatedAffectorId(
         event: GameEvent.TokenCreated,
         facts: MechanicSourceFacts,
@@ -41,7 +46,8 @@ internal object MechanicSourceProjection {
             }
         }
 
-        val fallback = facts.tokenCreatorByTokenForgeCardId[event.cardId] ?: return null
-        return stackAbilityIid(fallback.sourceAbilityForgeId, fallback.sourceForgeCardId)
+        return facts.tokenCreatorByTokenForgeCardId[event.cardId]
+            ?.let { stackAbilityIid(it.sourceAbilityForgeId, it.sourceForgeCardId) }
+            ?: resolvingStackIidsByCard.values.singleOrNull()
     }
 }

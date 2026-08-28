@@ -17,6 +17,7 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import java.util.concurrent.CountDownLatch
@@ -75,6 +76,7 @@ class MatchTargetingInteractionRuntimeTest :
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
             coordinator.drain(SeatId(1))
+            coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
             val result = AtomicReference<List<Int>>()
             val failure = AtomicReference<Throwable>()
             val finished = CountDownLatch(1)
@@ -94,12 +96,19 @@ class MatchTargetingInteractionRuntimeTest :
 
             val initial = awaitPublished(coordinator)
             val initialMessages = coordinator.drain(SeatId(1)).flatten()
+            val observerMessages = coordinator.drain(SeatId(2)).flatten()
             val initialPrompt = initialMessages.single { it.hasSelectTargetsReq() }
             val opponentTarget =
                 initialPrompt.selectTargetsReq.targetsList
                     .single()
                     .targetsList
                     .single()
+
+            assertSoftly {
+                observerMessages.count { it.hasGameStateMessage() } shouldBe 1
+                observerMessages.none { it.hasSelectTargetsReq() } shouldBe true
+                observerMessages.single().msgId shouldBe initialMessages.first { it.hasGameStateMessage() }.msgId
+            }
 
             val tap =
                 coordinator

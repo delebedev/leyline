@@ -8,46 +8,35 @@ import leyline.bridge.handoff.OrderMoveIntent
 import leyline.bridge.handoff.OrderWindowValue
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PublishedOrderInteraction
-import leyline.game.OrderMaterializationDiagnostic
-import leyline.game.PendingOrderCut
+import leyline.game.PendingPromptCut
+import leyline.game.PromptMaterializationDiagnostic
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.util.concurrent.CompletableFuture
 
 /** Exact ordered-card lifecycle beneath [MatchCutCoordinator]. */
 internal class MatchOrderInteractionRuntime(
     private val owner: MatchCutCoordinator,
+    settled: SettledPromptOwner,
 ) : OrderInteractionRuntime {
     private data class Window(
         val published: PublishedOrderInteraction,
         val value: OrderWindowValue,
-        override val cut: PendingOrderCut,
+        override val cut: PendingPromptCut<OrderWindowValue>,
         val handlesByOption: Map<Int, Card>,
         val optionByInstanceId: Map<Int, Int>,
         override val future: CompletableFuture<OrderInteractionResult> = CompletableFuture(),
-    ) : SinglePromptWindow<OrderInteractionResult, PendingOrderCut> {
+    ) : SettledPromptOwner.Window<OrderInteractionResult> {
         override val interactionId: String get() = published.interactionId
-        override val gameStateId: Int get() = published.gameStateId
     }
 
-    private val windows = SinglePromptWindowState<Window, PendingOrderCut, OrderInteractionResult>(owner)
-    private val kernel =
-        SinglePromptRuntimeKernel<Window, PendingOrderCut, OrderInteractionResult>(
-            owner,
-            windows,
-            publicationFailure = { cause, failed -> owner.failOrder(cause, failed.cut) },
+    private val slot =
+        settled.mount<Window, OrderInteractionResult>(
+            PromptTerminalPriority.Order,
+            publicationFailure = { cause, failed -> owner.failPrompt(cause, failed.cut) },
+            owns = { _, message -> message.type == ClientMessageType.OrderResp_097b },
+            admitLocked = ::admitLocked,
         )
-
-    internal var beforeInstall: (() -> Unit)?
-        get() = kernel.beforeInstall
-        set(value) {
-            kernel.beforeInstall = value
-        }
-    internal var afterInstall: (() -> Unit)?
-        get() = kernel.afterInstall
-        set(value) {
-            kernel.afterInstall = value
-        }
-    internal var beforeTimeoutClaim: (() -> Unit)? = null
-    internal var afterDeliveryCutLookup: (() -> Unit)? = null
 
     override fun awaitOrder(
         request: PromptRequest,
@@ -64,45 +53,37 @@ internal class MatchOrderInteractionRuntime(
         return await(publish(initial), timeoutMs)
     }
 
-    fun current(): PublishedOrderInteraction? = windows.current()?.published
+    fun current(): PublishedOrderInteraction? = slot.current()?.published
 
-    fun submit(
-        interactionId: String,
-        gameStateId: Int,
-        orderedInstanceIds: List<Int>,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            owner.ensureOpen()
-            val pending = windows.matchingLocked(interactionId, gameStateId) ?: return false
-            if (orderedInstanceIds.size != pending.value.candidates.size) return false
-            if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return false
-            val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return false }
-            if (options.toSet() != pending.handlesByOption.keys) return false
-            val result = OrderInteractionResult(options, options.map(pending.handlesByOption::getValue))
-            windows.completeLocked(pending, result)
-        }
-
-    fun terminate(cause: Throwable) = windows.terminate(cause)
-
-    fun reset() = windows.reset()
-
-    internal fun pendingCutLocked(): PendingOrderCut? = windows.pendingCutLocked().also { afterDeliveryCutLookup?.invoke() }
+    private fun admitLocked(
+        pending: Window,
+        message: ClientToGREMessage,
+    ): SettledPromptOwner.SlotAdmission<OrderInteractionResult>? {
+        val orderedInstanceIds = message.orderResp.idsList
+        if (orderedInstanceIds.size != pending.value.candidates.size) return null
+        if (orderedInstanceIds.size != orderedInstanceIds.distinct().size) return null
+        val options = orderedInstanceIds.map { pending.optionByInstanceId[it] ?: return null }
+        if (options.toSet() != pending.handlesByOption.keys) return null
+        return SettledPromptOwner.SlotAdmission(OrderInteractionResult(options, options.map(pending.handlesByOption::getValue)))
+    }
 
     private fun publish(initial: OrderWindowCapture.Initial): Window =
-        kernel.publish(
+        slot.publish(
             duplicateMessage = "An Order interaction is already pending",
-            prepare = { interactionId, feed, game ->
-                val diagnostic = OrderMaterializationDiagnostic(interactionId, initial.value)
-                val prepared =
+            prepare = { interactionId, feed, game, planner ->
+                val diagnostic = PromptMaterializationDiagnostic(interactionId, initial.value)
+                val preparedViewers =
                     try {
                         feed.builder.prepareOrderWindow(
                             game ?: owner.fail(IllegalStateException("Game unavailable")),
-                            owner.counter,
+                            planner,
                             initial.value,
+                            owner.viewerRoutes(),
                         )
                     } catch (ex: Exception) {
-                        owner.failOrder(ex, diagnostic = diagnostic)
+                        owner.failPrompt(ex, diagnostic = diagnostic)
                     }
+                val prepared = preparedViewers.player
                 val published =
                     PublishedOrderInteraction(
                         interactionId,
@@ -110,7 +91,7 @@ internal class MatchOrderInteractionRuntime(
                         initial.value.kind,
                     )
                 val exact =
-                    PendingOrderCut(
+                    PendingPromptCut(
                         interactionId,
                         published.gameStateId,
                         initial.value,
@@ -122,19 +103,20 @@ internal class MatchOrderInteractionRuntime(
                     initial.value.candidates.map { candidate ->
                         val instanceId =
                             projection.identities.forgeIdToInstanceId[candidate.forgeCardId]?.value
-                                ?: owner.failOrder(IllegalStateException("Order candidate was not projected"), exact)
+                                ?: owner.failPrompt(IllegalStateException("Order candidate was not projected"), exact)
                         instanceId to candidate.originalOptionIndex
                     }
                 val optionsByInstanceId = entries.toMap()
                 if (optionsByInstanceId.size != entries.size) {
-                    owner.failOrder(IllegalStateException("Order candidates have ambiguous identities"), exact)
+                    owner.failPrompt(IllegalStateException("Order candidates have ambiguous identities"), exact)
                 }
                 val created = Window(published, initial.value, exact, initial.handlesByOption, optionsByInstanceId)
-                SinglePromptPublication(
+                SettledPromptOwner.Publication(
                     created,
-                    prepared.bundle.messages,
                     prepared.transition,
                     prepared.closesPlaybackFrame,
+                    preparedViewers.viewers.map { PreparedViewerOutput(it.seatId, it.batches) },
+                    prepared.correlation,
                 )
             },
         )
@@ -142,5 +124,5 @@ internal class MatchOrderInteractionRuntime(
     private fun await(
         pending: Window,
         timeoutMs: Long?,
-    ): OrderInteractionResult = kernel.await(pending, timeoutMs, ::OrderInteractionTimeoutException, beforeTimeoutClaim)
+    ): OrderInteractionResult = slot.await(pending, timeoutMs, ::OrderInteractionTimeoutException)
 }

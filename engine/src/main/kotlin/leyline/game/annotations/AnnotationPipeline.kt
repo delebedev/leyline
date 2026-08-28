@@ -774,28 +774,22 @@ object AnnotationPipeline {
         val earthbend = EarthbendEmitter.emit(ctx.effects.earthbend, ctx.effectFacts, snap)
         annotations.addAll(earthbend.destroyed)
         annotations.addAll(earthbend.created)
-        // Token entries belong before combat damage: a Mobilize trigger that
-        // resolves between attacker declaration and combat damage produces tokens
-        // that themselves attack and deal damage. The client identity map needs
-        // them in place before processing the DamageDealt entries that reference
-        // their iids — otherwise the tokens visually pop in after first damage
-        // animates. Other mechanic annotations (counters, scry, surveil, …) keep
-        // their post-combat slot since they typically come from damage-triggered
-        // effects.
+        // Token entries belong inside the resolution bracket and before combat
+        // damage. The client identity map needs them before ResolutionComplete
+        // and before any DamageDealt entry that can reference the new token.
+        // Other mechanic annotations keep their later slot.
         val (tokenCreatedAnns, otherMechanic) =
             mechanicResult.transient.partition { ann ->
                 AnnotationType.TokenCreated in ann.typeList
             }
         if (tokenCreatedAnns.isNotEmpty()) {
-            val firstDamageIdx =
-                annotations.indexOfFirst { ann ->
-                    AnnotationType.DamageDealt_af5a in ann.typeList
-                }
-            if (firstDamageIdx >= 0) {
-                annotations.addAll(firstDamageIdx, tokenCreatedAnns)
-            } else {
-                annotations.addAll(tokenCreatedAnns)
-            }
+            val firstCompletionOrDamageIdx =
+                annotations
+                    .indexOfFirst { ann ->
+                        AnnotationType.ResolutionComplete in ann.typeList ||
+                            AnnotationType.DamageDealt_af5a in ann.typeList
+                    }.takeIf { it >= 0 } ?: annotations.size
+            annotations.addAll(firstCompletionOrDamageIdx, tokenCreatedAnns)
         }
         annotations.addAll(otherMechanic)
         annotations.addAll(earthbend.powerToughnessMods)
@@ -862,7 +856,7 @@ object AnnotationPipeline {
 
         // Vehicle/Attach (Crew + Saddle + Reconfigure) — invoked here so its
         // crew/reconfigure effect-id allocations follow mutate-merge's on the
-        // shared counter, preserving emitted effect ids.
+        // shared frame allocator, preserving emitted effect ids.
         val vehicleAttach = VehicleAttachContributor.contribute(ctx)
         annotations.addAll(vehicleAttach.transient)
 

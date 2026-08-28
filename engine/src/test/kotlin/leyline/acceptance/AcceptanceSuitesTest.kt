@@ -4,12 +4,12 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.AcceptanceTag
 import leyline.IntegrationTag
-import leyline.tooling.simclient.PlayerLogWriter
-import leyline.tooling.simclient.ingestSimClientArtifacts
-import leyline.tooling.simclient.writeSimClientSidecar
+import leyline.tooling.artifact.SyntheticArtifactIdentity
+import leyline.tooling.artifact.openSyntheticArtifactRun
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.LocalDateTime
 
 class AcceptanceSuitesTest :
@@ -62,25 +62,27 @@ private fun writeScryRun(
     val outDir = AcceptancePaths.resolve("engine", exists = Files::isDirectory).resolve("build/acceptance-scry").toFile()
     outDir.mkdirs()
     val logFile = File(outDir, "$matchId.log")
-    logFile.bufferedWriter().use { out ->
-        PlayerLogWriter(out, matchId).apply {
-            writeBundle(messages)
-            flush()
-        }
+    val artifactRun =
+        openSyntheticArtifactRun(
+            logFile = logFile,
+            identity =
+                SyntheticArtifactIdentity(
+                    matchId = matchId,
+                    runLabel = runLabel,
+                    seed = seed,
+                    generatedAt = LocalDateTime.now(),
+                    runKind = "acceptance",
+                ),
+        )
+    try {
+        artifactRun.writeBundle(messages)
+    } finally {
+        artifactRun.finish(ingestTo = Path.of(System.getProperty("user.home"), ".scry", "games"))
     }
-    writeSimClientSidecar(
-        logFile = logFile,
-        matchId = matchId,
-        runLabel = runLabel,
-        seed = seed,
-        generatedAt = LocalDateTime.now(),
-        runKind = "acceptance",
-    )
-    ingestSimClientArtifacts(logFile)
 }
 
 private fun discoverSuiteNames(): List<String> {
-    val dir = AcceptancePaths.resolve("puzzles/sets", notFoundMessage = "puzzles/sets not found", exists = Files::isDirectory)
+    val dir = AcceptancePaths.resolve("data/puzzles/sets", notFoundMessage = "data/puzzles/sets not found", exists = Files::isDirectory)
     return Files.newDirectoryStream(dir, "*.yaml").use { stream ->
         stream.map { it.fileName.toString().removeSuffix(".yaml") }.sorted()
     }

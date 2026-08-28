@@ -20,12 +20,40 @@ internal object DefaultDecisions {
     /** Keep the order the engine offered. */
     fun order(msg: GREToClientMessage): SimDecision = SimDecision.Order(msg.orderReq.idsList.toList())
 
+    /** Allocate the required total with one point per target, giving the remainder to the first target. */
+    fun distribution(msg: GREToClientMessage): SimDecision {
+        val req = msg.distributionReq
+        val ids = req.validSelectedTargetIdsList.ifEmpty { req.targetIdsList }
+        val min = req.minPerTarget.coerceAtLeast(1)
+        val total = req.maxAmount.coerceAtLeast(req.minAmount)
+        val amounts = ids.map { it to min }.toMutableList()
+        val remainder = total - amounts.sumOf { it.second }
+        if (remainder > 0 && amounts.isNotEmpty()) {
+            val (id, amount) = amounts.first()
+            amounts[0] = id to (amount + remainder)
+        }
+        return SimDecision.Distribution(amounts.toMap())
+    }
+
     /** Take the required number of sought items. */
     fun search(msg: GREToClientMessage): SimDecision {
         val req = msg.searchReq
         val count = (if (req.maxFind > 0) req.maxFind else req.minFind).coerceAtLeast(req.minFind).coerceAtLeast(1)
         return SimDecision.Search(req.itemsSoughtList.take(count))
     }
+
+    /** Select the first permitted entries from the first grouped-search row. */
+    fun groupedSearch(msg: GREToClientMessage): SimDecision {
+        val group =
+            msg.searchFromGroupsReq.groupsList.firstOrNull()
+                ?: return SimDecision.GroupedSearch(0, emptyList(), 0)
+        val count = group.maxSelect.coerceAtLeast(1)
+        return SimDecision.GroupedSearch(group.groupId, group.idsList.take(count), group.maxSelect)
+    }
+
+    /** Echo the first complete replacement row as the documented default. */
+    fun selectReplacement(msg: GREToClientMessage): SimDecision =
+        SimDecision.SelectReplacement(msg.selectReplacementReq.replacementsList.first())
 
     /** Pick a small legal value (min, capped at [NUMERIC_INPUT_DEFAULT_MAX]). */
     fun numericInput(msg: GREToClientMessage): SimDecision {

@@ -7,6 +7,7 @@ import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ReplacementEffect
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
 
 /**
@@ -130,7 +131,7 @@ class ResponseBuilderTest :
         }
 
         test("select targets is a Select-marked pick carrying the group targetIdx") {
-            val msgs = bytesOf(SimDecision.SelectTargets(listOf(282), targetIdx = 1), respId = 93)
+            val msgs = bytesOf(SimDecision.SelectTargets(mapOf(1 to listOf(282))), respId = 93)
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.SelectTargetsResp_097b
             msgs[0].respId shouldBe 93
@@ -144,7 +145,7 @@ class ResponseBuilderTest :
         }
 
         test("unselect targets marks the pick Unselect") {
-            val msgs = bytesOf(SimDecision.UnselectTargets(listOf(283)), respId = 94)
+            val msgs = bytesOf(SimDecision.UnselectTargets(mapOf(0 to listOf(283))), respId = 94)
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.SelectTargetsResp_097b
             val t =
@@ -189,6 +190,38 @@ class ResponseBuilderTest :
             msgs[0].type shouldBe ClientMessageType.PerformAutoTapActionsResp_097b
             msgs[0].respId shouldBe 125
             msgs[0].performAutoTapActionsResp.index shouldBe 0
+        }
+
+        test("grouped search echoes one group row with selected ids") {
+            val msgs = bytesOf(SimDecision.GroupedSearch(groupId = 5004, itemsFound = listOf(105), maxSelect = 1), respId = 77)
+            msgs.single().type shouldBe ClientMessageType.SearchFromGroupsResp_097b
+            msgs.single().respId shouldBe 77
+            msgs.single().gameStateId shouldBe 42
+            val group =
+                msgs
+                    .single()
+                    .searchFromGroupsResp.groupsList
+                    .single()
+            group.groupId shouldBe 5004
+            group.maxSelect shouldBe 1
+            group.idsList shouldBe listOf(105)
+        }
+
+        test("replacement echoes the complete identity-rich row") {
+            val row =
+                ReplacementEffect
+                    .newBuilder()
+                    .setObjectInstance(7)
+                    .setAffectedObject(7)
+                    .setUniqueAbilityId(101)
+                    .setAbilityGrpId(202)
+                    .setReplacementEffectId(9000)
+                    .build()
+            val msg = bytesOf(SimDecision.SelectReplacement(row), gsId = 44, respId = 78).single()
+            msg.type shouldBe ClientMessageType.SelectReplacementResp_097b
+            msg.gameStateId shouldBe 44
+            msg.respId shouldBe 78
+            msg.selectReplacementResp.replacement shouldBe row
         }
 
         test("optional cost decline sends the Done option by type (no ctoId)") {
