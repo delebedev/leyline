@@ -17,6 +17,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
 import leyline.game.InMemoryCardRepository
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -142,6 +143,22 @@ class MatchFlowHarnessTest :
                 // Should have received at least game-start bundle (4 messages)
                 h.allMessages.size shouldBeGreaterThanOrEqualTo 4
             }
+        }
+
+        test("AI-first setup passes an early human priority window") {
+            val h =
+                MatchFlowHarness(
+                    seed = 42L,
+                    deckList = "4 Giant Growth\n56 Forest",
+                    engineSettings = EngineSettings(dieRollWinner = 2),
+                )
+            harness = h
+
+            h.connectAndKeep()
+
+            h.isGameOver().shouldBeFalse()
+            h.phase() shouldBe "MAIN1"
+            h.isAiTurn().shouldBeFalse()
         }
 
         test("gsId chain valid through phases") {
