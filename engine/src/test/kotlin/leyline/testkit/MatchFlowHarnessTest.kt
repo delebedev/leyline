@@ -156,9 +156,11 @@ class MatchFlowHarnessTest :
 
             h.connectAndKeep()
 
-            h.isGameOver().shouldBeFalse()
-            h.phase() shouldBe "MAIN1"
-            h.isAiTurn().shouldBeFalse()
+            assertSoftly {
+                h.isGameOver().shouldBeFalse()
+                h.phase() shouldBe "MAIN1"
+                h.isAiTurn().shouldBeFalse()
+            }
         }
 
         test("gsId chain valid through phases") {

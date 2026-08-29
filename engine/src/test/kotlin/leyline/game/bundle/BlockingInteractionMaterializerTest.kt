@@ -1,5 +1,6 @@
 package leyline.game.bundle
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -33,8 +34,10 @@ class BlockingInteractionMaterializerTest :
                     .single()
                     .assignDamageReq.damageAssignersList
                     .single()
-            assigner.totalDamage shouldBe 4
-            assigner.assignmentsList.single().minDamage shouldBe 5
-            assigner.assignmentsList.single().assignedDamage shouldBe 4
+            assertSoftly {
+                assigner.totalDamage shouldBe 4
+                assigner.assignmentsList.single().minDamage shouldBe 5
+                assigner.assignmentsList.single().assignedDamage shouldBe 4
+            }
         }
     })
