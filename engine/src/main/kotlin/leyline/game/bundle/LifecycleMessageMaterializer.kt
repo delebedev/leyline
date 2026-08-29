@@ -246,6 +246,47 @@ object LifecycleMessageMaterializer {
         return LifecycleMessages(listOf(gre), msgId + 1, transition)
     }
 
+    /** One tentative redraw transition with its retired identities and next mulligan request. */
+    internal fun mulliganRedraw(
+        msgIdStart: Int,
+        dealGameStateId: Int,
+        requestGameStateId: Int,
+        bridge: GameBridge,
+        seatId: SeatId,
+        mulliganCount: Int,
+        numCards: Int,
+    ): LifecycleMessages {
+        val prior = bridge.projectionStateSnapshot()
+        val (states, next) =
+            bridge.editProjection(prior) { editor ->
+                val deletedIds = editor.resetIdentitiesForRedraw().map { it.value }
+                val dealSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
+                val deal = GsmBuilder.buildDealHand(bridge, dealGameStateId, seatId.value, dealSnapshot, deletedIds)
+                val requestSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
+                val request = buildMulliganRequestState(requestGameStateId, requestSnapshot)
+                deal to request
+            }
+        val deal =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgIdStart)
+                .setGameStateId(dealGameStateId)
+                .setGameStateMessage(states.first)
+                .build()
+        val request =
+            mulliganRequestMessages(
+                msgIdStart + 1,
+                requestGameStateId,
+                states.second,
+                mulliganCount,
+                numCards,
+                ProjectionTransition(prior.revision, next),
+            )
+        return LifecycleMessages(listOf(deal) + request.messages, request.nextMsgId, request.transition)
+    }
+
     /** DealHand + MulliganReq bundled for seat 2 — built from game state. */
     internal fun dealHandMulliganSeat2(
         msgIdStart: Int,
@@ -285,26 +326,40 @@ object LifecycleMessageMaterializer {
         mulliganCount: Int = 0,
         numCards: Int = 7,
     ): LifecycleMessages {
-        var msgId = msgIdStart
-
         // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
         val (gsm, transition) =
             project(bridge) {
                 val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-                GameStateMessage
-                    .newBuilder()
-                    .setType(GameStateType.Diff)
-                    .setGameStateId(gameStateId)
-                    .addPlayers(
-                        PlayerMapper.buildFromSnapshot(mulliganSnap, 2),
-                    ).setTurnInfo(
-                        TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
-                    ).setPendingMessageCount(2)
-                    .setPrevGameStateId(gameStateId - 1)
-                    .addAllTimers(PlayerMapper.buildTimers())
-                    .setUpdate(GameStateUpdate.SendAndRecord)
-                    .build()
+                buildMulliganRequestState(gameStateId, mulliganSnap)
             }
+        return mulliganRequestMessages(msgIdStart, gameStateId, gsm, mulliganCount, numCards, transition)
+    }
+
+    private fun buildMulliganRequestState(
+        gameStateId: Int,
+        snapshot: GsmSnapshot,
+    ): GameStateMessage =
+        GameStateMessage
+            .newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .addPlayers(PlayerMapper.buildFromSnapshot(snapshot, 2))
+            .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1))
+            .setPendingMessageCount(2)
+            .setPrevGameStateId(gameStateId - 1)
+            .addAllTimers(PlayerMapper.buildTimers())
+            .setUpdate(GameStateUpdate.SendAndRecord)
+            .build()
+
+    private fun mulliganRequestMessages(
+        msgIdStart: Int,
+        gameStateId: Int,
+        gsm: GameStateMessage,
+        mulliganCount: Int,
+        numCards: Int,
+        transition: ProjectionTransition,
+    ): LifecycleMessages {
+        var msgId = msgIdStart
         val greGsm =
             GREToClientMessage
                 .newBuilder()

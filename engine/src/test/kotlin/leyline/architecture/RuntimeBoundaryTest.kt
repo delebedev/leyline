@@ -205,6 +205,15 @@ class RuntimeBoundaryTest :
             }
         }
 
+        test("mulligan redraw submits facts to the lifecycle cut") {
+            val handler = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MulliganHandler.kt"))
+
+            listOf(
+                handler.contains("publishMulliganRedraw(seatId, facts)"),
+                handler.contains("bridge.resetInstanceIds()"),
+            ) shouldBe listOf(true, false)
+        }
+
         test("post-handler horizons have one transport delivery observer") {
             val observer = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeDeliveryObserver.kt"))
             val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
