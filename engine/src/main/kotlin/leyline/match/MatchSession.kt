@@ -1,11 +1,8 @@
 package leyline.match
 
-import forge.game.player.GameLossReason
-import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.coord.SettledPromptAdmission
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
-import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
@@ -52,6 +49,7 @@ class MatchSession(
 
     @Volatile
     private var lastPrompt: GREToClientMessage? = null
+    private var terminalCompleted = false
 
     fun lastPromptMessage(): GREToClientMessage? = lastPrompt
 
@@ -311,7 +309,8 @@ class MatchSession(
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
     override fun onConcede() =
         synchronized(sessionLock) {
-            sendGameOver(ResultReason.Concede)
+            gameBridge.cutCoordinator.publishConcession(seatId)
+            sendGameOver()
         }
 
     /** Handle SetSettingsReq: submit immutable policy input, then echo the response. */
@@ -377,43 +376,31 @@ class MatchSession(
      * waiting for CheckpointReq — the client tolerates this ordering and it
      * avoids needing cross-layer coordination between MatchHandler and MatchSession.
      */
-    override fun sendGameOver(reason: ResultReason) {
+    override fun sendGameOver() {
+        if (terminalCompleted) return
         val bridge = gameBridge
-        val humanPlayer = bridge.getPlayer(seatId)
-        val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
-        val winningTeam = if (humanWon) 1 else 2
-        val losingPlayerSeatId = if (humanWon) 2 else 1
-        val losingPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
-        val lossReason = annotationLossReasonFor(reason, losingPlayer?.getOutcome()?.lossState)
-
-        bridge.cutCoordinator.publishGameOver(
-            seatId,
-            GameOverIntent(
-                winningTeam = winningTeam,
-                reason = reason,
-                losingPlayerSeatId = losingPlayerSeatId,
-                lossReason = lossReason,
-            ),
-        )
+        val outcome = checkNotNull(bridge.cutCoordinator.committedGameOverOutcome()) { "Terminal outcome is not committed" }
         deliverCommittedCoordinatorBatches(this, bridge, seatId)
         drainFamiliarFeed()
-        log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
+        log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", outcome.winningTeam, outcome.reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
-        val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason)
+        val matchCompletedMsg =
+            HandshakeMessages.matchCompleted(matchId, outcome.winningTeam, playerId, outcome.result, outcome.reason)
         sink.sendRaw(matchCompletedMsg)
+        terminalCompleted = true
         log.info("MatchSession: sent MatchCompleted room state")
 
         // Notify coordinator (e.g. CourseService for sealed events)
         try {
-            coordinator?.reportMatchResult(matchId, humanWon)
+            coordinator?.reportMatchResult(matchId, outcome.winningTeam == seatId.value)
         } catch (e: Exception) {
             log.warn("MatchSession: reportMatchResult failed: {}", e.message)
         }
 
         registry.teardownMatch(
             matchId = matchId,
-            reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
+            reason = if (outcome.reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
             seatId = seatId,
             fallbackBridge = bridge,
         )
@@ -454,24 +441,3 @@ class MatchSession(
         autopush?.shutdown()
     }
 }
-
-internal fun annotationLossReasonFor(
-    resultReason: ResultReason,
-    lossState: GameLossReason?,
-): AnnotationLossReason =
-    if (resultReason == ResultReason.Concede) {
-        AnnotationLossReason.Concede
-    } else {
-        when (lossState) {
-            GameLossReason.LifeReachedZero -> AnnotationLossReason.LifeTotal
-            GameLossReason.Poisoned -> AnnotationLossReason.Poison
-            GameLossReason.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
-            GameLossReason.Conceded -> AnnotationLossReason.Concede
-            GameLossReason.CommanderDamage,
-            GameLossReason.IntentionalDraw,
-            GameLossReason.OpponentWon,
-            GameLossReason.SpellEffect,
-            null,
-            -> AnnotationLossReason.LifeTotal
-        }
-    }

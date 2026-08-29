@@ -26,7 +26,6 @@ import leyline.match.drainOneCoordinatorBarrier
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -336,7 +335,7 @@ class MatchRevealChoiceInteractionFailureTest :
                     revealForSeat: Int?,
                 ) = Unit
 
-                override fun sendGameOver(reason: ResultReason) = Unit
+                override fun sendGameOver() = Unit
             }
     }
 }

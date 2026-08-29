@@ -199,6 +199,9 @@ class RuntimeBoundaryTest :
                 continuation shouldNotContain "submitRuntimeToken"
                 continuation shouldNotContain "continuePassOnly"
                 continuation shouldNotContain "isPassOnlyPriority"
+                session shouldNotContain ".getOutcome()"
+                continuation shouldNotContain "gameIsOver()"
+                continuation shouldContain "committedGameOverOutcome()"
             }
         }
 

@@ -39,7 +39,7 @@ class FamiliarSessionTest :
             val sink = ListMessageSink()
             val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = sink)
 
-            session.sendGameOver(ResultReason.Game_ae0a)
+            session.sendGameOver()
 
             sink.messages.shouldBeEmpty()
             sink.rawMessages.shouldBeEmpty()

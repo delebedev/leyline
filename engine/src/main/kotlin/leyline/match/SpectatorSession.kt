@@ -1,8 +1,6 @@
 package leyline.match
 
-import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.types.SeatId
-import leyline.game.annotations.AnnotationLossReason
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -61,11 +59,9 @@ class SpectatorSession(
             sent = deliverCommitted() || sent
         }
         sent = (peerSession()?.deliverCommitted() == true) || sent
-        val game = gameBridge.getGame()
-        if (!gameOverSent && game?.isGameOver == true) {
+        if (!gameOverSent && gameBridge.cutCoordinator.committedGameOverOutcome() != null) {
             sendGameOver()
-            gameOverSent = true
-            sent = true
+            sent = gameOverSent || sent
         }
         return sent
     }
@@ -92,27 +88,17 @@ class SpectatorSession(
         return sent
     }
 
-    override fun sendGameOver(reason: ResultReason) {
-        val p1Won = gameBridge.getPlayer(SeatId(1))?.getOutcome()?.hasWon() == true
-        val winningTeam = if (p1Won) 1 else 2
-        gameBridge.cutCoordinator.publishGameOver(
-            seatId,
-            GameOverIntent(
-                winningTeam = winningTeam,
-                reason = reason,
-                losingPlayerSeatId = 0,
-                lossReason = AnnotationLossReason.LifeTotal,
-            ),
-        )
-        deliverTerminal(winningTeam, reason)
-        peerSession()?.deliverTerminal(winningTeam, reason)
+    override fun sendGameOver() {
+        val outcome = checkNotNull(gameBridge.cutCoordinator.committedGameOverOutcome()) { "Terminal outcome is not committed" }
+        deliverTerminal(outcome)
+        peerSession()?.deliverTerminal(outcome)
     }
 
-    private fun deliverTerminal(
-        winningTeam: Int,
-        reason: ResultReason,
-    ) {
+    @Synchronized
+    private fun deliverTerminal(outcome: leyline.bridge.coord.GameOverOutcome) {
+        if (gameOverSent) return
         deliverCommitted()
-        sink.sendRaw(HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason))
+        sink.sendRaw(HandshakeMessages.matchCompleted(matchId, outcome.winningTeam, playerId, outcome.result, outcome.reason))
+        gameOverSent = true
     }
 }

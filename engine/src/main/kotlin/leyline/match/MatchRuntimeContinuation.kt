@@ -76,7 +76,7 @@ internal class MatchRuntimeContinuation(
     }
 
     private fun sendGameOverIfTerminal() {
-        if (!bridge.gameIsOver() || bridge.actionBridge(seatId).getPending() != null || terminalDelivered) return
+        if (bridge.cutCoordinator.committedGameOverOutcome() == null || terminalDelivered) return
         terminalDelivered = true
         sink.sendGameOver()
     }

@@ -24,7 +24,7 @@ class SessionOpsDefaultsTest :
                     revealForSeat: Int?,
                 ) {}
 
-                override fun sendGameOver(reason: ResultReason) {}
+                override fun sendGameOver() {}
             }
 
         val dummyMsg = ClientToGREMessage.getDefaultInstance()

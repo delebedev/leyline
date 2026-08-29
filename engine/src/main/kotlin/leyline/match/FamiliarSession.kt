@@ -31,7 +31,7 @@ class FamiliarSession(
         gameBridge?.let { deliverCommittedCoordinatorBatches(this, it, seatId) }
     }
 
-    override fun sendGameOver(reason: ResultReason) {}
+    override fun sendGameOver() {}
 
     // Action methods: all inherited no-ops from ActionReceiver defaults.
     // SubmitAttackersReq/SubmitBlockersReq may arrive on the Familiar channel.
