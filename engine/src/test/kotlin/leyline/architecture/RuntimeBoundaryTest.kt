@@ -214,6 +214,17 @@ class RuntimeBoundaryTest :
             ) shouldBe listOf(true, false)
         }
 
+        test("phase action replacement is declared to the cut installer") {
+            val runtime = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord/MatchActionWindowRuntime.kt"))
+            val publication = runtime.substringAfter("private fun publishPresentation").substringBefore("internal fun resolve")
+
+            listOf(
+                publication.contains("replaces = replaces"),
+                publication.contains("removeOwnedBatch"),
+                runtime.contains("removePrevious"),
+            ) shouldBe listOf(true, false, false)
+        }
+
         test("post-handler horizons have one transport delivery observer") {
             val observer = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchRuntimeDeliveryObserver.kt"))
             val connection = Files.readString(EngineArchitecture.sourceRoot.resolve("leyline/match/MatchConnection.kt"))
