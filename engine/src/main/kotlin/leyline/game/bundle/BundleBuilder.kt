@@ -894,9 +894,10 @@ class BundleBuilder(
         val projectedSourceCard = sourceCard ?: interaction.sourceId?.let(bridge::findCard)
         val transientSourceCard =
             projectedSourceCard?.let { card ->
-                bridge.editProjection(bridge.projectionStateSnapshot()) {
-                    SnapshotCapture.captureBoundCard(card, game, bridge)
-                }.first
+                bridge
+                    .editProjection(bridge.projectionStateSnapshot()) {
+                        SnapshotCapture.captureBoundCard(card, game, bridge)
+                    }.first
             }
         val intent =
             transientSourceCard

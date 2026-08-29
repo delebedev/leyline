@@ -28,7 +28,11 @@ class BlockingInteractionMaterializerTest :
                     blockerToughness = mapOf(ForgeCardId(2) to 5),
                 )
 
-            val assigner = prepared.bundle.messages.single().assignDamageReq.damageAssignersList.single()
+            val assigner =
+                prepared.bundle.messages
+                    .single()
+                    .assignDamageReq.damageAssignersList
+                    .single()
             assigner.totalDamage shouldBe 4
             assigner.assignmentsList.single().minDamage shouldBe 5
             assigner.assignmentsList.single().assignedDamage shouldBe 4
