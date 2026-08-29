@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.coord.MulliganRedrawFacts
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
@@ -94,10 +95,8 @@ class MulliganHandler(
             -> {
                 if (!bridge.submitMull(seatId)) return
                 mulliganCount++
-                val deletedIds = bridge.resetInstanceIds().map { it.value }
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
-                sendDealHand(deletedIds)
-                sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
+                sendMulliganRedraw(MulliganRedrawFacts(reportedMulliganCount = 0, numCards = seat1Hand.size))
             }
         }
     }
@@ -166,6 +165,16 @@ class MulliganHandler(
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishMulliganRequest(seatId, reportedMulliganCount, numCards)
         Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
+        s.deliverLifecycle(bridge)
+    }
+
+    private fun sendMulliganRedraw(facts: MulliganRedrawFacts) {
+        val s = session ?: return
+        val bridge = s.gameBridge
+        bridge.cutCoordinator.lifecycle.publishMulliganRedraw(seatId, facts)
+        Tap.outboundTemplate(
+            "MulliganRedraw seat=${seatId.value} mulliganCount=${facts.reportedMulliganCount} numCards=${facts.numCards}",
+        )
         s.deliverLifecycle(bridge)
     }
 

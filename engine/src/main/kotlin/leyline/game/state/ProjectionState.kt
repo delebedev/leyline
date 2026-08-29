@@ -49,6 +49,12 @@ data class ProjectionState(
         val viewerCursors = prior.viewerCursors.toMutableMap()
         private val sequence = LogicalSequencePlanner(prior.sequence)
 
+        fun resetIdentitiesForRedraw(): List<InstanceId> {
+            val previous = identities.freeze()
+            identities.replace(InstanceIdRegistry.initialState(previous.nextInstanceId))
+            return previous.forgeIdToInstanceId.values.toList()
+        }
+
         fun freeze(): ProjectionState =
             ProjectionState(
                 revision = prior.revision + 1,
