@@ -1,5 +1,6 @@
 package leyline.bridge
 
+import forge.ai.ComputerUtilMana
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
@@ -24,12 +25,15 @@ class PriorityActionCandidates private constructor(
         byCardId[card.id]
             ?: CardCandidates(card, emptyList(), emptyList(), emptyList(), null, null)
 
-    fun hasLegalNonManaAction(player: Player): Boolean =
+    fun hasLegalNonManaAction(
+        player: Player,
+        isOwnTurn: Boolean = player.game.phaseHandler.playerTurn == player,
+    ): Boolean =
         byCardId.values.any { candidate ->
-            candidate.casts.isNotEmpty() ||
+            candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
                 candidate.activations.any { it.canPlay() } ||
-                candidate.landAbility?.let { player.canPlayLand(candidate.card, false, it) } == true ||
-                candidate.mdfcLandAbility?.canPlay() == true
+                (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(candidate.card, false, it) } == true) ||
+                (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
         }
 
     companion object {
@@ -49,17 +53,31 @@ class PriorityActionCandidates private constructor(
         fun hasLegalNonManaAction(
             game: Game,
             player: Player,
+            isOwnTurn: Boolean = game.phaseHandler.playerTurn == player,
         ): Boolean {
             val handIds = player.getZone(ZoneType.Hand).cards.mapTo(mutableSetOf()) { it.id }
             val battlefieldIds = player.getZone(ZoneType.Battlefield).cards.mapTo(mutableSetOf()) { it.id }
             return candidateCards(game, player).any { card ->
                 val candidate = buildCandidate(card, player, handIds, battlefieldIds)
-                candidate.casts.isNotEmpty() ||
+                candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
                     candidate.activations.any { it.canPlay() } ||
-                    candidate.landAbility?.let { player.canPlayLand(card, false, it) } == true ||
-                    candidate.mdfcLandAbility?.canPlay() == true
+                    (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(card, false, it) } == true) ||
+                    (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
             }
         }
+
+        private fun canPlayAndPayManaCost(
+            spellAbility: SpellAbility,
+            player: Player,
+        ): Boolean =
+            try {
+                spellAbility.canPlay() &&
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
+                    }
+            } catch (_: Exception) {
+                false
+            }
 
         private fun candidateCards(
             game: Game,

@@ -1,5 +1,6 @@
 package leyline.bridge.coord
 
+import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
@@ -16,6 +17,7 @@ import leyline.game.GamePlayback
 import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
@@ -155,6 +157,58 @@ class MatchBlockingInteractionViewerCutTest :
                         withObserver.cleanup.shouldBeEmpty()
                     }
                 }
+            }
+        }
+
+        test("snapshot blocking prompts project an explicit source absent from zones") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            coordinator.registerViewer(SeatId(2), ProjectionViewerRole.Observer)
+
+            val battlefieldSource =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            val source = Card.fromPaperCard(battlefieldSource.getPaperCard(), board.human)
+            val sourceId = ForgeCardId(source.id)
+            val interaction = BlockingInteraction.Optional(sourceId, true, null, null)
+            board.bridge.findCard(sourceId) shouldBe null
+
+            val finished = CountDownLatch(1)
+            Thread {
+                coordinator.awaitOptional(
+                    interaction = interaction,
+                    sourceCard = source,
+                    timeoutMs = 3_000,
+                    defaultOnTimeout = false,
+                )
+                finished.countDown()
+            }.start()
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            var pending = coordinator.currentBlockingInteraction()
+            while (pending == null && System.nanoTime() < deadline) {
+                Thread.onSpinWait()
+                pending = coordinator.currentBlockingInteraction()
+            }
+            val exact = checkNotNull(pending)
+
+            val player = coordinator.drain(SeatId(1)).single()
+            val observer = coordinator.drain(SeatId(2)).single()
+            val optional = player.single { it.hasOptionalActionMessage() }.optionalActionMessage
+            val observerGsm = observer.single { it.hasGameStateMessage() }.gameStateMessage
+            val sourceObject = observerGsm.gameObjectsList.single { it.instanceId == optional.sourceId }
+
+            assertSoftly {
+                optional.sourceId shouldBe board.bridge.getOrAllocInstanceId(sourceId).value
+                sourceObject.zoneId shouldBe ZoneIds.STACK
+                observerGsm.zonesList
+                    .single { it.zoneId == ZoneIds.STACK }
+                    .objectInstanceIdsList shouldContain optional.sourceId
+                coordinator.submitOptionalAnswer(exact.interactionId, exact.gameStateId, true) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
             }
         }
 

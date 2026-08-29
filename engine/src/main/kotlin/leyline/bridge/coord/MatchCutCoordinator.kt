@@ -240,7 +240,20 @@ internal class MatchCutCoordinator(
         interaction: BlockingInteraction.Optional,
         timeoutMs: Long?,
         defaultOnTimeout: Boolean,
-    ): Boolean = interactions.awaitOptional(interaction, timeoutMs, defaultOnTimeout)
+    ): Boolean =
+        awaitOptional(
+            interaction = interaction,
+            sourceCard = null,
+            timeoutMs = timeoutMs,
+            defaultOnTimeout = defaultOnTimeout,
+        )
+
+    override fun awaitOptional(
+        interaction: BlockingInteraction.Optional,
+        sourceCard: forge.game.card.Card?,
+        timeoutMs: Long?,
+        defaultOnTimeout: Boolean,
+    ): Boolean = interactions.awaitOptional(interaction, sourceCard, timeoutMs, defaultOnTimeout)
 
     override fun awaitNumeric(
         interaction: BlockingInteraction.Numeric,

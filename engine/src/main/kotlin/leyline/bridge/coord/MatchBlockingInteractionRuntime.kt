@@ -81,9 +81,22 @@ internal class MatchBlockingInteractionRuntime(
         interaction: BlockingInteraction.Optional,
         timeoutMs: Long?,
         defaultOnTimeout: Boolean,
+    ): Boolean =
+        awaitOptional(
+            interaction = interaction,
+            sourceCard = null,
+            timeoutMs = timeoutMs,
+            defaultOnTimeout = defaultOnTimeout,
+        )
+
+    override fun awaitOptional(
+        interaction: BlockingInteraction.Optional,
+        sourceCard: Card?,
+        timeoutMs: Long?,
+        defaultOnTimeout: Boolean,
     ): Boolean {
         val pending =
-            publish(interaction) { feed, _, planner ->
+            publish(interaction, sourceCard = sourceCard) { feed, _, planner ->
                 feed.builder.generalOptionalInteractionBundle(planner, interaction)
             }
         return try {
@@ -301,6 +314,7 @@ internal class MatchBlockingInteractionRuntime(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
         damageAttackerId: ForgeCardId? = null,
+        sourceCard: Card? = null,
         build: (MatchCutCoordinator.ViewerFeed, Game, LogicalSequencePlanner) -> BlockingInteractionMaterializer.Prepared,
     ): Window {
         owner.beforePublicationLock?.invoke()
@@ -319,7 +333,7 @@ internal class MatchBlockingInteractionRuntime(
                             (interaction as? BlockingInteraction.Optional)
                                 ?.takeIf { it.commanderReturn != null || it.forceSnapshotBeforePrompt }
                                 ?.let { optional ->
-                                    feed.builder.optionalInteractionBundle(game, planner, optional, owner.viewerRoutes())
+                                    feed.builder.optionalInteractionBundle(game, planner, optional, owner.viewerRoutes(), sourceCard)
                                 }
                         (viewerPrepared?.player ?: build(feed, game, planner)).also { afterMaterialization?.invoke() }
                     } catch (ex: Exception) {

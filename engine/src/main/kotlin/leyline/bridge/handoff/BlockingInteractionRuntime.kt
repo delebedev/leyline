@@ -12,6 +12,14 @@ interface BlockingInteractionRuntime {
         defaultOnTimeout: Boolean,
     ): Boolean
 
+    /** Optional source used when the Forge card is not reachable from a zone yet. */
+    fun awaitOptional(
+        interaction: BlockingInteraction.Optional,
+        sourceCard: Card?,
+        timeoutMs: Long?,
+        defaultOnTimeout: Boolean,
+    ): Boolean = awaitOptional(interaction, timeoutMs, defaultOnTimeout)
+
     fun awaitNumeric(
         interaction: BlockingInteraction.Numeric,
         timeoutMs: Long?,

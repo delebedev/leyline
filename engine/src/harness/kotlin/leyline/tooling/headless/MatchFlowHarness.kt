@@ -217,7 +217,13 @@ class MatchFlowHarness(
                 accumulator.turnInfo?.phase == Phase.Main1_a549
         }
         if (messagesSince(outputStart).none(humanMain1)) {
-            awaitNamedOutput(outputEpoch, outputStart, "initial human main phase") { humanMain1(it) }
+            val reachedMain1 =
+                advanceUntil(50) {
+                    messagesSince(outputStart).any(humanMain1)
+                }
+            if (!reachedMain1) {
+                awaitNamedOutput(outputEpoch, outputStart, "initial human main phase") { humanMain1(it) }
+            }
         }
     }
 

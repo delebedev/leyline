@@ -94,7 +94,7 @@ class PriorityLoopCoordinator(
                         stackEmpty = game.stack.isEmpty,
                         forceVisible = forceVisibleAfterMana,
                         continuation = continuation,
-                        hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player),
+                        hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player, isOwnTurn),
                     ),
                 )
             forceVisibleAfterMana = false
