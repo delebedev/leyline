@@ -33,7 +33,12 @@ class ManagementServer(
             }
         srv.start()
         server = srv
-        log.info("Management server: http://{}:{}/health", bindAddress, port)
+        log
+            .atInfo()
+            .addKeyValue("event", "server.management_started")
+            .addKeyValue("bind_address", bindAddress)
+            .addKeyValue("port", port)
+            .log("Management server listening")
     }
 
     fun stop() {

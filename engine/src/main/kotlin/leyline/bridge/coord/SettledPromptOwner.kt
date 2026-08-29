@@ -6,6 +6,7 @@ import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.SettledPromptCorrelation
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.FailureReason
@@ -20,6 +21,7 @@ internal class SettledPromptOwner(
     private val owner: MatchCutCoordinator,
 ) : PromptLifecycle,
     PromptTerminalCutOwner {
+    private val log = LoggerFactory.getLogger(SettledPromptOwner::class.java)
     private val slots = mutableListOf<MountedSlot>()
 
     internal var beforeInstall: (() -> Unit)? = null
@@ -189,6 +191,14 @@ internal class SettledPromptOwner(
             accepted.beforeComplete()
             check(completeLocked(pending, accepted.result)) { "Settled prompt changed during admission" }
             val exact = checkNotNull(correlation)
+            log
+                .atDebug()
+                .addKeyValue("event", "match.prompt_completed")
+                .addKeyValue("match_id", owner.matchId)
+                .addKeyValue("seat", owner.humanSeat.value)
+                .addKeyValue("response_type", message.type.name)
+                .addKeyValue("game_state_id", exact.gameStateId)
+                .log("Match prompt completed")
             retireLocked()
             if (message.type == ClientMessageType.CancelActionReq_097b) {
                 owner.bridge.responseAcceptance.markPromptHandled(exact.requestMsgId)

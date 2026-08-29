@@ -9,7 +9,10 @@ import leyline.game.data.ClientCardDatabase
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
 import leyline.native.account.AccountServer
+import org.slf4j.LoggerFactory
 import java.io.File
+
+private val log = LoggerFactory.getLogger("leyline.LeylineMain")
 
 /**
  * Standalone entry point for the local Leyline server (native head).
@@ -147,12 +150,12 @@ private fun detectCachedManifests(): String? {
             val category = match.groupValues[1]
             val hash = match.groupValues[2]
             entries.add("""{"category":"$category","priority":50,"hash":"$hash"}""")
-            println("Detected client manifest: ${file.name}")
+            log.info("Detected client manifest: {}", file.name)
         }
         mainPattern.matchEntire(file.name)?.let { match ->
             val hash = match.groupValues[1]
             entries.add("""{"category":"","priority":100,"hash":"$hash"}""")
-            println("Detected client manifest: ${file.name}")
+            log.info("Detected client manifest: {}", file.name)
         }
     }
     if (entries.isEmpty()) return null

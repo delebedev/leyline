@@ -1505,7 +1505,7 @@ class PlayerController(
     ): Boolean {
         val mb =
             mulliganBridge ?: run {
-                log.debug("mulliganKeepHand: no bridge, auto-keep for {}", player.name)
+                log.debug("mulliganKeepHand: no bridge, auto-keep")
                 return true
             }
         return mb.awaitKeepDecision(player.id, cardsToReturn)
@@ -1518,7 +1518,7 @@ class PlayerController(
         if (cardsToReturn <= 0) return CardCollection()
         val mb =
             mulliganBridge ?: run {
-                log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {} for {}", cardsToReturn, player.name)
+                log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {}", cardsToReturn)
                 val toReturn = CardCollection()
                 for (i in 0 until cardsToReturn.coerceAtMost(hand.size)) {
                     toReturn.add(hand[i])
@@ -1532,7 +1532,7 @@ class PlayerController(
     override fun chooseStartingPlayer(isFirstGame: Boolean): Player {
         // Engine determines starting player via coin flip in GameAction.startGame().
         // This is only called in specific variants; auto-choose self.
-        log.debug("chooseStartingPlayer: auto-choose self ({})", player.name)
+        log.debug("chooseStartingPlayer: auto-choose self")
         return player
     }
 

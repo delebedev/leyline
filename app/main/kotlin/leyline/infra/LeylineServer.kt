@@ -149,7 +149,7 @@ class LeylineServer(
         // fresh state paths such as additional instances.
         playerDbFile.parentFile?.mkdirs()
         if (!playerDbFile.exists()) {
-            log.info("No player.db at {} — creating a fresh persistent database", playerDbFile.absolutePath)
+            log.info("No player.db — creating a fresh persistent database")
         }
         val db =
             org.jetbrains.exposed.v1.jdbc.Database.connect(

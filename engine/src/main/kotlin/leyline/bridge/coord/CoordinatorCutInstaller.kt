@@ -4,6 +4,7 @@ import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
@@ -108,6 +109,8 @@ internal data class CutInstallHooks(
 internal class CoordinatorCutInstaller(
     private val owner: MatchCutCoordinator,
 ) {
+    private val log = LoggerFactory.getLogger(CoordinatorCutInstaller::class.java)
+
     /** Installs an existing no-output transition without allocating or publishing output state. */
     fun installProjectionOnly(
         transition: ProjectionTransition,
@@ -218,6 +221,14 @@ internal class CoordinatorCutInstaller(
             }
             hooks.beforeInstall?.invoke()
             owner.bridge.commitProjection(cut.transition) { installed = true }
+            log
+                .atDebug()
+                .addKeyValue("event", "match.horizon_committed")
+                .addKeyValue("match_id", owner.matchId)
+                .addKeyValue("horizon", cut.transition.nextState.sequence.currentGsId)
+                .addKeyValue("ordinal", cut.outputOrdinal)
+                .addKeyValue("batch_count", committedBatches.size)
+                .log("Match horizon committed")
             hooks.afterInstall?.invoke()
             playbackOwnerSeatId?.let(owner.bridge::acknowledgePlaybackFrame)
             onInstalled?.invoke()

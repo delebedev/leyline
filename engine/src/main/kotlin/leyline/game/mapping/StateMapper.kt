@@ -287,7 +287,7 @@ object StateMapper {
         applyRevealProxies(activeReveal, snap, editor, environment, zones, gameObjects, eventsMutable)
         addSpeedTriggerHolders(snap, zones, gameObjects)
 
-        log.debug(
+        log.trace(
             "buildFromSnapshot: phase={} turn={} hand={} objects={} zones={}",
             snap.phase.phase,
             snap.phase.turn,

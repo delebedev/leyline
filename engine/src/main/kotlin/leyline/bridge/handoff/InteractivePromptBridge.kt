@@ -165,8 +165,7 @@ class InteractivePromptBridge(
         request: PromptRequest,
         outcome: PromptCallStatus,
         result: List<Int>,
-        elapsedMs: Long,
-    ) = promptHistory.record(request, outcome, result, elapsedMs)
+    ) = promptHistory.record(request, outcome, result)
     // ────────────────────────────────────────────────────────────────────────
 
     // -- Diagnostic context (set by GameLoopController after thread launch) --
@@ -246,8 +245,8 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
-        resolvePromptPolicyDefault(request, log) { indices ->
-            record(request, PromptCallStatus.DEFAULTED_POLICY, indices, 0)
+        resolvePromptPolicyDefault(request) { indices ->
+            record(request, PromptCallStatus.DEFAULTED_POLICY, indices)
             prioritySignal?.markPromptResolved()
         }?.let { return it }
         // A callback reached outside a real prompt window must refuse, not
@@ -262,14 +261,7 @@ class InteractivePromptBridge(
                 )
             }
             val fallback = listOf(request.defaultIndex)
-            log.warn(
-                "Prompt [{}] \"{}\" requested inside non-interactive scope {}, using default {}",
-                request.promptType,
-                request.message,
-                scope,
-                fallback,
-            )
-            record(request, PromptCallStatus.NON_INTERACTIVE_SCOPE, fallback, 0)
+            record(request, PromptCallStatus.NON_INTERACTIVE_SCOPE, fallback)
             return fallback
         }
 
@@ -281,14 +273,7 @@ class InteractivePromptBridge(
                 )
             }
             val fallback = listOf(request.defaultIndex)
-            log.warn(
-                "Prompt [{}] \"{}\" requested from non-game thread {}, using default {}",
-                request.promptType,
-                request.message,
-                Thread.currentThread().name,
-                fallback,
-            )
-            record(request, PromptCallStatus.NON_GAME_THREAD, fallback, 0)
+            record(request, PromptCallStatus.NON_GAME_THREAD, fallback)
             return fallback
         }
 
@@ -300,7 +285,7 @@ class InteractivePromptBridge(
         requestMigratedChoice(request, targetingSa, configuredTimeoutMs)?.let { return it }
         if (strict) refuseStrictPrompt("No coordinator-owned runtime for ${request.route}")
         val fallback = listOf(request.defaultIndex)
-        record(request, PromptCallStatus.DEFAULTED_POLICY, fallback, 0)
+        record(request, PromptCallStatus.DEFAULTED_POLICY, fallback)
         return fallback
     }
 
@@ -326,19 +311,18 @@ class InteractivePromptBridge(
             return ManaSourcePaymentResult(requestChoice(request), emptyList())
         }
 
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitPayment(request, candidateHandles, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: ManaSourcePaymentTimeoutException) {
             val fallback = ManaSourcePaymentResult(listOf(request.defaultIndex), emptyList())
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -352,7 +336,7 @@ class InteractivePromptBridge(
         val runtime = runtimeBindings.oneShotPayCosts
         if (route?.descriptor?.manaSourcePayment != null || runtime == null) {
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback, 0)
+            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback)
             return fallbackOneShot(fallback, candidateHandles)
         }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
@@ -363,23 +347,22 @@ class InteractivePromptBridge(
                     timeoutMs == 0L -> PromptCallStatus.DEFAULTED_POLICY
                     else -> PromptCallStatus.NON_GAME_THREAD
                 }
-            record(request, outcome, fallback, 0)
+            record(request, outcome, fallback)
             return fallbackOneShot(fallback, candidateHandles)
         }
 
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitPayment(request, candidateHandles, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: OneShotPayCostsTimeoutException) {
             val fallback = fallbackOneShot(listOf(request.defaultIndex), candidateHandles)
-            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -393,16 +376,9 @@ class InteractivePromptBridge(
         if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             return window.firstFitResult(candidateHandles)
         }
-        val startMs = System.currentTimeMillis()
-        return try {
-            val result = runtime.awaitGatherCounters(window, candidateHandles, timeoutMs)
-            if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
-            log.debug("GatherCounters payment resolved in {}ms", System.currentTimeMillis() - startMs)
-            result
-        } catch (ex: Exception) {
-            log.warn("GatherCounters payment failed after {}ms", System.currentTimeMillis() - startMs, ex)
-            throw ex
-        }
+        val result = runtime.awaitGatherCounters(window, candidateHandles, timeoutMs)
+        if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
+        return result
     }
 
     /** Route one ordered-card request with its exact Forge option handles. */
@@ -416,19 +392,18 @@ class InteractivePromptBridge(
             return fallbackOrder(requestChoice(request), candidateHandles)
         }
         val runtime = checkNotNull(runtimeBindings.order) { "Order runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitOrder(request, candidateHandles, move, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: OrderInteractionTimeoutException) {
             val fallback = fallbackOrder(listOf(request.defaultIndex), candidateHandles)
-            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -441,23 +416,21 @@ class InteractivePromptBridge(
         check(request.route is ResolvedPromptRoute.Distribution) { "Distribution route required" }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
             val fallback = window.fallback()
-            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback.amounts.values.toList(), 0)
+            record(request, PromptCallStatus.DEFAULTED_POLICY, fallback.amounts.values.toList())
             return fallback
         }
         val runtime = checkNotNull(runtimeBindings.distribution) { "Distribution runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitDistribution(window, timeoutMs)
             record(
                 request,
                 if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
                 result.amounts.values.toList(),
-                System.currentTimeMillis() - startMs,
             )
             if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
             result
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -472,7 +445,6 @@ class InteractivePromptBridge(
             return fallbackGrouping(request, requestChoice(request), candidateHandles)
         }
         val runtime = checkNotNull(runtimeBindings.grouping) { "Grouping runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitGrouping(request, candidateHandles, timeoutMs)
             val selected =
@@ -485,12 +457,11 @@ class InteractivePromptBridge(
                 request,
                 if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
                 selected,
-                System.currentTimeMillis() - startMs,
             )
             if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
             result
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -515,19 +486,18 @@ class InteractivePromptBridge(
             return fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
         }
         val runtime = checkNotNull(runtimeBindings.cardSelect) { "CardSelect runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, candidateHandles, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: CardSelectInteractionTimeoutException) {
             val fallback = fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
-            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -549,18 +519,17 @@ class InteractivePromptBridge(
                     NonInteractiveScope.active != null -> PromptCallStatus.NON_INTERACTIVE_SCOPE
                     else -> PromptCallStatus.NON_GAME_THREAD
                 }
-            record(request, outcome, fallback, 0)
+            record(request, outcome, fallback)
             return CompatibilityCostSelectionResult(fallback, fallback.map(candidateHandles::get))
         }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, candidateHandles, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result.optionIndices, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result.optionIndices)
             prioritySignal?.markPromptResolved()
             result.copy(handles = result.optionIndices.mapNotNull(candidateHandles::getOrNull))
         } catch (_: TargetingInteractionTimeoutException) {
             val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             CompatibilityCostSelectionResult(
                 optionIndices = fallback,
@@ -568,7 +537,7 @@ class InteractivePromptBridge(
                 timedOut = true,
             )
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -580,19 +549,18 @@ class InteractivePromptBridge(
             return requestChoice(request)
         }
         val runtime = checkNotNull(runtimeBindings.staticChoice) { "StaticChoice runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, timeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: StaticChoiceInteractionTimeoutException) {
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -623,19 +591,17 @@ class InteractivePromptBridge(
             )
         }
         val runtime = checkNotNull(runtimeBindings.revealChoice) { "RevealChoice runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitSelection(request, candidateHandles, revealEntry, recordExiledUnderSource, timeoutMs)
             record(
                 request,
                 if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
                 result.optionIndices,
-                System.currentTimeMillis() - startMs,
             )
             if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
             result
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }
@@ -650,9 +616,8 @@ class InteractivePromptBridge(
         targetingSa: SpellAbility?,
         runtime: TargetingInteractionRuntime,
         configuredTimeoutMs: Long?,
-    ): List<Int> {
-        val startMs = System.currentTimeMillis()
-        return try {
+    ): List<Int> =
+        try {
             val result =
                 runtime.awaitTargeting(
                     request,
@@ -660,41 +625,38 @@ class InteractivePromptBridge(
                     targetingSa?.let(::resolveAbilityIdentity),
                     configuredTimeoutMs,
                 )
-            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: TargetingInteractionTimeoutException) {
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
-    }
 
     private fun requestSearchChoice(
         request: PromptRequest,
         runtime: SearchInteractionRuntime,
         configuredTimeoutMs: Long?,
-    ): List<Int> {
-        val startMs = System.currentTimeMillis()
-        return try {
+    ): List<Int> =
+        try {
             val result = runtime.awaitSearch(request, configuredTimeoutMs)
-            record(request, PromptCallStatus.RESPONDED, result, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.RESPONDED, result)
             prioritySignal?.markPromptResolved()
             result
         } catch (_: SearchInteractionTimeoutException) {
             val fallback = listOf(request.defaultIndex)
-            record(request, PromptCallStatus.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             fallback
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
-    }
 
     /** Route one competing replacement choice with its exact Forge handles. */
     fun requestReplacement(
@@ -704,24 +666,22 @@ class InteractivePromptBridge(
         check(request.route is ResolvedPromptRoute.SelectReplacement) { "SelectReplacement route required" }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) return null
         val runtime = checkNotNull(runtimeBindings.replacement) { "Replacement runtime is not registered" }
-        val startMs = System.currentTimeMillis()
         return try {
             val result = runtime.awaitReplacement(request, possibleReplacers, timeoutMs)
             if (result == null) {
-                record(request, PromptCallStatus.DEFAULTED_POLICY, emptyList(), System.currentTimeMillis() - startMs)
+                record(request, PromptCallStatus.DEFAULTED_POLICY, emptyList())
                 null
             } else {
                 record(
                     request,
                     if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
                     listOf(result.optionIndex),
-                    System.currentTimeMillis() - startMs,
                 )
                 if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
                 result
             }
         } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList(), System.currentTimeMillis() - startMs)
+            record(request, PromptCallStatus.ERROR, emptyList())
             throw ex
         }
     }

@@ -53,6 +53,9 @@ class MatchConnection(
     private val log = LoggerFactory.getLogger(MatchConnection::class.java)
     private var runtimeDeliveryObserver: MatchRuntimeDeliveryObserver? = null
     private var runtimeDeliveryGeneration: MatchRuntimeDeliveryGeneration? = null
+    private var lastConnectedMatchId: String? = null
+    private var lastConnectedSeatId: Int? = null
+    private var detachedAfterTeardown = false
 
     /**
      * Connection lifecycle. Identity accrues while [MatchHandlerState.Handshaking]
@@ -213,7 +216,7 @@ class MatchConnection(
         hs.clientId = authReq.clientId.ifEmpty { "leyline-player-${hs.seatId}" }
         hs.isFamiliar = hs.clientId.endsWith("_Familiar")
         val playerName = authReq.playerName.ifEmpty { "Player" }
-        log.info("Match Door: auth clientId={} playerName={} familiar={}", clientId, playerName, isFamiliar)
+        log.info("Match Door: auth familiar={}", isFamiliar)
 
         val resp =
             MatchServiceToClientMessage
@@ -285,6 +288,9 @@ class MatchConnection(
      * session is replaced.
      */
     private fun bindSession(session: SessionOps) {
+        lastConnectedMatchId = session.matchId
+        lastConnectedSeatId = session.seatId.value
+        detachedAfterTeardown = false
         state =
             when (val s = state) {
                 is MatchHandlerState.Handshaking ->
@@ -353,7 +359,12 @@ class MatchConnection(
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun processGREMessage(greMsg: ClientToGREMessage) {
-        Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
+        // MatchSession owns gameplay-response admission and emits the accepted/
+        // rejected event. Keep Tap for pre-session and unowned protocol receipts,
+        // where no structured lifecycle event exists.
+        if (session !is MatchSession || !isGameplayResponse(greMsg.type)) {
+            Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
+        }
 
         if (greMsg.type != ClientMessageType.ConnectReq_097b) {
             val admission = (session as? MatchSession)?.admitSettled(greMsg)
@@ -387,7 +398,7 @@ class MatchConnection(
             checkNotNull(gameSession)
             withConnectionOwnedResponse(greMsg) { mulliganHandler.onGroupResp(greMsg) }
         } else {
-            log.warn("Match Door GRE: stale GroupResp without London-tuck window")
+            log.debug("Match Door GRE: stale GroupResp without London-tuck window")
         }
     }
 
@@ -453,8 +464,8 @@ class MatchConnection(
         val opponentName = "AI Opponent"
         val eventName = coordinator?.selectedEventName ?: "AIBotMatch"
         val msg = HandshakeMessages.roomState(matchId, playerId, opponentName, eventName, true)
-        Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
         output.send(msg)
+        Tap.outboundTemplate("room_state", matchId = matchId, seat = seatId)
     }
 
     private fun sendInitialBundle() {
@@ -465,8 +476,8 @@ class MatchConnection(
             seat,
             includeStartingPlayerPrompt = !isSpectatorMode(),
         )
-        Tap.outboundTemplate("InitialBundle seat=$seatId")
         s.deliverLifecycle(bridge)
+        Tap.outboundTemplate("initial_bundle", matchId = matchId, seat = seatId)
         if (!isSpectatorMode()) mulliganHandler.startFamiliarIfReady()
     }
 
@@ -475,18 +486,22 @@ class MatchConnection(
         mulliganHandler.seat1Hand = bridge.getHandGrpIds(SeatId(1))
         mulliganHandler.seat2Hand = bridge.getHandGrpIds(SeatId(2))
         log.info(
-            "Match Door: seat {} connected, hands seat1={} seat2={}",
+            "Match Door: seat {} connected, hand counts seat1={} seat2={}",
             seatId,
-            mulliganHandler.seat1Hand,
-            mulliganHandler.seat2Hand,
+            mulliganHandler.seat1Hand.size,
+            mulliganHandler.seat2Hand.size,
         )
         sendRoomState()
         sendInitialBundle()
     }
 
     fun disconnected() {
-        log.info("Match Door: client disconnected")
+        val event = log.atInfo().addKeyValue("event", "match.disconnected")
+        val correlatedEvent = lastConnectedMatchId?.let { event.addKeyValue("match_id", it) } ?: event
+        val seatedEvent = lastConnectedSeatId?.let { correlatedEvent.addKeyValue("seat", it) } ?: correlatedEvent
+        seatedEvent.log("Match client disconnected")
         stopRuntimeDeliveryObserver()
+        if (detachedAfterTeardown) return
         if (isSpectatorMode() && isFamiliar) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
             return
@@ -500,8 +515,15 @@ class MatchConnection(
     }
 
     fun failed(cause: Throwable) {
-        log.error("Match Door error: {}", cause.message, cause)
+        val event = log.atError().setCause(cause).addKeyValue("event", "match.connection_failed")
+        val correlatedEvent = lastConnectedMatchId?.let { event.addKeyValue("match_id", it) } ?: event
+        val seatedEvent = lastConnectedSeatId?.let { correlatedEvent.addKeyValue("seat", it) } ?: correlatedEvent
+        seatedEvent.log("Match connection failed")
         stopRuntimeDeliveryObserver()
+        if (detachedAfterTeardown) {
+            output.close()
+            return
+        }
         registry.teardownMatch(
             matchId = matchId,
             reason = MatchTeardownReason.Exception,
@@ -514,6 +536,7 @@ class MatchConnection(
     internal fun detachAfterTeardown() {
         // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
         stopRuntimeDeliveryObserver()
+        detachedAfterTeardown = true
         state = MatchHandlerState.Handshaking()
     }
 
