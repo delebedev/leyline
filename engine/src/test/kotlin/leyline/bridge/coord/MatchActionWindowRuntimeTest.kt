@@ -4,6 +4,10 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.longs.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionKind
@@ -24,6 +28,117 @@ import java.util.concurrent.CompletableFuture
 
 class MatchActionWindowRuntimeTest :
     BoardTest({
+        val puzzle =
+            """
+            [metadata]
+            Name:action window replacement
+            Goal:Win
+            Turns:1
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanhand=Forest
+            humanlibrary=Forest
+            ailibrary=Forest
+            """.trimIndent()
+
+        test("phase replacement leaves exactly one committed action request") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val feed = coordinator.feed(SeatId(1))
+            val prior = feed.queue.single()
+
+            val replacement = coordinator.replaceWithPhaseTransition(pending.actionId)
+
+            val committed = feed.queue.single()
+            assertSoftly {
+                committed.messages shouldBe replacement
+                committed.ordinal shouldBe prior.ordinal + 1
+                committed.messages.count { it.hasActionsAvailableReq() } shouldBe 1
+            }
+        }
+
+        test("phase replacement enqueue failure preserves the prior window") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val priorProjection = board.bridge.projectionStateSnapshot()
+            val priorSequence = board.bridge.committedSequence()
+            val feed = coordinator.feed(SeatId(1))
+            val priorFeed = feed.queue.toList()
+            coordinator.beforeActionEnqueue = { error("delivery unavailable") }
+
+            val failure =
+                shouldThrow<PlaybackTerminalFailure> {
+                    coordinator.replaceWithPhaseTransition(pending.actionId)
+                }
+
+            assertSoftly {
+                failure.cause?.message shouldBe "delivery unavailable"
+                board.bridge.projectionStateSnapshot() shouldBe priorProjection
+                board.bridge.committedSequence() shouldBe priorSequence
+                coordinator.failure() shouldBe failure
+                board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
+                pending.promptGameStateId.shouldBeNull()
+                feed.queue.toList() shouldBe priorFeed
+            }
+        }
+
+        test("phase replacement stale install restores the prior window") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val priorSequence = board.bridge.committedSequence()
+            val feed = coordinator.feed(SeatId(1))
+            val priorFeed = feed.queue.toList()
+            val competing =
+                board.bridge
+                    .projectionStateSnapshot()
+                    .editor()
+                    .freeze()
+            coordinator.beforeActionInstall = { board.bridge.replaceProjectionStateForTest(competing) }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.replaceWithPhaseTransition(pending.actionId)
+            }
+
+            assertSoftly {
+                board.bridge.projectionStateSnapshot() shouldBe competing
+                board.bridge.committedSequence() shouldBe competing.sequence
+                board.bridge.committedSequence().currentMsgId shouldBe priorSequence.currentMsgId
+                feed.queue.toList() shouldBe priorFeed
+                priorFeed.flatMap { it.messages }.count { it.hasActionsAvailableReq() } shouldBe 1
+            }
+        }
+
+        test("post-install phase replacement failure retains only committed output") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
+            val priorProjection = board.bridge.projectionStateSnapshot()
+            val priorSequence = board.bridge.committedSequence()
+            val feed = coordinator.feed(SeatId(1))
+            val priorOrdinal = feed.queue.single().ordinal
+            coordinator.afterActionInstall = { error("acknowledgement unavailable") }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.replaceWithPhaseTransition(pending.actionId)
+            }
+
+            assertSoftly {
+                coordinator.failure().shouldNotBeNull()
+                board.bridge.projectionStateSnapshot().revision shouldBeGreaterThan priorProjection.revision
+                board.bridge.committedSequence().currentMsgId shouldBeGreaterThan priorSequence.currentMsgId
+                val retained = feed.queue.single()
+                retained.ordinal shouldBe priorOrdinal + 1
+                retained.messages.count { it.hasActionsAvailableReq() } shouldBe 1
+            }
+        }
+
         test("initial action player output is invariant with an observer") {
             fun publish(
                 kind: PendingActionKind,

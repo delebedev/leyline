@@ -181,32 +181,6 @@ class MatchCutCoordinatorTest :
             ) shouldBe true
         }
 
-        test("phase replacement enqueue failure terminalizes without replaying the prior window") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            board.bridge.cutCoordinator.beforeActionEnqueue = {
-                error("delivery unavailable")
-            }
-
-            val failure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-                }
-            board.bridge.cutCoordinator.beforeActionEnqueue = null
-
-            assertSoftly {
-                failure.cause?.message shouldBe "delivery unavailable"
-                board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.bridge.committedSequence() shouldBe priorSequence
-                board.bridge.cutCoordinator.failure() shouldBe failure
-                board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
-                pending.promptGameStateId.shouldBeNull()
-                board.bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe true
-            }
-        }
-
         test("action window becomes visible before the committed feed can drain") {
             val board = startPuzzleAtMain1(puzzle)
             board.bridge.cutCoordinator.drain(SeatId(1))
@@ -433,60 +407,6 @@ class MatchCutCoordinatorTest :
                 failure.get() shouldBe null
                 board.bridge.cutCoordinator.failure() shouldBe null
                 actionBridge.getPending() shouldBe null
-            }
-        }
-
-        test("phase replacement stale install rolls back new output and terminalizes") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorSequence = board.bridge.committedSequence()
-            val competing =
-                board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            board.bridge.cutCoordinator.beforeActionInstall = {
-                board.bridge.replaceProjectionStateForTest(competing)
-            }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-            }
-            board.bridge.cutCoordinator.beforeActionInstall = null
-
-            assertSoftly {
-                board.bridge.projectionStateSnapshot() shouldBe competing
-                board.bridge.committedSequence() shouldBe competing.sequence
-                board.bridge.committedSequence().currentMsgId shouldBe priorSequence.currentMsgId
-                board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .count { it.hasActionsAvailableReq() } shouldBe 1
-            }
-        }
-
-        test("post-install phase replacement failure retains committed output and ids") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            board.bridge.cutCoordinator.afterActionInstall = { error("acknowledgement unavailable") }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-            }
-            board.bridge.cutCoordinator.afterActionInstall = null
-
-            assertSoftly {
-                board.bridge.cutCoordinator
-                    .failure()
-                    .shouldNotBeNull()
-                board.bridge.projectionStateSnapshot().revision shouldBeGreaterThan priorProjection.revision
-                board.bridge.committedSequence().currentMsgId shouldBeGreaterThan priorSequence.currentMsgId
-                board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .count { it.hasActionsAvailableReq() } shouldBe 1
             }
         }
 

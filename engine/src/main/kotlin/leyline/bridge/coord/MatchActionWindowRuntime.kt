@@ -349,7 +349,7 @@ internal class MatchActionWindowRuntime(
                 } catch (ex: Exception) {
                     owner.fail(ex)
                 }
-            publishPresentation(feed, window, prepared, prior, planner, removePrevious = true)
+            publishPresentation(feed, window, prepared, prior, planner, replaces = window.publishedBatch)
         }
 
     fun claimPriority(
@@ -598,7 +598,7 @@ internal class MatchActionWindowRuntime(
         prepared: BundleBuilder.ActionWindowPrepared,
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
-        removePrevious: Boolean = false,
+        replaces: List<GREToClientMessage> = emptyList(),
     ): List<GREToClientMessage> {
         val messages = prepared.bundle.messages
         val promptGsId = checkNotNull(prepared.bundle.actionGameStateId)
@@ -608,13 +608,9 @@ internal class MatchActionWindowRuntime(
             CutInstallHooks(
                 beforeEnqueue = beforeEnqueue,
                 beforeInstall = beforeInstall,
-                afterInstall = {
-                    if (removePrevious) {
-                        check(owner.removeOwnedBatch(feed, window.publishedBatch)) { "Action window ${window.actionId} became visible" }
-                    }
-                    afterInstall?.invoke()
-                },
+                afterInstall = afterInstall,
             ),
+            replaces = replaces,
         ) { ex -> owner.fail(ex) }
         actionWindows[window.actionId] = window.copy(promptGameStateId = promptGsId, publishedBatch = messages)
         return messages
