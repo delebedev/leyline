@@ -1,6 +1,7 @@
 package leyline.game.bundle
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.phase.PhaseType
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.BlockingInteraction
@@ -43,6 +44,7 @@ import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
 import leyline.game.state.PendingSubmittedTargets
@@ -884,11 +886,23 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         routes: List<ViewerRoute>,
+        sourceCard: Card? = null,
     ): PreparedViewerCut<BlockingInteractionMaterializer.Prepared> {
         require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt) {
             "Optional interaction does not require a state snapshot"
         }
-        val frame = prepareViewerPromptProjection(game, counter, routes)
+        val projectedSourceCard = sourceCard ?: interaction.sourceId?.let(bridge::findCard)
+        val transientSourceCard =
+            projectedSourceCard?.let { card ->
+                bridge.editProjection(bridge.projectionStateSnapshot()) {
+                    SnapshotCapture.captureBoundCard(card, game, bridge)
+                }.first
+            }
+        val intent =
+            transientSourceCard
+                ?.let { ViewerProjectionIntent.of(listOf(ProjectionSupplement.PreStackSpell(it))) }
+                ?: ViewerProjectionIntent.EMPTY
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
         val playerResult = frame.fold.viewers[frame.playerIndex].result
         val stateMessages = stateOnlyMessages(playerResult.gsm, frame.playerInput.events.events, counter)
         val player =
