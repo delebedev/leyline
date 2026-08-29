@@ -1,1 +1,2 @@
 Initial CI monitor smoke trigger.
+Updated-head CI monitor smoke trigger.
