@@ -314,11 +314,6 @@ class BundleBuilder(
         )
     }
 
-    /** Invalidates the viewer's snap-vs-snap baseline without changing other projection history. */
-    fun invalidateProjectionBaseline() {
-        bridge.updateViewerProjectionCursor { it.copy(previousSnapshot = null) }
-    }
-
     internal fun pendingSubmittedTargets(): PendingSubmittedTargets? = bridge.viewerProjectionCursor().pendingSubmittedTargets
 
     internal fun previousProjectionSnapshot(): GsmSnapshot? = bridge.viewerProjectionCursor().previousSnapshot

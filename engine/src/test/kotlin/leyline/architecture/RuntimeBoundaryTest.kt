@@ -18,11 +18,11 @@ import leyline.architecture.EngineArchitecture.named
 import java.nio.file.Files
 
 /**
- * Enforces the runtime boundary direction defined by ADR 0014: match
+ * Enforces the runtime boundary direction defined by ADR 0015: match
  * orchestration may depend on immutable engine-facing values, but direct Forge
- * dependencies stay behind the engine boundary. Alongside it, the single-owner
- * rules for cut installation, command arbitration, and the action window
- * lifecycle.
+ * dependencies stay behind the engine boundary under ADR 0014's retained
+ * confinement rationale. Alongside it, the single-owner rules for cut
+ * installation, command arbitration, and the action window lifecycle.
  *
  * Per-prompt-family ownership lives in [PromptRouteBoundaryTest]; projection
  * value boundaries live in [ValueProjectionBoundaryTest].
@@ -47,7 +47,7 @@ class RuntimeBoundaryTest :
                 .should()
                 .dependOnClassesThat()
                 .resideInAPackage("forge..")
-                .because("ADR 0014 keeps direct Forge coupling behind the engine boundary")
+                .because("ADR 0014's retained confinement rule keeps direct Forge coupling behind the engine boundary")
                 .check(classes)
         }
 
@@ -247,11 +247,12 @@ class RuntimeBoundaryTest :
             }
         }
 
-        test("transport and session code cannot allocate logical sequence or output order") {
+        test("transport session and playback code cannot allocate logical sequence or output order") {
             val roots =
                 listOf(
                     EngineArchitecture.sourceRoot.resolve("leyline/match"),
                     EngineArchitecture.sourceRoot.resolve("leyline/infra"),
+                    EngineArchitecture.sourceRoot.resolve("leyline/game/GamePlayback.kt"),
                 )
             val forbidden =
                 listOf(
@@ -278,6 +279,20 @@ class RuntimeBoundaryTest :
             }
 
             violations.shouldBeEmpty()
+        }
+
+        test("settled prompt families cannot become independent lifecycle owners") {
+            val runtime =
+                Files.readString(
+                    EngineArchitecture.sourceRoot.resolve("leyline/bridge/coord/MatchPromptRuntimeSet.kt"),
+                )
+            val lifecycleOwners =
+                Regex("""val\s+(\w+)\s*=\s*own\(""")
+                    .findAll(runtime)
+                    .map { it.groupValues[1] }
+                    .toSet()
+
+            lifecycleOwners shouldBe setOf("settled", "targeting", "blocking", "manaSourcePayments")
         }
 
         test("accumulated settings state has one runtime owner") {
