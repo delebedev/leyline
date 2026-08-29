@@ -115,9 +115,12 @@ class PriorityActionCandidates private constructor(
             player: Player,
         ): Boolean =
             try {
-                spellAbility.canPlay() && NonInteractiveScope.bestEffort {
-                    ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
-                }
+                val canPlay = spellAbility.canPlay()
+                val canPay =
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
+                    }
+                canPlay && canPay
             } catch (_: Exception) {
                 false
             }
