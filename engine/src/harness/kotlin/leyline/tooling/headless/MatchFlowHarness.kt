@@ -198,7 +198,6 @@ class MatchFlowHarness(
         drainSink()
 
         val mulliganPrompt = allMessages.last { it.type == GREMessageType.MulliganReq_aa0d }
-        val outputEpoch = localOutput.snapshot()
         val outputStart = messageSnapshot()
         localConnection.submitGREMessage(
             ClientToGREMessage
@@ -217,7 +216,9 @@ class MatchFlowHarness(
                 accumulator.turnInfo?.phase == Phase.Main1_a549
         }
         if (messagesSince(outputStart).none(humanMain1)) {
-            awaitNamedOutput(outputEpoch, outputStart, "initial human main phase") { humanMain1(it) }
+            check(advanceUntil(40) { messagesSince(outputStart).any(humanMain1) }) {
+                "Timed out waiting for initial human main phase"
+            }
         }
     }
 

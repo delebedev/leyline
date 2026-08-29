@@ -266,7 +266,7 @@ class CombatInteractionTest :
         ) {
             val attackerIids = setupMultipleAttackers()
 
-            passPriority() // advance to combat
+            advanceToCombat()
 
             val pending =
                 bridge
@@ -970,7 +970,7 @@ class CombatInteractionTest :
             val lifeBefore = ai.life
             val startTurn = turn()
 
-            passPriority() // advance to combat
+            advanceToCombat()
             allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
             // Select A.
