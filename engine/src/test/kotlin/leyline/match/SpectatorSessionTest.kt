@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.game.GameStage
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -36,7 +35,7 @@ class SpectatorSessionTest :
             bridge = null
         }
 
-        test("pumpOnce sends game over once") {
+        test("pumpOnce delivers a committed game over once") {
             val reachedHook = CountDownLatch(1)
             val releaseHook = CountDownLatch(1)
             val b = GameBridge(matchId = "test-match", cardRepository = TestCardRegistry.repo)
@@ -53,7 +52,7 @@ class SpectatorSessionTest :
 
             val sink = ListMessageSink()
             val session = SpectatorSession(SeatId(1), "test-match", sink, b)
-            b.getGame()!!.age = GameStage.GameOver
+            b.cutCoordinator.publishConcession(SeatId(1))
 
             assertSoftly {
                 session.pumpOnce().shouldBeTrue()

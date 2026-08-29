@@ -150,7 +150,7 @@ class TreasureTokenTest :
 
             // --- Assert: Sacrifice ZoneTransfer + mana-ability bracket annotations exist ---
             // Treasure sacrifice fires during bolt resolution (Forge auto-pays mana at resolution
-            // time). The pre-game-over diff in sendGameOver() drains these events into a GSM.
+            // time). The engine-owned terminal cut drains these events into a GSM before game-over output.
             val allAnnotations =
                 allMessages
                     .filter { it.hasGameStateMessage() }

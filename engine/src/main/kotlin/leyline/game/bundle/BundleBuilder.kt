@@ -1958,11 +1958,13 @@ class BundleBuilder(
     fun gameOverBundle(
         winningTeam: Int,
         counter: LogicalSequencePlanner,
+        result: ResultType = ResultType.WinLoss,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
     ): BundleResult =
         prepareGameOverBundle(
+            result = result,
             winningTeam = winningTeam,
             counter = counter,
             routes = listOf(ViewerRoute(ProjectionViewer(SeatId(seatId), ProjectionViewerRole.Player), this)),
@@ -1973,6 +1975,7 @@ class BundleBuilder(
 
     /** Prepare the terminal lifecycle bundle without installing projection state. */
     internal fun prepareGameOverBundle(
+        result: ResultType = ResultType.WinLoss,
         winningTeam: Int,
         counter: LogicalSequencePlanner,
         routes: List<ViewerRoute>,
@@ -1989,7 +1992,11 @@ class BundleBuilder(
                     val (viewer, builder) = route
                     ViewerBatches(
                         viewer.seatId,
-                        listOf(builder.buildGameOverBundle(winningTeam, ids, snapshot, reason, losingPlayerSeatId, lossReason).messages),
+                        listOf(
+                            builder
+                                .buildGameOverBundle(result, winningTeam, ids, snapshot, reason, losingPlayerSeatId, lossReason)
+                                .messages,
+                        ),
                     )
                 }
             }
@@ -2026,6 +2033,7 @@ class BundleBuilder(
 
     @Suppress("LongMethod") // fixed three-message game-over protocol sequence
     private fun buildGameOverBundle(
+        result: ResultType,
         winningTeam: Int,
         ids: GameOverIds,
         gameOverSnap: GsmSnapshot?,
@@ -2060,7 +2068,7 @@ class BundleBuilder(
             ResultSpec
                 .newBuilder()
                 .setScope(MatchScope.Game_a146)
-                .setResult(ResultType.WinLoss)
+                .setResult(result)
                 .setWinningTeamId(winningTeam)
                 .setReason(reason)
 
@@ -2068,7 +2076,7 @@ class BundleBuilder(
             ResultSpec
                 .newBuilder()
                 .setScope(MatchScope.Match)
-                .setResult(ResultType.WinLoss)
+                .setResult(result)
                 .setWinningTeamId(winningTeam)
                 .setReason(reason)
 
@@ -2087,13 +2095,15 @@ class BundleBuilder(
                 .setGameInfo(gs1Info)
                 .setUpdate(GameStateUpdate.SendAndRecord)
         // Teams with PendingLoss for losing team
-        gs1.addTeams(
-            TeamInfo
-                .newBuilder()
-                .setId(losingTeam)
-                .addPlayerIds(losingPlayerSeatId)
-                .setStatus(TeamStatus.PendingLoss_a458),
-        )
+        if (losingPlayerSeatId != 0) {
+            gs1.addTeams(
+                TeamInfo
+                    .newBuilder()
+                    .setId(losingTeam)
+                    .addPlayerIds(losingPlayerSeatId)
+                    .setStatus(TeamStatus.PendingLoss_a458),
+            )
+        }
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
         if (gameOverSnap != null && losingPlayerSeatId != 0) {
             val loserInfo =
@@ -2153,7 +2163,7 @@ class BundleBuilder(
                             ResultSpec
                                 .newBuilder()
                                 .setScope(MatchScope.Match)
-                                .setResult(ResultType.WinLoss)
+                                .setResult(result)
                                 .setWinningTeamId(winningTeam)
                                 .setReason(reason),
                         ).addOptions(

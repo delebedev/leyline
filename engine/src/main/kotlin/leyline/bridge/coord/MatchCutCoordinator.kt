@@ -88,11 +88,17 @@ internal class MatchCutCoordinator(
 
     fun actionWindowRuntime(seatId: SeatId): GameActionBridge.ActionWindowRuntime = actions.bridge(seatId)
 
-    /** Publish the terminal lifecycle cut for one viewer. Delivery stays with the session. */
+    /** Publish one terminal lifecycle cut across every registered viewer feed. Delivery stays with sessions. */
     fun publishGameOver(
         seatId: SeatId,
-        intent: GameOverIntent,
-    ) = gameOver.publish(seatId, intent)
+        outcome: GameOverOutcome,
+    ) = gameOver.publish(seatId, outcome)
+
+    fun publishGameOverFromEngine(seatId: SeatId) = gameOver.publishFromEngine(seatId)
+
+    fun publishConcession(seatId: SeatId) = gameOver.publishConcession(seatId)
+
+    fun committedGameOverOutcome(): GameOverOutcome? = gameOver.committed()
 
     /** Commit the settings acknowledgement behind older coordinator output. */
     fun publishSettings(
@@ -314,6 +320,7 @@ internal class MatchCutCoordinator(
         synchronized(feedLock) {
             check(feeds.isEmpty()) { "Cannot reset coordinator with registered viewers" }
             terminal.reset()
+            gameOver.reset()
             actions.reset()
             deferredCast.discard()
             prompts.reset()

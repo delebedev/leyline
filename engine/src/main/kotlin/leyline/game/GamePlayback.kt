@@ -174,7 +174,14 @@ class GamePlayback(
     }
 
     /** Forge main-loop completion entry point. Event visitors do no projection work. */
-    fun onMainLoopStepCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.MainLoopStep)
+    fun onMainLoopStepCompleted() {
+        val viewerSeat = SeatId(seatId)
+        if (bridge.getGame()?.isGameOver == true) {
+            bridge.cutCoordinator.publishGameOverFromEngine(viewerSeat)
+        } else {
+            bridge.cutCoordinator.flushPlaybackCut(viewerSeat, PlaybackCutBoundary.MainLoopStep)
+        }
+    }
 
     fun onAttackersDeclaredCompleted() = bridge.cutCoordinator.flushPlaybackCut(SeatId(seatId), PlaybackCutBoundary.AttackersDeclared)
 

@@ -41,6 +41,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
+import wotc.mtgo.gre.external.messaging.Messages.ResultType
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -551,7 +552,8 @@ class MatchCutCoordinatorTest :
             val prior = board.bridge.projectionStateSnapshot()
             board.bridge.cutCoordinator.publishGameOver(
                 SeatId(1),
-                GameOverIntent(
+                GameOverOutcome(
+                    result = ResultType.WinLoss,
                     winningTeam = 1,
                     reason = ResultReason.Game_ae0a,
                     losingPlayerSeatId = 2,
@@ -593,13 +595,16 @@ class MatchCutCoordinatorTest :
                 shouldThrow<PlaybackTerminalFailure> {
                     materializationBoard.bridge.cutCoordinator.publishGameOver(
                         SeatId(1),
-                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                        GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
                     )
                 }
             assertSoftly {
                 materializationFailure.cause?.message shouldBe "game-over materialization failed"
                 materializationBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe listOf(existing)
                 materializationBoard.bridge.projectionStateSnapshot() shouldBe prior
+                materializationBoard.bridge.cutCoordinator
+                    .committedGameOverOutcome()
+                    .shouldBeNull()
             }
 
             val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
@@ -610,7 +615,7 @@ class MatchCutCoordinatorTest :
                 shouldThrow<PlaybackTerminalFailure> {
                     installBoard.bridge.cutCoordinator.publishGameOver(
                         SeatId(1),
-                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                        GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
                     )
                 }
             assertSoftly {
@@ -619,6 +624,9 @@ class MatchCutCoordinatorTest :
                     .drain(SeatId(1))
                     .shouldBeEmpty()
                 installBoard.bridge.cutCoordinator.failure() shouldBe installFailure
+                installBoard.bridge.cutCoordinator
+                    .committedGameOverOutcome()
+                    .shouldBeNull()
             }
         }
 

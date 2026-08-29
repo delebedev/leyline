@@ -12,6 +12,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import leyline.UnitTag
 import leyline.architecture.EngineArchitecture.kotlinName
 import leyline.architecture.EngineArchitecture.named
@@ -110,6 +111,10 @@ class PlaybackSafePointBoundaryTest :
                 }
                 withClue("spectator delivery must drain its coordinator feed") {
                     source shouldContain "gameBridge.cutCoordinator.drain(seatId)"
+                }
+                withClue("spectator delivery must not derive terminal semantics from Forge") {
+                    source shouldNotContain ".getOutcome()"
+                    source shouldNotContain ".isGameOver"
                 }
                 val terminal = source.substringAfter("private fun deliverTerminal(")
                 withClue("raw completion must follow the committed terminal drain") {
