@@ -1,12 +1,12 @@
 package leyline.bridge
 
+import forge.ai.ComputerUtilMana
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
-import leyline.game.mapping.ActionManaCosts
 
 /** One Forge-owned traversal of candidates available during a priority window. */
 class PriorityActionCandidates private constructor(
@@ -30,7 +30,7 @@ class PriorityActionCandidates private constructor(
         isOwnTurn: Boolean = player.game.phaseHandler.playerTurn == player,
     ): Boolean =
         byCardId.values.any { candidate ->
-            candidate.casts.any { isOwnTurn || ActionManaCosts.canPlayAndPayManaCost(it, player) } ||
+            candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
                 candidate.activations.any { it.canPlay() } ||
                 (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(candidate.card, false, it) } == true) ||
                 (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
@@ -59,12 +59,25 @@ class PriorityActionCandidates private constructor(
             val battlefieldIds = player.getZone(ZoneType.Battlefield).cards.mapTo(mutableSetOf()) { it.id }
             return candidateCards(game, player).any { card ->
                 val candidate = buildCandidate(card, player, handIds, battlefieldIds)
-                candidate.casts.any { isOwnTurn || ActionManaCosts.canPlayAndPayManaCost(it, player) } ||
+                candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
                     candidate.activations.any { it.canPlay() } ||
                     (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(card, false, it) } == true) ||
                     (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
             }
         }
+
+        private fun canPlayAndPayManaCost(
+            spellAbility: SpellAbility,
+            player: Player,
+        ): Boolean =
+            try {
+                spellAbility.canPlay() &&
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
+                    }
+            } catch (_: Exception) {
+                false
+            }
 
         private fun candidateCards(
             game: Game,
