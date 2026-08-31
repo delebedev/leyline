@@ -32,10 +32,9 @@ object AnnotationOrderEnforcer {
     fun enforce(annotations: List<AnnotationInfo>): List<AnnotationInfo> {
         val allEdges = OrderRules.all.flatMap { it.edges(annotations) }
         if (allEdges.isEmpty()) return annotations
-        val hasViolation = allEdges.any { (from, to) -> from > to }
-        if (!hasViolation) return annotations
-        logViolations(annotations, allEdges)
-        return topologicalSort(annotations, allEdges)
+        val violationCount = allEdges.count { (from, to) -> from > to }
+        if (violationCount == 0) return annotations
+        return topologicalSort(annotations, allEdges, violationCount)
     }
 
     /**
@@ -47,6 +46,7 @@ object AnnotationOrderEnforcer {
     private fun topologicalSort(
         annotations: List<AnnotationInfo>,
         edges: List<Pair<Int, Int>>,
+        violationCount: Int,
     ): List<AnnotationInfo> {
         val n = annotations.size
         val inDegree = IntArray(n)
@@ -75,31 +75,18 @@ object AnnotationOrderEnforcer {
         }
 
         if (result.size < n) {
-            // Cycle detected — fall back to original order with warning
+            // A cycle cannot be repaired while preserving the declared rules.
             log.warn("Annotation ordering: cycle detected in dependency graph, using original order")
             return annotations
         }
 
-        log.info("Annotation ordering enforced: reordered {} annotations", n)
+        // Reordering is a routine safety-net correction. A cycle above remains actionable.
+        log
+            .atDebug()
+            .addKeyValue("event", "annotations.reordered")
+            .addKeyValue("annotation_count", n)
+            .addKeyValue("violation_count", violationCount)
+            .log("Annotation order corrected")
         return result
-    }
-
-    private fun logViolations(
-        annotations: List<AnnotationInfo>,
-        edges: List<Pair<Int, Int>>,
-    ) {
-        for ((from, to) in edges) {
-            if (from > to) {
-                val fromType = annotations[from].typeList
-                val toType = annotations[to].typeList
-                log.warn(
-                    "Annotation ordering violation: {} at index {} must precede {} at index {}",
-                    fromType,
-                    from,
-                    toType,
-                    to,
-                )
-            }
-        }
     }
 }

@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.RuntimeHorizonMode
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.LogicalSequencePlanner
@@ -115,6 +116,124 @@ class MatchLifecycleRuntimeTest :
             assertSoftly {
                 coordinator.drain(SeatId(1)).shouldBeEmpty()
                 bridge.projectionStateSnapshot() shouldBe prior
+            }
+        }
+
+        test("redraw installs reset identities and lifecycle output as one cut") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val coordinator = bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+            coordinator.drain(SeatId(1))
+            val retired = bridge.getOrAllocInstanceId(ForgeCardId(900_001))
+            val prior = bridge.projectionStateSnapshot()
+
+            coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
+
+            val batch = coordinator.drain(SeatId(1)).single()
+            val committed = bridge.projectionStateSnapshot()
+            assertSoftly {
+                batch.map { it.type } shouldBe
+                    listOf(
+                        GREMessageType.GameStateMessage_695e,
+                        GREMessageType.GameStateMessage_695e,
+                        GREMessageType.PromptReq,
+                        GREMessageType.MulliganReq_aa0d,
+                    )
+                batch.first().gameStateMessage.diffDeletedInstanceIdsList shouldBe listOf(retired.value)
+                batch.map { it.msgId } shouldBe batch.map { it.msgId }.sorted()
+                batch.map { it.gameStateId }.distinct().size shouldBe 2
+                committed.identities.forgeIdToInstanceId.containsKey(ForgeCardId(900_001)) shouldBe false
+                committed.sequence.committedOutputOrdinal shouldBe prior.sequence.committedOutputOrdinal + 1
+                committed.revision shouldBe prior.revision + 1
+            }
+        }
+
+        test("redraw preparation failure preserves identities sequence and feed") {
+            val bridge =
+                GameBridge(
+                    initialSequence = LogicalSequencePlanner(initialGsId = 20, initialMsgId = 0).snapshot(),
+                    cardRepository = TestCardRegistry.repo,
+                )
+            useBridge(bridge)
+            bridge.getOrAllocInstanceId(ForgeCardId(900_002))
+            val coordinator = bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+            val prior = bridge.projectionStateSnapshot()
+            val priorFeed = coordinator.feed(SeatId(1)).queue.toList()
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
+            }
+
+            assertSoftly {
+                bridge.projectionStateSnapshot() shouldBe prior
+                coordinator.feed(SeatId(1)).queue.toList() shouldBe priorFeed
+            }
+        }
+
+        test("redraw enqueue failure preserves identities sequence and feed") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val coordinator = bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+            coordinator.drain(SeatId(1))
+            bridge.getOrAllocInstanceId(ForgeCardId(900_010))
+            val prior = bridge.projectionStateSnapshot()
+            val priorFeed = coordinator.feed(SeatId(1)).queue.toList()
+            coordinator.feed(SeatId(1)).beforeBatchEnqueue = { _, _ -> error("redraw enqueue unavailable") }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
+            }
+
+            assertSoftly {
+                bridge.projectionStateSnapshot() shouldBe prior
+                coordinator.feed(SeatId(1)).queue.toList() shouldBe priorFeed
+            }
+        }
+
+        test("stale redraw install preserves the competing projection and prior feed") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val coordinator = bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+            coordinator.drain(SeatId(1))
+            bridge.getOrAllocInstanceId(ForgeCardId(900_011))
+            val prior = bridge.projectionStateSnapshot()
+            val priorFeed = coordinator.feed(SeatId(1)).queue.toList()
+            val competing = prior.copy(revision = prior.revision + 1)
+            coordinator.lifecycle.beforeRedrawInstall = { bridge.replaceProjectionStateForTest(competing) }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
+            }
+
+            assertSoftly {
+                bridge.projectionStateSnapshot() shouldBe competing
+                coordinator.feed(SeatId(1)).queue.toList() shouldBe priorFeed
+            }
+        }
+
+        test("redraw post-install failure retains identities and output together") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val coordinator = bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            bridge.getOrAllocInstanceId(ForgeCardId(900_020))
+            val prior = bridge.projectionStateSnapshot()
+            coordinator.lifecycle.afterRedrawInstall = { error("redraw acknowledgement unavailable") }
+
+            shouldThrow<PlaybackTerminalFailure> {
+                coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
+            }
+
+            val committed = bridge.projectionStateSnapshot()
+            assertSoftly {
+                committed.revision shouldBe prior.revision + 1
+                committed.identities.forgeIdToInstanceId.containsKey(ForgeCardId(900_020)) shouldBe false
+                committed.sequence.committedOutputOrdinal shouldBe prior.sequence.committedOutputOrdinal + 1
+                coordinator
+                    .feed(SeatId(1))
+                    .queue
+                    .single()
+                    .messages.size shouldBe 4
             }
         }
 

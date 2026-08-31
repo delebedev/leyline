@@ -20,7 +20,7 @@ interface GreMessageSink {
 
     fun sendPriorityState(bridge: GameBridge) = sendRealGameState(bridge)
 
-    fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
+    fun sendGameOver()
 }
 
 internal enum class SynchronizationDrain {

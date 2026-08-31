@@ -41,6 +41,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStage
 import wotc.mtgo.gre.external.messaging.Messages.ResultReason
+import wotc.mtgo.gre.external.messaging.Messages.ResultType
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -178,32 +179,6 @@ class MatchCutCoordinatorTest :
                     GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority, spellGrpId = 2),
                 ),
             ) shouldBe true
-        }
-
-        test("phase replacement enqueue failure terminalizes without replaying the prior window") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            board.bridge.cutCoordinator.beforeActionEnqueue = {
-                error("delivery unavailable")
-            }
-
-            val failure =
-                shouldThrow<PlaybackTerminalFailure> {
-                    board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-                }
-            board.bridge.cutCoordinator.beforeActionEnqueue = null
-
-            assertSoftly {
-                failure.cause?.message shouldBe "delivery unavailable"
-                board.bridge.projectionStateSnapshot() shouldBe priorProjection
-                board.bridge.committedSequence() shouldBe priorSequence
-                board.bridge.cutCoordinator.failure() shouldBe failure
-                board.bridge.actionBridge(SeatId(1)).getPending() shouldBe null
-                pending.promptGameStateId.shouldBeNull()
-                board.bridge.cutCoordinator.hasCommittedBatches(SeatId(1)) shouldBe true
-            }
         }
 
         test("action window becomes visible before the committed feed can drain") {
@@ -435,60 +410,6 @@ class MatchCutCoordinatorTest :
             }
         }
 
-        test("phase replacement stale install rolls back new output and terminalizes") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorSequence = board.bridge.committedSequence()
-            val competing =
-                board.bridge
-                    .projectionStateSnapshot()
-                    .editor()
-                    .freeze()
-            board.bridge.cutCoordinator.beforeActionInstall = {
-                board.bridge.replaceProjectionStateForTest(competing)
-            }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-            }
-            board.bridge.cutCoordinator.beforeActionInstall = null
-
-            assertSoftly {
-                board.bridge.projectionStateSnapshot() shouldBe competing
-                board.bridge.committedSequence() shouldBe competing.sequence
-                board.bridge.committedSequence().currentMsgId shouldBe priorSequence.currentMsgId
-                board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .count { it.hasActionsAvailableReq() } shouldBe 1
-            }
-        }
-
-        test("post-install phase replacement failure retains committed output and ids") {
-            val board = startPuzzleAtMain1(puzzle)
-            val pending = checkNotNull(board.bridge.actionBridge(SeatId(1)).getPending())
-            val priorProjection = board.bridge.projectionStateSnapshot()
-            val priorSequence = board.bridge.committedSequence()
-            board.bridge.cutCoordinator.afterActionInstall = { error("acknowledgement unavailable") }
-
-            shouldThrow<PlaybackTerminalFailure> {
-                board.bridge.cutCoordinator.replaceWithPhaseTransition(pending.actionId)
-            }
-            board.bridge.cutCoordinator.afterActionInstall = null
-
-            assertSoftly {
-                board.bridge.cutCoordinator
-                    .failure()
-                    .shouldNotBeNull()
-                board.bridge.projectionStateSnapshot().revision shouldBeGreaterThan priorProjection.revision
-                board.bridge.committedSequence().currentMsgId shouldBeGreaterThan priorSequence.currentMsgId
-                board.bridge.cutCoordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .count { it.hasActionsAvailableReq() } shouldBe 1
-            }
-        }
-
         test("teardown linearizes before action publication lock") {
             val board = startPuzzleAtMain1(puzzle)
             val bridge =
@@ -551,7 +472,8 @@ class MatchCutCoordinatorTest :
             val prior = board.bridge.projectionStateSnapshot()
             board.bridge.cutCoordinator.publishGameOver(
                 SeatId(1),
-                GameOverIntent(
+                GameOverOutcome(
+                    result = ResultType.WinLoss,
                     winningTeam = 1,
                     reason = ResultReason.Game_ae0a,
                     losingPlayerSeatId = 2,
@@ -593,13 +515,16 @@ class MatchCutCoordinatorTest :
                 shouldThrow<PlaybackTerminalFailure> {
                     materializationBoard.bridge.cutCoordinator.publishGameOver(
                         SeatId(1),
-                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                        GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
                     )
                 }
             assertSoftly {
                 materializationFailure.cause?.message shouldBe "game-over materialization failed"
                 materializationBoard.bridge.cutCoordinator.drain(SeatId(1)) shouldBe listOf(existing)
                 materializationBoard.bridge.projectionStateSnapshot() shouldBe prior
+                materializationBoard.bridge.cutCoordinator
+                    .committedGameOverOutcome()
+                    .shouldBeNull()
             }
 
             val installBoard = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
@@ -610,7 +535,7 @@ class MatchCutCoordinatorTest :
                 shouldThrow<PlaybackTerminalFailure> {
                     installBoard.bridge.cutCoordinator.publishGameOver(
                         SeatId(1),
-                        GameOverIntent(1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
+                        GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Concede, 2, AnnotationLossReason.Concede),
                     )
                 }
             assertSoftly {
@@ -619,6 +544,9 @@ class MatchCutCoordinatorTest :
                     .drain(SeatId(1))
                     .shouldBeEmpty()
                 installBoard.bridge.cutCoordinator.failure() shouldBe installFailure
+                installBoard.bridge.cutCoordinator
+                    .committedGameOverOutcome()
+                    .shouldBeNull()
             }
         }
 

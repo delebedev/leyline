@@ -81,12 +81,14 @@ internal object TapPaymentPolicy {
         required: Int,
         ability: SpellAbility,
     ): Plan? {
-        log.warn(
-            "event=unclassified_tap_payment kind={} required={} source={}",
-            kind,
-            required,
-            ability.hostCard?.name,
-        )
+        val event =
+            log
+                .atWarn()
+                .addKeyValue("event", "payment.tap_unclassified")
+                .addKeyValue("kind", kind.name)
+                .addKeyValue("required", required)
+        val sourcedEvent = ability.hostCard?.name?.let { event.addKeyValue("source_card", it) } ?: event
+        sourcedEvent.log("Tap payment is unclassified")
         return null
     }
 

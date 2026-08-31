@@ -56,7 +56,13 @@ internal class MatchRuntimeDeliveryObserver(
             try {
                 deliverIfCurrent()
             } catch (ex: Throwable) {
-                log.warn("Runtime horizon delivery failed: {}", ex.message, ex)
+                log
+                    .atError()
+                    .setCause(ex)
+                    .addKeyValue("event", "match.runtime_delivery_failed")
+                    .addKeyValue("match_id", session.matchId)
+                    .addKeyValue("seat", seatId.value)
+                    .log("Runtime horizon delivery failed")
                 return
             }
         }

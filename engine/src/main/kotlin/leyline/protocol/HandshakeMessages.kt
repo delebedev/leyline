@@ -25,6 +25,7 @@ object HandshakeMessages {
         matchId: String,
         winningTeam: Int,
         playerId: String,
+        resultType: ResultType = ResultType.WinLoss,
         reason: ResultReason = ResultReason.Concede,
     ): MatchServiceToClientMessage {
         val result =
@@ -32,8 +33,8 @@ object HandshakeMessages {
                 .newBuilder()
                 .setMatchId(matchId)
                 .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
-                .addResultList(resultSpec(MatchScope.Game_a146, winningTeam, reason))
-                .addResultList(resultSpec(MatchScope.Match, winningTeam, reason))
+                .addResultList(resultSpec(MatchScope.Game_a146, resultType, winningTeam, reason))
+                .addResultList(resultSpec(MatchScope.Match, resultType, winningTeam, reason))
         val roomInfo =
             MatchGameRoomInfo
                 .newBuilder()
@@ -45,12 +46,13 @@ object HandshakeMessages {
 
     private fun resultSpec(
         scope: MatchScope,
+        resultType: ResultType,
         winningTeam: Int,
         reason: ResultReason,
     ) = ResultSpec
         .newBuilder()
         .setScope(scope)
-        .setResult(ResultType.WinLoss)
+        .setResult(resultType)
         .setWinningTeamId(winningTeam)
         .setReason(reason)
 

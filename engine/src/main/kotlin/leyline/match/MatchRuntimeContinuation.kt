@@ -2,6 +2,7 @@ package leyline.match
 
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
+import org.slf4j.LoggerFactory
 
 internal sealed interface HandlerResult {
     data object NotHandled : HandlerResult
@@ -25,7 +26,9 @@ internal class MatchRuntimeContinuation(
     private val sink: GreMessageSink,
     private val bridge: GameBridge,
     private val seatId: SeatId,
+    private val matchId: String,
 ) {
+    private val log = LoggerFactory.getLogger(MatchRuntimeContinuation::class.java)
     private var terminalDelivered = false
 
     fun awaitHorizon(
@@ -70,13 +73,22 @@ internal class MatchRuntimeContinuation(
         deliverHorizon()
     }
 
-    fun deliverHorizon() {
-        drainCoordinatorBarrier(sink, bridge, seatId)
+    fun deliverHorizon(): DrainOutcome {
+        val outcome = drainCoordinatorBarrier(sink, bridge, seatId)
+        if (outcome.sent) {
+            log
+                .atDebug()
+                .addKeyValue("event", "match.horizon_delivered")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("seat", seatId.value)
+                .log("Match horizon delivered")
+        }
         sendGameOverIfTerminal()
+        return outcome
     }
 
     private fun sendGameOverIfTerminal() {
-        if (!bridge.gameIsOver() || bridge.actionBridge(seatId).getPending() != null || terminalDelivered) return
+        if (bridge.cutCoordinator.committedGameOverOutcome() == null || terminalDelivered) return
         terminalDelivered = true
         sink.sendGameOver()
     }

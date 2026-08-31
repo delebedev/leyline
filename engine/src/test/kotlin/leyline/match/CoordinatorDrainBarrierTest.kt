@@ -210,7 +210,7 @@ private class BarrierSink(
         revealForSeat: Int?,
     ) = Unit
 
-    override fun sendGameOver(reason: ResultReason) = Unit
+    override fun sendGameOver() = Unit
 }
 
 private fun batch(gameStateId: Int): List<GREToClientMessage> =

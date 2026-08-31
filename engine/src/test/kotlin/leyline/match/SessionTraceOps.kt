@@ -24,9 +24,9 @@ class SessionTraceOps(
 
     val sentGRE = mutableListOf<List<GREToClientMessage>>()
     val sentRealGameState = mutableListOf<GameBridge>()
-    val sentGameOver = mutableListOf<ResultReason>()
+    var sentGameOver = 0
     val sendRealGameStateCount: Int get() = sentRealGameState.size
-    val sendGameOverCount: Int get() = sentGameOver.size
+    val sendGameOverCount: Int get() = sentGameOver
 
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         sentGRE.add(messages)
@@ -39,7 +39,7 @@ class SessionTraceOps(
         sentRealGameState.add(bridge)
     }
 
-    override fun sendGameOver(reason: ResultReason) {
-        sentGameOver.add(reason)
+    override fun sendGameOver() {
+        sentGameOver++
     }
 }

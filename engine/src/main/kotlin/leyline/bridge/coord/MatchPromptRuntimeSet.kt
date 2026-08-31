@@ -69,8 +69,6 @@ internal class MatchPromptRuntimeSet(
             owner.fail(cause)
         }
 
-    internal fun lifecycleOwners(): List<PromptLifecycle> = lifecycle.toList()
-
     private fun <T : PromptLifecycle> own(runtime: T): T = runtime.also(lifecycle::add)
 }
 

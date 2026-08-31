@@ -66,6 +66,19 @@ class PriorityActionCandidates private constructor(
             }
         }
 
+        private fun canPlayAndPayManaCost(
+            spellAbility: SpellAbility,
+            player: Player,
+        ): Boolean =
+            try {
+                spellAbility.canPlay() &&
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
+                    }
+            } catch (_: Exception) {
+                false
+            }
+
         private fun candidateCards(
             game: Game,
             player: Player,
@@ -109,20 +122,5 @@ class PriorityActionCandidates private constructor(
                 mdfcLandAbility = mdfcLandAbility,
             )
         }
-
-        private fun canPlayAndPayManaCost(
-            spellAbility: SpellAbility,
-            player: Player,
-        ): Boolean =
-            try {
-                val canPlay = spellAbility.canPlay()
-                val canPay =
-                    NonInteractiveScope.bestEffort {
-                        ComputerUtilMana.canPayManaCost(spellAbility, player, 0, false)
-                    }
-                canPlay && canPay
-            } catch (_: Exception) {
-                false
-            }
     }
 }

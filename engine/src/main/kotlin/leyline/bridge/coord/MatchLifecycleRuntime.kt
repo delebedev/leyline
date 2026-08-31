@@ -11,6 +11,11 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 
+internal data class MulliganRedrawFacts(
+    val reportedMulliganCount: Int,
+    val numCards: Int,
+)
+
 /** Owns preparation and ordered publication of match lifecycle output. */
 internal class MatchLifecycleRuntime(
     private val owner: MatchCutCoordinator,
@@ -23,6 +28,8 @@ internal class MatchLifecycleRuntime(
 
     private var initialPublication: InitialPublication? = null
     private var familiarStartupClaimed = false
+    internal var beforeRedrawInstall: (() -> Unit)? = null
+    internal var afterRedrawInstall: (() -> Unit)? = null
 
     data class PuzzleReplacementPublication(
         val gameStateId: Int,
@@ -183,6 +190,34 @@ internal class MatchLifecycleRuntime(
             gameStateId
         }
 
+    fun publishMulliganRedraw(
+        seatId: SeatId,
+        facts: MulliganRedrawFacts,
+    ): Int =
+        withPlan(seatId) { prior, planner, dealGameStateId ->
+            val requestGameStateId = planner.nextGsId()
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.mulliganRedraw(
+                        planner.currentMsgId(),
+                        dealGameStateId,
+                        requestGameStateId,
+                        owner.bridge,
+                        seatId,
+                        facts.reportedMulliganCount,
+                        facts.numCards,
+                    )
+                }
+            install(
+                seatId,
+                prior,
+                planner,
+                prepared,
+                hooks = CutInstallHooks(beforeInstall = beforeRedrawInstall, afterInstall = afterRedrawInstall),
+            )
+            requestGameStateId
+        }
+
     fun publishPuzzleInitial(
         seatId: SeatId,
         actionId: String,
@@ -277,11 +312,13 @@ internal class MatchLifecycleRuntime(
         prepared: LifecycleMessageMaterializer.LifecycleMessages,
         replaces: List<GREToClientMessage> = emptyList(),
         synchronizationActionId: String? = null,
+        hooks: CutInstallHooks = CutInstallHooks(),
     ) {
         planner.setMsgId(prepared.nextMsgId)
         owner.cutInstaller.install(
             feed = owner.feed(seatId),
             cut = PreparedCut.prepare(prior, planner, prepared.messages, prepared.transition, closesPlaybackFrame = false),
+            hooks = hooks,
             replaces = replaces,
             onInstalled = {
                 synchronizationActionId?.let { owner.actions.markSynchronizationPublished(seatId, it, prepared.messages) }

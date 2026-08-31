@@ -1,11 +1,8 @@
 package leyline.match
 
-import forge.game.player.GameLossReason
-import leyline.bridge.coord.GameOverIntent
 import leyline.bridge.coord.SettledPromptAdmission
 import leyline.bridge.types.SeatId
 import leyline.domain.service.MatchCoordinator
-import leyline.game.annotations.AnnotationLossReason
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
@@ -52,6 +49,7 @@ class MatchSession(
 
     @Volatile
     private var lastPrompt: GREToClientMessage? = null
+    private var terminalCompleted = false
 
     fun lastPromptMessage(): GREToClientMessage? = lastPrompt
 
@@ -60,7 +58,7 @@ class MatchSession(
         if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null
     }
 
-    private val runtimeContinuation = MatchRuntimeContinuation(this, gameBridge, seatId)
+    private val runtimeContinuation = MatchRuntimeContinuation(this, gameBridge, seatId, matchId)
 
     /**
      * Game + bridge bound at construction. MatchSession is per-game; on
@@ -81,6 +79,7 @@ class MatchSession(
             sink = this,
             counters = this,
             ctx = ctx,
+            matchId = matchId,
         )
     val optionalActionHandler =
         OptionalActionHandler(
@@ -98,6 +97,7 @@ class MatchSession(
             priorityPolicy = gameBridge.priorityPolicy,
             ctx = ctx,
             continuation = runtimeContinuation,
+            matchId = matchId,
         )
 
     // --- Public entry points (called by MatchHandler) ---
@@ -259,6 +259,15 @@ class MatchSession(
                     is SettledPromptAdmission.Accepted ->
                         runtimeContinuation.awaitHorizon(completedActionId, it.afterEngineResume)
                     is SettledPromptAdmission.Rejected -> {
+                        log
+                            .atDebug()
+                            .addKeyValue("event", "match.response_rejected")
+                            .addKeyValue("match_id", matchId)
+                            .addKeyValue("seat", seatId.value)
+                            .addKeyValue("response_type", greMsg.type.name)
+                            .addKeyValue("game_state_id", greMsg.gameStateId)
+                            .addKeyValue("reason", it.reason.name)
+                            .log("Client response rejected")
                         gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, it.reason)
                         drainCoordinatorFeed()
                     }
@@ -274,8 +283,25 @@ class MatchSession(
         synchronized(sessionLock) {
             val failure = ResponseEnvelopeGuard.mismatchReason(greMsg, gameBridge.committedSequence(), gameBridge.responseAcceptance)
             if (failure == null) {
+                log
+                    .atDebug()
+                    .addKeyValue("event", "match.response_accepted")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("seat", seatId.value)
+                    .addKeyValue("response_type", greMsg.type.name)
+                    .addKeyValue("game_state_id", greMsg.gameStateId)
+                    .log("Client response accepted")
                 block(gameBridge.actionBridge(seatId).getPending()?.actionId)
             } else {
+                log
+                    .atDebug()
+                    .addKeyValue("event", "match.response_rejected")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("seat", seatId.value)
+                    .addKeyValue("response_type", greMsg.type.name)
+                    .addKeyValue("game_state_id", greMsg.gameStateId)
+                    .addKeyValue("reason", failure.name)
+                    .log("Client response rejected")
                 gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, failure)
                 drainCoordinatorFeed()
             }
@@ -311,7 +337,8 @@ class MatchSession(
     /** Handle concede: send game-over sequence, then route through centralized teardown. */
     override fun onConcede() =
         synchronized(sessionLock) {
-            sendGameOver(ResultReason.Concede)
+            gameBridge.cutCoordinator.publishConcession(seatId)
+            sendGameOver()
         }
 
     /** Handle SetSettingsReq: submit immutable policy input, then echo the response. */
@@ -377,43 +404,43 @@ class MatchSession(
      * waiting for CheckpointReq — the client tolerates this ordering and it
      * avoids needing cross-layer coordination between MatchHandler and MatchSession.
      */
-    override fun sendGameOver(reason: ResultReason) {
+    override fun sendGameOver() {
+        if (terminalCompleted) return
         val bridge = gameBridge
-        val humanPlayer = bridge.getPlayer(seatId)
-        val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
-        val winningTeam = if (humanWon) 1 else 2
-        val losingPlayerSeatId = if (humanWon) 2 else 1
-        val losingPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
-        val lossReason = annotationLossReasonFor(reason, losingPlayer?.getOutcome()?.lossState)
-
-        bridge.cutCoordinator.publishGameOver(
-            seatId,
-            GameOverIntent(
-                winningTeam = winningTeam,
-                reason = reason,
-                losingPlayerSeatId = losingPlayerSeatId,
-                lossReason = lossReason,
-            ),
-        )
+        val outcome = checkNotNull(bridge.cutCoordinator.committedGameOverOutcome()) { "Terminal outcome is not committed" }
         deliverCommittedCoordinatorBatches(this, bridge, seatId)
         drainFamiliarFeed()
-        log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
-        val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason)
+        val matchCompletedMsg =
+            HandshakeMessages.matchCompleted(matchId, outcome.winningTeam, playerId, outcome.result, outcome.reason)
         sink.sendRaw(matchCompletedMsg)
-        log.info("MatchSession: sent MatchCompleted room state")
+        terminalCompleted = true
+        log
+            .atInfo()
+            .addKeyValue("event", "match.completed")
+            .addKeyValue("match_id", matchId)
+            .addKeyValue("seat", seatId.value)
+            .addKeyValue("winning_team", outcome.winningTeam)
+            .addKeyValue("reason", outcome.reason.name)
+            .log("Match completed")
 
         // Notify coordinator (e.g. CourseService for sealed events)
         try {
-            coordinator?.reportMatchResult(matchId, humanWon)
+            coordinator?.reportMatchResult(matchId, outcome.winningTeam == seatId.value)
         } catch (e: Exception) {
-            log.warn("MatchSession: reportMatchResult failed: {}", e.message)
+            log
+                .atError()
+                .setCause(e)
+                .addKeyValue("event", "match.result_reporting_failed")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("seat", seatId.value)
+                .log("Match result reporting failed")
         }
 
         registry.teardownMatch(
             matchId = matchId,
-            reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
+            reason = if (outcome.reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
             seatId = seatId,
             fallbackBridge = bridge,
         )
@@ -441,37 +468,25 @@ class MatchSession(
     internal fun sendLifecycleGRE(messages: List<GREToClientMessage>) = sendBundledGREDirect(messages)
 
     private fun sendBundledGREDirect(messages: List<GREToClientMessage>) {
-        for (m in messages) {
-            if (m.type in PROMPT_GRE_TYPES) {
-                lastPrompt = m
-                autopush?.onPrompt(m)
-            }
+        val prompts = messages.filter { it.type in PROMPT_GRE_TYPES }
+        for (prompt in prompts) {
+            lastPrompt = prompt
+            autopush?.onPrompt(prompt)
         }
         sink.send(messages)
+        for (prompt in prompts) {
+            log
+                .atDebug()
+                .addKeyValue("event", "match.prompt_published")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("seat", seatId.value)
+                .addKeyValue("prompt_type", prompt.type.name)
+                .addKeyValue("game_state_id", prompt.gameStateId)
+                .log("Match prompt published")
+        }
     }
 
     fun close() {
         autopush?.shutdown()
     }
 }
-
-internal fun annotationLossReasonFor(
-    resultReason: ResultReason,
-    lossState: GameLossReason?,
-): AnnotationLossReason =
-    if (resultReason == ResultReason.Concede) {
-        AnnotationLossReason.Concede
-    } else {
-        when (lossState) {
-            GameLossReason.LifeReachedZero -> AnnotationLossReason.LifeTotal
-            GameLossReason.Poisoned -> AnnotationLossReason.Poison
-            GameLossReason.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
-            GameLossReason.Conceded -> AnnotationLossReason.Concede
-            GameLossReason.CommanderDamage,
-            GameLossReason.IntentionalDraw,
-            GameLossReason.OpponentWon,
-            GameLossReason.SpellEffect,
-            null,
-            -> AnnotationLossReason.LifeTotal
-        }
-    }

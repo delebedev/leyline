@@ -45,7 +45,9 @@ internal sealed interface PriorityWindowDecision {
  * decisions from this runtime; it never reconstructs policy from client
  * messages or maintains a second settings state.
  */
-class PriorityPolicyRuntime {
+class PriorityPolicyRuntime(
+    private val matchId: String? = null,
+) {
     private val log = LoggerFactory.getLogger(PriorityPolicyRuntime::class.java)
     private val stateLock = Any()
     private var authoritativeSettings: SettingsMessage? = null
@@ -201,12 +203,16 @@ class PriorityPolicyRuntime {
         game: Game,
         decision: PriorityDecision,
     ) {
-        log.info(
-            "event=priority_decision source=runtime phase={} turn={} decision={}",
-            game.phaseHandler.phase?.name,
-            game.phaseHandler.turn,
-            decision,
-        )
+        val skipped = decision as? PriorityDecision.Skip ?: return
+        val event =
+            log
+                .atDebug()
+                .addKeyValue("event", "match.priority_skipped")
+                .addKeyValue("reason", skipped.reason.toString())
+                .addKeyValue("phase", game.phaseHandler.phase?.name ?: "UNKNOWN")
+                .addKeyValue("turn", game.phaseHandler.turn)
+        val correlatedEvent = matchId?.let { event.addKeyValue("match_id", it) } ?: event
+        correlatedEvent.log("Priority skipped")
     }
 
     private fun applyStopsForPlayer(

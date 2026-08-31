@@ -43,8 +43,8 @@ internal object ResponseEnvelopeGuard {
             return null
         }
 
-        log.warn(
-            "ResponseEnvelopeGuard: {} respId={} expected={}",
+        log.debug(
+            "{} respId={} expected={}",
             message.type,
             message.respId,
             expectedRespId,

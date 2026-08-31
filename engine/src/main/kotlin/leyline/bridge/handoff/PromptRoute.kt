@@ -146,7 +146,6 @@ data class ResolutionRouteInput(
 /** Synchronous answer selected by an explicitly non-interactive route. */
 data class PromptPolicyDefault(
     val indices: List<Int>,
-    val warnAmbiguousGeneric: Boolean,
 )
 
 fun PromptRequest.policyDefault(): PromptPolicyDefault? {
@@ -160,7 +159,6 @@ fun PromptRequest.policyDefault(): PromptPolicyDefault? {
     val finish = targetingFinishOptionIndex
     return PromptPolicyDefault(
         indices = listOf(finish ?: defaultIndex),
-        warnAmbiguousGeneric = finish == null && semantic == PromptSemantic.Generic && options.size > 1,
     )
 }
 

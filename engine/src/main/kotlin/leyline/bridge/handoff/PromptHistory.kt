@@ -1,13 +1,9 @@
 package leyline.bridge.handoff
 
-import org.slf4j.LoggerFactory
-import java.util.Locale
-
 /** Bounded prompt-call history kept separate from the blocking bridge. */
 internal class PromptHistory(
     private val capacity: Int,
 ) {
-    private val log = LoggerFactory.getLogger(PromptHistory::class.java)
     private val entries = ArrayDeque<PromptRecord>(capacity)
 
     val snapshot: List<PromptRecord>
@@ -17,7 +13,6 @@ internal class PromptHistory(
         request: PromptRequest,
         outcome: PromptCallStatus,
         result: List<Int>,
-        elapsedMs: Long,
     ) {
         val frames =
             Thread
@@ -45,19 +40,6 @@ internal class PromptHistory(
                     minSelectionWeight = request.minSelectionWeight,
                 ),
             )
-        }
-        val secs = "%.1f".format(Locale.ROOT, elapsedMs / 1000.0)
-        val msg = "Prompt [${request.promptType}] \"${request.message}\" → $outcome $result (${secs}s)"
-        when (outcome) {
-            PromptCallStatus.RESPONDED,
-            PromptCallStatus.DEFAULTED_POLICY,
-            -> log.info(msg)
-            PromptCallStatus.TIMEOUT,
-            PromptCallStatus.ERROR,
-            PromptCallStatus.ALREADY_PENDING,
-            PromptCallStatus.NON_GAME_THREAD,
-            PromptCallStatus.NON_INTERACTIVE_SCOPE,
-            -> log.warn(msg)
         }
     }
 

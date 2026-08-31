@@ -2,6 +2,7 @@ package leyline.match
 
 import leyline.domain.deck.DeckSource
 import leyline.game.state.GameBridge
+import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicReference
 
 /** Lifecycle states for a match. */
@@ -15,6 +16,7 @@ class Match(
     val matchId: String,
     val bridge: GameBridge,
 ) {
+    private val log = LoggerFactory.getLogger(Match::class.java)
     private val stateRef = AtomicReference(MatchState.WAITING)
 
     /** Current lifecycle state. */
@@ -31,9 +33,7 @@ class Match(
         variant: String? = null,
     ) {
         bridge.start(seed, deckList, deckList1, deckList2, variant)
-        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
-            onStateChanged?.invoke(MatchState.RUNNING)
-        }
+        markStarted()
     }
 
     fun start(
@@ -43,9 +43,7 @@ class Match(
         variant: String? = null,
     ) {
         bridge.start(seed, deck1, deck2, variant)
-        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
-            onStateChanged?.invoke(MatchState.RUNNING)
-        }
+        markStarted()
     }
 
     @Synchronized
@@ -59,9 +57,7 @@ class Match(
     ) {
         if (stateRef.get() != MatchState.WAITING) return
         bridge.startAiVsAi(seed, deckList, deckList1, deckList2, variant, startGameHook)
-        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
-            onStateChanged?.invoke(MatchState.RUNNING)
-        }
+        markStarted()
     }
 
     @Synchronized
@@ -74,7 +70,16 @@ class Match(
     ) {
         if (stateRef.get() != MatchState.WAITING) return
         bridge.startAiVsAi(seed, deck1, deck2, variant, startGameHook)
+        markStarted()
+    }
+
+    private fun markStarted() {
         if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            log
+                .atInfo()
+                .addKeyValue("event", "match.started")
+                .addKeyValue("match_id", matchId)
+                .log("Match started")
             onStateChanged?.invoke(MatchState.RUNNING)
         }
     }

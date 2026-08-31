@@ -67,6 +67,7 @@ class OptionalActionGate(
                 customPromptId = customPromptId,
                 commanderReturn = commanderReturn,
             ),
+            sourceCard = hostCard,
             timeoutMs = actionBridge?.getTimeoutMs(),
             defaultOnTimeout = defaultOnTimeout,
         )

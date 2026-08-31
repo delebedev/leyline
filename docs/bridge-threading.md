@@ -91,6 +91,14 @@ projection installs, allocation and publication are not rewound. Committed
 logical identifiers and output ordinals remain monotonic; sessions and
 transports may read their horizons but cannot allocate them.
 
+Settings acknowledgements and concession are session-triggered coordinator
+publications. Settings acknowledgement uses no Forge state. The concession
+outcome is a value derived from stable seats and the client command, while its
+publication materializes current Forge state on the session caller. Both use
+the ordered cut transaction under `sessionLock` then `feedLock`; neither
+advances Forge. These paths are shell integration exceptions to the default
+engine-thread owner.
+
 Every coordinator-backed interaction preserves these rules:
 
 1. Freeze projection values and exact executable handles on the engine thread.
@@ -106,11 +114,6 @@ prompt policy, not permission to continue after failed publication.
 
 A synchronous default path publishes no window and therefore emits no signal.
 Priority `Skip` likewise closes no journal and allocates no protocol state.
-
-Two current paths sit outside the common transaction. `MulliganHandler` resets
-instance identities before publishing the redraw cut. Phase-action replacement
-installs the new cut, then removes the previous action batch from the installer's
-`afterInstall` callback instead of supplying it as a rollback-aware replacement.
 
 ## Delivery limits
 
@@ -138,9 +141,10 @@ does not submit actions or choose progression policy.
 
 In-process harness callers may wait for named sink output, but do not wait on an
 engine horizon or consume the observer notification. Player, Familiar, and
-spectator sessions drain only their own committed viewer feeds. Raw match
-completion is connection-local and follows the committed terminal drain. PvP
-transport is outside this fixed-roster delivery model.
+spectator sessions are delivery-only at the terminal horizon: they drain and
+deliver their own committed viewer feed and do not derive terminal state from
+Forge. Raw match completion is connection-local and follows the committed
+terminal drain. PvP transport is outside this fixed-roster delivery model.
 
 ### Initial-publication replay
 
@@ -151,9 +155,9 @@ logical identifiers. It does not install another projection transition, and it
 does not duplicate a batch already queued. This is initial-handshake replay, not
 a general reconstruction of the latest viewer state after gameplay.
 
-Mulligan is the other pre-game exception: it drives an engine interaction
-outside `sessionLock`, while its output still commits through the coordinator
-lifecycle runtime.
+Mulligan remains a pre-game execution-domain exception: it drives an engine
+interaction outside `sessionLock`. Redraw identity and lifecycle output commit
+together through one coordinator lifecycle cut.
 
 ## Teardown
 

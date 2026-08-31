@@ -167,6 +167,6 @@ class AppMatchCoordinator(
         }
         val (player, event) = routed
         courseService.recordMatchResult(player, event, won)
-        log.info("Match result recorded: matchId={} player={} event={} won={}", matchId, player.value, event, won)
+        log.info("Match result recorded: matchId={} event={} won={}", matchId, event, won)
     }
 }

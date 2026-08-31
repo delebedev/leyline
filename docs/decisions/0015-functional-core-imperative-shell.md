@@ -10,11 +10,17 @@ read_when:
 
 ## Status
 
-Accepted. The functional projection core and match-scoped blocking-prompt
-ownership are substantially implemented. The runtime now has one engine-thread
-progression authority, ordered gameplay and lifecycle output, tentative logical
-sequence in `ProjectionState`, atomic multi-view installation, and one
-settled-prompt admission and lifecycle owner.
+Accepted. The runtime has one engine-thread semantic progression authority,
+ordered gameplay and lifecycle output, tentative logical sequence in
+`ProjectionState`, atomic multi-view installation, and one settled-prompt
+admission and lifecycle owner.
+
+Settings acknowledgements and concession remain session-triggered coordinator
+publications. Settings acknowledgement uses no Forge state. The concession
+outcome is a value derived from stable seats and the client command, while its
+publication materializes current Forge state on the session caller under
+`sessionLock` then `feedLock`. Neither path advances Forge. This is a shell
+integration exception to the default logical owner defined by this ADR.
 
 The implemented milestone provides:
 
@@ -26,17 +32,10 @@ The implemented milestone provides:
 - typed match-scoped owners for blocking prompt families, with exact Forge
   handles retained behind immutable client-facing values.
 
-Remaining work is limited to `GameBridge` engine-shell orchestration and
-safe-point adaptation, the secondary live-state action-construction path,
-session-triggered coordinator publication, and `sessionLock`/`feedLock`
-coordination across classes. These are shell integration seams, not a second
-semantic progression owner, and do not reopen the projection or settled-prompt
-ownership claims above.
-
 This ADR is the durable decision record: it owns the rationale, fixed boundary,
 and rejected alternatives. [`architecture.md`](../architecture.md) describes
 the current implementation; [`bridge-threading.md`](../bridge-threading.md)
-owns transitional cross-thread constraints.
+owns cross-thread constraints.
 
 This decision partially supersedes
 [`ADR 0014`](0014-command-yield-engine-boundary.md). It keeps Forge confinement,
@@ -174,13 +173,9 @@ The implemented milestone is visible in current types:
   ordering returns its input without allocating a prompt. Modal choice now has
   a coordinator-owned runtime.
 
-The milestone now covers blocking prompt-response ownership, including the
-residual card compatibility path, multi-view projection installation, and
-ordered lifecycle and terminal output. Remaining work is shell integration:
-`GameBridge` orchestration and safe-point adaptation, secondary live-state
-action construction, session-triggered coordinator publication, and
-`sessionLock`/`feedLock` coordination across classes. These seams refine the
-integration around the single progression authority.
+The runtime covers blocking prompt-response ownership, including the residual
+card compatibility path, multi-view projection installation, and ordered
+lifecycle and terminal output.
 
 ## Decision
 

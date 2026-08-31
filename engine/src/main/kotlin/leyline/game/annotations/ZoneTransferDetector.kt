@@ -286,7 +286,7 @@ object ZoneTransferDetector {
                     }
                 if (ledgerIntent?.origin != TransferPlanOrigin.Event) {
                     snapshotFallbacks.add(SnapshotTransferFallback(forgeCardId, prevZone, obj.zoneId))
-                    log.warn(
+                    log.debug(
                         "snapshot transfer fallback card={} {}->{}",
                         forgeCardId,
                         prevZone,
@@ -1069,7 +1069,7 @@ object ZoneTransferDetector {
             val category = zoneOnlyTransferCategory(prevZone, destZone, forgeCardId, events, ledgerIntent, pendingResolution)
             if (ledgerIntent?.origin != TransferPlanOrigin.Event) {
                 snapshotFallbacks.add(SnapshotTransferFallback(forgeCardId, prevZone, destZone))
-                log.warn("snapshot transfer fallback card={} {}->{}", forgeCardId, prevZone, destZone)
+                log.debug("snapshot transfer fallback card={} {}->{}", forgeCardId, prevZone, destZone)
             }
             val spellCastEvent =
                 if (category == TransferCategory.CastSpell) {

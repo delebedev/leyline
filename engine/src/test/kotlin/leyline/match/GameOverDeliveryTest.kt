@@ -1,5 +1,6 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -11,7 +12,6 @@ import leyline.infra.MessageSink
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ResultReason
 
 class GameOverDeliveryTest :
     BoardTest({
@@ -59,7 +59,8 @@ class GameOverDeliveryTest :
                 )
 
             try {
-                shouldTerminalizeDelivery(failure) { session.sendGameOver(ResultReason.Concede) } shouldBe
+                bridge.cutCoordinator.publishConcession(SeatId(1))
+                shouldTerminalizeDelivery(failure) { session.sendGameOver() } shouldBe
                     bridge.cutCoordinator.failure()
             } finally {
                 session.close()
@@ -76,20 +77,26 @@ class GameOverDeliveryTest :
                 ),
             )
             val deliveries = mutableListOf<String>()
+            val playerMessages = mutableListOf<GREToClientMessage>()
+            val familiarMessages = mutableListOf<GREToClientMessage>()
+            val rawMessages = mutableListOf<MatchServiceToClientMessage>()
             val playerSink =
                 object : MessageSink {
                     override fun send(messages: List<GREToClientMessage>) {
                         deliveries += "player"
+                        playerMessages += messages
                     }
 
                     override fun sendRaw(msg: MatchServiceToClientMessage) {
                         deliveries += "raw"
+                        rawMessages += msg
                     }
                 }
             val familiarSink =
                 object : MessageSink {
                     override fun send(messages: List<GREToClientMessage>) {
                         deliveries += "familiar"
+                        familiarMessages += messages
                     }
 
                     override fun sendRaw(msg: MatchServiceToClientMessage) = error("Familiar sends no raw completion")
@@ -104,9 +111,19 @@ class GameOverDeliveryTest :
             registry.registerSession(MATCH_ID, SeatId(1), session)
             registry.registerSession(MATCH_ID, SeatId(2), familiar)
 
-            session.sendGameOver(ResultReason.Concede)
+            bridge.cutCoordinator.publishConcession(SeatId(1))
+            session.sendGameOver()
+            session.sendGameOver()
 
-            deliveries shouldContainExactly listOf("player", "familiar", "raw")
+            assertSoftly {
+                deliveries shouldContainExactly listOf("player", "familiar", "raw")
+                playerMessages.last().intermissionReq.result shouldBe familiarMessages.last().intermissionReq.result
+                rawMessages
+                    .single()
+                    .matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
+                    .getResultList(1) shouldBe
+                    playerMessages.last().intermissionReq.result
+            }
         }
 
         test("SpectatorSession game-over delivery failure terminalizes the coordinator") {
@@ -121,7 +138,8 @@ class GameOverDeliveryTest :
             val session = SpectatorSession(SeatId(1), MATCH_ID, failingSink(failure), bridge)
 
             try {
-                shouldTerminalizeDelivery(failure) { session.sendGameOver(ResultReason.Concede) } shouldBe
+                bridge.cutCoordinator.publishConcession(SeatId(1))
+                shouldTerminalizeDelivery(failure) { session.sendGameOver() } shouldBe
                     bridge.cutCoordinator.failure()
             } finally {
                 session.close()

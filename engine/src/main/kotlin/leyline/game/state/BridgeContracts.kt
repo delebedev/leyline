@@ -87,9 +87,6 @@ interface EventDrain {
  * unit-tested with a stub instead of a full GameBridge + Forge engine.
  */
 interface RuntimePriorityView : PlayerLookup {
-    /** True when the engine has reached its terminal horizon. */
-    fun gameIsOver(): Boolean = getGame()?.isGameOver == true
-
     /** Per-seat action playback queue, when this seat has one. */
     fun playbackFor(seatId: SeatId): GamePlayback?
 

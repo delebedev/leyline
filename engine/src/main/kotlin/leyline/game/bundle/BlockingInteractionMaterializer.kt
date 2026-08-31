@@ -243,26 +243,26 @@ internal class BlockingInteractionMaterializer(
         edit(prior) { editor ->
             val attackerId = editor.identities.getOrAlloc(interaction.attackerId).value
             val assignments = mutableListOf<DamageAssignment>()
-            var assigned = 0
+            var remaining = interaction.damageDealt.coerceAtLeast(0)
             for (blockerId in interaction.blockerIds) {
                 val lethal = if (interaction.hasDeathtouch) 1 else maxOf(0, blockerToughness[blockerId] ?: 0)
-                assigned += lethal
+                val assigned = lethal.coerceAtMost(remaining)
+                remaining -= assigned
                 assignments +=
                     DamageAssignment
                         .newBuilder()
                         .setInstanceId(editor.identities.getOrAlloc(blockerId).value)
                         .setMinDamage(lethal)
-                        .setAssignedDamage(lethal)
+                        .setAssignedDamage(assigned)
                         .build()
             }
-            if (interaction.hasTrample && interaction.hasDefender) {
-                val overflow = interaction.damageDealt - assigned
+            if (interaction.hasTrample && interaction.hasDefender && remaining > 0) {
                 assignments +=
                     DamageAssignment
                         .newBuilder()
                         .setInstanceId(SeatId(seatId).opponent.value)
-                        .setMaxDamage(overflow)
-                        .setAssignedDamage(overflow)
+                        .setMaxDamage(remaining)
+                        .setAssignedDamage(remaining)
                         .build()
             }
             val assigner =

@@ -90,10 +90,13 @@ immutable client-domain values. `PriorityPolicyRuntime` owns accumulated client
 settings and priority presentation policy. `ProjectionState` is the committed
 client-facing history.
 
-The coordinator materializes lifecycle output from immutable intent. The
-player and spectator sessions currently derive `GameOverIntent` from the Forge
-outcome before asking the coordinator to publish the terminal cut. Transport
-completion remains a session concern after that cut drains.
+The engine progression path materializes one immutable terminal outcome and
+the coordinator retains it with the committed game-over cut. Player, Familiar,
+and spectator sessions only drain and deliver that value. Raw transport
+completion remains connection-local and follows the terminal drain.
+
+ADR 0015 defines the active runtime boundary. ADR 0014 is retained only for its
+Forge-confinement and value-boundary rationale.
 
 [`bridge-threading.md`](bridge-threading.md) is authoritative for execution
 domains, mutable-state ownership, lock order, delivery limits, teardown, and the

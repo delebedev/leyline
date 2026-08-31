@@ -141,19 +141,6 @@ class GamePlaybackTest :
             queue.shouldBeEmpty()
         }
 
-        test("Shared LogicalSequencePlanner is used by playback — no local atomics") {
-            val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 20)
-
-            @Suppress("UnusedPrivateProperty")
-            val pb = createMinimalPlayback(counter)
-
-            counter.currentGsId() shouldBe 10
-            counter.currentMsgId() shouldBe 20
-
-            counter.nextGsId()
-            counter.currentGsId() shouldBe 11
-        }
-
         test("No duplicate msgIds when two threads use the same counter") {
             val counter = LogicalSequencePlanner(initialGsId = 10, initialMsgId = 10)
 

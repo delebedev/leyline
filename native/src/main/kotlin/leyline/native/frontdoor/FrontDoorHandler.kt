@@ -90,7 +90,7 @@ class FrontDoorHandler(
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
-        log.info("Front Door: client connected from {}", ctx.channel().remoteAddress())
+        log.info("Front Door: client connected")
     }
 
     override fun channelRead(
@@ -137,7 +137,14 @@ class FrontDoorHandler(
                 try {
                     FdEnvelope.decode(payload)
                 } catch (e: Exception) {
-                    log.error("Front Door: envelope decode FAILED ({}B payload): {}", payload.size, e.message)
+                    log
+                        .atError()
+                        .setCause(e)
+                        .addKeyValue("event", "frontdoor.envelope_decode_failed")
+                        .addKeyValue("subsystem", "frontdoor")
+                        .addKeyValue("request", "envelope")
+                        .addKeyValue("payload_bytes", payload.size)
+                        .log("Front Door envelope decode failed")
                     writer.send(ctx, null, FdResponse.Empty)
                     return
                 }
@@ -672,7 +679,13 @@ class FrontDoorHandler(
         ctx: ChannelHandlerContext,
         cause: Throwable,
     ) {
-        log.error("Front Door error: {}", cause.message, cause)
+        log
+            .atError()
+            .setCause(cause)
+            .addKeyValue("event", "frontdoor.request_failed")
+            .addKeyValue("subsystem", "frontdoor")
+            .addKeyValue("request", "channel")
+            .log("Front Door request failed")
         ctx.close()
     }
 
