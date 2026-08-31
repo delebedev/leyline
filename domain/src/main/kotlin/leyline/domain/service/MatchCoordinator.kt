@@ -9,8 +9,8 @@ import leyline.domain.deck.DeckCards
  * connects on port 30003. The client's connection sequence guarantees FD
  * writes complete before MD reads — no stronger sync than @Volatile needed.
  *
- * Interface lives in domain because native and embedding-host match launches need it.
- * Implementation lives in app/ where services are composed.
+ * The repository-backed implementation lives beside this interface so native
+ * and embedding hosts share one launch and result policy.
  */
 interface MatchCoordinator {
     // --- FD writes (lobby flow) ---
