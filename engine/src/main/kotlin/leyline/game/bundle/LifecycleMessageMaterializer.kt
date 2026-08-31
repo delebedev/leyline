@@ -158,8 +158,10 @@ object LifecycleMessageMaterializer {
         val connectMsgId = planner.nextMsgId()
         val dieRollMsgId = planner.nextMsgId()
         val gameStateMsgId = planner.nextMsgId()
+        val hasStartingPlayerDecision =
+            includeStartingPlayerPrompt && viewers.any { it.role == ProjectionViewerRole.Player }
         val hasStartingPlayerRequest =
-            includeStartingPlayerPrompt &&
+            hasStartingPlayerDecision &&
                 viewers.any { it.seatId == SeatId(2) && it.role == ProjectionViewerRole.Player }
         val startingPlayerMsgId = if (hasStartingPlayerRequest) planner.nextMsgId() else null
         val prior = bridge.projectionStateSnapshot()
@@ -178,7 +180,7 @@ object LifecycleMessageMaterializer {
                             snapshot,
                             pendingMessageCount = if (shouldPrompt) 1 else 0,
                             viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
-                            includeStartingPlayerDecision = shouldPrompt,
+                            includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
                     editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = snapshot)
                     val output =

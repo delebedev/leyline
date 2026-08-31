@@ -18,6 +18,7 @@ import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.util.Random
@@ -123,6 +124,50 @@ class HandshakeMessagesTest :
                     ?.previousSnapshot shouldNotBe null
                 bundle.transition.nextState.viewerCursors[SeatId(2)]
                     ?.previousSnapshot shouldNotBe null
+            }
+        }
+
+        test("player and Familiar bundles share the starting-player decision state") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(seed = 1L)
+            val bundle =
+                LifecycleMessageMaterializer.initialBundles(
+                    viewers =
+                        listOf(
+                            ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                            ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                        ),
+                    matchId = "test",
+                    gameStateId = 1,
+                    planner = LogicalSequencePlanner(b.projectionStateSnapshot().sequence),
+                    bridge = b,
+                )
+
+            val seat1State =
+                bundle.viewers
+                    .single { it.first == SeatId(1) }
+                    .second
+                    .single { it.type == GREMessageType.GameStateMessage_695e }
+                    .gameStateMessage
+            val seat2State =
+                bundle.viewers
+                    .single { it.first == SeatId(2) }
+                    .second
+                    .single { it.type == GREMessageType.GameStateMessage_695e }
+                    .gameStateMessage
+
+            listOf(seat1State, seat2State).forEach { state ->
+                assertSoftly {
+                    state.turnInfo.decisionPlayer shouldBe 2
+                    state.playersList
+                        .single { it.systemSeatNumber == 2 }
+                        .pendingMessageType shouldBe ClientMessageType.ChooseStartingPlayerResp_097b
+                }
+            }
+            assertSoftly {
+                seat1State.pendingMessageCount shouldBe 0
+                seat2State.pendingMessageCount shouldBe 0
             }
         }
 
