@@ -80,6 +80,7 @@ class GameOverDeliveryTest :
             val playerMessages = mutableListOf<GREToClientMessage>()
             val familiarMessages = mutableListOf<GREToClientMessage>()
             val rawMessages = mutableListOf<MatchServiceToClientMessage>()
+            val results = mutableListOf<MatchResultObservation>()
             val playerSink =
                 object : MessageSink {
                     override fun send(messages: List<GREToClientMessage>) {
@@ -103,7 +104,7 @@ class GameOverDeliveryTest :
                 }
             val session =
                 MatchSession(
-                    connection = ConnectionState(SeatId(1), MATCH_ID, playerSink, registry),
+                    connection = ConnectionState(SeatId(1), MATCH_ID, playerSink, registry, results::add),
                     gameBridge = bridge,
                     paceDelayMs = 0,
                 )
@@ -123,6 +124,7 @@ class GameOverDeliveryTest :
                     .matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
                     .getResultList(1) shouldBe
                     playerMessages.last().intermissionReq.result
+                results shouldContainExactly listOf(MatchResultObservation(MATCH_ID, 1, 2))
             }
         }
 

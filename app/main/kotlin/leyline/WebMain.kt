@@ -3,12 +3,10 @@ package leyline
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import leyline.config.ConfigException
-import leyline.config.EngineSettings
 import leyline.config.LeylineConfigResolver
 import leyline.config.PuzzleDefinition
 import leyline.config.ResolvedLeylineConfig
 import leyline.config.RuntimeMatchConfig
-import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.WebSettings
 import leyline.domain.CollationPool
 import leyline.domain.PlayerId
@@ -27,7 +25,6 @@ import leyline.web.AuthRateLimitConfig
 import leyline.web.ChallengeCatalog
 import leyline.web.DEV_WEB_AUTH_SECRET
 import leyline.web.DevEmailSender
-import leyline.web.DirectWebGreEngineSession
 import leyline.web.DraftPlayResponse
 import leyline.web.GreStartRequest
 import leyline.web.InProcessWebGreRelay
@@ -35,6 +32,7 @@ import leyline.web.LimitedSetView
 import leyline.web.ResendEmailSender
 import leyline.web.SqliteWebAuthStore
 import leyline.web.WebAuthService
+import leyline.web.WebMatchLaunch
 import leyline.web.WebMatchLauncher
 import leyline.web.WebServices
 import leyline.web.installWeb
@@ -101,17 +99,19 @@ fun main(args: Array<String>) {
             courseService,
         ).also { it.discardIncompleteSessions() }
     val coordinator = AppMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
-    val relay = InProcessWebGreRelay()
-    val runtimeMatches = RuntimeMatchConfigRegistry()
+    val relay =
+        InProcessWebGreRelay(
+            engineSettings = engineSettings,
+            coordinator = coordinator,
+            cardRepository = cardRepo,
+            puzzlesDir = paths.puzzlesDir,
+        )
     val challengeCatalog = ChallengeCatalog.default()
     val launcher =
         WebRuntimeMatchLauncher(
-            engineSettings = engineSettings,
-            puzzlesDir = paths.puzzlesDir,
             challengeCatalog = challengeCatalog,
             coordinator = coordinator,
-            cardRepo = cardRepo,
-            runtimeMatches = runtimeMatches,
+            courseService = courseService,
             relay = relay,
         )
     val emailSender =
@@ -155,12 +155,9 @@ fun main(args: Array<String>) {
 }
 
 private class WebRuntimeMatchLauncher(
-    private val engineSettings: EngineSettings,
-    private val puzzlesDir: File,
     private val challengeCatalog: ChallengeCatalog,
     private val coordinator: AppMatchCoordinator,
-    private val cardRepo: CardRepository,
-    private val runtimeMatches: RuntimeMatchConfigRegistry,
+    private val courseService: CourseService,
     private val relay: InProcessWebGreRelay,
 ) : WebMatchLauncher {
     override fun launchGreMatch(
@@ -174,18 +171,24 @@ private class WebRuntimeMatchLauncher(
         val spectator = request.spectatorMode == true
         val seat1Text = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator }
         val seat2Text = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator }
-        runtimeMatches.configure(
-            RuntimeMatchConfig(
-                matchId = matchId,
-                seat1 = seat1Text?.let(DeckSource::ForgeText),
-                seat2 = seat2Text?.let(DeckSource::ForgeText),
-                gameVariant = request.gameVariant,
-                puzzle = request.puzzle,
-                puzzleDefinition = challenge,
-                spectatorMode = request.spectatorMode,
-            ),
-        )
-        return register(matchId, playerId, publicAccess = playerId == null && request.spectatorMode == true)
+        val response =
+            relay.launch(
+                WebMatchLaunch(
+                    config =
+                        RuntimeMatchConfig(
+                            matchId = matchId,
+                            seat1 = seat1Text?.let(DeckSource::ForgeText),
+                            seat2 = seat2Text?.let(DeckSource::ForgeText),
+                            gameVariant = request.gameVariant,
+                            puzzle = request.puzzle,
+                            puzzleDefinition = challenge,
+                            spectatorMode = request.spectatorMode,
+                        ),
+                    ownerPlayerId = playerId,
+                    publicAccess = playerId == null && spectator,
+                ),
+            )
+        return DraftPlayResponse(response.response.matchId, response.response.wireMatchId)
     }
 
     override fun launchCourseMatch(
@@ -193,35 +196,16 @@ private class WebRuntimeMatchLauncher(
         eventName: String,
     ): DraftPlayResponse {
         val matchId = "web-${UUID.randomUUID()}"
-        val (seat1, seat2) = coordinator.configureCourseMatch(matchId, playerId, eventName)
-        runtimeMatches.configure(
-            RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.Cards(seat1), seat2 = DeckSource.Cards(seat2)),
-        )
-        return register(matchId, playerId)
-    }
-
-    private fun register(
-        matchId: String,
-        playerId: PlayerId?,
-        publicAccess: Boolean = false,
-    ): DraftPlayResponse {
-        relay.register(
-            matchId,
-            ownerPlayerId = playerId,
-            publicAccess = publicAccess,
-            onClose = { runtimeMatches.remove(matchId) },
-        ) { onFrame, onClosed ->
-            DirectWebGreEngineSession(
-                engineSettings,
-                coordinator,
-                cardRepo,
-                runtimeMatches,
-                onFrame,
-                onClosed,
-                puzzlesDir,
+        val (seat1, seat2) = coordinator.configureCourseMatch(playerId, eventName)
+        val response =
+            relay.launch(
+                WebMatchLaunch(
+                    config = RuntimeMatchConfig(matchId, DeckSource.Cards(seat1), DeckSource.Cards(seat2)),
+                    ownerPlayerId = playerId,
+                ),
             )
-        }
-        return DraftPlayResponse(matchId, matchId)
+        response.result.thenAccept { result -> courseService.recordMatchResult(playerId, eventName, result.won) }
+        return DraftPlayResponse(response.response.matchId, response.response.wireMatchId)
     }
 }
 

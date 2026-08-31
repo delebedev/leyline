@@ -47,3 +47,17 @@ internal fun connectRequestBytes(
                 .toByteString(),
         ).build()
         .toByteArray()
+
+internal fun concedeRequestBytes(): ByteArray =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
+        .setPayload(
+            ClientToGREMessage
+                .newBuilder()
+                .setSystemSeatId(1)
+                .setType(ClientMessageType.ConcedeReq_097b)
+                .build()
+                .toByteString(),
+        ).build()
+        .toByteArray()

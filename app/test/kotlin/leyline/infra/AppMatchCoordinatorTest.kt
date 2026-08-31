@@ -320,7 +320,7 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val (seat1Cards, seat2Cards) = coordinator(courseRepo = courseRepo).configureCourseMatch("match-1", playerId, sealedEvent)
+            val (seat1Cards, seat2Cards) = coordinator(courseRepo = courseRepo).configureCourseMatch(playerId, sealedEvent)
 
             seat1Cards shouldBe seat2Cards
         }
@@ -341,7 +341,7 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val (seat1Cards, seat2Cards) = coordinator(draftRepo, courseRepo).configureCourseMatch("match-1", playerId, event)
+            val (seat1Cards, seat2Cards) = coordinator(draftRepo, courseRepo).configureCourseMatch(playerId, event)
 
             seat1Cards shouldNotBe seat2Cards
         }

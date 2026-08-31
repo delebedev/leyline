@@ -29,7 +29,6 @@ class AppMatchCoordinator(
 ) : MatchCoordinator {
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
     private val opponentRotationByEvent = ConcurrentHashMap<String, AtomicInteger>()
-    private val courseByMatchId = ConcurrentHashMap<String, Pair<PlayerId, String>>()
 
     @Volatile
     override var selectedDeckId: String? = null
@@ -133,7 +132,6 @@ class AppMatchCoordinator(
     }
 
     fun configureCourseMatch(
-        matchId: String,
         playerId: PlayerId,
         eventName: String,
     ): Pair<DeckCards, DeckCards> {
@@ -144,7 +142,6 @@ class AppMatchCoordinator(
         // player's own deck as the opponent — same fallback the native Match Door
         // uses in MatchConnection.resolveSeat2Deck when no pod is available.
         val seat2 = resolveOpponentDeckCards(playerId, eventName) ?: DeckCards(deck.mainDeck, deck.sideboard)
-        courseByMatchId[matchId] = playerId to eventName
         return DeckCards(deck.mainDeck, deck.sideboard) to seat2
     }
 
@@ -154,19 +151,5 @@ class AppMatchCoordinator(
         val event = selectedEventName ?: return
         courseService.recordMatchResult(playerId, event, won)
         log.info("Match result recorded: event={} won={}", event, won)
-    }
-
-    override fun reportMatchResult(
-        matchId: String,
-        won: Boolean,
-    ) {
-        val routed = courseByMatchId.remove(matchId)
-        if (routed == null) {
-            reportMatchResult(won)
-            return
-        }
-        val (player, event) = routed
-        courseService.recordMatchResult(player, event, won)
-        log.info("Match result recorded: matchId={} event={} won={}", matchId, event, won)
     }
 }

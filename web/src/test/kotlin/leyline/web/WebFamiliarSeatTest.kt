@@ -12,6 +12,7 @@ import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
+import leyline.game.generator.PuzzleLibrary
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.util.concurrent.CopyOnWriteArrayList
@@ -60,7 +61,7 @@ class WebFamiliarSeatTest :
                 InMemoryCardRepository(),
                 configs,
                 frames::add,
-                puzzlesDir = java.io.File("."),
+                puzzleLibrary = PuzzleLibrary(java.io.File(".")),
             )
         }
 

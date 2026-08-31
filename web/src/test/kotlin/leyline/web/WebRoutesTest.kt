@@ -40,6 +40,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
@@ -61,6 +62,7 @@ import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardData
+import leyline.game.generator.PuzzleLibrary
 import org.jetbrains.exposed.v1.jdbc.Database
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -76,6 +78,7 @@ import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
@@ -84,6 +87,8 @@ import java.util.concurrent.locks.LockSupport
 class WebRoutesTest :
     FunSpec({
         val json = Json { ignoreUnknownKeys = true }
+
+        beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
         test("serves checked-in OpenAPI contract") {
             withWeb(json) {
@@ -469,6 +474,44 @@ class WebRoutesTest :
             }
         }
 
+        test("web match lifecycle publishes initial state, observes one result, and closes") {
+            withWeb(json) {
+                val login = login()
+                val matchId = "runtime-lifecycle"
+                val handle =
+                    repos.relay.launch(
+                        WebMatchLaunch(
+                            config = RuntimeMatchConfig(matchId, puzzleDefinition = PuzzleDefinition(matchId, lifecyclePuzzle)),
+                            ownerPlayerId = PlayerId(login.playerId),
+                        ),
+                    )
+
+                greSocket(login, matchId) {
+                    send(Frame.Binary(fin = true, data = authRequestBytes("web-player")))
+                    send(Frame.Binary(fin = true, data = connectRequestBytes(matchId, seatId = 1)))
+                    var initialPublished = false
+                    while (!initialPublished) {
+                        val message = MatchServiceToClientMessage.parseFrom((incoming.receive() as Frame.Binary).readBytes())
+                        initialPublished =
+                            message.hasGreToClientEvent() &&
+                            message.greToClientEvent.greToClientMessagesList.any { it.hasGameStateMessage() }
+                    }
+                    send(Frame.Binary(fin = true, data = concedeRequestBytes()))
+                    while (!handle.result.toCompletableFuture().isDone) incoming.receive()
+                }
+
+                val result = handle.result.toCompletableFuture().get(1, TimeUnit.SECONDS)
+                assertSoftly {
+                    result.matchId shouldBe matchId
+                    result.won shouldBe false
+                }
+                handle.close()
+                greSocket(login, matchId) {
+                    shouldThrow<ClosedReceiveChannelException> { incoming.receive() }
+                }
+            }
+        }
+
         test("GRE relay streams engine frames as they're produced, not batched until the call returns") {
             withWeb(json) {
                 val login = login()
@@ -513,7 +556,7 @@ class WebRoutesTest :
                         runtimeMatchConfigs,
                         onFrame,
                         onClosed,
-                        java.io.File("."),
+                        PuzzleLibrary(java.io.File(".")),
                     )
                 }
 
@@ -606,7 +649,7 @@ class WebRoutesTest :
                     configs,
                     framesA::add,
                     { closedA.set(true) },
-                    puzzle.parentFile,
+                    PuzzleLibrary(puzzle.parentFile),
                 )
             val engineB =
                 DirectWebGreEngineSession(
@@ -615,7 +658,7 @@ class WebRoutesTest :
                     cards,
                     configs,
                     framesB::add,
-                    puzzlesDir = puzzle.parentFile,
+                    puzzleLibrary = PuzzleLibrary(puzzle.parentFile),
                 )
 
             try {
@@ -1107,7 +1150,6 @@ private class TestRepos {
     val deck = InMemoryDeckRepository()
     val emailSender = DevEmailSender()
     val enginePayloads = mutableListOf<ByteArray>()
-    val relay = InProcessWebGreRelay(idleCloseGraceMs = 50)
     val cards =
         InMemoryCardRepository().also {
             it.registerData(
@@ -1141,6 +1183,14 @@ private class TestRepos {
                 "Beta Card",
             )
         }
+    val relay =
+        InProcessWebGreRelay(
+            engineSettings = EngineSettings(),
+            coordinator = MatchCoordinator.NOOP,
+            cardRepository = cards,
+            puzzlesDir = java.io.File("data/puzzles"),
+            idleCloseGraceMs = 50,
+        )
 
     fun registerGre(
         matchId: String,
@@ -1288,3 +1338,23 @@ private class StaticDraftDriver : DraftService.Driver {
 
     override fun complete(sessionKey: String) = DraftService.PodOutcome(emptyList(), emptyList())
 }
+
+private val lifecyclePuzzle =
+    """
+    [metadata]
+    Name:Runtime lifecycle
+    Goal:Win
+    Turns:1
+    Difficulty:Easy
+    Description:Concede after initial publication.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain
+    humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()
