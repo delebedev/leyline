@@ -44,9 +44,9 @@ surface. `engine` is the only Gradle module that depends on Forge. `gre-proto`
 | root `app/` | `LeylineMain`, service wiring, local control, management | domain, engine, gre-proto, native, web |
 | `domain` | Shared values, services, repository ports | no application module |
 | `gre-proto` | Generated GRE schema, protoc output | no application module |
-| `engine` | Forge adapter, match runtime, interaction ownership, state projection | domain, gre-proto, Forge |
+| `engine` | Forge adapter, transport-neutral match runtime, interaction ownership, state projection | domain, gre-proto, Forge |
 | `native` | Account, lobby, native match transport and framing | domain, engine, gre-proto |
-| `web` | Browser routes, authentication, and in-process GRE match lifecycle | domain, engine, gre-proto |
+| `web` | Legacy browser routes, authentication, and GRE socket transport | domain, engine, gre-proto |
 
 Within `engine`, responsibilities follow the execution boundary:
 

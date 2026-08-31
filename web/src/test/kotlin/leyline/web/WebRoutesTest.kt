@@ -44,7 +44,6 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
-import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.CollationPool
 import leyline.domain.Deck
 import leyline.domain.DeckCard
@@ -62,7 +61,9 @@ import leyline.domain.service.GeneratedPool
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardData
-import leyline.game.generator.PuzzleLibrary
+import leyline.match.InProcessMatchRuntime
+import leyline.match.MatchRuntimeHandle
+import leyline.match.MatchRuntimeLaunch
 import org.jetbrains.exposed.v1.jdbc.Database
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -548,18 +549,17 @@ class WebRoutesTest :
             withWeb(json) {
                 val login = login()
                 val matchId = "crash-me"
-                val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
-                runtimeMatchConfigs.put(RuntimeMatchConfig(matchId = matchId, puzzle = "no-such-puzzle"))
+                val runtime =
+                    InProcessMatchRuntime(EngineSettings(), MatchCoordinator.NOOP, repos.cards, java.io.File("."))
                 repos.relay.register(matchId, ownerPlayerId = PlayerId(login.playerId)) { onFrame, onClosed ->
-                    DirectWebGreEngineSession(
-                        EngineSettings(),
-                        MatchCoordinator.NOOP,
-                        repos.cards,
-                        runtimeMatchConfigs,
-                        onFrame,
-                        onClosed,
-                        PuzzleLibrary(java.io.File(".")),
-                    )
+                    runtime
+                        .launch(
+                            MatchRuntimeLaunch(
+                                RuntimeMatchConfig(matchId = matchId, puzzle = "no-such-puzzle"),
+                                onFrame,
+                                onClosed,
+                            ),
+                        ).asWebSession()
                 }
 
                 greSocket(login, matchId) {
@@ -634,42 +634,36 @@ class WebRoutesTest :
                         """.trimIndent(),
                     )
                 }
-            val configs = RuntimeMatchConfigRegistry()
             val matchA = "web-engine-a"
             val matchB = "web-engine-b"
             val definition = PuzzleDefinition("web-engine-isolation", puzzle.readText())
-            configs.put(RuntimeMatchConfig(matchId = matchA, puzzleDefinition = definition))
-            configs.put(RuntimeMatchConfig(matchId = matchB, puzzleDefinition = definition))
             val framesA = CopyOnWriteArrayList<ByteArray>()
             val framesB = CopyOnWriteArrayList<ByteArray>()
             val closedA = AtomicBoolean(false)
+            val runtime = InProcessMatchRuntime(EngineSettings(), MatchCoordinator.NOOP, cards, puzzle.parentFile)
             val engineA =
-                DirectWebGreEngineSession(
-                    EngineSettings(),
-                    MatchCoordinator.NOOP,
-                    cards,
-                    configs,
-                    framesA::add,
-                    { closedA.set(true) },
-                    PuzzleLibrary(puzzle.parentFile),
+                runtime.launch(
+                    MatchRuntimeLaunch(
+                        RuntimeMatchConfig(matchId = matchA, puzzleDefinition = definition),
+                        framesA::add,
+                        { closedA.set(true) },
+                    ),
                 )
             val engineB =
-                DirectWebGreEngineSession(
-                    EngineSettings(),
-                    MatchCoordinator.NOOP,
-                    cards,
-                    configs,
-                    framesB::add,
-                    puzzleLibrary = PuzzleLibrary(puzzle.parentFile),
+                runtime.launch(
+                    MatchRuntimeLaunch(
+                        RuntimeMatchConfig(matchId = matchB, puzzleDefinition = definition),
+                        framesB::add,
+                    ),
                 )
 
             try {
                 fun connect(
-                    engine: DirectWebGreEngineSession,
+                    engine: MatchRuntimeHandle,
                     matchId: String,
                 ) {
-                    engine.receiveFromBrowser(authRequestBytes("web-player"))
-                    engine.receiveFromBrowser(connectRequestBytes(matchId, seatId = 1))
+                    engine.receive(authRequestBytes("web-player"))
+                    engine.receive(connectRequestBytes(matchId, seatId = 1))
                 }
 
                 connect(engineA, matchA)
@@ -680,7 +674,7 @@ class WebRoutesTest :
                         .map(MatchServiceToClientMessage::parseFrom)
                         .flatMap { it.greToClientEvent.greToClientMessagesList }
                         .last { it.hasActionsAvailableReq() }
-                engineA.receiveFromBrowser(
+                engineA.receive(
                     ClientToMatchServiceMessage
                         .newBuilder()
                         .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
@@ -1024,6 +1018,13 @@ private fun JsonObject.seatName(seat: String): String {
     val seatObject = getValue(seat).jsonObject
     return seatObject.getValue("name").jsonPrimitive.content
 }
+
+private fun MatchRuntimeHandle.asWebSession(): WebGreEngineSession =
+    object : WebGreEngineSession {
+        override fun receiveFromBrowser(payload: ByteArray) = receive(payload)
+
+        override fun close() = this@asWebSession.close()
+    }
 
 private fun challengeCatalog(vararg challengeIds: String) =
     ChallengeCatalog(
