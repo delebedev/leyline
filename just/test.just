@@ -1,7 +1,7 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`, `just test-one WebRoutesTest web`)
+# single test class, engine by default (e.g. `just test-one ShouldStopEvaluatorTest`)
 # Resolve the source file first so missing and ambiguous class names fail before
 # Gradle combines filters. The fully-qualified selector also remains stable when
 # similarly named specs are added in another package.
@@ -49,19 +49,16 @@ test-gate: docs-lint
     if [ "$(git config --get core.hooksPath || echo)" != ".githooks" ]; then
         echo "⚠  pre-push hooks not installed — run 'just hooks-install' to enable fmt-check/detekt/docs-lint pre-push" >&2
     fi
-    ./gradlew ktlintCheck detekt verifyWebProfilePosture :web:generateOpenApi
+    ./gradlew ktlintCheck detekt
     ./gradlew -PforceTests \
         :test \
         :domain:test \
         :engine:testGate \
-        :native:test \
-        :web:test
+        :native:test
     ./gradlew \
         :domain:jacocoTestReport \
         :engine:jacocoTestReport \
-        :native:jacocoTestReport \
-        :web:jacocoTestReport
-    git diff --exit-code -- web/src/main/resources/openapi.json
+        :native:jacocoTestReport
 
 # engine integration tests (boots engine per fork — run after risky engine changes)
 # Forked JVMs run test classes in parallel; each fork boots its own card DB
@@ -139,8 +136,7 @@ coverage:
     ./gradlew :test :jacocoTestReport \
               :domain:test :domain:jacocoTestReport \
               :engine:testGate :engine:jacocoTestReport \
-              :native:test :native:jacocoTestReport \
-              :web:test :web:jacocoTestReport; rc=$?
+              :native:test :native:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
     if [ -n "$xmls" ]; then
         echo ""

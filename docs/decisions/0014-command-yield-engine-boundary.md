@@ -57,7 +57,7 @@ single-commit constraints:
   inputs;
 - the match owner commits a successful plan once and appends its output to one
   ordered outbox;
-- native and web transports remain thin adapters over the same match runtime.
+- native and external-host transports remain thin adapters over the same match runtime.
 
 The command/yield contracts must not contain mutable Forge objects, callbacks,
 futures, channels, or protocol-counter references. They should be suitable for

@@ -1,7 +1,6 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 import dev.detekt.gradle.Detekt
 import leyline.build.CheckUpstreamTask
-import leyline.build.VerifyWebProfilePostureTask
 import leyline.build.WriteClasspathTask
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.JavaExec
@@ -137,7 +136,6 @@ dependencies {
     implementation(project(":engine"))
     implementation(project(":gre-proto"))
     implementation(project(":native"))
-    implementation(project(":web"))
     implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
@@ -148,39 +146,11 @@ dependencies {
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
     implementation(libs.netty.pkitesting)
-    implementation(libs.ktor.server.netty)
-
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
-}
-
-val webProfileRuntimeClasspath =
-    configurations.create("webProfileRuntimeClasspath") {
-        isCanBeResolved = true
-        isCanBeConsumed = false
-    }
-
-dependencies {
-    webProfileRuntimeClasspath(sourceSets.main.get().output)
-    webProfileRuntimeClasspath(project(":domain"))
-    webProfileRuntimeClasspath(project(":engine"))
-    webProfileRuntimeClasspath(project(":gre-proto"))
-    webProfileRuntimeClasspath(project(":web"))
-    webProfileRuntimeClasspath(libs.kotlin.stdlib)
-    webProfileRuntimeClasspath(libs.serialization.json)
-    // LeylineConfigResolver parses the fixed TOML at web startup.
-    webProfileRuntimeClasspath(libs.tomlkt)
-    webProfileRuntimeClasspath(libs.exposed.core)
-    webProfileRuntimeClasspath(libs.exposed.jdbc)
-    webProfileRuntimeClasspath(libs.sqlite.jdbc)
-    webProfileRuntimeClasspath(libs.ktor.server.netty)
-    webProfileRuntimeClasspath(libs.logback.classic)
-    // logback.xml wires a Sentry appender; without this class on the
-    // classpath the whole appender model fails and nothing logs at all.
-    webProfileRuntimeClasspath(libs.sentry.logback)
 }
 
 // --- Upstream JAR freshness check ---
@@ -270,20 +240,6 @@ val writeClasspath =
         outputFile.set(layout.projectDirectory.file("target/classpath.txt"))
     }
 
-val writeWebProfileClasspath =
-    tasks.register<WriteClasspathTask>("writeWebProfileClasspath") {
-        classpath.set(providers.provider { webProfileRuntimeClasspath.asPath })
-        outputFile.set(layout.projectDirectory.file("target/web-classpath.txt"))
-    }
-
-val verifyWebProfilePosture =
-    tasks.register<VerifyWebProfilePostureTask>("verifyWebProfilePosture") {
-        group = "verification"
-        description = "Verify the web profile classpath excludes the native client head."
-        dependsOn(writeWebProfileClasspath)
-        classpath.from(webProfileRuntimeClasspath)
-    }
-
 tasks.named("classes") {
-    finalizedBy(writeClasspath, writeWebProfileClasspath)
+    finalizedBy(writeClasspath)
 }

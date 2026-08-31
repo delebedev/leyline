@@ -8,7 +8,7 @@ import java.io.File
 /**
  * Owns discovery, validation, connection, and [CardRepository] construction
  * for the client card database — the single resolution policy shared by
- * every runtime consumer (native, web, seed-db, standalone simclient, and
+ * every runtime consumer (native, embedding hosts, seed-db, standalone simclient, and
  * the operator lookup recipes).
  *
  * Resolution policy:

@@ -508,9 +508,9 @@ imperative adapter plus immutable inputs.
 
 ## Relationship to earlier decisions
 
-[`ADR 0006`](0006-single-backbone-core-and-heads.md) still defines one engine
-backbone shared by native and web heads. This decision narrows ownership inside
-that backbone.
+[`ADR 0018`](0018-runtime-embedding-boundary.md) defines one engine runtime shared by
+the native head and embedding hosts. This decision narrows
+ownership inside that runtime.
 
 [`ADR 0010`](0010-bind-priority-actions-at-projection-source.md) keeps its
 bind-at-source and bounded-lifetime rules. The exact executable handle lives in

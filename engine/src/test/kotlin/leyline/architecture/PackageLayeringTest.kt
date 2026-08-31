@@ -161,7 +161,6 @@ class PackageLayeringTest :
                     "kotlinx.coroutines.channels..",
                     "..transport..",
                     "leyline.native..",
-                    "leyline.web..",
                 ).because(
                     "ADR 0014 keeps transport channels in protocol heads outside the match runtime",
                 ).check(classes)

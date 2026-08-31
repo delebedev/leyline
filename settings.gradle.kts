@@ -9,7 +9,6 @@ include("domain")
 include("engine")
 include("gre-proto")
 include("native")
-include("web")
 include("tools:detekt-rules")
 
 project(":gre-proto").projectDir = file("proto")

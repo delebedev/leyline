@@ -1,7 +1,0 @@
-<?xml version="1.0" ?>
-<SmellBaseline>
-  <ManuallySuppressedIssues/>
-  <CurrentIssues>
-    <ID>ImplicitDefaultLocale:WebAuth.kt:WebAuthService$"%02x".format(it)</ID>
-  </CurrentIssues>
-</SmellBaseline>

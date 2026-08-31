@@ -14,7 +14,7 @@ the engine-aware harness remains in the engine harness source set.
 
 ## Context
 
-Native and web clients attach through MatchRegistry, MatchConnection, and
+Native and external in-process clients attach through MatchRegistry, MatchConnection, and
 MatchOutput. MatchFlowHarness instead called roughly fifteen MatchSession
 handlers by name. That duplicated MatchConnection's message-routing table, so
 tests could keep passing if the production route diverged.
