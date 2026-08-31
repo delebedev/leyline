@@ -31,6 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
+import wotc.mtgo.gre.external.messaging.Messages.MulliganReq
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
@@ -56,7 +57,7 @@ private fun decodeSingle(hex: String): ClientToGREMessage {
  * in the SOURCE game's id space (instanceIds from the source GSM, not the
  * hydrated game's own allocations) with a position eval attached.
  */
-@Suppress("MissingAssertSoftly")
+@Suppress("MissingAssertSoftly", "LargeClass") // End-to-end prompt families share one snapshot-consult fixture.
 class SnapshotConsultTest :
     SessionTest({
 
@@ -671,7 +672,93 @@ class SnapshotConsultTest :
             response.castingTimeOptionsResp.castingTimeOptionResp.ctoId shouldBe 3
             response.castingTimeOptionsResp.castingTimeOptionResp.chooseModalResp.grpIdsList shouldBe listOf(42_001)
         }
+
+        test("relevant unresolved state returns no deliverable response") {
+            TestCardRegistry.repo.register(990_003, "Restricted Office // Lecture Hall")
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ActionsAvailableReq_695e)
+                    .setMsgId(17)
+                    .setGameStateId(39)
+                    .setActionsAvailableReq(
+                        ActionsAvailableReq
+                            .newBuilder()
+                            .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                    ).build()
+
+            val result = SnapshotConsult.consult(copiedRoomGsm(), prompt, 1, TestCardRegistry.repo)
+
+            result.fidelity.delivery shouldBe "unavailable"
+            result.proposal.intent shouldBe "unrealizable"
+            result.proposal.responses shouldBe emptyList()
+        }
+
+        test("host-only alternate cast offer makes a strategic consult unavailable") {
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ActionsAvailableReq_695e)
+                    .setActionsAvailableReq(
+                        ActionsAvailableReq
+                            .newBuilder()
+                            .addActions(
+                                Action
+                                    .newBuilder()
+                                    .setActionType(ActionType.Cast)
+                                    .setInstanceId(288)
+                                    .setAbilityGrpId(328)
+                                    .setAlternativeGrpId(149),
+                            ).addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                    ).build()
+
+            val scoped = SnapshotFidelityReport("ungraded", emptyList()).forPrompt(prompt)
+
+            scoped.grade shouldBe "degraded"
+            scoped.delivery shouldBe "unavailable"
+            scoped.unavailableReasons shouldContain "offered_action_state:missing"
+        }
+
+        test("unrelated unresolved state permits a prompt-complete mulligan response") {
+            TestCardRegistry.repo.register(990_003, "Restricted Office // Lecture Hall")
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.MulliganReq_aa0d)
+                    .setMsgId(18)
+                    .setGameStateId(39)
+                    .setMulliganReq(MulliganReq.getDefaultInstance())
+                    .build()
+
+            val result = SnapshotConsult.consult(copiedRoomGsm(), prompt, 1, TestCardRegistry.repo)
+
+            result.fidelity.delivery shouldBe "valid"
+            result.proposal.intent shouldBe "keep_hand"
+            result.proposal.responses.shouldNotBeEmpty()
+        }
     })
+
+private fun copiedRoomGsm(): GameStateMessage =
+    GameStateMessage
+        .newBuilder()
+        .setGameStateId(39)
+        .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+        .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+        .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+        .addZones(ZoneInfo.newBuilder().setZoneId(ZoneIds.BATTLEFIELD).setType(ZoneType.Battlefield))
+        .addGameObjects(
+            GameObjectInfo
+                .newBuilder()
+                .setInstanceId(201)
+                .setGrpId(990_003)
+                .setType(GameObjectType.Token)
+                .setZoneId(ZoneIds.BATTLEFIELD)
+                .setOwnerSeatId(2)
+                .setControllerSeatId(2)
+                .setIsCopy(true)
+                .addCardTypes(wotc.mtgo.gre.external.messaging.Messages.CardType.Enchantment)
+                .addSubtypes(wotc.mtgo.gre.external.messaging.Messages.SubType.Room),
+        ).build()
 
 private val CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE =
     """

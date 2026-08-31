@@ -1,0 +1,10 @@
+name: "Leonin Warleader"
+grpId: 75454
+titleId: 229412
+abilities:
+  - id: 119181
+    textId: 932172
+    category: 2
+expansionCode: "ANB"
+tokens:
+  "119181": 75558

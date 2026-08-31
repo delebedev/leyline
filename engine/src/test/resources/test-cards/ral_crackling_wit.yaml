@@ -1,0 +1,19 @@
+name: "Ral, Crackling Wit"
+grpId: 91766
+titleId: 811806
+abilities:
+  - id: 174146
+    textId: 971688
+    category: 2
+  - id: 174147
+    textId: 811809
+    category: 1
+  - id: 174148
+    textId: 811810
+    category: 1
+  - id: 174150
+    textId: 811812
+    category: 1
+expansionCode: "BLB"
+tokens:
+  "174147": 91865

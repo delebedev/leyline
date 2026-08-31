@@ -1,5 +1,6 @@
 package leyline.copilot
 
+import forge.game.Game
 import forge.gamemodes.puzzle.Puzzle
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
@@ -8,6 +9,7 @@ import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.game.codes.DetailKeys
 import leyline.game.data.CardRepository
+import leyline.game.data.EvergreenKeywords
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -77,37 +79,71 @@ object SnapshotHydration {
         val lines = projection.lines
         log.info("Hydrating snapshot from {} state lines", lines.size)
         GameBootstrap.initializeLocalization()
-        val puzzle =
-            Puzzle(
-                mapOf(
-                    "metadata" to
-                        listOf(
-                            "Name:Snapshot Consult",
-                            "Goal:Win",
-                            "Turns:99",
-                            "Difficulty:Easy",
-                            "Description:Hydrated from a serialized game state.",
-                        ),
-                    "state" to lines,
-                ),
-            )
         val bridge =
             GameBridge(
                 engineSettings = engineSettings,
                 cardRepository = cardRepository,
             )
-        bridge.startStaticPuzzle(
-            puzzle,
-            controlledSeat = SeatId(consultSeat),
-            beforeRuntimeStart = { restoreCombatState(gsm, puzzle, bridge, consultSeat) },
-        )
-        rebindInstanceIds(puzzle, bridge)
-        enforceTapState(gsm, puzzle)
-        reconcileCharacteristics(gsm, puzzle)
-        return HydratedSnapshot(
-            bridge = bridge,
-            fidelity = verifyFidelity(gsm, puzzle, projection),
-        )
+        lateinit var puzzle: Puzzle
+        try {
+            puzzle =
+                object : Puzzle(
+                    mapOf(
+                        "metadata" to
+                            listOf(
+                                "Name:Snapshot Consult",
+                                "Goal:Win",
+                                "Turns:99",
+                                "Difficulty:Easy",
+                                "Description:Hydrated from a serialized game state.",
+                            ),
+                        "state" to lines,
+                    ),
+                ) {
+                    override fun beforeStateEffects(game: Game) {
+                        importCurrentState(gsm, this, bridge, consultSeat, projection)
+                    }
+                }
+            bridge.startStaticPuzzle(
+                puzzle,
+                controlledSeat = SeatId(consultSeat),
+                beforeRuntimeStart = {},
+            )
+            return HydratedSnapshot(
+                bridge = bridge,
+                fidelity = verifyFidelity(gsm, puzzle, projection, bridge),
+            )
+        } catch (failure: Throwable) {
+            bridge.teardownResources()
+            throw failure
+        }
+    }
+
+    /** Commit every snapshot-derived mutation before Forge settles the imported place once. */
+    private fun importCurrentState(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+        bridge: GameBridge,
+        consultSeat: Int,
+        projection: SnapshotProjection,
+    ) {
+        val game = checkNotNull(bridge.getGame())
+        game.triggerHandler.setSuppressAllTriggers(true)
+        game.stack.setResolving(true)
+        try {
+            rebindInstanceIds(puzzle, bridge)
+            reconcileVisibleTypes(gsm, puzzle)
+            restoreAttachments(gsm, puzzle, bridge, projection)
+            restoreGrantedKeywords(gsm, puzzle)
+            game.action.checkStaticAbilities(false)
+            reconcilePowerAndToughness(gsm, puzzle)
+            enforceTapState(gsm, puzzle)
+            restoreMarkedDamage(gsm, puzzle)
+            restoreCombatState(gsm, puzzle, bridge, consultSeat)
+        } finally {
+            game.stack.setResolving(false)
+            game.triggerHandler.setSuppressAllTriggers(false)
+        }
     }
 
     /**
@@ -135,7 +171,7 @@ object SnapshotHydration {
      * GSM. It is deliberately a current-state boost; the fidelity report keeps
      * dynamic effect semantics classified as approximated.
      */
-    private fun reconcileCharacteristics(
+    private fun reconcileVisibleTypes(
         gsm: GameStateMessage,
         puzzle: Puzzle,
     ) {
@@ -156,12 +192,75 @@ object SnapshotHydration {
                     )
                 }
             }
-            if (!card.isInPlay) continue
+        }
+    }
+
+    private fun reconcilePowerAndToughness(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+    ) {
+        val idToCard = idToCardOf(puzzle)
+        for (source in gsm.gameObjectsList) {
+            val card = idToCard[source.instanceId] ?: continue
+            if (!card.isInPlay || !isCreature(source)) continue
             val powerDelta = if (source.hasPower()) source.power.value - card.netPower else 0
             val toughnessDelta = if (source.hasToughness()) source.toughness.value - card.netToughness else 0
             if (powerDelta != 0 || toughnessDelta != 0) {
                 card.addPTBoost(powerDelta, toughnessDelta, card.game.nextTimestamp, 0L)
             }
+        }
+    }
+
+    private fun restoreAttachments(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+        bridge: GameBridge,
+        projection: SnapshotProjection,
+    ) {
+        val cards = idToCardOf(puzzle)
+        val playerSeats = gsm.playersList.mapTo(mutableSetOf()) { it.systemSeatNumber }
+        for ((sourceId, targetId) in projection.allAttachmentTargetsByIid) {
+            val source = cards[sourceId] ?: continue
+            val target =
+                if (targetId in projection.projectedIds) {
+                    cards[targetId]
+                } else {
+                    targetId.takeIf { it in playerSeats }?.let { bridge.getPlayer(SeatId(it)) }
+                }
+            if (target != null && source.entityAttachedTo !== target) {
+                source.attachToEntity(target, null, true)
+            }
+        }
+    }
+
+    /** Restore recognized temporary survival grants before marked damage is committed. */
+    private fun restoreGrantedKeywords(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+    ) {
+        val cards = idToCardOf(puzzle)
+        for (annotation in gsm.persistentAnnotationsList) {
+            if (AnnotationType.AddAbility_af5a !in annotation.typeList) continue
+            val keywords =
+                annotation.detailsList
+                    .filter { it.key == DetailKeys.GRPID }
+                    .flatMap { it.valueInt32List }
+                    .mapNotNull(EvergreenKeywords::fromAbilityId)
+            if (keywords.isEmpty()) continue
+            for (affectedId in annotation.affectedIdsList) {
+                val card = cards[affectedId] ?: continue
+                card.addChangedCardKeywords(keywords, null, false, card.game.nextTimestamp, null)
+            }
+        }
+    }
+
+    private fun restoreMarkedDamage(
+        gsm: GameStateMessage,
+        puzzle: Puzzle,
+    ) {
+        val cards = idToCardOf(puzzle)
+        for (source in gsm.gameObjectsList) {
+            if (source.damage > 0) cards[source.instanceId]?.damage = source.damage
         }
     }
 
@@ -175,7 +274,7 @@ object SnapshotHydration {
         cardRepository: CardRepository,
     ): List<String> = project(gsm, consultSeat, cardRepository).lines
 
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod") // One projection transaction keeps shared identity sets local.
     private fun project(
         gsm: GameStateMessage,
         consultSeat: Int,
@@ -194,17 +293,21 @@ object SnapshotHydration {
         fun prefix(seat: Int): String = "p${seat - 1}"
 
         val countersByIid = counterSpecsByInstanceId(gsm)
-        val allAttachmentTargetsByIid =
-            gsm.persistentAnnotationsList
-                .filter { AnnotationType.Attachment in it.typeList }
-                .mapNotNull { ann ->
-                    val target = ann.affectedIdsList.singleOrNull() ?: return@mapNotNull null
-                    ann.affectorId.takeIf { it > 0 }?.let { it to target }
-                }.toMap()
+        val playerSeats = gsm.playersList.mapTo(mutableSetOf()) { it.systemSeatNumber }
         val battlefieldIds =
             objects
                 .filter { zoneTypeOf(it) == ZoneType.Battlefield }
                 .mapTo(mutableSetOf()) { it.instanceId }
+        val allAttachmentTargetsByIid =
+            gsm.persistentAnnotationsList
+                .filter { AnnotationType.Attachment in it.typeList }
+                .mapNotNull { ann ->
+                    val source = ann.affectorId.takeIf { it in battlefieldIds } ?: return@mapNotNull null
+                    val target = ann.affectedIdsList.singleOrNull() ?: return@mapNotNull null
+                    target
+                        .takeIf { it in battlefieldIds || it in playerSeats }
+                        ?.let { source to it }
+                }.toMap()
         val resolvableIds =
             objects
                 .filter {
@@ -213,7 +316,7 @@ object SnapshotHydration {
                 }.mapTo(mutableSetOf()) { it.instanceId }
         val attachmentTargetsByIid =
             allAttachmentTargetsByIid.filter { (sourceId, targetId) ->
-                sourceId in resolvableIds && targetId in resolvableIds
+                sourceId in resolvableIds && (targetId in resolvableIds || targetId in playerSeats)
             }
         val unresolvedIds = mutableSetOf<Int>()
         val projectedIds = mutableSetOf<Int>()
@@ -245,6 +348,11 @@ object SnapshotHydration {
         }
 
         fun cardEntry(obj: GameObjectInfo): String? {
+            if (obj.type == GameObjectType.Token && obj.isCopy && SubType.Room in obj.subtypesList) {
+                unresolvedIds += obj.instanceId
+                log.warn("Copied Room token iid={} cannot be represented safely", obj.instanceId)
+                return null
+            }
             val entry =
                 if (obj.isFacedown) {
                     tokenEntry(obj, FACE_DOWN_CARD_NAME)
@@ -274,9 +382,13 @@ object SnapshotHydration {
                         .takeIf { it in battlefieldIds }
                         ?.let { append(":").append(it) }
                 }
-                if (obj.damage > 0) append("|Damage:").append(obj.damage)
                 countersByIid[obj.instanceId]?.let { append("|Counters:").append(it.joinToString(",")) }
-                attachmentTargetsByIid[obj.instanceId]?.let { append("|AttachedTo:").append(it) }
+                allAttachmentTargetsByIid[obj.instanceId]?.let { targetId ->
+                    when (targetId) {
+                        in resolvableIds -> append("|AttachedTo:").append(targetId)
+                        in playerSeats -> append("|EnchantingPlayer:P").append(targetId - 1)
+                    }
+                }
             }
         }
 
@@ -287,7 +399,6 @@ object SnapshotHydration {
 
         val lines = mutableListOf<String>()
 
-        val playerSeats = gsm.playersList.mapTo(mutableSetOf()) { it.systemSeatNumber }
         val activeSeat =
             sequenceOf(gsm.turnInfo.activePlayer, gsm.turnInfo.decisionPlayer, consultSeat)
                 .firstOrNull { it in playerSeats }
@@ -360,6 +471,7 @@ object SnapshotHydration {
             projectedIds = projectedIds,
             attachmentCount = allAttachmentTargetsByIid.size,
             allAttachmentSourceIds = allAttachmentTargetsByIid.keys,
+            allAttachmentTargetsByIid = allAttachmentTargetsByIid,
             attachmentTargetsByIid = attachmentTargetsByIid,
             unresolvedIds = unresolvedIds,
             dynamicEffectCount = dynamicEffectCount,
@@ -374,6 +486,7 @@ object SnapshotHydration {
         gsm: GameStateMessage,
         puzzle: Puzzle,
         projection: SnapshotProjection,
+        bridge: GameBridge,
     ): SnapshotFidelityReport {
         val idToCard = idToCardOf(puzzle)
         val damageSources = gsm.gameObjectsList.filter { it.instanceId in projection.projectedIds && it.damage > 0 }
@@ -388,7 +501,12 @@ object SnapshotHydration {
                     projection.attachmentTargetsByIid
                         .filter { (sourceId, targetId) ->
                             val source = idToCard[sourceId]
-                            val target = idToCard[targetId]
+                            val target =
+                                if (targetId in projection.projectedIds) {
+                                    idToCard[targetId]
+                                } else {
+                                    bridge.getPlayer(SeatId(targetId))
+                                }
                             source == null || target == null || source.entityAttachedTo !== target
                         }.keys,
                 )
@@ -397,9 +515,7 @@ object SnapshotHydration {
             gsm.gameObjectsList
                 .filter { source ->
                     val card = idToCard[source.instanceId] ?: return@filter false
-                    (visibleTypeOf(source)?.matches(card.type) == false) ||
-                        (source.hasPower() && card.netPower != source.power.value) ||
-                        (source.hasToughness() && card.netToughness != source.toughness.value)
+                    hasCharacteristicMismatch(source, card)
                 }.map { it.instanceId }
 
         fun verifiedFeature(
@@ -461,11 +577,20 @@ object SnapshotHydration {
         return SnapshotFidelityReport(grade = "ungraded", features = features)
     }
 
+    private fun hasCharacteristicMismatch(
+        source: GameObjectInfo,
+        card: forge.game.card.Card,
+    ): Boolean =
+        visibleTypeOf(source)?.matches(card.type) == false ||
+            (isCreature(source) && source.hasPower() && card.netPower != source.power.value) ||
+            (isCreature(source) && source.hasToughness() && card.netToughness != source.toughness.value)
+
     private data class SnapshotProjection(
         val lines: List<String>,
         val projectedIds: Set<Int>,
         val attachmentCount: Int,
         val allAttachmentSourceIds: Set<Int>,
+        val allAttachmentTargetsByIid: Map<Int, Int>,
         val attachmentTargetsByIid: Map<Int, Int>,
         val unresolvedIds: Set<Int>,
         val dynamicEffectCount: Int,
@@ -482,6 +607,9 @@ object SnapshotHydration {
                 .filterNot { it.startsWith("None") }
         return names.takeIf { it.isNotEmpty() }?.let { ForgeCardType(it, false) }
     }
+
+    private fun isCreature(source: GameObjectInfo): Boolean =
+        wotc.mtgo.gre.external.messaging.Messages.CardType.Creature in source.cardTypesList
 
     private fun ForgeCardType.matches(other: forge.card.CardTypeView): Boolean =
         coreTypes.toSet() == other.coreTypes.toSet() &&
@@ -511,12 +639,13 @@ object SnapshotHydration {
             val iid = ann.affectedIdsList.firstOrNull() ?: continue
             if (count <= 0) continue
             val protoName = CounterType.forNumber(typeNumber)?.name
-            val forgeType = protoName?.let { name -> runCatching { ForgeCounterType.getType(name) }.getOrNull() }
+            val forgeName = protoName?.substringBefore('_')?.uppercase()
+            val forgeType = forgeName?.let { name -> runCatching { ForgeCounterType.getType(name) }.getOrNull() }
             if (forgeType == null) {
                 log.warn("Unknown counter type {} on iid={}, dropping", typeNumber, iid)
                 continue
             }
-            result.getOrPut(iid) { mutableListOf() } += "$protoName=$count"
+            result.getOrPut(iid) { mutableListOf() } += "${forgeType.name}=$count"
         }
         return result
     }

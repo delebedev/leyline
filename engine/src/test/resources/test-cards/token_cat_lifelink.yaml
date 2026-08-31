@@ -1,0 +1,18 @@
+name: "Cat"
+grpId: 75558
+titleId: 439
+abilities:
+  - id: 12
+    textId: 38
+    category: 3
+isToken: true
+isPrimaryCard: false
+power: "1"
+toughness: "1"
+colors: []
+types:
+  - 2
+subtypes:
+  - 14
+supertypes: []
+manaCost: ""

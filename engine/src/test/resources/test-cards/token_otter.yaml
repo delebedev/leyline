@@ -1,0 +1,18 @@
+name: "Otter"
+grpId: 91865
+titleId: 428074
+abilities:
+  - id: 137
+    textId: 71
+    category: 2
+isToken: true
+isPrimaryCard: false
+power: "1"
+toughness: "1"
+colors: []
+types:
+  - 2
+subtypes:
+  - 377
+supertypes: []
+manaCost: ""

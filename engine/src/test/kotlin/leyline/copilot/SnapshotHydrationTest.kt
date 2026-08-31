@@ -20,6 +20,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Int32Value
+import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
+import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.PlayerInfo
 import wotc.mtgo.gre.external.messaging.Messages.Step
@@ -34,7 +36,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * standalone game from it, and compare the hydrated Forge state against the
  * source Forge state on every field the serializer claims to carry.
  */
-@Suppress("MissingAssertSoftly")
+@Suppress("MissingAssertSoftly", "LargeClass") // Fidelity cases share one hydrated-state lifecycle fixture.
 class SnapshotHydrationTest :
     SessionTest({
 
@@ -192,6 +194,70 @@ class SnapshotHydrationTest :
             }
         }
 
+        test("stale attachment annotation does not make a retired aura unsafe") {
+            val targetGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            val auraGrpId = TestCardRegistry.ensureCardRegistered("Pacifism")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addZones(
+                        ZoneInfo
+                            .newBuilder()
+                            .setZoneId(8)
+                            .setType(ZoneType.Graveyard)
+                            .setOwnerSeatId(1),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(targetGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(202)
+                            .setGrpId(auraGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(8)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(302)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(202)
+                            .addAffectedIds(201),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.fidelity.features
+                    .single { it.feature == "attachments" }
+                    .let { feature ->
+                        feature.count shouldBe 0
+                        feature.status shouldBe "carried"
+                    }
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .players[0]
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .single { it.name == "Pacifism" }
+                    .entityAttachedTo shouldBe null
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
         test("face-down card uses public characteristics without requiring its hidden identity") {
             val battlefieldZoneId = 7
             val faceDownIid = 201
@@ -244,7 +310,9 @@ class SnapshotHydrationTest :
 
         test("battlefield card keeps visible dynamic characteristics") {
             val grpId = TestCardRegistry.ensureCardRegistered("Impact Tremors")
+            val swordGrpId = TestCardRegistry.ensureCardRegistered("Short Sword")
             val instanceId = 201
+            val swordId = 202
             val battlefieldZoneId = 7
             val gsm =
                 GameStateMessage
@@ -267,6 +335,22 @@ class SnapshotHydrationTest :
                             .addSubtypes(SubType.Beast)
                             .setPower(Int32Value.newBuilder().setValue(7))
                             .setToughness(Int32Value.newBuilder().setValue(7)),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(swordId)
+                            .setGrpId(swordGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(302)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(swordId)
+                            .addAffectedIds(instanceId),
                     ).build()
 
             val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
@@ -278,16 +362,277 @@ class SnapshotHydrationTest :
                         .players[0]
                         .getZone(ForgeZoneType.Battlefield)
                         .cards
-                        .single()
+                        .single { it.name == "Impact Tremors" }
+                val sword =
+                    hydrated.bridge
+                        .getGame()
+                        .shouldNotBeNull()
+                        .players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Short Sword" }
 
                 card.type.isCreature shouldBe true
                 card.type.isEnchantment shouldBe true
                 card.type.hasSubtype("Beast") shouldBe true
                 card.netPower shouldBe 7
                 card.netToughness shouldBe 7
+                sword.entityAttachedTo shouldBe card
                 hydrated.fidelity.features
                     .first { it.feature == "characteristics" }
                     .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("layered Leonin Warleader toughness is committed before marked damage settles") {
+            val warleaderGrpId = TestCardRegistry.ensureCardRegistered("Leonin Warleader")
+            val protectorGrpId = TestCardRegistry.ensureCardRegistered("Angelheart Protector")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(warleaderGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Creature)
+                            .setPower(Int32Value.newBuilder().setValue(5))
+                            .setToughness(Int32Value.newBuilder().setValue(5))
+                            .setDamage(4),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(202)
+                            .setGrpId(protectorGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Creature),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val warleader =
+                    hydrated.bridge
+                        .getGame()
+                        .shouldNotBeNull()
+                        .players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Leonin Warleader" }
+                warleader.netPower shouldBe 5
+                warleader.netToughness shouldBe 5
+                warleader.damage shouldBe 4
+                hydrated.fidelity.features
+                    .single { it.feature == "marked_damage" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("temporary indestructible is restored before lethal marked damage") {
+            val bearGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(bearGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .addCardTypes(CardType.Creature)
+                            .setPower(Int32Value.newBuilder().setValue(2))
+                            .setToughness(Int32Value.newBuilder().setValue(2))
+                            .setDamage(2),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(300)
+                            .addType(AnnotationType.AddAbility_af5a)
+                            .addAffectedIds(201)
+                            .addDetails(
+                                KeyValuePairInfo
+                                    .newBuilder()
+                                    .setKey("grpid")
+                                    .setType(KeyValuePairValueType.Int32)
+                                    .addValueInt32(104),
+                            ),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val bear =
+                    hydrated.bridge
+                        .getGame()
+                        .shouldNotBeNull()
+                        .players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Grizzly Bears" }
+                bear.hasKeyword("Indestructible") shouldBe true
+                bear.damage shouldBe 2
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("player attachment is restored") {
+            val shadowGrpId = TestCardRegistry.ensureCardRegistered("Shadow of the Second Sun")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(shadowGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Enchantment)
+                            .addSubtypes(SubType.Aura),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(300)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(201)
+                            .addAffectedIds(1),
+                    ).build()
+
+            SnapshotHydration.toPuzzleLines(gsm, 1, TestCardRegistry.repo) shouldContain
+                "p0battlefield=Shadow of the Second Sun|Id:201|EnchantingPlayer:P0"
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                val game = hydrated.bridge.getGame().shouldNotBeNull()
+                val shadow =
+                    game.players[0]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single()
+                shadow.entityAttachedTo shouldBe game.players[0]
+                hydrated.fidelity.features
+                    .single { it.feature == "attachments" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("planeswalker toughness-like field is not treated as creature toughness") {
+            val ralGrpId = TestCardRegistry.ensureCardRegistered("Ral, Crackling Wit")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(ralGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(7)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1)
+                            .addCardTypes(CardType.Planeswalker)
+                            .setToughness(Int32Value.newBuilder().setValue(4)),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(301)
+                            .addType(AnnotationType.Counter_803b)
+                            .addAffectedIds(201)
+                            .addDetails(
+                                KeyValuePairInfo
+                                    .newBuilder()
+                                    .setKey("count")
+                                    .setType(KeyValuePairValueType.Int32)
+                                    .addValueInt32(4),
+                            ).addDetails(
+                                KeyValuePairInfo
+                                    .newBuilder()
+                                    .setKey("counter_type")
+                                    .setType(KeyValuePairValueType.Int32)
+                                    .addValueInt32(7),
+                            ),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.bridge
+                    .getGame()
+                    .shouldNotBeNull()
+                    .players[0]
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .single()
+                    .type.isPlaneswalker shouldBe true
+                hydrated.fidelity.features
+                    .single { it.feature == "characteristics" }
+                    .status shouldBe "carried"
+            } finally {
+                hydrated.bridge.teardownResources()
+            }
+        }
+
+        test("copied Room token is explicitly unavailable") {
+            TestCardRegistry.repo.register(990_003, "Restricted Office // Lecture Hall")
+            val gsm =
+                GameStateMessage
+                    .newBuilder()
+                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(990_003)
+                            .setType(GameObjectType.Token)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .setIsCopy(true)
+                            .addCardTypes(CardType.Enchantment)
+                            .addSubtypes(SubType.Room),
+                    ).build()
+
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            try {
+                hydrated.fidelity.features.single { it.feature == "unresolved_cards" }.let {
+                    it.status shouldBe "missing"
+                    it.instanceIds shouldBe listOf(201)
+                }
             } finally {
                 hydrated.bridge.teardownResources()
             }
