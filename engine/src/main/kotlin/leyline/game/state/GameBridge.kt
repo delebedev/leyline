@@ -120,7 +120,7 @@ class GameBridge(
     val responseAcceptance = ResponseAcceptanceTracker()
 
     /** Match-scoped owner of mutable priority policy and client settings. */
-    val priorityPolicy = PriorityPolicyRuntime()
+    val priorityPolicy = PriorityPolicyRuntime(matchId = matchId)
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
     private val setupBlockingInteractionRuntime =
@@ -1446,7 +1446,7 @@ class GameBridge(
         log.info("GameBridge: seat {} keeps hand", seatId.value)
         if (seatId != seating.humanSeat) return false
         val accepted = mulliganBridge(seatId).submitKeep()
-        if (!accepted) log.warn("GameBridge: ignored stale keep for seat {}", seatId.value)
+        if (!accepted) log.debug("ignored stale keep for seat {}", seatId.value)
         return accepted
     }
 
@@ -1469,7 +1469,7 @@ class GameBridge(
             val bridge = mulliganBridge(seatId)
             val seqBefore = bridge.promptSequence
             if (!bridge.submitMull()) {
-                log.warn("GameBridge: ignored stale mulligan for seat {}", seatId.value)
+                log.debug("ignored stale mulligan for seat {}", seatId.value)
                 return false
             }
             // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.

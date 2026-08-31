@@ -88,8 +88,6 @@ class MatchRegistry {
         seatId: SeatId? = null,
         fallbackBridge: GameBridge? = null,
     ) {
-        log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
-
         val matchConnections = connections.remove(matchId)?.values.orEmpty()
         val removedSessions = sessions.remove(matchId)?.values.orEmpty()
         val sessionsRemoved = removedSessions.size
@@ -105,14 +103,17 @@ class MatchRegistry {
             fallbackBridge?.shutdown()
         }
 
-        log.info(
-            "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} connectionsRemoved={} matchClosed={}",
-            matchId,
-            seatId,
-            reason,
-            sessionsRemoved,
-            matchConnections.size,
-            match != null || fallbackBridge != null,
-        )
+        val event =
+            log
+                .atInfo()
+                .addKeyValue("event", "match.teardown")
+                .addKeyValue("match_id", matchId)
+        val seatedEvent = seatId?.value?.let { event.addKeyValue("seat", it) } ?: event
+        seatedEvent
+            .addKeyValue("reason", reason.name)
+            .addKeyValue("sessions_removed", sessionsRemoved)
+            .addKeyValue("connections_removed", matchConnections.size)
+            .addKeyValue("match_closed", match != null || fallbackBridge != null)
+            .log("Match torn down")
     }
 }

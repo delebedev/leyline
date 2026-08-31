@@ -24,6 +24,7 @@ internal class ActionPerformer(
     private val priorityPolicy: PriorityPolicyRuntime,
     private val ctx: SessionContext,
     private val continuation: MatchRuntimeContinuation,
+    private val matchId: String,
 ) {
     private val log = LoggerFactory.getLogger(ActionPerformer::class.java)
 
@@ -40,8 +41,6 @@ internal class ActionPerformer(
         try {
             val bridge = ctx.bridge
             val seatBridge = bridge.seat(counters.seatId)
-            log.info("ActionPerformer: perform enter gsId={} (current={})", greMsg.gameStateId, bridge.committedSequence().currentGsId)
-
             // Reject stale actions — client may resend with outdated gameStateId.
             // Compare against the last prompt's gsId, not currentGsId. Trailing
             // post-content echoes (and any future bundle that emits a non-prompt
@@ -51,11 +50,15 @@ internal class ActionPerformer(
             // prompt is genuinely stale (a newer prompt has been emitted since).
             val clientGsId = greMsg.gameStateId
             if (clientGsId != 0 && clientGsId < bridge.committedSequence().lastPromptGsId) {
-                log.warn(
-                    "ActionPerformer: stale PerformActionResp gsId={} (lastPrompt={}), ignoring",
-                    clientGsId,
-                    bridge.committedSequence().lastPromptGsId,
-                )
+                log
+                    .atDebug()
+                    .addKeyValue("event", "match.action_rejected")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("seat", counters.seatId.value)
+                    .addKeyValue("response_type", greMsg.type.name)
+                    .addKeyValue("game_state_id", clientGsId)
+                    .addKeyValue("reason", "stale_game_state")
+                    .log("Client action rejected")
                 return
             }
 
@@ -71,13 +74,29 @@ internal class ActionPerformer(
 
             val pending =
                 seatBridge.action.getPending() ?: run {
-                    log.warn("ActionPerformer: PerformActionResp but no pending action — resyncing current state")
+                    log
+                        .atDebug()
+                        .addKeyValue("event", "match.action_rejected")
+                        .addKeyValue("match_id", matchId)
+                        .addKeyValue("seat", counters.seatId.value)
+                        .addKeyValue("response_type", greMsg.type.name)
+                        .addKeyValue("game_state_id", clientGsId)
+                        .addKeyValue("reason", "no_pending_action")
+                        .log("Client action rejected")
                     bridge.cutCoordinator.drain(counters.seatId).forEach { sink.sendBundledGRE(it) }
                     return
                 }
             val action = greMsg.performActionResp.actionsList.firstOrNull()
             if (action == null) {
-                log.warn("ActionPerformer: PerformActionResp with no actions")
+                log
+                    .atDebug()
+                    .addKeyValue("event", "match.action_rejected")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("seat", counters.seatId.value)
+                    .addKeyValue("response_type", greMsg.type.name)
+                    .addKeyValue("game_state_id", clientGsId)
+                    .addKeyValue("reason", "missing_action")
+                    .log("Client action rejected")
                 return
             }
             val mayDefer =
@@ -89,24 +108,36 @@ internal class ActionPerformer(
                     action.actionType == ActionType.CastMdfc
             val claim = bridge.cutCoordinator.claimPriorityResponse(pending.actionId, clientGsId, action, defer = mayDefer)
             if (claim == null) {
-                log.warn(
-                    "ActionPerformer: action does not match pending window gsId={} promptGsId={} phase={}, ignoring",
-                    clientGsId,
-                    pending.promptGameStateId,
-                    pending.state.phase,
-                )
+                log
+                    .atDebug()
+                    .addKeyValue("event", "match.action_rejected")
+                    .addKeyValue("match_id", matchId)
+                    .addKeyValue("seat", counters.seatId.value)
+                    .addKeyValue("response_type", greMsg.type.name)
+                    .addKeyValue("game_state_id", clientGsId)
+                    .addKeyValue("reason", "action_window_mismatch")
+                    .addKeyValue("phase", pending.state.phase)
+                    .log("Client action rejected")
                 return
             }
             acceptedClaim = claim.actionClaim
+            log
+                .atDebug()
+                .addKeyValue("event", "match.action_accepted")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("seat", counters.seatId.value)
+                .addKeyValue("response_type", greMsg.type.name)
+                .addKeyValue("game_state_id", clientGsId)
+                .addKeyValue("action_type", action.actionType.name)
+                .addKeyValue("phase", pending.state.phase)
+                .log("Client action accepted")
 
             // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
             val autoPassPriority = greMsg.performActionResp.autoPassPriority
             if (autoPassPriority != AutoPassPriority.None_a099) {
                 priorityPolicy.submitAutoPassPriority(autoPassPriority)
-                log.debug("ActionPerformer: autoPassPriority={}", autoPassPriority)
+                log.debug("autoPassPriority={}", autoPassPriority)
             }
-
-            Tap.inboundAction(action)
 
             if (!mayDefer) {
                 check(bridge.cutCoordinator.completeActionClaim(claim.actionClaim)) { "Accepted action claim did not complete" }
@@ -115,29 +146,29 @@ internal class ActionPerformer(
             when (action.actionType) {
                 ActionType.Pass, ActionType.FloatMana -> Unit
                 ActionType.Play_add3, ActionType.PlayMdfc -> {
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, true)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 ActionType.Cast -> {
                     val submitted = submitCastOrDefer(action, claim.actionClaim) ?: return
                     acceptedClaim = null
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, submitted)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, submitted)
                 }
                 ActionType.Activate_add3 -> {
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, true)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 ActionType.ActivateMana -> {
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, true)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 ActionType.CastMdfc, ActionType.CastAdventure, ActionType.CastOmen, ActionType.CastLeftRoom, ActionType.CastRightRoom -> {
                     val submitted = submitCastOrDefer(action, claim.actionClaim) ?: return
                     acceptedClaim = null
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, submitted)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, submitted)
                 }
                 ActionType.SpecialTurnFaceUp_add3 -> {
-                    Tap.actionResult(action.actionType, action.instanceId, claim.cardId, true)
+                    Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 else -> {
-                    log.info("ActionPerformer: unhandled action type {}, passing", action.actionType)
+                    log.info("Unhandled action type {}, passing", action.actionType)
                     return
                 }
             }
@@ -154,17 +185,14 @@ internal class ActionPerformer(
         actionClaim: leyline.bridge.coord.MatchActionWindowRuntime.ActionClaim,
     ): Boolean? {
         if (targetingHandler.checkAlternateAdditionalCostChoice(actionClaim)) {
-            Tap.outboundTemplate("Cast deferred — alternate additional cost prompt sent")
             return null
         }
         if (targetingHandler.checkHybridManaTypeOptions(actionClaim)) {
-            Tap.outboundTemplate("Cast deferred — hybrid mana type prompt sent")
             return null
         }
         val skipOptionalCostPrompt =
             action.alternativeGrpId == KeywordAbilityIds.JUMP_START || action.alternativeGrpId == KeywordAbilityIds.RETRACE
         if (!skipOptionalCostPrompt && targetingHandler.checkOptionalCosts(actionClaim)) {
-            Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
             return null
         }
         check(ctx.bridge.cutCoordinator.completeActionClaim(actionClaim)) { "Deferred action claim did not complete" }

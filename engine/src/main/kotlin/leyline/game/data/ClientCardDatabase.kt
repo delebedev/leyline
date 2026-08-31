@@ -2,6 +2,7 @@ package leyline.game.data
 
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -14,8 +15,8 @@ import java.io.File
  *  1. `LEYLINE_CARD_DB`, when set, is an authoritative override. An invalid
  *     override fails without falling back to discovery.
  *  2. Otherwise the newest *usable* database under the standard client
- *     installation location is selected, and the selected path is reported
- *     so diagnostics can show which database a run is using.
+ *     installation location is selected, and the selected database filename is
+ *     reported so diagnostics can show which database a run is using.
  *
  * *Usable* means the file exists, is larger than a placeholder, opens as
  * SQLite, and a card query returns rows. Test and harness consumers keep
@@ -33,6 +34,7 @@ class ClientCardDatabase private constructor(
     fun cardRepository(): CardRepository = SqliteCardRepository(database)
 
     companion object {
+        private val log = LoggerFactory.getLogger(ClientCardDatabase::class.java)
         private const val MIN_CARD_DB_BYTES = 1_000_000L
 
         /** Open the client card database with an optional explicit override; otherwise standard-location autodiscovery. */
@@ -52,7 +54,11 @@ class ClientCardDatabase private constructor(
             standardLocation: () -> File?,
         ): ClientCardDatabase {
             val path = resolveValidatedPath(overridePath, standardLocation)
-            println("Using client card database: ${path.absolutePath}")
+            log
+                .atInfo()
+                .addKeyValue("event", "card_database.opened")
+                .addKeyValue("filename", path.name)
+                .log("Client card database opened")
             return ClientCardDatabase(path)
         }
 

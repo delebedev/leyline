@@ -107,7 +107,7 @@ class AccountServer(
                     password = "leyline",
                 )
             if (seeded) {
-                log.info("Dev account seeded (leyline@local / leyline)")
+                log.info("Dev account seeded")
             }
         }
     }

@@ -133,8 +133,7 @@ class MulliganHandler(
     ) {
         if (s == null || bridge == null) return
         bridge.cutCoordinator.lifecycle.publishDealHand(seatId)
-        Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=0")
-        s.deliverLifecycle(bridge)
+        deliverTemplate(s, bridge, "deal_hand")
     }
 
     /** DealHand only — public for cross-connection calls. */
@@ -147,8 +146,7 @@ class MulliganHandler(
         val s = session ?: return
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishDealHand(seatId, diffDeletedInstanceIds)
-        Tap.outboundTemplate("DealHand seat=${seatId.value} deletedIds=${diffDeletedInstanceIds.size}")
-        s.deliverLifecycle(bridge)
+        deliverTemplate(s, bridge, "deal_hand")
     }
 
     /**
@@ -164,18 +162,14 @@ class MulliganHandler(
         val s = session ?: return
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishMulliganRequest(seatId, reportedMulliganCount, numCards)
-        Tap.outboundTemplate("MulliganReq seat=${seatId.value} mulliganCount=$reportedMulliganCount numCards=$numCards")
-        s.deliverLifecycle(bridge)
+        deliverTemplate(s, bridge, "mulligan_request")
     }
 
     private fun sendMulliganRedraw(facts: MulliganRedrawFacts) {
         val s = session ?: return
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishMulliganRedraw(seatId, facts)
-        Tap.outboundTemplate(
-            "MulliganRedraw seat=${seatId.value} mulliganCount=${facts.reportedMulliganCount} numCards=${facts.numCards}",
-        )
-        s.deliverLifecycle(bridge)
+        deliverTemplate(s, bridge, "mulligan_redraw")
     }
 
     /** DealHand + MulliganReq bundled (for seat 2). */
@@ -183,7 +177,15 @@ class MulliganHandler(
         val s = session ?: return
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishDealHandMulligan(seatId)
-        Tap.outboundTemplate("DealHand+MulliganReq seat=${seatId.value}")
+        deliverTemplate(s, bridge, "deal_hand_and_mulligan_request")
+    }
+
+    private fun deliverTemplate(
+        s: SessionOps,
+        bridge: GameBridge,
+        template: String,
+    ) {
         s.deliverLifecycle(bridge)
+        Tap.outboundTemplate(template, matchId = matchId, seat = seatId.value)
     }
 }

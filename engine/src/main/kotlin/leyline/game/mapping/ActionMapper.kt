@@ -172,7 +172,7 @@ object ActionMapper {
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
 
-        log.debug(
+        log.trace(
             "buildNaiveActionsFromSnapshot: seat={} mana={} lands={} casts={} total={}",
             seatId,
             builder.actionsList.count { it.actionType == ActionType.ActivateMana },
@@ -624,7 +624,7 @@ object ActionMapper {
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
         val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
         val inactiveCount = builder.inactiveActionsCount
-        log.debug(
+        log.trace(
             "buildFromSnapshot: seat={} mana={} activate={} lands={} casts={} inactive={} total={}",
             seatId,
             manaCount,

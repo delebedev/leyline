@@ -5,11 +5,16 @@
 
 package leyline.native.frontdoor
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -46,6 +51,7 @@ import leyline.native.frontdoor.service.PlayerService
 import leyline.native.frontdoor.wire.FdEnvelope
 import leyline.native.frontdoor.wire.FdResponseWriter
 import leyline.native.frontdoor.wire.FdWireConstants
+import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /**
@@ -210,6 +216,31 @@ class FrontDoorHandlerTest :
             val obj = sendJson(0, """{"ClientVersion":"1.0","Token":"fake"}""")
             obj["SessionId"].shouldNotBeNull()
             obj["Attached"]?.jsonPrimitive?.boolean shouldBe true
+        }
+
+        test("Front Door request failures expose one structured owned stack") {
+            val logger = LoggerFactory.getLogger(FrontDoorHandler::class.java) as Logger
+            val appender = ListAppender<ILoggingEvent>().apply { start() }
+            val previousLevel = logger.level
+            logger.level = Level.ERROR
+            logger.addAppender(appender)
+            val cause = IllegalStateException("synthetic front door request failure")
+            try {
+                fdChannel().pipeline().fireExceptionCaught(cause)
+
+                val event = appender.list.single { it.formattedMessage == "Front Door request failed" }
+                event.level shouldBe Level.ERROR
+                event.keyValuePairs.map { it.key } shouldContainExactlyInAnyOrder
+                    listOf("event", "subsystem", "request")
+                event.keyValuePairs.first { it.key == "event" }.value shouldBe "frontdoor.request_failed"
+                event.keyValuePairs.first { it.key == "subsystem" }.value shouldBe "frontdoor"
+                event.keyValuePairs.first { it.key == "request" }.value shouldBe "channel"
+                event.throwableProxy.shouldNotBeNull().className shouldBe IllegalStateException::class.java.name
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = previousLevel
+                appender.stop()
+            }
         }
 
         test("CmdType 1 - StartHook contains DeckSummaries and Decks") {

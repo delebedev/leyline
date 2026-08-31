@@ -17,6 +17,7 @@ internal class DeferredCastCostInteractionHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
     private val ctx: SessionContext,
+    private val matchId: String,
 ) {
     private data class OptionalCostPrompt(
         val request: CastingTimeOptionsReq,
@@ -77,7 +78,6 @@ internal class DeferredCastCostInteractionHandler(
             is DeferredCastAdmission.Hybrid -> {
                 val plan = deferredCast.deferredCostPlan(admission.receipt)
                 if (plan != null && checkOptionalCosts(admission.receipt, plan, preserveHybridStash = true)) {
-                    Tap.outboundTemplate("Cast deferred — optional cost prompt sent after hybrid mana type")
                     HandlerResult.Waiting
                 } else {
                     check(deferredCast.complete(admission.receipt)) { "Deferred hybrid action claim did not complete" }
@@ -113,8 +113,12 @@ internal class DeferredCastCostInteractionHandler(
             paymentColors = hybrid.paymentColors,
         )
 
-        Tap.outboundTemplate("CastingTimeOptionsReq (hybrid mana type) seat=${counters.seatId} grpId=${plan.grpId}")
         sink.sendPriorityState(ctx.bridge)
+        Tap.outboundTemplate(
+            "casting_time_options_hybrid_mana",
+            matchId = matchId,
+            seat = counters.seatId.value,
+        )
         return true
     }
 
@@ -126,7 +130,7 @@ internal class DeferredCastCostInteractionHandler(
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
         val prompt = prepareOptionalCosts(plan) ?: return false
         deferredCast.publishOptional(actionClaim, prompt.request, prompt.ctoIds, preserveHybridStash)
-        deliverOptionalPrompt(plan)
+        deliverOptionalPrompt()
         return true
     }
 
@@ -138,7 +142,7 @@ internal class DeferredCastCostInteractionHandler(
         val deferredCast = ctx.bridge.cutCoordinator.deferredCast
         val prompt = prepareOptionalCosts(plan) ?: return false
         if (!deferredCast.publishOptional(receipt, prompt.request, prompt.ctoIds, preserveHybridStash)) return false
-        deliverOptionalPrompt(plan)
+        deliverOptionalPrompt()
         return true
     }
 
@@ -160,9 +164,13 @@ internal class DeferredCastCostInteractionHandler(
         return OptionalCostPrompt(ctoReq, costCtoIds)
     }
 
-    private fun deliverOptionalPrompt(plan: leyline.bridge.handoff.DeferredCastCostPlan) {
-        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${counters.seatId} grpId=${plan.grpId}")
+    private fun deliverOptionalPrompt() {
         sink.sendPriorityState(ctx.bridge)
+        Tap.outboundTemplate(
+            "casting_time_options_optional_costs",
+            matchId = matchId,
+            seat = counters.seatId.value,
+        )
     }
 
     fun checkAlternateAdditionalCostChoice(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
@@ -183,8 +191,12 @@ internal class DeferredCastCostInteractionHandler(
             ctoIds = ctoIds,
         )
 
-        Tap.outboundTemplate("CastingTimeOptionsReq (alternate additional cost) seat=${counters.seatId} grpId=${plan.grpId}")
         sink.sendPriorityState(ctx.bridge)
+        Tap.outboundTemplate(
+            "casting_time_options_alternate_cost",
+            matchId = matchId,
+            seat = counters.seatId.value,
+        )
         return true
     }
 }

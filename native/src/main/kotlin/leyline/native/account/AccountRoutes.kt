@@ -55,7 +55,7 @@ private fun Route.loginRoute(
                     store.authenticate(email, password)
                         ?: return@post call.respondError(AccountError.INVALID_CREDENTIALS)
                 val pair = tokens.issueTokens(account)
-                log.info("Login: {} -> {}", email, account.accountId.take(8))
+                log.info("Login succeeded")
                 call.respondText(
                     loginResponseJson(account, pair),
                     ContentType.Application.Json,
@@ -74,7 +74,7 @@ private fun Route.loginRoute(
                     store.findByPersonaId(personaId)
                         ?: return@post call.respondError(AccountError.INVALID_CLIENT)
                 val pair = tokens.issueTokens(account)
-                log.info("Token refresh: {}", account.accountId.take(8))
+                log.info("Token refresh succeeded")
                 call.respondText(
                     loginResponseJson(account, pair),
                     ContentType.Application.Json,
@@ -114,7 +114,7 @@ private fun Route.profileRoute(
         val account =
             store.findByPersonaId(personaId)
                 ?: return@get call.respondError(AccountError.NOT_FOUND)
-        log.debug("Profile: {}", account.accountId.take(8))
+        log.debug("Profile requested")
         call.respondText(
             profileResponseJson(account),
             ContentType.Application.Json,

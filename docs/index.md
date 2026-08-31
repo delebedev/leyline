@@ -17,6 +17,8 @@ read_when:
 
 ## Testing and operation
 
+- [`logging.md`](logging.md) — runtime diagnostic event contract and output
+  policy
 - [`ai-solved-acceptance.md`](ai-solved-acceptance.md) — turning direct
   Forge-AI puzzle solutions into backend-neutral scripted suites
 - [`puzzle-harness.md`](puzzle-harness.md) — direct puzzle state, history-sensitive

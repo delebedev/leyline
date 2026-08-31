@@ -9,6 +9,7 @@ import leyline.game.data.ClientCardDatabase
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
 import leyline.native.account.AccountServer
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -132,6 +133,7 @@ private fun buildAccountServer(
  * existing local cache entries remain valid.
  */
 private fun detectCachedManifests(): String? {
+    val log = LoggerFactory.getLogger("leyline.LeylineMain")
     val downloadsDir = ClientCardDatabase.detectArenaDownloadsDir() ?: return null
     if (!downloadsDir.isDirectory) return null
 
@@ -147,12 +149,12 @@ private fun detectCachedManifests(): String? {
             val category = match.groupValues[1]
             val hash = match.groupValues[2]
             entries.add("""{"category":"$category","priority":50,"hash":"$hash"}""")
-            println("Detected client manifest: ${file.name}")
+            log.info("Detected client manifest: {}", file.name)
         }
         mainPattern.matchEntire(file.name)?.let { match ->
             val hash = match.groupValues[1]
             entries.add("""{"category":"","priority":100,"hash":"$hash"}""")
-            println("Detected client manifest: ${file.name}")
+            log.info("Detected client manifest: {}", file.name)
         }
     }
     if (entries.isEmpty()) return null

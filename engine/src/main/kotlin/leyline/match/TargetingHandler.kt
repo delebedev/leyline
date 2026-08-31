@@ -18,6 +18,7 @@ class TargetingHandler(
     private val sink: GreMessageSink,
     private val counters: SessionCounters,
     private val ctx: SessionContext,
+    private val matchId: String,
 ) {
     companion object {
         /** Stash optional cost indices after client response — writes to journal only. */
@@ -36,6 +37,7 @@ class TargetingHandler(
             sink = sink,
             counters = counters,
             ctx = ctx,
+            matchId = matchId,
         )
 
     /** Clear targeting state for puzzle hot-swap. */

@@ -75,7 +75,7 @@ object SnapshotHydration {
     ): HydratedSnapshot {
         val projection = project(gsm, consultSeat, cardRepository)
         val lines = projection.lines
-        log.info("SnapshotHydration: hydrating from {} state lines", lines.size)
+        log.info("Hydrating snapshot from {} state lines", lines.size)
         GameBootstrap.initializeLocalization()
         val puzzle =
             Puzzle(
@@ -256,7 +256,7 @@ object SnapshotHydration {
             if (entry == null) {
                 unresolvedIds += obj.instanceId
                 log.warn(
-                    "SnapshotHydration: no card name for grpId={} (iid={}), dropping from snapshot",
+                    "No card name for grpId={} (iid={}), dropping from snapshot",
                     obj.grpId,
                     obj.instanceId,
                 )
@@ -513,7 +513,7 @@ object SnapshotHydration {
             val protoName = CounterType.forNumber(typeNumber)?.name
             val forgeType = protoName?.let { name -> runCatching { ForgeCounterType.getType(name) }.getOrNull() }
             if (forgeType == null) {
-                log.warn("SnapshotHydration: unknown counter type {} on iid={}, dropping", typeNumber, iid)
+                log.warn("Unknown counter type {} on iid={}, dropping", typeNumber, iid)
                 continue
             }
             result.getOrPut(iid) { mutableListOf() } += "$protoName=$count"
@@ -554,7 +554,7 @@ object SnapshotHydration {
         for ((sourceIid, card) in idToCard) {
             bridge.bindInstanceId(ForgeCardId(card.id), InstanceId(sourceIid))
         }
-        log.info("SnapshotHydration: rebound {} instanceIds to source ids", idToCard.size)
+        log.debug("Rebound {} instanceIds to source ids", idToCard.size)
     }
 
     /** Restore committed blocks and the acting priority seat for combat consultation. */

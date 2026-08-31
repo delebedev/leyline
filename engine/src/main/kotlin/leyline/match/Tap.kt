@@ -5,13 +5,13 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Structured client proto message logger. One line per inbound/outbound message.
+ * Structured client proto compression for selected connection-boundary facts.
  *
- * Logger: `forge.web.arenatap` — set to WARN in logback.xml to silence.
- * Mirrors [forge.web.WsTap] for the client protocol.
+ * This is a protocol compression seam, not a second diagnostic stream. The
+ * logger uses the same event-builder contract as match lifecycle events.
  */
 object Tap {
-    private val log = LoggerFactory.getLogger("forge.web.arenatap")
+    private val log = LoggerFactory.getLogger(Tap::class.java)
 
     // --- Inbound (client → server) ---
 
@@ -19,7 +19,11 @@ object Tap {
         if (!log.isDebugEnabled) return
         // UI messages are high-frequency noise — logged at TRACE in inboundGRE() instead
         if (type == ClientToMatchServiceMessageType.ClientToGreuimessage) return
-        log.debug("[Client←] {}", type.name.removeSuffix("_f487"))
+        log
+            .atDebug()
+            .addKeyValue("event", "client.message_received")
+            .addKeyValue("message_type", type.name.removeSuffix("_f487"))
+            .log("Client message received")
     }
 
     fun inboundGRE(
@@ -27,59 +31,42 @@ object Tap {
         seatId: Int,
         gsId: Int,
     ) {
-        if (!log.isDebugEnabled) return
         val label = type.name.removeSuffix("_097b")
-        if (type == ClientMessageType.Uimessage_a39e) {
-            log.trace("[Client←] GRE {} seat={} gsId={}", label, seatId, gsId)
-            return
-        }
-        log.debug("[Client←] GRE {} seat={} gsId={}", label, seatId, gsId)
+        val builder =
+            if (type == ClientMessageType.Uimessage_a39e) {
+                if (!log.isTraceEnabled) return
+                log.atTrace()
+            } else {
+                if (!log.isDebugEnabled) return
+                log.atDebug()
+            }
+        builder
+            .addKeyValue("event", "client.gre_received")
+            .addKeyValue("message_type", label)
+            .addKeyValue("seat", seatId)
+            .addKeyValue("game_state_id", gsId)
+            .log("Client GRE message received")
     }
 
-    fun inboundAction(action: Action) {
+    fun outboundTemplate(
+        template: String,
+        matchId: String? = null,
+        seat: Int? = null,
+    ) {
         if (!log.isDebugEnabled) return
-        val type = action.actionType.name.removeSuffix("_add3")
-        if (action.instanceId != 0) {
-            log.debug("[Client←] action {} instanceId={} grpId={}", type, action.instanceId, action.grpId)
-        } else {
-            log.debug("[Client←] action {}", type)
-        }
-    }
-
-    // --- Outbound (server → client) ---
-
-    fun outboundState(gs: GameStateMessage) {
-        if (!log.isDebugEnabled) return
-        val ti = gs.turnInfo
-        log.debug(
-            "[Client→] state gsId={} type={} phase={} turn={} active={} priority={} zones={} objects={}",
-            gs.gameStateId,
-            gs.type,
-            ti.phase.name.removeSuffix("_a549"),
-            ti.turnNumber,
-            ti.activePlayer,
-            ti.priorityPlayer,
-            gs.zonesCount,
-            gs.gameObjectsCount,
-        )
-    }
-
-    fun outboundActions(req: ActionsAvailableReq) {
-        if (!log.isDebugEnabled) return
-        val counts =
-            req.actionsList
-                .groupBy { it.actionType }
-                .map { (t, v) -> "${t.name.removeSuffix("_add3")}=${v.size}" }
-                .joinToString(" ")
-        log.debug("[Client→] actions {}", counts)
-    }
-
-    fun outboundTemplate(label: String) {
-        if (!log.isDebugEnabled) return
-        log.debug("[Client→] template {}", label)
+        val builder =
+            log
+                .atDebug()
+                .addKeyValue("event", "client.template_sent")
+                .addKeyValue("template", template)
+        val correlatedBuilder = matchId?.let { builder.addKeyValue("match_id", it) } ?: builder
+        val seatedBuilder = seat?.let { correlatedBuilder.addKeyValue("seat", it) } ?: correlatedBuilder
+        seatedBuilder.log("Client template sent")
     }
 
     fun actionResult(
+        matchId: String,
+        seat: Int,
         actionType: ActionType,
         instanceId: Int,
         forgeCardId: ForgeCardId?,
@@ -87,10 +74,16 @@ object Tap {
     ) {
         if (!log.isDebugEnabled) return
         val type = actionType.name.removeSuffix("_add3")
-        if (forgeCardId != null) {
-            log.debug("[Client⚡] {} instanceId={}→forgeId={} ok={}", type, instanceId, forgeCardId.value, success)
-        } else {
-            log.debug("[Client⚡] {} instanceId={} unmapped", type, instanceId)
-        }
+        val builder =
+            log
+                .atDebug()
+                .addKeyValue("event", "client.action_result")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("seat", seat)
+                .addKeyValue("action_type", type)
+                .addKeyValue("instance_id", instanceId)
+                .addKeyValue("success", success)
+        val sourcedBuilder = forgeCardId?.let { builder.addKeyValue("forge_card_id", it.value) } ?: builder
+        sourcedBuilder.log("Client action result")
     }
 }

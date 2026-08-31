@@ -103,7 +103,7 @@ class CopilotAutopush(
                             delivery.detail,
                         )
                 }
-            }.onFailure { log.warn("autopush failed for {}: {}", prompt.type, it.message) }
+            }.onFailure { log.atWarn().setCause(it).log("autopush failed for {}", prompt.type) }
         }
     }
 
