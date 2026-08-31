@@ -69,6 +69,9 @@ object AnnotationConstants {
     /** `DesignationType` enum value for a player's speed state. */
     const val DESIGNATION_TYPE_PLAYER_SPEED: Int = 21
 
+    /** `REASON` value on the persistent `FaceDown` annotation for Foretell. */
+    const val FACEDOWN_REASON_FORETELL: Int = 5
+
     /** `REASON` value on the persistent `FaceDown` annotation for Disguise. */
     const val FACEDOWN_REASON_DISGUISE: Int = 6
 

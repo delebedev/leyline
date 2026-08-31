@@ -448,6 +448,25 @@ data object FaceDownDisguiseKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+/** Persistent `FaceDown` annotation for a foretold card in exile. */
+data object FaceDownForetellKind : PersistentAnnotationKind {
+    override val name = "FaceDownForetell"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean {
+        if (AnnotationType.FaceDown !in ann.typeList) return false
+        val reason =
+            ann.detailsList
+                .firstOrNull { it.key == leyline.game.codes.DetailKeys.REASON_UPPER }
+                ?.valueInt32List
+                ?.firstOrNull() ?: return false
+        return reason == AnnotationConstants.FACEDOWN_REASON_FORETELL
+    }
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 data object FaceDownCloakKind : PersistentAnnotationKind {
     override val name = "FaceDownCloak"
     override val pruneStale = true
@@ -724,6 +743,7 @@ object PersistentAnnotationKinds {
             ManaCreatureDesignationKind,
             PlayerSpeedDesignationKind,
             DayNightDesignationKind,
+            FaceDownForetellKind,
             FaceDownDisguiseKind,
             FaceDownCloakKind,
             FaceDownManifestDreadKind,

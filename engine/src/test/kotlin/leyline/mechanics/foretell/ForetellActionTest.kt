@@ -31,11 +31,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * mapper compensates with cost-agnostic [findKeywordAbilityGrpId] for
  * foretell, vs cost-aware lookup for everyone else.
  *
- * Cast-from-exile leg uses `AlternativeCost.Foretold` and requires the card
- * to already be in face-down Exile with the foretold flag. That state can't
- * be programmatically synthesized without driving the action, so this file
- * focuses on the hand activation. The exile-cast leg is empirically verified
- * via `data/puzzles/foretell-demon-bolt.pzl` + bot-match.
+ * Cast-from-exile coverage lives in [ForetellLifecycleTest], which drives the
+ * hand action before exercising that rail.
  *
  * Card: Demon Bolt (Sorcery R, Foretell {2} / cast for {R} from foretell).
  */
