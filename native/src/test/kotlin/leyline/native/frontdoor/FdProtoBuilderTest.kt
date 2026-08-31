@@ -2,6 +2,7 @@ package leyline.native.frontdoor
 
 import com.google.protobuf.UnknownFieldSet
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.native.NativeTag
@@ -32,6 +33,13 @@ class FdProtoBuilderTest :
 
             formatCount shouldBeGreaterThan 5 // 8 formats in metadata
             groupCount shouldBe 3 // EvergreenFormats, ConstructedSortOrder, BannedFormats
+            val setCodes =
+                inner
+                    .getField(1)
+                    .lengthDelimitedList
+                    .flatMap { UnknownFieldSet.parseFrom(it).getField(3).lengthDelimitedList }
+                    .map { it.toStringUtf8() }
+            setCodes shouldContainAll listOf("HOB", "HOC")
         }
 
         test("buildSetsProto produces valid Any-wrapped proto with sets and groups") {
@@ -53,5 +61,25 @@ class FdProtoBuilderTest :
 
             setCount shouldBeGreaterThan 50 // 109 sets in metadata
             groupCount shouldBe 1 // AllFilters
+            val setCodes =
+                inner
+                    .getField(1)
+                    .lengthDelimitedList
+                    .map {
+                        UnknownFieldSet
+                            .parseFrom(it)
+                            .getField(1)
+                            .lengthDelimitedList
+                            .single()
+                            .toStringUtf8()
+                    }
+            setCodes shouldContainAll listOf("HOB", "HOC")
+            val filterCodes =
+                UnknownFieldSet
+                    .parseFrom(inner.getField(2).lengthDelimitedList.single())
+                    .getField(2)
+                    .lengthDelimitedList
+                    .map { it.toStringUtf8() }
+            filterCodes shouldContainAll listOf("HOB", "HOC")
         }
     })

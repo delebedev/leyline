@@ -1,6 +1,16 @@
 {
   "sets": [
     {
+      "code": "HOB",
+      "releaseTs": 1786665600,
+      "active": 1
+    },
+    {
+      "code": "HOC",
+      "releaseTs": 1786665600,
+      "active": 1
+    },
+    {
       "code": "AA4",
       "digitalOnly": 4,
       "releaseTs": 1758616200,
@@ -1201,6 +1211,8 @@
     {
       "groupName": "AllFilters",
       "setCodes": [
+        "HOB",
+        "HOC",
         "SOS",
         "TMT",
         "ECL",
