@@ -13,6 +13,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationConstants
 import leyline.game.annotations.TransferResult
 import leyline.game.codes.QualificationType
 import leyline.game.data.KeywordAbilityIds
@@ -23,6 +24,7 @@ import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.DelayedTriggerAffecteesKind
+import leyline.game.state.FaceDownForetellKind
 import leyline.game.state.HolderRecord
 import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
@@ -78,6 +80,53 @@ class PersistentFeedBuilderTest :
                 )
 
             retained[DelayedTriggerAffecteesKind].shouldBeEmpty()
+        }
+
+        test("non-foretold cards do not feed the persistent Foretell face-down row") {
+            val foretold = ForgeCardId(10)
+            val ordinaryExile = ForgeCardId(20)
+            val snapshot =
+                GsmSnapshot.forTest(
+                    boundCards =
+                        mapOf(
+                            foretold to
+                                BoundCard(
+                                    foretold,
+                                    CardSnapshot(
+                                        foretold,
+                                        "Foretold",
+                                        1000,
+                                        SeatId(1),
+                                        SeatId(1),
+                                        isForetold = true,
+                                    ),
+                                    data = null,
+                                ),
+                            ordinaryExile to
+                                BoundCard(
+                                    ordinaryExile,
+                                    CardSnapshot(
+                                        ordinaryExile,
+                                        "Ordinary exile",
+                                        2000,
+                                        SeatId(1),
+                                        SeatId(1),
+                                    ),
+                                    data = null,
+                                ),
+                        ),
+                )
+
+            val projected = projectPersistentFrame(ProjectionState.initial(), snapshot, PromptProjectionFacts(), PersistentFeedFacts())
+
+            projected.result.feeds[FaceDownForetellKind] shouldBe
+                listOf(
+                    AnnotationBuilder.faceDownPersistent(
+                        instanceId = InstanceId(100),
+                        reason = AnnotationConstants.FACEDOWN_REASON_FORETELL,
+                        abilityGrpId = GrpId(KeywordAbilityIds.FORETELL),
+                    ),
+                )
         }
 
         test("two value-only frames produce exact feeds holders and identity state without mutating prior") {

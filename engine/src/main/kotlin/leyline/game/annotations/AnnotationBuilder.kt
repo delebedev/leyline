@@ -1231,14 +1231,13 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId.value)
             .build()
 
-    /** Persistent FaceDown annotation for a face-down permanent on the
-     *  battlefield. Carries the mechanic discriminator on `REASON`
-     *  (Disguise=6, Manifest Dread=8) and the corresponding ability identity
-     *  on `abilityGrpId` (Disguise=307, Manifest Dread=351).
+    /** Persistent FaceDown annotation for a face-down card. Carries the
+     *  mechanic discriminator on `REASON` and the corresponding ability
+     *  identity on `abilityGrpId`.
      *
      *  affector / affectedIds both = the face-down card's instance id.
-     *  Lives across many GSMs; deleted via diff-tracking when the card
-     *  flips face-up (`Special_TurnFaceUp_add3`) or leaves the battlefield. */
+     *  Lives across many GSMs; deleted via diff-tracking when the card stops
+     *  satisfying the mechanic-specific face-down state. */
     fun faceDownPersistent(
         instanceId: InstanceId,
         reason: Int,
