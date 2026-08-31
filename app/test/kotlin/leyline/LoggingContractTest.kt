@@ -3,8 +3,10 @@ package leyline
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.PatternLayout
+import ch.qos.logback.classic.joran.JoranConfigurator
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import ch.qos.logback.core.rolling.RollingFileAppender
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
@@ -105,5 +107,35 @@ class LoggingContractTest :
                     "<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg %kvp%n</pattern>",
                 )
             config shouldContain "<appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.RollingFileAppender\">"
+        }
+
+        test("rolling-file appender honors a custom artifacts root") {
+            val property = "LEYLINE_LOG_DIR"
+            val previous = System.getProperty(property)
+            val customRoot =
+                kotlin.io.path
+                    .createTempDirectory("leyline-log-contract")
+                    .toFile()
+            val context = LoggerContext()
+            try {
+                System.setProperty(property, customRoot.absolutePath)
+                JoranConfigurator().apply {
+                    this.context = context
+                    doConfigure(File("app/main/resources/logback.xml"))
+                }
+
+                val appender =
+                    context
+                        .getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
+                        .getAppender("FILE") as RollingFileAppender<*>
+                appender.file shouldBe File(customRoot, "leyline.log").absolutePath
+            } finally {
+                context.stop()
+                if (previous == null) {
+                    System.clearProperty(property)
+                } else {
+                    System.setProperty(property, previous)
+                }
+            }
         }
     })

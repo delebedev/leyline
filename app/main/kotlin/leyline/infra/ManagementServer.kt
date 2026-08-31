@@ -24,7 +24,7 @@ class ManagementServer(
     private val log = LoggerFactory.getLogger(ManagementServer::class.java)
     private var server: HttpServer? = null
 
-    fun start() {
+    fun start(): Int {
         val srv = HttpServer.create(InetSocketAddress(bindAddress, port), 0)
         srv.createContext("/health") { ex -> serveHealth(ex) }
         srv.executor =
@@ -37,8 +37,9 @@ class ManagementServer(
             .atInfo()
             .addKeyValue("event", "server.management_started")
             .addKeyValue("bind_address", bindAddress)
-            .addKeyValue("port", port)
+            .addKeyValue("port", srv.address.port)
             .log("Management server listening")
+        return srv.address.port
     }
 
     fun stop() {
@@ -56,7 +57,13 @@ class ManagementServer(
             ex.sendResponseHeaders(code, bytes.size.toLong())
             ex.responseBody.use { it.write(bytes) }
         } catch (t: Throwable) {
-            log.error("Health check error: {}", t.message)
+            log
+                .atError()
+                .setCause(t)
+                .addKeyValue("event", "server.management_health_failed")
+                .addKeyValue("subsystem", "management")
+                .addKeyValue("request", "health")
+                .log("Management health check failed")
             try {
                 ex.sendResponseHeaders(500, -1)
                 ex.close()

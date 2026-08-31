@@ -146,6 +146,7 @@ owning boundary does not have an honest value.
 | `client.template_sent` | `Tap` pre-game/template sender after sink success | `template`, optional `match_id`, optional `seat` |
 | `client.action_result` | `Tap` local action mapping | `match_id`, `seat`, `action_type`, `instance_id`, `success`, optional `forge_card_id` |
 | `server.management_started` | `ManagementServer` listener startup | `bind_address`, `port` |
+| `server.management_health_failed` | `ManagementServer` health-check failure | `subsystem`, `request`, throwable |
 | `card_database.opened` | `ClientCardDatabase` validated database open | `filename` |
 | `payment.tap_unclassified` | `TapPaymentPolicy` unsupported tap-payment shape | `kind`, `required`, optional `source_card` |
 | `frontdoor.request_failed` | `FrontDoorHandler` channel/request failure | `subsystem`, `request`, throwable |

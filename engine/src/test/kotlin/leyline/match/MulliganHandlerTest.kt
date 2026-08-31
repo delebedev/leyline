@@ -1,6 +1,12 @@
 package leyline.match
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -8,10 +14,14 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.infra.ListMessageSink
+import leyline.infra.MessageSink
 import leyline.testkit.BoardTest
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 
@@ -139,6 +149,60 @@ class MulliganHandlerTest :
                     .gameStateMessage
                     .playersList
                     .map { it.pendingMessageType } shouldContain ClientMessageType.MulliganResp_097b
+            }
+        }
+
+        test("failed lifecycle delivery does not emit a template event") {
+            val (bridge, _, _) =
+                startWithBoard { _, human, ai ->
+                    repeat(7) { addCard("Forest", human, forge.game.zone.ZoneType.Hand) }
+                    repeat(7) { addCard("Forest", ai, forge.game.zone.ZoneType.Hand) }
+                }
+            val registry = MatchRegistry()
+            val sink =
+                object : MessageSink {
+                    override fun send(messages: List<GREToClientMessage>): Unit = error("delivery failed")
+
+                    override fun sendRaw(msg: MatchServiceToClientMessage) = Unit
+                }
+            val session =
+                MatchSession(
+                    connection =
+                        ConnectionState(
+                            seatId = SeatId(1),
+                            matchId = "mulligan-handler-test",
+                            sink = sink,
+                            registry = registry,
+                        ),
+                    gameBridge = bridge,
+                    paceDelayMs = 0,
+                )
+            val mulligan = handler(SeatId(1), session, registry)
+            val context = LoggerFactory.getILoggerFactory() as LoggerContext
+            val logger = context.getLogger(Tap::class.java) as Logger
+            val appender =
+                ListAppender<ILoggingEvent>().apply {
+                    this.context = context
+                    start()
+                }
+            val priorLevel = logger.level
+            val priorAdditive = logger.isAdditive
+            logger.level = Level.DEBUG
+            logger.isAdditive = false
+            logger.addAppender(appender)
+
+            try {
+                shouldThrow<IllegalStateException> {
+                    mulligan.sendMulliganReq(reportedMulliganCount = 1, numCards = 6)
+                }
+                appender.list.none { event ->
+                    event.keyValuePairs.any { it.key == "event" && it.value == "client.template_sent" }
+                } shouldBe true
+            } finally {
+                logger.detachAppender(appender)
+                logger.level = priorLevel
+                logger.isAdditive = priorAdditive
+                appender.stop()
             }
         }
     })

@@ -12,8 +12,6 @@ import leyline.native.account.AccountServer
 import org.slf4j.LoggerFactory
 import java.io.File
 
-private val log = LoggerFactory.getLogger("leyline.LeylineMain")
-
 /**
  * Standalone entry point for the local Leyline server (native head).
  *
@@ -135,6 +133,7 @@ private fun buildAccountServer(
  * existing local cache entries remain valid.
  */
 private fun detectCachedManifests(): String? {
+    val log = LoggerFactory.getLogger("leyline.LeylineMain")
     val downloadsDir = ClientCardDatabase.detectArenaDownloadsDir() ?: return null
     if (!downloadsDir.isDirectory) return null
 
