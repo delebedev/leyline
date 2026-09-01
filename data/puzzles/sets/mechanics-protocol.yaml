@@ -815,6 +815,10 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: TemporaryPermanent
+            - annotation_seen: AbilityInstanceCreated
+            - annotation_seen: AbilityInstanceDeleted
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
             - stack_empty: true
