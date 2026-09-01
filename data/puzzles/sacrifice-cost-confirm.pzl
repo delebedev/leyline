@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Activating an ability whose cost sacrifices its source does not ask for a second confirmation.
+# Forcing: Evolving Wilds is the only available action with a self-sacrifice cost.
+# AI behavior: The scenario ends after the human resolves the search, before the opponent makes a decision.
+# Failure modes:
+#   WIN = The activation reaches library search and puts the chosen Forest onto the battlefield.
+#   LOSE = The activation or search did not complete before the turn limit.
+#   TIMEOUT = Cost payment stalled on an extra confirmation.
+# Card roles:
+#   Evolving Wilds — supplies the self-sacrifice activation cost.
+#   Forest — supplies the only legal search result.
+#   Mountain — keeps the opponent library non-empty.
+# Protocol path: ActionsAvailableReq activation, Sacrifice zone transfer, SearchReq, then resolution without an extra internal confirmation.
+
+[metadata]
+Name:Sacrifice Cost Confirm
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Pay a sacrifice-self activation cost and resolve the resulting search.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Evolving Wilds
+humanlibrary=Forest
+ailibrary=Mountain
