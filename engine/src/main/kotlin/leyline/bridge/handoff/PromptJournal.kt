@@ -92,7 +92,6 @@ class PromptJournal {
             is PromptSideEffect.ExiledUnderSource,
             is PromptSideEffect.LegendVictim,
             is PromptSideEffect.EnlistTapAffector,
-            is PromptSideEffect.OpeningHandAction,
             is PromptSideEffect.ChoiceResult,
             -> drains.add(DrainEntry(version, effect))
             is PromptSideEffect.RevealStarted ->
@@ -125,18 +124,6 @@ class PromptJournal {
 
     /** Remove + return `true` iff a [PromptSideEffect.LegendVictim] for [id] was present. */
     fun consumeLegendVictim(id: ForgeCardId): Boolean = drainFirstMatching { it is PromptSideEffect.LegendVictim && it.forgeCardId == id }
-
-    fun consumeOpeningHandAction(id: ForgeCardId): PromptSideEffect.OpeningHandAction? {
-        val iter = drains.iterator()
-        while (iter.hasNext()) {
-            val effect = iter.next().effect
-            if (effect is PromptSideEffect.OpeningHandAction && effect.forgeCardId == id) {
-                iter.remove()
-                return effect
-            }
-        }
-        return null
-    }
 
     /** Remove + return attacker iff an Enlist cost tap for [id] was present. */
     fun consumeEnlistTapAffector(id: ForgeCardId): ForgeCardId? {

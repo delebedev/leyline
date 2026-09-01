@@ -1,6 +1,20 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: opening-hand-battlefield-put
+    deck: [60 Leyline Axe]
+    opponent_deck: [60 Plains]
+    native: { skip: constructed-deck startup is not puzzle injectable }
+    run: keep an opening hand containing Leyline Axe
+    expect: Leyline Axe begins the first main phase on the battlefield through the opening-hand action lifecycle
+    steps:
+      - expect:
+          all:
+            - phase: MAIN1
+            - zone_contains: { side: ours, zone: battlefield, card: Leyline Axe }
+            - annotation_seen:
+                type: UserActionTaken
+                details: { actionType: 15, abilityGrpId: 175903 }
   - id: llanowar-elves-mana
     puzzle: llanowar-elves-mana
     run: cast Grizzly Bears with Llanowar Elves as the required second mana source

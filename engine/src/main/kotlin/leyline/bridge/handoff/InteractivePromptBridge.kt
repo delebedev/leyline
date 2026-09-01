@@ -57,7 +57,6 @@ class InteractivePromptBridge(
 
     @Volatile
     var abilityIdentityResolver: ((SpellAbility) -> ResolvedAbilityIdentity?)? = null
-    var openingHandAbilityGrpIdResolver: ((SpellAbility) -> Int?)? = null
 
     /** Match-scoped prompt owners. One immutable value is installed and cleared at the match boundary. */
     @Volatile
@@ -710,8 +709,6 @@ class InteractivePromptBridge(
     }
 
     fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
-
-    fun resolveOpeningHandAbilityGrpId(ability: SpellAbility): Int? = openingHandAbilityGrpIdResolver?.invoke(ability)
 }
 
 /**

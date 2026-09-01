@@ -11,8 +11,8 @@ import kotlin.io.path.name
 import kotlin.io.path.nameWithoutExtension
 
 /**
- * Statically validates the whole acceptance suite catalog: every suite parses, every scenario's
- * puzzle reference resolves to a fixture, every scenario has steps, and scenario ids are unique
+ * Statically validates the whole acceptance suite catalog: every suite parses, each referenced
+ * puzzle resolves to a fixture, every scenario has steps, and scenario ids are unique
  * across suites (they double as a cross-suite filter namespace). Runs at unit-test speed instead
  * of paying the puzzle-execution cost of [AcceptanceSuitesTest] to catch catalog-shape mistakes.
  */
@@ -33,8 +33,10 @@ class AcceptanceSuiteCatalogTest :
                 val suite = AcceptanceSuiteLoader.loadFromFile(path)
                 suite.name shouldBe path.nameWithoutExtension
                 suite.scenarios.forEach { scenario ->
-                    withClue("${path.name} scenario '${scenario.id}' references puzzle '${scenario.puzzle}'") {
-                        AcceptanceSuiteLoader.puzzleExists(scenario.puzzle) shouldBe true
+                    scenario.puzzle?.let { puzzle ->
+                        withClue("${path.name} scenario '${scenario.id}' references puzzle '$puzzle'") {
+                            AcceptanceSuiteLoader.puzzleExists(puzzle) shouldBe true
+                        }
                     }
                     withClue("${path.name} scenario '${scenario.id}' has no steps") {
                         scenario.steps.shouldNotBeEmpty()
@@ -90,7 +92,7 @@ class AcceptanceSuiteCatalogTest :
                     |      - resolve_stack: {}
                     """.trimMargin(),
                 )
-            AcceptanceSuiteLoader.puzzleExists(suite.scenarios.single().puzzle) shouldBe false
+            AcceptanceSuiteLoader.puzzleExists(checkNotNull(suite.scenarios.single().puzzle)) shouldBe false
         }
     })
 

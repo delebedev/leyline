@@ -399,7 +399,6 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
-                it.openingHandAbilityGrpIdResolver = { sa -> sa.hostCard?.let(::openingHandAbilityGrpId) }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -1288,8 +1287,8 @@ class GameBridge(
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
-    private fun openingHandAbilityGrpId(card: Card): Int? {
-        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+    internal fun openingHandAbilityGrpId(cardName: String): Int? {
+        val grpId = cardRepository.findGrpIdByName(cardName) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
         if (cardData.abilityCategories.size != cardData.abilityIds.size) return null
         return cardData.abilityIds

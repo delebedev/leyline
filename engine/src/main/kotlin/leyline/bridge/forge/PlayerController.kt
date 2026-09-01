@@ -1458,18 +1458,6 @@ class PlayerController(
         // chained sub-abilities execute — e.g. CharmEffect chains the chosen
         // mode as a sub, and the sub must resolve after the parent no-op.
         effectSA.activatingPlayer = player
-        if (effectSA.isOpeningHandBattlefieldPut()) {
-            bridge.resolveOpeningHandAbilityGrpId(effectSA)?.let { abilityGrpId ->
-                bridge.journal.record(
-                    PromptSideEffect.OpeningHandAction(
-                        forgeCardId = ForgeCardId(effectSA.hostCard.id),
-                        seatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
-                        abilityForgeId = effectSA.id,
-                        abilityGrpId = abilityGrpId,
-                    ),
-                )
-            }
-        }
         AbilityUtils.resolve(effectSA)
     }
 

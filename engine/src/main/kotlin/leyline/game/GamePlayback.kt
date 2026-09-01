@@ -193,7 +193,10 @@ class GamePlayback(
      * Establishes the ownership boundary between setup/mulligan state and ordinary
      * playback before Forge enters its first main-loop step.
      */
-    fun onMainGameLoopStarted() = bridge.cutCoordinator.onMainGameLoopStarted(SeatId(seatId))
+    fun onMainGameLoopStarted() {
+        bridge.eventCollector?.closeOpeningHandActionWindow()
+        bridge.cutCoordinator.onMainGameLoopStarted(SeatId(seatId))
+    }
 
     /** A successfully installed shell frame subsumes the pending request for its journal. */
     internal fun onFrameCommitted() = bridge.cutCoordinator.acknowledgeExternalFrame(SeatId(seatId))

@@ -62,6 +62,7 @@ object TransferAnnotations {
             annotations.add(AnnotationBuilder.resolutionStart(abilityId, abilityGrpId))
             if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, abilityId))
             annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = abilityId))
+            annotations.add(AnnotationBuilder.resolutionComplete(abilityId, abilityGrpId))
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(abilityId, origId))
             annotations.add(
                 AnnotationBuilder.userActionTaken(

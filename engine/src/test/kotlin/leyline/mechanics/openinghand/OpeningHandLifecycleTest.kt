@@ -55,6 +55,19 @@ class OpeningHandLifecycleTest :
                 annotations.first {
                     AnnotationType.AbilityInstanceDeleted in it.typeList && abilityId in it.affectedIdsList
                 }
+            val lifecycle =
+                annotations.mapNotNull { annotation ->
+                    when {
+                        AnnotationType.AbilityInstanceCreated in annotation.typeList -> "created"
+                        AnnotationType.ResolutionStart in annotation.typeList -> "resolving"
+                        AnnotationType.ObjectIdChanged in annotation.typeList -> "identity"
+                        AnnotationType.ZoneTransfer_af5a in annotation.typeList -> "transfer"
+                        AnnotationType.ResolutionComplete in annotation.typeList -> "resolved"
+                        AnnotationType.AbilityInstanceDeleted in annotation.typeList -> "deleted"
+                        AnnotationType.UserActionTaken in annotation.typeList -> "action"
+                        else -> null
+                    }
+                }
 
             assertSoftly {
                 human.battlefield.card("Leyline Axe").name shouldBe "Leyline Axe"
@@ -67,10 +80,23 @@ class OpeningHandLifecycleTest :
                 identityChange.detailInt("orig_id") shouldBe created.affectorId
                 identityChange.detailInt("new_id") shouldBe transfer.affectedIdsList.single()
                 deleted.affectorId shouldBe created.affectorId
+                lifecycle shouldBe listOf("created", "resolving", "identity", "transfer", "resolved", "deleted", "action")
                 annotations.filter { AnnotationType.ManaPaid in it.typeList }.shouldBeEmpty()
                 annotations
                     .filter { AnnotationType.UserActionTaken in it.typeList }
                     .map { it.detailInt("actionType") } shouldContain ActionType.OpeningHandAction.number
+            }
+        }
+
+        session(
+            "AI opening-hand battlefield put reaches the battlefield",
+            deckList = "60 Plains",
+            opponentDeckList = "60 Leyline Axe",
+            seed = 1L,
+        ) {
+            assertSoftly {
+                ai.battlefield.card("Leyline Axe").name shouldBe "Leyline Axe"
+                game().phaseHandler.phase.name shouldBe "MAIN1"
             }
         }
 

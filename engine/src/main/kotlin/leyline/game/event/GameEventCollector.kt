@@ -120,6 +120,8 @@ class GameEventCollector(
     @Volatile
     private var zoneMoves: MutableList<ZoneMove> = mutableListOf()
 
+    private var openingHandActionWindow = true
+
     /**
      * Stack AbilityInstance context keyed by Forge SpellAbility id. Cast events
      * record whether the id represents a trigger or an activated ability; resolve
@@ -171,6 +173,10 @@ class GameEventCollector(
 
     /** True if the current frame has events accumulated. */
     fun hasEvents(): Boolean = frame.isNotEmpty()
+
+    fun closeOpeningHandActionWindow() {
+        openingHandActionWindow = false
+    }
 
     // -- EventBus entry point --
 
@@ -821,14 +827,20 @@ class GameEventCollector(
         if (to == null) return
         val seat = seatOf(card.controller)
         val exileUnderSource = consumeExileUnderSource(card.id)
-        if (seat != null && from == ZoneType.Hand && to == ZoneType.Battlefield) {
-            bridge.promptBridge(seat).journal.consumeOpeningHandAction(ForgeCardId(card.id))?.let { action ->
+        val cause = ev.cause()
+        if (
+            openingHandActionWindow &&
+            seat != null &&
+            from == ZoneType.Hand &&
+            to == ZoneType.Battlefield
+        ) {
+            bridge.openingHandAbilityGrpId(card.name)?.let { abilityGrpId ->
                 frame.add(
                     GameEvent.OpeningHandAction(
-                        action.forgeCardId,
-                        action.seatId,
-                        action.abilityForgeId,
-                        action.abilityGrpId,
+                        ForgeCardId(card.id),
+                        seat,
+                        cause?.abilityId()?.takeIf { it != 0 } ?: card.id,
+                        abilityGrpId,
                     ),
                 )
             }
