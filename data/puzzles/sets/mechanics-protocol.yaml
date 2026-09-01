@@ -103,6 +103,7 @@ scenarios:
       - expect:
           all:
             - phase: Main1
+            - annotation_seen_in_phase: { type: ModifiedType, phase: MAIN1 }
             - stack_empty: true
   - id: saddle-drover-grizzly
     puzzle: saddle-drover-grizzly

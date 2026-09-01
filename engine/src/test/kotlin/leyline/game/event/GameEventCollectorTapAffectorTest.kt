@@ -37,12 +37,7 @@ class GameEventCollectorTapAffectorTest :
 
             game.fireEvent(GameEventCardTapped(land, true, spell.firstSpellAbility))
 
-            val tapped =
-                collector
-                    .closeFrame()
-                    .events
-                    .filterIsInstance<GameEvent.CardTapped>()
-                    .single()
+            val tapped = collector.closeFrame().events.single { it is GameEvent.CardTapped } as GameEvent.CardTapped
             assertSoftly {
                 tapped.affectorSpellCardId shouldBe ForgeCardId(spell.id)
                 tapped.affectorAbilityForgeId shouldBe 0
@@ -68,12 +63,7 @@ class GameEventCollectorTapAffectorTest :
 
             game.fireEvent(GameEventCardTapped(land, true, child))
 
-            val tapped =
-                collector
-                    .closeFrame()
-                    .events
-                    .filterIsInstance<GameEvent.CardTapped>()
-                    .single()
+            val tapped = collector.closeFrame().events.single { it is GameEvent.CardTapped } as GameEvent.CardTapped
             assertSoftly {
                 tapped.affectorAbilityForgeId shouldBe root.id
                 tapped.affectorAbilityForgeId shouldBe child.rootAbility.id
@@ -107,12 +97,7 @@ class GameEventCollectorTapAffectorTest :
 
             game.fireEvent(GameEventCardTapped(target, true, child))
 
-            val tapped =
-                collector
-                    .closeFrame()
-                    .events
-                    .filterIsInstance<GameEvent.CardTapped>()
-                    .single()
+            val tapped = collector.closeFrame().events.single { it is GameEvent.CardTapped } as GameEvent.CardTapped
             assertSoftly {
                 wrapped.id shouldNotBe child.rootAbility.id
                 tapped.affectorAbilityForgeId shouldBe wrapped.id
