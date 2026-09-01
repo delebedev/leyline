@@ -194,23 +194,23 @@ object AnnotationBuilder {
             }.build()
 
     /**
-     * CastingTimeOption — persistent annotation marking how a spell on the stack was cast.
+     * CastingTimeOption — persistent annotation marking a spell's available or selected cast route.
      *
      * Most common shape (and the one used by the alt-cost mechanic family):
      * **CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] both carry the alt-cost ability's grpId.
+     * [castAbilityGrpId] usually both carry the alt-cost ability's grpId. Free-cast choices use
+     * the free-cast cost identity in [alternateCostGrpId] and the granting ability in [castAbilityGrpId].
      *
-     * Persistent while the spell is on the stack; deleted via
-     * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
+     * Persistent while the spell is on the stack or eligible for an exile-zone free cast; deleted via
+     * `diffDeletedPersistentAnnotationIds` when that lifecycle ends.
      *
      * Other [CastingTimeOptionType] values (Kicker, AdditionalCost, ChooseX_a7b4, …) exist but
      * are not exercised by alt-cost mechanics.
      *
-     * [stackInstanceId] = the spell instance currently on the stack (affector AND affected,
-     *   since the annotation is self-attached).
-     * [alternateCostGrpId] = the alt-cost ability grpId.
-     * [castAbilityGrpId] = same as [alternateCostGrpId] for CastThroughAbility.
+     * [stackInstanceId] = the self-attached spell instance on the stack or eligible card in exile.
+     * [alternateCostGrpId] = the alternate or free-cast cost identity.
+     * [castAbilityGrpId] = the ability granting that cast route.
      */
     fun castingTimeOption(
         stackInstanceId: InstanceId,
