@@ -59,12 +59,6 @@ interface MatchCoordinator {
     /** Record match outcome. Called from MatchSession when game ends. */
     fun reportMatchResult(won: Boolean)
 
-    /** Record match outcome for matchId-keyed web launches. */
-    fun reportMatchResult(
-        matchId: String,
-        won: Boolean,
-    ) = reportMatchResult(won)
-
     companion object {
         /** No-op implementation for tests and modes without a game engine. */
         val NOOP: MatchCoordinator =

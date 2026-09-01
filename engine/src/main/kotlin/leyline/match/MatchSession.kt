@@ -2,7 +2,6 @@ package leyline.match
 
 import leyline.bridge.coord.SettledPromptAdmission
 import leyline.bridge.types.SeatId
-import leyline.domain.service.MatchCoordinator
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
@@ -36,7 +35,6 @@ class MatchSession(
     override val matchId: String get() = connection.matchId
     val sink: MessageSink get() = connection.sink
     val registry: MatchRegistry get() = connection.registry
-    val coordinator: MatchCoordinator? get() = connection.coordinator
 
     /** Client player ID — delegate; mutable on connection. */
     var playerId: String
@@ -425,9 +423,9 @@ class MatchSession(
             .addKeyValue("reason", outcome.reason.name)
             .log("Match completed")
 
-        // Notify coordinator (e.g. CourseService for sealed events)
+        // Publish the committed result after terminal output is visible.
         try {
-            coordinator?.reportMatchResult(matchId, outcome.winningTeam == seatId.value)
+            connection.resultObserver(MatchResultObservation(matchId, seatId.value, outcome.winningTeam))
         } catch (e: Exception) {
             log
                 .atError()

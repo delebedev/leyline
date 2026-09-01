@@ -11,7 +11,6 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
-import leyline.domain.service.MatchCoordinator
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionViewer
@@ -163,7 +162,7 @@ class MatchLoggingTest :
                             matchId = "failed-result",
                             sink = AwaitingSink(),
                             registry = registry,
-                            coordinator = FailingResultCoordinator(cause),
+                            resultObserver = { throw cause },
                         ),
                     gameBridge = bridge,
                     paceDelayMs = 0,
@@ -252,15 +251,6 @@ private fun failingRuntimeSession(
         listOf(GREToClientMessage.newBuilder().setGameStateId(17).build()),
     )
     return session
-}
-
-private class FailingResultCoordinator(
-    private val cause: Throwable,
-) : MatchCoordinator by MatchCoordinator.NOOP {
-    override fun reportMatchResult(
-        matchId: String,
-        won: Boolean,
-    ) = throw cause
 }
 
 private class AwaitingSink : MessageSink {

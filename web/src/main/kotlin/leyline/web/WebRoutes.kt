@@ -53,7 +53,7 @@ data class WebServices(
     val cardRepository: CardRepository,
     val matchLauncher: WebMatchLauncher,
     val authService: WebAuthService,
-    val greRelay: WebGreRelay = InProcessWebGreRelay(),
+    val greRelay: WebGreRelay,
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     /** Which pair the spectator feed serves next. Per server, not persisted. */
     val spectatorRotationCursor: AtomicInteger = AtomicInteger(),
