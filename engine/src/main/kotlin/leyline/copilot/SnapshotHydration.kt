@@ -1,6 +1,7 @@
 package leyline.copilot
 
 import forge.game.Game
+import forge.game.keyword.Keyword
 import forge.gamemodes.puzzle.Puzzle
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
@@ -228,7 +229,13 @@ object SnapshotHydration {
                     targetId.takeIf { it in playerSeats }?.let { bridge.getPlayer(SeatId(it)) }
                 }
             if (target != null && source.entityAttachedTo !== target) {
-                source.attachToEntity(target, null, true)
+                if (source.hasKeyword(Keyword.RECONFIGURE)) {
+                    // Import the existing relation without replaying Reconfigure's attach-time ability path.
+                    source.setEntityAttachedTo(target)
+                    target.addAttachedCard(source)
+                } else {
+                    source.attachToEntity(target, null, true)
+                }
             }
         }
     }
@@ -383,6 +390,10 @@ object SnapshotHydration {
                         ?.let { append(":").append(it) }
                 }
                 countersByIid[obj.instanceId]?.let { append("|Counters:").append(it.joinToString(",")) }
+                // Combat initializes before the late import hook, so resolvable card attachments must exist here too.
+                attachmentTargetsByIid[obj.instanceId]
+                    ?.takeIf { it in resolvableIds && SubType.Aura in obj.subtypesList }
+                    ?.let { append("|AttachedTo:").append(it) }
             }
         }
 
