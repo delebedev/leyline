@@ -1,4 +1,4 @@
-package leyline.infra
+package leyline.domain.service
 
 import leyline.domain.DeckCard
 import leyline.domain.DeckId
@@ -9,25 +9,20 @@ import leyline.domain.deck.DeckCards
 import leyline.domain.deck.toDeckCards
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
-import leyline.domain.service.CourseService
-import leyline.domain.service.MatchCoordinator
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Production [MatchCoordinator] — wired in [LeylineServer.startLocal].
- *
- * Absorbs the cross-BC deck resolution logic and shared @Volatile state
- * that previously lived as lambdas and fields in LeylineServer.
+ * Repository-backed match policy shared by native and embedding hosts.
  */
-class AppMatchCoordinator(
+class RepositoryMatchCoordinator(
     private val playerId: PlayerId,
     private val decks: DeckRepository,
     private val courseService: CourseService,
     private val draftRepo: DraftSessionRepository,
 ) : MatchCoordinator {
-    private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
+    private val log = LoggerFactory.getLogger(RepositoryMatchCoordinator::class.java)
     private val opponentRotationByEvent = ConcurrentHashMap<String, AtomicInteger>()
 
     @Volatile
