@@ -497,7 +497,9 @@ class WebRoutesTest :
                             message.greToClientEvent.greToClientMessagesList.any { it.hasGameStateMessage() }
                     }
                     send(Frame.Binary(fin = true, data = concedeRequestBytes()))
-                    while (!handle.result.toCompletableFuture().isDone) incoming.receive()
+                    while (!handle.result.toCompletableFuture().isDone) {
+                        withTimeoutOrNull(100) { incoming.receive() }
+                    }
                 }
 
                 val result = handle.result.toCompletableFuture().get(1, TimeUnit.SECONDS)
