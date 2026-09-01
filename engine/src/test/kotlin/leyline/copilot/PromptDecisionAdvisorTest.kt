@@ -73,6 +73,56 @@ class PromptDecisionAdvisorTest :
             chosen.decision shouldBe SimDecision.EffectCost(listOf(226))
         }
 
+        test("effect costs without a forced prompt answer remain unavailable") {
+            val advisor = PromptDecisionAdvisor(ForgeAiPolicy({ error("no live cost context") }, leyline.bridge.types.SeatId(1)))
+
+            fun prompt(selection: SelectNReq): GREToClientMessage =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setPayCostsReq(
+                        wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+                            .newBuilder()
+                            .setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(selection),
+                            ),
+                    ).build()
+
+            val strategic =
+                prompt(
+                    SelectNReq
+                        .newBuilder()
+                        .setMinSel(1)
+                        .setMaxSel(1)
+                        .setMinWeight(Int.MIN_VALUE)
+                        .setMaxWeight(Int.MAX_VALUE)
+                        .addIds(226)
+                        .addIds(227)
+                        .build(),
+                )
+            advisor.decide(strategic).shouldBeInstanceOf<PromptDecisionResult.Unavailable>().reason shouldBe
+                PromptUnavailableReason.NoForgeChoice
+
+            val incompleteWeights =
+                prompt(
+                    SelectNReq
+                        .newBuilder()
+                        .setMinSel(1)
+                        .setMaxSel(1)
+                        .setMinWeight(1)
+                        .setMaxWeight(1)
+                        .addIds(226)
+                        .addWeights(1)
+                        .addWeights(1)
+                        .build(),
+                )
+            advisor.decide(incompleteWeights).shouldBeInstanceOf<PromptDecisionResult.Unavailable>().reason shouldBe
+                PromptUnavailableReason.NoForgeChoice
+        }
+
         test("prompt-derived decisions reject incomplete or constrained legal domains") {
             val groupedSearch =
                 GREToClientMessage
