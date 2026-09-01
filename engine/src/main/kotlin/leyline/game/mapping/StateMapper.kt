@@ -26,6 +26,7 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
 import leyline.game.state.HolderBatch
 import leyline.game.state.HolderRecord
+import leyline.game.state.InstanceIdRegistry
 import leyline.game.state.MechanicSourceFacts
 import leyline.game.state.OpponentKnowledgeTracker
 import leyline.game.state.PersistentFeedFacts
@@ -89,6 +90,53 @@ object StateMapper {
         val objectRefreshInstanceIds: Set<Int>,
     )
 
+    private data class ShuffleIdentityPlan(
+        val eventIndex: Int,
+        val cardIds: List<ForgeCardId>,
+        val reallocations: Map<ForgeCardId, InstanceIdRegistry.IdReallocation>,
+    )
+
+    private fun planShuffleIdentities(
+        events: List<GameEvent>,
+        snap: GsmSnapshot,
+        prev: GsmSnapshot?,
+        editor: ProjectionState.Editor,
+    ): List<ShuffleIdentityPlan> =
+        events.mapIndexedNotNull { index, event ->
+            if (event !is GameEvent.LibraryShuffled) return@mapIndexedNotNull null
+            val zoneId = ZoneIds.libraryOf(event.seatId.value)
+            val cardIds = snap.zones[zoneId]?.contents.orEmpty()
+            val priorCardIds =
+                prev
+                    ?.zones
+                    ?.get(zoneId)
+                    ?.contents
+                    .orEmpty()
+                    .toSet()
+            ShuffleIdentityPlan(
+                eventIndex = index,
+                cardIds = cardIds,
+                reallocations = cardIds.filter { prev == null || it in priorCardIds }.associateWith(editor.identities::realloc),
+            )
+        }
+
+    private fun applyShuffleIdentityPlans(
+        events: MutableList<GameEvent>,
+        plans: List<ShuffleIdentityPlan>,
+        transferResult: TransferResult,
+    ) {
+        val transfersByCard = transferResult.transfers.mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer } }.toMap()
+        plans.forEach { plan ->
+            val pairs =
+                plan.cardIds.mapNotNull { cardId ->
+                    plan.reallocations[cardId]?.let { it.old.value to it.new.value }
+                        ?: transfersByCard[cardId]?.let { it.origId to it.newId }
+                }
+            val event = events[plan.eventIndex] as GameEvent.LibraryShuffled
+            events[plan.eventIndex] = event.copy(oldIds = pairs.map { it.first }, newIds = pairs.map { it.second })
+        }
+    }
+
     @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod")
     private fun buildFromSnapshotInternal(
         rawSnap: GsmSnapshot,
@@ -143,6 +191,7 @@ object StateMapper {
         // ═══ GATHER: snapshot mutable state (events arrive from caller) ═══
         // applyRevealProxies may append RevealProxiesDeleted on reveal end; keep local mutable copy.
         val eventsMutable = events.events.toMutableList()
+        val shuffleIdentityPlans = planShuffleIdentities(eventsMutable, snap, prev, editor)
         val initEffectDiff = effectPlanner.effects.emitInitEffectsOnce()
         val boostSnapshot = boostEntries(effectFacts, editor.identities)
         val effectDiff = effectPlanner.effects.diffBoosts(boostSnapshot)
@@ -308,6 +357,7 @@ object StateMapper {
                 mechanicSourceFacts,
                 zoneMoves = events.zoneMoves,
             )
+        applyShuffleIdentityPlans(eventsMutable, shuffleIdentityPlans, transferResult)
         recordParadigmSourceStackIids(transferResult, snap, annotationJournal)
         // Frame-scoped id resolver — uses the planned-realloc map so any consumer
         // asking "what iid will the client see for this card?" gets the

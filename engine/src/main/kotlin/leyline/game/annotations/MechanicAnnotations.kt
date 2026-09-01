@@ -92,6 +92,7 @@ object MechanicAnnotations {
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId = { GrpId(0) },
         counterAffectorResolver: (Int, GameEvent.CountersChanged) -> InstanceId? = { _, _ -> null },
         playerCounterAffectorResolver: (Int, GameEvent.PlayerCountersChanged) -> InstanceId? = { _, _ -> null },
+        shuffleAffectorResolver: (Int, GameEvent.LibraryShuffled) -> InstanceId? = { _, _ -> null },
         tokenAffectorResolver: (GameEvent.TokenCreated) -> InstanceId? = { null },
         stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
         castSpellTransferCardIds: Set<ForgeCardId> = emptySet(),
@@ -161,11 +162,8 @@ object MechanicAnnotations {
                     )
                 }
                 is GameEvent.LibraryShuffled -> {
-                    // TODO: re-enable once LibraryShuffled carries pre/post instanceId lists
-                    // annotations.add(AnnotationBuilder.shuffle(ev.seatId))
-                    // Suppressed: client's ShuffleAnnotationParser requires OldIds/NewIds
-                    // detail keys we don't have. Shuffle is cosmetic (animation only).
-                    log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId.value)
+                    annotations.add(AnnotationBuilder.shuffle(ev.seatId, ev.oldIds, ev.newIds, shuffleAffectorResolver(eventIndex, ev)))
+                    log.debug("mechanic: shuffle seat={} cards={}", ev.seatId.value, ev.newIds.size)
                 }
                 is GameEvent.Scry -> {
                     annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topIds, ev.bottomIds))
