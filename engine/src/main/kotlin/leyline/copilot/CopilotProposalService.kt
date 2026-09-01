@@ -29,6 +29,18 @@ class CopilotProposalService(
     /** Forge-AI heuristic position score for the seat; null when eval fails. */
     fun evaluate(): EvalScore? = policy.evaluateGameState()?.let { EvalScore(it.value, it.availableValue) }
 
+    /** Complete Copilot-host decision before native realization. */
+    internal fun decide(prompt: GREToClientMessage): PromptDecisionResult {
+        val result = advisor.decide(prompt)
+        if (result is PromptDecisionResult.Chosen || prompt.type != GREMessageType.ActionsAvailableReq_695e) return result
+        val proactive = policy.chooseMain2ProactivePermanent(prompt.actionsAvailableReq.actionsList) ?: return result
+        return PromptDecisionResult.Chosen(
+            decision = SimDecision.PerformAction(proactive.action),
+            source = PromptDecisionSource.CopilotSafeguard,
+            forgeAiAttempted = result.forgeAiAttempted,
+        )
+    }
+
     /** Propose a response for [prompt]; null / uncovered / failed consults yield `unrealizable`. */
     fun propose(prompt: GREToClientMessage?): CopilotProposal {
         if (prompt == null) {
@@ -125,11 +137,9 @@ class CopilotProposalService(
         )
 
     private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
-        val result = advisor.decide(prompt)
+        val result = decide(prompt)
         if (result is PromptDecisionResult.Chosen) return proposalFor(result.decision, prompt)
-        val proactive = policy.chooseMain2ProactivePermanent(prompt.actionsAvailableReq.actionsList)
-        return proactive?.let { proposalFor(SimDecision.PerformAction(it.action), prompt) }
-            ?: unavailableProposal(prompt, result as PromptDecisionResult.Unavailable)
+        return unavailableProposal(prompt, result as PromptDecisionResult.Unavailable)
     }
 
     private fun targetProposal(prompt: GREToClientMessage): CopilotProposal {

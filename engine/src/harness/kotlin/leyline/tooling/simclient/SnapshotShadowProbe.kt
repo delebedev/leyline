@@ -1,8 +1,10 @@
 package leyline.tooling.simclient
 
 import leyline.bridge.types.SeatId
-import leyline.copilot.CopilotProposal
 import leyline.copilot.CopilotProposalService
+import leyline.copilot.PromptDecisionResult
+import leyline.copilot.SimDecision
+import leyline.copilot.SnapshotDecisionConsult
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -12,20 +14,17 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * Snapshot-fidelity probe. At each prompt the seat responds to, ask the SAME
  * decision brain ([CopilotProposalService]) twice — once on the active game,
  * once on a fresh game hydrated from its serialized state — and compare the
- * two response byte strings.
+ * complete desired decisions.
  *
- * Both consults are stamped from the same prompt (identical gsId + respId), so a
- * byte difference is a state-rebuild fidelity gap, not an envelope difference, and
- * hydration is the only variable between the two calls. It never submits and
- * builds the snapshot without frame events.
+ * It never submits and builds the snapshot without frame events. Native response
+ * encoding belongs to Copilot and is deliberately outside this semantic probe.
  *
  * Buckets per prompt family:
- *   - match        — response bytes identical (hydration preserved the decision)
- *   - mismatch     — both produced bytes, but they differ (a hydration gap)
- *   - uncovered    — live produced bytes, snapshot did not (hydration lost the
+ *   - match        — desired decisions are equal
+ *   - mismatch     — both chose, but their desired decisions differ
+ *   - uncovered    — live chose, snapshot did not (hydration lost the
  *                    ability to answer at all)
- *   - bothUncovered — neither side has a response builder (a decoder gap, not a
- *                    hydration gap)
+ *   - bothUnavailable — neither side produced a desired decision
  *   - error        — state rebuild or consult threw
  */
 internal class SnapshotShadowProbe(
@@ -42,7 +41,7 @@ internal class SnapshotShadowProbe(
         var match: Int = 0,
         var mismatch: Int = 0,
         var uncovered: Int = 0,
-        var bothUncovered: Int = 0,
+        var bothUnavailable: Int = 0,
         var error: Int = 0,
     )
 
@@ -50,12 +49,24 @@ internal class SnapshotShadowProbe(
     private val mismatchSamples = linkedMapOf<String, String>()
     private val selectTargetsClasses = linkedMapOf<String, Int>()
     private val selectTargetsClassSamples = linkedMapOf<String, String>()
+    private val fidelityGrades = linkedMapOf<String, Int>()
+    private val importFindings = linkedMapOf<String, Int>()
+    private val decisionSources = linkedMapOf<String, Int>()
+    private val unavailableReasons = linkedMapOf<String, Int>()
 
     /** Per-prompt-family counts accumulated so far. */
     fun stats(): Map<String, Bucket> = byPrompt.mapValues { it.value.copy() }
 
     /** First mismatch digest per prompt family. */
     fun mismatchSamples(): Map<String, String> = mismatchSamples.toMap()
+
+    fun fidelityGrades(): Map<String, Int> = fidelityGrades.toMap()
+
+    fun importFindings(): Map<String, Int> = importFindings.toMap()
+
+    fun decisionSources(): Map<String, Int> = decisionSources.toMap()
+
+    fun unavailableReasons(): Map<String, Int> = unavailableReasons.toMap()
 
     /** Probe [prompt] once. Deduped by (msgId, gsId) so loop revisits don't double-count. */
     fun observe(prompt: GREToClientMessage) {
@@ -67,46 +78,57 @@ internal class SnapshotShadowProbe(
         b.probed++
 
         val live =
-            runCatching { liveService.propose(prompt) }.getOrElse {
+            runCatching { liveService.decide(prompt) }.getOrElse {
                 b.error++
                 log.debug("shadow live propose failed {}: {}", key, it.message)
                 return
             }
         val snapshot =
-            runCatching { snapshotSource.propose(prompt) }.getOrElse {
+            runCatching { snapshotSource.decide(prompt) }.getOrElse {
                 b.error++
+                unavailableReasons.merge("ConsultFailed", 1, Int::plus)
                 log.debug("shadow snapshot consult failed {}: {}", key, it.message)
                 return
             }
+        recordTelemetry(snapshot)
 
-        val liveMessages = live.responses
-        val snapshotMessages = snapshot.responses
+        val liveDecision = (live as? PromptDecisionResult.Chosen)?.decision
+        val snapshotDecision = (snapshot.result as? PromptDecisionResult.Chosen)?.decision
         when {
-            liveMessages.isEmpty() && snapshotMessages.isEmpty() -> b.bothUncovered++
-            snapshotMessages.isEmpty() -> {
+            liveDecision == null && snapshotDecision == null -> b.bothUnavailable++
+            snapshotDecision == null -> {
                 b.uncovered++
-                sample(key, prompt, live, snapshot, "snapshot-uncovered")
+                sample(key, prompt, liveDecision, snapshotDecision, "snapshot-uncovered", snapshot.fidelity.grade)
             }
-            liveMessages.isEmpty() -> {
+            liveDecision == null -> {
                 b.mismatch++
-                sample(key, prompt, live, snapshot, "live-uncovered")
+                sample(key, prompt, liveDecision, snapshotDecision, "live-uncovered", snapshot.fidelity.grade)
             }
-            liveMessages == snapshotMessages -> b.match++
+            liveDecision == snapshotDecision -> b.match++
             else -> {
                 b.mismatch++
-                sample(key, prompt, live, snapshot, "bytes-differ")
+                sample(key, prompt, liveDecision, snapshotDecision, "decision-differ", snapshot.fidelity.grade)
             }
         }
-        if (prompt.type == GREMessageType.SelectTargetsReq_695e && (liveMessages != snapshotMessages)) {
-            classifySelectTargets(prompt, live, snapshot)
+        if (prompt.type == GREMessageType.SelectTargetsReq_695e && liveDecision != snapshotDecision) {
+            classifySelectTargets(prompt, liveDecision, snapshotDecision)
+        }
+    }
+
+    private fun recordTelemetry(snapshot: SnapshotDecisionConsult) {
+        fidelityGrades.merge(snapshot.fidelity.grade, 1, Int::plus)
+        snapshot.fidelity.unavailableReasons.forEach { importFindings.merge(it, 1, Int::plus) }
+        when (val result = snapshot.result) {
+            is PromptDecisionResult.Chosen -> decisionSources.merge(result.source.name, 1, Int::plus)
+            is PromptDecisionResult.Unavailable -> unavailableReasons.merge(result.reason.name, 1, Int::plus)
         }
     }
 
     /**
      * Break a SelectTargets divergence into its sub-cause so the aggregate
      * match rate is not read as one problem when it is several. Buckets:
-     *  - encoding/same-ids — same target ids, different bytes (targetIdx / group
-     *    encoding), a response-builder issue, not a decision one.
+     *  - same-ids — one side did not produce a target decision, but neither
+     *    side selected a target id.
      *  - count-diff — different number of targets (optional decline vs pick,
      *    or multi-target count mismatch).
      *  - cross-side — live and snapshot target opposite sides (own vs enemy):
@@ -117,14 +139,14 @@ internal class SnapshotShadowProbe(
      */
     private fun classifySelectTargets(
         prompt: GREToClientMessage,
-        live: CopilotProposal,
-        snapshot: CopilotProposal,
+        live: SimDecision?,
+        snapshot: SimDecision?,
     ) {
-        val liveIds = live.responseIds
-        val snapIds = snapshot.responseIds
+        val liveIds = (live as? SimDecision.SelectTargets)?.targetInstanceIds.orEmpty()
+        val snapIds = (snapshot as? SimDecision.SelectTargets)?.targetInstanceIds.orEmpty()
         val cls =
             when {
-                live.responses.isNotEmpty() && snapshot.responses.isNotEmpty() && liveIds == snapIds -> "encoding/same-ids"
+                liveIds == snapIds -> "same-ids"
                 liveIds.size != snapIds.size -> "count-diff(${liveIds.size}->${snapIds.size})"
                 else -> {
                     val liveSides = liveIds.map { sideOf(it) }
@@ -158,32 +180,19 @@ internal class SnapshotShadowProbe(
     private fun sample(
         key: String,
         prompt: GREToClientMessage,
-        live: CopilotProposal,
-        snapshot: CopilotProposal,
+        live: SimDecision?,
+        snapshot: SimDecision?,
         reason: String,
+        fidelityGrade: String,
     ) {
-        if (mismatchSamples.containsKey(key)) return
+        val sampleKey = "$key.$reason"
+        if (mismatchSamples.containsKey(sampleKey)) return
         val turn = runCatching { harness.turn() }.getOrNull()
-        val diffAt = firstDiffOffset(live.responses, snapshot.responses)
         val digest =
-            "reason=$reason turn=$turn gsId=${prompt.gameStateId} diffAtChar=$diffAt " +
-                "live={intent=${live.intent},ids=${live.responseIds},responses=${live.responses}} " +
-                "snap={intent=${snapshot.intent},ids=${snapshot.responseIds},responses=${snapshot.responses}}"
-        mismatchSamples[key] = digest
-        log.warn("SNAPSHOT-SHADOW mismatch {} :: {}", key, digest)
-    }
-
-    /** Character index of the first difference between encoded deliveries, or -1 when either is empty. */
-    private fun firstDiffOffset(
-        a: List<String>,
-        b: List<String>,
-    ): Int {
-        if (a.isEmpty() || b.isEmpty()) return -1
-        val left = a.joinToString(",")
-        val right = b.joinToString(",")
-        val n = minOf(left.length, right.length)
-        for (i in 0 until n) if (left[i] != right[i]) return i
-        return if (left.length != right.length) n else -1
+            "reason=$reason turn=$turn gsId=${prompt.gameStateId} fidelity=$fidelityGrade " +
+                "live=${live?.auditDigest() ?: "unavailable"} snapshot=${snapshot?.auditDigest() ?: "unavailable"}"
+        mismatchSamples[sampleKey] = digest
+        log.warn("SNAPSHOT-SHADOW mismatch {} :: {}", sampleKey, digest)
     }
 
     fun logSummary(tag: String) {
@@ -196,7 +205,7 @@ internal class SnapshotShadowProbe(
         val rate = if (covered > 0) 100.0 * match / covered else 0.0
         val perPrompt =
             byPrompt.entries.joinToString(";") { (k, v) ->
-                "$k[p=${v.probed},m=${v.match},x=${v.mismatch},u=${v.uncovered},b=${v.bothUncovered},e=${v.error}]"
+                "$k[p=${v.probed},m=${v.match},x=${v.mismatch},u=${v.uncovered},b=${v.bothUnavailable},e=${v.error}]"
             }
         log.info(
             "SNAPSHOT-SHADOW summary tag={} probed={} match={} mismatch={} uncovered={} decisionMatch%={} :: {}",
