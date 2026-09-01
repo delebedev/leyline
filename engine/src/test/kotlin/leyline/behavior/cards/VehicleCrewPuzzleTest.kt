@@ -17,6 +17,7 @@ import leyline.testkit.annotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
  * Integration test for vehicle crew mechanic.
@@ -136,6 +137,11 @@ class VehicleCrewPuzzleTest :
                     }.shouldBeTrue()
                 }
             val vehicleUpdate = crewResolution.messages.allGameObjects().lastOrNull { it.instanceId == vehicleIid }
+            val vehicleUpdateGsm =
+                crewResolution.messages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .single { gsm -> gsm.gameObjectsList.any { it.instanceId == vehicleIid } }
             val layerCreated =
                 crewResolution.messages
                     .allAnnotations()
@@ -150,6 +156,7 @@ class VehicleCrewPuzzleTest :
                 wall.isTapped.shouldBeTrue()
                 vehicleUpdate.shouldNotBeNull()
                 vehicleUpdate.cardTypesList shouldContain CardType.Creature
+                vehicleUpdateGsm.update shouldBe GameStateUpdate.SendAndRecord
                 layerCreated.shouldNotBeNull()
                 layerCreated.affectorId shouldBe sourceIid
                 modifiedType.shouldNotBeNull()

@@ -773,16 +773,20 @@ class BundleBuilder(
             val fold = StateProjectionCompiler.compileViewers(stateProjectionEnvironment, framePrior, inputs)
             bridge.diffListener?.invoke(
                 framePrior,
-                inputs.zip(fold.viewers) { input, projected -> GameBridge.ProjectionFoldViewer(input, projected.result.gsm) },
+                inputs.zip(fold.viewers) { input, projected ->
+                    val gsm = playbackGsm(projected.result.gsm)
+                    GameBridge.ProjectionFoldViewer(input.copy(input = input.input.copy(updateType = gsm.update)), gsm)
+                },
             )
             routes.zip(fold.viewers).forEach { entry ->
                 val (viewer, builder) = entry.first
                 val projected = entry.second
                 check(viewer.seatId == projected.seatId)
                 val state = inputs.first { it.input.viewingSeatId == viewer.seatId.value }.input
+                val gsm = playbackGsm(projected.result.gsm)
                 val content =
                     builder.makeGRE(GREMessageType.GameStateMessage_695e, state.gameStateId, frame.contentMsgId) {
-                        it.gameStateMessage = projected.result.gsm
+                        it.gameStateMessage = gsm
                     }
                 val prompts = builder.coinFlipPromptMessages(state.events.events, state.gameStateId, frame.coinFlipMsgIds)
                 val echo = builder.buildEchoDiffGsm(frame.echoLink, frame.echoMsgId, GameStateUpdate.SendHiFi, state.gameStateId)
@@ -802,6 +806,13 @@ class BundleBuilder(
                 ),
         )
     }
+
+    private fun playbackGsm(gsm: GameStateMessage): GameStateMessage =
+        if (gsm.persistentAnnotationsList.any { AnnotationType.ModifiedType in it.typeList }) {
+            gsm.toBuilder().setUpdate(GameStateUpdate.SendAndRecord).build()
+        } else {
+            gsm
+        }
 
     private fun EffectProjectionFacts.withoutPendingEarthbendResolutions(): EffectProjectionFacts =
         EffectProjectionFacts(
