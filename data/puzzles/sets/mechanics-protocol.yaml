@@ -383,7 +383,7 @@ scenarios:
       - expect:
           action: { type: cast, card: Bloodbraid Elf }
       - cast: Bloodbraid Elf
-      - optional_action: { accept: true }
+      - cast: { card: Llanowar Elves, zone: exile }
       - resolve_stack: {}
       - expect:
           all:
@@ -397,7 +397,7 @@ scenarios:
       - expect:
           action: { type: cast, card: Geological Appraiser }
       - cast: Geological Appraiser
-      - optional_action: { accept: true }
+      - cast: { card: Llanowar Elves, zone: exile }
       - resolve_stack: {}
       - expect:
           all:

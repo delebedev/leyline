@@ -62,6 +62,18 @@ internal class ActionPerformer(
                 return
             }
 
+            val blocking = bridge.cutCoordinator.currentBlockingInteraction()
+            val freeCast = (blocking?.interaction as? leyline.bridge.handoff.BlockingInteraction.Optional)?.freeCast
+            if (blocking != null && freeCast != null) {
+                val action = greMsg.performActionResp.actionsList.firstOrNull() ?: return
+                val accepted = action.actionType == ActionType.Cast
+                if (action.actionType != ActionType.Pass && !accepted) return
+                if (!bridge.cutCoordinator.submitOptionalAnswer(blocking.interactionId, clientGsId, accepted)) return
+                bridge.prioritySignal.markPromptResolved()
+                continuation.awaitHorizon(completedActionId)
+                return
+            }
+
             val paymentResult = targetingHandler.tryHandlePayCostsPerformAction(greMsg)
             when (paymentResult) {
                 HandlerResult.Resume -> continuation.awaitHorizon(completedActionId)

@@ -58,6 +58,12 @@ class InteractivePromptBridge(
     @Volatile
     var abilityIdentityResolver: ((SpellAbility) -> ResolvedAbilityIdentity?)? = null
 
+    @Volatile
+    var cardGrpIdResolver: ((Card) -> Int)? = null
+
+    @Volatile
+    var triggerStackAbilityInstanceIdResolver: ((Int) -> Int?)? = null
+
     /** Match-scoped prompt owners. One immutable value is installed and cleared at the match boundary. */
     @Volatile
     internal var runtimeBindings: PromptRuntimeBindings = PromptRuntimeBindings()
@@ -709,6 +715,10 @@ class InteractivePromptBridge(
     }
 
     fun resolveAbilityIdentity(ability: SpellAbility): ResolvedAbilityIdentity? = abilityIdentityResolver?.invoke(ability)
+
+    fun resolveCardGrpId(card: Card): Int = cardGrpIdResolver?.invoke(card) ?: 0
+
+    fun resolveTriggerStackAbilityInstanceId(abilityId: Int): Int? = triggerStackAbilityInstanceIdResolver?.invoke(abilityId)
 }
 
 /**

@@ -6,10 +6,12 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -120,6 +122,12 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
+            val decline =
+                allMessages
+                    .last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Pass }
+            submitAction(decline)
 
             assertSoftly {
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
@@ -136,7 +144,9 @@ class CascadeDiscoverProjectionTest :
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
                 castingTimeOption.affectedIdsList shouldBe listOf(castableCard.instanceId)
                 castingTimeOption.affectedIdsList shouldNotBe listOf(triggeringSource.instanceId)
-                projectedStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+                messagesSince(before)
+                    .gameStateMessages()
+                    .flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
                 require(cascadeEntry.grpId != cascadeEntry.objectSourceGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
@@ -161,6 +171,12 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
+            val decline =
+                allMessages
+                    .last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Pass }
+            submitAction(decline)
 
             assertSoftly {
                 castingTimeOption.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
@@ -169,7 +185,9 @@ class CascadeDiscoverProjectionTest :
                 castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
                 castableCard.zoneId shouldBe ZoneIds.EXILE
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
-                projectedStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+                messagesSince(before)
+                    .gameStateMessages()
+                    .flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
             }
         }
     })

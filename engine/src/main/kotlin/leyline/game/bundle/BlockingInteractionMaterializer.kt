@@ -38,6 +38,43 @@ internal class BlockingInteractionMaterializer(
             val sourceId =
                 interaction.sourceId?.let { editor.identities.getOrAlloc(it).value }
                     ?: error("Optional interaction requires a source")
+            interaction.freeCast?.let { freeCast ->
+                val link = counter.nextGameStateLink()
+                val pending = pendingMessage(link)
+                val cast =
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setGrpId(freeCast.cardGrpId)
+                        .setInstanceId(sourceId)
+                        .setAbilityGrpId(freeCast.abilityGrpId)
+                        .setSourceId(freeCast.sourceInstanceId)
+                        .setAlternativeGrpId(149)
+                        .setAlternativeSourceZcid(freeCast.alternativeSourceZcid)
+                        .build()
+                val actions =
+                    ActionsAvailableReq
+                        .newBuilder()
+                        .addActions(
+                            cast,
+                        ).addActions(Action.newBuilder().setActionType(ActionType.Pass))
+                val prompt =
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.FREE_CAST_FROM_REVEAL)
+                        .addParameters(cardIdPromptParameter(freeCast.alternativeSourceZcid))
+                return@edit BundleBuilder.BundleResult(
+                    listOf(
+                        makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) { it.gameStateMessage = pending },
+                        makeGRE(GREMessageType.ActionsAvailableReq_695e, link.gsId, counter.nextMsgId()) {
+                            it.actionsAvailableReq = actions.build()
+                            it.prompt = prompt.build()
+                            it.allowCancel = AllowCancel.No_a526
+                        },
+                    ),
+                    actionGameStateId = link.gsId,
+                )
+            }
             val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
             val prompt =
                 Prompt
@@ -73,6 +110,43 @@ internal class BlockingInteractionMaterializer(
             }
                 ?: error("Optional interaction requires a source")
         val link = counter.nextGameStateLink()
+        interaction.freeCast?.let { freeCast ->
+            val cast =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setGrpId(freeCast.cardGrpId)
+                    .setInstanceId(sourceId)
+                    .setAbilityGrpId(freeCast.abilityGrpId)
+                    .setSourceId(freeCast.sourceInstanceId)
+                    .setAlternativeGrpId(149)
+                    .setAlternativeSourceZcid(freeCast.alternativeSourceZcid)
+                    .build()
+            val actions = ActionsAvailableReq.newBuilder().addActions(cast).addActions(Action.newBuilder().setActionType(ActionType.Pass))
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.FREE_CAST_FROM_REVEAL)
+                    .addParameters(cardIdPromptParameter(freeCast.alternativeSourceZcid))
+            return Prepared(
+                BundleBuilder.BundleResult(
+                    stateMessages +
+                        listOf(
+                            makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                                it.gameStateMessage = pendingMessage(link)
+                            },
+                            makeGRE(GREMessageType.ActionsAvailableReq_695e, link.gsId, counter.nextMsgId()) {
+                                it.actionsAvailableReq = actions.build()
+                                it.prompt = prompt.build()
+                                it.allowCancel = AllowCancel.No_a526
+                            },
+                        ),
+                    actionGameStateId = link.gsId,
+                ),
+                transition,
+                closesPlaybackFrame = true,
+            )
+        }
         val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
         val prompt =
             Prompt

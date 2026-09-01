@@ -52,6 +52,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
@@ -399,6 +400,10 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
+                it.cardGrpIdResolver = ::resolveGrpId
+                it.triggerStackAbilityInstanceIdResolver = { abilityId ->
+                    peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
+                }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
