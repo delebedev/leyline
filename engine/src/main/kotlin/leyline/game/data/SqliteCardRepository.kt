@@ -67,6 +67,7 @@ internal class SqliteCardRepository(
     private object Abilities : Table("Abilities") {
         val id = integer("Id")
         val baseId = integer("BaseId").default(0)
+        val textId = integer("TextId").default(0)
         val oldSchoolManaText = text("OldSchoolManaText").nullable()
         val modalChildIds = text("ModalChildIds").nullable()
 
@@ -94,6 +95,7 @@ internal class SqliteCardRepository(
     private val missingTokenNames = ConcurrentHashMap.newKeySet<String>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
     private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
+    private val abilityPresentationCache = ConcurrentHashMap<Int, java.util.Optional<AbilityPresentation>>()
 
     // --- CardRepository ---
 
@@ -208,6 +210,33 @@ internal class SqliteCardRepository(
         abilityInfoCache[abilityGrpId] = java.util.Optional.ofNullable(info)
         return info
     }
+
+    override fun findAbilityPresentation(abilityGrpId: Int): AbilityPresentation? {
+        abilityPresentationCache[abilityGrpId]?.let { return it.orElse(null) }
+        val presentation = queryAbilityPresentation(abilityGrpId)
+        abilityPresentationCache[abilityGrpId] = java.util.Optional.ofNullable(presentation)
+        return presentation
+    }
+
+    private fun queryAbilityPresentation(abilityGrpId: Int): AbilityPresentation? =
+        try {
+            transaction(database) {
+                Abilities
+                    .join(Localizations, JoinType.INNER, Abilities.textId, Localizations.locId)
+                    .selectAll()
+                    .where { Abilities.id eq abilityGrpId }
+                    .firstOrNull()
+                    ?.let { row ->
+                        AbilityPresentation(
+                            text = row[Localizations.loc],
+                            manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
+                        )
+                    }
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query ability presentation for id={}: {}", abilityGrpId, e.message)
+            null
+        }
 
     private fun queryAbilityInfo(abilityGrpId: Int): AbilityInfo? =
         try {

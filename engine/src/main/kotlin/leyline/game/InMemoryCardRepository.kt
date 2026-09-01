@@ -1,6 +1,7 @@
 package leyline.game
 
 import leyline.game.data.AbilityInfo
+import leyline.game.data.AbilityPresentation
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.ModalAbilityInfo
@@ -23,6 +24,7 @@ class InMemoryCardRepository : CardRepository {
     private val nameToGrpId = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val modalCache = java.util.concurrent.ConcurrentHashMap<Int, ModalAbilityInfo>()
     private val abilityInfoCache = java.util.concurrent.ConcurrentHashMap<Int, AbilityInfo>()
+    private val abilityPresentationCache = java.util.concurrent.ConcurrentHashMap<Int, AbilityPresentation>()
 
     val registeredCount: Int get() = grpIdToName.size
 
@@ -50,12 +52,20 @@ class InMemoryCardRepository : CardRepository {
         abilityInfoCache[abilityGrpId] = info
     }
 
+    fun registerAbilityPresentation(
+        abilityGrpId: Int,
+        presentation: AbilityPresentation,
+    ) {
+        abilityPresentationCache[abilityGrpId] = presentation
+    }
+
     fun clear() {
         grpIdToName.clear()
         nameToGrpId.clear()
         cache.clear()
         modalCache.clear()
         abilityInfoCache.clear()
+        abilityPresentationCache.clear()
     }
 
     override fun findByGrpId(grpId: Int): CardData? = cache[grpId]
@@ -79,4 +89,6 @@ class InMemoryCardRepository : CardRepository {
     }
 
     override fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = abilityInfoCache[abilityGrpId]
+
+    override fun findAbilityPresentation(abilityGrpId: Int): AbilityPresentation? = abilityPresentationCache[abilityGrpId]
 }
