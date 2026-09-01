@@ -1,6 +1,23 @@
 name: cost-selection-warmup
 description: Alternate costs, sacrifice/discard payments, and payment-selection smoke.
 scenarios:
+  - id: sacrifice-source-cost
+    puzzle: sacrifice-cost-confirm
+    run: activate Evolving Wilds, pay its self-sacrifice cost, and choose Forest
+    expect: the self-sacrifice activation reaches library search and resolves
+    steps:
+      - expect:
+          action: { type: activate, card: Evolving Wilds }
+      - activate: Evolving Wilds
+      - pass_until:
+          prompt: { type: SearchReq }
+      - search_cards: { side: ours, cards: [Forest] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Evolving Wilds }
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - stack_empty: true
   - id: treasure-token
     puzzle: treasure-token
     native:
