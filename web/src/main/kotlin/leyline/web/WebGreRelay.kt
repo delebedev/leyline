@@ -19,26 +19,18 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
-import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.RuntimeMatchLaunchResponse
 import leyline.domain.PlayerId
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
-import leyline.game.generator.PuzzleLibrary
-import leyline.infra.MatchOutput
-import leyline.match.MatchConnection
-import leyline.match.MatchRegistry
+import leyline.match.InProcessMatchRuntime
 import leyline.match.MatchResultObservation
-import org.slf4j.LoggerFactory
+import leyline.match.MatchRuntimeLaunch
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentHashMap
-
-private val relayLog = LoggerFactory.getLogger("leyline.web.WebGreRelay")
 
 interface WebGreRelay {
     suspend fun attach(
@@ -81,10 +73,10 @@ interface WebGreEngineSession {
  * connections, puzzle loading, delivery, and teardown stay inside this module.
  */
 class InProcessWebGreRelay(
-    private val engineSettings: EngineSettings,
-    private val coordinator: MatchCoordinator,
-    private val cardRepository: CardRepository,
-    private val puzzlesDir: File,
+    engineSettings: EngineSettings,
+    coordinator: MatchCoordinator,
+    cardRepository: CardRepository,
+    puzzlesDir: File,
     /**
      * How long a match engine survives with no attached browsers. A page
      * reload or transient socket drop detaches for a moment — closing the
@@ -94,36 +86,35 @@ class InProcessWebGreRelay(
     private val idleCloseGraceMs: Long = 60_000L,
 ) : WebGreRelay {
     private val sessions = ConcurrentHashMap<String, RelaySession>()
-    private val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
     private val launchOwners = ConcurrentHashMap<String, Any>()
-    private val puzzleLibrary = PuzzleLibrary(puzzlesDir)
+    private val runtime = InProcessMatchRuntime(engineSettings, coordinator, cardRepository, puzzlesDir)
 
     fun launch(launch: WebMatchLaunch): WebMatchHandle {
-        val response = runtimeMatchConfigs.configure(launch.config)
-        val matchId = response.matchId
+        val matchId = launch.config.matchId.trim()
         val owner = Any()
         launchOwners[matchId] = owner
-        val result = CompletableFuture<MatchResultObservation>()
-        register(
-            matchId = matchId,
+        val relaySession = sessions.computeIfAbsent(matchId) { RelaySession() }
+        val handle =
+            runtime.launch(
+                MatchRuntimeLaunch(
+                    config = launch.config,
+                    onFrame = relaySession::emit,
+                    onClosed = relaySession::engineClosed,
+                ),
+            )
+        relaySession.configure(
+            engineFactory = { _, _ ->
+                object : WebGreEngineSession {
+                    override fun receiveFromBrowser(payload: ByteArray) = handle.receive(payload)
+
+                    override fun close() = handle.close()
+                }
+            },
             ownerPlayerId = launch.ownerPlayerId,
             publicAccess = launch.publicAccess,
-            onClose = {
-                if (launchOwners.remove(matchId, owner)) runtimeMatchConfigs.remove(matchId)
-            },
-        ) { onFrame, onClosed ->
-            DirectWebGreEngineSession(
-                engineSettings = engineSettings,
-                coordinator = coordinator,
-                cardRepository = cardRepository,
-                runtimeMatchConfigs = runtimeMatchConfigs,
-                onFrame = onFrame,
-                onClosed = onClosed,
-                puzzleLibrary = puzzleLibrary,
-                resultObserver = { result.complete(it) },
-            )
-        }
-        return WebMatchHandle(response, result) { close(matchId, owner) }
+            onClose = { launchOwners.remove(matchId, owner) },
+        )
+        return WebMatchHandle(handle.response, handle.result) { close(matchId, owner) }
     }
 
     internal fun register(
@@ -154,7 +145,6 @@ class InProcessWebGreRelay(
         owner: Any,
     ) {
         if (!launchOwners.remove(matchId, owner)) return
-        runtimeMatchConfigs.remove(matchId)
         val relaySession = sessions.remove(matchId) ?: return
         relaySession.close()
     }
@@ -198,6 +188,14 @@ class InProcessWebGreRelay(
                     targets.forEach { target -> runCatching { target.send(Frame.Binary(fin = true, data = frame)) } }
                 }
             }
+        }
+
+        fun emit(bytes: ByteArray) {
+            outbound.trySend(bytes)
+        }
+
+        fun engineClosed() {
+            scope.launch { disconnectBrowsers() }
         }
 
         fun configure(
@@ -310,81 +308,5 @@ class InProcessWebGreRelay(
         private suspend fun dispatchToEngine(payload: ByteArray) {
             engineLock.withLock { engine?.receiveFromBrowser(payload) }
         }
-    }
-}
-
-class DirectWebGreEngineSession(
-    private val engineSettings: EngineSettings,
-    private val coordinator: MatchCoordinator?,
-    private val cardRepository: CardRepository,
-    private val runtimeMatchConfigs: RuntimeMatchConfigRegistry,
-    onFrame: (ByteArray) -> Unit,
-    onClosed: () -> Unit = {},
-    private val puzzleLibrary: PuzzleLibrary,
-    private val resultObserver: (MatchResultObservation) -> Unit = {},
-) : WebGreEngineSession {
-    /**
-     * Shared by the browser's seat and the [WebFamiliarSeat] the server drives
-     * alongside it — the handshake reaches across seats through this registry
-     * (seat 2's starting-player answer deals seat 1 its hand), so two registries
-     * would leave each seat talking to itself.
-     */
-    private val registry = MatchRegistry()
-
-    private fun openConnection(output: MatchOutput) =
-        MatchConnection(
-            registry = registry,
-            output = output,
-            engineSettings = engineSettings,
-            puzzleLibrary = puzzleLibrary,
-            coordinator = coordinator,
-            cardRepository = cardRepository,
-            runtimeMatchConfigs = runtimeMatchConfigs,
-            resultObserver = resultObserver,
-        )
-
-    private val connection =
-        openConnection(
-            object : MatchOutput {
-                override fun send(message: MatchServiceToClientMessage) {
-                    onFrame(message.toByteArray())
-                }
-
-                override fun close() = onClosed()
-            },
-        )
-
-    private val familiar = WebFamiliarSeat(::openConnection, ::needsFamiliarSeat)
-
-    private fun needsFamiliarSeat(matchId: String): Boolean {
-        val config = runtimeMatchConfigs.get(matchId)
-        val puzzle = !config?.puzzle.isNullOrBlank() || config?.puzzleDefinition != null
-        val spectating = config?.spectatorMode ?: engineSettings.spectatorMode
-        return !puzzle && !spectating
-    }
-
-    init {
-        connection.opened()
-    }
-
-    override fun receiveFromBrowser(payload: ByteArray) {
-        val inbound =
-            try {
-                ClientToMatchServiceMessage.parseFrom(payload)
-            } catch (_: InvalidProtocolBufferException) {
-                return
-            }
-        runCatching {
-            connection.receive(inbound)
-            familiar.followBrowser(inbound)
-        }.onFailure { error ->
-            relayLog.error("GRE engine error while handling client message", error)
-            connection.failed(error)
-        }
-    }
-
-    override fun close() {
-        connection.disconnected()
-        familiar.close()
     }
 }
