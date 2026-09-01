@@ -213,7 +213,7 @@ class StateFrameInputTest :
                 bridge.committedEffectProjection() shouldBe committedEffectsBefore
                 first.output.consumedEarthbendResolutionVersions shouldBe setOf(1L)
                 first.gsm.annotationsList.map(AnnotationInfo::shape) shouldBe
-                    expectedTransientShapes(targetIid, keywordAffectorIid, reconfigureIid, earthbendLayerIds)
+                    expectedTransientShapes(targetIid, keywordAffectorIid, crewVehicleIid, reconfigureIid, earthbendLayerIds)
                 first.gsm.persistentAnnotationsList.map(AnnotationInfo::shape) shouldBe
                     expectedPersistentShapes(
                         targetIid = targetIid,
@@ -480,6 +480,7 @@ private fun expectedAnnotation(
     vararg types: AnnotationType,
     affectorId: Int = 0,
     details: List<Pair<String, Int>> = emptyList(),
+    stringDetails: List<Pair<String, String>> = emptyList(),
 ): AnnotationShape =
     AnnotationShape(
         id = id,
@@ -487,25 +488,40 @@ private fun expectedAnnotation(
         affectedIds = listOf(affectedId),
         types = types.toList(),
         details =
-            details.map { (key, value) ->
+            stringDetails.map { (key, value) ->
                 AnnotationDetailShape(
                     key = key,
-                    type = KeyValuePairValueType.Int32,
+                    type = KeyValuePairValueType.String,
                     uint32Values = emptyList(),
-                    int32Values = listOf(value),
+                    int32Values = emptyList(),
                     uint64Values = emptyList(),
                     int64Values = emptyList(),
                     boolValues = emptyList(),
-                    stringValues = emptyList(),
+                    stringValues = listOf(value),
                     floatValues = emptyList(),
                     doubleValues = emptyList(),
                 )
-            },
+            } +
+                details.map { (key, value) ->
+                    AnnotationDetailShape(
+                        key = key,
+                        type = KeyValuePairValueType.Int32,
+                        uint32Values = emptyList(),
+                        int32Values = listOf(value),
+                        uint64Values = emptyList(),
+                        int64Values = emptyList(),
+                        boolValues = emptyList(),
+                        stringValues = emptyList(),
+                        floatValues = emptyList(),
+                        doubleValues = emptyList(),
+                    )
+                },
     )
 
 private fun expectedTransientShapes(
     targetIid: Int,
     keywordAffectorIid: Int,
+    crewVehicleIid: Int,
     reconfigureIid: Int,
     earthbendLayerIds: List<Int>,
 ): List<AnnotationShape> =
@@ -537,7 +553,15 @@ private fun expectedTransientShapes(
         expectedAnnotation(62, 7009, AnnotationType.LayeredEffectCreated, affectorId = targetIid),
         expectedAnnotation(63, 7010, AnnotationType.LayeredEffectCreated, affectorId = keywordAffectorIid),
         expectedAnnotation(64, 7012, AnnotationType.LayeredEffectCreated),
-        expectedAnnotation(65, 7013, AnnotationType.LayeredEffectCreated, affectorId = reconfigureIid),
+        expectedAnnotation(
+            65,
+            crewVehicleIid,
+            AnnotationType.ShouldntPlay,
+            affectorId = crewVehicleIid,
+            details = listOf("abilityGrpId" to 333),
+            stringDetails = listOf("Reason" to "RedundantActivation"),
+        ),
+        expectedAnnotation(66, 7013, AnnotationType.LayeredEffectCreated, affectorId = reconfigureIid),
     )
 
 private fun expectedPersistentShapes(

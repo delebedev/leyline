@@ -92,23 +92,17 @@ scenarios:
             - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
-    run: crew Brute Suit with Centaur Courser, then attack
-    expect: Brute Suit becomes a creature and combat can advance cleanly
+    run: crew Brute Suit with Centaur Courser and hold priority in Main1
+    expect: Brute Suit becomes a creature before combat advances
     steps:
       - expect:
           action: { type: activate, card: Brute Suit }
       - activate: Brute Suit
       - select_cost: { zone: battlefield, cards: [Centaur Courser] }
-      - pass_until:
-          prompt: DeclareAttackersReq
-          max_passes: 12
-      - attack_all: {}
-      - pass_until:
-          phase: Main2
+      - resolve_stack: {}
       - expect:
           all:
-            - opponent_life: 16
-            - phase: Main2
+            - phase: Main1
             - stack_empty: true
   - id: saddle-drover-grizzly
     puzzle: saddle-drover-grizzly

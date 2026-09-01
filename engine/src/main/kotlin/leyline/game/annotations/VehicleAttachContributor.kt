@@ -70,6 +70,7 @@ object VehicleAttachContributor : AnnotationContributor {
                         InstanceId(ctx.stackAbilityIid(it.abilityForgeId, it.cardId))
                     }
                 transient.add(AnnotationBuilder.layeredEffectCreated(effectId, abilityIid))
+                snap.crewAbilityGrpId?.let { transient.add(AnnotationBuilder.redundantActivation(vehicleIid, GrpId(it))) }
             }
             typeChange.add(
                 AnnotationBuilder.modifiedTypeLayeredEffect(

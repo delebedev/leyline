@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
@@ -157,6 +158,16 @@ class VehicleCrewPuzzleTest :
                 vehicleUpdate.shouldNotBeNull()
                 vehicleUpdate.cardTypesList shouldContain CardType.Creature
                 vehicleUpdateGsm.update shouldBe GameStateUpdate.SendAndRecord
+                vehicleUpdateGsm.zonesList.flatMap { it.objectInstanceIdsList } shouldNotContain sourceIid
+                vehicleUpdateGsm.diffDeletedInstanceIdsList shouldContain sourceIid
+                vehicleUpdateGsm.annotationsList.map { it.typeList.first() } shouldBe
+                    listOf(
+                        AnnotationType.ResolutionStart,
+                        AnnotationType.LayeredEffectCreated,
+                        AnnotationType.ResolutionComplete,
+                        AnnotationType.AbilityInstanceDeleted,
+                        AnnotationType.ShouldntPlay,
+                    )
                 layerCreated.shouldNotBeNull()
                 layerCreated.affectorId shouldBe sourceIid
                 modifiedType.shouldNotBeNull()

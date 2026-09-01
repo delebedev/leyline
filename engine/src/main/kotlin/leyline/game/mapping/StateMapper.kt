@@ -1449,10 +1449,9 @@ object StateMapper {
     private fun TransferResult.withoutStackAbilities(resolvedIids: Set<Int>): TransferResult {
         if (resolvedIids.isEmpty()) return this
         val updatedObjects = patchedObjects.filterNot { it.instanceId in resolvedIids }
-        if (updatedObjects.size == patchedObjects.size) return this
         val updatedZones =
             patchedZones.map { zone ->
-                if (zone.zoneId != ZoneIds.STACK) {
+                if (zone.zoneId != ZoneIds.STACK && zone.zoneId != ZoneIds.LIMBO) {
                     zone
                 } else {
                     zone
@@ -1462,7 +1461,11 @@ object StateMapper {
                         .build()
                 }
             }
-        return copy(patchedObjects = updatedObjects, patchedZones = updatedZones)
+        return copy(
+            patchedObjects = updatedObjects,
+            patchedZones = updatedZones,
+            retiredIds = retiredIds.filterNot { it in resolvedIids },
+        )
     }
 
     private fun TransferResult.withDelayedTriggerHolders(
