@@ -103,8 +103,13 @@ scenarios:
           prompt: DeclareAttackersReq
           max_passes: 12
       - attack_all: {}
+      - pass_until:
+          phase: Main2
       - expect:
-          stack_empty: true
+          all:
+            - opponent_life: 16
+            - phase: Main2
+            - stack_empty: true
   - id: saddle-drover-grizzly
     puzzle: saddle-drover-grizzly
     run: saddle Drover Grizzly with Grizzly Bears, then attack

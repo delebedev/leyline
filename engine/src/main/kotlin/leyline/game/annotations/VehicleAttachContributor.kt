@@ -2,6 +2,8 @@ package leyline.game.annotations
 
 import leyline.bridge.types.EffectId
 import leyline.bridge.types.GrpId
+import leyline.bridge.types.InstanceId
+import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.EffectProjectionFacts
@@ -44,24 +46,41 @@ object VehicleAttachContributor : AnnotationContributor {
                 )
             }
         val typeChange = mutableListOf<AnnotationInfo>()
-        val expired = mutableListOf<AnnotationInfo>()
+        val transient = mutableListOf<AnnotationInfo>()
 
         val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
         for (effectId in ctx.effects.crew.releaseMissing(currentCrewedFids)) {
-            expired.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
         for (snap in crewSnapshots) {
             if (!snap.isCreature) continue
-            val effectId = EffectId(ctx.effects.crew.getOrAllocId(snap.vehicleForgeCardId))
+            val vehicleIid = ctx.frameIds.cardIid(snap.vehicleForgeCardId)
+            val allocation = ctx.effects.crew.getOrAlloc(snap.vehicleForgeCardId)
+            val effectId = EffectId(allocation.effectId)
+            if (allocation.created) {
+                val resolution =
+                    ctx.events
+                        .filterIsInstance<GameEvent.SpellResolved>()
+                        .lastOrNull {
+                            it.cardId == snap.vehicleForgeCardId &&
+                                (snap.crewAbilityGrpId == null || it.abilityGrpId == snap.crewAbilityGrpId)
+                        }
+                val abilityIid =
+                    resolution?.let {
+                        InstanceId(ctx.stackAbilityIid(it.abilityForgeId, it.cardId))
+                    }
+                transient.add(AnnotationBuilder.layeredEffectCreated(effectId, abilityIid))
+            }
             typeChange.add(
                 AnnotationBuilder.modifiedTypeLayeredEffect(
-                    instanceId = ctx.frameIds.cardIid(snap.vehicleForgeCardId),
+                    instanceId = vehicleIid,
                     effectId = effectId,
+                    affectorId = vehicleIid,
                     sourceAbilityGrpId = snap.crewAbilityGrpId?.let { GrpId(it) },
                 ),
             )
         }
-        return Triple(crewedThisTurn, typeChange, expired)
+        return Triple(crewedThisTurn, typeChange, transient)
     }
 
     /** Saddle scan: SaddledThisTurn pAnns for mounts and helper creatures. */

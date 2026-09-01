@@ -4,14 +4,18 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
+import leyline.testkit.allPersistentAnnotations
 import leyline.testkit.annotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
@@ -92,6 +96,7 @@ class VehicleCrewPuzzleTest :
             )
             val wallIid = human.battlefield.iid(wall)
             val bearsIid = human.battlefield.iid("Grizzly Bears")
+            val vehicleIid = human.battlefield.iid("Brute Suit")
             val paymentSlice = after { activateAbility("Brute Suit").shouldBeTrue() }
             val payment = paymentSlice.expectOnePayCostsReq()
             val paymentMessage = paymentSlice.messages.single { it.hasPayCostsReq() }
@@ -120,17 +125,35 @@ class VehicleCrewPuzzleTest :
                 paymentResult.messages
                     .annotationsOfType(AnnotationType.TappedUntappedPermanent)
                     .single { wallIid in it.affectedIdsList }
-            passUntil(maxPasses = 4) {
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .single { it.name == "Brute Suit" }
-                    .isCreature
-            }.shouldBeTrue()
+            val crewResolution =
+                after {
+                    passUntil(maxPasses = 4) {
+                        human
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .single { it.name == "Brute Suit" }
+                            .isCreature
+                    }.shouldBeTrue()
+                }
+            val vehicleUpdate = crewResolution.messages.allGameObjects().lastOrNull { it.instanceId == vehicleIid }
+            val layerCreated =
+                crewResolution.messages
+                    .allAnnotations()
+                    .singleOrNull { AnnotationType.LayeredEffectCreated in it.typeList }
+            val modifiedType =
+                crewResolution.messages
+                    .allPersistentAnnotations()
+                    .singleOrNull { AnnotationType.ModifiedType in it.typeList }
 
             assertSoftly {
                 tap.affectorId shouldBe sourceIid
                 wall.isTapped.shouldBeTrue()
+                vehicleUpdate.shouldNotBeNull()
+                vehicleUpdate.cardTypesList shouldContain CardType.Creature
+                layerCreated.shouldNotBeNull()
+                layerCreated.affectorId shouldBe sourceIid
+                modifiedType.shouldNotBeNull()
+                modifiedType.affectorId shouldBe vehicleIid
                 human
                     .getZone(ZoneType.Battlefield)
                     .cards

@@ -536,7 +536,8 @@ private fun expectedTransientShapes(
         expectedAnnotation(61, earthbendLayerIds[3], AnnotationType.LayeredEffectCreated, affectorId = targetIid),
         expectedAnnotation(62, 7009, AnnotationType.LayeredEffectCreated, affectorId = targetIid),
         expectedAnnotation(63, 7010, AnnotationType.LayeredEffectCreated, affectorId = keywordAffectorIid),
-        expectedAnnotation(64, 7013, AnnotationType.LayeredEffectCreated, affectorId = reconfigureIid),
+        expectedAnnotation(64, 7012, AnnotationType.LayeredEffectCreated),
+        expectedAnnotation(65, 7013, AnnotationType.LayeredEffectCreated, affectorId = reconfigureIid),
     )
 
 private fun expectedPersistentShapes(
@@ -620,6 +621,7 @@ private fun expectedPersistentShapes(
             crewVehicleIid,
             AnnotationType.ModifiedType,
             AnnotationType.LayeredEffect,
+            affectorId = crewVehicleIid,
             details = listOf("effect_id" to 7012, "sourceAbilityGRPID" to 333),
         ),
         expectedAnnotation(

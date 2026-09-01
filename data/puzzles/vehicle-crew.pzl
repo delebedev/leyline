@@ -10,6 +10,7 @@ ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
 AILife=20
+removesummoningsickness=true
 
 humanbattlefield=Brute Suit;Centaur Courser
 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
