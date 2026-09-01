@@ -753,6 +753,9 @@ object AnnotationPipeline {
                 manaAbilityGrpIdResolver = { fid -> MechanicSourceProjection.manaAbilityGrpId(snap, fid) },
                 counterAffectorResolver = { eventIndex, ev -> ctx.counterAffectorFor(eventIndex, ev) },
                 playerCounterAffectorResolver = { eventIndex, ev -> ctx.playerCounterAffectorFor(eventIndex, ev) },
+                shuffleAffectorResolver = { _, ev ->
+                    ev.affectorCardId?.let { resolvingStackIidsByCard[it] ?: frameIds.cardIid(it) }
+                },
                 tokenAffectorResolver = { ev ->
                     tokenCreatedAffectorId(
                         ev,
@@ -776,22 +779,21 @@ object AnnotationPipeline {
         val earthbend = EarthbendEmitter.emit(ctx.effects.earthbend, ctx.effectFacts, snap)
         annotations.addAll(earthbend.destroyed)
         annotations.addAll(earthbend.created)
-        // Token entries belong inside the resolution bracket and before combat
-        // damage. The client identity map needs them before ResolutionComplete
-        // and before any DamageDealt entry that can reference the new token.
-        // Other mechanic annotations keep their later slot.
-        val (tokenCreatedAnns, otherMechanic) =
+        // Identity-changing mechanic entries belong inside the resolution bracket.
+        // The client needs token and shuffle remaps before ResolutionComplete and
+        // before any DamageDealt entry that can reference the new identities.
+        val (identityMechanicAnns, otherMechanic) =
             mechanicResult.transient.partition { ann ->
-                AnnotationType.TokenCreated in ann.typeList
+                AnnotationType.TokenCreated in ann.typeList || AnnotationType.Shuffle in ann.typeList
             }
-        if (tokenCreatedAnns.isNotEmpty()) {
+        if (identityMechanicAnns.isNotEmpty()) {
             val firstCompletionOrDamageIdx =
                 annotations
                     .indexOfFirst { ann ->
                         AnnotationType.ResolutionComplete in ann.typeList ||
                             AnnotationType.DamageDealt_af5a in ann.typeList
                     }.takeIf { it >= 0 } ?: annotations.size
-            annotations.addAll(firstCompletionOrDamageIdx, tokenCreatedAnns)
+            annotations.addAll(firstCompletionOrDamageIdx, identityMechanicAnns)
         }
         annotations.addAll(otherMechanic)
         annotations.addAll(earthbend.powerToughnessMods)

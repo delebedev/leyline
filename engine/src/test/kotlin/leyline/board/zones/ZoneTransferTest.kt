@@ -8,7 +8,6 @@ import forge.game.event.GameEventSpellResolved
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.FrameIdResolver
@@ -16,8 +15,8 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.seedDiffBaseline
 import leyline.testkit.BoardTest
 import leyline.testkit.annotation
-import leyline.testkit.annotationOrNull
 import leyline.testkit.detailInt
+import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import leyline.testkit.findZoneTransfer
 import leyline.testkit.gsm
@@ -29,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Zone transfer subsystem tests — every zone pair the Arena client expects.
  *
  * Covers: Destroy, Sacrifice, Exile, Bounce, Draw, Discard, Mill, Return,
- * SBA death paths, spell-forced discard, counter annotations, shuffle suppression.
+ * SBA death paths, spell-forced discard, counter annotations, shuffle identity remapping.
  *
  * For PlayLand (Hand→BF), see LandManaTest.
  * For CastSpell/Resolve/Countered (Hand→Stack, Stack→BF/GY), see StackCastResolveTest.
@@ -418,7 +417,7 @@ class ZoneTransferTest :
         // Shuffle
         // ===================================================================
 
-        test("shuffle — annotation suppressed") {
+        test("shuffle — remaps library identities") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Forest", human, ZoneType.Library)
@@ -427,6 +426,20 @@ class ZoneTransferTest :
 
             val gsm = board.snapshotDiff { board.game.humanPlayer.shuffle(null) }
 
-            gsm.annotationOrNull(AnnotationType.Shuffle).shouldBeNull()
+            val shuffle = gsm.annotation(AnnotationType.Shuffle)
+            val oldIds = shuffle.detailIntList("OldIds")
+            val newIds = shuffle.detailIntList("NewIds")
+            val projectedLibraryIds =
+                board.game.humanPlayer
+                    .getZone(ZoneType.Library)
+                    .cards
+                    .map { board.bridge.instanceId(it.id) }
+            assertSoftly {
+                shuffle.affectorId shouldBe 0
+                oldIds.size shouldBe 2
+                newIds.size shouldBe 2
+                oldIds.toSet().intersect(newIds.toSet()) shouldBe emptySet()
+                projectedLibraryIds shouldBe newIds
+            }
         }
     })

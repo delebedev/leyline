@@ -14,6 +14,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.detailInt
+import leyline.testkit.detailIntList
 import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
@@ -129,6 +130,9 @@ class OmenLifecycleTest :
                     it.type == GameObjectType.Omen_a4aa && it.zoneId == ZoneIds.P1_LIBRARY
                 } ?: error("No library companion; objects=${lifecycleObjects.map { Triple(it.instanceId, it.type, it.zoneId) }}")
             val annotations = lifecycleMessages.allAnnotations()
+            val shuffle =
+                annotations.singleOrNull { it.isType(AnnotationType.Shuffle) }
+                    ?: error("No Shuffle; types=${annotations.flatMap { it.typeList }}")
             val resolutionStart =
                 annotations.singleOrNull {
                     it.isType(AnnotationType.ResolutionStart) && it.detailInt("grpid") == 95537
@@ -180,6 +184,11 @@ class OmenLifecycleTest :
                 annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(tokenCreated)
                 annotations.indexOf(tokenCreated) shouldBeLessThan annotations.indexOf(resolutionComplete)
                 tokenCreated.affectorId shouldBe stackCard.instanceId
+                shuffle.affectorId shouldBe stackCard.instanceId
+                shuffle.detailIntList("OldIds").size shouldBe 5
+                shuffle.detailIntList("NewIds") shouldBe libraryZone.objectInstanceIdsList
+                shuffle.detailIntList("OldIds").toSet().intersect(shuffle.detailIntList("NewIds").toSet()) shouldBe emptySet()
+                annotations.indexOf(shuffle) shouldBeLessThan annotations.indexOf(resolutionComplete)
                 annotations.indexOf(resolutionComplete) shouldBeLessThan annotations.indexOf(resolveObjectIdChanged)
                 annotations.indexOf(resolveObjectIdChanged) shouldBeLessThan annotations.indexOf(resolveTransfer)
                 libraryZone.objectInstanceIdsList.count { it == libraryParent.instanceId } shouldBe 1
