@@ -1,7 +1,7 @@
 package leyline.game
 
 import leyline.game.data.AbilityInfo
-import leyline.game.data.AbilityPresentation
+import leyline.game.data.AbilityLocalization
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.ModalAbilityInfo
@@ -24,7 +24,7 @@ class InMemoryCardRepository : CardRepository {
     private val nameToGrpId = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val modalCache = java.util.concurrent.ConcurrentHashMap<Int, ModalAbilityInfo>()
     private val abilityInfoCache = java.util.concurrent.ConcurrentHashMap<Int, AbilityInfo>()
-    private val abilityPresentationCache = java.util.concurrent.ConcurrentHashMap<Int, AbilityPresentation>()
+    private val abilityLocalizationCache = java.util.concurrent.ConcurrentHashMap<Int, AbilityLocalization>()
 
     val registeredCount: Int get() = grpIdToName.size
 
@@ -52,11 +52,11 @@ class InMemoryCardRepository : CardRepository {
         abilityInfoCache[abilityGrpId] = info
     }
 
-    fun registerAbilityPresentation(
+    fun registerAbilityLocalization(
         abilityGrpId: Int,
-        presentation: AbilityPresentation,
+        localization: AbilityLocalization,
     ) {
-        abilityPresentationCache[abilityGrpId] = presentation
+        abilityLocalizationCache[abilityGrpId] = localization
     }
 
     fun clear() {
@@ -65,7 +65,7 @@ class InMemoryCardRepository : CardRepository {
         cache.clear()
         modalCache.clear()
         abilityInfoCache.clear()
-        abilityPresentationCache.clear()
+        abilityLocalizationCache.clear()
     }
 
     override fun findByGrpId(grpId: Int): CardData? = cache[grpId]
@@ -90,5 +90,5 @@ class InMemoryCardRepository : CardRepository {
 
     override fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = abilityInfoCache[abilityGrpId]
 
-    override fun findAbilityPresentation(abilityGrpId: Int): AbilityPresentation? = abilityPresentationCache[abilityGrpId]
+    override fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? = abilityLocalizationCache[abilityGrpId]
 }

@@ -95,7 +95,7 @@ internal class SqliteCardRepository(
     private val missingTokenNames = ConcurrentHashMap.newKeySet<String>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
     private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
-    private val abilityPresentationCache = ConcurrentHashMap<Int, java.util.Optional<AbilityPresentation>>()
+    private val abilityLocalizationCache = ConcurrentHashMap<Int, java.util.Optional<AbilityLocalization>>()
 
     // --- CardRepository ---
 
@@ -211,30 +211,30 @@ internal class SqliteCardRepository(
         return info
     }
 
-    override fun findAbilityPresentation(abilityGrpId: Int): AbilityPresentation? {
-        abilityPresentationCache[abilityGrpId]?.let { return it.orElse(null) }
-        val presentation = queryAbilityPresentation(abilityGrpId)
-        abilityPresentationCache[abilityGrpId] = java.util.Optional.ofNullable(presentation)
-        return presentation
+    override fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? {
+        abilityLocalizationCache[abilityGrpId]?.let { return it.orElse(null) }
+        val localization = queryAbilityLocalization(abilityGrpId)
+        abilityLocalizationCache[abilityGrpId] = java.util.Optional.ofNullable(localization)
+        return localization
     }
 
-    private fun queryAbilityPresentation(abilityGrpId: Int): AbilityPresentation? =
+    private fun queryAbilityLocalization(abilityGrpId: Int): AbilityLocalization? =
         try {
             transaction(database) {
                 Abilities
                     .join(Localizations, JoinType.INNER, Abilities.textId, Localizations.locId)
                     .selectAll()
-                    .where { Abilities.id eq abilityGrpId }
+                    .where { (Abilities.id eq abilityGrpId) and (Localizations.formatted eq 1) }
                     .firstOrNull()
                     ?.let { row ->
-                        AbilityPresentation(
+                        AbilityLocalization(
                             text = row[Localizations.loc],
                             manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
                         )
                     }
             }
         } catch (e: Exception) {
-            log.warn("Failed to query ability presentation for id={}: {}", abilityGrpId, e.message)
+            log.warn("Failed to query ability localization for id={}: {}", abilityGrpId, e.message)
             null
         }
 

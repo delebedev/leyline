@@ -8,12 +8,12 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.io.File
 import java.sql.DriverManager
 
-class SqliteCardRepositoryAbilityPresentationTest :
+class SqliteCardRepositoryAbilityLocalizationTest :
     FunSpec({
         tags(UnitTag)
 
         fun withRepository(block: (SqliteCardRepository, String) -> Unit) {
-            val dbFile = File.createTempFile("ability-presentation", ".sqlite").apply { deleteOnExit() }
+            val dbFile = File.createTempFile("ability-localization", ".sqlite").apply { deleteOnExit() }
             val url = "jdbc:sqlite:${dbFile.absolutePath}"
             DriverManager.getConnection(url).use { connection ->
                 connection.createStatement().use { statement ->
@@ -32,24 +32,25 @@ class SqliteCardRepositoryAbilityPresentationTest :
             block(SqliteCardRepository(Database.connect(url, "org.sqlite.JDBC")), url)
         }
 
-        test("ability presentation resolves localized text and mana cost") {
+        test("ability localization selects formatted text and resolves mana cost") {
             withRepository { repository, url ->
                 DriverManager.getConnection(url).use { connection ->
                     connection.createStatement().use { statement ->
+                        statement.executeUpdate("INSERT INTO Localizations_enUS VALUES (21, 0, 'Internal template');")
                         statement.executeUpdate("INSERT INTO Localizations_enUS VALUES (21, 1, 'Choose one');")
                         statement.executeUpdate("INSERT INTO Abilities VALUES (7, 0, 21, 'o2oU', NULL, 8, 0);")
                     }
                 }
 
-                repository.findAbilityPresentation(7) shouldBe
-                    AbilityPresentation(
+                repository.findAbilityLocalization(7) shouldBe
+                    AbilityLocalization(
                         text = "Choose one",
                         manaCost = listOf(ManaColor.Generic to 2, ManaColor.Blue_afc9 to 1),
                     )
             }
         }
 
-        test("ability presentation returns null when either row is missing") {
+        test("ability localization returns null when either row is missing") {
             withRepository { repository, url ->
                 DriverManager.getConnection(url).use { connection ->
                     connection.createStatement().use { statement ->
@@ -57,8 +58,8 @@ class SqliteCardRepositoryAbilityPresentationTest :
                     }
                 }
 
-                repository.findAbilityPresentation(7) shouldBe null
-                repository.findAbilityPresentation(8) shouldBe null
+                repository.findAbilityLocalization(7) shouldBe null
+                repository.findAbilityLocalization(8) shouldBe null
             }
         }
     })

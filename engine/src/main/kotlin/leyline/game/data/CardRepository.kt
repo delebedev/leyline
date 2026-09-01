@@ -49,8 +49,8 @@ interface CardRepository {
      */
     fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = null
 
-    /** Localized display text and owned cost metadata for one ability row. */
-    fun findAbilityPresentation(abilityGrpId: Int): AbilityPresentation? = null
+    /** Raw localized text and owned cost metadata for one ability row. */
+    fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? = null
 
     /**
      * Keyword presence lookup. [keywordAbilityId] is one of the well-known
@@ -157,7 +157,7 @@ data class AbilityInfo(
     val subCategory: Int = 0,
 )
 
-data class AbilityPresentation(
+data class AbilityLocalization(
     val text: String,
     val manaCost: List<Pair<ManaColor, Int>> = emptyList(),
 )
