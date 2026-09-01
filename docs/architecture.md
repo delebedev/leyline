@@ -7,7 +7,8 @@ read_when:
 ---
 # Leyline Architecture
 
-Leyline is one stateful game backbone with two protocol heads. This document
+Leyline is one stateful game backbone with a native protocol head and an
+in-process match-runtime interface for embedding hosts. This document
 owns the system shape and module boundaries. Durable rationale lives in
 [`docs/decisions/`](decisions/); cross-thread constraints live in
 [`bridge-threading.md`](bridge-threading.md).
@@ -17,36 +18,33 @@ owns the system shape and module boundaries. Durable rationale lives in
 ```mermaid
 flowchart LR
     NC["Native client"] --> N["native<br/>account · lobby · match transport"]
-    B["Browser"] --> W["web<br/>HTTP · WebSocket"]
     N --> E["engine<br/>match runtime · projection"]
-    W --> E
+    H["Embedding host"] --> E
     N --> D["domain"]
-    W --> D
+    H --> D
     E --> D
     E --> F["forge<br/>rules engine"]
     E --> GP["gre-proto<br/>generated GRE schema"]
     N --> GP
-    W --> GP
     A["app<br/>composition root"] --> GP
     A -. "wires" .-> N
-    A -. "wires" .-> W
     A -. "wires" .-> E
 ```
 
-The heads decode different transports but submit to the same engine match
-surface. `engine` is the only Gradle module that depends on Forge. `gre-proto`
+The native head and embedding hosts submit through the same engine match
+surface. Embedding hosts own their transport and application policy. `engine`
+is the only Gradle module that depends on Forge. `gre-proto`
 (mapped to `proto/`) owns the generated GRE wire schema.
 
 ## Modules
 
 | Module | Owns | Depends on |
 |---|---|---|
-| root `app/` | `LeylineMain`, service wiring, local control, management | domain, engine, gre-proto, native, web |
+| root `app/` | `LeylineMain`, native service wiring, local control, management | domain, engine, gre-proto, native |
 | `domain` | Shared values, services, repository ports | no application module |
 | `gre-proto` | Generated GRE schema, protoc output | no application module |
 | `engine` | Forge adapter, transport-neutral match runtime, interaction ownership, state projection | domain, gre-proto, Forge |
 | `native` | Account, lobby, native match transport and framing | domain, engine, gre-proto |
-| `web` | Legacy browser routes, authentication, and GRE socket transport | domain, engine, gre-proto |
 
 Within `engine`, responsibilities follow the execution boundary:
 
@@ -65,7 +63,7 @@ Module-local ownership and dependency rules live in the nearest `AGENTS.md`.
 ## Match runtime
 
 Forge is synchronous and mutable. One engine thread advances each game and
-blocks in controller callbacks when a human answer is required. Native, web,
+blocks in controller callbacks when a human answer is required. Native, host,
 timer, and test entrants call the transport-neutral match surface. Interactive
 session entry is serialized separately from publication and projection commit.
 
