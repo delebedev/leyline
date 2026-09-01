@@ -278,6 +278,14 @@ object AnnotationPipeline {
                     ),
                 )
             }
+            if (a.isActivatedDiscover) {
+                transferPersistent.add(
+                    AnnotationBuilder.linkInfoActivatedAbility(
+                        abilityInstanceId = InstanceId(a.abilityInstanceId),
+                        sourceCardInstanceId = InstanceId(a.sourceCardInstanceId),
+                    ),
+                )
+            }
         }
         val snapshotDisappearanceIids = transferResult.stackAbilityDisappearances.map { it.abilityInstanceId }.toSet()
         // Event-driven trigger lifecycle. With auto-pass on the local turn the
@@ -578,7 +586,7 @@ object AnnotationPipeline {
         // No persistent TriggeringObject — that annotation is specific to
         // triggered abilities.
         for (cast in events.filterIsInstance<GameEvent.SpellCast>().filter { it.isAbility && !it.isTrigger }) {
-            val sourceCardIid = frameIds.cardIid(cast.cardId).value
+            val sourceCardIid = cast.sourceInstanceIdAtCast?.value ?: frameIds.cardIid(cast.cardId).value
             val abilityIid = ctx.stackAbilityIid(cast.abilityForgeId, cast.cardId)
             val sourceZone =
                 MechanicSourceProjection.sourceZoneId(cast, ctx.mechanicSourceFacts)
@@ -607,6 +615,14 @@ object AnnotationPipeline {
                     sourceZone,
                 ),
             )
+            if (cast.isActivatedDiscover) {
+                transferPersistent.add(
+                    AnnotationBuilder.linkInfoActivatedAbility(
+                        abilityInstanceId = InstanceId(abilityIid),
+                        sourceCardInstanceId = InstanceId(sourceCardIid),
+                    ),
+                )
+            }
         }
 
         // Resolve half: ResolutionStart/Complete (always — snap-diff doesn't emit

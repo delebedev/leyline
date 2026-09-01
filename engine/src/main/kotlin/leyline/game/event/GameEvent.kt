@@ -127,6 +127,8 @@ sealed interface GameEvent {
         val castAbilityGrpId: Int = altCostAbilityGrpId,
         /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
         val stackInstanceId: Int = 0,
+        /** Source object identity before an activated ability's costs can move it to another zone. */
+        val sourceInstanceIdAtCast: InstanceId? = null,
         /**
          * True when the stack item is an Ability gameObject (triggered OR
          * activated), not a player-cast spell. The SpellCast-driven
@@ -142,6 +144,8 @@ sealed interface GameEvent {
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
+        /** True for an activated Discover stack item, which carries a type-2 LinkInfo source relation. */
+        val isActivatedDiscover: Boolean = false,
         /** Original Paradigm spell behind a delayed-trigger helper, observed when the trigger fires. */
         val paradigmSourceCardId: ForgeCardId? = null,
         /**
