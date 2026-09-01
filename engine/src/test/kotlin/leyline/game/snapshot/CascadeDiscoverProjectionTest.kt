@@ -11,7 +11,10 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import leyline.testkit.hand
+import leyline.testkit.library
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -122,10 +125,13 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
-            val decline =
+            val freeCastRequest =
                 allMessages
                     .last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
-                    .actionsAvailableReq.actionsList
+            val freeCastActions = freeCastRequest.actionsAvailableReq.actionsList
+            val freeCast = freeCastActions.single { it.actionType == ActionType.Cast }
+            val decline =
+                freeCastActions
                     .single { it.actionType == ActionType.Pass }
             submitAction(decline)
 
@@ -141,6 +147,14 @@ class CascadeDiscoverProjectionTest :
                 castingTimeOption.detailInt("castAbilityGrpId") shouldBe KeywordAbilityIds.CASCADE
                 castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
                 castableCard.zoneId shouldBe ZoneIds.EXILE
+                freeCastRequest.allowCancel shouldBe AllowCancel.No_a526
+                freeCastActions.map { it.actionType } shouldBe listOf(ActionType.Cast, ActionType.Pass)
+                freeCast.grpId shouldBe castableCard.grpId
+                freeCast.instanceId shouldBe castableCard.instanceId
+                freeCast.abilityGrpId shouldBe KeywordAbilityIds.CASCADE
+                freeCast.sourceId shouldBe cascadeEntry.instanceId
+                freeCast.alternativeGrpId shouldBe 149
+                freeCast.alternativeSourceZcid shouldBe triggeringSource.instanceId
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
                 castingTimeOption.affectedIdsList shouldBe listOf(castableCard.instanceId)
                 castingTimeOption.affectedIdsList shouldNotBe listOf(triggeringSource.instanceId)
@@ -150,6 +164,7 @@ class CascadeDiscoverProjectionTest :
                 require(cascadeEntry.grpId != cascadeEntry.objectSourceGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
+                human.library.card("Llanowar Elves").name shouldBe "Llanowar Elves"
             }
         }
 
@@ -171,10 +186,17 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
-            val decline =
+            val appraiser =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .last { it.grpId == bridge.cardRepository.findGrpIdByName("Geological Appraiser") && it.zoneId == ZoneIds.BATTLEFIELD }
+            val freeCastRequest =
                 allMessages
                     .last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
-                    .actionsAvailableReq.actionsList
+            val freeCastActions = freeCastRequest.actionsAvailableReq.actionsList
+            val freeCast = freeCastActions.single { it.actionType == ActionType.Cast }
+            val decline =
+                freeCastActions
                     .single { it.actionType == ActionType.Pass }
             submitAction(decline)
 
@@ -184,10 +206,19 @@ class CascadeDiscoverProjectionTest :
                 castingTimeOption.detailInt("castAbilityGrpId") shouldBe 169_621
                 castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
                 castableCard.zoneId shouldBe ZoneIds.EXILE
+                freeCastRequest.allowCancel shouldBe AllowCancel.No_a526
+                freeCastActions.map { it.actionType } shouldBe listOf(ActionType.Cast, ActionType.Pass)
+                freeCast.grpId shouldBe castableCard.grpId
+                freeCast.instanceId shouldBe castableCard.instanceId
+                freeCast.abilityGrpId shouldBe 169_621
+                freeCast.sourceId shouldNotBe 0
+                freeCast.alternativeGrpId shouldBe 149
+                freeCast.alternativeSourceZcid shouldBe appraiser.instanceId
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
                 messagesSince(before)
                     .gameStateMessages()
                     .flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+                human.hand.card("Llanowar Elves").name shouldBe "Llanowar Elves"
             }
         }
     })

@@ -563,8 +563,9 @@ class PlayerController(
      * `super.playSaFromPlayEffect(tgtSA)` which drives the real cast flow via
      * PlaySpellAbility (targeting, mana payment, stack placement — our alt-cost
      * rail emits CastingTimeOption + UAT alternativeGrpId along the way). On
-     * Decline, return false so Forge's PlayEffect SubAbility fires the
-     * "otherwise put in graveyard" branch (Exile→GY category=Put via our heuristic).
+     * Decline, return false so Forge's PlayEffect owns its fallback destination.
+     * Forge's Discover effect has already committed to its cast branch before
+     * this callback, so its declined card is moved to hand here.
      *
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
@@ -594,8 +595,7 @@ class PlayerController(
             tgtSA.getAlternativeCost(),
         )
         // Decline on timeout — safer than surprise-casting. On accept, super drives
-        // the real cast flow (targeting, mana payment, stack placement). On decline,
-        // Forge's PlayEffect SubAbility fires the "otherwise put in graveyard" branch.
+        // the real cast flow (targeting, mana payment, stack placement).
         val accepted =
             try {
                 optionalActionGate.await(
@@ -608,7 +608,14 @@ class PlayerController(
             } finally {
                 castingPermission?.let(bridge.journal::clearCastingPermission)
             }
-        return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
+        if (accepted) return super.playSaFromPlayEffect(tgtSA)
+        if (castingPermission != null &&
+            castingPermission.castAbilityGrpId != KeywordAbilityIds.CASCADE &&
+            hostCard?.zone?.zoneType == ZoneType.Exile
+        ) {
+            game.action.moveToHand(hostCard, tgtSA)
+        }
+        return false
     }
 
     private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
