@@ -230,6 +230,8 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val tapped: Boolean,
         val affectorCardId: ForgeCardId? = null,
+        val affectorAbilityForgeId: Int = 0,
+        val affectorSpellCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,

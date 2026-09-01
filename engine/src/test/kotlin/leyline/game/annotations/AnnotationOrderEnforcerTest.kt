@@ -320,6 +320,24 @@ class AnnotationOrderEnforcerTest :
             result shouldBe input
         }
 
+        test("LayeredEffectCreated stays inside its resolution bracket") {
+            val abilityId = 501.iid
+            val rs = AnnotationBuilder.resolutionStart(instanceId = abilityId, grpId = 76556.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = abilityId, grpId = 76556.grp)
+            val deleted = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = abilityId, affectorId = 500.iid)
+            val created = AnnotationBuilder.layeredEffectCreated(effectId = 7005.eid, affectorId = abilityId)
+
+            val result = AnnotationOrderEnforcer.enforce(listOf(rs, rc, deleted, created))
+
+            result.map { it.typeList.first() } shouldBe
+                listOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.LayeredEffectCreated,
+                    AnnotationType.ResolutionComplete,
+                    AnnotationType.AbilityInstanceDeleted,
+                )
+        }
+
         test("Rule 2: ControllerChanged before TappedUntapped on same card") {
             val cardId = 500.iid
             val tap = AnnotationBuilder.tappedUntappedPermanent(permanentId = cardId, abilityId = 501.iid, tapped = true)

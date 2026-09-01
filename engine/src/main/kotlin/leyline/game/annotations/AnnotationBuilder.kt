@@ -1285,6 +1285,19 @@ object AnnotationBuilder {
             .setOptionalAffector(affectorId)
             .build()
 
+    fun redundantActivation(
+        instanceId: InstanceId,
+        abilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ShouldntPlay)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(typedStringDetail(DetailKeys.SHOULDNT_PLAY_REASON, "RedundantActivation"))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .build()
+
     /** Layered effect state (continuous effects). client type 51 (LayeredEffect).
      *  Persistent — present in every GSM while the effect is active.
      *
