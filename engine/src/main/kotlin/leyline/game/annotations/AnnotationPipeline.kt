@@ -753,6 +753,15 @@ object AnnotationPipeline {
                 manaAbilityGrpIdResolver = { fid -> MechanicSourceProjection.manaAbilityGrpId(snap, fid) },
                 counterAffectorResolver = { eventIndex, ev -> ctx.counterAffectorFor(eventIndex, ev) },
                 playerCounterAffectorResolver = { eventIndex, ev -> ctx.playerCounterAffectorFor(eventIndex, ev) },
+                tapAffectorResolver = { ev ->
+                    MechanicSourceProjection.tapAffectorId(
+                        ev,
+                        resolvingStackIidsByCard,
+                        castStackIidsByCard,
+                        frameIds::triggerStackAbilityIid,
+                        frameIds::cardIid,
+                    )
+                },
                 tokenAffectorResolver = { ev ->
                     tokenCreatedAffectorId(
                         ev,

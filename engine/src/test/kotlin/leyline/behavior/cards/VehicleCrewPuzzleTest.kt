@@ -10,6 +10,8 @@ import leyline.bridge.handoff.TapPaymentKind
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allGameObjects
+import leyline.testkit.annotationsOfType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 /**
@@ -113,7 +115,11 @@ class VehicleCrewPuzzleTest :
                 weightsById[bearsIid] shouldBe 2
             }
 
-            respondToEffectCost(listOf(wallIid))
+            val paymentResult = after { respondToEffectCost(listOf(wallIid)) }
+            val tap =
+                paymentResult.messages
+                    .annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                    .single { wallIid in it.affectedIdsList }
             passUntil(maxPasses = 4) {
                 human
                     .getZone(ZoneType.Battlefield)
@@ -123,6 +129,7 @@ class VehicleCrewPuzzleTest :
             }.shouldBeTrue()
 
             assertSoftly {
+                tap.affectorId shouldBe sourceIid
                 wall.isTapped.shouldBeTrue()
                 human
                     .getZone(ZoneType.Battlefield)
