@@ -1740,6 +1740,7 @@ class GameBridge(
      * Called by [leyline.match.Match.close] for deterministic lifecycle management.
      * Idempotent — safe to call before [shutdown].
      */
+    @Synchronized
     fun teardownResources() {
         val loop = loopController
         loop?.beginShutdown()
