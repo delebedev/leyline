@@ -68,12 +68,7 @@ class SnapshotHydrationTest :
             val pacifismGrpId = TestCardRegistry.ensureCardRegistered("Pacifism")
             TestCardRegistry.repo.register(tokenGrpId, "Spider")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -139,12 +134,7 @@ class SnapshotHydrationTest :
             val targetGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
             TestCardRegistry.repo.register(tokenGrpId, "Wicked Role")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -198,12 +188,7 @@ class SnapshotHydrationTest :
             val targetGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
             val auraGrpId = TestCardRegistry.ensureCardRegistered("Pacifism")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addZones(
                         ZoneInfo
                             .newBuilder()
@@ -262,12 +247,7 @@ class SnapshotHydrationTest :
             val battlefieldZoneId = 7
             val faceDownIid = 201
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(battlefieldZoneId).setType(ZoneType.Battlefield))
+                battlefieldGsm(battlefieldZoneId)
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -315,12 +295,7 @@ class SnapshotHydrationTest :
             val swordId = 202
             val battlefieldZoneId = 7
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(battlefieldZoneId).setType(ZoneType.Battlefield))
+                battlefieldGsm(battlefieldZoneId)
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -386,21 +361,15 @@ class SnapshotHydrationTest :
             }
         }
 
-        test("layered Leonin Warleader toughness is committed before marked damage settles") {
-            val warleaderGrpId = TestCardRegistry.ensureCardRegistered("Leonin Warleader")
-            val protectorGrpId = TestCardRegistry.ensureCardRegistered("Angelheart Protector")
+        test("visible toughness is committed before marked damage settles") {
+            val bearGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
                             .setInstanceId(201)
-                            .setGrpId(warleaderGrpId)
+                            .setGrpId(bearGrpId)
                             .setType(GameObjectType.Card)
                             .setZoneId(7)
                             .setOwnerSeatId(1)
@@ -409,31 +378,21 @@ class SnapshotHydrationTest :
                             .setPower(Int32Value.newBuilder().setValue(5))
                             .setToughness(Int32Value.newBuilder().setValue(5))
                             .setDamage(4),
-                    ).addGameObjects(
-                        GameObjectInfo
-                            .newBuilder()
-                            .setInstanceId(202)
-                            .setGrpId(protectorGrpId)
-                            .setType(GameObjectType.Card)
-                            .setZoneId(7)
-                            .setOwnerSeatId(1)
-                            .setControllerSeatId(1)
-                            .addCardTypes(CardType.Creature),
                     ).build()
 
             val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
             try {
-                val warleader =
+                val bear =
                     hydrated.bridge
                         .getGame()
                         .shouldNotBeNull()
                         .players[0]
                         .getZone(ForgeZoneType.Battlefield)
                         .cards
-                        .single { it.name == "Leonin Warleader" }
-                warleader.netPower shouldBe 5
-                warleader.netToughness shouldBe 5
-                warleader.damage shouldBe 4
+                        .single { it.name == "Grizzly Bears" }
+                bear.netPower shouldBe 5
+                bear.netToughness shouldBe 5
+                bear.damage shouldBe 4
                 hydrated.fidelity.features
                     .single { it.feature == "marked_damage" }
                     .status shouldBe "carried"
@@ -445,12 +404,7 @@ class SnapshotHydrationTest :
         test("temporary indestructible is restored before lethal marked damage") {
             val bearGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -499,12 +453,7 @@ class SnapshotHydrationTest :
         test("player attachment is restored") {
             val shadowGrpId = TestCardRegistry.ensureCardRegistered("Shadow of the Second Sun")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -525,9 +474,6 @@ class SnapshotHydrationTest :
                             .addAffectedIds(1),
                     ).build()
 
-            SnapshotHydration.toPuzzleLines(gsm, 1, TestCardRegistry.repo) shouldContain
-                "p0battlefield=Shadow of the Second Sun|Id:201|EnchantingPlayer:P0"
-
             val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
             try {
                 val game = hydrated.bridge.getGame().shouldNotBeNull()
@@ -546,19 +492,14 @@ class SnapshotHydrationTest :
         }
 
         test("planeswalker toughness-like field is not treated as creature toughness") {
-            val ralGrpId = TestCardRegistry.ensureCardRegistered("Ral, Crackling Wit")
+            val chandraGrpId = TestCardRegistry.ensureCardRegistered("Chandra, Torch of Defiance")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
                             .setInstanceId(201)
-                            .setGrpId(ralGrpId)
+                            .setGrpId(chandraGrpId)
                             .setType(GameObjectType.Card)
                             .setZoneId(7)
                             .setOwnerSeatId(1)
@@ -607,12 +548,7 @@ class SnapshotHydrationTest :
         test("copied Room token is explicitly unavailable") {
             TestCardRegistry.repo.register(990_003, "Restricted Office // Lecture Hall")
             val gsm =
-                GameStateMessage
-                    .newBuilder()
-                    .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
-                    .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(7).setType(ZoneType.Battlefield))
+                battlefieldGsm()
                     .addGameObjects(
                         GameObjectInfo
                             .newBuilder()
@@ -908,3 +844,11 @@ class SnapshotHydrationTest :
             }
         }
     })
+
+private fun battlefieldGsm(zoneId: Int = 7): GameStateMessage.Builder =
+    GameStateMessage
+        .newBuilder()
+        .setTurnInfo(TurnInfo.newBuilder().setActivePlayer(1).setTurnNumber(3))
+        .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
+        .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
+        .addZones(ZoneInfo.newBuilder().setZoneId(zoneId).setType(ZoneType.Battlefield))

@@ -358,25 +358,38 @@ class SimClientDriver(
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
         snapshotProbe?.observe(prompt.msg)
-        snapshotDriver?.let { return respondToSnapshotPrompt(prompt, it) }
         val beforeMessages = harness.allMessages.size
         val beforeLast = harness.allMessages.lastOrNull()
         val sourceBefore = promptProgress.sourceSnapshot(prompt)
         val policyT0 = System.nanoTime()
-        val response = promptPolicy.respondToPrompt(prompt, attemptLedger)
+        val snapshotResponse = snapshotDriver?.respond(prompt.msg)
+        var response = snapshotResponse ?: promptPolicy.respondToPrompt(prompt, attemptLedger)
+        var decisionPrefix =
+            when {
+                snapshotDriver == null -> ""
+                snapshotResponse == null -> "snapshot-fallback:"
+                else -> "snapshot:"
+            }
         recordMapTiming(
             totals = policyTotalMsByPrompt,
             maxes = policyMaxMsByPrompt,
             key = prompt.type.name,
             elapsedMs = elapsedMsSince(policyT0),
         )
+        val submitT0 = System.nanoTime()
+        var submitResult = submitter.submit(response.value)
+        if (snapshotResponse != null && submitResult == SimSubmitResult.NotSubmitted) {
+            response = promptPolicy.respondToPrompt(prompt, attemptLedger)
+            decisionPrefix = "snapshot-fallback:"
+            submitResult = submitter.submit(response.value)
+        }
         val decision = (response.value as? SimPromptResponseValue.Decision)?.decision
         val submittedAction = (decision as? SimDecision.PerformAction)?.action
-        val submitT0 = System.nanoTime()
-        val submitResult = submitter.submit(response.value)
+        val decisionKind = "$decisionPrefix${response.value.kind}"
         promptProgress.record(
             prompt = prompt,
-            value = response.value,
+            decisionKind = decisionKind,
+            targetIds = decision?.targetIds().orEmpty(),
             submitResult = submitResult,
             beforeMessages = beforeMessages,
             beforeLast = beforeLast,
@@ -385,21 +398,31 @@ class SimClientDriver(
         recordMapTiming(
             totals = submitTotalMsByDecision,
             maxes = submitMaxMsByDecision,
-            key = response.value.kind,
+            key = decisionKind,
             elapsedMs = elapsedMsSince(submitT0),
         )
         when (submitResult) {
             SimSubmitResult.Submitted -> {
-                if (response.aarActionFingerprint != null && submittedAction != null) {
-                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.value.kind)
+                if (snapshotDriver != null) {
+                    val retryFingerprints =
+                        submittedAction
+                            ?.takeIf { decisionPrefix == "snapshot:" || response.aarActionFingerprint != null }
+                            ?.retryFingerprints()
+                            .orEmpty()
+                    attemptLedger.markSubmitted(retryFingerprints, decisionKind)
+                } else if (response.aarActionFingerprint != null && submittedAction != null) {
+                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), decisionKind)
                 }
             }
             SimSubmitResult.NoPending -> {
-                promptLedger.retire(prompt, "no-pending-submit")
-                attemptLedger.markNoPending(response.value.kind)
+                promptLedger.retire(prompt, if (snapshotDriver == null) "no-pending-submit" else "no-pending-snapshot")
+                attemptLedger.markNoPending(decisionKind)
             }
             SimSubmitResult.NotSubmitted -> {
-                if (response.value == SimPromptResponseValue.RetirePrompt) promptLedger.retire(prompt, "policy-retired")
+                when {
+                    response.value == SimPromptResponseValue.RetirePrompt -> promptLedger.retire(prompt, "policy-retired")
+                    snapshotDriver != null -> promptLedger.retire(prompt, "snapshot-unavailable")
+                }
             }
         }
         response.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
@@ -410,74 +433,6 @@ class SimClientDriver(
         // window that closed when the pair completed.
         harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
         if (response.value == SimPromptResponseValue.Terminal) sawTerminalIntermission = true
-        return submitResult == SimSubmitResult.Submitted
-    }
-
-    private fun respondToSnapshotPrompt(
-        prompt: ActivePrompt,
-        driver: SnapshotPromptDriver,
-    ): Boolean {
-        val beforeMessages = harness.allMessages.size
-        val beforeLast = harness.allMessages.lastOrNull()
-        val sourceBefore = promptProgress.sourceSnapshot(prompt)
-        val policyT0 = System.nanoTime()
-        val snapshot = driver.respond(prompt.msg)
-        val fallback =
-            if (snapshot.submitResult == SimSubmitResult.NotSubmitted) {
-                promptPolicy.respondToPrompt(prompt, attemptLedger)
-            } else {
-                null
-            }
-        val fallbackSubmit = fallback?.let { submitter.submit(it.value) }
-        val submitResult = fallbackSubmit ?: snapshot.submitResult
-        val decision =
-            (fallback?.value as? SimPromptResponseValue.Decision)?.decision
-                ?: snapshot.decision
-        val submittedAction = (decision as? SimDecision.PerformAction)?.action
-        val decisionKind =
-            if (fallback == null) {
-                "snapshot:${decision?.kind ?: "unavailable"}"
-            } else {
-                "snapshot-fallback:${fallback.value.kind}"
-            }
-        recordMapTiming(
-            totals = policyTotalMsByPrompt,
-            maxes = policyMaxMsByPrompt,
-            key = prompt.type.name,
-            elapsedMs = elapsedMsSince(policyT0),
-        )
-        promptProgress.record(
-            prompt = prompt,
-            decisionKind = decisionKind,
-            targetIds = decision?.targetIds().orEmpty(),
-            submitResult = submitResult,
-            beforeMessages = beforeMessages,
-            beforeLast = beforeLast,
-            sourceBefore = sourceBefore,
-        )
-        when (submitResult) {
-            SimSubmitResult.Submitted -> {
-                val retryFingerprints =
-                    submittedAction
-                        ?.takeIf { fallback == null || fallback.aarActionFingerprint != null }
-                        ?.retryFingerprints()
-                        .orEmpty()
-                attemptLedger.markSubmitted(retryFingerprints, decisionKind)
-            }
-            SimSubmitResult.NoPending -> {
-                promptLedger.retire(prompt, "no-pending-snapshot")
-                attemptLedger.markNoPending(decisionKind)
-            }
-            SimSubmitResult.NotSubmitted -> {
-                val reason = if (fallback?.value == SimPromptResponseValue.RetirePrompt) "policy-retired" else "snapshot-unavailable"
-                promptLedger.retire(prompt, reason)
-            }
-        }
-        fallback?.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
-        val markHandled = fallback?.markHandled ?: (fallback == null && submitResult == SimSubmitResult.Submitted)
-        if (markHandled && submitResult != SimSubmitResult.NoPending) promptLedger.markHandled(prompt)
-        harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
-        if (fallback?.value == SimPromptResponseValue.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
     }
 

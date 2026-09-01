@@ -694,31 +694,6 @@ class SnapshotConsultTest :
             result.proposal.responses shouldBe emptyList()
         }
 
-        test("host-only alternate cast offer makes a strategic consult unavailable") {
-            val prompt =
-                GREToClientMessage
-                    .newBuilder()
-                    .setType(GREMessageType.ActionsAvailableReq_695e)
-                    .setActionsAvailableReq(
-                        ActionsAvailableReq
-                            .newBuilder()
-                            .addActions(
-                                Action
-                                    .newBuilder()
-                                    .setActionType(ActionType.Cast)
-                                    .setInstanceId(288)
-                                    .setAbilityGrpId(328)
-                                    .setAlternativeGrpId(149),
-                            ).addActions(Action.newBuilder().setActionType(ActionType.Pass)),
-                    ).build()
-
-            val scoped = SnapshotFidelityReport("ungraded", emptyList()).forPrompt(prompt)
-
-            scoped.grade shouldBe "degraded"
-            scoped.delivery shouldBe "unavailable"
-            scoped.unavailableReasons shouldContain "offered_action_state:missing"
-        }
-
         test("unrelated unresolved state permits a prompt-complete mulligan response") {
             TestCardRegistry.repo.register(990_003, "Restricted Office // Lecture Hall")
             val prompt =

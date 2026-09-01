@@ -383,12 +383,6 @@ object SnapshotHydration {
                         ?.let { append(":").append(it) }
                 }
                 countersByIid[obj.instanceId]?.let { append("|Counters:").append(it.joinToString(",")) }
-                allAttachmentTargetsByIid[obj.instanceId]?.let { targetId ->
-                    when (targetId) {
-                        in resolvableIds -> append("|AttachedTo:").append(targetId)
-                        in playerSeats -> append("|EnchantingPlayer:P").append(targetId - 1)
-                    }
-                }
             }
         }
 
@@ -469,8 +463,6 @@ object SnapshotHydration {
         return SnapshotProjection(
             lines = lines,
             projectedIds = projectedIds,
-            attachmentCount = allAttachmentTargetsByIid.size,
-            allAttachmentSourceIds = allAttachmentTargetsByIid.keys,
             allAttachmentTargetsByIid = allAttachmentTargetsByIid,
             attachmentTargetsByIid = attachmentTargetsByIid,
             unresolvedIds = unresolvedIds,
@@ -496,7 +488,7 @@ object SnapshotHydration {
                 .map { it.instanceId }
         val attachmentMismatchIds =
             buildList {
-                addAll(projection.allAttachmentSourceIds - projection.attachmentTargetsByIid.keys)
+                addAll(projection.allAttachmentTargetsByIid.keys - projection.attachmentTargetsByIid.keys)
                 addAll(
                     projection.attachmentTargetsByIid
                         .filter { (sourceId, targetId) ->
@@ -532,7 +524,7 @@ object SnapshotHydration {
         val features =
             listOf(
                 verifiedFeature("marked_damage", damageSources.size, damageMismatchIds),
-                verifiedFeature("attachments", projection.attachmentCount, attachmentMismatchIds),
+                verifiedFeature("attachments", projection.allAttachmentTargetsByIid.size, attachmentMismatchIds),
                 verifiedFeature("characteristics", idToCard.size, characteristicMismatchIds),
                 SnapshotFidelityFeature(
                     "unresolved_cards",
@@ -588,8 +580,6 @@ object SnapshotHydration {
     private data class SnapshotProjection(
         val lines: List<String>,
         val projectedIds: Set<Int>,
-        val attachmentCount: Int,
-        val allAttachmentSourceIds: Set<Int>,
         val allAttachmentTargetsByIid: Map<Int, Int>,
         val attachmentTargetsByIid: Map<Int, Int>,
         val unresolvedIds: Set<Int>,

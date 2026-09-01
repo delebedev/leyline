@@ -5,16 +5,12 @@ import leyline.copilot.PromptDecisionSource
 import leyline.copilot.SimDecision
 import leyline.tooling.headless.MatchFlowHarness
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
-internal data class SnapshotPromptResult(
-    val decision: SimDecision?,
-    val submitResult: SimSubmitResult,
-)
-
-/** Consult a reconstructed state and submit its desired decision through the headless owner. */
+/** Consult a reconstructed state and return its desired response to the headless owner. */
 internal class SnapshotPromptDriver(
-    private val harness: MatchFlowHarness,
+    harness: MatchFlowHarness,
     private val source: SnapshotProposalSource = SnapshotProposalSource(harness),
 ) {
     private val consulted = mutableMapOf<String, Int>()
@@ -25,9 +21,8 @@ internal class SnapshotPromptDriver(
     private val fidelityGrades = mutableMapOf<String, Int>()
     private val importFindings = mutableMapOf<String, Int>()
     private val decisionSources = mutableMapOf<String, Int>()
-    private val submitter = SimDecisionSubmitter(harness)
 
-    fun respond(prompt: GREToClientMessage): SnapshotPromptResult {
+    fun respond(prompt: GREToClientMessage): SimPromptResponse? {
         val key = prompt.type.name.removeSuffix("_695e")
         consulted.merge(key, 1, Int::plus)
         val started = System.nanoTime()
@@ -40,7 +35,7 @@ internal class SnapshotPromptDriver(
                 maxMs.merge(key, elapsedMs, ::maxOf)
                 unavailable.merge("ConsultFailed", 1, Int::plus)
                 log.warn("snapshot consult {} failed: {}", prompt.type, failure.message)
-                return SnapshotPromptResult(null, SimSubmitResult.NotSubmitted)
+                return null
             }
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
         totalMs.merge(key, elapsedMs, Long::plus)
@@ -53,15 +48,18 @@ internal class SnapshotPromptDriver(
             val reason = "${result.reason.name}:${result.detail}"
             unavailable.merge(result.reason.name, 1, Int::plus)
             log.warn("snapshot consult {} unavailable: {}", prompt.type, reason)
-            return SnapshotPromptResult(null, SimSubmitResult.NotSubmitted)
+            return null
         }
         result as PromptDecisionResult.Chosen
         decisionSources.merge(result.source.name, 1, Int::plus)
         val decision = result.decision
-        val submitResult = submitter.submit(SimPromptResponseValue.Decision(decision))
-        if (submitResult != SimSubmitResult.Submitted) return SnapshotPromptResult(decision, submitResult)
         if (result.source == PromptDecisionSource.ForgeAi) chose.merge(key, 1, Int::plus)
-        return SnapshotPromptResult(decision, SimSubmitResult.Submitted)
+        val fingerprint =
+            (decision as? SimDecision.PerformAction)
+                ?.action
+                ?.takeUnless { it.actionType == ActionType.Pass }
+                ?.actionFingerprint()
+        return SimPromptResponse(decision, aarActionFingerprint = fingerprint)
     }
 
     fun telemetry(): SimPromptPolicyTelemetry =
