@@ -36,6 +36,8 @@ data class FrameContext(
      *  this set lets lifecycle pruning still delete TriggeringObject in the
      *  resolution GSM. */
     val resolvingStackIids: Set<Int> = emptySet(),
+    /** Exile-card iids with an active free-cast decision window. */
+    val castingPermissionIids: Set<Int> = emptySet(),
     /** Authoritative set of legal DisplayCardUnderCard affectors for this frame.
      *  Null disables this lifecycle check for unit callers without a full frame. */
     val displayCardAffectors: Set<Int>? = null,
@@ -704,7 +706,9 @@ data object CastingTimeOptionKind : PersistentAnnotationKind {
     override fun shouldExpire(
         ann: AnnotationInfo,
         frame: FrameContext,
-    ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
+    ): Boolean =
+        (ann.affectorId !in frame.stackIids && ann.affectorId !in frame.castingPermissionIids) ||
+            ann.affectorId in frame.resolvingStackIids
 }
 
 object PersistentAnnotationKinds {

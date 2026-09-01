@@ -86,6 +86,8 @@ class PromptJournal {
     @Volatile
     private var currentConvokePayments: Map<ForgeCardId, ConvokePaymentsEntry> = emptyMap()
 
+    private val currentCastingPermission = AtomicReference<PromptSideEffect.CastingPermission?>()
+
     fun record(effect: PromptSideEffect) {
         val version = nextVersion.incrementAndGet()
         when (effect) {
@@ -106,6 +108,7 @@ class PromptJournal {
                     currentConvokePayments +
                     (effect.sourceForgeCardId to ConvokePaymentsEntry(version, effect.sourceForgeCardId, payments))
             }
+            is PromptSideEffect.CastingPermission -> currentCastingPermission.set(effect)
         }
     }
 
@@ -240,6 +243,12 @@ class PromptJournal {
 
     fun activeConvokePaymentEntries(): List<ConvokePaymentsEntry> = currentConvokePayments.values.sortedBy { it.sourceForgeCardId.value }
 
+    fun activeCastingPermission(): PromptSideEffect.CastingPermission? = currentCastingPermission.get()
+
+    fun clearCastingPermission(permission: PromptSideEffect.CastingPermission) {
+        currentCastingPermission.compareAndSet(permission, null)
+    }
+
     fun clearConvokePayments(sourceForgeCardId: ForgeCardId) {
         currentConvokePayments = currentConvokePayments - sourceForgeCardId
     }
@@ -258,5 +267,6 @@ class PromptJournal {
         currentHybridManaStash = null
         currentCollectEvidenceCost = null
         currentConvokePayments = emptyMap()
+        currentCastingPermission.set(null)
     }
 }
