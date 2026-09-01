@@ -726,11 +726,19 @@ object AnnotationBuilder {
             .build()
 
     /** Library shuffled. client type 56 (Shuffle). */
-    fun shuffle(seatId: SeatId): AnnotationInfo =
+    fun shuffle(
+        seatId: SeatId,
+        oldIds: List<Int>,
+        newIds: List<Int>,
+        affectorId: InstanceId?,
+    ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.Shuffle)
             .addAffectedIds(seatId.value)
+            .apply { affectorId?.let { setAffectorId(it.value) } }
+            .addDetails(int32ListDetail(DetailKeys.OLD_IDS, oldIds))
+            .addDetails(int32ListDetail(DetailKeys.NEW_IDS, newIds))
             .build()
 
     /** Scry action. client annotation type 65 (Scry_af5a). */

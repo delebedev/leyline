@@ -1,8 +1,15 @@
 package leyline.match
 
 import leyline.bridge.types.SeatId
-import leyline.domain.service.MatchCoordinator
 import leyline.infra.MessageSink
+
+data class MatchResultObservation(
+    val matchId: String,
+    val playerSeatId: Int,
+    val winningTeam: Int,
+) {
+    val won: Boolean get() = playerSeatId == winningTeam
+}
 
 /**
  * Per-channel state that survives game-level lifecycle events (puzzle hot-swap,
@@ -17,7 +24,7 @@ class ConnectionState(
     val matchId: String,
     val sink: MessageSink,
     val registry: MatchRegistry,
-    val coordinator: MatchCoordinator? = null,
+    val resultObserver: (MatchResultObservation) -> Unit = {},
 ) {
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
     var playerId: String = "forge-player-1"

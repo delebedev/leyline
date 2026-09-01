@@ -46,7 +46,6 @@ class LeylineConfigResolver(
     fun resolve(configFile: File = File(baseDir, LeylineConfig.FILENAME)): ResolvedLeylineConfig {
         val text = configFile.takeIf { it.isFile }?.readText().orEmpty()
         val (base, table) = decodeToml(text, configFile)
-        rejectTomlSecrets(table)
         val baseJson = json.encodeToJsonElement(LeylineConfig.serializer(), base).jsonObject
         val overrides = collectEnvOverrides()
         val effectiveJson = overrides.fold(baseJson) { tree, (path, value) -> setAt(tree, path, value) }
@@ -79,11 +78,6 @@ class LeylineConfigResolver(
         } catch (e: Exception) {
             throw ConfigException("Failed to parse ${configFile.absolutePath}: ${e.message}", e)
         }
-
-    private fun rejectTomlSecrets(table: TomlTable) {
-        val secret = WebSettings.SECRET_PATHS.firstOrNull { valueAt(table, it.split('.')) != null } ?: return
-        throw ConfigException("$secret must be supplied through ${SettingsSchema.envNameOf(secret.split('.'))}")
-    }
 
     private fun validate(config: LeylineConfig) {
         try {

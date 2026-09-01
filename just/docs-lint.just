@@ -42,7 +42,7 @@ docs-lint:
         local target
         if [[ "$ref" = /* ]]; then
             target="$repo_root$ref"
-        elif [[ "$ref" = docs/* || "$ref" = engine/* || "$ref" = native/* || "$ref" = web/* || "$ref" = app/* || "$ref" = forge/* ]]; then
+        elif [[ "$ref" = docs/* || "$ref" = engine/* || "$ref" = native/* || "$ref" = app/* || "$ref" = forge/* ]]; then
             target="$repo_root/$ref"
         else
             target="$(dirname "$src")/$ref"

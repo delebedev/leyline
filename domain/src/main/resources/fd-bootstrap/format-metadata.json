@@ -248,7 +248,9 @@
       "Y26_ECL",
       "Y26",
       "ECC",
-      "SOS"
+      "SOS",
+      "HOB",
+      "HOC"
     ]
   },
   "formats": [

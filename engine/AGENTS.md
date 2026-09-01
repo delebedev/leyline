@@ -1,6 +1,6 @@
 # engine
 
-Forge bridge and GRE match-session engine. Native TCP and web transports both feed parsed GRE messages into `leyline.match.MatchHandler`; ports and byte framing live outside this module.
+Forge bridge and GRE match-session engine. Native TCP and external in-process hosts feed parsed GRE messages into the transport-neutral runtime; ports and byte framing live outside this module.
 
 - **Forge coupling is structural:** `PlayerController` extends `PlayerControllerHuman`; `GameBootstrap` constructs Forge `Match`, `Game`, and `Deck`.
 - **Proto pervasive:** GRE protobuf is the output format, not an anti-corruption boundary.
@@ -26,7 +26,7 @@ YAML; simclient discovers and reproduces synthetic Playthrough failures; the liv
 client runs the same scripted intent through the Arena head; Copilot/Pilot owns
 autonomous robustness; conformance compares protocol fidelity.
 
-ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages; native binds TCP; web bridges WebSocket to the handler in-process. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
+ArchUnit enforces internal layering. Keep transport identity out of engine: engine advances a match from parsed GRE messages while protocol hosts own framing and connection policy. Concrete rules live in `PackageLayeringTest` (`engine/src/test/kotlin/leyline/architecture/`); match-handler constructor contracts are enforced alongside it in `HandlerConstructorContractTest`.
 
 Read `docs/forge-api-concepts.md` before changing Forge-facing code.
 

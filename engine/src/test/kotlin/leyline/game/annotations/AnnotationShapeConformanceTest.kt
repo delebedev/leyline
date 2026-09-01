@@ -208,6 +208,10 @@ class AnnotationShapeConformanceTest :
             detailKeys(AnnotationBuilder.predictedDirectDamage(1.iid, 1)) shouldBe setOf("value")
         }
 
+        test("Shuffle shape: {OldIds, NewIds}") {
+            detailKeys(AnnotationBuilder.shuffle(1.sid, listOf(1), listOf(2), 3.iid)) shouldBe setOf("OldIds", "NewIds")
+        }
+
         test("No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.") {
             assertSoftly {
                 detailKeys(AnnotationBuilder.newTurnStarted(1.sid)) shouldBe emptySet()
@@ -218,7 +222,6 @@ class AnnotationShapeConformanceTest :
                 detailKeys(AnnotationBuilder.attachmentCreated(1.iid, 2.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.attachment(1.iid, 2.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.removeAttachment(1.iid)) shouldBe emptySet()
-                detailKeys(AnnotationBuilder.shuffle(1.sid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.revealedCardCreated(1.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.revealedCardDeleted(1.iid)) shouldBe emptySet()
                 detailKeys(AnnotationBuilder.layeredEffectDestroyed(1.eid)) shouldBe emptySet()

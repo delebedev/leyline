@@ -648,10 +648,13 @@ class AnnotationBuilderTest :
         // --- Shuffle (Group B) ---
 
         test("shuffleFields") {
-            val ann = AnnotationBuilder.shuffle(seatId = 1.sid)
+            val ann = AnnotationBuilder.shuffle(seatId = 1.sid, oldIds = listOf(101, 102), newIds = listOf(201, 202), affectorId = 99.iid)
             assertSoftly {
                 ann.typeList shouldBe listOf(AnnotationType.Shuffle)
+                ann.affectorId shouldBe 99
                 ann.affectedIdsList shouldBe listOf(1)
+                ann.detailIntList("OldIds") shouldBe listOf(101, 102)
+                ann.detailIntList("NewIds") shouldBe listOf(201, 202)
             }
         }
 

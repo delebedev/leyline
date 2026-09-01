@@ -437,6 +437,9 @@ sealed interface GameEvent {
     /** A player's library was shuffled. */
     data class LibraryShuffled(
         val seatId: SeatId,
+        val oldIds: List<Int> = emptyList(),
+        val newIds: List<Int> = emptyList(),
+        val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** A player flipped a coin while resolving a spell or ability. */

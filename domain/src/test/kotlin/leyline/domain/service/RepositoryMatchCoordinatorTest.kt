@@ -1,11 +1,10 @@
-package leyline.infra
+package leyline.domain.service
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.FdTag
 import leyline.domain.CollationPool
 import leyline.domain.Course
 import leyline.domain.CourseDeck
@@ -22,8 +21,6 @@ import leyline.domain.PlayerId
 import leyline.domain.repo.CourseRepository
 import leyline.domain.repo.DeckRepository
 import leyline.domain.repo.DraftSessionRepository
-import leyline.domain.service.CourseService
-import leyline.domain.service.GeneratedPool
 
 private class FakeDraftRepo : DraftSessionRepository {
     private val sessions = mutableMapOf<DraftSessionId, DraftSession>()
@@ -100,11 +97,8 @@ private class FakeDeckRepo(
     override fun delete(id: DeckId) {}
 }
 
-class AppMatchCoordinatorTest :
+class RepositoryMatchCoordinatorTest :
     FunSpec({
-
-        tags(FdTag)
-
         val playerId = PlayerId("test-player")
         val event = "QuickDraft_FDN_20260503"
 
@@ -112,12 +106,12 @@ class AppMatchCoordinatorTest :
             draftRepo: FakeDraftRepo = FakeDraftRepo(),
             courseRepo: FakeCourseRepo = FakeCourseRepo(),
             deckRepo: FakeDeckRepo = FakeDeckRepo(),
-        ): AppMatchCoordinator {
+        ): RepositoryMatchCoordinator {
             val courseService =
                 CourseService(courseRepo) {
                     GeneratedPool(emptyList(), listOf(CollationPool(0, emptyList())), 0)
                 }
-            return AppMatchCoordinator(playerId, deckRepo, courseService, draftRepo)
+            return RepositoryMatchCoordinator(playerId, deckRepo, courseService, draftRepo)
         }
 
         fun deck(
@@ -320,7 +314,7 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val (seat1Cards, seat2Cards) = coordinator(courseRepo = courseRepo).configureCourseMatch("match-1", playerId, sealedEvent)
+            val (seat1Cards, seat2Cards) = coordinator(courseRepo = courseRepo).configureCourseMatch(playerId, sealedEvent)
 
             seat1Cards shouldBe seat2Cards
         }
@@ -341,7 +335,7 @@ class AppMatchCoordinatorTest :
                 ),
             )
 
-            val (seat1Cards, seat2Cards) = coordinator(draftRepo, courseRepo).configureCourseMatch("match-1", playerId, event)
+            val (seat1Cards, seat2Cards) = coordinator(draftRepo, courseRepo).configureCourseMatch(playerId, event)
 
             seat1Cards shouldNotBe seat2Cards
         }

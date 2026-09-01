@@ -38,6 +38,8 @@ object DetailKeys {
     const val BOTTOM_COUNT = "bottomCount"
     const val TOP_IDS = "topIds"
     const val BOTTOM_IDS = "bottomIds"
+    const val OLD_IDS = "OldIds"
+    const val NEW_IDS = "NewIds"
     const val COUNT = "count"
     const val EFFECT_ID = "effect_id"
     const val UNIQUE_ABILITY_ID = "UniqueAbilityId"

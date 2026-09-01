@@ -1174,7 +1174,13 @@ class GameEventCollector(
 
     override fun visit(ev: GameEventShuffle) {
         val seat = seatOf(ev.player()) ?: return
-        frame.add(GameEvent.LibraryShuffled(seat))
+        val affectorCardId =
+            ev
+                .source()
+                ?.hostCard
+                ?.id
+                ?.let(::ForgeCardId)
+        frame.add(GameEvent.LibraryShuffled(seat, affectorCardId = affectorCardId))
         log.debug("event: LibraryShuffled seat={}", seat)
     }
 

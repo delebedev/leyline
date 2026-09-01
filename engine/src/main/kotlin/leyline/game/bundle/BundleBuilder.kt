@@ -72,7 +72,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * **Update types** (what the client does with each GSM):
  * - [GameStateUpdate.SendAndRecord] — checkpoint; client persists state.
- *   Always precedes [ActionsAvailableReq] at human decision points.
+ *   Precedes [ActionsAvailableReq] at human decision points and carries persistent type changes.
  * - [GameStateUpdate.SendHiFi] — animation-quality intermediate. AI actions,
  *   phase echoes, combat toggles. Client animates but doesn't save.
  * - [GameStateUpdate.Send] — speculative/transient. Targeting, selection

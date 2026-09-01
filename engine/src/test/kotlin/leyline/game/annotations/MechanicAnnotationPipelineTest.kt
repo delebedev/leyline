@@ -148,16 +148,21 @@ class MechanicAnnotationPipelineTest :
 
         // -- LibraryShuffled --
 
-        test("LibraryShuffled emits no annotation") {
-            // Deliberate: the client's ShuffleAnnotationParser requires OldIds/NewIds
-            // detail keys the event does not carry, and shuffle is animation-only.
-            // Emitting it crashes the client, so the pipeline drops the event.
-            val events = listOf(GameEvent.LibraryShuffled(seatId = SeatId(1)))
+        test("LibraryShuffled emits identity remap details") {
+            val events =
+                listOf(
+                    GameEvent.LibraryShuffled(
+                        seatId = SeatId(1),
+                        oldIds = listOf(101, 102),
+                        newIds = listOf(201, 202),
+                    ),
+                )
 
             val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             assertSoftly {
-                result.transient.shouldBeEmpty()
+                result.transient.single().detailIntList("OldIds") shouldBe listOf(101, 102)
+                result.transient.single().detailIntList("NewIds") shouldBe listOf(201, 202)
                 result.persistent.shouldBeEmpty()
             }
         }
@@ -418,8 +423,6 @@ class MechanicAnnotationPipelineTest :
         }
 
         test("mechanicAnnotationsMultipleEvents") {
-            // NOTE: LibraryShuffled is suppressed in production (crash client). See commit 76d61d2973.
-            // Only testing CounterChanged + Scry here (2 events → 2 annotations).
             val events =
                 listOf(
                     GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 0, newCount = 1),
