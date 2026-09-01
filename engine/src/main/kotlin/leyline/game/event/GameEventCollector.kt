@@ -821,6 +821,18 @@ class GameEventCollector(
         if (to == null) return
         val seat = seatOf(card.controller)
         val exileUnderSource = consumeExileUnderSource(card.id)
+        if (seat != null && from == ZoneType.Hand && to == ZoneType.Battlefield) {
+            bridge.promptBridge(seat).journal.consumeOpeningHandAction(ForgeCardId(card.id))?.let { action ->
+                frame.add(
+                    GameEvent.OpeningHandAction(
+                        action.forgeCardId,
+                        action.seatId,
+                        action.abilityForgeId,
+                        action.abilityGrpId,
+                    ),
+                )
+            }
+        }
 
         // Emit the most specific variant possible based on zone pair.
         // When seat is unavailable or source zone is null (e.g. token entering

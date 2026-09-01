@@ -399,6 +399,7 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
+                it.openingHandAbilityGrpIdResolver = { sa -> sa.hostCard?.let(::openingHandAbilityGrpId) }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -916,6 +917,7 @@ class GameBridge(
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
     companion object {
+        private const val OPENING_HAND_ABILITY_CATEGORY = 9
         private val PT_BOOST_KEYWORDS = listOf(KeywordAbilityIds.PROWESS, KeywordAbilityIds.ENLIST)
 
         /** Fallback grpId for cards not in client DB (renders face-down). */
@@ -1284,6 +1286,17 @@ class GameBridge(
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+    }
+
+    private fun openingHandAbilityGrpId(card: Card): Int? {
+        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        if (cardData.abilityCategories.size != cardData.abilityIds.size) return null
+        return cardData.abilityIds
+            .zip(cardData.abilityCategories)
+            .singleOrNull { (_, category) -> category == OPENING_HAND_ABILITY_CATEGORY }
+            ?.first
+            ?.first
     }
 
     private fun resolvePromptAbilityIdentity(

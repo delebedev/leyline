@@ -8,6 +8,7 @@ import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
@@ -104,6 +105,7 @@ object LifecycleMessageMaterializer {
                         seatId.value,
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
                     )
+                initialGsm.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
                 if (seedProjectionCursor) {
                     editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = initSnap)
                 }
@@ -182,6 +184,7 @@ object LifecycleMessageMaterializer {
                             viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
+                    gsm.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
                     editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = snapshot)
                     val output =
                         buildList {
@@ -234,7 +237,7 @@ object LifecycleMessageMaterializer {
         val (gsm, transition) =
             project(bridge) {
                 val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-                GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+                GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds).also { seedZones(it) }
             }
         val gre =
             GREToClientMessage
@@ -264,6 +267,7 @@ object LifecycleMessageMaterializer {
                 val deletedIds = editor.resetIdentitiesForRedraw().map { it.value }
                 val dealSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
                 val deal = GsmBuilder.buildDealHand(bridge, dealGameStateId, seatId.value, dealSnapshot, deletedIds)
+                deal.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
                 val requestSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
                 val request = buildMulliganRequestState(requestGameStateId, requestSnapshot)
                 deal to request
@@ -304,6 +308,7 @@ object LifecycleMessageMaterializer {
                     .toBuilder()
                     .setPendingMessageCount(1)
                     .build()
+                    .also { seedZones(it) }
             }
         val greGsm =
             GREToClientMessage
@@ -473,11 +478,15 @@ object LifecycleMessageMaterializer {
 
     private fun <T> project(
         bridge: GameBridge,
-        block: () -> T,
+        block: ProjectionState.Editor.() -> T,
     ): Pair<T, ProjectionTransition> {
         val prior = bridge.projectionStateSnapshot()
-        val (result, next) = bridge.editProjection(prior) { block() }
+        val (result, next) = bridge.editProjection(prior) { editor -> editor.block() }
         return result to ProjectionTransition(prior.revision, next)
+    }
+
+    private fun ProjectionState.Editor.seedZones(gsm: GameStateMessage) {
+        gsm.gameObjectsList.forEach { obj -> protoZones[obj.instanceId] = obj.zoneId }
     }
 
     /** DieRollResults — [winner] seat rolls higher, random d20 values.

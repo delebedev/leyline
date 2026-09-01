@@ -12,6 +12,13 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * Each variant carries the minimum data the consumer needs.
  */
 sealed interface PromptSideEffect {
+    data class OpeningHandAction(
+        val forgeCardId: ForgeCardId,
+        val seatId: SeatId,
+        val abilityForgeId: Int,
+        val abilityGrpId: Int,
+    ) : PromptSideEffect
+
     /** Card chosen for a source-linked exile-under-source effect. */
     data class ExiledUnderSource(
         val forgeCardId: ForgeCardId,

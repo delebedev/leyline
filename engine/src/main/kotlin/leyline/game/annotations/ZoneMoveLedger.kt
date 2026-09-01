@@ -60,6 +60,9 @@ object ZoneMoveLedger {
         val destruction =
             events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == cardId }?.destruction
         return when {
+            events.any { it is GameEvent.OpeningHandAction && it.cardId == cardId } &&
+                move.from == Zone.Hand &&
+                move.to == Zone.Battlefield -> TransferCategory.Put
             events.any { it is GameEvent.LandPlayed && it.cardId == cardId } &&
                 move.from == Zone.Hand &&
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
@@ -105,6 +108,7 @@ object ZoneMoveLedger {
     ): ForgeCardId? =
         events.firstNotNullOfOrNull { event ->
             when (event) {
+                is GameEvent.OpeningHandAction -> event.cardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardDestroyed -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardSacrificed -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardMilled -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
@@ -126,6 +130,7 @@ object ZoneMoveLedger {
         val matchingCard = event.cardIdOrNull() == move.cardId
         if (!matchingCard) return false
         return when (event) {
+            is GameEvent.OpeningHandAction -> move.from == Zone.Hand && move.to == Zone.Battlefield
             is GameEvent.LandPlayed -> move.from == Zone.Hand && move.to == Zone.Battlefield
             is GameEvent.SpellCast -> move.to == Zone.Stack
             is GameEvent.SpellResolved -> move.from == Zone.Stack
@@ -146,6 +151,7 @@ object ZoneMoveLedger {
     @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Non-zone-operation events have no relevant card id.
     private fun GameEvent.cardIdOrNull(): ForgeCardId? =
         when (this) {
+            is GameEvent.OpeningHandAction -> cardId
             is GameEvent.LandPlayed -> cardId
             is GameEvent.SpellCast -> cardId
             is GameEvent.SpellResolved -> cardId
