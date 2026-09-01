@@ -18,6 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 private val PUZZLE =
     """
@@ -155,6 +156,9 @@ class CascadeDiscoverProjectionTest :
                 freeCast.sourceId shouldBe cascadeEntry.instanceId
                 freeCast.alternativeGrpId shouldBe 149
                 freeCast.alternativeSourceZcid shouldBe triggeringSource.instanceId
+                freeCastRequest.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                freeCastRequest.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number)
+                freeCastRequest.prompt.parametersList.map { it.numberValue } shouldBe listOf(triggeringSource.instanceId)
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
                 castingTimeOption.affectedIdsList shouldBe listOf(castableCard.instanceId)
                 castingTimeOption.affectedIdsList shouldNotBe listOf(triggeringSource.instanceId)
@@ -190,6 +194,12 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .last { it.grpId == bridge.cardRepository.findGrpIdByName("Geological Appraiser") && it.zoneId == ZoneIds.BATTLEFIELD }
+            val discoverEntry =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .filter { it.type == GameObjectType.Ability && it.grpId == 169_621 }
+                    .distinctBy { it.instanceId }
+                    .single()
             val freeCastRequest =
                 allMessages
                     .last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
@@ -211,9 +221,12 @@ class CascadeDiscoverProjectionTest :
                 freeCast.grpId shouldBe castableCard.grpId
                 freeCast.instanceId shouldBe castableCard.instanceId
                 freeCast.abilityGrpId shouldBe 169_621
-                freeCast.sourceId shouldNotBe 0
+                freeCast.sourceId shouldBe discoverEntry.instanceId
                 freeCast.alternativeGrpId shouldBe 149
                 freeCast.alternativeSourceZcid shouldBe appraiser.instanceId
+                freeCastRequest.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                freeCastRequest.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number)
+                freeCastRequest.prompt.parametersList.map { it.numberValue } shouldBe listOf(appraiser.instanceId)
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
                 messagesSince(before)
                     .gameStateMessages()

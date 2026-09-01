@@ -564,8 +564,6 @@ class PlayerController(
      * PlaySpellAbility (targeting, mana payment, stack placement — our alt-cost
      * rail emits CastingTimeOption + UAT alternativeGrpId along the way). On
      * Decline, return false so Forge's PlayEffect owns its fallback destination.
-     * Forge's Discover effect has already committed to its cast branch before
-     * this callback, so its declined card is moved to hand here.
      *
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
@@ -609,12 +607,6 @@ class PlayerController(
                 castingPermission?.let(bridge.journal::clearCastingPermission)
             }
         if (accepted) return super.playSaFromPlayEffect(tgtSA)
-        if (castingPermission != null &&
-            castingPermission.castAbilityGrpId != KeywordAbilityIds.CASCADE &&
-            hostCard?.zone?.zoneType == ZoneType.Exile
-        ) {
-            game.action.moveToHand(hostCard, tgtSA)
-        }
         return false
     }
 
