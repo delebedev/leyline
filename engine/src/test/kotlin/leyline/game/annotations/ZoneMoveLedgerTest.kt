@@ -256,6 +256,32 @@ class ZoneMoveLedgerTest :
                 listOf(TransferCategory.CastSpell, TransferCategory.Exile)
         }
 
+        test("matches Warp exile to its frozen cause identity") {
+            val unrelatedCardId = ForgeCardId(43)
+            val warpCause = ZoneMoveCause(cardId, 327, 327, "ChangeZone", false)
+            val unrelatedCause = ZoneMoveCause(unrelatedCardId, 501, 501, "ChangeZone", false)
+            val moves =
+                listOf(
+                    ZoneMove(0, cardId, Zone.Battlefield, Zone.Exile, warpCause),
+                    ZoneMove(1, unrelatedCardId, Zone.Battlefield, Zone.Exile, unrelatedCause),
+                )
+            val events =
+                listOf(
+                    GameEvent.SpellResolved(
+                        cardId = cardId,
+                        hasFizzled = false,
+                        isTrigger = true,
+                        abilityForgeId = 328,
+                        abilityGrpId = 372,
+                        rootAbilityForgeId = 328,
+                        stackAbilityForgeId = 327,
+                    ),
+                )
+
+            ZoneMoveLedger.fold(moves, events).map { it.category } shouldContainExactly
+                listOf(TransferCategory.Warp, TransferCategory.Exile)
+        }
+
         test("does not bleed a destroy event into a later move of the same card") {
             val moves =
                 listOf(
