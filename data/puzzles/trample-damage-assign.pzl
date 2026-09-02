@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Assign lethal combat damage to two blockers before assigning trample damage to the defending player.
+# Forcing: Charging Monstrosaur has exactly five power, the two blockers each require two damage, and the opponent is at one life.
+# AI behavior: The opponent has no cards in hand and both creatures are available to block the only attacker.
+# Failure modes:
+#   WIN   = both blockers receive lethal damage and the remaining point defeats the opponent.
+#   LOSE  = combat resolves without the required trample assignment.
+#   TIMEOUT = attacker, blocker, or damage-assignment interaction fails to advance.
+# Card roles:
+#   Charging Monstrosaur — the hasty five-power trample attacker.
+#   Grizzly Bears — the first two-toughness blocker.
+#   Runeclaw Bear — the second two-toughness blocker.
+# Protocol path: DeclareAttackersReq, DeclareBlockersReq, AssignDamageReq, and their correlated responses.
+
+[metadata]
+Name:Trample Damage Assignment
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Assign lethal damage to two blockers and the remaining trample damage to the opponent.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Charging Monstrosaur
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
+ailibrary=Forest;Forest;Forest;Forest;Forest
