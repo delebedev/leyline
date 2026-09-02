@@ -145,10 +145,15 @@ class PendingTriggerVisualsTest :
         ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
-            passUntil(maxPasses = 10) {
-                allMessages.any { it.hasSelectTargetsReq() && it.selectTargetsReq.abilityGrpId == wiccan.sourceAbilityGrpId }
-            }.shouldBeTrue()
             val targetIid = human.battlefield.iid("Grizzly Bears")
+            passUntil(maxPasses = 10) {
+                allMessages.any { message ->
+                    message.hasSelectTargetsReq() &&
+                        message.selectTargetsReq.targetsList.any { target ->
+                            target.targetsList.any { it.targetInstanceId == targetIid }
+                        }
+                }
+            }.shouldBeTrue()
             selectTargets(listOf(targetIid))
             passUntil(maxPasses = 10) { holderFor(wiccan) != null }.shouldBeTrue()
             val affectedIid =

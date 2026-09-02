@@ -50,6 +50,8 @@ data class TargetingWindowValue(
     val finishOptionIndex: Int? = null,
     val isTriggeredAbility: Boolean,
     val forgeAbilityId: Int,
+    val isActivatedAbility: Boolean = false,
+    val stackAbilityGrpId: Int = 0,
 ) {
     init {
         require(targetIndex > 0)

@@ -1,10 +1,13 @@
 package leyline.mechanics.reconfigure
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
@@ -12,6 +15,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import leyline.testkit.annotationsOfType
+import leyline.testkit.deletedPersistentAnnotationIds
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -45,7 +49,63 @@ class ReconfigureLifecycleTest :
             val attachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val attachedPersistent = attachSlice.allPersistentAnnotations()
             val attachTypes = attachSlice.gameStateMessages().flatMap { it.annotationsList }.flatMap { it.typeList }
+            val targetSpec = attachSlice.allPersistentAnnotations().single { AnnotationType.TargetSpec in it.typeList }
+            val abilityCreated =
+                attachSlice.annotationsOfType(AnnotationType.AbilityInstanceCreated).single {
+                    targetSpec.affectorId in it.affectedIdsList
+                }
+            val selecting = attachSlice.annotationsOfType(AnnotationType.PlayerSelectingTargets).single()
+            val submitted = attachSlice.annotationsOfType(AnnotationType.PlayerSubmittedTargets).single()
+            val abilityCreatedFrame =
+                attachSlice.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.annotationsList.any { annotation ->
+                            AnnotationType.AbilityInstanceCreated in annotation.typeList &&
+                                targetSpec.affectorId in annotation.affectedIdsList
+                        }
+                }
+            val selectingFrame =
+                attachSlice.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.annotationsList.any { annotation ->
+                            AnnotationType.PlayerSelectingTargets in annotation.typeList
+                        }
+                }
+            val promptFrame = attachSlice.indexOfFirst { it.hasSelectTargetsReq() }
+            val submittedFrame =
+                attachSlice.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.annotationsList.any { annotation ->
+                            AnnotationType.PlayerSubmittedTargets in annotation.typeList
+                        }
+                }
+            val targetSpecFrame =
+                attachSlice.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.persistentAnnotationsList.any { annotation ->
+                            AnnotationType.TargetSpec in annotation.typeList
+                        }
+                }
+            val timeline =
+                attachSlice.mapIndexed { index, message ->
+                    val gsm = message.takeIf { it.hasGameStateMessage() }?.gameStateMessage
+                    "$index:${message.type} transient=${gsm?.annotationsList?.flatMap { it.typeList }} " +
+                        "persistent=${gsm?.persistentAnnotationsList?.flatMap { it.typeList }}"
+                }
 
+            withClue(timeline.joinToString("\n")) {
+                assertSoftly {
+                    abilityCreatedFrame shouldBe selectingFrame
+                    selectingFrame shouldBeGreaterThanOrEqual 0
+                    promptFrame shouldBeGreaterThan selectingFrame
+                    submittedFrame shouldBeGreaterThan promptFrame
+                    targetSpecFrame shouldBe submittedFrame
+                    selecting.affectedIdsList shouldContain targetSpec.affectorId
+                    submitted.affectedIdsList shouldContain targetSpec.affectorId
+                    abilityCreated.affectedIdsList shouldContain targetSpec.affectorId
+                    attachSlice.deletedPersistentAnnotationIds() shouldContain targetSpec.id
+                }
+            }
             assertSoftly {
                 attachedObject.cardTypesList shouldContain CardType.Artifact_a80b
                 attachedObject.cardTypesList shouldNotContain CardType.Creature

@@ -1838,10 +1838,24 @@ class BundleBuilder(
         window: TargetingWindowValue,
         transientSourceCard: BoundCard?,
     ): List<ProjectionSupplement> {
-        val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
+        val abilityId = window.forgeAbilityId.takeIf { (window.isTriggeredAbility || window.isActivatedAbility) && it != 0 }
         val sourceId = window.sourceForgeCardId
         return buildList {
             transientSourceCard?.let { add(ProjectionSupplement.PreStackSpell(it)) }
+            if (window.isActivatedAbility && abilityId != null && sourceId != null && transientSourceCard != null) {
+                val source = transientSourceCard.snapshot
+                add(
+                    ProjectionSupplement.PreStackAbility(
+                        forgeAbilityId = abilityId,
+                        sourceForgeCardId = sourceId,
+                        abilityGrpId = window.stackAbilityGrpId,
+                        sourceCardGrpId = source.grpId,
+                        ownerSeatId = source.owner,
+                        controllerSeatId = source.controller,
+                        targetForgeCardIds = emptyList(),
+                    ),
+                )
+            }
             when {
                 sourceId != null ->
                     add(

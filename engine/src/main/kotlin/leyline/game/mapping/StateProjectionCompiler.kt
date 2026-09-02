@@ -330,12 +330,13 @@ object StateProjectionCompiler {
                 }
 
                 is ProjectionSupplement.PlayerSelectingTargets -> {
-                    supplement.reserveTriggeredAbilityForgeId?.let { abilityId ->
-                        editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(abilityId))
-                    }
+                    val targetInstanceId =
+                        supplement.stackAbilityForgeId
+                            ?.let(frameIds::triggerStackAbilityIid)
+                            ?: frameIds.cardIid(supplement.sourceForgeId)
                     annotations +=
                         AnnotationBuilder.playerSelectingTargets(
-                            frameIds.cardIid(supplement.sourceForgeId),
+                            targetInstanceId,
                             supplement.seatId,
                         )
                 }

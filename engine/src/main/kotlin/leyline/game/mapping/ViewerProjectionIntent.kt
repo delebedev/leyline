@@ -67,7 +67,7 @@ sealed interface ProjectionSupplement {
     data class PlayerSelectingTargets(
         val sourceForgeId: ForgeCardId,
         val seatId: SeatId,
-        val reserveTriggeredAbilityForgeId: Int? = null,
+        val stackAbilityForgeId: Int? = null,
     ) : ProjectionSupplement
 
     data class ReserveTriggeredAbility(

@@ -917,12 +917,17 @@ class PlayerController(
     ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardUnlessType(min, hand, param, sa)
 
     // -- Simultaneous triggered abilities ----------------------------------
-    // Parent's HumanPlay.playSpellAbility routes targeting through the
-    // player controller (→ bridge) and works for triggers without costs.
-    // A full headless override needs prepareSingleSa-style targeting
-    // (like the AI does) to avoid silently dropping triggers.
-    // Defer to parent for now — only triggers with explicit costs would
-    // need a web-safe override.  Refs meeting 2026-02-08 Tier 1.
+
+    override fun playTrigger(
+        host: Card,
+        wrapperAbility: WrappedAbility,
+        isMandatory: Boolean,
+    ): Boolean {
+        if (!wrapperAbility.usesTargeting()) return super.playTrigger(host, wrapperAbility, isMandatory)
+        wrapperAbility.activatingPlayer = player
+        if (!wrapperAbility.setupTargets()) return false
+        return PlaySpellAbility.playSpellAbilityNoStack(this, player, wrapperAbility, true)
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // Active controller overrides on the current upstream surface.
