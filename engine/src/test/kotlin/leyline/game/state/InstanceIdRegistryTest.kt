@@ -34,4 +34,14 @@ class InstanceIdRegistryTest :
             editor.freeze().instanceIdToForgeId shouldBe
                 mapOf(InstanceId(100) to ForgeCardId(1), InstanceId(101) to ForgeCardId(1))
         }
+
+        test("reserved reallocation retains reverse history and advances active identity") {
+            val editor = InstanceIdRegistry.Planner(InstanceIdRegistry.initialState())
+            editor.getOrAlloc(ForgeCardId(1))
+            val reserved = editor.reserve()
+            editor.reallocTo(ForgeCardId(1), reserved) shouldBe
+                InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(101))
+            editor.freeze().instanceIdToForgeId shouldBe
+                mapOf(InstanceId(100) to ForgeCardId(1), InstanceId(101) to ForgeCardId(1))
+        }
     })

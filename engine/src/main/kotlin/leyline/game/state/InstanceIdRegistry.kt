@@ -77,7 +77,10 @@ object InstanceIdRegistry {
             new: InstanceId,
         ): IdReallocation {
             val old = getOrAlloc(forgeCardId)
-            bind(forgeCardId, new)
+            check(reverse[new] == null || reverse[new] == forgeCardId) { "Reserved instance id belongs to another card" }
+            nextInstanceId = maxOf(nextInstanceId, new.value + 1)
+            forward[forgeCardId] = new
+            reverse[new] = forgeCardId
             return IdReallocation(old, new)
         }
 

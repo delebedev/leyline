@@ -268,29 +268,27 @@ class CostPaymentCoordinator(
     }
 
     /**
-     * Shock-land pay-life prompt: accept → [Player.payLife], decline → land
-     * enters tapped. Routed through [OptionalActionGate] so the client gets an
-     * `OptionalActionMessage` (GRE type 45) rather than a generic confirm.
-     *
-     * Returns true when the player chose to pay; the caller is expected to
-     * pass `false` through to `super.payCostToPreventEffect` for non-PayLife
-     * costs (echo, cumulative upkeep) — those paths are not our concern here.
+     * Optional life payment. ETB land replacements receive the linked-entry
+     * lifecycle; other single-part life costs keep the generic prompt shape.
      */
-    fun payShockLand(
+    fun payOptionalLife(
         lifePart: CostPayLife,
         sa: SpellAbility,
+        etbLandReplacement: Boolean,
     ): Boolean {
         val amount = lifePart.getAbilityAmount(sa)
         val hostCard = sa.hostCard
-        log.info("payCostToPreventEffect: shock land PayLife<{}> for {}", amount, hostCard?.name)
+        log.info("payCostToPreventEffect: optional PayLife<{}> for {}", amount, hostCard?.name)
         // Decline on timeout — land enters tapped, which is the safe outcome.
         val accepted =
             optionalActionGate.await(
                 hostCard = hostCard,
                 defaultOnTimeout = false,
                 logContext = "payCostToPreventEffect",
-                customPromptId = leyline.game.mapping.PromptIds.SHOCK_LAND_ETB,
-                etbPayLifeReplacement = true,
+                customPromptId =
+                    leyline.game.mapping.PromptIds.SHOCK_LAND_ETB
+                        .takeIf { etbLandReplacement },
+                etbPayLifeReplacement = etbLandReplacement,
             )
         if (accepted) player.payLife(amount, sa, true)
         return accepted

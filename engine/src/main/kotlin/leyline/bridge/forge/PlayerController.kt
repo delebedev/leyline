@@ -896,7 +896,12 @@ class PlayerController(
         // (echo, cumulative upkeep, multi-part) falls through to PCHuman.
         cost.costParts.singleOrNull().let { single ->
             if (single is CostPayLife) {
-                return costPaymentCoordinator.payShockLand(single, sa)
+                val isEtbLandReplacement =
+                    sa.api == ApiType.Tap &&
+                        sa.hasParam("ETB") &&
+                        sa.getParam("Defined") == "Self" &&
+                        sa.hostCard?.isLand == true
+                return costPaymentCoordinator.payOptionalLife(single, sa, isEtbLandReplacement)
             }
             if (single is CostPartMana && sa.isKeyword(Keyword.WARD)) {
                 return costPaymentCoordinator.payWardManaTax(cost, sa)
