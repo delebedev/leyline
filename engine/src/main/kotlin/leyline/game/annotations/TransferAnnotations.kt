@@ -96,7 +96,7 @@ object TransferAnnotations {
             TransferCategory.Destroy, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
-            TransferCategory.Foretell,
+            TransferCategory.Foretell, TransferCategory.Warp,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
             TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch,
             TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,

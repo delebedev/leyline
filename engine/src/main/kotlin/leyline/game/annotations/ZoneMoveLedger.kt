@@ -1,6 +1,7 @@
 package leyline.game.annotations
 
 import leyline.bridge.types.ForgeCardId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
@@ -56,7 +57,8 @@ object ZoneMoveLedger {
     ): TransferCategory {
         val cardId = move.cardId
         val cast = events.filterIsInstance<GameEvent.SpellCast>().firstOrNull { it.cardId == cardId }
-        val resolved = events.filterIsInstance<GameEvent.SpellResolved>().firstOrNull { it.cardId == cardId }
+        val resolutions = events.filterIsInstance<GameEvent.SpellResolved>()
+        val resolved = resolutions.firstOrNull { it.cardId == cardId }
         val destruction =
             events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == cardId }?.destruction
         return when {
@@ -65,6 +67,11 @@ object ZoneMoveLedger {
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
             move.to == Zone.Stack && cast?.isAbility != true -> TransferCategory.CastSpell
             move.from == Zone.Stack && resolved?.hasFizzled == true -> TransferCategory.Countered
+            move.from == Zone.Battlefield &&
+                move.to == Zone.Exile &&
+                resolutions.any {
+                    it.isTrigger && it.abilityGrpId == KeywordAbilityIds.WARP_DELAYED_TRIGGER
+                } -> TransferCategory.Warp
             move.to == Zone.Exile -> TransferCategory.Exile
             move.from == Zone.Stack && resolved != null -> TransferCategory.Resolve
             events.any { it is GameEvent.LegendRuleDeath && it.cardId == cardId } &&

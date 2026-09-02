@@ -325,7 +325,7 @@ class GameEventCollector(
                 abilityIdentityFor(realCard, topSa, abilityDefinition, isTrigger)
             } else {
                 null
-            }
+            } ?: pendingTriggerAbilityIdentity(topSa, abilityDefinition, isTrigger)
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val paradigmSourceCardId =
             realCard
@@ -1156,6 +1156,17 @@ class GameEventCollector(
                 triggerDescription.startsWith("Opus —") ||
                 triggerDescription.startsWith("Void —")
         }
+    }
+
+    private fun pendingTriggerAbilityIdentity(
+        ability: SpellAbility?,
+        definition: AbilityDefinitionRef?,
+        isTrigger: Boolean,
+    ): ResolvedAbilityIdentity? {
+        if (!isTrigger || ability == null || definition == null) return null
+        val triggerId = ability.trigger?.id ?: return null
+        val abilityGrpId = bridge.pendingTriggerCleanupAbilityGrpId(triggerId) ?: return null
+        return ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
     override fun visit(ev: GameEventPlayerPoisoned) {

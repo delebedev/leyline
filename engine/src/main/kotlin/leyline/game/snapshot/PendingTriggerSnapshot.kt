@@ -17,4 +17,6 @@ data class PendingTriggerSnapshot(
     val affectedCardIds: List<ForgeCardId> = emptyList(),
     /** Exile-and-return relations also display each affected card under the holder. */
     val displaysAffectedCards: Boolean = false,
+    val removesFromZone: Int? = null,
+    val emitsTemporaryPermanent: Boolean = true,
 )
