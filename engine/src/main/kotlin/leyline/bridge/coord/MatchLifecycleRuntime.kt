@@ -69,6 +69,14 @@ internal class MatchLifecycleRuntime(
         owner.requireViewer(seatId)
         return synchronized(owner.feedLock) {
             initialPublication?.let { publication ->
+                val horizon = owner.actions.reconnectHorizon(seatId)
+                val hasProgressed =
+                    owner.bridge
+                        .projectionStateSnapshot()
+                        .sequence.committedOutputOrdinal > publication.outputOrdinal
+                if (horizon != null || hasProgressed) {
+                    return@synchronized publishReconnect(seatId, publication, horizon)
+                }
                 val viewerIndex = publication.outputs.indexOfFirst { it.seatId == seatId }
                 check(viewerIndex >= 0) { "Initial output is unavailable for viewer $seatId" }
                 val output = publication.outputs[viewerIndex]
@@ -124,6 +132,69 @@ internal class MatchLifecycleRuntime(
             )
             gameStateId
         }
+    }
+
+    private fun publishReconnect(
+        seatId: SeatId,
+        initial: InitialPublication,
+        horizon: MatchActionWindowRuntime.ReconnectHorizon?,
+    ): Int {
+        owner.ensureOpen()
+        val prior = owner.bridge.projectionStateSnapshot()
+        val planner = LogicalSequencePlanner(prior.sequence)
+        val gameStateId = planner.nextGsId()
+        val feed = owner.feed(seatId)
+        val full = feed.builder.prepareFullState(checkNotNull(owner.bridge.getGame()), gameStateId)
+        val initialMessages =
+            initial.outputs
+                .single { it.seatId == seatId }
+                .batches
+                .flatten()
+        val messages =
+            buildList {
+                initialMessages
+                    .singleOrNull { it.hasConnectResp() }
+                    ?.let { add(it.toBuilder().setMsgId(planner.nextMsgId()).build()) }
+                val gsm =
+                    full.result.gsm
+                        .toBuilder()
+                        .setPendingMessageCount(if (horizon == null) 0 else 1)
+                        .build()
+                add(
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.GameStateMessage_695e)
+                        .setMsgId(planner.nextMsgId())
+                        .setGameStateId(gameStateId)
+                        .addSystemSeatIds(seatId.value)
+                        .setGameStateMessage(gsm)
+                        .build(),
+                )
+                horizon?.let {
+                    add(
+                        it.publishedBatch
+                            .single { message -> message.hasActionsAvailableReq() }
+                            .toBuilder()
+                            .setMsgId(planner.nextMsgId())
+                            .setGameStateId(gameStateId)
+                            .build(),
+                    )
+                }
+            }
+        owner.cutInstaller.install(
+            feed,
+            PreparedCut.prepare(prior, planner, messages, full.transition, closesPlaybackFrame = false),
+            replaces =
+                horizon
+                    ?.publishedBatch
+                    ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
+                    .orEmpty(),
+            onInstalled = {
+                horizon?.let { owner.actions.bindReconnectHorizon(it, gameStateId, messages) }
+            },
+            onFailure = owner::fail,
+        )
+        return gameStateId
     }
 
     /** Claim the automatic Familiar startup transition once both match seats are connected. */
