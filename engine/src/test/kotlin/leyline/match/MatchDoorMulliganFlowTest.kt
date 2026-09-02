@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
@@ -18,6 +19,8 @@ import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.Action
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -31,6 +34,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
+import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -234,6 +238,7 @@ class MatchDoorMulliganFlowTest :
                 greOutbound(familiar)
                 familiar.writeInbound(connect(matchId, seatId = 2, requestId = 6))
                 val reconnectMessages = greOutbound(familiar)
+                val committedAfterReconnect = bridge.committedSequence()
 
                 familiar.writeInbound(
                     greServiceMessage(
@@ -247,9 +252,11 @@ class MatchDoorMulliganFlowTest :
                     dealHandCount(initialPlayerMessages) shouldBe 1
                     initialPlayerMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 1
                     reconnectMessages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 0
+                    reconnectMessages.map { it.type } shouldBe listOf(GREMessageType.GameStateMessage_695e)
                     legacyResponseMessages shouldBe emptyList()
                     greOutbound(local) shouldBe emptyList()
-                    bridge.committedSequence() shouldBe committedAfterStartup
+                    committedAfterReconnect.currentGsId shouldBeGreaterThan committedAfterStartup.currentGsId
+                    bridge.committedSequence() shouldBe committedAfterReconnect
                 }
             } finally {
                 local.close()
@@ -343,6 +350,17 @@ class MatchDoorMulliganFlowTest :
                 setMulliganResp(MulliganResp.newBuilder().setDecision(decision))
             }
 
+        fun passPriority(prompt: GREToClientMessage): ClientToGREMessage =
+            greMessage(1, ClientMessageType.PerformActionResp_097b) {
+                setGameStateId(prompt.gameStateId)
+                setRespId(prompt.msgId)
+                setPerformActionResp(
+                    PerformActionResp
+                        .newBuilder()
+                        .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                )
+            }
+
         test("normal keep flows through MatchHandler mulligan request and response path") {
             val registry = MatchRegistry()
             val matchId = "mulligan-flow-keep"
@@ -381,6 +399,57 @@ class MatchDoorMulliganFlowTest :
                     session.gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("web reconnect after keep receives the current action horizon") {
+            val registry = MatchRegistry()
+            val matchId = "post-keep-reconnect"
+            val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
+
+            try {
+                greOutbound(local)
+                greOutbound(familiar)
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.AcceptHand,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
+                        ),
+                        6,
+                    ),
+                )
+                val priorPrompt = greOutbound(local).single { it.hasActionsAvailableReq() }
+                greOutbound(familiar)
+
+                local.writeInbound(auth("local-player", 7))
+                greOutbound(local)
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 8))
+                val reconnect = greOutbound(local)
+                val reconnectPrompt = reconnect.single { it.hasActionsAvailableReq() }
+
+                local.writeInbound(greServiceMessage(passPriority(reconnectPrompt), 9))
+                val postReconnect = greOutbound(local)
+
+                assertSoftly {
+                    reconnect.map { it.type } shouldBe
+                        listOf(
+                            GREMessageType.ConnectResp_695e,
+                            GREMessageType.GameStateMessage_695e,
+                            GREMessageType.ActionsAvailableReq_695e,
+                        )
+                    reconnectPrompt.gameStateId shouldNotBe priorPrompt.gameStateId
+                    reconnectPrompt.actionsAvailableReq shouldBe priorPrompt.actionsAvailableReq
+                    postReconnect.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
+                    greOutbound(familiar) shouldBe emptyList()
                 }
             } finally {
                 local.close()

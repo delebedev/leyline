@@ -9,7 +9,6 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
@@ -373,7 +372,7 @@ class MatchCutCoordinatorBlockingTest :
             returned.get()?.get(blocker) shouldBe 2
         }
 
-        test("later damage assigner resolves against its own engine-thread blocker handles") {
+        test("damage response must match the published slot order and lethal prefix") {
             val board =
                 startPuzzleAtMain1(
                     puzzle
@@ -391,34 +390,34 @@ class MatchCutCoordinatorBlockingTest :
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.name == "Grizzly Bears" }
+            val attacker = attackers.first()
+            val unpublishedAttacker = attackers.last()
             val blockers =
                 board.ai
                     .getZone(ZoneType.Battlefield)
                     .cards
                     .filter { it.name == "Grizzly Bears" }
             val combat = Combat(board.human)
-            combat.addAttacker(attackers[0], board.ai)
-            combat.addAttacker(attackers[1], board.ai)
-            combat.addBlocker(attackers[0], blockers[0])
-            combat.addBlocker(attackers[1], blockers[1])
+            combat.addAttacker(attacker, board.ai)
+            combat.addAttacker(unpublishedAttacker, board.ai)
             board.game.phaseHandler.setCombat(combat)
-            val firstInteraction =
+            val interaction =
                 BlockingInteraction.Damage.of(
-                    ForgeCardId(attackers[0].id),
-                    listOf(ForgeCardId(blockers[0].id)),
-                    damageDealt = 2,
+                    ForgeCardId(attacker.id),
+                    blockers.map { ForgeCardId(it.id) },
+                    damageDealt = 3,
                     hasDeathtouch = false,
                     hasTrample = false,
                     hasDefender = true,
                 )
-            val firstResult = AtomicReference<MutableMap<forge.game.card.Card?, Int>?>()
+            val result = AtomicReference<MutableMap<forge.game.card.Card?, Int>?>()
             val engine =
                 Thread {
-                    firstResult.set(
+                    result.set(
                         board.bridge.cutCoordinator.awaitDamage(
-                            firstInteraction,
-                            attackers[0],
-                            forge.game.card.CardCollection(listOf(blockers[0])),
+                            interaction,
+                            attacker,
+                            forge.game.card.CardCollection(blockers),
                             board.ai,
                             timeoutMs = 3_000,
                             fallback = { null },
@@ -431,55 +430,148 @@ class MatchCutCoordinatorBlockingTest :
                 board.bridge.cutCoordinator
                     .currentBlockingInteraction()
                     .shouldNotBeNull()
+            val assigner =
+                board.bridge.cutCoordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .single { it.hasAssignDamageReq() }
+                    .assignDamageReq.damageAssignersList
+                    .single()
+            val slots = assigner.assignmentsList
 
-            val attackerInstanceIds = attackers.map { board.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
-            val blockerInstanceIds = blockers.map { board.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+            fun submit(rows: List<DamageAssignmentRow>): Boolean =
+                board.bridge.cutCoordinator.submitDamageCommand(
+                    published.interactionId,
+                    published.gameStateId,
+                    listOf(DamageAssignmentCommand(assigner.instanceId, rows, 0)),
+                )
+
+            val invalidRows =
+                listOf(
+                    listOf(DamageAssignmentRow(slots[0].instanceId, 1), DamageAssignmentRow(slots[1].instanceId, 2)),
+                    listOf(DamageAssignmentRow(slots[1].instanceId, 1), DamageAssignmentRow(slots[0].instanceId, 2)),
+                    listOf(DamageAssignmentRow(slots[0].instanceId, 4), DamageAssignmentRow(slots[1].instanceId, -1)),
+                    listOf(DamageAssignmentRow(slots[0].instanceId, 2), DamageAssignmentRow(slots[1].instanceId, 2)),
+                )
             assertSoftly {
+                slots.map { it.minDamage } shouldBe listOf(2, 2)
+                invalidRows.forEach { submit(it) shouldBe false }
+                board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe published
                 board.bridge.cutCoordinator.submitDamageCommand(
                     published.interactionId,
                     published.gameStateId,
                     listOf(
                         DamageAssignmentCommand(
-                            attackerInstanceIds[0],
-                            listOf(DamageAssignmentRow(blockerInstanceIds[1], 2)),
-                            2,
+                            assigner.instanceId,
+                            listOf(DamageAssignmentRow(slots[0].instanceId, 2), DamageAssignmentRow(slots[1].instanceId, 1)),
+                            0,
                         ),
                         DamageAssignmentCommand(
-                            attackerInstanceIds[1],
-                            listOf(DamageAssignmentRow(blockerInstanceIds[0], 2)),
-                            2,
+                            board.bridge.getOrAllocInstanceId(ForgeCardId(unpublishedAttacker.id)).value,
+                            emptyList(),
+                            0,
                         ),
                     ),
                 ) shouldBe false
-                board.bridge.cutCoordinator.currentBlockingInteraction() shouldBe published
             }
             board.bridge.cutCoordinator.submitDamageCommand(
                 published.interactionId,
                 published.gameStateId,
                 listOf(
                     DamageAssignmentCommand(
-                        attackerInstanceIds[0],
-                        listOf(DamageAssignmentRow(blockerInstanceIds[0], 2)),
-                        2,
-                    ),
-                    DamageAssignmentCommand(
-                        attackerInstanceIds[1],
-                        listOf(DamageAssignmentRow(blockerInstanceIds[1], 2)),
-                        2,
+                        assigner.instanceId,
+                        listOf(DamageAssignmentRow(slots[0].instanceId, 2), DamageAssignmentRow(slots[1].instanceId, 1)),
+                        0,
                     ),
                 ),
             ) shouldBe true
             engine.join(3_000)
 
-            firstResult.get()?.keys?.single() shouldBeSameInstanceAs blockers[0]
-            val later =
-                board.bridge.cutCoordinator
-                    .takeCachedDamage(
-                        attackers[1],
-                        forge.game.card.CardCollection(listOf(blockers[1])),
-                    ).shouldNotBeNull()
-            later.keys.single() shouldBeSameInstanceAs blockers[1]
-            later[null] shouldBe null
+            result.get()?.get(blockers[0]) shouldBe 2
+            result.get()?.get(blockers[1]) shouldBe 1
+        }
+
+        test("damage response must respect a published positive maximum") {
+            val board =
+                startPuzzleAtMain1(
+                    puzzle
+                        .replace("humanbattlefield=Forest", "humanbattlefield=Grizzly Bears")
+                        .replace("ailibrary=Forest", "aibattlefield=Grizzly Bears;Grizzly Bears\nailibrary=Forest"),
+                )
+            board.bridge.cutCoordinator.drain(SeatId(1))
+            val attacker =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Grizzly Bears" }
+            val blockers =
+                board.ai
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .filter { it.name == "Grizzly Bears" }
+            val result = AtomicReference<MutableMap<forge.game.card.Card?, Int>?>()
+            Thread {
+                result.set(
+                    board.bridge.cutCoordinator.awaitDamage(
+                        BlockingInteraction.Damage.of(
+                            ForgeCardId(attacker.id),
+                            blockers.map { ForgeCardId(it.id) },
+                            damageDealt = 5,
+                            hasDeathtouch = false,
+                            hasTrample = true,
+                            hasDefender = true,
+                        ),
+                        attacker,
+                        forge.game.card.CardCollection(blockers),
+                        board.ai,
+                        timeoutMs = 3_000,
+                        fallback = { null },
+                    ),
+                )
+            }.also { engine ->
+                engine.start()
+                while (board.bridge.cutCoordinator.currentBlockingInteraction() == null) Thread.onSpinWait()
+                val published =
+                    board.bridge.cutCoordinator
+                        .currentBlockingInteraction()
+                        .shouldNotBeNull()
+                val assigner =
+                    board.bridge.cutCoordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasAssignDamageReq() }
+                        .assignDamageReq.damageAssignersList
+                        .single()
+                val slots = assigner.assignmentsList
+                assertSoftly {
+                    slots.map { it.maxDamage } shouldBe listOf(0, 0, 1)
+                    board.bridge.cutCoordinator.submitDamageCommand(
+                        published.interactionId,
+                        published.gameStateId,
+                        listOf(
+                            DamageAssignmentCommand(
+                                assigner.instanceId,
+                                slots.zip(listOf(2, 1, 2)).map { (slot, amount) -> DamageAssignmentRow(slot.instanceId, amount) },
+                                0,
+                            ),
+                        ),
+                    ) shouldBe false
+                    board.bridge.cutCoordinator.submitDamageCommand(
+                        published.interactionId,
+                        published.gameStateId,
+                        listOf(
+                            DamageAssignmentCommand(
+                                assigner.instanceId,
+                                slots.zip(listOf(2, 2, 1)).map { (slot, amount) -> DamageAssignmentRow(slot.instanceId, amount) },
+                                0,
+                            ),
+                        ),
+                    ) shouldBe true
+                }
+                engine.join(3_000)
+            }
+
+            result.get()?.get(null) shouldBe 1
         }
 
         test("teardown wakes blocking interaction and rejects later publication") {
