@@ -911,6 +911,13 @@ object StateMapper {
             includePrivateObjects = includePrivateObjects,
         )
 
+    internal fun renderViewerFullState(
+        shared: Draft,
+        viewingSeatId: Int,
+        actions: ActionsAvailableReq?,
+        includePrivateObjects: Boolean,
+    ): GameStateMessage = shared.forViewer(viewingSeatId, includePrivateObjects, actions).gsm
+
     @Suppress("LongMethod", "CyclomaticComplexMethod", "ComplexCondition", "LongParameterList")
     private fun buildDiffInternal(
         prev: GsmSnapshot?,

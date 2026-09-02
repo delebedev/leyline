@@ -1036,6 +1036,28 @@ class BundleBuilder(
             }
         val viewerSeatId = SeatId(seatId)
         val priorCursor = next.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
+        val fullState =
+            priorCursor.fullState?.let { retained ->
+                result.bundle.messages
+                    .asSequence()
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .fold(retained.toBuilder()) { baseline, diff ->
+                        if (diff.hasGameInfo()) baseline.gameInfo = diff.gameInfo
+                        if (diff.hasTurnInfo()) baseline.turnInfo = diff.turnInfo
+                        if (diff.playersCount > 0) baseline.clearPlayers().addAllPlayers(diff.playersList)
+                        if (diff.timersCount > 0) baseline.clearTimers().addAllTimers(diff.timersList)
+                        baseline
+                    }.setGameStateId(checkNotNull(result.bundle.actionGameStateId))
+                    .setType(GameStateType.Full)
+                    .clearPrevGameStateId()
+                    .clearAnnotations()
+                    .clearActions()
+                    .clearDiffDeletedInstanceIds()
+                    .setPendingMessageCount(0)
+                    .setUpdate(GameStateUpdate.SendAndRecord)
+                    .build()
+            }
         return ActionWindowPrepared(
             result.bundle,
             ProjectionTransition(
@@ -1044,7 +1066,13 @@ class BundleBuilder(
                     next.copy(
                         viewerCursors =
                             next.viewerCursors +
-                                (viewerSeatId to priorCursor.copy(previousSnapshot = result.snapshot)),
+                                (
+                                    viewerSeatId to
+                                        priorCursor.copy(
+                                            previousSnapshot = result.snapshot,
+                                            fullState = fullState,
+                                        )
+                                ),
                     ),
             ),
         )

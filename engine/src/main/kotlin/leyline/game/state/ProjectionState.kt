@@ -5,6 +5,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.LogicalSequenceState
 import leyline.game.snapshot.GsmSnapshot
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Complete protocol history for one match projection.
@@ -89,9 +90,10 @@ data class ProjectionState(
     }
 }
 
-/** Viewer-specific diff baseline and one-shot submitted-target annotation state. */
+/** Viewer-specific committed state and one-shot submitted-target annotation state. */
 data class ViewerProjectionCursor(
     val previousSnapshot: GsmSnapshot? = null,
+    val fullState: GameStateMessage? = null,
     val pendingSubmittedTargets: PendingSubmittedTargets? = null,
 )
 

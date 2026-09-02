@@ -118,7 +118,7 @@ class RuntimeBoundaryTest :
                     "MatchBlockingInteractionRuntime.kt:${preparedBundleCall.dropLast(1)},)",
                     "MatchBlockingInteractionRuntime.kt:${preparedBundleCall.dropLast(1)},)",
                     "MatchLifecycleRuntime.kt:PreparedCut.prepare(prior,planner,messages," +
-                        "full.transition,closesPlaybackFrame=false)",
+                        "transition,closesPlaybackFrame=false)",
                     "MatchLifecycleRuntime.kt:PreparedCut.prepare(prior,planner,messages," +
                         "full.transition,closesPlaybackFrame=false)",
                     "MatchLifecycleRuntime.kt:PreparedCut.prepare(prior,planner,prepared.messages," +

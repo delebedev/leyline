@@ -16,6 +16,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.ActionMapper
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
@@ -134,9 +135,11 @@ class MatchLifecycleRuntimeTest :
             coordinator.drain(SeatId(2))
             val priorSequence = board.bridge.committedSequence()
             val priorObserverCursor = board.bridge.projectionStateSnapshot().viewerCursors[SeatId(2)]
+            board.human.setLife(7, null)
 
             val reconnectGameStateId = coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
             val reconnect = coordinator.drain(SeatId(1)).single()
+            val committed = board.bridge.projectionStateSnapshot()
 
             assertSoftly {
                 reconnect.map { it.type } shouldBe
@@ -154,11 +157,18 @@ class MatchLifecycleRuntimeTest :
                     .gameStateMessage.playersList
                     .single { it.systemSeatNumber == 1 }
                     .lifeTotal shouldBe 13
+                reconnect
+                    .first { it.hasGameStateMessage() }
+                    .gameStateMessage.actionsList
+                    .map { it.action } shouldBe
+                    priorActionRequest.actionsAvailableReq.actionsList.map(ActionMapper::stripActionForGsm)
                 reconnect.last().actionsAvailableReq shouldBe priorActionRequest.actionsAvailableReq
                 reconnect.last().gameStateId shouldBe reconnectGameStateId
                 pending.promptGameStateId shouldBe reconnectGameStateId
                 board.bridge.committedSequence().committedOutputOrdinal shouldBe priorSequence.committedOutputOrdinal + 1
-                board.bridge.projectionStateSnapshot().viewerCursors[SeatId(2)] shouldBe priorObserverCursor
+                committed.viewerCursors[SeatId(1)]?.previousSnapshot?.gameStateId shouldBe reconnectGameStateId
+                committed.viewerCursors[SeatId(1)]?.fullState?.gameStateId shouldBe reconnectGameStateId
+                committed.viewerCursors[SeatId(2)] shouldBe priorObserverCursor
                 coordinator.drain(SeatId(2)).shouldBeEmpty()
             }
         }
@@ -205,6 +215,94 @@ class MatchLifecycleRuntimeTest :
             }
         }
 
+        test("reconnect preserves combat declaration horizons") {
+            listOf(PendingActionKind.DECLARE_ATTACKERS, PendingActionKind.DECLARE_BLOCKERS).forEach { kind ->
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    }
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.registerViewer(SeatId(1))
+                coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+                coordinator.drain(SeatId(1))
+                val pending =
+                    GameActionBridge.PendingAction(
+                        actionId = "reconnect-$kind",
+                        state = PendingActionState("Combat", 1, 1, 1, kind = kind),
+                        future = CompletableFuture(),
+                        windowRuntime = coordinator.actionWindowRuntime(SeatId(1)),
+                    )
+                coordinator.actions.publish(SeatId(1), pending)
+                val decision =
+                    coordinator
+                        .drain(SeatId(1))
+                        .single()
+                        .single {
+                            when (kind) {
+                                PendingActionKind.DECLARE_ATTACKERS -> it.hasDeclareAttackersReq()
+                                PendingActionKind.DECLARE_BLOCKERS -> it.hasDeclareBlockersReq()
+                                PendingActionKind.PRIORITY,
+                                PendingActionKind.SYNC_ONLY,
+                                -> false
+                            }
+                        }
+
+                val reconnectGameStateId = coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+                val reconnect = coordinator.drain(SeatId(1)).single()
+
+                assertSoftly {
+                    reconnect.size shouldBe 3
+                    reconnect.last() shouldBe
+                        decision
+                            .toBuilder()
+                            .setMsgId(reconnect.last().msgId)
+                            .setGameStateId(reconnectGameStateId)
+                            .build()
+                    pending.promptGameStateId shouldBe reconnectGameStateId
+                }
+            }
+        }
+
+        test("phase transition advances the retained reconnect state") {
+            val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(1))
+            coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+            coordinator.drain(SeatId(1))
+            val pending =
+                GameActionBridge.PendingAction(
+                    actionId = "phase-transition-reconnect",
+                    state = PendingActionState("Main1", 1, 1, 1),
+                    future = CompletableFuture(),
+                    priorityCandidates = PriorityActionCandidates.query(board.game, board.human),
+                    windowRuntime = coordinator.actionWindowRuntime(SeatId(1)),
+                )
+            coordinator.actions.publish(SeatId(1), pending)
+            board.human.setLife(13, null)
+            coordinator.replaceWithPhaseTransition(pending.actionId)
+            coordinator.drain(SeatId(1))
+            board.human.setLife(7, null)
+
+            coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+            val reconnect = coordinator.drain(SeatId(1)).single()
+
+            assertSoftly {
+                reconnect
+                    .single { it.hasGameStateMessage() }
+                    .gameStateMessage.playersList
+                    .single { it.systemSeatNumber == 1 }
+                    .lifeTotal shouldBe 13
+                board.bridge
+                    .projectionStateSnapshot()
+                    .viewerCursors
+                    .getValue(SeatId(1))
+                    .fullState
+                    ?.playersList
+                    ?.single { it.systemSeatNumber == 1 }
+                    ?.lifeTotal shouldBe 13
+            }
+        }
+
         test("reconnect after progress without an action horizon publishes the current full state") {
             val board = startWithBoard { _, _, _ -> }
             val coordinator = board.bridge.cutCoordinator
@@ -219,9 +317,18 @@ class MatchLifecycleRuntimeTest :
             coordinator.drain(SeatId(2))
 
             board.human.setLife(13, null)
-            coordinator.lifecycle.publishDealHand(SeatId(1))
+            val pending =
+                GameActionBridge.PendingAction(
+                    actionId = "reconnect-without-horizon",
+                    state = PendingActionState("Main1", 1, 1, 1),
+                    future = CompletableFuture(),
+                    priorityCandidates = PriorityActionCandidates.query(board.game, board.human),
+                    windowRuntime = coordinator.actionWindowRuntime(SeatId(1)),
+                )
+            coordinator.actions.publish(SeatId(1), pending)
             coordinator.drain(SeatId(1))
             coordinator.drain(SeatId(2))
+            coordinator.actions.hideForTest(pending.actionId)
             val priorSequence = board.bridge.committedSequence()
             val priorObserverCursor = board.bridge.projectionStateSnapshot().viewerCursors[SeatId(2)]
 

@@ -105,7 +105,11 @@ object LifecycleMessageMaterializer {
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
                     )
                 if (seedProjectionCursor) {
-                    editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = initSnap)
+                    editor.viewerCursors[seatId] =
+                        ViewerProjectionCursor(
+                            previousSnapshot = initSnap,
+                            fullState = initialGsm.toBuilder().setPendingMessageCount(0).build(),
+                        )
                 }
                 initSnap to initialGsm
             }
@@ -182,7 +186,11 @@ object LifecycleMessageMaterializer {
                             viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
-                    editor.viewerCursors[seatId] = ViewerProjectionCursor(previousSnapshot = snapshot)
+                    editor.viewerCursors[seatId] =
+                        ViewerProjectionCursor(
+                            previousSnapshot = snapshot,
+                            fullState = gsm.toBuilder().setPendingMessageCount(0).build(),
+                        )
                     val output =
                         buildList {
                             if (seatId == SeatId(1)) add(buildConnectResp(connectMsgId, seatId, deck))

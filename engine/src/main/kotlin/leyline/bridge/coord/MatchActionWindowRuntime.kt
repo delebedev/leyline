@@ -29,6 +29,7 @@ internal class MatchActionWindowRuntime(
 ) : DeferredCastActionOwner {
     internal data class ReconnectHorizon(
         val actionId: String,
+        val decisionMessage: GREToClientMessage,
         val publishedBatch: List<GREToClientMessage>,
     )
 
@@ -163,8 +164,9 @@ internal class MatchActionWindowRuntime(
                 .singleOrNull { (_, window) -> window.seatId == seatId && window.status == ActionWindowStatus.Published }
                 ?.let { (actionId, window) ->
                     window.publishedBatch
-                        .singleOrNull { it.hasActionsAvailableReq() }
-                        ?.let { ReconnectHorizon(actionId, window.publishedBatch) }
+                        .singleOrNull {
+                            it.hasActionsAvailableReq() || it.hasDeclareAttackersReq() || it.hasDeclareBlockersReq()
+                        }?.let { ReconnectHorizon(actionId, it, window.publishedBatch) }
                 }
         }
 

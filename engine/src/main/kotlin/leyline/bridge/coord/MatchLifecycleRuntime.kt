@@ -2,6 +2,8 @@ package leyline.bridge.coord
 
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.GsmBuilder
+import leyline.game.bundle.GsmFrame
 import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.ProjectionState
@@ -9,6 +11,8 @@ import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 
 internal data class MulliganRedrawFacts(
@@ -144,7 +148,30 @@ internal class MatchLifecycleRuntime(
         val planner = LogicalSequencePlanner(prior.sequence)
         val gameStateId = planner.nextGsId()
         val feed = owner.feed(seatId)
-        val full = feed.builder.prepareFullState(checkNotNull(owner.bridge.getGame()), gameStateId)
+        val priorCursor = checkNotNull(prior.viewerCursors[seatId]) { "Reconnect cursor is unavailable for $seatId" }
+        val snapshot = checkNotNull(priorCursor.previousSnapshot) { "Reconnect snapshot is unavailable for $seatId" }
+        val retainedFull = checkNotNull(priorCursor.fullState) { "Reconnect state is unavailable for $seatId" }
+        val rebasedSnapshot = snapshot.withGameStateId(gameStateId)
+        val rebasedFull =
+            retainedFull
+                .toBuilder()
+                .setType(GameStateType.Full)
+                .setGameStateId(gameStateId)
+                .clearPrevGameStateId()
+                .clearAnnotations()
+                .clearActions()
+                .clearDiffDeletedInstanceIds()
+                .setPendingMessageCount(0)
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
+        val horizonMessage = horizon?.decisionMessage
+        val gsm =
+            horizonMessage?.takeIf { it.hasActionsAvailableReq() }?.let {
+                GsmBuilder.embedActions(rebasedFull, it.actionsAvailableReq, GsmFrame.from(rebasedSnapshot), seatId.value)
+            } ?: rebasedFull
+        val editor = prior.editor()
+        editor.viewerCursors[seatId] = priorCursor.copy(previousSnapshot = rebasedSnapshot, fullState = rebasedFull)
+        val transition = ProjectionTransition(prior.revision, editor.freeze())
         val initialMessages =
             initial.outputs
                 .single { it.seatId == seatId }
@@ -155,11 +182,6 @@ internal class MatchLifecycleRuntime(
                 initialMessages
                     .singleOrNull { it.hasConnectResp() }
                     ?.let { add(it.toBuilder().setMsgId(planner.nextMsgId()).build()) }
-                val gsm =
-                    full.result.gsm
-                        .toBuilder()
-                        .setPendingMessageCount(if (horizon == null) 0 else 1)
-                        .build()
                 add(
                     GREToClientMessage
                         .newBuilder()
@@ -170,10 +192,9 @@ internal class MatchLifecycleRuntime(
                         .setGameStateMessage(gsm)
                         .build(),
                 )
-                horizon?.let {
+                horizonMessage?.let {
                     add(
-                        it.publishedBatch
-                            .single { message -> message.hasActionsAvailableReq() }
+                        it
                             .toBuilder()
                             .setMsgId(planner.nextMsgId())
                             .setGameStateId(gameStateId)
@@ -183,7 +204,7 @@ internal class MatchLifecycleRuntime(
             }
         owner.cutInstaller.install(
             feed,
-            PreparedCut.prepare(prior, planner, messages, full.transition, closesPlaybackFrame = false),
+            PreparedCut.prepare(prior, planner, messages, transition, closesPlaybackFrame = false),
             replaces =
                 horizon
                     ?.publishedBatch
