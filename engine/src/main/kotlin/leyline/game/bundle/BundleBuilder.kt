@@ -1042,20 +1042,9 @@ class BundleBuilder(
                     .asSequence()
                     .filter { it.hasGameStateMessage() }
                     .map { it.gameStateMessage }
-                    .fold(retained.toBuilder()) { baseline, diff ->
-                        if (diff.hasGameInfo()) baseline.gameInfo = diff.gameInfo
-                        if (diff.hasTurnInfo()) baseline.turnInfo = diff.turnInfo
-                        if (diff.playersCount > 0) baseline.clearPlayers().addAllPlayers(diff.playersList)
-                        if (diff.timersCount > 0) baseline.clearTimers().addAllTimers(diff.timersList)
-                        baseline
-                    }.setGameStateId(checkNotNull(result.bundle.actionGameStateId))
-                    .setType(GameStateType.Full)
-                    .clearPrevGameStateId()
-                    .clearAnnotations()
-                    .clearActions()
-                    .clearDiffDeletedInstanceIds()
-                    .setPendingMessageCount(0)
-                    .setUpdate(GameStateUpdate.SendAndRecord)
+                    .fold(retained) { baseline, diff -> baseline.applyDiff(diff) }
+                    .toBuilder()
+                    .setGameStateId(checkNotNull(result.bundle.actionGameStateId))
                     .build()
             }
         return ActionWindowPrepared(

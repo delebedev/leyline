@@ -296,6 +296,7 @@ internal class MatchLifecycleRuntime(
                         requestGameStateId,
                         owner.bridge,
                         seatId,
+                        owner.registeredViewers(),
                         facts.reportedMulliganCount,
                         facts.numCards,
                     )

@@ -1,5 +1,6 @@
 package leyline.game.state
 
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.LogicalSequencePlanner
@@ -50,11 +51,7 @@ data class ProjectionState(
         val viewerCursors = prior.viewerCursors.toMutableMap()
         private val sequence = LogicalSequencePlanner(prior.sequence)
 
-        fun resetIdentitiesForRedraw(): List<InstanceId> {
-            val previous = identities.freeze()
-            identities.replace(InstanceIdRegistry.initialState(previous.nextInstanceId))
-            return previous.forgeIdToInstanceId.values.toList()
-        }
+        fun resetIdentitiesForRedraw(forgeCardIds: Set<ForgeCardId>): List<InstanceId> = identities.retire(forgeCardIds)
 
         fun freeze(): ProjectionState =
             ProjectionState(

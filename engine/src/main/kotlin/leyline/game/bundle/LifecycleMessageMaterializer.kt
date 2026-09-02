@@ -1,13 +1,18 @@
 package leyline.game.bundle
 
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
+import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
+import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
@@ -240,9 +245,9 @@ object LifecycleMessageMaterializer {
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): LifecycleMessages {
         val (gsm, transition) =
-            project(bridge) {
+            project(bridge, seatId) {
                 val dealSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-                GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
+                dealSnap to GsmBuilder.buildDealHand(bridge, gameStateId, seatId.value, dealSnap, diffDeletedInstanceIds)
             }
         val gre =
             GREToClientMessage
@@ -263,18 +268,36 @@ object LifecycleMessageMaterializer {
         requestGameStateId: Int,
         bridge: GameBridge,
         seatId: SeatId,
+        viewers: List<ProjectionViewer>,
         mulliganCount: Int,
         numCards: Int,
     ): LifecycleMessages {
+        require(viewers.any { it.seatId == seatId }) { "Redraw viewer $seatId is not registered" }
         val prior = bridge.projectionStateSnapshot()
         val (states, next) =
             bridge.editProjection(prior) { editor ->
-                val deletedIds = editor.resetIdentitiesForRedraw().map { it.value }
                 val dealSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
-                val deal = GsmBuilder.buildDealHand(bridge, dealGameStateId, seatId.value, dealSnapshot, deletedIds)
+                val redrawCardIds =
+                    listOf(ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY)
+                        .flatMap { dealSnapshot.zones[it]?.contents.orEmpty() }
+                        .toSet()
+                val deletedIds =
+                    editor
+                        .resetIdentitiesForRedraw(redrawIdentityFamily(dealSnapshot, redrawCardIds, editor))
+                        .map { it.value }
+                val deals =
+                    viewers.associate { viewer ->
+                        val viewingSeatId =
+                            viewer.seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player }
+                                ?: -1
+                        val deal = GsmBuilder.buildDealHand(bridge, dealGameStateId, viewingSeatId, dealSnapshot, deletedIds)
+                        advanceViewerCursor(editor, viewer.seatId, dealSnapshot, deal)
+                        viewer.seatId to deal
+                    }
                 val requestSnapshot = GsmSnapshot.capture(checkNotNull(bridge.getGame()), bridge, "", 0)
                 val request = buildMulliganRequestState(requestGameStateId, requestSnapshot)
-                deal to request
+                viewers.forEach { viewer -> advanceViewerCursor(editor, viewer.seatId, requestSnapshot, request) }
+                deals.getValue(seatId) to request
             }
         val deal =
             GREToClientMessage
@@ -305,13 +328,14 @@ object LifecycleMessageMaterializer {
     ): LifecycleMessages {
         var msgId = msgIdStart
         val (gsm, transition) =
-            project(bridge) {
+            project(bridge, SeatId(2)) {
                 val deal2Snap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-                GsmBuilder
-                    .buildDealHand(bridge, gameStateId, 2, deal2Snap)
-                    .toBuilder()
-                    .setPendingMessageCount(1)
-                    .build()
+                deal2Snap to
+                    GsmBuilder
+                        .buildDealHand(bridge, gameStateId, 2, deal2Snap)
+                        .toBuilder()
+                        .setPendingMessageCount(1)
+                        .build()
             }
         val greGsm =
             GREToClientMessage
@@ -338,9 +362,9 @@ object LifecycleMessageMaterializer {
     ): LifecycleMessages {
         // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
         val (gsm, transition) =
-            project(bridge) {
+            project(bridge, SeatId(1)) {
                 val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
-                buildMulliganRequestState(gameStateId, mulliganSnap)
+                mulliganSnap to buildMulliganRequestState(gameStateId, mulliganSnap)
             }
         return mulliganRequestMessages(msgIdStart, gameStateId, gsm, mulliganCount, numCards, transition)
     }
@@ -479,14 +503,53 @@ object LifecycleMessageMaterializer {
 
     // --- private helpers ---
 
-    private fun <T> project(
+    private fun project(
         bridge: GameBridge,
-        block: () -> T,
-    ): Pair<T, ProjectionTransition> {
+        seatId: SeatId,
+        block: () -> Pair<GsmSnapshot, GameStateMessage>,
+    ): Pair<GameStateMessage, ProjectionTransition> {
         val prior = bridge.projectionStateSnapshot()
-        val (result, next) = bridge.editProjection(prior) { block() }
+        val (result, next) =
+            bridge.editProjection(prior) { editor ->
+                val (snapshot, gsm) = block()
+                advanceViewerCursor(editor, seatId, snapshot, gsm)
+                gsm
+            }
         return result to ProjectionTransition(prior.revision, next)
     }
+
+    private fun advanceViewerCursor(
+        editor: ProjectionState.Editor,
+        seatId: SeatId,
+        snapshot: GsmSnapshot,
+        gsm: GameStateMessage,
+    ) {
+        val prior = editor.viewerCursors[seatId] ?: ViewerProjectionCursor()
+        editor.viewerCursors[seatId] =
+            prior.copy(
+                previousSnapshot = snapshot.withGameStateId(gsm.gameStateId),
+                fullState = prior.fullState?.applyDiff(gsm),
+            )
+    }
+
+    private fun redrawIdentityFamily(
+        snapshot: GsmSnapshot,
+        redrawCardIds: Set<ForgeCardId>,
+        editor: ProjectionState.Editor,
+    ): Set<ForgeCardId> =
+        buildSet {
+            redrawCardIds.forEach { forgeCardId ->
+                add(forgeCardId)
+                val bound = snapshot.boundCards[forgeCardId]
+                if (bound?.altCost(KeywordAbilityIds.DISTURB) != null && snapshot.objects[forgeCardId]?.othersideGrpId != 0) {
+                    add(FrameIdResolver.disturbBackForgeId(forgeCardId))
+                }
+                val parentInstanceId = editor.identities.peek(forgeCardId) ?: return@forEach
+                bound?.linkedFaces?.forEach { face ->
+                    add(FrameIdResolver.linkedFaceCompanionForgeId(parentInstanceId, face.role))
+                }
+            }
+        }
 
     /** DieRollResults — [winner] seat rolls higher, random d20 values.
      *  Uses [forge.util.MyRandom] so a seeded game produces deterministic rolls. */

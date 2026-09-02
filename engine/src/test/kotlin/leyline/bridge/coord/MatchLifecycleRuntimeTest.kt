@@ -6,6 +6,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionKind
@@ -377,11 +378,15 @@ class MatchLifecycleRuntimeTest :
         }
 
         test("redraw installs reset identities and lifecycle output as one cut") {
-            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
             val coordinator = bridge.cutCoordinator
             coordinator.registerViewer(SeatId(1))
             coordinator.drain(SeatId(1))
-            val retired = bridge.getOrAllocInstanceId(ForgeCardId(900_001))
+            val (retiredForgeId, retired) =
+                bridge
+                    .projectionStateSnapshot()
+                    .identities.forgeIdToInstanceId.entries
+                    .single()
             val prior = bridge.projectionStateSnapshot()
 
             coordinator.lifecycle.publishMulliganRedraw(SeatId(1), MulliganRedrawFacts(0, 7))
@@ -399,7 +404,7 @@ class MatchLifecycleRuntimeTest :
                 batch.first().gameStateMessage.diffDeletedInstanceIdsList shouldBe listOf(retired.value)
                 batch.map { it.msgId } shouldBe batch.map { it.msgId }.sorted()
                 batch.map { it.gameStateId }.distinct().size shouldBe 2
-                committed.identities.forgeIdToInstanceId.containsKey(ForgeCardId(900_001)) shouldBe false
+                committed.identities.forgeIdToInstanceId.getValue(retiredForgeId) shouldNotBe retired
                 committed.sequence.committedOutputOrdinal shouldBe prior.sequence.committedOutputOrdinal + 1
                 committed.revision shouldBe prior.revision + 1
             }
@@ -470,10 +475,14 @@ class MatchLifecycleRuntimeTest :
         }
 
         test("redraw post-install failure retains identities and output together") {
-            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val (bridge, _, _) = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
             val coordinator = bridge.cutCoordinator
             coordinator.drain(SeatId(1))
-            bridge.getOrAllocInstanceId(ForgeCardId(900_020))
+            val retiredForgeId =
+                bridge
+                    .projectionStateSnapshot()
+                    .identities.forgeIdToInstanceId.keys
+                    .single()
             val prior = bridge.projectionStateSnapshot()
             coordinator.lifecycle.afterRedrawInstall = { error("redraw acknowledgement unavailable") }
 
@@ -482,9 +491,10 @@ class MatchLifecycleRuntimeTest :
             }
 
             val committed = bridge.projectionStateSnapshot()
+            val replacement = committed.identities.forgeIdToInstanceId.getValue(retiredForgeId)
             assertSoftly {
                 committed.revision shouldBe prior.revision + 1
-                committed.identities.forgeIdToInstanceId.containsKey(ForgeCardId(900_020)) shouldBe false
+                replacement shouldNotBe prior.identities.forgeIdToInstanceId[retiredForgeId]
                 committed.sequence.committedOutputOrdinal shouldBe prior.sequence.committedOutputOrdinal + 1
                 coordinator
                     .feed(SeatId(1))
