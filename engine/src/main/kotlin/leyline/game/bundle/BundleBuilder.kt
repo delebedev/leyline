@@ -887,6 +887,7 @@ class BundleBuilder(
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
 
+    @Suppress("CanBeNonNullable", "UnnecessarySafeCall")
     internal fun optionalInteractionBundle(
         game: Game,
         counter: LogicalSequencePlanner,
@@ -894,8 +895,34 @@ class BundleBuilder(
         routes: List<ViewerRoute>,
         sourceCard: Card? = null,
     ): PreparedViewerCut<BlockingInteractionMaterializer.Prepared> {
-        require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt) {
+        require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt || interaction.etbPayLifeReplacement) {
             "Optional interaction does not require a state snapshot"
+        }
+        if (interaction.etbPayLifeReplacement) {
+            val card = checkNotNull(sourceCard) { "ETB replacement interaction requires its source card" }
+            val data = checkNotNull(stateProjectionEnvironment.cardReferences.cardDataByName(card.name))
+            val abilityGrpId = checkNotNull(stateProjectionEnvironment.cardReferences.choiceSourceAbilityGrpId(data))
+            val player =
+                blockingInteractions.etbPayLifeOptional(
+                    bridge.projectionStateSnapshot(),
+                    counter,
+                    interaction,
+                    ForgeCardId(card.id),
+                    data,
+                    abilityGrpId,
+                    stateProjectionEnvironment.cardProto,
+                )
+            val content = player.bundle.messages.first { it.hasGameStateMessage() }
+            return PreparedViewerCut(
+                player,
+                routes.map { route ->
+                    val messages = if (route.viewer.seatId.value == seatId) player.bundle.messages else listOf(content)
+                    ViewerBatches(route.viewer.seatId, listOf(messages))
+                },
+                checkNotNull(player.transition),
+                player.closesPlaybackFrame,
+                player.bundle.actionGameStateId,
+            )
         }
         val projectedSourceCard = sourceCard ?: interaction.sourceId?.let(bridge::findCard)
         val transientSourceCard =

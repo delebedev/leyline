@@ -570,6 +570,23 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
     }
 }
 
+data object EtbReplacementEffectKind : PersistentAnnotationKind {
+    override val name = "EtbReplacementEffect"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.forNumber(62) in ann.typeList &&
+            int32Detail(ann, DetailKeys.REPLACEMENT_SOURCE_ZCID) != null
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectedIdsList.any { it in frame.battlefieldIids }
+}
+
 /**
  * Source color-production marker. Upserted from the current battlefield mana
  * sources, and removed when the source leaves or stops producing mana.
@@ -754,6 +771,7 @@ object PersistentAnnotationKinds {
     val lifecycleOnly: List<PersistentAnnotationKind> =
         listOf(
             EnteredZoneThisTurnKind,
+            EtbReplacementEffectKind,
             CastingTimeOptionKind,
             TriggeringObjectKind,
             DisplayCardUnderCardKind,

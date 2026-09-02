@@ -72,6 +72,15 @@ object InstanceIdRegistry {
             return IdReallocation(old, new)
         }
 
+        fun reallocTo(
+            forgeCardId: ForgeCardId,
+            new: InstanceId,
+        ): IdReallocation {
+            val old = getOrAlloc(forgeCardId)
+            bind(forgeCardId, new)
+            return IdReallocation(old, new)
+        }
+
         fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = reverse[instanceId]
 
         fun replace(state: State) {

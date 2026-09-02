@@ -289,6 +289,8 @@ class CostPaymentCoordinator(
                 hostCard = hostCard,
                 defaultOnTimeout = false,
                 logContext = "payCostToPreventEffect",
+                customPromptId = leyline.game.mapping.PromptIds.SHOCK_LAND_ETB,
+                etbPayLifeReplacement = true,
             )
         if (accepted) player.payLife(amount, sa, true)
         return accepted
