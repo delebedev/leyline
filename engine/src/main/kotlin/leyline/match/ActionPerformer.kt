@@ -62,6 +62,38 @@ internal class ActionPerformer(
                 return
             }
 
+            val blocking = bridge.cutCoordinator.currentBlockingInteraction()
+            val optional = blocking?.interaction as? leyline.bridge.handoff.BlockingInteraction.Optional
+            val freeCast = optional?.freeCast
+            if (blocking != null && freeCast != null) {
+                val action = greMsg.performActionResp.actionsList.firstOrNull() ?: return
+                val cardInstanceId = optional.sourceId?.let(bridge::peekInstanceId)?.value ?: return
+                val promptBridge = bridge.promptBridge(counters.seatId)
+                val sourceInstanceId =
+                    promptBridge.resolveTriggerStackAbilityInstanceId(freeCast.sourceAbilityForgeId)
+                        ?: return
+                val alternativeSourceZcid =
+                    bridge.peekInstanceId(freeCast.alternativeSourceForgeCardId)?.value
+                        ?: return
+                val accepted =
+                    when (action.actionType) {
+                        ActionType.Pass -> false
+                        ActionType.Cast ->
+                            action.grpId == freeCast.cardGrpId &&
+                                action.instanceId == cardInstanceId &&
+                                action.abilityGrpId == freeCast.abilityGrpId &&
+                                action.sourceId == sourceInstanceId &&
+                                action.alternativeGrpId == 149 &&
+                                action.alternativeSourceZcid == alternativeSourceZcid
+                        else -> return
+                    }
+                if (action.actionType == ActionType.Cast && !accepted) return
+                if (!bridge.cutCoordinator.submitOptionalAnswer(blocking.interactionId, clientGsId, accepted)) return
+                bridge.prioritySignal.markPromptResolved()
+                continuation.awaitHorizon(completedActionId)
+                return
+            }
+
             val paymentResult = targetingHandler.tryHandlePayCostsPerformAction(greMsg)
             when (paymentResult) {
                 HandlerResult.Resume -> continuation.awaitHorizon(completedActionId)

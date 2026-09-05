@@ -80,6 +80,13 @@ enum class DestructionCause { Effect, LethalDamage, Deathtouch }
 enum class DamageSourceKind { Combat, SpellOrAbility, Fight }
 
 sealed interface GameEvent {
+    data class OpeningHandAction(
+        val cardId: ForgeCardId,
+        val seatId: SeatId,
+        val abilityForgeId: Int,
+        val abilityGrpId: Int,
+    ) : GameEvent
+
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
@@ -127,6 +134,8 @@ sealed interface GameEvent {
         val castAbilityGrpId: Int = altCostAbilityGrpId,
         /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
         val stackInstanceId: Int = 0,
+        /** Source object identity before an activated ability's costs can move it to another zone. */
+        val sourceInstanceIdAtCast: InstanceId? = null,
         /**
          * True when the stack item is an Ability gameObject (triggered OR
          * activated), not a player-cast spell. The SpellCast-driven
@@ -142,6 +151,8 @@ sealed interface GameEvent {
         /** Client ability grpId for ability lifecycle annotations, when known. */
         val abilityGrpId: Int = 0,
         val abilityIdentity: ResolvedAbilityIdentity? = null,
+        /** True for an activated Discover stack item, which carries a type-2 LinkInfo source relation. */
+        val isActivatedDiscover: Boolean = false,
         /** Original Paradigm spell behind a delayed-trigger helper, observed when the trigger fires. */
         val paradigmSourceCardId: ForgeCardId? = null,
         /**

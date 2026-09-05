@@ -1,0 +1,15 @@
+name: "Leyline Axe"
+grpId: 93842
+titleId: 823546
+abilities:
+  - id: 175903
+    textId: 823548
+    category: 9
+  - id: 136304
+    textId: 413995
+    category: 3
+  - id: 1156
+    textId: 2568
+    category: 1
+    baseId: 5
+expansionCode: "FDN"

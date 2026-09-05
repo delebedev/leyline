@@ -57,6 +57,9 @@ data class AppliedTransfer(
     val chosenCostPromptId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
     val chosenX: Int = 0,
+    val openingHandAbilityInstanceId: Int = 0,
+    val openingHandAbilityGrpId: Int = 0,
+    val openingHandSeatId: Int = 0,
 )
 
 /** A triggered or activated ability that just appeared on the stack (no previousZone entry).
@@ -77,6 +80,7 @@ data class StackAbilityAppearance(
     val sourceZoneId: Int,
     val grpId: Int,
     val isActivatedAbility: Boolean = false,
+    val isActivatedDiscover: Boolean = false,
     val activationZoneId: Int = 0,
     val triggeringObjectInstanceId: Int? = null,
     val triggeringObjectZoneId: Int = 0,
@@ -311,7 +315,9 @@ object ZoneTransferDetector {
                 // — see [FrameIdResolver.triggerStackAbilityForgeId]. Falls back to
                 // source-card-keyed when no in-window SpellCast carries the SA id.
                 val affectorId =
-                    if (ledgerIntent?.sourceCardId != null) {
+                    if (category == TransferCategory.Warp) {
+                        origId
+                    } else if (ledgerIntent?.sourceCardId != null) {
                         val sourceCardId = ledgerIntent.sourceCardId
                         val intentAbilityIds =
                             setOf(
@@ -438,6 +444,14 @@ object ZoneTransferDetector {
                     } else {
                         affectorId
                     }
+                val openingHandAction =
+                    forgeCardId?.let { id ->
+                        events.filterIsInstance<GameEvent.OpeningHandAction>().firstOrNull { it.cardId == id }
+                    }
+                val openingHandAbilityInstanceId =
+                    openingHandAction
+                        ?.let { idLookup(FrameIdResolver.triggerStackAbilityForgeId(it.abilityForgeId)).value }
+                        ?: 0
 
                 transfers.add(
                     AppliedTransfer(
@@ -449,7 +463,7 @@ object ZoneTransferDetector {
                         forgeCardId = forgeCardId,
                         grpId = transferGrpId,
                         ownerSeatId = obj.ownerSeatId,
-                        affectorId = transferAffectorId,
+                        affectorId = openingHandAbilityInstanceId.takeIf { it != 0 } ?: transferAffectorId,
                         colorOrdinals = colorOrdinals,
                         isMdfcLandPlay = isMdfcLandPlay,
                         manaPayments = manaPayments,
@@ -461,6 +475,9 @@ object ZoneTransferDetector {
                         additionalCostGrpId = additionalCostGrpId,
                         chosenCostPromptId = chosenCostPromptId,
                         chosenX = chosenX,
+                        openingHandAbilityInstanceId = openingHandAbilityInstanceId,
+                        openingHandAbilityGrpId = openingHandAction?.abilityGrpId ?: 0,
+                        openingHandSeatId = openingHandAction?.seatId?.value ?: 0,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
@@ -1286,7 +1303,7 @@ object ZoneTransferDetector {
                 if (isParadigmTrigger) {
                     paradigmSourceIidLookup(sourceCardForgeId) ?: idLookup(sourceCardForgeId).value
                 } else {
-                    idLookup(sourceCardForgeId).value
+                    matchingCast?.sourceInstanceIdAtCast?.value ?: idLookup(sourceCardForgeId).value
                 }
             val sourceZoneId =
                 matchingCast
@@ -1310,6 +1327,7 @@ object ZoneTransferDetector {
                     sourceZoneId = sourceZoneId,
                     grpId = obj.grpId,
                     isActivatedAbility = isActivated,
+                    isActivatedDiscover = matchingCast?.isActivatedDiscover == true,
                     activationZoneId = activationZone,
                     triggeringObjectInstanceId = triggeringObjectIid,
                     triggeringObjectZoneId = triggeringObjectZone,
@@ -1665,7 +1683,6 @@ object ZoneTransferDetector {
         val origId = limbo.value
         val newId = handoff.realloc.new.value
         val obj = patchedObjects[objectIndex]
-        patchedObjects.add(obj.toBuilder().setZoneId(ZoneIds.LIMBO).build())
         patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
         patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
         retiredIds.add(origId)

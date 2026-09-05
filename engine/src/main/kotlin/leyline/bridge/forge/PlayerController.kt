@@ -64,6 +64,7 @@ import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
@@ -82,6 +83,7 @@ import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -555,45 +557,79 @@ class PlayerController(
      * Forge's PlayEffect for Madness, Discover, Cascade-into-cast, and similar
      * optional-cast paths. The default inherited behavior (PlayerControllerHuman)
      * routes through PlaySpellAbility which bypasses the client entirely;
-     * we need to surface the choice as an OptionalActionMessage so the player can
-     * Accept or Decline through the normal client UI. On Accept, delegate to
+     * we need to surface the choice through the client. Cascade and Discover use
+     * a free-cast action window; other play effects retain the optional action UI.
+     * On Accept, delegate to
      * `super.playSaFromPlayEffect(tgtSA)` which drives the real cast flow via
      * PlaySpellAbility (targeting, mana payment, stack placement — our alt-cost
      * rail emits CastingTimeOption + UAT alternativeGrpId along the way). On
-     * Decline, return false so Forge's PlayEffect SubAbility fires the
-     * "otherwise put in graveyard" branch (Exile→GY category=Put via our heuristic).
+     * Decline, return false so Forge's PlayEffect owns its fallback destination.
      *
-     * SHORTCUT vs production-client behavior: the client already knows how to
-     * render this moment from an `ActionsAvailableReq` with exactly one Cast and
-     * one Pass action for the exiled card. Leyline shortcuts via
-     * OptionalActionMessage (Take Action / Decline UI) because the existing
-     * plumbing handles Accept/Decline uniformly. To align with the client's
-     * native rendering path: skip this override entirely, let the trigger
-     * resolve as a decline (returns false), and have ActionMapper offer Cast
-     * for the exile-resident madness-eligible card during the next priority
-     * window. Deferred because it requires broader ActionMapper +
-     * priority-flow changes.
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
         if (isParadigmCopyCast(tgtSA)) return super.playSaFromPlayEffect(tgtSA)
 
         val hostCard = tgtSA.hostCard
+        val castingPermission = castingPermission(hostCard)
+        castingPermission?.let(bridge.journal::record)
+        val freeCast =
+            castingPermission?.let {
+                BlockingInteraction.FreeCast(
+                    cardGrpId = hostCard?.let(bridge::resolveCardGrpId) ?: 0,
+                    abilityGrpId = it.castAbilityGrpId,
+                    sourceAbilityForgeId = it.sourceAbilityForgeId,
+                    alternativeSourceForgeCardId = it.sourceForgeCardId,
+                )
+            }
         log.info(
             "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
             hostCard?.name,
             tgtSA.getAlternativeCost(),
         )
         // Decline on timeout — safer than surprise-casting. On accept, super drives
-        // the real cast flow (targeting, mana payment, stack placement). On decline,
-        // Forge's PlayEffect SubAbility fires the "otherwise put in graveyard" branch.
+        // the real cast flow (targeting, mana payment, stack placement).
         val accepted =
             optionalActionGate.await(
                 hostCard = hostCard,
                 forceSnapshotBeforePrompt = true,
                 defaultOnTimeout = false,
                 logContext = "playSaFromPlayEffect",
+                freeCast = freeCast,
             )
-        return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
+        if (!accepted) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            return false
+        }
+        return try {
+            super.playSaFromPlayEffect(tgtSA).also { played ->
+                if (!played) castingPermission?.let(bridge.journal::clearCastingPermission)
+            }
+        } catch (error: Throwable) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            throw error
+        }
+    }
+
+    private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
+        val stackAbility = game.stack.firstOrNull()?.spellAbility ?: return null
+        val rootAbility = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
+        val discoverAbility = generateSequence(rootAbility) { it.subAbility }.firstOrNull { it.api == ApiType.Discover }
+        val castAbilityGrpId =
+            when {
+                rootAbility.hostCard?.hasKeyword("Cascade") == true -> KeywordAbilityIds.CASCADE
+                discoverAbility != null -> bridge.resolveAbilityIdentity(discoverAbility)?.abilityGrpId ?: 0
+                else -> 0
+            }
+        return card
+            ?.takeIf { castAbilityGrpId != 0 }
+            ?.let {
+                PromptSideEffect.CastingPermission(
+                    ForgeCardId(it.id),
+                    castAbilityGrpId,
+                    stackAbility.id,
+                    ForgeCardId(stackAbility.hostCard.id),
+                )
+            }
     }
 
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =
@@ -896,7 +932,12 @@ class PlayerController(
         // (echo, cumulative upkeep, multi-part) falls through to PCHuman.
         cost.costParts.singleOrNull().let { single ->
             if (single is CostPayLife) {
-                return costPaymentCoordinator.payShockLand(single, sa)
+                val isEtbLandReplacement =
+                    sa.api == ApiType.Tap &&
+                        sa.hasParam("ETB") &&
+                        sa.getParam("Defined") == "Self" &&
+                        sa.hostCard?.isLand == true
+                return costPaymentCoordinator.payOptionalLife(single, sa, isEtbLandReplacement)
             }
             if (single is CostPartMana && sa.isKeyword(Keyword.WARD)) {
                 return costPaymentCoordinator.payWardManaTax(cost, sa)
@@ -917,12 +958,17 @@ class PlayerController(
     ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardUnlessType(min, hand, param, sa)
 
     // -- Simultaneous triggered abilities ----------------------------------
-    // Parent's HumanPlay.playSpellAbility routes targeting through the
-    // player controller (→ bridge) and works for triggers without costs.
-    // A full headless override needs prepareSingleSa-style targeting
-    // (like the AI does) to avoid silently dropping triggers.
-    // Defer to parent for now — only triggers with explicit costs would
-    // need a web-safe override.  Refs meeting 2026-02-08 Tier 1.
+
+    override fun playTrigger(
+        host: Card,
+        wrapperAbility: WrappedAbility,
+        isMandatory: Boolean,
+    ): Boolean {
+        if (!wrapperAbility.usesTargeting()) return super.playTrigger(host, wrapperAbility, isMandatory)
+        wrapperAbility.activatingPlayer = player
+        if (!wrapperAbility.setupTargets()) return false
+        return PlaySpellAbility.playSpellAbilityNoStack(this, player, wrapperAbility, true)
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // Active controller overrides on the current upstream surface.
@@ -1475,6 +1521,9 @@ class PlayerController(
         AbilityUtils.resolve(effectSA)
     }
 
+    override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
+        usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)
+
     override fun chooseModeForAbility(
         sa: SpellAbility,
         possible: MutableList<AbilitySub>,
@@ -1641,3 +1690,9 @@ class PlayerController(
         }
     }
 }
+
+private fun SpellAbility.isOpeningHandBattlefieldPut(): Boolean =
+    api == ApiType.ChangeZone &&
+        hostCard?.zone?.zoneType == ZoneType.Hand &&
+        getParam("Origin") == "Hand" &&
+        getParam("Destination") == "Battlefield"

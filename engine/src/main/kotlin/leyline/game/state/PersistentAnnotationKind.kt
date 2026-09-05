@@ -570,6 +570,23 @@ data object EnteredZoneThisTurnKind : PersistentAnnotationKind {
     }
 }
 
+data object EtbReplacementEffectKind : PersistentAnnotationKind {
+    override val name = "EtbReplacementEffect"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.forNumber(62) in ann.typeList &&
+            int32Detail(ann, DetailKeys.REPLACEMENT_SOURCE_ZCID) != null
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectedIdsList.any { it in frame.battlefieldIids }
+}
+
 /**
  * Source color-production marker. Upserted from the current battlefield mana
  * sources, and removed when the source leaves or stops producing mana.
@@ -602,6 +619,23 @@ data object LinkInfoChoiceKind : PersistentAnnotationKind {
             int32Detail(ann, DetailKeys.LINK_TYPE) == 3
 
     override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to stringDetail(ann, DetailKeys.CHOOSE_LINK_TYPE).orEmpty()
+}
+
+data object LinkInfoStackAbilityKind : PersistentAnnotationKind {
+    override val name = "LinkInfoStackAbility"
+    override val pruneStale = false
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.LinkInfo in ann.typeList &&
+            int32Detail(ann, DetailKeys.LINK_TYPE) == 2
+
+    override fun identityKey(ann: AnnotationInfo): Any? = null
+
+    override fun shouldExpire(
+        ann: AnnotationInfo,
+        frame: FrameContext,
+    ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
 }
 
 data object ManaDetailsKind : PersistentAnnotationKind {
@@ -754,8 +788,10 @@ object PersistentAnnotationKinds {
     val lifecycleOnly: List<PersistentAnnotationKind> =
         listOf(
             EnteredZoneThisTurnKind,
+            EtbReplacementEffectKind,
             CastingTimeOptionKind,
             TriggeringObjectKind,
+            LinkInfoStackAbilityKind,
             DisplayCardUnderCardKind,
         )
 

@@ -279,7 +279,7 @@ internal class MatchBlockingInteractionRuntime(
         }
     }
 
-    @Suppress("LongMethod") // One lock-scoped publication owns blocking-window metadata and installation.
+    @Suppress("LongMethod", "CanBeNonNullable") // One lock-scoped publication owns blocking-window metadata and installation.
     private fun publish(
         interaction: BlockingInteraction,
         damageCards: Map<ForgeCardId, Card> = emptyMap(),
@@ -300,8 +300,11 @@ internal class MatchBlockingInteractionRuntime(
                     try {
                         viewerPrepared =
                             (interaction as? BlockingInteraction.Optional)
-                                ?.takeIf { it.commanderReturn != null || it.forceSnapshotBeforePrompt }
-                                ?.let { optional ->
+                                ?.takeIf {
+                                    it.commanderReturn != null ||
+                                        it.forceSnapshotBeforePrompt ||
+                                        it.etbPayLifeReplacement
+                                }?.let { optional ->
                                     feed.builder.optionalInteractionBundle(game, planner, optional, owner.viewerRoutes(), sourceCard)
                                 }
                         (viewerPrepared?.player ?: build(feed, game, planner)).also { afterMaterialization?.invoke() }

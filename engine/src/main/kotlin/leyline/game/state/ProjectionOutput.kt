@@ -9,6 +9,7 @@ data class ProjectionOutput(
     val persistentBatch: PersistentAnnotationStore.BatchResult,
     val holderBatch: HolderBatch = HolderBatch.EMPTY,
     val diffDeletedInstanceIds: List<InstanceId> = emptyList(),
+    val openingHandAbilityDeletedInstanceIds: List<InstanceId> = emptyList(),
     val promptFactConsumption: PromptFactConsumption = PromptFactConsumption(),
     val consumedEarthbendResolutionVersions: Set<Long> = emptySet(),
     val priorPersistentAnnotations: Map<Int, AnnotationInfo> = emptyMap(),

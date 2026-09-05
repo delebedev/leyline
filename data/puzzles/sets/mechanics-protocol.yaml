@@ -1,6 +1,20 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: opening-hand-battlefield-put
+    deck: [60 Leyline Axe]
+    opponent_deck: [60 Plains]
+    native: { skip: constructed-deck startup is not puzzle injectable }
+    run: keep an opening hand containing Leyline Axe
+    expect: Leyline Axe begins the first main phase on the battlefield through the opening-hand action lifecycle
+    steps:
+      - expect:
+          all:
+            - phase: MAIN1
+            - zone_contains: { side: ours, zone: battlefield, card: Leyline Axe }
+            - annotation_seen:
+                type: UserActionTaken
+                details: { actionType: 15, abilityGrpId: 175903 }
   - id: llanowar-elves-mana
     puzzle: llanowar-elves-mana
     run: cast Grizzly Bears with Llanowar Elves as the required second mana source
@@ -162,7 +176,9 @@ scenarios:
       - expect:
           action: { type: activate, card: Serpent Specialist }
       - activate: { card: Serpent Specialist, ability_grp_id: 206280 }
-      - resolve_stack: {}
+      - pass_until:
+          battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
+          max_passes: 12
       - expect:
           all:
             - battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
@@ -383,7 +399,7 @@ scenarios:
       - expect:
           action: { type: cast, card: Bloodbraid Elf }
       - cast: Bloodbraid Elf
-      - optional_action: { accept: true }
+      - cast: { card: Llanowar Elves, zone: exile }
       - resolve_stack: {}
       - expect:
           all:
@@ -397,11 +413,25 @@ scenarios:
       - expect:
           action: { type: cast, card: Geological Appraiser }
       - cast: Geological Appraiser
-      - optional_action: { accept: true }
+      - cast: { card: Llanowar Elves, zone: exile }
       - resolve_stack: {}
       - expect:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Geological Appraiser }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: discover-hidden-courtyard
+    puzzle: discover-hidden-courtyard
+    run: activate Hidden Courtyard, accept the discovered Llanowar Elves cast
+    expect: Hidden Courtyard is sacrificed and Llanowar Elves resolves to the battlefield
+    steps:
+      - expect:
+          action: { type: activate, card: Hidden Courtyard }
+      - activate: { card: Hidden Courtyard, ability_grp_id: 169776 }
+      - cast: { card: Llanowar Elves, zone: exile }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Hidden Courtyard }
             - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
   - id: bargain-rowans-grim-search
     puzzle: try-bargain-rowans
@@ -815,6 +845,10 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: TemporaryPermanent
+            - annotation_seen: AbilityInstanceCreated
+            - annotation_seen: AbilityInstanceDeleted
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
             - stack_empty: true
@@ -945,6 +979,10 @@ scenarios:
       - expect:
           action: { type: cast, card: Brutal Cathar }
       - cast: Brutal Cathar
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: opponent, zone: battlefield, card: Llanowar Elves }
       - resolve_stack: {}
       - pass_until:
           zone_contains: { side: ours, zone: battlefield, card: Moonrage Brute }

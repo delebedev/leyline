@@ -52,6 +52,7 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
@@ -399,6 +400,14 @@ class GameBridge(
                 it.trackedZoneResolver = ::trackedZoneFor
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
+                it.cardGrpIdResolver = ::resolveGrpId
+                it.triggerStackAbilityInstanceIdResolver = { abilityId ->
+                    peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
+                }
+                it.triggerStackAbilitySourceInstanceIdResolver = { abilityId ->
+                    val abilityIid = peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
+                    abilityIid?.let { iid -> annotationProjectionStateSnapshot().abilityLineage.find(iid)?.sourceIidAtCreate }
+                }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -916,6 +925,7 @@ class GameBridge(
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
     companion object {
+        private const val OPENING_HAND_ABILITY_CATEGORY = 9
         private val PT_BOOST_KEYWORDS = listOf(KeywordAbilityIds.PROWESS, KeywordAbilityIds.ENLIST)
 
         /** Fallback grpId for cards not in client DB (renders face-down). */
@@ -1284,6 +1294,17 @@ class GameBridge(
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+    }
+
+    internal fun openingHandAbilityGrpId(cardName: String): Int? {
+        val grpId = cardRepository.findGrpIdByName(cardName) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        if (cardData.abilityCategories.size != cardData.abilityIds.size) return null
+        return cardData.abilityIds
+            .zip(cardData.abilityCategories)
+            .singleOrNull { (_, category) -> category == OPENING_HAND_ABILITY_CATEGORY }
+            ?.first
+            ?.first
     }
 
     private fun resolvePromptAbilityIdentity(

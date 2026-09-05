@@ -10,7 +10,9 @@ data class AcceptanceSuite(
 
 data class AcceptanceScenario(
     val id: String,
-    val puzzle: String,
+    val puzzle: String?,
+    val deckList: String?,
+    val opponentDeckList: String?,
     val run: String?,
     val expect: String?,
     val steps: List<AcceptanceStep>,

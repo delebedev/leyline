@@ -44,9 +44,18 @@ object AcceptanceSuiteLoader {
     ): AcceptanceScenario {
         val context = "scenario[$index]"
         val map = raw.asMap(context)
+        val puzzle = map.optionalString("puzzle", context)
+        val deckList = map.optionalList("deck", context)?.toDeckList("$context.deck")
+        require((puzzle != null) xor (deckList != null)) {
+            "$context requires exactly one of puzzle or deck"
+        }
+        val opponentDeckList = map.optionalList("opponent_deck", context)?.toDeckList("$context.opponent_deck")
+        require(opponentDeckList == null || deckList != null) { "$context.opponent_deck requires deck" }
         return AcceptanceScenario(
             id = map.requiredString("id", context),
-            puzzle = map.requiredString("puzzle", context),
+            puzzle = puzzle,
+            deckList = deckList,
+            opponentDeckList = opponentDeckList,
             run = map.optionalString("run", context),
             expect = map.optionalString("expect", context),
             steps = map.optionalList("steps", context)?.mapIndexed { stepIndex, step -> parseStep(stepIndex, step) } ?: emptyList(),
@@ -484,6 +493,9 @@ object AcceptanceSuiteLoader {
         )
     }
 }
+
+private fun List<Any?>.toDeckList(context: String): String =
+    mapIndexed { index, item -> item.asString("$context[$index]") }.joinToString("\n")
 
 private fun Any?.asMap(context: String): Map<String, Any?> {
     val raw = this as? Map<*, *> ?: error("$context must be a map")

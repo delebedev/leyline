@@ -121,6 +121,8 @@ class GameEventCollector(
     @Volatile
     private var zoneMoves: MutableList<ZoneMove> = mutableListOf()
 
+    private var openingHandActionWindow = true
+
     /**
      * Stack AbilityInstance context keyed by Forge SpellAbility id. Cast events
      * record whether the id represents a trigger or an activated ability; resolve
@@ -172,6 +174,10 @@ class GameEventCollector(
 
     /** True if the current frame has events accumulated. */
     fun hasEvents(): Boolean = frame.isNotEmpty()
+
+    fun closeOpeningHandActionWindow() {
+        openingHandActionWindow = false
+    }
 
     // -- EventBus entry point --
 
@@ -249,8 +255,17 @@ class GameEventCollector(
         val grpId = bridge.consumeSelectedSpellGrpId(ForgeCardId(card.id)) ?: bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
         val isParadigmCopyCast = isParadigmCopyCast(topSa)
+        val castingPermission =
+            bridge.allSeatIds().firstNotNullOfOrNull { seat ->
+                bridge
+                    .promptBridge(SeatId(seat))
+                    .journal
+                    .consumeCastingPermission(ForgeCardId(card.id))
+            }
         val altCostAbilityGrpId =
             if (isParadigmCopyCast) {
+                149
+            } else if (castingPermission != null) {
                 149
             } else if (topSa?.isCastFaceDown == true) {
                 // Disguise / Morph face-down hand-cast SAs have no
@@ -269,6 +284,8 @@ class GameEventCollector(
         val castAbilityGrpId =
             if (isParadigmCopyCast) {
                 KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            } else if (castingPermission != null) {
+                castingPermission.castAbilityGrpId
             } else {
                 altCostAbilityGrpId
             }
@@ -325,7 +342,7 @@ class GameEventCollector(
                 abilityIdentityFor(realCard, topSa, abilityDefinition, isTrigger)
             } else {
                 null
-            }
+            } ?: pendingTriggerAbilityIdentity(topSa, abilityDefinition, isTrigger)
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val paradigmSourceCardId =
             realCard
@@ -410,11 +427,13 @@ class GameEventCollector(
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
                 stackInstanceId = paradigmCopyStackIid,
+                sourceInstanceIdAtCast = if (isAbility) bridge.peekInstanceId(cardId) else null,
                 isAbility = isAbility,
                 isTrigger = isTrigger,
                 abilityForgeId = abilityForgeId,
                 abilityGrpId = abilityGrpId,
                 abilityIdentity = abilityIdentity,
+                isActivatedDiscover = isAbility && !isTrigger && topSa?.api == ApiType.Discover,
                 paradigmSourceCardId = paradigmSourceCardId,
                 triggeringObjectCardId = triggeringObjectCardId,
                 triggeringObjectInstanceId = triggeringObjectInstanceId,
@@ -486,6 +505,10 @@ class GameEventCollector(
     ): Int? =
         when {
             isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            sa.api == ApiType.Sacrifice && sa.trigger?.getParam("ValidCard") == "Card.Self+evoked" ->
+                bridge.cardRepository
+                    .findGrpIdByName(card.name)
+                    ?.let { bridge.cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.EVOKE) }
             sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
             (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
                 KeywordAbilityIds.TRAINING
@@ -822,6 +845,24 @@ class GameEventCollector(
         if (to == null) return
         val seat = seatOf(card.controller)
         val exileUnderSource = consumeExileUnderSource(card.id)
+        val cause = ev.cause()
+        if (
+            openingHandActionWindow &&
+            seat != null &&
+            from == ZoneType.Hand &&
+            to == ZoneType.Battlefield
+        ) {
+            bridge.openingHandAbilityGrpId(card.name)?.let { abilityGrpId ->
+                frame.add(
+                    GameEvent.OpeningHandAction(
+                        ForgeCardId(card.id),
+                        seat,
+                        cause?.abilityId()?.takeIf { it != 0 } ?: card.id,
+                        abilityGrpId,
+                    ),
+                )
+            }
+        }
 
         // Emit the most specific variant possible based on zone pair.
         // When seat is unavailable or source zone is null (e.g. token entering
@@ -1156,6 +1197,17 @@ class GameEventCollector(
                 triggerDescription.startsWith("Opus —") ||
                 triggerDescription.startsWith("Void —")
         }
+    }
+
+    private fun pendingTriggerAbilityIdentity(
+        ability: SpellAbility?,
+        definition: AbilityDefinitionRef?,
+        isTrigger: Boolean,
+    ): ResolvedAbilityIdentity? {
+        if (!isTrigger || ability == null || definition == null) return null
+        val triggerId = ability.trigger?.id ?: return null
+        val abilityGrpId = bridge.pendingTriggerCleanupAbilityGrpId(triggerId) ?: return null
+        return ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
     override fun visit(ev: GameEventPlayerPoisoned) {

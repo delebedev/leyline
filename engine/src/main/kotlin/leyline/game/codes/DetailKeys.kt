@@ -6,6 +6,7 @@ object DetailKeys {
     const val ZONE_DEST = "zone_dest"
     const val CATEGORY = "category"
     const val GRPID = "grpid"
+    const val REPLACEMENT_SOURCE_ZCID = "ReplacementSourceZcid"
     const val COLOR_IDENTITY = "ColorIdentity"
     const val COST_INCREASE = "CostIncrease"
     const val PHASE = "phase"

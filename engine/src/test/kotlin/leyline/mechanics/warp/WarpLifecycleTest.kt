@@ -2,18 +2,31 @@ package leyline.mechanics.warp
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.getAllCastableAbilities
+import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
 import leyline.testkit.beMissingFrom
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
+import leyline.testkit.detailString
 import leyline.testkit.hasCard
+import leyline.testkit.hasDetail
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+
+private const val WARP_DELAYED_ABILITY_GRP_ID = KeywordAbilityIds.WARP_DELAYED_TRIGGER
 
 private val WARP_PUZZLE =
     """
@@ -75,6 +88,26 @@ private val WARP_END_STEP_PUZZLE =
     ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
     """.trimIndent()
 
+private val QUANTUM_RIDDLER_PUZZLE =
+    """
+    [metadata]
+    Name:Warp - delayed exile lifecycle
+    Goal:Cast Quantum Riddler for its warp cost, then exile it at end step.
+    Turns:5
+    Difficulty:Easy
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanhand=Quantum Riddler
+    humanbattlefield=Island;Island;Island;Island;Island
+    humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
+    ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+    """.trimIndent()
+
 @Suppress("UnnecessaryNotNullOperator")
 class WarpLifecycleTest :
     SessionTest({
@@ -119,6 +152,10 @@ class WarpLifecycleTest :
 
             // One copy in the puzzle, so battlefield membership excludes the rest.
             "Germinating Wurm" should beOnBattlefieldOf(human)
+            allMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                .none { AnnotationType.DelayedTriggerAffectees in it.typeList } shouldBe true
         }
 
         session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE) {
@@ -131,6 +168,116 @@ class WarpLifecycleTest :
             assertSoftly {
                 "Germinating Wurm" should beInExileOf(human)
             }
+        }
+
+        session("warp delayed exile preserves its pending row through ability resolution", puzzle = QUANTUM_RIDDLER_PUZZLE) {
+            val riddlerGrpId = bridge.cardRepository.findGrpIdByName("Quantum Riddler")!!
+            val warpAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(riddlerGrpId, KeywordAbilityIds.WARP)!!
+
+            check(castSpellByName("Quantum Riddler", alternativeGrpId = warpAbilityGrpId))
+            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
+
+            val battlefieldIid = human.battlefield.iid("Quantum Riddler")
+            val holder =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .single { it.type == GameObjectType.TriggerHolder }
+            val pending =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .single { AnnotationType.DelayedTriggerAffectees in it.typeList }
+            val castAction =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .single {
+                        AnnotationType.UserActionTaken in it.typeList &&
+                            it.hasDetail(DetailKeys.ALTERNATIVE_GRP_ID) &&
+                            it.detailInt(DetailKeys.ALTERNATIVE_GRP_ID) == warpAbilityGrpId
+                    }
+            assertSoftly {
+                castAction.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe 0
+                holder.objectSourceGrpId shouldBe riddlerGrpId
+                holder.parentId shouldBe battlefieldIid
+                holder.uniqueAbilitiesList.single().grpId shouldBe WARP_DELAYED_ABILITY_GRP_ID
+                pending.affectedIdsList shouldBe listOf(battlefieldIid)
+                pending.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe WARP_DELAYED_ABILITY_GRP_ID
+                pending.detailInt(DetailKeys.REMOVES_FROM_ZONE) shouldBe 1
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .none {
+                        AnnotationType.TemporaryPermanent in it.typeList &&
+                            battlefieldIid in it.affectedIdsList
+                    } shouldBe true
+            }
+
+            val endStepStart = allMessages.size
+            check(passUntil(maxPasses = 30) { human.hasCard("Quantum Riddler", ZoneType.Exile) })
+            val endStepMessages = allMessages.drop(endStepStart)
+            val endStepGsms = endStepMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            val ability =
+                endStepGsms
+                    .flatMap { it.gameObjectsList }
+                    .single { it.type == GameObjectType.Ability && it.grpId == WARP_DELAYED_ABILITY_GRP_ID }
+            val created =
+                endStepGsms
+                    .flatMap { it.annotationsList }
+                    .single {
+                        AnnotationType.AbilityInstanceCreated in it.typeList &&
+                            ability.instanceId in it.affectedIdsList
+                    }
+            val updated =
+                endStepGsms
+                    .flatMap { it.persistentAnnotationsList }
+                    .first {
+                        it.id == pending.id &&
+                            AnnotationType.DelayedTriggerAffectees in it.typeList &&
+                            it.affectorId == ability.instanceId
+                    }
+            val transfer =
+                endStepGsms
+                    .flatMap { it.annotationsList }
+                    .single {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                            it.detailString(DetailKeys.CATEGORY) == "Warp"
+                    }
+            val resolution = endStepGsms.flatMap { it.annotationsList }.filter { it.affectorId == ability.instanceId }
+            val deleted =
+                endStepGsms
+                    .flatMap { it.annotationsList }
+                    .single {
+                        AnnotationType.AbilityInstanceDeleted in it.typeList &&
+                            ability.instanceId in it.affectedIdsList
+                    }
+
+            assertSoftly {
+                created.affectorId shouldBe battlefieldIid
+                updated.affectedIdsList shouldBe pending.affectedIdsList
+                transfer.affectorId shouldBe battlefieldIid
+                transfer.detailInt(DetailKeys.ZONE_SRC) shouldBe ZoneIds.BATTLEFIELD
+                transfer.detailInt(DetailKeys.ZONE_DEST) shouldBe ZoneIds.EXILE
+                resolution.flatMap { it.typeList } shouldContain AnnotationType.ResolutionStart
+                resolution.flatMap { it.typeList } shouldContain AnnotationType.ResolutionComplete
+                deleted.affectorId shouldBe battlefieldIid
+                endStepGsms.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain pending.id
+            }
+
+            val exiled = human.getCardsIn(ZoneType.Exile).single { it.name == "Quantum Riddler" }
+            check(passUntil(maxPasses = 30) { getAllCastableAbilities(exiled, human).isNotEmpty() })
+            check(!isGameOver())
+            getAllCastableAbilities(exiled, human).shouldNotBeEmpty()
+            val exileCast =
+                ActionMapper
+                    .buildFromSnapshot(1, SnapshotCapture.run(game(), bridge, "test", 0), bridge)
+                    .actionsList
+                    .single { it.actionType == ActionType.Cast && it.instanceId == bridge.instanceId(exiled) }
+            exileCast.hasAutoTapSolution() shouldBe true
+            check(castFromExile("Quantum Riddler"))
+            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
+            "Quantum Riddler" should beOnBattlefieldOf(human)
         }
     })
 

@@ -1,9 +1,11 @@
 package leyline.game.annotations
 
 import leyline.bridge.types.ForgeCardId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
+import leyline.game.event.ZoneMoveCause
 import leyline.game.mapping.ZoneIds
 
 enum class TransferPlanOrigin {
@@ -56,15 +58,30 @@ object ZoneMoveLedger {
     ): TransferCategory {
         val cardId = move.cardId
         val cast = events.filterIsInstance<GameEvent.SpellCast>().firstOrNull { it.cardId == cardId }
-        val resolved = events.filterIsInstance<GameEvent.SpellResolved>().firstOrNull { it.cardId == cardId }
+        val resolutions = events.filterIsInstance<GameEvent.SpellResolved>()
+        val resolved = resolutions.firstOrNull { it.cardId == cardId }
+        val warpResolution =
+            move.cause?.let { cause ->
+                resolutions.any {
+                    it.isTrigger &&
+                        it.abilityGrpId == KeywordAbilityIds.WARP_DELAYED_TRIGGER &&
+                        it.matches(cause)
+                }
+            } == true
         val destruction =
             events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == cardId }?.destruction
         return when {
+            events.any { it is GameEvent.OpeningHandAction && it.cardId == cardId } &&
+                move.from == Zone.Hand &&
+                move.to == Zone.Battlefield -> TransferCategory.Put
             events.any { it is GameEvent.LandPlayed && it.cardId == cardId } &&
                 move.from == Zone.Hand &&
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
             move.to == Zone.Stack && cast?.isAbility != true -> TransferCategory.CastSpell
             move.from == Zone.Stack && resolved?.hasFizzled == true -> TransferCategory.Countered
+            move.from == Zone.Battlefield &&
+                move.to == Zone.Exile &&
+                warpResolution -> TransferCategory.Warp
             move.to == Zone.Exile -> TransferCategory.Exile
             move.from == Zone.Stack && resolved != null -> TransferCategory.Resolve
             events.any { it is GameEvent.LegendRuleDeath && it.cardId == cardId } &&
@@ -98,6 +115,12 @@ object ZoneMoveLedger {
         }
     }
 
+    private fun GameEvent.SpellResolved.matches(cause: ZoneMoveCause): Boolean {
+        val resolutionIds = setOf(abilityForgeId, rootAbilityForgeId, stackAbilityForgeId) - 0
+        val causeIds = setOf(cause.abilityForgeId, cause.rootAbilityForgeId, cause.stackAbilityForgeId) - 0
+        return resolutionIds.any(causeIds::contains)
+    }
+
     @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Only source-bearing operation events participate.
     private fun sourceFromSpecificEvent(
         move: ZoneMove,
@@ -105,6 +128,7 @@ object ZoneMoveLedger {
     ): ForgeCardId? =
         events.firstNotNullOfOrNull { event ->
             when (event) {
+                is GameEvent.OpeningHandAction -> event.cardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardDestroyed -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardSacrificed -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
                 is GameEvent.CardMilled -> event.sourceCardId.takeIf { matchesSpecificOperation(event, move) }
@@ -126,6 +150,7 @@ object ZoneMoveLedger {
         val matchingCard = event.cardIdOrNull() == move.cardId
         if (!matchingCard) return false
         return when (event) {
+            is GameEvent.OpeningHandAction -> move.from == Zone.Hand && move.to == Zone.Battlefield
             is GameEvent.LandPlayed -> move.from == Zone.Hand && move.to == Zone.Battlefield
             is GameEvent.SpellCast -> move.to == Zone.Stack
             is GameEvent.SpellResolved -> move.from == Zone.Stack
@@ -146,6 +171,7 @@ object ZoneMoveLedger {
     @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Non-zone-operation events have no relevant card id.
     private fun GameEvent.cardIdOrNull(): ForgeCardId? =
         when (this) {
+            is GameEvent.OpeningHandAction -> cardId
             is GameEvent.LandPlayed -> cardId
             is GameEvent.SpellCast -> cardId
             is GameEvent.SpellResolved -> cardId

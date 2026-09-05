@@ -55,59 +55,78 @@ object TransferAnnotations {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
-        when (category) {
-            TransferCategory.PlayLand -> {
-                annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                val actionType = if (transfer.isMdfcLandPlay) ActionType.PlayMdfc else ActionType.Play_add3
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = actionType))
-            }
-            TransferCategory.CastSpell -> {
-                // Cast-time content split: OIC + ZT ride the announcement frame
-                // (which is the targeting prompt frame for targeted spells, or the
-                // full cast frame for untargeted ones). The mana-payment block and
-                // the cast-action UAT are emitted from the GameEvent.SpellCast
-                // handler in MechanicAnnotations — that handler runs on whichever
-                // drain Forge produces the populated SpellCast event in (same drain
-                // as the zone-change for untargeted spells; the post-target-submit
-                // drain for targeted spells, when Forge has actually paid mana).
-                if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
-            }
-            TransferCategory.Resolve -> {
-                val resolvingId = if (origId != newId) origId else newId
-                annotations.add(AnnotationBuilder.resolutionStart(resolvingId, grpId))
-                annotations.add(AnnotationBuilder.resolutionComplete(resolvingId, grpId))
-                if (origId != newId) {
+        if (transfer.openingHandAbilityInstanceId != 0) {
+            val abilityId = InstanceId(transfer.openingHandAbilityInstanceId)
+            val abilityGrpId = GrpId(transfer.openingHandAbilityGrpId)
+            annotations.add(AnnotationBuilder.abilityInstanceCreated(abilityId, origId, srcZone))
+            annotations.add(AnnotationBuilder.resolutionStart(abilityId, abilityGrpId))
+            if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, abilityId))
+            annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = abilityId))
+            annotations.add(AnnotationBuilder.resolutionComplete(abilityId, abilityGrpId))
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(abilityId, origId))
+            annotations.add(
+                AnnotationBuilder.userActionTaken(
+                    abilityId,
+                    SeatId(transfer.openingHandSeatId),
+                    ActionType.OpeningHandAction,
+                    abilityGrpId,
+                ),
+            )
+        } else {
+            when (category) {
+                TransferCategory.PlayLand -> {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+                    val actionType = if (transfer.isMdfcLandPlay) ActionType.PlayMdfc else ActionType.Play_add3
+                    annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = actionType))
                 }
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
-            }
-            TransferCategory.Sacrifice -> {
-                if (transfer.manaPayments.isNotEmpty()) {
-                    emitManaSacrificeBracket(annotations, transfer, actingSeat)
-                } else {
+                TransferCategory.CastSpell -> {
+                    // Cast-time content split: OIC + ZT ride the announcement frame
+                    // (which is the targeting prompt frame for targeted spells, or the
+                    // full cast frame for untargeted ones). The mana-payment block and
+                    // the cast-action UAT are emitted from the GameEvent.SpellCast
+                    // handler in MechanicAnnotations — that handler runs on whichever
+                    // drain Forge produces the populated SpellCast event in (same drain
+                    // as the zone-change for untargeted spells; the post-target-submit
+                    // drain for targeted spells, when Forge has actually paid mana).
                     if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
+                }
+                TransferCategory.Resolve -> {
+                    val resolvingId = if (origId != newId) origId else newId
+                    annotations.add(AnnotationBuilder.resolutionStart(resolvingId, grpId))
+                    annotations.add(AnnotationBuilder.resolutionComplete(resolvingId, grpId))
+                    if (origId != newId) {
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                    }
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
+                }
+                TransferCategory.Sacrifice -> {
+                    if (transfer.manaPayments.isNotEmpty()) {
+                        emitManaSacrificeBracket(annotations, transfer, actingSeat)
+                    } else {
+                        if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                        annotations.add(
+                            AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
+                        )
+                    }
+                }
+                TransferCategory.Destroy, TransferCategory.Countered,
+                TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
+                TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
+                TransferCategory.Foretell, TransferCategory.Warp,
+                TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
+                TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch,
+                TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,
+                TransferCategory.ZoneTransfer,
+                -> {
+                    if (origId != newId) {
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                    }
                     annotations.add(
                         AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
                     )
                 }
-            }
-            TransferCategory.Destroy, TransferCategory.Countered,
-            TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
-            TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
-            TransferCategory.Foretell,
-            TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
-            TransferCategory.SbaDamage, TransferCategory.SbaDeathtouch,
-            TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,
-            TransferCategory.ZoneTransfer,
-            -> {
-                if (origId != newId) {
-                    annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
-                }
-                annotations.add(
-                    AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
-                )
             }
         }
 
@@ -350,12 +369,14 @@ object TransferAnnotations {
             }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
         val castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId)
+        val actionAbilityGrpId =
+            castAbilityGrpId.takeUnless { altCostGrpId.value != 0 && it == altCostGrpId } ?: GrpId(0)
         annotations.add(
             AnnotationBuilder.userActionTaken(
                 instanceId = spellIid,
                 seatId = ev.seatId,
                 actionType = castActionType,
-                abilityGrpId = castAbilityGrpId,
+                abilityGrpId = actionAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
             ),
         )

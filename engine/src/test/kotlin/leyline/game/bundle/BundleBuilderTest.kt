@@ -745,6 +745,36 @@ class BundleBuilderTest :
             }
         }
 
+        test("playback display actions do not advertise a pending decision") {
+            val (b, game, counter) =
+                startWithBoard { _, human, _ ->
+                    addCard("Plains", human, ZoneType.Battlefield)
+                }
+            val builder = bundleBuilder(b)
+            val cut = builder.materializePlaybackCut(game, counter, turnStarted = false, events = FrameEventLog.EMPTY)
+            val playback = builder.compilePlaybackCut(cut)
+            b.commitProjection(playback.transition)
+
+            val playbackBatch = playback.batches.single()
+            val playbackGsm = playbackBatch.first().gameStateMessage
+            assertSoftly {
+                playbackGsm.update shouldBe GameStateUpdate.SendHiFi
+                playbackGsm.actionsCount shouldBeGreaterThan 0
+                playbackGsm.pendingMessageCount shouldBe 0
+                playbackBatch.count { it.hasActionsAvailableReq() } shouldBe playbackGsm.pendingMessageCount
+            }
+
+            val priority = BundleBuilderTestSupport.postAction(builder, b, game, counter)
+            val priorityGsm = priority.messages.first().gameStateMessage
+            val request = priority.messages.single { it.hasActionsAvailableReq() }
+            assertSoftly {
+                priorityGsm.update shouldBe GameStateUpdate.SendAndRecord
+                priorityGsm.pendingMessageCount shouldBe 1
+                priority.messages.count { it.hasActionsAvailableReq() } shouldBe priorityGsm.pendingMessageCount
+                request.gameStateId shouldBe priorityGsm.gameStateId
+            }
+        }
+
         test("playback cut is exact across retry and discard") {
             val (b, game, counter) = startWithBoard { _, _, _ -> }
             val builder = bundleBuilder(b)

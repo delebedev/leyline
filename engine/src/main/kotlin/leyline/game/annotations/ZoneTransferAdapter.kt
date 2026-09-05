@@ -3,6 +3,7 @@ package leyline.game.annotations
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
 import leyline.game.event.ZoneMove
 import leyline.game.mapping.StateZoneProjection
@@ -50,7 +51,18 @@ object ZoneTransferAdapter {
         }
 
         val idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
-            val plan = editor.identities.realloc(fid)
+            val current = editor.identities.peek(fid)
+            val reserved =
+                current?.let { old ->
+                    editor.persistentAnnotations.activeAnnotations.values
+                        .singleOrNull { annotation ->
+                            annotation.typeList.any { it.number == 62 } &&
+                                annotation.detailInt(DetailKeys.REPLACEMENT_SOURCE_ZCID) == old.value
+                        }?.affectedIdsList
+                        ?.singleOrNull()
+                        ?.let(::InstanceId)
+                }
+            val plan = if (reserved != null) editor.identities.reallocTo(fid, reserved) else editor.identities.realloc(fid)
             plannedReallocs.add(plan)
             plan
         }

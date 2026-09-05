@@ -78,7 +78,9 @@ internal class TargetingWindowCapture(
                     }
                 },
             isTriggeredAbility = request.isTriggeredAbility,
-            forgeAbilityId = request.forgeAbilityId,
+            forgeAbilityId = targetingAbility?.id ?: request.forgeAbilityId,
+            isActivatedAbility = targetingAbility?.rootAbility?.isActivatedAbility == true,
+            stackAbilityGrpId = abilityIdentity?.abilityGrpId ?: 0,
         )
     }
 

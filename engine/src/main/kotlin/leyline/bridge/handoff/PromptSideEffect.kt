@@ -68,6 +68,14 @@ sealed interface PromptSideEffect {
         val payments: List<ConvokePayment>,
     ) : PromptSideEffect
 
+    /** Free-cast permission displayed on an exile-resident Cascade or Discover result. */
+    data class CastingPermission(
+        val cardForgeId: ForgeCardId,
+        val castAbilityGrpId: Int,
+        val sourceAbilityForgeId: Int,
+        val sourceForgeCardId: ForgeCardId,
+    ) : PromptSideEffect
+
     data class ConvokePayment(
         val paymentForgeCardId: ForgeCardId,
         /** Client ManaColor enum number used by the ManaPaid annotation. */

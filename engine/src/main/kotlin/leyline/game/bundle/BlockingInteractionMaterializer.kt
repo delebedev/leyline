@@ -4,12 +4,17 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.codes.DetailKeys
+import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -33,8 +38,9 @@ internal class BlockingInteractionMaterializer(
         prior: ProjectionState,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
-    ): Prepared =
-        edit(prior) { editor ->
+    ): Prepared {
+        require(interaction.freeCast == null) { "Free-cast interactions require a state snapshot" }
+        return edit(prior) { editor ->
             val sourceId =
                 interaction.sourceId?.let { editor.identities.getOrAlloc(it).value }
                     ?: error("Optional interaction requires a source")
@@ -59,6 +65,69 @@ internal class BlockingInteractionMaterializer(
                 actionGameStateId = link.gsId,
             )
         }
+    }
+
+    fun etbPayLifeOptional(
+        prior: ProjectionState,
+        counter: LogicalSequencePlanner,
+        interaction: BlockingInteraction.Optional,
+        sourceForgeId: ForgeCardId,
+        cardData: CardData,
+        abilityGrpId: Int,
+        cardProto: CardProtoBuilder,
+    ): Prepared =
+        edit(prior) { editor ->
+            val oldId = editor.identities.getOrAlloc(sourceForgeId)
+            val newId = editor.identities.reserve()
+            val replacementId = leyline.bridge.types.EffectId(editor.effects.effects.nextEffectId())
+            val persistentId = editor.persistentAnnotations.nextPersistentId
+            val replacement =
+                AnnotationBuilder
+                    .replacementEffect(replacementId, newId, GrpId(abilityGrpId), oldId)
+                    .toBuilder()
+                    .setId(persistentId)
+                    .build()
+            editor.persistentAnnotations =
+                editor.persistentAnnotations.copy(
+                    activeAnnotations = editor.persistentAnnotations.activeAnnotations + (persistentId to replacement),
+                    nextPersistentId = persistentId + 1,
+                )
+            val link = counter.nextGameStateLink()
+            val pending =
+                pendingMessage(link)
+                    .toBuilder()
+                    .setUpdate(GameStateUpdate.Send)
+                    .addGameObjects(
+                        cardProto
+                            .buildObjectInfo(cardData.grpId)
+                            .setInstanceId(newId.value)
+                            .setType(GameObjectType.Card)
+                            .setVisibility(Visibility.Public)
+                            .setOwnerSeatId(seatId)
+                            .setControllerSeatId(seatId),
+                    ).addPersistentAnnotations(replacement)
+                    .build()
+            val optional = OptionalActionMessage.newBuilder().setSourceId(replacementId.value).build()
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(checkNotNull(interaction.customPromptId))
+                    .addParameters(cardIdPromptParameter(newId.value))
+                    .build()
+            BundleBuilder.BundleResult(
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.gameStateMessage = pending
+                    },
+                    makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.optionalActionMessage = optional
+                        it.prompt = prompt
+                        it.allowCancel = AllowCancel.No_a526
+                    },
+                ),
+                actionGameStateId = link.gsId,
+            )
+        }
 
     fun snapshotOptional(
         stateMessages: List<GREToClientMessage>,
@@ -73,6 +142,61 @@ internal class BlockingInteractionMaterializer(
             }
                 ?: error("Optional interaction requires a source")
         val link = counter.nextGameStateLink()
+        interaction.freeCast?.let { freeCast ->
+            val abilityInstanceId =
+                transition.nextState.identities.forgeIdToInstanceId[
+                    FrameIdResolver.triggerStackAbilityForgeId(freeCast.sourceAbilityForgeId),
+                ]?.value ?: error("Free-cast source ability has no projected identity")
+            val alternativeSourceZcid =
+                transition.nextState.identities.forgeIdToInstanceId[freeCast.alternativeSourceForgeCardId]
+                    ?.value
+                    ?: error("Free-cast alternative source has no projected identity")
+            val cast =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setGrpId(freeCast.cardGrpId)
+                    .setInstanceId(sourceId)
+                    .setAbilityGrpId(freeCast.abilityGrpId)
+                    .setSourceId(abilityInstanceId)
+                    .setAlternativeGrpId(149)
+                    .setAlternativeSourceZcid(alternativeSourceZcid)
+                    .build()
+            val actions = ActionsAvailableReq.newBuilder().addActions(cast).addActions(Action.newBuilder().setActionType(ActionType.Pass))
+            if (freeCast.abilityGrpId != KeywordAbilityIds.CASCADE) {
+                addDiscoverInactiveActions(
+                    actions,
+                    stateMessages,
+                    abilityInstanceId,
+                    alternativeSourceZcid,
+                    freeCast,
+                    sourceId,
+                )
+            }
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(PromptIds.FREE_CAST_FROM_REVEAL)
+                    .addParameters(cardIdPromptParameter(alternativeSourceZcid))
+            return Prepared(
+                BundleBuilder.BundleResult(
+                    stateMessages +
+                        listOf(
+                            makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                                it.gameStateMessage = pendingMessage(link)
+                            },
+                            makeGRE(GREMessageType.ActionsAvailableReq_695e, link.gsId, counter.nextMsgId()) {
+                                it.actionsAvailableReq = actions.build()
+                                it.prompt = prompt.build()
+                                it.allowCancel = AllowCancel.No_a526
+                            },
+                        ),
+                    actionGameStateId = link.gsId,
+                ),
+                transition,
+                closesPlaybackFrame = true,
+            )
+        }
         val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
         val prompt =
             Prompt
@@ -98,6 +222,49 @@ internal class BlockingInteractionMaterializer(
             transition,
             closesPlaybackFrame = true,
         )
+    }
+
+    private fun addDiscoverInactiveActions(
+        actions: ActionsAvailableReq.Builder,
+        stateMessages: List<GREToClientMessage>,
+        abilityInstanceId: Int,
+        alternativeSourceZcid: Int,
+        freeCast: BlockingInteraction.FreeCast,
+        castableCardId: Int,
+    ) {
+        val objects =
+            stateMessages
+                .asSequence()
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.gameObjectsList.asSequence() }
+                .associateBy { it.instanceId }
+        stateMessages
+            .asSequence()
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList.asSequence() }
+            .filter { annotation ->
+                AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                    (
+                        annotation.affectorId == abilityInstanceId ||
+                            annotation.affectorId == alternativeSourceZcid
+                    ) &&
+                    annotation.detailsList.any { detail ->
+                        detail.key == DetailKeys.CATEGORY && detail.valueStringList == listOf("Exile")
+                    }
+            }.flatMap { it.affectedIdsList.asSequence() }
+            .filter { it != castableCardId }
+            .mapNotNull(objects::get)
+            .forEach { card ->
+                actions.addInactiveActions(
+                    Action
+                        .newBuilder()
+                        .setActionType(if (CardType.Land_a80b in card.cardTypesList) ActionType.Play_add3 else ActionType.Cast)
+                        .setGrpId(card.grpId)
+                        .setInstanceId(card.instanceId)
+                        .setAbilityGrpId(freeCast.abilityGrpId)
+                        .setSourceId(abilityInstanceId),
+                )
+            }
     }
 
     fun commanderOptional(

@@ -767,6 +767,7 @@ class BundleBuilder(
                         input = state,
                         intent = frame.intent,
                         actions = cut.actions.takeIf { viewer.role == ProjectionViewerRole.Player },
+                        decisionPending = false,
                         role = viewer.role,
                     )
                 }
@@ -887,6 +888,7 @@ class BundleBuilder(
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(): DeclareAttackersReq = RequestBuilder.buildDeclareAttackersReq(SeatId(seatId), bridge)
 
+    @Suppress("CanBeNonNullable", "UnnecessarySafeCall")
     internal fun optionalInteractionBundle(
         game: Game,
         counter: LogicalSequencePlanner,
@@ -894,8 +896,34 @@ class BundleBuilder(
         routes: List<ViewerRoute>,
         sourceCard: Card? = null,
     ): PreparedViewerCut<BlockingInteractionMaterializer.Prepared> {
-        require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt) {
+        require(interaction.commanderReturn != null || interaction.forceSnapshotBeforePrompt || interaction.etbPayLifeReplacement) {
             "Optional interaction does not require a state snapshot"
+        }
+        if (interaction.etbPayLifeReplacement) {
+            val card = checkNotNull(sourceCard) { "ETB replacement interaction requires its source card" }
+            val data = checkNotNull(stateProjectionEnvironment.cardReferences.cardDataByName(card.name))
+            val abilityGrpId = checkNotNull(stateProjectionEnvironment.cardReferences.choiceSourceAbilityGrpId(data))
+            val player =
+                blockingInteractions.etbPayLifeOptional(
+                    bridge.projectionStateSnapshot(),
+                    counter,
+                    interaction,
+                    ForgeCardId(card.id),
+                    data,
+                    abilityGrpId,
+                    stateProjectionEnvironment.cardProto,
+                )
+            val content = player.bundle.messages.first { it.hasGameStateMessage() }
+            return PreparedViewerCut(
+                player,
+                routes.map { route ->
+                    val messages = if (route.viewer.seatId.value == seatId) player.bundle.messages else listOf(content)
+                    ViewerBatches(route.viewer.seatId, listOf(messages))
+                },
+                checkNotNull(player.transition),
+                player.closesPlaybackFrame,
+                player.bundle.actionGameStateId,
+            )
         }
         val projectedSourceCard = sourceCard ?: interaction.sourceId?.let(bridge::findCard)
         val transientSourceCard =
@@ -1593,7 +1621,16 @@ class BundleBuilder(
         window: DistributionWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
-        val frame = prepareViewerPromptProjection(game, counter, routes)
+        val intent =
+            ViewerProjectionIntent.of(
+                supplements =
+                    listOfNotNull(
+                        window.sourceForgeAbilityId
+                            .takeIf { !window.sourceIsSpell && it != 0 }
+                            ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+                    ),
+            )
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
         return finishSettledPrompt(
             frame,
             counter,
@@ -1855,10 +1892,29 @@ class BundleBuilder(
         window: TargetingWindowValue,
         transientSourceCard: BoundCard?,
     ): List<ProjectionSupplement> {
-        val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
+        val abilityId = window.forgeAbilityId.takeIf { (window.isTriggeredAbility || window.isActivatedAbility) && it != 0 }
         val sourceId = window.sourceForgeCardId
         return buildList {
             transientSourceCard?.let { add(ProjectionSupplement.PreStackSpell(it)) }
+            if ((window.isTriggeredAbility || window.isActivatedAbility) &&
+                abilityId != null &&
+                sourceId != null &&
+                transientSourceCard != null
+            ) {
+                val source = transientSourceCard.snapshot
+                add(
+                    ProjectionSupplement.PreStackAbility(
+                        forgeAbilityId = abilityId,
+                        sourceForgeCardId = sourceId,
+                        abilityGrpId = window.stackAbilityGrpId,
+                        sourceCardGrpId = source.grpId,
+                        ownerSeatId = source.owner,
+                        controllerSeatId = source.controller,
+                        targetForgeCardIds = emptyList(),
+                        isActivatedAbility = window.isActivatedAbility,
+                    ),
+                )
+            }
             when {
                 sourceId != null ->
                     add(

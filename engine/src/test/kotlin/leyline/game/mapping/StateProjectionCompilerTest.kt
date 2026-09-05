@@ -274,7 +274,7 @@ class StateProjectionCompilerTest :
                     supplements =
                         listOf(
                             ProjectionSupplement.NewTurnStarted,
-                            ProjectionSupplement.PlayerSelectingTargets(cardId, SeatId(1), reserveTriggeredAbilityForgeId = 9),
+                            ProjectionSupplement.PlayerSelectingTargets(cardId, SeatId(1), stackAbilityForgeId = 9),
                             ProjectionSupplement.ReserveTriggeredAbility(10),
                             ProjectionSupplement.SubmitPendingTargets(pending.spellInstanceId, pending.casterSeatId, pending.version),
                         ),
@@ -329,7 +329,12 @@ class StateProjectionCompilerTest :
                 changed.affectedIdsList shouldContainExactly listOf(100)
                 transfer.affectedIdsList shouldContainExactly listOf(newCardId.value)
                 newTurn.affectedIdsList shouldContainExactly listOf(1)
-                selecting.affectedIdsList shouldContainExactly listOf(newCardId.value)
+                selecting.affectedIdsList shouldContainExactly
+                    listOf(
+                        next.identities.forgeIdToInstanceId
+                            .getValue(FrameIdResolver.triggerStackAbilityForgeId(9))
+                            .value,
+                    )
                 submitted.affectedIdsList shouldContainExactly listOf(777)
                 next.identities.forgeIdToInstanceId shouldContainKey FrameIdResolver.triggerStackAbilityForgeId(9)
                 next.identities.forgeIdToInstanceId shouldContainKey FrameIdResolver.triggerStackAbilityForgeId(10)

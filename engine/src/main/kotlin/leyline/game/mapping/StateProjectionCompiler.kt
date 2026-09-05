@@ -46,6 +46,7 @@ object StateProjectionCompiler {
         val input: StateFrameInput,
         val intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
         val actions: ActionsAvailableReq? = null,
+        val decisionPending: Boolean = actions != null,
         val role: ProjectionViewerRole = ProjectionViewerRole.Player,
     )
 
@@ -202,7 +203,7 @@ object StateProjectionCompiler {
                 finalizedAnnotations
             }
         val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
-        val rendered =
+        val projected =
             StateMapper.renderViewerDraft(
                 shared,
                 stagedInput,
@@ -212,6 +213,18 @@ object StateProjectionCompiler {
                 viewer.actions,
                 includePrivateObjects = viewer.role.seesSeatPrivateCards,
             )
+        val rendered =
+            if (viewer.decisionPending) {
+                projected
+            } else {
+                projected.copy(
+                    gsm =
+                        projected.gsm
+                            .toBuilder()
+                            .setPendingMessageCount(0)
+                            .build(),
+                )
+            }
 
         fun applyViewerOverlays(
             gsm: GameStateMessage,
@@ -359,12 +372,13 @@ object StateProjectionCompiler {
                 }
 
                 is ProjectionSupplement.PlayerSelectingTargets -> {
-                    supplement.reserveTriggeredAbilityForgeId?.let { abilityId ->
-                        editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(abilityId))
-                    }
+                    val targetInstanceId =
+                        supplement.stackAbilityForgeId
+                            ?.let(frameIds::triggerStackAbilityIid)
+                            ?: frameIds.cardIid(supplement.sourceForgeId)
                     annotations +=
                         AnnotationBuilder.playerSelectingTargets(
-                            frameIds.cardIid(supplement.sourceForgeId),
+                            targetInstanceId,
                             supplement.seatId,
                         )
                 }
@@ -428,7 +442,8 @@ object StateProjectionCompiler {
     ): StateFrameInput {
         val abilities = supplements.filterIsInstance<ProjectionSupplement.PreStackAbility>()
         val spells = supplements.filterIsInstance<ProjectionSupplement.PreStackSpell>()
-        if (abilities.isEmpty() && spells.isEmpty()) return input
+        val reservations = supplements.filterIsInstance<ProjectionSupplement.ReserveTriggeredAbility>()
+        if (abilities.isEmpty() && spells.isEmpty() && reservations.isEmpty()) return input
 
         var stack = input.snapshot.stack
         var zones = input.snapshot.zones
@@ -486,11 +501,19 @@ object StateProjectionCompiler {
                             grpId = ability.abilityGrpId,
                             sourceCardGrpId = ability.sourceCardGrpId,
                             isSpell = false,
-                            isActivatedAbility = true,
+                            isActivatedAbility = ability.isActivatedAbility,
                             targets = ability.targetForgeCardIds,
                             forgeAbilityId = ability.forgeAbilityId,
                         ),
                 )
+        }
+        for (reservation in reservations) {
+            if (stack.entries.any { it.forgeAbilityId == reservation.forgeAbilityId }) continue
+            input.previousSnapshot
+                ?.stack
+                ?.entries
+                ?.singleOrNull { it.forgeAbilityId == reservation.forgeAbilityId }
+                ?.let { stack = StackSnapshot(stack.entries + it) }
         }
         return input.copy(snapshot = copySnapshot(input.snapshot, zones = zones, boundCards = boundCards, stack = stack))
     }

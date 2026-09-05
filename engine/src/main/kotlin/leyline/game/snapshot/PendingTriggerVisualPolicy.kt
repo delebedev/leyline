@@ -1,11 +1,25 @@
 package leyline.game.snapshot
 
+import leyline.game.data.KeywordAbilityIds
+
 /** Client visual bundle supported for a delayed-trigger source. */
 internal data class PendingTriggerVisualPolicy(
     val cleanupAbilityGrpId: Int,
     val displaysAffectedCards: Boolean,
+    val holderUsesSourceCardGrpId: Boolean = false,
+    val removesFromZone: Int? = null,
+    val emitsTemporaryPermanent: Boolean = true,
 ) {
     companion object {
+        val warp =
+            PendingTriggerVisualPolicy(
+                cleanupAbilityGrpId = KeywordAbilityIds.WARP_DELAYED_TRIGGER,
+                displaysAffectedCards = false,
+                holderUsesSourceCardGrpId = true,
+                removesFromZone = 1,
+                emitsTemporaryPermanent = false,
+            )
+
         private val bySourceCardGrpId =
             mapOf(
                 70_155 to PendingTriggerVisualPolicy(136_220, displaysAffectedCards = true),
