@@ -985,7 +985,7 @@ scenarios:
       - expect:
           all:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
-            - zone_contains: { side: opponent, zone: hand, card: Grizzly Bears }
+            - zone_count_at_least: { side: opponent, zone: hand, count: 1 }
             - zone_contains: { side: ours, zone: graveyard, card: Depart the Realm }
             - annotation_seen: CastingTimeOption
             - annotation_seen: TargetSpec

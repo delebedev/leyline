@@ -72,6 +72,12 @@ object InstanceIdRegistry {
             return IdReallocation(old, new)
         }
 
+        fun retire(forgeCardIds: Set<ForgeCardId>): List<InstanceId> {
+            val retired = forgeCardIds.mapNotNull(forward::remove).toSet()
+            retired.forEach(reverse::remove)
+            return retired.toList()
+        }
+
         fun reallocTo(
             forgeCardId: ForgeCardId,
             new: InstanceId,

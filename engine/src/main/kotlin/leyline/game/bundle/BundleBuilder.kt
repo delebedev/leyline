@@ -1063,6 +1063,17 @@ class BundleBuilder(
             }
         val viewerSeatId = SeatId(seatId)
         val priorCursor = next.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
+        val fullState =
+            priorCursor.fullState?.let { retained ->
+                result.bundle.messages
+                    .asSequence()
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .fold(retained) { baseline, diff -> baseline.applyDiff(diff) }
+                    .toBuilder()
+                    .setGameStateId(checkNotNull(result.bundle.actionGameStateId))
+                    .build()
+            }
         return ActionWindowPrepared(
             result.bundle,
             ProjectionTransition(
@@ -1071,7 +1082,13 @@ class BundleBuilder(
                     next.copy(
                         viewerCursors =
                             next.viewerCursors +
-                                (viewerSeatId to priorCursor.copy(previousSnapshot = result.snapshot)),
+                                (
+                                    viewerSeatId to
+                                        priorCursor.copy(
+                                            previousSnapshot = result.snapshot,
+                                            fullState = fullState,
+                                        )
+                                ),
                     ),
             ),
         )
