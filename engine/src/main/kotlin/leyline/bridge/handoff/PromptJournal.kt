@@ -245,6 +245,14 @@ class PromptJournal {
 
     fun activeCastingPermission(): PromptSideEffect.CastingPermission? = currentCastingPermission.get()
 
+    fun consumeCastingPermission(cardForgeId: ForgeCardId): PromptSideEffect.CastingPermission? {
+        while (true) {
+            val permission = currentCastingPermission.get() ?: return null
+            if (permission.cardForgeId != cardForgeId) return null
+            if (currentCastingPermission.compareAndSet(permission, null)) return permission
+        }
+    }
+
     fun clearCastingPermission(permission: PromptSideEffect.CastingPermission) {
         currentCastingPermission.compareAndSet(permission, null)
     }

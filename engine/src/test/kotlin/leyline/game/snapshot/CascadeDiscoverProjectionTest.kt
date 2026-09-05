@@ -72,9 +72,8 @@ private val DISCOVER_PUZZLE =
  * both via the puzzle harness so a regression in either path fails here, in
  * seconds.
  *
- * Discover's short trigger lifecycle does not expose its stack object through
- * the snapshot-after-pass window, but the forced pre-prompt frame still owns
- * its free-cast permission row.
+ * The free-cast decision carries no CastingTimeOption row. Accepting the cast
+ * creates the row on the resulting stack spell.
  */
 class CascadeDiscoverProjectionTest :
     SessionTest({
@@ -86,6 +85,7 @@ class CascadeDiscoverProjectionTest :
             puzzle = PUZZLE,
         ) {
             val before = messageSnapshot()
+            holdNextOptionalAction()
             val cast = castSpellByName("Bloodbraid Elf")
             cast shouldBe true
 
@@ -110,17 +110,6 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == triggeringObject.affectedIdsList.single() }
-            val castingTimeOption =
-                projectedStates
-                    .flatMap { it.persistentAnnotationsList }
-                    .filter { AnnotationType.CastingTimeOption in it.typeList }
-                    .distinctBy { it.id }
-                    .single()
-            val castableCard =
-                projectedStates
-                    .flatMap { it.gameObjectsList }
-                    .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
-
             assertSoftly {
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
                 cascadeEntry.grpId shouldBe 86
@@ -128,37 +117,65 @@ class CascadeDiscoverProjectionTest :
                 triggeringSource.grpId shouldBe bbeGrpId
                 triggeringSource.zoneId shouldBe ZoneIds.STACK
                 triggeringObject.detailInt("source_zone") shouldBe ZoneIds.STACK
-                castingTimeOption.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
-                castingTimeOption.detailInt("alternateCostGrpId") shouldBe 149
-                castingTimeOption.detailInt("castAbilityGrpId") shouldBe KeywordAbilityIds.CASCADE
-                castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
-                castableCard.zoneId shouldBe ZoneIds.EXILE
-                castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
-                castingTimeOption.affectedIdsList shouldBe listOf(castableCard.instanceId)
-                castingTimeOption.affectedIdsList shouldNotBe listOf(triggeringSource.instanceId)
-                projectedStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+                projectedStates.flatMap { it.persistentAnnotationsList }.none {
+                    AnnotationType.CastingTimeOption in it.typeList
+                } shouldBe true
                 require(cascadeEntry.grpId != cascadeEntry.objectSourceGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
             }
-        }
 
-        session(
-            "Discover free-cast permission carries its per-card ability identity",
-            puzzle = DISCOVER_PUZZLE,
-        ) {
-            val before = messageSnapshot()
-            castSpellByName("Geological Appraiser") shouldBe true
-
-            val projectedStates = messagesSince(before).gameStateMessages()
+            val beforeCast = messageSnapshot()
+            respondToOptionalAction(accept = true)
+            val castStates = messagesSince(beforeCast).gameStateMessages()
             val castingTimeOption =
-                projectedStates
+                castStates
                     .flatMap { it.persistentAnnotationsList }
                     .filter { AnnotationType.CastingTimeOption in it.typeList }
                     .distinctBy { it.id }
                     .single()
             val castableCard =
-                projectedStates
+                castStates
+                    .flatMap { it.gameObjectsList }
+                    .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
+            assertSoftly {
+                castingTimeOption.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
+                castingTimeOption.detailInt("alternateCostGrpId") shouldBe 149
+                castingTimeOption.detailInt("castAbilityGrpId") shouldBe KeywordAbilityIds.CASCADE
+                castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
+                castableCard.zoneId shouldBe ZoneIds.STACK
+                castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
+                castingTimeOption.affectedIdsList shouldNotBe listOf(triggeringSource.instanceId)
+                castStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+            }
+        }
+
+        session(
+            "Discover accepted free cast carries its per-card ability identity",
+            puzzle = DISCOVER_PUZZLE,
+        ) {
+            val before = messageSnapshot()
+            holdNextOptionalAction()
+            castSpellByName("Geological Appraiser") shouldBe true
+
+            val projectedStates = messagesSince(before).gameStateMessages()
+            assertSoftly {
+                projectedStates.flatMap { it.persistentAnnotationsList }.none {
+                    AnnotationType.CastingTimeOption in it.typeList
+                } shouldBe true
+            }
+
+            val beforeCast = messageSnapshot()
+            respondToOptionalAction(accept = true)
+            val castStates = messagesSince(beforeCast).gameStateMessages()
+            val castingTimeOption =
+                castStates
+                    .flatMap { it.persistentAnnotationsList }
+                    .filter { AnnotationType.CastingTimeOption in it.typeList }
+                    .distinctBy { it.id }
+                    .single()
+            val castableCard =
+                castStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == castingTimeOption.affectedIdsList.single() }
 
@@ -167,9 +184,9 @@ class CascadeDiscoverProjectionTest :
                 castingTimeOption.detailInt("alternateCostGrpId") shouldBe 149
                 castingTimeOption.detailInt("castAbilityGrpId") shouldBe 169_621
                 castableCard.grpId shouldBe bridge.cardRepository.findGrpIdByName("Llanowar Elves")
-                castableCard.zoneId shouldBe ZoneIds.EXILE
+                castableCard.zoneId shouldBe ZoneIds.STACK
                 castingTimeOption.affectedIdsList shouldBe listOf(castingTimeOption.affectorId)
-                projectedStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
+                castStates.flatMap { it.diffDeletedPersistentAnnotationIdsList } shouldContain castingTimeOption.id
             }
         }
     })

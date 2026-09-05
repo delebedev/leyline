@@ -15,7 +15,6 @@ import leyline.game.state.AbilityExhaustedKind
 import leyline.game.state.AbilityWireIdentity
 import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.CardRevealedKind
-import leyline.game.state.CastingTimeOptionKind
 import leyline.game.state.CrewedThisTurnKind
 import leyline.game.state.EffectTracker
 import leyline.game.state.FrameContext
@@ -87,7 +86,6 @@ object AnnotationPipeline {
         listOf(
             ConvokeContributor,
             RevealStateContributor,
-            CastingPermissionContributor,
             TargetSpecContributor,
             ManaDetailsContributor,
             MutateMergeContributor,
@@ -856,17 +854,6 @@ object AnnotationPipeline {
         val pendingTargetSpecs = ctx.promptFacts.targetSpecs
         val revealState = RevealStateContributor.contribute(ctx)
         annotations.addAll(revealState.transient)
-        val castingPermission = CastingPermissionContributor.contribute(ctx)
-        val activeCastingPermissionAffectors =
-            persistSnapshot.values
-                .asSequence()
-                .filter(CastingTimeOptionKind::matches)
-                .mapTo(hashSetOf()) { it.affectorId }
-        val projectedTransferPersistent =
-            transferPersistent +
-                castingPermission.persistent[CastingTimeOptionKind].orEmpty().filter { permission ->
-                    permission.affectorId !in activeCastingPermissionAffectors
-                }
         val targetSpec = TargetSpecContributor.contribute(ctx)
         val manaDetails = ManaDetailsContributor.contribute(ctx)
         val mutateMerge = MutateMergeContributor.contribute(ctx)
@@ -926,7 +913,7 @@ object AnnotationPipeline {
                 frame = frameContext,
                 effectPersistent = effectPersistent + earthbend.effectPersistent,
                 effectDiff = storeEffectDiff.copy(destroyed = storeEffectDiff.destroyed + grantedDestroyedEffects),
-                transferPersistent = projectedTransferPersistent,
+                transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,
                 activeStealForgeCardIds = annotationJournal.activeStealForgeCardIds(),

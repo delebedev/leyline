@@ -530,10 +530,6 @@ object StateMapper {
             snap.boundCards.values.associate { bound ->
                 editor.identities.getOrAlloc(bound.forgeCardId).value to bound.snapshot.controller
             }
-        val castingPermissionIids =
-            promptFacts.castingPermissions.mapTo(linkedSetOf()) { permission ->
-                frameIds.cardIid(permission.cardForgeId).value
-            }
         val frameContext =
             FrameContext(
                 phase = snap.phase.phase,
@@ -542,7 +538,6 @@ object StateMapper {
                 controllerOf = controllerOf,
                 stackIids = stackIids,
                 resolvingStackIids = resolvingStackIids,
-                castingPermissionIids = castingPermissionIids,
                 displayCardAffectors = battlefieldIids + postDiffActiveIids + (stackIids - resolvingStackIids),
                 delayedTriggerAffectorReplacements = delayedTriggerAffectorReplacements,
             )

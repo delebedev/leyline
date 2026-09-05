@@ -248,8 +248,17 @@ class GameEventCollector(
         val grpId = bridge.consumeSelectedSpellGrpId(ForgeCardId(card.id)) ?: bridge.cardRepository.findGrpIdByName(card.name) ?: 0
         val keywordId = castThroughAbilityKeywordId(topSa, saAltCost)
         val isParadigmCopyCast = isParadigmCopyCast(topSa)
+        val castingPermission =
+            bridge.allSeatIds().firstNotNullOfOrNull { seat ->
+                bridge
+                    .promptBridge(SeatId(seat))
+                    .journal
+                    .consumeCastingPermission(ForgeCardId(card.id))
+            }
         val altCostAbilityGrpId =
             if (isParadigmCopyCast) {
+                149
+            } else if (castingPermission != null) {
                 149
             } else if (topSa?.isCastFaceDown == true) {
                 // Disguise / Morph face-down hand-cast SAs have no
@@ -268,6 +277,8 @@ class GameEventCollector(
         val castAbilityGrpId =
             if (isParadigmCopyCast) {
                 KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            } else if (castingPermission != null) {
+                castingPermission.castAbilityGrpId
             } else {
                 altCostAbilityGrpId
             }

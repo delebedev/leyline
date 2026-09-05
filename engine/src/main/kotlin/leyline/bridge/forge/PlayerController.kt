@@ -590,17 +590,24 @@ class PlayerController(
         // the real cast flow (targeting, mana payment, stack placement). On decline,
         // Forge's PlayEffect SubAbility fires the "otherwise put in graveyard" branch.
         val accepted =
-            try {
-                optionalActionGate.await(
-                    hostCard = hostCard,
-                    forceSnapshotBeforePrompt = true,
-                    defaultOnTimeout = false,
-                    logContext = "playSaFromPlayEffect",
-                )
-            } finally {
-                castingPermission?.let(bridge.journal::clearCastingPermission)
+            optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "playSaFromPlayEffect",
+            )
+        if (!accepted) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            return false
+        }
+        return try {
+            super.playSaFromPlayEffect(tgtSA).also { played ->
+                if (!played) castingPermission?.let(bridge.journal::clearCastingPermission)
             }
-        return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
+        } catch (error: Throwable) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            throw error
+        }
     }
 
     private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
