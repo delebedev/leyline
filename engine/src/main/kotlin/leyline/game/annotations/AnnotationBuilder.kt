@@ -488,6 +488,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
             .build()
 
+    fun linkInfoActivatedAbility(
+        abilityInstanceId: InstanceId,
+        sourceCardInstanceId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LinkInfo)
+            .setAffectorId(abilityInstanceId.value)
+            .addAffectedIds(sourceCardInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.LINK_TYPE, 2))
+            .build()
+
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
      *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedPower(instanceId: InstanceId): AnnotationInfo =
@@ -1285,6 +1297,19 @@ object AnnotationBuilder {
             .setOptionalAffector(affectorId)
             .build()
 
+    fun redundantActivation(
+        instanceId: InstanceId,
+        abilityGrpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.ShouldntPlay)
+            .setAffectorId(instanceId.value)
+            .addAffectedIds(instanceId.value)
+            .addDetails(typedStringDetail(DetailKeys.SHOULDNT_PLAY_REASON, "RedundantActivation"))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
+            .build()
+
     /** Layered effect state (continuous effects). client type 51 (LayeredEffect).
      *  Persistent — present in every GSM while the effect is active.
      *
@@ -1683,26 +1708,21 @@ object AnnotationBuilder {
             .build()
 
     /**
-     * Copy token with EOT sacrifice. Persistent annotation. client type 80.
-     * Drives "sacrifice at end of turn" visual indicator on the client.
-     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker) for generic copy
-     * tokens; per-card cleanup row (e.g. 189931 for Mobilize 1) when known.
-     * [affectorId] is the trigger-holder gameObject that owns the cleanup
-     * delayed trigger — defaults to the token itself for legacy callers; for
-     * Mobilize and other delayed-cleanup mechanics it must match the
-     * `DelayedTriggerAffectees.affectorId` so the client links cleanup ability
-     * to its tokens.
+     * Persistent marker linking a temporary object to its lifecycle ability.
+     * [abilityGrpId] identifies the ability that owns the object's eventual
+     * cleanup or sacrifice. [affectorId] defaults to the affected object; a
+     * delayed trigger holder can own the relationship instead.
      */
     fun temporaryPermanent(
-        tokenInstanceId: InstanceId,
+        affectedInstanceId: InstanceId,
         abilityGrpId: GrpId = AnnotationConstants.EOT_SACRIFICE_GRP_ID,
-        affectorId: InstanceId = tokenInstanceId,
+        affectorId: InstanceId = affectedInstanceId,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.TemporaryPermanent)
             .setAffectorId(affectorId.value)
-            .addAffectedIds(tokenInstanceId.value)
+            .addAffectedIds(affectedInstanceId.value)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
             .build()
 

@@ -16,8 +16,6 @@ import kotlinx.serialization.Serializable
 data class LeylineConfig(
     /** Native-client head: listeners, advertised endpoint, operator ports. */
     val native: NativeSettings = NativeSettings(),
-    /** Browser-facing web head: listener, player, auth, email, rate limiting. */
-    val web: WebSettings = WebSettings(),
     /** Engine behavior: match timing, match defaults, draft policy, diagnostics. */
     val engine: EngineSettings = EngineSettings(),
     /** Resource locations: content, mutable state, and per-instance artifacts. */
@@ -31,7 +29,6 @@ data class LeylineConfig(
     /** Validate the complete snapshot. Throws [IllegalArgumentException] on invalid combinations. */
     fun validate() {
         native.validate()
-        web.validate()
         engine.validate()
         paths.validate()
     }

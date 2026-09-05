@@ -31,7 +31,7 @@ import java.io.File
 /**
  * Drives a puzzle match through [MatchHandler] the same way the web GRE relay
  * does — a [RuntimeMatchConfigRegistry]-configured matchId over a single
- * [EmbeddedChannel] with no separate Familiar connection (the web profile
+ * [EmbeddedChannel] with no separate Familiar connection (the headless runtime
  * never opens a second socket for the AI seat).
  */
 class PuzzleMatchDoorFlowTest :

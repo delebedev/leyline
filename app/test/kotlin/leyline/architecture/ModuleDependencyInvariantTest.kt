@@ -2,7 +2,6 @@ package leyline.architecture
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import java.nio.file.Files
 import java.nio.file.Path
@@ -24,14 +23,11 @@ class ModuleDependencyInvariantTest :
             return dependencyPattern.findAll(Files.readString(buildFile)).map { it.groupValues[1] }.toSet()
         }
 
-        test("heads and the composition root share core modules without depending on each other") {
+        test("the native head and composition root depend inward on reusable modules") {
             assertSoftly {
-                projectDependencies("") shouldBe setOf("domain", "engine", "gre-proto", "native", "web", "tools:detekt-rules")
+                projectDependencies("") shouldBe setOf("domain", "engine", "gre-proto", "native", "tools:detekt-rules")
                 projectDependencies("native") shouldBe setOf("domain", "engine", "gre-proto")
                 projectDependencies("engine") shouldBe setOf("domain", "gre-proto")
-                projectDependencies("web") shouldBe setOf("domain", "engine", "gre-proto")
-                projectDependencies("native") shouldNotContain "web"
-                projectDependencies("web") shouldNotContain "native"
             }
         }
 
@@ -43,7 +39,7 @@ class ModuleDependencyInvariantTest :
         }
 
         test("native remains a leaf below the composition root") {
-            val modules = listOf("domain", "engine", "gre-proto", "native", "web")
+            val modules = listOf("domain", "engine", "gre-proto", "native")
             val dependents = modules.filter { projectDependencies(it).contains("native") }
             dependents shouldBe emptyList()
         }

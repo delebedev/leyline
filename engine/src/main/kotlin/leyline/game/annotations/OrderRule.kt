@@ -37,6 +37,7 @@ object OrderRules {
             SameCardIncrementalRule,
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
+            ResolutionLifecycleRule,
             ResolveTransferOrderingRule,
             SubmittedTargetsLeadsFrameRule,
         )
@@ -189,6 +190,35 @@ data object PhaseOrStepFirstRule : OrderRule {
             }
         }
         return edges
+    }
+}
+
+/** Resolution-owned effects begin before completion, and deletion follows completion. */
+data object ResolutionLifecycleRule : OrderRule {
+    override val name: String = "resolution_lifecycle"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val starts = mutableMapOf<Int, Int>()
+        val completions = mutableMapOf<Int, Int>()
+        val deletions = mutableMapOf<Int, MutableList<Int>>()
+        for ((index, annotation) in annotations.withIndex()) {
+            when {
+                AnnotationType.ResolutionStart in annotation.typeList -> starts.putIfAbsent(annotation.affectorId, index)
+                AnnotationType.ResolutionComplete in annotation.typeList -> completions[annotation.affectorId] = index
+                AnnotationType.AbilityInstanceDeleted in annotation.typeList ->
+                    annotation.affectedIdsList.forEach { deletions.getOrPut(it) { mutableListOf() }.add(index) }
+            }
+        }
+        return buildList {
+            for ((abilityId, completion) in completions) {
+                deletions[abilityId]?.forEach { add(completion to it) }
+            }
+            for ((index, annotation) in annotations.withIndex()) {
+                if (AnnotationType.LayeredEffectCreated !in annotation.typeList) continue
+                starts[annotation.affectorId]?.let { add(it to index) }
+                completions[annotation.affectorId]?.let { add(index to it) }
+            }
+        }
     }
 }
 

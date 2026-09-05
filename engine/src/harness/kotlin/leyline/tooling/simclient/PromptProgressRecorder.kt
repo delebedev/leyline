@@ -134,7 +134,7 @@ private fun SimPromptResponseValue.targetIds(): List<Int> =
         -> emptyList()
     }
 
-private fun SimDecision.targetIds(): List<Int> =
+internal fun SimDecision.targetIds(): List<Int> =
     when (this) {
         is SimDecision.SelectTargets -> targetInstanceIds
         is SimDecision.SelectN -> selectedInstanceIds

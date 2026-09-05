@@ -59,27 +59,6 @@ const val COMBAT_DECK = """
 16 Forest
 """
 
-private val TRAMPLE_DAMAGE_ASSIGN_PUZZLE =
-    """
-    [metadata]
-    Name:Trample Damage Assignment
-    Goal:Win
-    Turns:10
-    Difficulty:Tutorial
-    Description:5/5 trampler with haste blocked by two 2/2 bears. Player must assign damage: min 2 to each bear, 1 trample to opponent. AILife=1 so trample is lethal.
-
-    [state]
-    ActivePlayer=Human
-    ActivePhase=Main1
-    HumanLife=20
-    AILife=1
-
-    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Charging Monstrosaur
-    humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-    aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
-    ailibrary=Forest;Forest;Forest;Forest;Forest
-    """.trimIndent()
-
 /**
  * Raging Goblin (haste) + Mountain enables turn-1 combat without multi-turn
  * advancement — exact horizon delivery keeps this setup at turn one.
@@ -1076,7 +1055,7 @@ class CombatInteractionTest :
 
         session(
             "trample damage assignment sends AssignDamageReq and completes combat",
-            puzzle = TRAMPLE_DAMAGE_ASSIGN_PUZZLE,
+            puzzleFile = "data/puzzles/trample-damage-assign.pzl",
             validation = combatValidation,
             aiScript =
                 listOf(

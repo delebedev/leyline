@@ -25,6 +25,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -210,41 +212,45 @@ object StateProjectionCompiler {
                 viewer.actions,
                 includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
             )
-        val annotated =
-            rendered.gsm
-                .toBuilder()
-                .clearAnnotations()
-                .addAllAnnotations(viewerAnnotations)
-                .build()
-        val privateOverlay =
-            if (viewer.role == ProjectionViewerRole.Player) {
-                projectPrivateCardPrompt(
-                    annotated,
-                    stagedInput.snapshot,
-                    viewer.input.viewingSeatId,
-                    viewer.intent.privateCardPrompt,
-                    environment,
-                    editor,
-                )
-            } else {
-                annotated
-            }
-        val orderOverlay =
-            if (viewer.role == ProjectionViewerRole.Player) {
-                renderPlannedOrder(
-                    privateOverlay,
-                    stagedInput.snapshot,
-                    viewer.input.viewingSeatId,
-                    viewer.intent.orderPrompt,
-                    plannedOrder,
-                    environment,
-                    editor,
-                )
-            } else {
-                OrderResult(privateOverlay, rendered.projectionSnapshot)
-            }
-        val finalizedOrderOverlay =
-            orderOverlay.copy(
+
+        fun applyViewerOverlays(
+            gsm: GameStateMessage,
+            snapshot: GsmSnapshot,
+        ): OrderResult {
+            val annotated =
+                gsm
+                    .toBuilder()
+                    .clearAnnotations()
+                    .addAllAnnotations(viewerAnnotations)
+                    .build()
+            val privateOverlay =
+                if (viewer.role == ProjectionViewerRole.Player) {
+                    projectPrivateCardPrompt(
+                        annotated,
+                        stagedInput.snapshot,
+                        viewer.input.viewingSeatId,
+                        viewer.intent.privateCardPrompt,
+                        environment,
+                        editor,
+                    )
+                } else {
+                    annotated
+                }
+            val orderOverlay =
+                if (viewer.role == ProjectionViewerRole.Player) {
+                    renderPlannedOrder(
+                        privateOverlay,
+                        stagedInput.snapshot,
+                        viewer.input.viewingSeatId,
+                        viewer.intent.orderPrompt,
+                        plannedOrder,
+                        environment,
+                        editor,
+                    )
+                } else {
+                    OrderResult(privateOverlay, snapshot)
+                }
+            return orderOverlay.copy(
                 gsm =
                     orderOverlay.gsm
                         .toBuilder()
@@ -252,6 +258,28 @@ object StateProjectionCompiler {
                         .addAllAnnotations(viewerAnnotations)
                         .build(),
             )
+        }
+        val finalizedOrderOverlay = applyViewerOverlays(rendered.gsm, rendered.projectionSnapshot)
+        val fullState =
+            applyViewerOverlays(
+                StateMapper.renderViewerFullState(
+                    shared,
+                    viewer.input.viewingSeatId,
+                    viewer.actions,
+                    includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
+                ),
+                rendered.projectionSnapshot,
+            ).gsm
+                .toBuilder()
+                .setType(GameStateType.Full)
+                .setGameStateId(finalizedOrderOverlay.gsm.gameStateId)
+                .clearPrevGameStateId()
+                .clearAnnotations()
+                .clearActions()
+                .clearDiffDeletedInstanceIds()
+                .setPendingMessageCount(0)
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
         val draft =
             rendered.copy(
                 gsm = finalizedOrderOverlay.gsm,
@@ -266,6 +294,7 @@ object StateProjectionCompiler {
         editor.viewerCursors[viewerSeatId] =
             priorCursor.copy(
                 previousSnapshot = draft.projectionSnapshot,
+                fullState = fullState,
                 pendingSubmittedTargets =
                     if (
                         submittedTargetsConsumed &&

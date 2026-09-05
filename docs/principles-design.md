@@ -11,7 +11,7 @@ Rules for how code lives inside and across the bounded contexts. Not architectur
 
 ## 1. Bounded contexts
 
-The native lobby/account transport, web head, and engine are separate worlds. Different invariants, lifecycles, vocabulary. A "deck" in the lobby is editable metadata; in a match it is a frozen card list. Cross-context dependencies go through interfaces, never concrete types.
+The native lobby/account transport, embedding host, and engine are separate worlds. Different invariants, lifecycles, vocabulary. A "deck" in the lobby is editable metadata; in a match it is a frozen card list. Cross-context dependencies go through interfaces, never concrete types.
 
 The owning context defines the interface. Consumers depend on the interface, not the implementation. No circular dependencies between contexts.
 

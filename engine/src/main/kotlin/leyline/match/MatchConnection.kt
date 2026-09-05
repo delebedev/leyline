@@ -41,12 +41,16 @@ class MatchConnection(
     private val cardRepository: CardRepository,
     /** Runtime puzzle identity supplier — non-null activates puzzle mode. */
     private val puzzleIdentity: () -> String? = { null },
-    /** Runtime inline puzzle definition supplier for product challenge launches. */
+    /** Runtime inline puzzle definition supplier for host-provided challenge launches. */
     private val puzzleDefinition: () -> PuzzleDefinition? = { null },
-    /** MatchId-keyed runtime config for web/native clients. */
+    /** MatchId-keyed runtime config for native and external in-process hosts. */
     private val runtimeMatchConfigs: RuntimeMatchConfigRegistry? = null,
     /** One-shot opponent deck name consumed only while creating a new match. */
     private val aiDeckNameOverride: () -> String? = { null },
+    /** Receives the committed result after terminal output is delivered. */
+    private val resultObserver: (MatchResultObservation) -> Unit = {
+        coordinator?.reportMatchResult(it.won)
+    },
     /** Optional setup after puzzle loading and before its runtime loop starts. */
     internal val beforePuzzleRuntimeStart: ((GameBridge) -> Unit)? = null,
 ) {
@@ -309,7 +313,7 @@ class MatchConnection(
                 matchId = matchId,
                 sink = sink,
                 registry = registry,
-                coordinator = coordinator,
+                resultObserver = resultObserver,
             ).also { it.playerId = clientId.removeSuffix("_Familiar") }
         val s =
             MatchSession(

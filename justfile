@@ -24,7 +24,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 # Full classpath expression (shared by _java and _cli launch helpers).
 # Module class dirs prepended so fresh classes take precedence over stale jars.
 # Fixes: `just dev-build` (compileKotlin only) + CLI tools seeing old jar bytecode.
-_module_classes := project_dir + '/engine/build/classes/kotlin/main:' + project_dir + '/engine/build/classes/java/main:' + project_dir + '/engine/build/resources/main:' + project_dir + '/domain/build/classes/kotlin/main:' + project_dir + '/domain/build/resources/main:' + project_dir + '/native/build/classes/kotlin/main:' + project_dir + '/native/build/resources/main:' + project_dir + '/web/build/classes/kotlin/main:' + project_dir + '/web/build/resources/main:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main'
+_module_classes := project_dir + '/engine/build/classes/kotlin/main:' + project_dir + '/engine/build/classes/java/main:' + project_dir + '/engine/build/resources/main:' + project_dir + '/domain/build/classes/kotlin/main:' + project_dir + '/domain/build/resources/main:' + project_dir + '/native/build/classes/kotlin/main:' + project_dir + '/native/build/resources/main:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main'
 _cp := '"' + _module_classes + ':$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
 # Launch a server target on the resolved classpath. Ports come from leyline.toml
@@ -100,7 +100,7 @@ build:
     cd "{{project_dir}}"
     {{_forge_m2_setup}}
     # Runtime classpath entries are subproject jars, so refresh each one before launch.
-    ./gradlew classes jar :domain:jar :engine:jar :native:jar :web:jar
+    ./gradlew classes jar :domain:jar :engine:jar :native:jar
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
@@ -293,12 +293,6 @@ serve: build check-java
     else
       {{_java}} leyline.LeylineMainKt
     fi
-
-# verify web profile excludes local client door/debug posture
-[group('serve')]
-web-profile-check:
-    cd "{{project_dir}}" && ./gradlew verifyWebProfilePosture
-
 
 # --- Packaging ---
 

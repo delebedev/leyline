@@ -1,6 +1,6 @@
 # leyline
 
-Local playtesting server built around a client protocol bridge, a web head, and Forge (open-source rules engine). Provides a native-client head plus a browser-facing web head over the same domain and engine core.
+Local playtesting server built around a native-client protocol head and Forge (open-source rules engine). Provides reusable domain, engine, GRE, draft, and in-process match-runtime modules for embedding.
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
 - **Server mode:** `just serve` (local-only)
@@ -29,8 +29,7 @@ Local playtesting server built around a client protocol bridge, a web head, and 
 app/            Composition root — LeylineMain, local control server, management server, seed DB.
 domain/         Domain model, services, repository ports.
 engine/         Forge bridge + GRE match-session engine. See engine/AGENTS.md.
-native/         Native-client head; packages account/frontdoor/matchdoor. Web-excluded leaf.
-web/            Browser-facing HTTP/WebSocket head.
+native/         Native-client head; packages account/frontdoor/matchdoor. Protocol leaf.
 ```
 
 Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`.
@@ -56,7 +55,7 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 Kotest FunSpec (JUnit Platform). Engine test guidance lives in
 `engine/src/test/kotlin/leyline/AGENTS.md`.
 
-- `just test-one <ClassName> [module]` — single class; defaults to `engine`, e.g. `just test-one WebRoutesTest web`
+- `just test-one <ClassName> [module]` — single class; defaults to `engine`
 - `just test-many "<ClassA> <ClassB>" [module]` — several classes in one run (space-separated, one string)
 - `just test-gate` — pre-commit (all modules + fmt)
 - `just test-integration` — risky engine changes

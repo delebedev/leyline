@@ -1,7 +1,7 @@
 package leyline.tooling.simclient
 
-import leyline.copilot.CopilotProposal
 import leyline.copilot.SnapshotConsult
+import leyline.copilot.SnapshotDecisionConsult
 import leyline.game.event.FrameEventLog
 import leyline.game.projectSnapshotForTest
 import leyline.game.snapshot.GsmSnapshot
@@ -13,7 +13,12 @@ internal class SnapshotProposalSource(
     private val harness: MatchFlowHarness,
     private val seat: Int = 1,
 ) {
-    fun propose(prompt: GREToClientMessage): CopilotProposal {
+    fun decide(prompt: GREToClientMessage): SnapshotDecisionConsult {
+        val gsm = currentGsm()
+        return SnapshotConsult.decide(gsm, prompt, seat, harness.bridge.cardRepository)
+    }
+
+    private fun currentGsm(): wotc.mtgo.gre.external.messaging.Messages.GameStateMessage {
         val game = harness.bridge.getGame() ?: error("no active game")
         val bridge = harness.bridge
         val prior = bridge.projectionStateSnapshot()
@@ -29,6 +34,6 @@ internal class SnapshotProposalSource(
                     events = FrameEventLog.EMPTY,
                     projectionState = capturedProjection.copy(revision = prior.revision),
                 ).gsm
-        return SnapshotConsult.consult(gsm, prompt, seat, bridge.cardRepository).proposal
+        return gsm
     }
 }

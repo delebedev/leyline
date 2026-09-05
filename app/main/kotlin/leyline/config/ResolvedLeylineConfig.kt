@@ -17,7 +17,7 @@ class ResolvedLeylineConfig(
     val instance: String?,
     val paths: ResolvedPaths,
 ) {
-    /** Human-readable startup report with value provenance and redacted secrets. */
+    /** Human-readable startup report with value provenance. */
     fun report(head: String): String {
         val tree = json.encodeToJsonElement(LeylineConfig.serializer(), config).jsonObject
         val bySection = SettingsSchema.leaves(LeylineConfig.serializer().descriptor).groupBy { it.path.first() }
@@ -30,8 +30,7 @@ class ResolvedLeylineConfig(
                     val key = leaf.path.joinToString(".")
                     val value = valueAt(tree, leaf.path)
                     val source = provenance[key] ?: Source.DEFAULT
-                    val display = if (key in WebSettings.SECRET_PATHS) "<redacted>" else value?.toString() ?: "null"
-                    appendLine("    $key = $display [$source]")
+                    appendLine("    $key = ${value?.toString() ?: "null"} [$source]")
                 }
             }
             appendLine("  [resolved paths]")

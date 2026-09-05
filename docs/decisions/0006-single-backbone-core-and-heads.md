@@ -1,15 +1,13 @@
 ---
-summary: "ADR: leyline is a single stateful backbone — a domain core plus a Forge engine — with two audience-named protocol heads (native, web) over it. The web product's separate gateway is retired into a first-class web head."
+summary: "Superseded ADR: leyline as one backbone with native and web protocol heads."
 read_when:
-  - "adding or reshaping a protocol/transport head (native-client or web)"
-  - "deciding whether code belongs in domain, engine, a head, or app"
-  - "changing the web-profile native-exclusion or the module dependency invariant"
+  - "reviewing the historical native-and-web-head ownership decision"
 ---
 # ADR 0006: Single Backbone — Core with Native and Web Heads
 
 ## Status
 
-Accepted; implemented.
+Superseded by [ADR 0018](0018-runtime-embedding-boundary.md).
 
 ## Context
 
