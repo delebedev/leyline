@@ -56,6 +56,7 @@ class ReconfigureLifecycleTest :
                 }
             val selecting = attachSlice.annotationsOfType(AnnotationType.PlayerSelectingTargets).single()
             val submitted = attachSlice.annotationsOfType(AnnotationType.PlayerSubmittedTargets).single()
+            val targetRequest = attachSlice.first { it.hasSelectTargetsReq() }.selectTargetsReq
             val abilityCreatedFrame =
                 attachSlice.indexOfFirst {
                     it.hasGameStateMessage() &&
@@ -103,6 +104,12 @@ class ReconfigureLifecycleTest :
                     selecting.affectedIdsList shouldContain targetSpec.affectorId
                     submitted.affectedIdsList shouldContain targetSpec.affectorId
                     abilityCreated.affectedIdsList shouldContain targetSpec.affectorId
+                    targetRequest.sourceId shouldBe targetSpec.affectorId
+                    targetRequest.targetsList
+                        .single()
+                        .prompt.parametersList
+                        .single()
+                        .numberValue shouldBe targetSpec.affectorId
                     attachSlice.deletedPersistentAnnotationIds() shouldContain targetSpec.id
                 }
             }
