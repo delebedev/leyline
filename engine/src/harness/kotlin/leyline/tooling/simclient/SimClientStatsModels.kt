@@ -2,7 +2,7 @@ package leyline.tooling.simclient
 
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
-const val STATS_SCHEMA_VERSION = 3
+const val STATS_SCHEMA_VERSION = 4
 
 data class GameStats(
     val turn: Int,
@@ -26,6 +26,11 @@ data class GameStats(
     val targetChoiceCounts: Map<String, Int> = emptyMap(),
     val targetChoiceSamples: Map<String, String> = emptyMap(),
     val advisorUnavailableByReason: Map<String, Int> = emptyMap(),
+    val snapshotFidelityGrades: Map<String, Int> = emptyMap(),
+    val snapshotImportFindings: Map<String, Int> = emptyMap(),
+    val snapshotDecisionSources: Map<String, Int> = emptyMap(),
+    val snapshotSemanticAgreement: Map<String, Int> = emptyMap(),
+    val snapshotSemanticMismatchSamples: Map<String, String> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
     val logErrorSamples: List<String> = emptyList(),

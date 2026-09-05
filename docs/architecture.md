@@ -13,6 +13,28 @@ owns the system shape and module boundaries. Durable rationale lives in
 [`docs/decisions/`](decisions/); cross-thread constraints live in
 [`bridge-threading.md`](bridge-threading.md).
 
+## Snapshot consultation
+
+Snapshot consultation is a fresh, one-shot advisory path. One serialized game
+state is imported into one disposable Forge place, consulted, and torn down.
+A persistent twin of a running match is not part of the architecture.
+
+The import is one atomic mutation boundary inside Forge puzzle application.
+Base objects, zones, identities, visible types, relationships, counters,
+recognized survival grants, current characteristics, tap state, marked damage,
+combat, and phase are established before Forge performs one final settled-state
+check. Triggers, autonomous runtime, and advisors cannot observe the place
+between those mutations.
+
+`PromptDecisionAdvisor` owns the desired prompt decision for both active and
+reconstructed games. Copilot owns incremental native realization and response
+encoding. Simclient owns whole-decision submission, retry and fallback policy,
+and telemetry. Snapshot fidelity reports delivery validity separately from
+strategy confidence so only findings relevant to the pending prompt can prevent
+a response. A cast offer whose permission cannot be reconstructed from card
+identity is an explicit prompt-scoped missing feature, so strategic consultation
+falls back to the host instead of choosing around that offer.
+
 ## System shape
 
 ```mermaid

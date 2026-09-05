@@ -167,6 +167,19 @@ class SimClientDriver(
         val attemptStats = attemptLedger.stats()
         val outcome = finalOutcome()
         snapshotProbe?.logSummary("turn=${currentTurnOrNull() ?: lastTurn},reason=$completionReason")
+        val semanticAgreement =
+            snapshotProbe
+                ?.stats()
+                ?.flatMap { (prompt, bucket) ->
+                    listOf(
+                        "$prompt.match" to bucket.match,
+                        "$prompt.mismatch" to bucket.mismatch,
+                        "$prompt.uncovered" to bucket.uncovered,
+                        "$prompt.bothUnavailable" to bucket.bothUnavailable,
+                        "$prompt.error" to bucket.error,
+                    )
+                }?.toMap()
+                .orEmpty()
         return GameStats(
             turn = currentTurnOrNull() ?: lastTurn,
             gameOver = harness.isGameOver() || sawTerminalIntermission,
@@ -188,7 +201,16 @@ class SimClientDriver(
             aiMaxMsByPrompt = policyTelemetry.maxMs,
             targetChoiceCounts = policyTelemetry.targetChoices,
             targetChoiceSamples = policyTelemetry.targetChoiceSamples,
-            advisorUnavailableByReason = policyTelemetry.advisorUnavailableByReason,
+            advisorUnavailableByReason =
+                mergeCounts(
+                    policyTelemetry.advisorUnavailableByReason,
+                    snapshotProbe?.unavailableReasons().orEmpty(),
+                ),
+            snapshotFidelityGrades = snapshotDriver?.fidelityGrades() ?: snapshotProbe?.fidelityGrades().orEmpty(),
+            snapshotImportFindings = snapshotDriver?.importFindings() ?: snapshotProbe?.importFindings().orEmpty(),
+            snapshotDecisionSources = snapshotDriver?.decisionSources() ?: snapshotProbe?.decisionSources().orEmpty(),
+            snapshotSemanticAgreement = semanticAgreement,
+            snapshotSemanticMismatchSamples = snapshotProbe?.mismatchSamples().orEmpty(),
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,
@@ -229,6 +251,15 @@ class SimClientDriver(
             promptProgressSamples = promptProgress.snapshot(),
         )
     }
+
+    private fun mergeCounts(
+        first: Map<String, Int>,
+        second: Map<String, Int>,
+    ): Map<String, Int> =
+        buildMap {
+            first.forEach { (key, count) -> put(key, count) }
+            second.forEach { (key, count) -> put(key, getOrDefault(key, 0) + count) }
+        }
 
     private fun promptHistory(): List<leyline.bridge.handoff.PromptRecord> =
         runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
@@ -327,25 +358,38 @@ class SimClientDriver(
 
     private fun respondToPrompt(prompt: ActivePrompt): Boolean {
         snapshotProbe?.observe(prompt.msg)
-        snapshotDriver?.let { return respondToSnapshotPrompt(prompt, it) }
         val beforeMessages = harness.allMessages.size
         val beforeLast = harness.allMessages.lastOrNull()
         val sourceBefore = promptProgress.sourceSnapshot(prompt)
         val policyT0 = System.nanoTime()
-        val response = promptPolicy.respondToPrompt(prompt, attemptLedger)
+        val snapshotResponse = snapshotDriver?.respond(prompt.msg)
+        var response = snapshotResponse ?: promptPolicy.respondToPrompt(prompt, attemptLedger)
+        var decisionPrefix =
+            when {
+                snapshotDriver == null -> ""
+                snapshotResponse == null -> "snapshot-fallback:"
+                else -> "snapshot:"
+            }
         recordMapTiming(
             totals = policyTotalMsByPrompt,
             maxes = policyMaxMsByPrompt,
             key = prompt.type.name,
             elapsedMs = elapsedMsSince(policyT0),
         )
+        val submitT0 = System.nanoTime()
+        var submitResult = submitter.submit(response.value)
+        if (snapshotResponse != null && submitResult == SimSubmitResult.NotSubmitted) {
+            response = promptPolicy.respondToPrompt(prompt, attemptLedger)
+            decisionPrefix = "snapshot-fallback:"
+            submitResult = submitter.submit(response.value)
+        }
         val decision = (response.value as? SimPromptResponseValue.Decision)?.decision
         val submittedAction = (decision as? SimDecision.PerformAction)?.action
-        val submitT0 = System.nanoTime()
-        val submitResult = submitter.submit(response.value)
+        val decisionKind = "$decisionPrefix${response.value.kind}"
         promptProgress.record(
             prompt = prompt,
-            value = response.value,
+            decisionKind = decisionKind,
+            targetIds = decision?.targetIds().orEmpty(),
             submitResult = submitResult,
             beforeMessages = beforeMessages,
             beforeLast = beforeLast,
@@ -354,21 +398,31 @@ class SimClientDriver(
         recordMapTiming(
             totals = submitTotalMsByDecision,
             maxes = submitMaxMsByDecision,
-            key = response.value.kind,
+            key = decisionKind,
             elapsedMs = elapsedMsSince(submitT0),
         )
         when (submitResult) {
             SimSubmitResult.Submitted -> {
-                if (response.aarActionFingerprint != null && submittedAction != null) {
-                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), response.value.kind)
+                if (snapshotDriver != null) {
+                    val retryFingerprints =
+                        submittedAction
+                            ?.takeIf { decisionPrefix == "snapshot:" || response.aarActionFingerprint != null }
+                            ?.retryFingerprints()
+                            .orEmpty()
+                    attemptLedger.markSubmitted(retryFingerprints, decisionKind)
+                } else if (response.aarActionFingerprint != null && submittedAction != null) {
+                    attemptLedger.markSubmitted(submittedAction.retryFingerprints(), decisionKind)
                 }
             }
             SimSubmitResult.NoPending -> {
-                promptLedger.retire(prompt, "no-pending-submit")
-                attemptLedger.markNoPending(response.value.kind)
+                promptLedger.retire(prompt, if (snapshotDriver == null) "no-pending-submit" else "no-pending-snapshot")
+                attemptLedger.markNoPending(decisionKind)
             }
             SimSubmitResult.NotSubmitted -> {
-                if (response.value == SimPromptResponseValue.RetirePrompt) promptLedger.retire(prompt, "policy-retired")
+                when {
+                    response.value == SimPromptResponseValue.RetirePrompt -> promptLedger.retire(prompt, "policy-retired")
+                    snapshotDriver != null -> promptLedger.retire(prompt, "snapshot-unavailable")
+                }
             }
         }
         response.markAllHandledOfType?.let { promptLedger.markAllHandled(it, throughMsgId = prompt.msgId) }
@@ -380,45 +434,6 @@ class SimClientDriver(
         harness.takeConsumedPromptMsgIds().forEach { promptLedger.markHandled(it) }
         if (response.value == SimPromptResponseValue.Terminal) sawTerminalIntermission = true
         return submitResult == SimSubmitResult.Submitted
-    }
-
-    private fun respondToSnapshotPrompt(
-        prompt: ActivePrompt,
-        driver: SnapshotPromptDriver,
-    ): Boolean {
-        val beforeMessages = harness.allMessages.size
-        val beforeLast = harness.allMessages.lastOrNull()
-        val sourceBefore = promptProgress.sourceSnapshot(prompt)
-        val policyT0 = System.nanoTime()
-        val response = driver.respond(prompt.msg)
-        val decisionKind = "snapshot:${response.proposal.intent}"
-        recordMapTiming(
-            totals = policyTotalMsByPrompt,
-            maxes = policyMaxMsByPrompt,
-            key = prompt.type.name,
-            elapsedMs = elapsedMsSince(policyT0),
-        )
-        promptProgress.record(
-            prompt = prompt,
-            decisionKind = decisionKind,
-            targetIds = response.proposal.responseIds,
-            submitResult = response.submitResult,
-            beforeMessages = beforeMessages,
-            beforeLast = beforeLast,
-            sourceBefore = sourceBefore,
-        )
-        when (response.submitResult) {
-            SimSubmitResult.Submitted -> {
-                attemptLedger.markSubmitted(emptySet(), decisionKind)
-                promptLedger.markHandled(prompt)
-            }
-            SimSubmitResult.NoPending -> {
-                promptLedger.retire(prompt, "no-pending-snapshot")
-                attemptLedger.markNoPending(decisionKind)
-            }
-            SimSubmitResult.NotSubmitted -> promptLedger.retire(prompt, "snapshot-unrealizable")
-        }
-        return response.submitResult == SimSubmitResult.Submitted
     }
 
     /** Returns current turn number, or null if the game/bridge has been torn down. */

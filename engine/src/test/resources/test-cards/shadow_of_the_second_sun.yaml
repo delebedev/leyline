@@ -1,0 +1,12 @@
+name: "Shadow of the Second Sun"
+grpId: 90919
+titleId: 760152
+abilities:
+  - id: 1012
+    textId: 1203
+    category: 3
+    baseId: 4
+  - id: 178955
+    textId: 881146
+    category: 2
+expansionCode: "MH3"

@@ -15,6 +15,7 @@ import forge.game.player.PlayerView
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
+import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
@@ -906,12 +907,45 @@ class GameEventCollector(
     override fun visit(ev: GameEventCardTapped) {
         val cardId = ForgeCardId(ev.card().id)
         val enlistAttacker = consumeEnlistTapAffector(cardId) ?: pendingEnlistAffectors.remove(cardId)
+        val cause = ev.cause()?.takeIf { enlistAttacker == null }
         if (ev.tapped() && enlistAttacker != null) {
             pendingEnlistedByAttacker[enlistAttacker] = cardId
             pendingEnlistedIidsByAttacker[enlistAttacker] = bridge.getOrAllocInstanceId(cardId)
         }
-        frame.add(GameEvent.CardTapped(cardId, ev.tapped(), enlistAttacker))
+        frame.add(
+            GameEvent.CardTapped(
+                cardId,
+                ev.tapped(),
+                affectorCardId = enlistAttacker,
+                affectorAbilityForgeId = tapAbilityForgeId(ev, cause),
+                affectorSpellCardId =
+                    cause
+                        ?.hostCard
+                        ?.id
+                        ?.takeIf { ev.spellCause() && it != 0 }
+                        ?.let(::ForgeCardId),
+            ),
+        )
         log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
+    }
+
+    private fun tapAbilityForgeId(
+        ev: GameEventCardTapped,
+        cause: forge.game.spellability.SpellAbilityView?,
+    ): Int {
+        if (cause == null || ev.spellCause()) return 0
+        val rootAbilityId = ev.rootAbilityId()
+        val stackAbility =
+            bridge
+                .getGame()
+                ?.stack
+                ?.peek()
+                ?.spellAbility
+        return if (stackAbility is WrappedAbility && stackAbility.wrappedAbility.rootAbility.id == rootAbilityId) {
+            stackAbility.id
+        } else {
+            rootAbilityId
+        }
     }
 
     override fun visit(ev: GameEventManaAbilityActivated) {

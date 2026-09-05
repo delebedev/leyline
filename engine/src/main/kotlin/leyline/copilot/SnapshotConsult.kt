@@ -17,6 +17,38 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * evaluator. The hydrated game lives only for the duration of the consult.
  */
 object SnapshotConsult {
+    internal fun decide(
+        gsm: GameStateMessage,
+        prompt: GREToClientMessage,
+        seat: Int,
+        cardRepository: CardRepository,
+        engineSettings: EngineSettings = EngineSettings(),
+    ): SnapshotDecisionConsult {
+        val hydrated = SnapshotHydration.hydrateWithReport(gsm, seat, cardRepository, engineSettings)
+        val bridge = hydrated.bridge
+        val normalizedPrompt = normalizePayCostsSource(gsm, prompt)
+        return try {
+            val fidelity = hydrated.fidelity.forPrompt(normalizedPrompt)
+            if (fidelity.delivery == "unavailable") {
+                return SnapshotDecisionConsult(
+                    PromptDecisionResult.Unavailable(
+                        PromptUnavailableReason.ConsultFailed,
+                        "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
+                    ),
+                    fidelity,
+                )
+            }
+            syncLandDrop(bridge, normalizedPrompt, seat)
+            val service = CopilotProposalService(bridge, SeatId(seat))
+            SnapshotDecisionConsult(
+                service.decide(normalizedPrompt),
+                fidelity,
+            )
+        } finally {
+            bridge.teardownResources()
+        }
+    }
+
     /**
      * Consult the decision stack about [prompt] given [gsm]. Never throws for
      * decision-layer failures — those surface as an `unrealizable` proposal;
@@ -33,12 +65,24 @@ object SnapshotConsult {
         val bridge = hydrated.bridge
         val normalizedPrompt = prompt?.let { normalizePayCostsSource(gsm, it) }
         return try {
+            val fidelity = hydrated.fidelity.forPrompt(normalizedPrompt)
+            if (fidelity.delivery == "unavailable") {
+                return ConsultResponse(
+                    proposal =
+                        CopilotProposalRealizer.unrealizable(
+                            normalizedPrompt?.type ?: wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
+                            seat,
+                            "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
+                        ),
+                    fidelity = fidelity,
+                )
+            }
             syncLandDrop(bridge, normalizedPrompt, seat)
             val service = CopilotProposalService(bridge, SeatId(seat))
             ConsultResponse(
                 proposal = service.propose(normalizedPrompt),
                 eval = service.evaluate(),
-                fidelity = hydrated.fidelity.forPrompt(normalizedPrompt),
+                fidelity = fidelity,
             )
         } finally {
             bridge.teardownResources()
@@ -102,4 +146,9 @@ data class EvalScore(
     val value: Int,
     /** Score variant for resources currently available to act. */
     val summonSick: Int,
+)
+
+internal data class SnapshotDecisionConsult(
+    val result: PromptDecisionResult,
+    val fidelity: SnapshotFidelityReport,
 )

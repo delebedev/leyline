@@ -30,6 +30,17 @@ internal object MechanicSourceProjection {
         fallback: (ForgeCardId) -> GrpId,
     ): GrpId = payment.abilityGrpId.takeIf { it != 0 }?.let(::GrpId) ?: fallback(payment.sourceCardId)
 
+    fun tapAffectorId(
+        event: GameEvent.CardTapped,
+        resolvingStackIidsByCard: Map<ForgeCardId, InstanceId>,
+        castStackIidsByCard: Map<ForgeCardId, InstanceId>,
+        abilityIid: (Int) -> InstanceId,
+        cardIid: (ForgeCardId) -> InstanceId,
+    ): InstanceId? =
+        event.affectorSpellCardId?.let { sourceCardId ->
+            resolvingStackIidsByCard[sourceCardId] ?: castStackIidsByCard[sourceCardId] ?: cardIid(sourceCardId)
+        } ?: event.affectorAbilityForgeId.takeIf { it != 0 }?.let(abilityIid)
+
     fun tokenCreatedAffectorId(
         event: GameEvent.TokenCreated,
         facts: MechanicSourceFacts,

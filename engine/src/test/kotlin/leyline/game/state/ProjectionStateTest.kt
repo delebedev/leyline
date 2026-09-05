@@ -28,17 +28,27 @@ class ProjectionStateTest :
             }
         }
 
-        test("redraw identity reset stays tentative until the editor value installs") {
+        test("redraw identity reset retires only the requested cards") {
             val priorEditor = ProjectionState.initial(startInstanceId = 300).editor()
             val deletedId = priorEditor.identities.getOrAlloc(ForgeCardId(1))
+            val preservedId = priorEditor.identities.getOrAlloc(ForgeCardId(2))
             val prior = priorEditor.freeze()
             val redrawEditor = prior.editor()
 
-            redrawEditor.resetIdentitiesForRedraw() shouldBe listOf(deletedId)
+            redrawEditor.resetIdentitiesForRedraw(setOf(ForgeCardId(1))) shouldBe listOf(deletedId)
 
             assertSoftly {
-                prior.identities.forgeIdToInstanceId shouldBe mapOf(ForgeCardId(1) to deletedId)
-                redrawEditor.freeze().identities shouldBe InstanceIdRegistry.initialState(prior.identities.nextInstanceId)
+                prior.identities.forgeIdToInstanceId shouldBe
+                    mapOf(
+                        ForgeCardId(1) to deletedId,
+                        ForgeCardId(2) to preservedId,
+                    )
+                redrawEditor.freeze().identities shouldBe
+                    InstanceIdRegistry.State(
+                        nextInstanceId = prior.identities.nextInstanceId,
+                        forgeIdToInstanceId = mapOf(ForgeCardId(2) to preservedId),
+                        instanceIdToForgeId = mapOf(preservedId to ForgeCardId(2)),
+                    )
             }
         }
 

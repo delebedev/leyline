@@ -137,6 +137,20 @@ Do not infer a cause from snapshots when a Forge event can carry it. Do not stor
 
 When an upstream Forge event lacks the payload needed for protocol translation, prefer a small fork-local event enrichment over correlating unrelated events after the fact. The event should carry the Forge object IDs needed by the bridge, not protocol instance IDs.
 
+### Atomic imported places
+
+Puzzle-based state import has one protected pre-settle hook immediately before
+its final `checkStateEffects`. Specialized importers may complete current-state
+restoration there while the stack is resolving and triggers are suppressed.
+Keep the default hook empty so ordinary puzzles retain their existing behavior.
+
+Restore relationships only after object identities and visible types exist.
+Restore survival abilities and current characteristics before marked damage,
+then combat and phase, and allow one final settled-state check. Do not call
+state-based actions or start an advisor from inside a partially imported place.
+Verification must be object-aware: creature power/toughness fields do not define
+planeswalker or other noncreature characteristics.
+
 ## 9. Prompt Semantics
 
 `PromptSemantic` is the planner-facing contract between an engine callback and

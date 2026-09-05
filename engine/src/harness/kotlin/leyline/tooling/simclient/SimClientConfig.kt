@@ -165,7 +165,7 @@ enum class SimClientPolicyMode {
     /**
      * Greedy driver plus the [SnapshotShadowProbe]: each prompt the seat answers
      * is proposed twice — on the live game and on a game hydrated from its wire
-     * state — to measure snapshot hydration fidelity as response-byte match rate.
+     * state — to measure snapshot hydration fidelity as desired-decision agreement.
      */
     SnapshotShadow,
 
