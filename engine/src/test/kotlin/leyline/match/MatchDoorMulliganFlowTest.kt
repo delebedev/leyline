@@ -469,6 +469,8 @@ class MatchDoorMulliganFlowTest :
                             AnnotationType.UserActionTaken in annotation.typeList &&
                                 annotation.detailInt("actionType") == ActionType.OpeningHandAction.number
                         }
+                val openingAbilityIds = openingActions.flatMap { it.affectedIdsList }.toSet()
+                val deletedInstanceIds = openingGameStates.flatMap { it.diffDeletedInstanceIdsList }.toSet()
                 val axeGrpId = checkNotNull(TestCardRegistry.repo.findGrpIdByName("Leyline Axe"))
                 val battlefieldIds =
                     openingGameStates
@@ -488,6 +490,7 @@ class MatchDoorMulliganFlowTest :
                     openingActions.size shouldBe 14
                     openingActions.map { it.affectorId }.toSet() shouldBe setOf(1, 2)
                     openingActions.map { it.detailInt("abilityGrpId") }.toSet() shouldBe setOf(175903)
+                    deletedInstanceIds shouldBe openingAbilityIds
                     battlefieldAxeIds.size shouldBe 14
                     battlefieldIds shouldBe battlefieldAxeIds
                 }
