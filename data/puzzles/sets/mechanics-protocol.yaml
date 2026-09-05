@@ -403,6 +403,20 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Geological Appraiser }
             - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: discover-hidden-courtyard
+    puzzle: discover-hidden-courtyard
+    run: activate Hidden Courtyard, accept the discovered Llanowar Elves cast
+    expect: Hidden Courtyard is sacrificed and Llanowar Elves resolves to the battlefield
+    steps:
+      - expect:
+          action: { type: activate, card: Hidden Courtyard }
+      - activate: { card: Hidden Courtyard, ability_grp_id: 169776 }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Hidden Courtyard }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
   - id: bargain-rowans-grim-search
     puzzle: try-bargain-rowans
     run: cast Rowan's Grim Search with Bargain by sacrificing Manalith
@@ -815,6 +829,10 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: TemporaryPermanent
+            - annotation_seen: AbilityInstanceCreated
+            - annotation_seen: AbilityInstanceDeleted
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
             - stack_empty: true

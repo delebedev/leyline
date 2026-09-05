@@ -112,6 +112,8 @@ data class CardSnapshot(
      * TemporaryPermanent pAnn so the client renders EOT-sacrifice tokens.
      */
     val endOfTurnLeavePlay: Boolean = false,
+    /** True while a spell or permanent retains a paid Evoke cast. */
+    val evokePaid: Boolean = false,
     /**
      * Role this card plays in the Prepared mechanic. [PreparedRole.None] for the
      * vast majority of cards. [PreparedRole.Source] for a battlefield creature

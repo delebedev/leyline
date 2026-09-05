@@ -527,6 +527,9 @@ object SnapshotCapture {
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
+            evokePaid =
+                (onBf || card.isInZone(ForgeZoneType.Stack)) &&
+                    card.castSA?.isEvoke == true,
             isToken = card.isToken,
             isCopyToken = card.gamePieceType == forge.card.GamePieceType.COPIED_SPELL || (card.isToken && card.copiedPermanent != null),
             tokenSourceCardGrpId = tokenSourceCardGrpId,

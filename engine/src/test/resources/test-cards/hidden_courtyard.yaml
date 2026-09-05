@@ -8,6 +8,7 @@ abilities:
   - id: 1001
     textId: 227607
     category: 1
+    subCategory: 1
   - id: 169776
     textId: 967565
     category: 1
