@@ -767,6 +767,7 @@ class BundleBuilder(
                         input = state,
                         intent = frame.intent,
                         actions = cut.actions.takeIf { viewer.role == ProjectionViewerRole.Player },
+                        decisionPending = false,
                         role = viewer.role,
                     )
                 }
@@ -807,13 +808,12 @@ class BundleBuilder(
         )
     }
 
-    private fun playbackGsm(gsm: GameStateMessage): GameStateMessage {
-        val builder = gsm.toBuilder().setPendingMessageCount(0)
+    private fun playbackGsm(gsm: GameStateMessage): GameStateMessage =
         if (gsm.persistentAnnotationsList.any { AnnotationType.ModifiedType in it.typeList }) {
-            builder.setUpdate(GameStateUpdate.SendAndRecord)
+            gsm.toBuilder().setUpdate(GameStateUpdate.SendAndRecord).build()
+        } else {
+            gsm
         }
-        return builder.build()
-    }
 
     private fun EffectProjectionFacts.withoutPendingEarthbendResolutions(): EffectProjectionFacts =
         EffectProjectionFacts(
