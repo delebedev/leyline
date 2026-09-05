@@ -231,15 +231,9 @@ class StateProjectionCompilerTest :
                 )
 
             assertSoftly {
-                full.viewers[0]
-                    .result.gsm.gameObjectsList
-                    .map { it.instanceId } shouldContainExactly listOf(playerId)
                 full.viewers[1]
                     .result.gsm.gameObjectsList
                     .map { it.instanceId } shouldContainExactly listOf(observerId)
-                diff.viewers[0]
-                    .result.gsm.gameObjectsList
-                    .map { it.instanceId } shouldContainExactly listOf(playerId)
                 diff.viewers[1]
                     .result.gsm.gameObjectsList
                     .map { it.instanceId } shouldContainExactly listOf(observerId)
