@@ -767,6 +767,7 @@ class BundleBuilder(
                         input = state,
                         intent = frame.intent,
                         actions = cut.actions.takeIf { viewer.role == ProjectionViewerRole.Player },
+                        decisionPending = false,
                         role = viewer.role,
                     )
                 }
