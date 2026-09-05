@@ -409,6 +409,33 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
+        test("mulligan timeout still delivers the first action horizon") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-timeout"
+            val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
+
+            try {
+                greOutbound(local)
+                greOutbound(familiar)
+                val bridge = registry.getMatch(matchId)!!.bridge
+                val deadline = System.nanoTime() + 8_000_000_000L
+                val postTimeout = mutableListOf<GREToClientMessage>()
+                while (System.nanoTime() < deadline && postTimeout.none { it.hasActionsAvailableReq() }) {
+                    postTimeout += greOutbound(local)
+                    bridge.cutCoordinator.deliverySignal.await(100)
+                }
+
+                assertSoftly {
+                    bridge.mulliganBridge(SeatId(1)).pendingPrompt() shouldBe null
+                    postTimeout.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    postTimeout.any { it.hasGameStateMessage() } shouldBe true
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
         test("actual match session preserves opening-hand lifecycle for both seats") {
             TestCardRegistry.ensureCardRegistered("Leyline Axe")
             val registry = MatchRegistry()
