@@ -21,6 +21,13 @@ class RuntimeGameVariantTest :
             ) shouldBe "brawl"
         }
 
+        test("player runtime launches honor an explicit Commander variant") {
+            runtimeGameVariant(
+                RuntimeMatchConfig(matchId = "commander-player", gameVariant = "commander"),
+                "Play_Brawl",
+            ) shouldBe "commander"
+        }
+
         test("non-spectator matches infer their format from the selected event") {
             runtimeGameVariant(null, "Play_Brawl_Historic") shouldBe "brawl"
         }

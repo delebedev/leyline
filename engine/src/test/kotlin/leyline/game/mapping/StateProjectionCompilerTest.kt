@@ -191,6 +191,69 @@ class StateProjectionCompilerTest :
             }
         }
 
+        test("Seat observer sees its own hand and both hand counts in Full and Diff") {
+            val playerCard = ForgeCardId(10)
+            val observerCard = ForgeCardId(20)
+            val initial = privateHandsSnapshot(1, playerCard, observerCard, "Player card", "Observer card")
+            val prior = ProjectionState.initial()
+            val full =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    prior,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(compilerInput(initial).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.SeatObserver,
+                        ),
+                    ),
+                )
+            val playerId =
+                full.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(playerCard)
+                    .value
+            val observerId =
+                full.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(observerCard)
+                    .value
+            val changed = privateHandsSnapshot(2, playerCard, observerCard, "Player changed", "Observer changed")
+            val diff =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    full.transition.nextState,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(compilerInput(changed, initial).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(changed, initial).copy(viewingSeatId = 2),
+                            role = ProjectionViewerRole.SeatObserver,
+                        ),
+                    ),
+                )
+
+            assertSoftly {
+                full.viewers[1]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly listOf(observerId)
+                diff.viewers[1]
+                    .result.gsm.gameObjectsList
+                    .map { it.instanceId } shouldContainExactly listOf(observerId)
+                full.viewers[1]
+                    .result.gsm.zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly listOf(playerId, observerId)
+                diff.transition.nextState.viewerCursors
+                    .getValue(SeatId(2))
+                    .fullState!!
+                    .zonesList
+                    .filter { it.visibility == Visibility.Private }
+                    .flatMap { it.objectInstanceIdsList } shouldContainExactly listOf(playerId, observerId)
+                full.viewers[1]
+                    .result.gsm.actionsCount shouldBe 0
+                diff.viewers[1]
+                    .result.gsm.actionsCount shouldBe 0
+            }
+        }
+
         test("one compile stages order move then supplements and clears exact submitted targets") {
             val cardId = ForgeCardId(10)
             val sourceId = ForgeCardId(20)

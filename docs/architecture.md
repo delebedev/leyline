@@ -193,3 +193,10 @@ Direct `GameBridge` identity, cursor, and zone edits are engine-shell projection
 state changes. They allocate no logical sequence or output and are not
 publication. Detailed ordering is documented in
 [`bridge-threading.md`](bridge-threading.md).
+
+### Spectator perspectives
+
+AI-vs-AI sessions use a seat observer: private cards are visible only for the
+chosen seat, while the other hand retains membership without card identities.
+Seat observers receive no player decision prompts or legal-action windows.
+The public observer role continues to redact both seats’ private objects.

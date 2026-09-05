@@ -697,11 +697,11 @@ class MatchConnection(
     private fun resolveGameVariant(): String? = runtimeGameVariant(resolveRuntimeMatchConfig(), coordinator?.selectedEventName)
 }
 
-/** Runtime spectator launches own their format; other matches retain event-selected format inference. */
+/** Explicit runtime variants take precedence over event-selected format inference. */
 internal fun runtimeGameVariant(
     runtimeConfig: RuntimeMatchConfig?,
     selectedEventName: String?,
 ): String? {
-    if (runtimeConfig?.spectatorMode == true) return runtimeConfig.gameVariant
+    if (runtimeConfig?.gameVariant != null || runtimeConfig?.spectatorMode == true) return runtimeConfig.gameVariant
     return if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) "brawl" else null
 }

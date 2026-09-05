@@ -1194,8 +1194,8 @@ class GameBridge(
 
         cutCoordinator.registerViewers(
             listOf(
-                ProjectionViewer(SeatId(1), ProjectionViewerRole.Observer),
-                ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                ProjectionViewer(SeatId(1), ProjectionViewerRole.SeatObserver),
+                ProjectionViewer(SeatId(2), ProjectionViewerRole.SeatObserver),
             ),
         )
         registerPlaybackPipeline(g, SeatId(1), captureLocalActions = true)

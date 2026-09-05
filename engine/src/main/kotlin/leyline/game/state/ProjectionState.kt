@@ -97,6 +97,11 @@ data class ViewerProjectionCursor(
 enum class ProjectionViewerRole {
     Player,
     Observer,
+    SeatObserver,
+
+    ;
+
+    val seesSeatPrivateCards: Boolean get() = this != Observer
 }
 
 /** Stable output feed and projection perspective for one registered viewer. */

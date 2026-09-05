@@ -63,17 +63,19 @@ class DecklistException(
     val errors: List<String>,
 ) : Exception(errors.joinToString("; "))
 
-private val LINE_REGEX = Regex("""^(\d+)\s+(.+)$""")
-private val SET_PAREN_REGEX = Regex("""\s*\([A-Za-z0-9]+\)\s*\d*\s*$""")
-private val SECTION_LABEL_REGEX = Regex("""^(Deck|Main|Sideboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
+private val LINE_REGEX = Regex("""^(\d+)x?\s+(.+)$""", RegexOption.IGNORE_CASE)
+private val SET_PAREN_REGEX = Regex("""\s*\([A-Za-z0-9]+\)(?:\s+[A-Za-z0-9]+)?\s*$""")
+private val SECTION_LABEL_REGEX =
+    Regex("""^(?:\[(Deck|Main|Sideboard|Commander|Companion)]|(Deck|Main|Sideboard|Commander|Companion))\s*$""", RegexOption.IGNORE_CASE)
 private val COMMENT_REGEX = Regex("""^[#;]|^//""")
 private val SET_CODE_REGEX = Regex("""\(([A-Za-z0-9]+)\)""")
 
 /**
  * Parse bundled and Web-import decklist text into sectioned, unresolved entries.
- * Grammar: `N Name` or `N Name (SET) NUM`, bare `Deck`/`Main`/`Sideboard`/`Commander`/
- * `Companion` headers, `#`/`;`/`//` comments. No pipe set-code suffix, bracketed
- * headers, or quantity-less card lines — Forge/runtime text already goes through
+ * Grammar: `N Name` or `Nx Name`, optional `(SET)` and collector-number suffixes,
+ * bare or bracketed `Deck`/`Main`/`Sideboard`/`Commander`/`Companion` headers, and
+ * `#`/`;`/`//` comments. No pipe set-code suffix or quantity-less card lines —
+ * Forge/runtime text already goes through
  * [leyline.bridge.bootstrap.DeckLoader]'s own [forge.deck.DeckRecognizer] grammar.
  * Rejects the whole input on any unrecognized line, a malformed quantity, or an
  * empty result.
@@ -89,7 +91,7 @@ fun parseDecklist(text: String): Decklist {
 
         val label = SECTION_LABEL_REGEX.matchEntire(line)
         if (label != null) {
-            section = sectionFor(label.groupValues[1])
+            section = sectionFor(label.groupValues.drop(1).first { it.isNotEmpty() })
             continue
         }
 

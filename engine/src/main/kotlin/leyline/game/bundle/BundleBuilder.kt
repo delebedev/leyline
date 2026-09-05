@@ -1457,7 +1457,7 @@ class BundleBuilder(
                         viewingSeatId = viewer.seatId.value,
                         previousSnapshot = observation.priorProjection.viewerCursors[viewer.seatId]?.previousSnapshot,
                         updateType = updateType(observation.frame.snapshot, observation.frame.events),
-                        revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role == ProjectionViewerRole.Player },
+                        revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role.seesSeatPrivateCards },
                     ),
                     intentForViewer(viewer),
                     role = viewer.role,

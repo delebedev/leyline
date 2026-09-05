@@ -189,7 +189,7 @@ object LifecycleMessageMaterializer {
                             bridge,
                             snapshot,
                             pendingMessageCount = if (shouldPrompt) 1 else 0,
-                            viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
+                            viewingSeatId = seatId.value.takeIf { viewer.role.seesSeatPrivateCards } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
                     seedInitialProtoZones(editor, gsm, snapshot, bridge)
@@ -290,7 +290,7 @@ object LifecycleMessageMaterializer {
                 val deals =
                     viewers.associate { viewer ->
                         val viewingSeatId =
-                            viewer.seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player }
+                            viewer.seatId.value.takeIf { viewer.role.seesSeatPrivateCards }
                                 ?: -1
                         val deal = GsmBuilder.buildDealHand(bridge, dealGameStateId, viewingSeatId, dealSnapshot, deletedIds)
                         advanceViewerCursor(editor, viewer.seatId, dealSnapshot, deal)
