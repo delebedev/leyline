@@ -6,6 +6,7 @@ import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 internal enum class PlaybackCutReason {
+    OpeningHandAction,
     LandPlayed,
     StackObjectCast,
     StackObjectResolved,

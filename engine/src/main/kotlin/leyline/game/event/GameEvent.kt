@@ -80,6 +80,13 @@ enum class DestructionCause { Effect, LethalDamage, Deathtouch }
 enum class DamageSourceKind { Combat, SpellOrAbility, Fight }
 
 sealed interface GameEvent {
+    data class OpeningHandAction(
+        val cardId: ForgeCardId,
+        val seatId: SeatId,
+        val abilityForgeId: Int,
+        val abilityGrpId: Int,
+    ) : GameEvent
+
     /** A land was played from hand to battlefield.
      *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */

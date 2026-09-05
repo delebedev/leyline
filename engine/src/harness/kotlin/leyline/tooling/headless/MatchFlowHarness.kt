@@ -188,8 +188,7 @@ class MatchFlowHarness(
         val runtimeConfigs = runtimeConfigs(puzzle = null)
         localOutput = SinkMatchOutput(effectiveSink)
         localConnection = newConnection(repo, runtimeConfigs, localOutput)
-        val familiarSink = ListMessageSink()
-        familiarConnection = newConnection(repo, runtimeConfigs, SinkMatchOutput(familiarSink))
+        familiarConnection = newConnection(repo, runtimeConfigs, SinkMatchOutput(ListMessageSink()))
 
         authenticateAndConnect(localConnection, seatId.value, "headless-player")
         authenticateAndConnect(checkNotNull(familiarConnection), opponentSeatId.value, "headless-player_Familiar")

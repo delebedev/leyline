@@ -18,9 +18,12 @@ import leyline.domain.DeckCard
 import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -399,6 +402,97 @@ class MatchDoorMulliganFlowTest :
                     session.gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("mulligan timeout still delivers the first action horizon") {
+            val registry = MatchRegistry()
+            val matchId = "mulligan-flow-timeout"
+            val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
+
+            try {
+                greOutbound(local)
+                greOutbound(familiar)
+                val bridge = registry.getMatch(matchId)!!.bridge
+                val deadline = System.nanoTime() + 8_000_000_000L
+                val postTimeout = mutableListOf<GREToClientMessage>()
+                while (System.nanoTime() < deadline && postTimeout.none { it.hasActionsAvailableReq() }) {
+                    postTimeout += greOutbound(local)
+                    bridge.cutCoordinator.deliverySignal.await(100)
+                }
+
+                assertSoftly {
+                    bridge.mulliganBridge(SeatId(1)).pendingPrompt() shouldBe null
+                    postTimeout.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    postTimeout.any { it.hasGameStateMessage() } shouldBe true
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("actual match session preserves opening-hand lifecycle for both seats") {
+            TestCardRegistry.ensureCardRegistered("Leyline Axe")
+            val registry = MatchRegistry()
+            val matchId = "opening-hand-lifecycle-both-seats"
+            val (local, familiar) = connectPair(registry, matchId, deckList = "60 Leyline Axe", drainInitial = false)
+
+            try {
+                greOutbound(local)
+                greOutbound(familiar)
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.AcceptHand,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
+                        ),
+                        6,
+                    ),
+                )
+                val postKeep = greOutbound(local)
+                val openingGameStates =
+                    postKeep.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+                val openingActions =
+                    openingGameStates
+                        .flatMap { message ->
+                            message.annotationsList
+                        }.filter { annotation ->
+                            AnnotationType.UserActionTaken in annotation.typeList &&
+                                annotation.detailInt("actionType") == ActionType.OpeningHandAction.number
+                        }
+                val openingAbilityIds = openingActions.flatMap { it.affectedIdsList }.toSet()
+                val deletedInstanceIds = openingGameStates.flatMap { it.diffDeletedInstanceIdsList }.toSet()
+                val axeGrpId = checkNotNull(TestCardRegistry.repo.findGrpIdByName("Leyline Axe"))
+                val battlefieldIds =
+                    openingGameStates
+                        .flatMap { gsm ->
+                            gsm.zonesList
+                                .filter { it.zoneId == ZoneIds.BATTLEFIELD }
+                                .flatMap { it.objectInstanceIdsList }
+                        }.toSet()
+                val battlefieldAxeIds =
+                    openingGameStates
+                        .flatMap { it.gameObjectsList }
+                        .filter { it.zoneId == ZoneIds.BATTLEFIELD && it.grpId == axeGrpId }
+                        .map { it.instanceId }
+                        .toSet()
+
+                assertSoftly {
+                    openingActions.size shouldBe 14
+                    openingActions.map { it.affectorId }.toSet() shouldBe setOf(1, 2)
+                    openingActions.map { it.detailInt("abilityGrpId") }.toSet() shouldBe setOf(175903)
+                    deletedInstanceIds shouldBe openingAbilityIds
+                    battlefieldAxeIds.size shouldBe 14
+                    battlefieldIds shouldBe battlefieldAxeIds
                 }
             } finally {
                 local.close()

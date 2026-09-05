@@ -67,6 +67,10 @@ class MulliganHandler(
             sendDealHandAndMulligan()
             playerConnection.mulliganHandler.sendDealHandPublic()
             playerConnection.mulliganHandler.sendMulliganReq()
+            // Keep runtime delivery armed while the client is deciding. If the
+            // engine's mulligan timeout auto-keeps first, its opening actions must
+            // still reach the client without waiting for a later request.
+            playerConnection.armRuntimeDeliveryObserver()
         }
     }
 
@@ -85,7 +89,17 @@ class MulliganHandler(
 
         when (decision) {
             MulliganOption.AcceptHand -> {
-                if (!bridge.submitKeep(seatId)) return
+                if (!bridge.submitKeep(seatId)) {
+                    // The engine may have auto-kept after the mulligan timeout while
+                    // the client was still showing the hand. Resume delivery for
+                    // that already-completed startup instead of dropping the stale
+                    // keep response on the floor.
+                    if (bridge.mulliganBridge(seatId).pendingPrompt() == null) {
+                        log.info("Match Door GRE: seat {} keep arrived after auto-keep", seatId.value)
+                        s.onMulliganKeep()
+                    }
+                    return
+                }
                 bridge.awaitPriority()
                 s.onMulliganKeep()
             }

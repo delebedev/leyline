@@ -84,6 +84,7 @@ abstract class SessionTest(
         puzzle: String? = null,
         puzzleFile: String? = null,
         deckList: String? = null,
+        opponentDeckList: String? = null,
         turns: Int = 1,
         seed: Long = 42L,
         validating: Boolean = true,
@@ -98,12 +99,16 @@ abstract class SessionTest(
         require(deckList == null || (puzzle == null && puzzleFile == null)) {
             "session('$name'): deckList applies to a normal game, not a puzzle"
         }
+        require(opponentDeckList == null || (puzzle == null && puzzleFile == null)) {
+            "session('$name'): opponentDeckList applies to a normal game, not a puzzle"
+        }
         val puzzleText = puzzle?.let { puzzleTextFor(it, name, turns) }
         val run: suspend TestScope.() -> Unit = {
             val harness =
                 MatchFlowHarness(
                     seed = seed,
                     deckList = deckList,
+                    opponentDeckList = opponentDeckList,
                     validating = validating,
                     validation = validation,
                 )

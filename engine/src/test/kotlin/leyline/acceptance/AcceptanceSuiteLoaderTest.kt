@@ -142,7 +142,7 @@ class AcceptanceSuiteLoaderTest :
 
         test("reports a missing required key as required, not as a type mismatch") {
             val exception =
-                shouldThrow<IllegalStateException> {
+                shouldThrow<IllegalArgumentException> {
                     AcceptanceSuiteLoader.loadFromText(
                         """
                         name: bad
@@ -153,7 +153,30 @@ class AcceptanceSuiteLoaderTest :
                         """.trimIndent(),
                     )
                 }
-            exception.message shouldBe "scenario[0].puzzle is required"
+            exception.message shouldBe "scenario[0] requires exactly one of puzzle or deck"
+        }
+
+        test("parses a constructed-deck pregame scenario") {
+            val scenario =
+                AcceptanceSuiteLoader
+                    .loadFromText(
+                        """
+                        name: opening-hand
+                        scenarios:
+                          - id: battlefield-put
+                            deck: [60 Leyline Axe]
+                            opponent_deck: [60 Plains]
+                            steps:
+                              - expect: { phase: MAIN1 }
+                        """.trimIndent(),
+                    ).scenarios
+                    .single()
+
+            assertSoftly {
+                scenario.puzzle shouldBe null
+                scenario.deckList shouldBe "60 Leyline Axe"
+                scenario.opponentDeckList shouldBe "60 Plains"
+            }
         }
 
         test("reports a wrong-typed optional key with its full context path") {

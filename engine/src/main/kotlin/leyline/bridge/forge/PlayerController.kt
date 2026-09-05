@@ -1521,6 +1521,9 @@ class PlayerController(
         AbilityUtils.resolve(effectSA)
     }
 
+    override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
+        usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)
+
     override fun chooseModeForAbility(
         sa: SpellAbility,
         possible: MutableList<AbilitySub>,
@@ -1687,3 +1690,9 @@ class PlayerController(
         }
     }
 }
+
+private fun SpellAbility.isOpeningHandBattlefieldPut(): Boolean =
+    api == ApiType.ChangeZone &&
+        hostCard?.zone?.zoneType == ZoneType.Hand &&
+        getParam("Origin") == "Hand" &&
+        getParam("Destination") == "Battlefield"

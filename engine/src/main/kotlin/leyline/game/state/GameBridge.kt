@@ -925,6 +925,7 @@ class GameBridge(
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
 
     companion object {
+        private const val OPENING_HAND_ABILITY_CATEGORY = 9
         private val PT_BOOST_KEYWORDS = listOf(KeywordAbilityIds.PROWESS, KeywordAbilityIds.ENLIST)
 
         /** Fallback grpId for cards not in client DB (renders face-down). */
@@ -1293,6 +1294,17 @@ class GameBridge(
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+    }
+
+    internal fun openingHandAbilityGrpId(cardName: String): Int? {
+        val grpId = cardRepository.findGrpIdByName(cardName) ?: return null
+        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        if (cardData.abilityCategories.size != cardData.abilityIds.size) return null
+        return cardData.abilityIds
+            .zip(cardData.abilityCategories)
+            .singleOrNull { (_, category) -> category == OPENING_HAND_ABILITY_CATEGORY }
+            ?.first
+            ?.first
     }
 
     private fun resolvePromptAbilityIdentity(
