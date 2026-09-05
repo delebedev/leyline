@@ -12,6 +12,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.PromptIds
@@ -78,6 +79,14 @@ internal class BlockingInteractionMaterializer(
                 ?: error("Optional interaction requires a source")
         val link = counter.nextGameStateLink()
         interaction.freeCast?.let { freeCast ->
+            val abilityInstanceId =
+                transition.nextState.identities.forgeIdToInstanceId[
+                    FrameIdResolver.triggerStackAbilityForgeId(freeCast.sourceAbilityForgeId),
+                ]?.value ?: error("Free-cast source ability has no projected identity")
+            val alternativeSourceZcid =
+                transition.nextState.identities.forgeIdToInstanceId[freeCast.alternativeSourceForgeCardId]
+                    ?.value
+                    ?: error("Free-cast alternative source has no projected identity")
             val cast =
                 Action
                     .newBuilder()
@@ -85,19 +94,26 @@ internal class BlockingInteractionMaterializer(
                     .setGrpId(freeCast.cardGrpId)
                     .setInstanceId(sourceId)
                     .setAbilityGrpId(freeCast.abilityGrpId)
-                    .setSourceId(freeCast.sourceInstanceId)
+                    .setSourceId(abilityInstanceId)
                     .setAlternativeGrpId(149)
-                    .setAlternativeSourceZcid(freeCast.alternativeSourceZcid)
+                    .setAlternativeSourceZcid(alternativeSourceZcid)
                     .build()
             val actions = ActionsAvailableReq.newBuilder().addActions(cast).addActions(Action.newBuilder().setActionType(ActionType.Pass))
             if (freeCast.abilityGrpId != KeywordAbilityIds.CASCADE) {
-                addDiscoverInactiveActions(actions, stateMessages, freeCast, sourceId)
+                addDiscoverInactiveActions(
+                    actions,
+                    stateMessages,
+                    abilityInstanceId,
+                    alternativeSourceZcid,
+                    freeCast,
+                    sourceId,
+                )
             }
             val prompt =
                 Prompt
                     .newBuilder()
                     .setPromptId(PromptIds.FREE_CAST_FROM_REVEAL)
-                    .addParameters(cardIdPromptParameter(freeCast.alternativeSourceZcid))
+                    .addParameters(cardIdPromptParameter(alternativeSourceZcid))
             return Prepared(
                 BundleBuilder.BundleResult(
                     stateMessages +
@@ -147,6 +163,8 @@ internal class BlockingInteractionMaterializer(
     private fun addDiscoverInactiveActions(
         actions: ActionsAvailableReq.Builder,
         stateMessages: List<GREToClientMessage>,
+        abilityInstanceId: Int,
+        alternativeSourceZcid: Int,
         freeCast: BlockingInteraction.FreeCast,
         castableCardId: Int,
     ) {
@@ -163,8 +181,8 @@ internal class BlockingInteractionMaterializer(
             .filter { annotation ->
                 AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
                     (
-                        annotation.affectorId == freeCast.sourceInstanceId ||
-                            annotation.affectorId == freeCast.alternativeSourceZcid
+                        annotation.affectorId == abilityInstanceId ||
+                            annotation.affectorId == alternativeSourceZcid
                     ) &&
                     annotation.detailsList.any { detail ->
                         detail.key == DetailKeys.CATEGORY && detail.valueStringList == listOf("Exile")
@@ -180,7 +198,7 @@ internal class BlockingInteractionMaterializer(
                         .setGrpId(card.grpId)
                         .setInstanceId(card.instanceId)
                         .setAbilityGrpId(freeCast.abilityGrpId)
-                        .setSourceId(freeCast.sourceInstanceId),
+                        .setSourceId(abilityInstanceId),
                 )
             }
     }

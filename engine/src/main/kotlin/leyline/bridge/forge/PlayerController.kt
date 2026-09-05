@@ -577,12 +577,8 @@ class PlayerController(
                 BlockingInteraction.FreeCast(
                     cardGrpId = hostCard?.let(bridge::resolveCardGrpId) ?: 0,
                     abilityGrpId = it.castAbilityGrpId,
-                    sourceInstanceId = bridge.resolveTriggerStackAbilityInstanceId(it.sourceAbilityForgeId) ?: 0,
-                    alternativeSourceZcid =
-                        bridge.resolveTriggerStackAbilitySourceInstanceId(it.sourceAbilityForgeId)
-                            ?: game.stack.firstOrNull()?.spellAbility?.hostCard?.let { source ->
-                                bridge.forgeIidResolver?.invoke(ForgeCardId(source.id))?.value
-                            } ?: 0,
+                    sourceAbilityForgeId = it.sourceAbilityForgeId,
+                    alternativeSourceForgeCardId = it.sourceForgeCardId,
                 )
             }
         log.info(
@@ -626,7 +622,14 @@ class PlayerController(
             }
         return card
             ?.takeIf { castAbilityGrpId != 0 }
-            ?.let { PromptSideEffect.CastingPermission(ForgeCardId(it.id), castAbilityGrpId, stackAbility.id) }
+            ?.let {
+                PromptSideEffect.CastingPermission(
+                    ForgeCardId(it.id),
+                    castAbilityGrpId,
+                    stackAbility.id,
+                    ForgeCardId(stackAbility.hostCard.id),
+                )
+            }
     }
 
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =

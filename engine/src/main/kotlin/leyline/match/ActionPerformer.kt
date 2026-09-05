@@ -68,6 +68,13 @@ internal class ActionPerformer(
             if (blocking != null && freeCast != null) {
                 val action = greMsg.performActionResp.actionsList.firstOrNull() ?: return
                 val cardInstanceId = optional.sourceId?.let(bridge::peekInstanceId)?.value ?: return
+                val promptBridge = bridge.promptBridge(counters.seatId)
+                val sourceInstanceId =
+                    promptBridge.resolveTriggerStackAbilityInstanceId(freeCast.sourceAbilityForgeId)
+                        ?: return
+                val alternativeSourceZcid =
+                    bridge.peekInstanceId(freeCast.alternativeSourceForgeCardId)?.value
+                        ?: return
                 val accepted =
                     when (action.actionType) {
                         ActionType.Pass -> false
@@ -75,9 +82,9 @@ internal class ActionPerformer(
                             action.grpId == freeCast.cardGrpId &&
                                 action.instanceId == cardInstanceId &&
                                 action.abilityGrpId == freeCast.abilityGrpId &&
-                                action.sourceId == freeCast.sourceInstanceId &&
+                                action.sourceId == sourceInstanceId &&
                                 action.alternativeGrpId == 149 &&
-                                action.alternativeSourceZcid == freeCast.alternativeSourceZcid
+                                action.alternativeSourceZcid == alternativeSourceZcid
                         else -> return
                     }
                 if (action.actionType == ActionType.Cast && !accepted) return

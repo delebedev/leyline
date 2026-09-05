@@ -16,8 +16,8 @@ sealed interface BlockingInteraction {
     data class FreeCast(
         val cardGrpId: Int,
         val abilityGrpId: Int,
-        val sourceInstanceId: Int,
-        val alternativeSourceZcid: Int,
+        val sourceAbilityForgeId: Int,
+        val alternativeSourceForgeCardId: ForgeCardId,
     )
 
     data class Numeric(
