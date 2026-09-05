@@ -199,7 +199,8 @@ object AnnotationBuilder {
      * Most common shape (and the one used by the alt-cost mechanic family):
      * **CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] both carry the alt-cost ability's grpId.
+     * [castAbilityGrpId] usually both carry the alt-cost ability's grpId. Free casts use the
+     * no-mana-cost identity in [alternateCostGrpId] and the granting ability in [castAbilityGrpId].
      *
      * Persistent while the spell is on the stack; deleted via
      * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
@@ -207,10 +208,9 @@ object AnnotationBuilder {
      * Other [CastingTimeOptionType] values (Kicker, AdditionalCost, ChooseX_a7b4, …) exist but
      * are not exercised by alt-cost mechanics.
      *
-     * [stackInstanceId] = the spell instance currently on the stack (affector AND affected,
-     *   since the annotation is self-attached).
-     * [alternateCostGrpId] = the alt-cost ability grpId.
-     * [castAbilityGrpId] = same as [alternateCostGrpId] for CastThroughAbility.
+     * [stackInstanceId] = the self-attached spell instance on the stack.
+     * [alternateCostGrpId] = the alternate or free-cast cost identity.
+     * [castAbilityGrpId] = the ability granting that cast route.
      */
     fun castingTimeOption(
         stackInstanceId: InstanceId,

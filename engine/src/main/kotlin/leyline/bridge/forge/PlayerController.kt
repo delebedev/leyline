@@ -82,6 +82,7 @@ import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
@@ -578,6 +579,8 @@ class PlayerController(
         if (isParadigmCopyCast(tgtSA)) return super.playSaFromPlayEffect(tgtSA)
 
         val hostCard = tgtSA.hostCard
+        val castingPermission = castingPermission(hostCard)
+        castingPermission?.let(bridge.journal::record)
         log.info(
             "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
             hostCard?.name,
@@ -593,7 +596,33 @@ class PlayerController(
                 defaultOnTimeout = false,
                 logContext = "playSaFromPlayEffect",
             )
-        return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
+        if (!accepted) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            return false
+        }
+        return try {
+            super.playSaFromPlayEffect(tgtSA).also { played ->
+                if (!played) castingPermission?.let(bridge.journal::clearCastingPermission)
+            }
+        } catch (error: Throwable) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            throw error
+        }
+    }
+
+    private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
+        val stackAbility = game.stack.firstOrNull()?.spellAbility ?: return null
+        val rootAbility = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
+        val discoverAbility = generateSequence(rootAbility) { it.subAbility }.firstOrNull { it.api == ApiType.Discover }
+        val castAbilityGrpId =
+            when {
+                rootAbility.hostCard?.hasKeyword("Cascade") == true -> KeywordAbilityIds.CASCADE
+                discoverAbility != null -> bridge.resolveAbilityIdentity(discoverAbility)?.abilityGrpId ?: 0
+                else -> 0
+            }
+        return card
+            ?.takeIf { castAbilityGrpId != 0 }
+            ?.let { PromptSideEffect.CastingPermission(ForgeCardId(it.id), castAbilityGrpId) }
     }
 
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =
