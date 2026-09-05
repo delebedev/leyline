@@ -342,7 +342,7 @@ class GameEventCollector(
                 abilityIdentityFor(realCard, topSa, abilityDefinition, isTrigger)
             } else {
                 null
-            }
+            } ?: pendingTriggerAbilityIdentity(topSa, abilityDefinition, isTrigger)
         val abilityGrpId = abilityIdentity?.abilityGrpId ?: 0
         val paradigmSourceCardId =
             realCard
@@ -426,7 +426,6 @@ class GameEventCollector(
                 isMdfc = isMdfc,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
-                evokePaid = saAltCost == AlternativeCost.Evoke,
                 stackInstanceId = paradigmCopyStackIid,
                 sourceInstanceIdAtCast = if (isAbility) bridge.peekInstanceId(cardId) else null,
                 isAbility = isAbility,
@@ -1198,6 +1197,17 @@ class GameEventCollector(
                 triggerDescription.startsWith("Opus —") ||
                 triggerDescription.startsWith("Void —")
         }
+    }
+
+    private fun pendingTriggerAbilityIdentity(
+        ability: SpellAbility?,
+        definition: AbilityDefinitionRef?,
+        isTrigger: Boolean,
+    ): ResolvedAbilityIdentity? {
+        if (!isTrigger || ability == null || definition == null) return null
+        val triggerId = ability.trigger?.id ?: return null
+        val abilityGrpId = bridge.pendingTriggerCleanupAbilityGrpId(triggerId) ?: return null
+        return ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
     override fun visit(ev: GameEventPlayerPoisoned) {

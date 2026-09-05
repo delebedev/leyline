@@ -31,7 +31,12 @@ internal object PendingTriggerCapture {
         val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
         val sourceForgeCardId = ForgeCardId(sourceCard.id)
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
-        val policy = PendingTriggerVisualPolicy.forSourceCard(sourceGrpId) ?: return null
+        val policy =
+            if (spawningAbility.isWarp) {
+                PendingTriggerVisualPolicy.warp
+            } else {
+                PendingTriggerVisualPolicy.forSourceCard(sourceGrpId)
+            } ?: return null
         val sourceAbilityGrpId =
             bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
                 bridge.resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
@@ -51,10 +56,12 @@ internal object PendingTriggerCapture {
             owner = owner,
             sourceForgeCardId = sourceForgeCardId,
             parentInstanceId = sourceParentInstanceId(sourceForgeCardId, bridge),
-            sourceAbilityGrpId = sourceAbilityGrpId,
+            holderObjectSourceGrpId = if (policy.holderUsesSourceCardGrpId) sourceGrpId else sourceAbilityGrpId,
             cleanupAbilityGrpId = policy.cleanupAbilityGrpId,
             affectedCardIds = affectedCardIds,
             displaysAffectedCards = policy.displaysAffectedCards,
+            removesFromZone = policy.removesFromZone,
+            emitsTemporaryPermanent = policy.emitsTemporaryPermanent,
         )
     }
 
@@ -99,7 +106,7 @@ internal object PendingTriggerCapture {
                 owner = bridge.seatOf(source.controller) ?: SeatId(1),
                 sourceForgeCardId = sourceForgeCardId,
                 parentInstanceId = parentInstanceId,
-                sourceAbilityGrpId = sourceGrpId,
+                holderObjectSourceGrpId = sourceGrpId,
                 cleanupAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
             )
         }

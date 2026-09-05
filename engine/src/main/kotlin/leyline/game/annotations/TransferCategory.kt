@@ -28,6 +28,7 @@ enum class TransferCategory(
     Put("Put"),
     Surveil("Surveil"),
     Foretell("Foretell"),
+    Warp("Warp"),
     SbaDamage("SBA_Damage"),
     SbaDeathtouch("SBA_Deathtouch"),
     SbaLegendRule("SBA_LegendRule"),

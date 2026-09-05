@@ -1,9 +1,11 @@
 package leyline.game.annotations
 
 import leyline.bridge.types.ForgeCardId
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
+import leyline.game.event.ZoneMoveCause
 import leyline.game.mapping.ZoneIds
 
 enum class TransferPlanOrigin {
@@ -56,7 +58,16 @@ object ZoneMoveLedger {
     ): TransferCategory {
         val cardId = move.cardId
         val cast = events.filterIsInstance<GameEvent.SpellCast>().firstOrNull { it.cardId == cardId }
-        val resolved = events.filterIsInstance<GameEvent.SpellResolved>().firstOrNull { it.cardId == cardId }
+        val resolutions = events.filterIsInstance<GameEvent.SpellResolved>()
+        val resolved = resolutions.firstOrNull { it.cardId == cardId }
+        val warpResolution =
+            move.cause?.let { cause ->
+                resolutions.any {
+                    it.isTrigger &&
+                        it.abilityGrpId == KeywordAbilityIds.WARP_DELAYED_TRIGGER &&
+                        it.matches(cause)
+                }
+            } == true
         val destruction =
             events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == cardId }?.destruction
         return when {
@@ -68,6 +79,9 @@ object ZoneMoveLedger {
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
             move.to == Zone.Stack && cast?.isAbility != true -> TransferCategory.CastSpell
             move.from == Zone.Stack && resolved?.hasFizzled == true -> TransferCategory.Countered
+            move.from == Zone.Battlefield &&
+                move.to == Zone.Exile &&
+                warpResolution -> TransferCategory.Warp
             move.to == Zone.Exile -> TransferCategory.Exile
             move.from == Zone.Stack && resolved != null -> TransferCategory.Resolve
             events.any { it is GameEvent.LegendRuleDeath && it.cardId == cardId } &&
@@ -99,6 +113,12 @@ object ZoneMoveLedger {
             move.cause?.api == "ChangeZone" && move.from == Zone.Library && move.to == Zone.Hand -> TransferCategory.Put
             else -> TransferCategoryResolver.categoryFromZonePair(move.from, move.to)
         }
+    }
+
+    private fun GameEvent.SpellResolved.matches(cause: ZoneMoveCause): Boolean {
+        val resolutionIds = setOf(abilityForgeId, rootAbilityForgeId, stackAbilityForgeId) - 0
+        val causeIds = setOf(cause.abilityForgeId, cause.rootAbilityForgeId, cause.stackAbilityForgeId) - 0
+        return resolutionIds.any(causeIds::contains)
     }
 
     @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Only source-bearing operation events participate.

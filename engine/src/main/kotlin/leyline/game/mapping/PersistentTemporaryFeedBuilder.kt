@@ -103,7 +103,7 @@ internal object PersistentTemporaryFeedBuilder {
                 HolderRecord(
                     iid = frameIds.cardIid(pending.holderForgeId).value,
                     ownerSeat = pending.owner.value,
-                    objectSourceGrpId = pending.sourceAbilityGrpId,
+                    objectSourceGrpId = pending.holderObjectSourceGrpId,
                     parentIid = pending.parentInstanceId,
                     cleanupGrpId = pending.cleanupAbilityGrpId,
                     sourceForgeCardId = pending.sourceForgeCardId,
@@ -116,11 +116,11 @@ internal object PersistentTemporaryFeedBuilder {
                     triggerHolderId = frameIds.cardIid(pending.holderForgeId),
                     tokenInstanceIds = pending.affectedCardIds.map(frameIds::cardIid),
                     abilityGrpId = GrpId(pending.cleanupAbilityGrpId),
-                    removesFromZone = null,
+                    removesFromZone = pending.removesFromZone,
                 )
             }
         val temporary =
-            snap.pendingTriggers.flatMap { pending ->
+            snap.pendingTriggers.filter { it.emitsTemporaryPermanent }.flatMap { pending ->
                 val holderIid = frameIds.cardIid(pending.holderForgeId)
                 pending.affectedCardIds.map { affected ->
                     AnnotationBuilder.temporaryPermanent(

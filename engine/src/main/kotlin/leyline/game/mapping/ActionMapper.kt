@@ -610,7 +610,15 @@ object ActionMapper {
         }
 
         // --- Zone casts (graveyard, exile, command) ---
-        addZoneCastActionsFromSnap(seatId, snap, builder, bridge, candidates, ::addOffer)
+        addZoneCastActionsFromSnap(
+            seatId,
+            snap,
+            builder,
+            bridge,
+            candidates,
+            ::addOffer,
+            { player, cost -> autoTapForCost(player, cost) },
+        )
 
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
         addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, ::bindOffer)
@@ -702,6 +710,7 @@ object ActionMapper {
         bridge: GameBridge,
         candidates: PriorityActionCandidates?,
         addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
+        autoTapSolution: (Player, ManaCost) -> AutoTapSolution?,
     ) {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return
         for ((zoneId, rails) in zoneRailBuckets) {
@@ -756,6 +765,8 @@ object ActionMapper {
                 } else {
                     configureZoneCastFallback(actionBuilder, sa, bound, player)
                 }
+                zoneCastAutoTapSolution(executable, sa, player, autoTapSolution)
+                    ?.let(actionBuilder::setAutoTapSolution)
                 if (executable) {
                     val abilityIndex = castable.indexOfFirst { it === sa }
                     check(abilityIndex >= 0) { "Zone cast ability is absent from its candidate set" }
@@ -770,6 +781,18 @@ object ActionMapper {
                 }
             }
         }
+    }
+
+    private fun zoneCastAutoTapSolution(
+        executable: Boolean,
+        ability: SpellAbility,
+        player: Player,
+        build: (Player, ManaCost) -> AutoTapSolution?,
+    ): AutoTapSolution? {
+        if (!executable) return null
+        val cost = CastDisplayCost.of(ability, player) ?: return null
+        if (cost.isNoCost) return null
+        return build(player, cost)
     }
 
     /** Per-source-zone rail buckets for [addZoneCastActionsFromSnap]. Empty

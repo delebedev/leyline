@@ -230,7 +230,8 @@ object KeywordAbilityIds {
     const val RECONFIGURE = 237
     const val AIRBEND = 8100006
 
-    // Triggered ability row used by the recurring Paradigm copy trigger.
+    // Triggered ability rows used by delayed keyword effects.
+    const val WARP_DELAYED_TRIGGER = 372
     const val PARADIGM_DELAYED_TRIGGER = 205572
 
     // Single-row shared keyword ability ids (BaseId=0, every card references the same Id).
