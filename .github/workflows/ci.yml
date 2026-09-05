@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/hosted-runner-trial]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -27,7 +28,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            if (context.eventName === 'push' && context.ref === 'refs/heads/codex/hosted-runner-trial') {
+            if (context.eventName === 'workflow_dispatch') {
               core.setOutput('run-heavy', 'true')
               return
             }
