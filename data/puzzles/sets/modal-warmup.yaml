@@ -12,6 +12,9 @@ scenarios:
       - pass_until:
           prompt: CastingTimeOptionsReq
       - modal_choice: { index: 2, count: 3 }
+      - pass_until:
+          prompt: SelectTargetsReq
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
       - expect:
           all:
             - annotation_seen: DisplayCardUnderCard

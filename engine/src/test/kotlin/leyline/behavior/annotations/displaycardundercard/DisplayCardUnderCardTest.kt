@@ -71,8 +71,9 @@ class DisplayCardUnderCardTest :
             val phase1 =
                 after {
                     castSpellByName("Banishing Light").shouldBeTrue()
-
-                    // The only legal target is selected by the engine.
+                    val targetIid = ai.battlefield.iid("Grizzly Bears")
+                    passUntil(maxPasses = 10) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                    selectTargets(listOf(targetIid))
                     passUntil(maxPasses = 10) {
                         ai.getZone(ZoneType.Battlefield).cards.none { it.name == "Grizzly Bears" }
                     }.shouldBeTrue()

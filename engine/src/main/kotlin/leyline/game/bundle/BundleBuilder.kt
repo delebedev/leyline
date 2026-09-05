@@ -1620,7 +1620,16 @@ class BundleBuilder(
         window: DistributionWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
-        val frame = prepareViewerPromptProjection(game, counter, routes)
+        val intent =
+            ViewerProjectionIntent.of(
+                supplements =
+                    listOfNotNull(
+                        window.sourceForgeAbilityId
+                            .takeIf { !window.sourceIsSpell && it != 0 }
+                            ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+                    ),
+            )
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
         return finishSettledPrompt(
             frame,
             counter,
@@ -1882,10 +1891,29 @@ class BundleBuilder(
         window: TargetingWindowValue,
         transientSourceCard: BoundCard?,
     ): List<ProjectionSupplement> {
-        val abilityId = window.forgeAbilityId.takeIf { window.isTriggeredAbility && it != 0 }
+        val abilityId = window.forgeAbilityId.takeIf { (window.isTriggeredAbility || window.isActivatedAbility) && it != 0 }
         val sourceId = window.sourceForgeCardId
         return buildList {
             transientSourceCard?.let { add(ProjectionSupplement.PreStackSpell(it)) }
+            if ((window.isTriggeredAbility || window.isActivatedAbility) &&
+                abilityId != null &&
+                sourceId != null &&
+                transientSourceCard != null
+            ) {
+                val source = transientSourceCard.snapshot
+                add(
+                    ProjectionSupplement.PreStackAbility(
+                        forgeAbilityId = abilityId,
+                        sourceForgeCardId = sourceId,
+                        abilityGrpId = window.stackAbilityGrpId,
+                        sourceCardGrpId = source.grpId,
+                        ownerSeatId = source.owner,
+                        controllerSeatId = source.controller,
+                        targetForgeCardIds = emptyList(),
+                        isActivatedAbility = window.isActivatedAbility,
+                    ),
+                )
+            }
             when {
                 sourceId != null ->
                     add(

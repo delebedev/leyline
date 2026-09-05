@@ -275,15 +275,12 @@ class LocalStackMicrostepTest :
         ) {
             enableStackAutoResolve()
 
+            val activationSnap = messageSnapshot()
             activateAbility("Goblin Fireslinger").shouldBe(true)
             passUntil(maxPasses = 5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBe(true)
 
-            val submitSnap = messageSnapshot()
-            selectTargets(listOf(OPPONENT_SEAT))
-            passUntil(maxPasses = 10) { ai.life < 5 }
-            val gsms = gameStateMessagesSince(submitSnap)
             val abilityEnter =
-                gsms.firstOrNull { gsm ->
+                gameStateMessagesSince(activationSnap).firstOrNull { gsm ->
                     gsm.annotationsList.any { AnnotationType.AbilityInstanceCreated in it.typeList }
                 }
             val abilityIid =
@@ -292,6 +289,11 @@ class LocalStackMicrostepTest :
                     .annotation(AnnotationType.AbilityInstanceCreated)
                     .affectedIdsList
                     .first()
+
+            val submitSnap = messageSnapshot()
+            selectTargets(listOf(OPPONENT_SEAT))
+            passUntil(maxPasses = 10) { ai.life < 5 }
+            val gsms = gameStateMessagesSince(submitSnap)
             val resolveGsm =
                 gsms.firstOrNull { gsm ->
                     gsm.annotationsList.any {
