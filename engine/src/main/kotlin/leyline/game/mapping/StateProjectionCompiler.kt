@@ -46,6 +46,7 @@ object StateProjectionCompiler {
         val input: StateFrameInput,
         val intent: ViewerProjectionIntent = ViewerProjectionIntent.EMPTY,
         val actions: ActionsAvailableReq? = null,
+        val decisionPending: Boolean = actions != null,
         val role: ProjectionViewerRole = ProjectionViewerRole.Player,
     )
 
@@ -202,7 +203,7 @@ object StateProjectionCompiler {
                 finalizedAnnotations
             }
         val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
-        val rendered =
+        val projected =
             StateMapper.renderViewerDraft(
                 shared,
                 stagedInput,
@@ -212,6 +213,18 @@ object StateProjectionCompiler {
                 viewer.actions,
                 includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
             )
+        val rendered =
+            if (viewer.decisionPending) {
+                projected
+            } else {
+                projected.copy(
+                    gsm =
+                        projected.gsm
+                            .toBuilder()
+                            .setPendingMessageCount(0)
+                            .build(),
+                )
+            }
 
         fun applyViewerOverlays(
             gsm: GameStateMessage,
