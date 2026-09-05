@@ -18,6 +18,7 @@ import leyline.domain.DeckCard
 import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -430,19 +431,38 @@ class MatchDoorMulliganFlowTest :
                         6,
                     ),
                 )
+                val postKeep = greOutbound(local)
+                val openingGameStates =
+                    postKeep.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
                 val openingActions =
-                    greOutbound(local)
+                    openingGameStates
                         .flatMap { message ->
-                            if (message.hasGameStateMessage()) message.gameStateMessage.annotationsList else emptyList()
+                            message.annotationsList
                         }.filter { annotation ->
                             AnnotationType.UserActionTaken in annotation.typeList &&
                                 annotation.detailInt("actionType") == ActionType.OpeningHandAction.number
                         }
+                val axeGrpId = checkNotNull(TestCardRegistry.repo.findGrpIdByName("Leyline Axe"))
+                val battlefieldIds =
+                    openingGameStates
+                        .flatMap { gsm ->
+                            gsm.zonesList
+                                .filter { it.zoneId == ZoneIds.BATTLEFIELD }
+                                .flatMap { it.objectInstanceIdsList }
+                        }.toSet()
+                val battlefieldAxeIds =
+                    openingGameStates
+                        .flatMap { it.gameObjectsList }
+                        .filter { it.zoneId == ZoneIds.BATTLEFIELD && it.grpId == axeGrpId }
+                        .map { it.instanceId }
+                        .toSet()
 
                 assertSoftly {
                     openingActions.size shouldBe 14
                     openingActions.map { it.affectorId }.toSet() shouldBe setOf(1, 2)
                     openingActions.map { it.detailInt("abilityGrpId") }.toSet() shouldBe setOf(175903)
+                    battlefieldAxeIds.size shouldBe 14
+                    battlefieldIds shouldBe battlefieldAxeIds
                 }
             } finally {
                 local.close()
