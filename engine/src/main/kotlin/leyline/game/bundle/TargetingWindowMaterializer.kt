@@ -128,9 +128,14 @@ internal class TargetingWindowMaterializer(
         legalOptionIndices: Set<Int>,
     ): SelectTargetsReq {
         val sourceInstanceId =
-            window.sourceForgeCardId
+            window.forgeAbilityId
+                .takeIf { (window.isTriggeredAbility || window.isActivatedAbility) && it != 0 }
+                ?.let(FrameIdResolver::triggerStackAbilityForgeId)
                 ?.let(projection.identities.forgeIdToInstanceId::get)
                 ?.value
+                ?: window.sourceForgeCardId
+                    ?.let(projection.identities.forgeIdToInstanceId::get)
+                    ?.value
                 ?: 0
         val selection =
             TargetSelection

@@ -4,11 +4,13 @@ import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.codes.DetailKeys
+import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
@@ -64,6 +66,68 @@ internal class BlockingInteractionMaterializer(
             )
         }
     }
+
+    fun etbPayLifeOptional(
+        prior: ProjectionState,
+        counter: LogicalSequencePlanner,
+        interaction: BlockingInteraction.Optional,
+        sourceForgeId: ForgeCardId,
+        cardData: CardData,
+        abilityGrpId: Int,
+        cardProto: CardProtoBuilder,
+    ): Prepared =
+        edit(prior) { editor ->
+            val oldId = editor.identities.getOrAlloc(sourceForgeId)
+            val newId = editor.identities.reserve()
+            val replacementId = leyline.bridge.types.EffectId(editor.effects.effects.nextEffectId())
+            val persistentId = editor.persistentAnnotations.nextPersistentId
+            val replacement =
+                AnnotationBuilder
+                    .replacementEffect(replacementId, newId, GrpId(abilityGrpId), oldId)
+                    .toBuilder()
+                    .setId(persistentId)
+                    .build()
+            editor.persistentAnnotations =
+                editor.persistentAnnotations.copy(
+                    activeAnnotations = editor.persistentAnnotations.activeAnnotations + (persistentId to replacement),
+                    nextPersistentId = persistentId + 1,
+                )
+            val link = counter.nextGameStateLink()
+            val pending =
+                pendingMessage(link)
+                    .toBuilder()
+                    .setUpdate(GameStateUpdate.Send)
+                    .addGameObjects(
+                        cardProto
+                            .buildObjectInfo(cardData.grpId)
+                            .setInstanceId(newId.value)
+                            .setType(GameObjectType.Card)
+                            .setVisibility(Visibility.Public)
+                            .setOwnerSeatId(seatId)
+                            .setControllerSeatId(seatId),
+                    ).addPersistentAnnotations(replacement)
+                    .build()
+            val optional = OptionalActionMessage.newBuilder().setSourceId(replacementId.value).build()
+            val prompt =
+                Prompt
+                    .newBuilder()
+                    .setPromptId(checkNotNull(interaction.customPromptId))
+                    .addParameters(cardIdPromptParameter(newId.value))
+                    .build()
+            BundleBuilder.BundleResult(
+                listOf(
+                    makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.gameStateMessage = pending
+                    },
+                    makeGRE(GREMessageType.OptionalActionMessage_695e, link.gsId, counter.nextMsgId()) {
+                        it.optionalActionMessage = optional
+                        it.prompt = prompt
+                        it.allowCancel = AllowCancel.No_a526
+                    },
+                ),
+                actionGameStateId = link.gsId,
+            )
+        }
 
     fun snapshotOptional(
         stateMessages: List<GREToClientMessage>,

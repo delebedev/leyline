@@ -965,6 +965,10 @@ scenarios:
       - expect:
           action: { type: cast, card: Brutal Cathar }
       - cast: Brutal Cathar
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: opponent, zone: battlefield, card: Llanowar Elves }
       - resolve_stack: {}
       - pass_until:
           zone_contains: { side: ours, zone: battlefield, card: Moonrage Brute }

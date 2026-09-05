@@ -5,6 +5,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
@@ -31,6 +32,7 @@ import leyline.game.state.QualificationKind
 import leyline.game.state.SaddledThisTurnKind
 import leyline.game.state.TargetSpecFact
 import leyline.game.state.TargetSpecKind
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -378,6 +380,7 @@ object AnnotationPipeline {
         return true
     }
 
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun insertResolutionEventAnnotations(
         ctx: AnnotationContext,
         annotations: MutableList<AnnotationInfo>,
@@ -414,6 +417,23 @@ object AnnotationPipeline {
                     val coverage = consumeDamageOwnedLifeDelta(event, unclaimedDamageBySeat)
                     val delta = coverage.uncoveredDelta
                     if (delta == 0) return@forEachIndexed
+                    val replacement = etbLifePaymentReplacement(ctx)
+                    if (coverage.coveredLoss == 0 && replacement != null) {
+                        val (row, transfer) = replacement
+                        val payment =
+                            listOf(
+                                AnnotationBuilder.syntheticEvent(InstanceId(row.affectorId), event.seatId),
+                                AnnotationBuilder.modifiedLife(event.seatId, delta, InstanceId(row.affectorId)),
+                            )
+                        val playIndex =
+                            annotations.indexOfFirst { annotation ->
+                                AnnotationType.UserActionTaken in annotation.typeList &&
+                                    transfer.newId in annotation.affectedIdsList &&
+                                    annotation.detailInt(DetailKeys.ACTION_TYPE) == ActionType.Play_add3.number
+                            }
+                        if (playIndex >= 0) annotations.addAll(playIndex, payment) else unmatched.addAll(payment)
+                        return@forEachIndexed
+                    }
                     val resolved = nextResolvedAbility(events, index)
                     val affector =
                         resolved?.let { ctx.stackAbilityIid(it.abilityForgeId, it.cardId) }
@@ -446,6 +466,17 @@ object AnnotationPipeline {
         annotations.clear()
         annotations.addAll(ordered)
         return damageResiduals
+    }
+
+    private fun etbLifePaymentReplacement(ctx: AnnotationContext): Pair<AnnotationInfo, AppliedTransfer>? {
+        val transfer = ctx.transferResult?.transfers?.singleOrNull { it.category == TransferCategory.PlayLand } ?: return null
+        val row =
+            ctx.editor.persistentAnnotations.activeAnnotations.values.singleOrNull { annotation ->
+                annotation.typeList.any { it.number == 62 } &&
+                    transfer.newId in annotation.affectedIdsList &&
+                    annotation.detailInt(DetailKeys.REPLACEMENT_SOURCE_ZCID) == transfer.origId
+            } ?: return null
+        return row to transfer
     }
 
     private fun nextResolvedAbility(

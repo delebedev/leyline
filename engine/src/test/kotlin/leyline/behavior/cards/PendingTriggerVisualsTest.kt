@@ -110,6 +110,15 @@ class PendingTriggerVisualsTest :
                         }
                 }
             }.shouldBeTrue()
+            val promptGsm =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .last { gsm -> gsm.annotationsList.any { AnnotationType.PlayerSelectingTargets in it.typeList } }
+            val selecting = promptGsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
+            promptGsm.annotationsList
+                .single { AnnotationType.AbilityInstanceCreated in it.typeList }
+                .affectedIdsList shouldContain selecting.affectedIdsList.single()
             selectTargets(listOf(targetIid))
             passUntil(maxPasses = 10) { holderFor(ennis) != null }.shouldBeTrue()
             val affectedIid =
@@ -145,10 +154,15 @@ class PendingTriggerVisualsTest :
         ) {
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(OPPONENT_SEAT))
-            passUntil(maxPasses = 10) {
-                allMessages.any { it.hasSelectTargetsReq() && it.selectTargetsReq.abilityGrpId == wiccan.sourceAbilityGrpId }
-            }.shouldBeTrue()
             val targetIid = human.battlefield.iid("Grizzly Bears")
+            passUntil(maxPasses = 10) {
+                allMessages.any { message ->
+                    message.hasSelectTargetsReq() &&
+                        message.selectTargetsReq.targetsList.any { target ->
+                            target.targetsList.any { it.targetInstanceId == targetIid }
+                        }
+                }
+            }.shouldBeTrue()
             selectTargets(listOf(targetIid))
             passUntil(maxPasses = 10) { holderFor(wiccan) != null }.shouldBeTrue()
             val affectedIid =
