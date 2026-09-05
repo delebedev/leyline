@@ -1576,7 +1576,16 @@ class BundleBuilder(
         window: DistributionWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
-        val frame = prepareViewerPromptProjection(game, counter, routes)
+        val intent =
+            ViewerProjectionIntent.of(
+                supplements =
+                    listOfNotNull(
+                        window.sourceForgeAbilityId
+                            .takeIf { !window.sourceIsSpell && it != 0 }
+                            ?.let { ProjectionSupplement.ReserveTriggeredAbility(it) },
+                    ),
+            )
+        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
         return finishSettledPrompt(
             frame,
             counter,

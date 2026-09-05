@@ -400,7 +400,8 @@ object StateProjectionCompiler {
     ): StateFrameInput {
         val abilities = supplements.filterIsInstance<ProjectionSupplement.PreStackAbility>()
         val spells = supplements.filterIsInstance<ProjectionSupplement.PreStackSpell>()
-        if (abilities.isEmpty() && spells.isEmpty()) return input
+        val reservations = supplements.filterIsInstance<ProjectionSupplement.ReserveTriggeredAbility>()
+        if (abilities.isEmpty() && spells.isEmpty() && reservations.isEmpty()) return input
 
         var stack = input.snapshot.stack
         var zones = input.snapshot.zones
@@ -463,6 +464,14 @@ object StateProjectionCompiler {
                             forgeAbilityId = ability.forgeAbilityId,
                         ),
                 )
+        }
+        for (reservation in reservations) {
+            if (stack.entries.any { it.forgeAbilityId == reservation.forgeAbilityId }) continue
+            input.previousSnapshot
+                ?.stack
+                ?.entries
+                ?.singleOrNull { it.forgeAbilityId == reservation.forgeAbilityId }
+                ?.let { stack = StackSnapshot(stack.entries + it) }
         }
         return input.copy(snapshot = copySnapshot(input.snapshot, zones = zones, boundCards = boundCards, stack = stack))
     }
