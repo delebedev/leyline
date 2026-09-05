@@ -210,7 +210,7 @@ object StateProjectionCompiler {
                 prior,
                 editor,
                 viewer.actions,
-                includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
+                includePrivateObjects = viewer.role.seesSeatPrivateCards,
             )
 
         fun applyViewerOverlays(
@@ -266,7 +266,7 @@ object StateProjectionCompiler {
                     shared,
                     viewer.input.viewingSeatId,
                     viewer.actions,
-                    includePrivateObjects = viewer.role == ProjectionViewerRole.Player,
+                    includePrivateObjects = viewer.role.seesSeatPrivateCards,
                 ),
                 rendered.projectionSnapshot,
             ).gsm
