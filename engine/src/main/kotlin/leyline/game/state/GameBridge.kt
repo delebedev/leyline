@@ -1749,6 +1749,7 @@ class GameBridge(
      * Called by [leyline.match.Match.close] for deterministic lifecycle management.
      * Idempotent — safe to call before [shutdown].
      */
+    @Synchronized
     fun teardownResources() {
         val loop = loopController
         loop?.beginShutdown()
@@ -1761,9 +1762,9 @@ class GameBridge(
             g.phaseHandler.setAttackersDeclaredCompletionHook(null)
             g.phaseHandler.setBlockersDeclaredCompletionHook(null)
             g.phaseHandler.setCombatEndedCompletionHook(null)
-            eventCollector?.let { g.unsubscribeFromEvents(it) }
+            eventCollector?.let { unsubscribeFromEventsIfPresent(g, it) }
             for (pb in playbackRegistry.values()) {
-                g.unsubscribeFromEvents(pb)
+                unsubscribeFromEventsIfPresent(g, pb)
             }
         }
         loop?.shutdown()
@@ -1771,6 +1772,17 @@ class GameBridge(
         playbackRegistry.clear()
         cutCoordinator.unregisterViewers()
         eventCollector = null
+    }
+
+    private fun unsubscribeFromEventsIfPresent(
+        game: Game,
+        subscriber: Any,
+    ) {
+        try {
+            game.unsubscribeFromEvents(subscriber)
+        } catch (_: IllegalArgumentException) {
+            log.debug("Event subscriber was already absent during teardown: {}", subscriber.javaClass.simpleName)
+        }
     }
 
     /**

@@ -65,9 +65,10 @@ class SnapshotPromptDriverTest :
                 snapshot.loserSeat shouldBe 2
                 snapshot.cleanupConcede shouldBe false
                 withClue(snapshot.promptProgressSamples) {
-                    snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:cast" } shouldBe true
-                    snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:target" } shouldBe true
+                    snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:perform:Cast" } shouldBe true
+                    snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:select-targets" } shouldBe true
                 }
+                snapshot.snapshotDecisionSources["ForgeAi"] shouldBe 2
             }
         }
 
@@ -79,12 +80,12 @@ class SnapshotPromptDriverTest :
                 baseline.finalLifeBySeat["1"] shouldBe 3
                 baseline.promptProgressSamples.any { it.decisionKind == "declare-blockers" } shouldBe true
                 snapshot.finalLifeBySeat["1"] shouldBe 3
-                snapshot.actionAttemptsByType["snapshot:block"] shouldBe 1
-                snapshot.actionAttemptsByType["snapshot:submit_blockers"] shouldBe 1
+                snapshot.actionAttemptsByType["snapshot:declare-blockers"] shouldBe 1
+                snapshot.snapshotDecisionSources["ForgeAi"] shouldBe 1
             }
         }
 
-        test("forge-ai policy and snapshot consult preserve an Omen cast offer through the generic matcher") {
+        test("snapshot host fallback preserves an Omen cast offer through the generic matcher") {
             val baseline = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("omen-signaling-roar-lethal.pzl", SimClientPolicyMode.Snapshot)
 
@@ -93,7 +94,8 @@ class SnapshotPromptDriverTest :
                 baseline.promptProgressSamples.any { it.decisionKind == "perform:CastOmen" } shouldBe true
 
                 snapshot.winnerSeat shouldBe 1
-                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:cast_omen" } shouldBe true
+                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot-fallback:perform:CastOmen" } shouldBe true
+                snapshot.advisorUnavailableByReason["NoForgeChoice"] shouldBe 1
             }
         }
 
@@ -106,10 +108,9 @@ class SnapshotPromptDriverTest :
                 baseline.promptProgressSamples.single { it.decisionKind == "declare-blockers" }.targetIds shouldBe listOf(100)
 
                 snapshot.winnerSeat shouldBe 1
-                snapshot.actionAttemptsByType["snapshot:block"] shouldBe 1
-                snapshot.actionAttemptsByType["snapshot:submit_blockers"] shouldBe 1
+                snapshot.actionAttemptsByType["snapshot:declare-blockers"] shouldBe 1
                 snapshot.actionAttemptsByType["snapshot:unblock"] shouldBe null
-                snapshot.promptProgressSamples.single { it.decisionKind == "snapshot:block" }.targetIds shouldBe listOf(100)
+                snapshot.promptProgressSamples.single { it.decisionKind == "snapshot:declare-blockers" }.targetIds shouldBe listOf(100)
             }
         }
 
@@ -125,8 +126,9 @@ class SnapshotPromptDriverTest :
 
                 snapshot.winnerSeat shouldBe 1
                 snapshot.cleanupConcede shouldBe false
-                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:cast" } shouldBe true
-                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:target" } shouldBe true
+                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot-fallback:perform:Cast" } shouldBe true
+                snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:select-targets" } shouldBe true
+                snapshot.advisorUnavailableByReason["NoForgeChoice"] shouldBe 3
             }
         }
     })

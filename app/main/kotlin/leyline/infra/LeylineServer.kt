@@ -28,7 +28,9 @@ import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
 import leyline.domain.service.GeneratedPool
+import leyline.domain.service.MatchCoordinator
 import leyline.domain.service.MatchmakingService
+import leyline.domain.service.RepositoryMatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.PuzzleLibrary
@@ -49,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Client-compatible TLS TCP server — local mode only.
  *
  * Cross-BC state (deck/event selection, deck resolution, match results) flows through
- * [AppMatchCoordinator] — both doors receive the same instance.
+ * [RepositoryMatchCoordinator] — both doors receive the same instance.
  *
  * Both doors share the same 6-byte header framing (see [ClientFrameDecoder]).
  */
@@ -220,7 +222,7 @@ class LeylineServer(
         val bootstrapData = FrontDoorBootstrapData.loadFromClasspath()
 
         val coordinator =
-            AppMatchCoordinator(
+            RepositoryMatchCoordinator(
                 playerId = pid,
                 decks = store,
                 courseService = courseService,
@@ -270,7 +272,7 @@ class LeylineServer(
 
     private fun bindMatchDoor(
         mdSsl: SslContext,
-        coordinator: AppMatchCoordinator,
+        coordinator: MatchCoordinator,
     ): Channel {
         val ch =
             NativeMatchDoorBootstrap.bind(

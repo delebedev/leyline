@@ -3,15 +3,14 @@
 Open-source local playtesting server built around a client protocol bridge and
 the [Forge](https://github.com/Card-Forge/forge) rules engine.
 
-Leyline exposes two heads over one match engine: a native-client-compatible
-head and a browser-facing web head.
+Leyline exposes a native-client-compatible head and a transport-neutral match
+runtime for in-process embedding.
 
 ```mermaid
 flowchart LR
     NC["Native client"] --> N["Native head"]
-    B["Browser"] --> W["Web head"]
     N --> E["Leyline engine"]
-    W --> E
+    H["Embedding host"] --> E
     E --> F["Forge rules engine"]
 ```
 
@@ -29,7 +28,6 @@ domain/      Shared domain model, services, and repository ports
 engine/      Forge adapter, match runtime, and state projection
 proto/       Generated GRE schema (submodule + rename map → protoc)
 native/      Native account, lobby, and match transports
-web/         Browser HTTP and WebSocket head
 forge/       Forge submodule
 ```
 

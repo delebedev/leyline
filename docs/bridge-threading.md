@@ -17,7 +17,7 @@ type system does not express. System shape lives in
 | Domain | Runs | Coordination |
 |---|---|---|
 | Engine thread | Forge loop, callbacks, event dispatch, safe-point cut commits | Sole owner of the live Forge graph |
-| Interactive entrants | Native/web/in-process input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
+| Interactive entrants | Native and in-process host input and tests | `ConnectionState.sessionLock` serializes `MatchSession` entry |
 | Runtime delivery observer | One per live human `MatchConnection` | Waits for coordinator feed notifications, then enters `sessionLock` to drain |
 | Spectator pump | Drains its viewer feed and delivers committed output | Coordinator `feedLock` protects publication/drain |
 | Sink caller | Observes committed prompt metadata and calls `MessageSink.send` | Runs on the initiating session or pump domain |
@@ -146,14 +146,19 @@ deliver their own committed viewer feed and do not derive terminal state from
 Forge. Raw match completion is connection-local and follows the committed
 terminal drain. PvP transport is outside this fixed-roster delivery model.
 
-### Initial-publication replay
+### Reconnect publication
 
-Constructed reconnect has one bounded repeat-publication exception.
-`MatchLifecycleRuntime` retains the first initial viewer batches and may
-re-enqueue a missing batch under `feedLock` with its original output ordinal and
-logical identifiers. It does not install another projection transition, and it
-does not duplicate a batch already queued. This is initial-handshake replay, not
-a general reconstruction of the latest viewer state after gameplay.
+An immediate constructed reconnect may re-enqueue its missing initial viewer
+batch under `feedLock` with the original output ordinal and logical identifiers.
+It does not duplicate a batch already queued or install another projection
+transition.
+
+After any later output commits, reconnect instead installs one new cut for only
+the returning viewer. That cut carries a current Full state and, when one is
+published, the retained exact action horizon with fresh monotonic message and
+game-state identifiers. The action runtime rebinds response correlation only
+after a replacement horizon installs. Other viewer feeds are not rebuilt or
+redelivered.
 
 Mulligan remains a pre-game execution-domain exception: it drives an engine
 interaction outside `sessionLock`. Redraw identity and lifecycle output commit

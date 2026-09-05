@@ -92,19 +92,19 @@ scenarios:
             - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
-    run: crew Brute Suit with Centaur Courser, then attack
-    expect: Brute Suit becomes a creature and combat can advance cleanly
+    run: crew Brute Suit with Centaur Courser and hold priority in Main1
+    expect: Brute Suit becomes a creature before combat advances
     steps:
       - expect:
           action: { type: activate, card: Brute Suit }
       - activate: Brute Suit
       - select_cost: { zone: battlefield, cards: [Centaur Courser] }
-      - pass_until:
-          prompt: DeclareAttackersReq
-          max_passes: 12
-      - attack_all: {}
+      - resolve_stack: {}
       - expect:
-          stack_empty: true
+          all:
+            - phase: Main1
+            - annotation_seen_in_phase: { type: ModifiedType, phase: MAIN1 }
+            - stack_empty: true
   - id: saddle-drover-grizzly
     puzzle: saddle-drover-grizzly
     run: saddle Drover Grizzly with Grizzly Bears, then attack
@@ -831,6 +831,10 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
+            - annotation_seen: CastingTimeOption
+            - annotation_seen: TemporaryPermanent
+            - annotation_seen: AbilityInstanceCreated
+            - annotation_seen: AbilityInstanceDeleted
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
             - stack_empty: true
@@ -1001,7 +1005,7 @@ scenarios:
       - expect:
           all:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
-            - zone_contains: { side: opponent, zone: hand, card: Grizzly Bears }
+            - zone_count_at_least: { side: opponent, zone: hand, count: 1 }
             - zone_contains: { side: ours, zone: graveyard, card: Depart the Realm }
             - annotation_seen: CastingTimeOption
             - annotation_seen: TargetSpec

@@ -38,7 +38,7 @@ internal fun SimPromptResponseValue.auditDigest(prompt: ActivePrompt? = null): S
         -> kind
     }
 
-private fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
+internal fun SimDecision.auditDigest(prompt: ActivePrompt? = null): String =
     when (this) {
         is SimDecision.PerformAction ->
             listOf(

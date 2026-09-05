@@ -85,6 +85,23 @@ class MechanicSourceProjectionTest :
             }
         }
 
+        test("tap affector uses resolving spell stack card iid") {
+            val affector =
+                MechanicSourceProjection.tapAffectorId(
+                    GameEvent.CardTapped(
+                        cardId = ForgeCardId(99),
+                        tapped = true,
+                        affectorSpellCardId = sourceId,
+                    ),
+                    resolvingStackIidsByCard = mapOf(sourceId to InstanceId(501)),
+                    castStackIidsByCard = emptyMap(),
+                    abilityIid = { error("spell source should not use ability iid") },
+                    cardIid = { error("resolving spell iid is already known") },
+                )
+
+            affector shouldBe InstanceId(501)
+        }
+
         test("mana attribution reads basic-land identity from snapshot and defaults unknown sources") {
             val forest = ForgeCardId(20)
             val nonland = ForgeCardId(21)

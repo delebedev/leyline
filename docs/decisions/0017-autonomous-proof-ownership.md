@@ -33,12 +33,26 @@ source (`ForgeAi` or `Default`) or an `Unavailable` result with one of
 `UnsupportedPrompt`, `NoForgeChoice`, `RejectedAttempt`, or `ConsultFailed`.
 Simclient records unavailable reasons before using its host fallback. Copilot
 turns an unavailable result into an `unrealizable` proposal unless its explicit
-main-phase proactive-permanent host safeguard applies.
+main-phase proactive-permanent host safeguard applies. That host choice is
+reported separately as `CopilotSafeguard`.
+
+Snapshot consultation evaluates fidelity in the scope of the pending prompt.
+Delivery validity and strategy confidence are separate: a relevant unsafe
+import returns no response bytes, while an unrelated mismatch does not block a
+prompt-complete constrained answer such as mulligan. A protocol-derived default
+is eligible only when the supplied prompt contains the complete legal response
+domain and the resulting decision validates against that domain.
 
 Target decisions are grouped by GRE `targetIdx` and retain both group identity
 and instance ids. Simclient flattens the complete desired map only at its
 whole-selection submission boundary. Copilot diffs the grouped map against the
 current committed prompt and emits one native response at a time.
+
+Snapshot mode submits the advisor's desired `SimDecision` through simclient's
+whole-decision submitter. It does not round-trip Copilot-native bytes. Snapshot
+shadow compares desired decisions semantically and records structured fidelity,
+unavailable, import-finding, and agreement evidence per game. Native byte
+realization remains a Copilot concern.
 
 `leyline.tooling.artifact` owns the neutral synthetic artifact lifecycle:
 ConnectResp framing, GRE envelope serialization, canonical enum conversion,
@@ -64,6 +78,10 @@ simclient stats and Copilot proposals instead of becoming silent defaults.
 Acceptance can emit and ingest the same synthetic artifact shape without
 depending on simclient package code. `summary.json` remains a minimal batch
 verdict; detailed evidence stays in per-row stats and paired artifacts.
+
+Each snapshot consultation creates and disposes one Forge place. Maintaining a
+persistent reconstructed twin was rejected because it would add another mutable
+state owner without improving the prompt-scoped decision contract.
 
 ## Alternatives Considered
 

@@ -48,8 +48,8 @@ All ADRs remain part of the decision history, including superseded decisions.
   request-builder responsibilities
 - [`0005`](decisions/0005-cost-decision-semantic-plans.md) — superseded cost
   semantic-plan design
-- [`0006`](decisions/0006-single-backbone-core-and-heads.md) — one backbone with
-  native and web heads
+- [`0006`](decisions/0006-single-backbone-core-and-heads.md) — superseded
+  native-and-web-head ownership
 - [`0007`](decisions/0007-displayed-cost-and-controller-contexts.md) — displayed
   cost and non-interactive controller scopes
 - [`0008`](decisions/0008-forge-zone-operation-context.md) — ordered zone-operation
@@ -71,3 +71,5 @@ All ADRs remain part of the decision history, including superseded decisions.
   in-process drivers through the match-connection port
 - [`0017`](decisions/0017-autonomous-proof-ownership.md) — separate prompt
   decisions from proof execution
+- [`0018`](decisions/0018-runtime-embedding-boundary.md) — ownership around one
+  embedded Leyline runtime

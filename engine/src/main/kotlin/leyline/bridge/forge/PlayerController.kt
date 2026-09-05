@@ -645,6 +645,20 @@ class PlayerController(
         question: String,
         sa: SpellAbility,
     ): Boolean {
+        val activeCost =
+            sa.hostCard
+                ?.game
+                ?.costPaymentStack
+                ?.peek()
+        if (
+            costPart is CostSacrifice &&
+            costPart.payCostFromSource() &&
+            activeCost?.cost === costPart &&
+            activeCost.payment.ability === sa
+        ) {
+            return true
+        }
+
         // PCHuman's version uses InputConfirm (desktop-only). Route through bridge.
         val request =
             PromptRequest(

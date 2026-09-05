@@ -125,6 +125,8 @@ sealed interface GameEvent {
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,
+        /** True when this spell was cast for its Evoke alternative cost. */
+        val evokePaid: Boolean = false,
         /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
         val stackInstanceId: Int = 0,
         /** Source object identity before an activated ability's costs can move it to another zone. */
@@ -234,6 +236,8 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val tapped: Boolean,
         val affectorCardId: ForgeCardId? = null,
+        val affectorAbilityForgeId: Int = 0,
+        val affectorSpellCardId: ForgeCardId? = null,
     ) : GameEvent
 
     /** Damage was dealt to a creature. [deathtouch] = source had deathtouch,

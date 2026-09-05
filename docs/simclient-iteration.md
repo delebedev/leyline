@@ -171,8 +171,16 @@ retains simclient's retry suppression, strategic fallback, and submission when
 the advisor returns an unavailable result. Its `aiChoseByPrompt` and
 `advisorUnavailableByReason` telemetry separate those paths. `snapshot`
 serializes the position, hydrates an isolated game, consults the same Copilot
-decision service, then submits the encoded response through the session
-dispatcher.
+decision service, then passes its desired `SimDecision` directly to
+`SimDecisionSubmitter`. Simclient retains whole-decision submission, retry
+suppression, prompt-complete fallback, and validation. It does not encode and
+decode Copilot-native response bytes.
+
+`snapshot-shadow` compares the active and reconstructed advisors' desired
+decisions semantically. Per-game stats retain fidelity grades, unavailable
+reasons, relevant import findings, semantic agreement counts, and bounded
+mismatch samples. This separates advisor agreement from any host-specific
+native byte realization.
 
 Simclient writes per-game artifacts under `engine/build/simclient/`:
 
@@ -196,6 +204,14 @@ Start with these fields in `*.stats.json`:
 - `promptRequestsByKind`: Forge prompt semantic shape, including prompts that never became GRE prompts.
 - `promptRequestSamplesByKind`: shortest route to the message text that matters.
 - `aiConsultedByPrompt`, `aiChoseByPrompt`: advisor coverage and fallback pressure.
+- `snapshotFidelityGrades`, `snapshotImportFindings`: reconstructed-state
+  confidence and prompt-relevant import findings.
+- `snapshotDecisionSources`: desired decisions attributed to Forge AI,
+  prompt-derived defaults, or the narrow Copilot safeguard.
+- `advisorUnavailableByReason`: explicit reasons no desired decision was
+  deliverable.
+- `snapshotSemanticAgreement`, `snapshotSemanticMismatchSamples`: active versus
+  reconstructed desired-decision agreement and bounded divergence examples.
 - `targetChoiceCounts`, `targetChoiceSamples`: repeated target fingerprints.
 - `simFindings`: derived warnings such as repeated target-choice replay suspects.
 - `stalledPrompt`, `stalledFingerprint`: last repeated client-visible prompt.

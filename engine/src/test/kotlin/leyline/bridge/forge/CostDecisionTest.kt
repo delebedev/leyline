@@ -6,12 +6,15 @@ import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.card.CounterType
+import forge.game.cost.Cost
+import forge.game.cost.CostAdjustment
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostExert
 import forge.game.cost.CostExile
 import forge.game.cost.CostExiledMoveToGrave
 import forge.game.cost.CostMill
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostPayment
 import forge.game.cost.CostPutCardToLib
 import forge.game.cost.CostRemoveCounter
 import forge.game.cost.CostReveal
@@ -65,7 +68,12 @@ class CostDecisionTest :
             val decision: CostDecision,
         )
 
-        fun fixture(): Fixture {
+        fun fixture(
+            sourceName: String = "Lightning Bolt",
+            sourceZone: ZoneType = ZoneType.Hand,
+            humanHand: String = "Lightning Bolt",
+            humanBattlefield: String = "Mountain",
+        ): Fixture {
             val localBridge = GameBridge(bridgeTimeoutMs = 0, cardRepository = TestCardRegistry.repo)
             bridge = localBridge
             localBridge.startPuzzle(
@@ -84,8 +92,8 @@ class CostDecisionTest :
                     HumanLife=20
                     AILife=20
 
-                    humanhand=Lightning Bolt
-                    humanbattlefield=Mountain
+                    humanhand=$humanHand
+                    humanbattlefield=$humanBattlefield
                     humanlibrary=Mountain
                     ailibrary=Mountain
                     """.trimIndent(),
@@ -93,8 +101,8 @@ class CostDecisionTest :
             )
             leyline.testkit.TestCardRegistry.registerPuzzleCards(localBridge.getGame()!!)
             val player = localBridge.getPlayer(SeatId(1))!!
-            val source = player.getCardsIn(forge.game.zone.ZoneType.Hand).first { it.name == "Lightning Bolt" }
-            val ability = source.spellAbilities.first()
+            val source = player.getCardsIn(sourceZone).first { it.name == sourceName }
+            val ability = source.spellAbilities.firstOrNull { it.isActivatedAbility } ?: source.spellAbilities.first()
             ability.activatingPlayer = player
             val controller = localBridge.humanController ?: error("No human controller")
             return Fixture(
@@ -136,6 +144,48 @@ class CostDecisionTest :
             val result = fx.decision.visit(CostPayLife("3", null))
 
             result!!.c shouldBe 3
+        }
+
+        test("sacrificing the source as an activation cost does not ask for confirmation") {
+            val fx =
+                fixture(
+                    sourceName = "Evolving Wilds",
+                    sourceZone = ZoneType.Battlefield,
+                    humanHand = "Forest",
+                    humanBattlefield = "Evolving Wilds;Mountain",
+                )
+            val actionCost = Cost("Sac<1/CARDNAME>", true)
+            fx.ability.payCosts = actionCost
+            val payment = CostPayment(actionCost, fx.ability)
+            val adjustedCost = CostAdjustment.adjust(actionCost, fx.ability, false)
+            val sacrifice = adjustedCost.costParts.single() as CostSacrifice
+            (sacrifice === actionCost.costParts.single()) shouldBe false
+
+            fx.player.game
+                .costPaymentStack
+                .push(sacrifice, payment)
+            try {
+                fx.controller.confirmPayment(sacrifice, "sacrifice source?", fx.ability) shouldBe true
+            } finally {
+                fx.player.game
+                    .costPaymentStack
+                    .pop()
+            }
+            fx.bridge.promptBridge(SeatId(1)).history shouldBe emptyList()
+        }
+
+        test("sacrificing the source for an unless cost still asks for confirmation") {
+            val fx = fixture()
+            val effectCost = Cost("Sac<1/CARDNAME>", true)
+            val cost = effectCost.costParts.single() as CostSacrifice
+            fx.ability.putParam("UnlessCost", "Sac<1/CARDNAME>")
+
+            fx.controller.confirmPayment(cost, "pay unless cost?", fx.ability) shouldBe true
+            fx.bridge
+                .promptBridge(SeatId(1))
+                .history
+                .single()
+                .message shouldBe "pay unless cost?"
         }
 
         test("inherited mill visitor returns numeric payment when confirm defaults yes") {

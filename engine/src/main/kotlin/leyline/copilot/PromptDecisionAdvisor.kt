@@ -12,6 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 internal enum class PromptDecisionSource {
     ForgeAi,
     Default,
+    CopilotSafeguard,
 }
 
 /** Why a Forge-AI-owned prompt family could not produce a desired decision. */
@@ -54,7 +55,19 @@ internal class PromptDecisionAdvisor(
         context: PromptDecisionContext = PromptDecisionContext(),
     ): PromptDecisionResult =
         try {
-            decideSafely(prompt, context)
+            when (val result = decideSafely(prompt, context)) {
+                is PromptDecisionResult.Chosen ->
+                    if (result.source != PromptDecisionSource.Default || PromptDecisionValidator.isValid(prompt, result.decision)) {
+                        result
+                    } else {
+                        PromptDecisionResult.Unavailable(
+                            PromptUnavailableReason.NoForgeChoice,
+                            "prompt-derived decision did not validate against its legal response domain",
+                            result.forgeAiAttempted,
+                        )
+                    }
+                is PromptDecisionResult.Unavailable -> result
+            }
         } catch (t: Throwable) {
             PromptDecisionResult.Unavailable(
                 reason = PromptUnavailableReason.ConsultFailed,
@@ -283,6 +296,146 @@ internal class PromptDecisionAdvisor(
 
         private const val SEARCH_LAND_FLOOR = 4
         private const val GROUP_AWAY_PRIORITY = 50
+    }
+}
+
+internal object PromptDecisionValidator {
+    @Suppress("CyclomaticComplexMethod", "LongMethod") // One fail-closed row per desired-decision shape keeps legal domains explicit.
+    fun isValid(
+        prompt: GREToClientMessage,
+        decision: SimDecision,
+    ): Boolean =
+        when (decision) {
+            SimDecision.KeepHand -> prompt.hasMulliganReq()
+            is SimDecision.SelectN ->
+                prompt.hasSelectNReq() &&
+                    run {
+                        val req = prompt.selectNReq
+                        val max = if (req.maxSel > 0) req.maxSel else req.minSel
+                        decision.selectedInstanceIds.size in req.minSel..max &&
+                            decision.selectedInstanceIds.distinct().size == decision.selectedInstanceIds.size &&
+                            (req.idsList.isEmpty() || decision.selectedInstanceIds.all { it in req.idsList })
+                    }
+            is SimDecision.Order ->
+                prompt.hasOrderReq() &&
+                    decision.orderedInstanceIds.toSet() == prompt.orderReq.idsList.toSet() &&
+                    decision.orderedInstanceIds.size == prompt.orderReq.idsCount
+            is SimDecision.Search ->
+                prompt.hasSearchReq() &&
+                    run {
+                        val req = prompt.searchReq
+                        val max = if (req.maxFind > 0) req.maxFind else req.minFind
+                        decision.itemsFound.size in req.minFind..max &&
+                            decision.itemsFound.distinct().size == decision.itemsFound.size &&
+                            decision.itemsFound.all { it in req.itemsSoughtList }
+                    }
+            is SimDecision.GroupedSearch ->
+                prompt.hasSearchFromGroupsReq() &&
+                    run {
+                        val req = prompt.searchFromGroupsReq
+                        val max = if (req.maxFind > 0) req.maxFind else req.minFind
+                        decision.itemsFound.size in req.minFind..max &&
+                            req.groupsList.any { group ->
+                                group.groupId == decision.groupId &&
+                                    group.maxSelect == decision.maxSelect &&
+                                    decision.itemsFound.size <= group.maxSelect &&
+                                    decision.itemsFound.distinct().size == decision.itemsFound.size &&
+                                    decision.itemsFound.all { it in group.idsList }
+                            }
+                    }
+            is SimDecision.SelectReplacement ->
+                prompt.hasSelectReplacementReq() && decision.replacement in prompt.selectReplacementReq.replacementsList
+            is SimDecision.Distribution ->
+                prompt.hasDistributionReq() && DefaultDecisions.forcedDistribution(prompt) == decision
+            is SimDecision.AutoTapPayment ->
+                prompt.hasPayCostsReq() &&
+                    decision.solutionIndex in 0 until prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount
+            is SimDecision.GroupTop ->
+                prompt.hasGroupReq() &&
+                    decision.instanceIds == prompt.groupReq.instanceIdsList &&
+                    groupBoundsAreValid(prompt, awayCount = 0)
+            is SimDecision.GroupAway ->
+                prompt.hasGroupReq() &&
+                    decision.allInstanceIds.toSet() == prompt.groupReq.instanceIdsList.toSet() &&
+                    decision.allInstanceIds.size == prompt.groupReq.instanceIdsCount &&
+                    decision.awayInstanceIds.distinct().size == decision.awayInstanceIds.size &&
+                    decision.awayInstanceIds.all { it in decision.allInstanceIds } &&
+                    decision.context == prompt.groupReq.context &&
+                    groupBoundsAreValid(prompt, decision.awayInstanceIds.size)
+            is SimDecision.OptionalCost ->
+                prompt.hasCastingTimeOptionsReq() &&
+                    prompt.castingTimeOptionsReq.castingTimeOptionReqList.any { it.ctoId == decision.ctoId }
+            is SimDecision.AlternateCost ->
+                prompt.hasCastingTimeOptionsReq() &&
+                    prompt.castingTimeOptionsReq.castingTimeOptionReqList.any { option ->
+                        option.ctoId == decision.ctoId &&
+                            option.hasSelectNReq() &&
+                            decision.optionIndex in option.selectNReq.idsList
+                    }
+            is SimDecision.ModalChoice ->
+                prompt.hasCastingTimeOptionsReq() &&
+                    run {
+                        val option =
+                            prompt.castingTimeOptionsReq.castingTimeOptionReqList.singleOrNull { it.ctoId == decision.ctoId }
+                                ?: return@run false
+                        val req = option.modalReq
+                        val max = if (req.maxSel > 0) req.maxSel else req.minSel
+                        decision.selectedGrpIds.size in req.minSel..max &&
+                            decision.selectedGrpIds.distinct().size == decision.selectedGrpIds.size &&
+                            decision.selectedGrpIds.all { selected -> req.modalOptionsList.any { it.grpId == selected } }
+                    }
+            is SimDecision.ManaTypeChoices ->
+                prompt.hasCastingTimeOptionsReq() &&
+                    run {
+                        val options =
+                            prompt.castingTimeOptionsReq.castingTimeOptionReqList.filter { it.hasSelectManaTypeReq() }
+                        decision.choicesByCtoId.map { it.first }.toSet() == options.map { it.ctoId }.toSet() &&
+                            decision.choicesByCtoId.distinctBy { it.first }.size == decision.choicesByCtoId.size &&
+                            decision.choicesByCtoId.all { (ctoId, color) ->
+                                options.any { option -> option.ctoId == ctoId && color in option.selectManaTypeReq.manaColorsList }
+                            }
+                    }
+            is SimDecision.NumericInput ->
+                prompt.hasNumericInputReq() && decision.value in prompt.numericInputReq.minValue..prompt.numericInputReq.maxValue
+            is SimDecision.AssignDamage ->
+                prompt.hasAssignDamageReq() && decision == DefaultDecisions.assignDamage(prompt)
+            is SimDecision.OptionalAction -> prompt.hasOptionalActionMessage()
+            SimDecision.DeclareNoBlockers ->
+                prompt.hasDeclareBlockersReq() && !prompt.declareBlockersReq.hasRequirements
+            is SimDecision.PerformAction,
+            is SimDecision.SelectTargets,
+            is SimDecision.UnselectTargets,
+            SimDecision.SubmitTargets,
+            is SimDecision.EffectCost,
+            is SimDecision.CastingTimeX,
+            SimDecision.DeclareAllAttackers,
+            is SimDecision.DeclareAttackers,
+            is SimDecision.DeclareBlockers,
+            is SimDecision.UndeclareBlocker,
+            SimDecision.SubmitAttackers,
+            SimDecision.SubmitBlockers,
+            SimDecision.CancelAction,
+            SimDecision.PassPriority,
+            -> false
+        }
+
+    private fun groupBoundsAreValid(
+        prompt: GREToClientMessage,
+        awayCount: Int,
+    ): Boolean {
+        val req = prompt.groupReq
+        if (req.groupSpecsCount == 0) return false
+        val keepCount = req.instanceIdsCount - awayCount
+        return req.groupSpecsList.all { spec ->
+            val count =
+                when {
+                    spec.subZoneType == wotc.mtgo.gre.external.messaging.Messages.SubZoneType.Top -> keepCount
+                    spec.subZoneType == wotc.mtgo.gre.external.messaging.Messages.SubZoneType.Bottom -> awayCount
+                    spec.zoneType == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard -> awayCount
+                    else -> return false
+                }
+            count in spec.lowerBound..spec.upperBound
+        }
     }
 }
 

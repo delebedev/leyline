@@ -202,21 +202,7 @@ class LibraryOrderInteractionTest :
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
 
-        val scryState =
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-
-            humanhand=Wall of Runes
-            humanbattlefield=Island
-            humanlibrary=Grizzly Bears;Forest;Forest;Forest;Forest
-            aibattlefield=Plains
-            ailibrary=Plains;Plains;Plains;Plains;Plains
-            """.trimIndent()
-
-        session("scry 1 — GroupReq shape", puzzle = scryState) {
+        session("scry 1 — GroupReq shape", puzzleFile = "data/puzzles/scry-wall-of-runes.pzl") {
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
                 req.context shouldBe GroupingContext.Scry_a0f6
@@ -229,7 +215,7 @@ class LibraryOrderInteractionTest :
             }
         }
 
-        session("scry 1 — put on bottom", puzzle = scryState) {
+        session("scry 1 — put on bottom", puzzleFile = "data/puzzles/scry-wall-of-runes.pzl") {
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
@@ -252,7 +238,7 @@ class LibraryOrderInteractionTest :
             human.library should haveOnTop("Forest")
         }
 
-        session("scry 1 — keep on top", puzzle = scryState) {
+        session("scry 1 — keep on top", puzzleFile = "data/puzzles/scry-wall-of-runes.pzl") {
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)

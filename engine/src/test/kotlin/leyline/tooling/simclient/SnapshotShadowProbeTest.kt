@@ -17,7 +17,7 @@ import java.time.LocalDateTime
  * Locks two properties:
  *  - the probe is wired into the driver and accumulates per-prompt buckets, and
  *  - stack-independent decisions (priority-window action picks) hydrate
- *    faithfully — the hydrated game reproduces the live response byte-for-byte,
+ *    faithfully — the hydrated game reproduces the live desired decision,
  *    so ActionsAvailableReq shows matches and zero mismatches.
  *
  * The known gaps (targeting/blocking, which depend on in-flight stack + attack
@@ -49,7 +49,7 @@ class SnapshotShadowProbeTest :
                     },
                 )
             val driver = SimClientDriver(harness, playerLog, maxTurns = 12, snapshotShadow = true)
-            driver.runOneGame()
+            val gameStats = driver.runOneGame()
             writer.close()
 
             val stats = driver.snapshotShadowStats()
@@ -60,9 +60,13 @@ class SnapshotShadowProbeTest :
             aar.probed shouldBeGreaterThan 0
             aar.match shouldBeGreaterThan 0
             // Priority-window action selection does not depend on in-flight stack
-            // state, so the hydrated game reproduces the live response exactly.
+            // state, so the hydrated game reproduces the live decision exactly.
             aar.mismatch shouldBe 0
             aar.uncovered shouldBe 0
             aar.error shouldBe 0
+            val totalProbed = stats.values.sumOf { it.probed }
+            gameStats.snapshotFidelityGrades.values.sum() shouldBe totalProbed
+            gameStats.snapshotDecisionSources.values.sum() +
+                gameStats.advisorUnavailableByReason.values.sum() shouldBe totalProbed
         }
     })

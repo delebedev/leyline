@@ -1,10 +1,12 @@
 package leyline.game.state
 
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.LogicalSequenceState
 import leyline.game.snapshot.GsmSnapshot
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Complete protocol history for one match projection.
@@ -49,11 +51,7 @@ data class ProjectionState(
         val viewerCursors = prior.viewerCursors.toMutableMap()
         private val sequence = LogicalSequencePlanner(prior.sequence)
 
-        fun resetIdentitiesForRedraw(): List<InstanceId> {
-            val previous = identities.freeze()
-            identities.replace(InstanceIdRegistry.initialState(previous.nextInstanceId))
-            return previous.forgeIdToInstanceId.values.toList()
-        }
+        fun resetIdentitiesForRedraw(forgeCardIds: Set<ForgeCardId>): List<InstanceId> = identities.retire(forgeCardIds)
 
         fun freeze(): ProjectionState =
             ProjectionState(
@@ -89,9 +87,10 @@ data class ProjectionState(
     }
 }
 
-/** Viewer-specific diff baseline and one-shot submitted-target annotation state. */
+/** Viewer-specific committed state and one-shot submitted-target annotation state. */
 data class ViewerProjectionCursor(
     val previousSnapshot: GsmSnapshot? = null,
+    val fullState: GameStateMessage? = null,
     val pendingSubmittedTargets: PendingSubmittedTargets? = null,
 )
 

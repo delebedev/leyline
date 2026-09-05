@@ -234,7 +234,7 @@ class PersistentFeedBuilderTest :
                 first.result.feeds[TemporaryPermanentKind] shouldBe
                     listOf(
                         AnnotationBuilder.temporaryPermanent(
-                            tokenInstanceId = InstanceId(101),
+                            affectedInstanceId = InstanceId(101),
                             abilityGrpId = GrpId(700),
                             affectorId = InstanceId(102),
                         ),
@@ -299,7 +299,7 @@ class PersistentFeedBuilderTest :
                 projected.result.feeds[TemporaryPermanentKind] shouldBe
                     listOf(
                         AnnotationBuilder.temporaryPermanent(
-                            tokenInstanceId = InstanceId(100),
+                            affectedInstanceId = InstanceId(100),
                             abilityGrpId = leyline.game.annotations.AnnotationConstants.EOT_SACRIFICE_GRP_ID,
                             affectorId = InstanceId(100),
                         ),

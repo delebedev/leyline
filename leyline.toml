@@ -107,24 +107,3 @@
 # Per-instance artifact root for logs and sessions
 # (relative to this file).
 # artifacts = "out"
-
-[web]
-# Web head listener port and bind address (loopback by default).
-# port = 8081
-# host = "0.0.0.0"
-# Default local player identity used for web matches.
-# player_id = "web-player"
-# Web authentication signing secret — required when the web head is active.
-# Supplied externally, never stored here: LEYLINE_WEB_AUTH_SECRET.
-# auth_secret = ""
-# Optional fixed six-digit login code; requires allow_fixed_login_code = true.
-# login_code = ""
-# allow_fixed_login_code = false
-# Transactional email (Resend). Empty = in-memory dev sender.
-# Supplied externally: LEYLINE_WEB_RESEND_API_KEY.
-# resend_api_key = ""
-# resend_from = "login@localhost"
-# Auth rate limiting.
-# rate_limit_enabled = true
-# rate_limit = 10
-# rate_limit_window_ms = 60000

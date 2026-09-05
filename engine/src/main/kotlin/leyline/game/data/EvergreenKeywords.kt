@@ -7,8 +7,8 @@ package leyline.game.data
  *
  * Ids are read off card rows rather than transcribed, so they are not the same
  * values as `leyline.game.codes.KeywordGrpIds`, which disagrees for five of the
- * keywords here. Printed-only: a keyword granted by an aura or an effect comes
- * from game state, not card data.
+ * keywords here. Printed keywords come from card data; temporary grants come
+ * from game state.
  */
 object EvergreenKeywords {
     private val BY_ABILITY_ID: Map<Int, String> =
@@ -44,4 +44,6 @@ object EvergreenKeywords {
         val ids = card.abilityIds.mapTo(mutableSetOf()) { it.first }
         return BY_ABILITY_ID.entries.filter { it.key in ids }.map { it.value }
     }
+
+    fun fromAbilityId(abilityId: Int): String? = BY_ABILITY_ID[abilityId]
 }

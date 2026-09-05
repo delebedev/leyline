@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.util.MyRandom
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -361,6 +362,16 @@ class GameBridgeTest :
             val hand2 = b2.getHandGrpIds(SeatId(1))
 
             hand1 shouldBe hand2
+        }
+
+        test("teardown tolerates an already absent event collector") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(seed = 42L)
+            b.getGame()!!.unsubscribeFromEvents(b.eventCollector.shouldNotBeNull())
+
+            shouldNotThrowAny { b.teardownResources() }
+            shouldNotThrowAny { b.teardownResources() }
         }
 
         // --- Double-diff tests ---
