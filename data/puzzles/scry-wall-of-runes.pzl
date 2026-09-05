@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Move the single card offered by a Scry 1 GroupReq from the top to the bottom of the library.
+# Forcing: Wall of Runes is the only spell, one Island pays for it, and the known top two cards make the result observable.
+# AI behavior: The opponent has no hand or meaningful choice while the enter-the-battlefield ability resolves.
+# Failure modes:
+#   WIN   = Wall of Runes resolves and Grizzly Bears moves beneath the Forests.
+#   LOSE  = the spell or scry result fails and the known library order is unchanged.
+#   TIMEOUT = the GroupReq or its response fails to advance.
+# Card roles:
+#   Wall of Runes — creates the Scry 1 interaction.
+#   Grizzly Bears — the known top card selected for the library bottom.
+#   Forest — makes the post-scry library top deterministic.
+# Protocol path: cast and resolution messages followed by GroupReq and GroupResp.
+
+[metadata]
+Name:Scry Wall of Runes
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Cast Wall of Runes and put the revealed card on the bottom of the library.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Island
+humanhand=Wall of Runes
+humanlibrary=Grizzly Bears;Forest;Forest;Forest;Forest
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

@@ -27,6 +27,12 @@ import java.util.concurrent.TimeoutException
 internal class MatchActionWindowRuntime(
     private val owner: MatchCutCoordinator,
 ) : DeferredCastActionOwner {
+    internal data class ReconnectHorizon(
+        val actionId: String,
+        val decisionMessage: GREToClientMessage,
+        val publishedBatch: List<GREToClientMessage>,
+    )
+
     // Written under the coordinator feed lock; read lock-free by the engine wait
     // adapter and session threads asking whether a window is still open.
     private val actionWindows = ConcurrentHashMap<String, RuntimeActionWindow>()
@@ -151,6 +157,30 @@ internal class MatchActionWindowRuntime(
                 ?.map { it.second }
                 .orEmpty()
         }
+
+    internal fun reconnectHorizon(seatId: SeatId): ReconnectHorizon? =
+        synchronized(owner.feedLock) {
+            actionWindows.entries
+                .singleOrNull { (_, window) -> window.seatId == seatId && window.status == ActionWindowStatus.Published }
+                ?.let { (actionId, window) ->
+                    window.publishedBatch
+                        .singleOrNull {
+                            it.hasActionsAvailableReq() || it.hasDeclareAttackersReq() || it.hasDeclareBlockersReq()
+                        }?.let { ReconnectHorizon(actionId, it, window.publishedBatch) }
+                }
+        }
+
+    internal fun bindReconnectHorizon(
+        horizon: ReconnectHorizon,
+        gameStateId: Int,
+        publishedBatch: List<GREToClientMessage>,
+    ) {
+        synchronized(owner.feedLock) {
+            val window = actionWindows[horizon.actionId] ?: error("No action window ${horizon.actionId}")
+            check(window.status == ActionWindowStatus.Published) { "Action window ${horizon.actionId} is no longer pending" }
+            actionWindows[horizon.actionId] = window.copy(promptGameStateId = gameStateId, publishedBatch = publishedBatch)
+        }
+    }
 
     fun legalAttackerIds(actionId: String): List<Int> = synchronized(owner.feedLock) { actionWindows[actionId]?.legalAttackerIds.orEmpty() }
 
