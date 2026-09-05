@@ -58,6 +58,7 @@ class OptionalActionGate(
         logContext: String,
         customPromptId: Int? = null,
         commanderReturn: CommanderReturnPromptContext? = null,
+        etbPayLifeReplacement: Boolean = false,
     ): Boolean {
         if (hostCard == null) return true
         return interactionRuntime.awaitOptional(
@@ -66,6 +67,7 @@ class OptionalActionGate(
                 forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
                 customPromptId = customPromptId,
                 commanderReturn = commanderReturn,
+                etbPayLifeReplacement = etbPayLifeReplacement,
             ),
             sourceCard = hostCard,
             timeoutMs = actionBridge?.getTimeoutMs(),
