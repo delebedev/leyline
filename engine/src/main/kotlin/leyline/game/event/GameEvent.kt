@@ -125,6 +125,8 @@ sealed interface GameEvent {
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,
+        /** True when this spell was cast for its Evoke alternative cost. */
+        val evokePaid: Boolean = false,
         /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
         val stackInstanceId: Int = 0,
         /**

@@ -409,6 +409,7 @@ class GameEventCollector(
                 isMdfc = isMdfc,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
+                evokePaid = saAltCost == AlternativeCost.Evoke,
                 stackInstanceId = paradigmCopyStackIid,
                 isAbility = isAbility,
                 isTrigger = isTrigger,
@@ -486,6 +487,10 @@ class GameEventCollector(
     ): Int? =
         when {
             isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
+            sa.api == ApiType.Sacrifice && sa.trigger?.getParam("ValidCard") == "Card.Self+evoked" ->
+                bridge.cardRepository
+                    .findGrpIdByName(card.name)
+                    ?.let { bridge.cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.EVOKE) }
             sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
             (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
                 KeywordAbilityIds.TRAINING

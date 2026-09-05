@@ -601,7 +601,7 @@ class AnnotationBuilderTest :
         // --- TemporaryPermanent (persistent) ---
 
         test("temporaryPermanentFields") {
-            val ann = AnnotationBuilder.temporaryPermanent(tokenInstanceId = 371.iid)
+            val ann = AnnotationBuilder.temporaryPermanent(affectedInstanceId = 371.iid)
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.TemporaryPermanent
                 ann.affectorId shouldBe 371
