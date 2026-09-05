@@ -11,7 +11,6 @@ data class PromptProjectionFacts(
     val convokePayments: List<ConvokePaymentsFact> = emptyList(),
     val collectEvidenceCosts: List<CollectEvidenceFact> = emptyList(),
     val targetSpecs: List<TargetSpecFact> = emptyList(),
-    val castingPermissions: List<CastingPermissionFact> = emptyList(),
 ) {
     val activeReveal: RevealFact? get() = reveals.firstOrNull()
 
@@ -51,11 +50,6 @@ data class PromptProjectionFacts(
     data class CollectEvidenceFact(
         val key: PromptFactKey,
         val context: CollectEvidenceCost,
-    )
-
-    data class CastingPermissionFact(
-        val cardForgeId: ForgeCardId,
-        val castAbilityGrpId: Int,
     )
 }
 

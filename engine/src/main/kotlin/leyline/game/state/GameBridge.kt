@@ -404,6 +404,10 @@ class GameBridge(
                 it.triggerStackAbilityInstanceIdResolver = { abilityId ->
                     peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
                 }
+                it.triggerStackAbilitySourceInstanceIdResolver = { abilityId ->
+                    val abilityIid = peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
+                    abilityIid?.let { iid -> annotationProjectionStateSnapshot().abilityLineage.find(iid)?.sourceIidAtCreate }
+                }
             }
         mulliganBridges[seatId.value] =
             MulliganBridge(
@@ -695,7 +699,6 @@ class GameBridge(
         val reveals = mutableListOf<PromptProjectionFacts.RevealFact>()
         val convokePayments = mutableListOf<PromptProjectionFacts.ConvokePaymentsFact>()
         val collectEvidenceCosts = mutableListOf<PromptProjectionFacts.CollectEvidenceFact>()
-        val castingPermissions = mutableListOf<PromptProjectionFacts.CastingPermissionFact>()
         for ((seatValue, prompt) in promptBridges.toSortedMap()) {
             val seatId = SeatId(seatValue)
             choiceResults +=
@@ -732,13 +735,6 @@ class GameBridge(
                         CollectEvidenceCost(entry.context.sourceForgeCardId, entry.context.threshold),
                     )
             }
-            prompt.journal.activeCastingPermission()?.let { permission ->
-                castingPermissions +=
-                    PromptProjectionFacts.CastingPermissionFact(
-                        permission.cardForgeId,
-                        permission.castAbilityGrpId,
-                    )
-            }
         }
         return PromptProjectionFacts(
             choiceResults = choiceResults.toList(),
@@ -746,7 +742,6 @@ class GameBridge(
             convokePayments = convokePayments.toList(),
             collectEvidenceCosts = collectEvidenceCosts.toList(),
             targetSpecs = snapshotPendingTargetSpecs().toList(),
-            castingPermissions = castingPermissions.toList(),
         )
     }
 

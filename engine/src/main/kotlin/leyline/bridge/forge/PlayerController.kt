@@ -577,14 +577,12 @@ class PlayerController(
                 BlockingInteraction.FreeCast(
                     cardGrpId = hostCard?.let(bridge::resolveCardGrpId) ?: 0,
                     abilityGrpId = it.castAbilityGrpId,
-                    sourceInstanceId =
-                        game.stack.firstOrNull()?.spellAbility?.id?.let { abilityId ->
-                            bridge.resolveTriggerStackAbilityInstanceId(abilityId)
-                        } ?: 0,
+                    sourceInstanceId = bridge.resolveTriggerStackAbilityInstanceId(it.sourceAbilityForgeId) ?: 0,
                     alternativeSourceZcid =
-                        game.stack.firstOrNull()?.spellAbility?.hostCard?.let { source ->
-                            bridge.forgeIidResolver?.invoke(ForgeCardId(source.id))?.value
-                        } ?: 0,
+                        bridge.resolveTriggerStackAbilitySourceInstanceId(it.sourceAbilityForgeId)
+                            ?: game.stack.firstOrNull()?.spellAbility?.hostCard?.let { source ->
+                                bridge.forgeIidResolver?.invoke(ForgeCardId(source.id))?.value
+                            } ?: 0,
                 )
             }
         log.info(
@@ -595,19 +593,25 @@ class PlayerController(
         // Decline on timeout — safer than surprise-casting. On accept, super drives
         // the real cast flow (targeting, mana payment, stack placement).
         val accepted =
-            try {
-                optionalActionGate.await(
-                    hostCard = hostCard,
-                    forceSnapshotBeforePrompt = true,
-                    defaultOnTimeout = false,
-                    logContext = "playSaFromPlayEffect",
-                    freeCast = freeCast,
-                )
-            } finally {
-                castingPermission?.let(bridge.journal::clearCastingPermission)
+            optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "playSaFromPlayEffect",
+                freeCast = freeCast,
+            )
+        if (!accepted) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            return false
+        }
+        return try {
+            super.playSaFromPlayEffect(tgtSA).also { played ->
+                if (!played) castingPermission?.let(bridge.journal::clearCastingPermission)
             }
-        if (accepted) return super.playSaFromPlayEffect(tgtSA)
-        return false
+        } catch (error: Throwable) {
+            castingPermission?.let(bridge.journal::clearCastingPermission)
+            throw error
+        }
     }
 
     private fun castingPermission(card: Card?): PromptSideEffect.CastingPermission? {
@@ -622,7 +626,7 @@ class PlayerController(
             }
         return card
             ?.takeIf { castAbilityGrpId != 0 }
-            ?.let { PromptSideEffect.CastingPermission(ForgeCardId(it.id), castAbilityGrpId) }
+            ?.let { PromptSideEffect.CastingPermission(ForgeCardId(it.id), castAbilityGrpId, stackAbility.id) }
     }
 
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =

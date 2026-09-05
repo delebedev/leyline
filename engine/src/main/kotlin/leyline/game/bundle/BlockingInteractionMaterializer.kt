@@ -8,7 +8,9 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.codes.DetailKeys
 import leyline.game.data.CardProtoBuilder
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.PlayerMapper
@@ -88,6 +90,9 @@ internal class BlockingInteractionMaterializer(
                     .setAlternativeSourceZcid(freeCast.alternativeSourceZcid)
                     .build()
             val actions = ActionsAvailableReq.newBuilder().addActions(cast).addActions(Action.newBuilder().setActionType(ActionType.Pass))
+            if (freeCast.abilityGrpId != KeywordAbilityIds.CASCADE) {
+                addDiscoverInactiveActions(actions, stateMessages, freeCast, sourceId)
+            }
             val prompt =
                 Prompt
                     .newBuilder()
@@ -137,6 +142,47 @@ internal class BlockingInteractionMaterializer(
             transition,
             closesPlaybackFrame = true,
         )
+    }
+
+    private fun addDiscoverInactiveActions(
+        actions: ActionsAvailableReq.Builder,
+        stateMessages: List<GREToClientMessage>,
+        freeCast: BlockingInteraction.FreeCast,
+        castableCardId: Int,
+    ) {
+        val objects =
+            stateMessages
+                .asSequence()
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.gameObjectsList.asSequence() }
+                .associateBy { it.instanceId }
+        stateMessages
+            .asSequence()
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList.asSequence() }
+            .filter { annotation ->
+                AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                    (
+                        annotation.affectorId == freeCast.sourceInstanceId ||
+                            annotation.affectorId == freeCast.alternativeSourceZcid
+                    ) &&
+                    annotation.detailsList.any { detail ->
+                        detail.key == DetailKeys.CATEGORY && detail.valueStringList == listOf("Exile")
+                    }
+            }.flatMap { it.affectedIdsList.asSequence() }
+            .filter { it != castableCardId }
+            .mapNotNull(objects::get)
+            .forEach { card ->
+                actions.addInactiveActions(
+                    Action
+                        .newBuilder()
+                        .setActionType(if (CardType.Land_a80b in card.cardTypesList) ActionType.Play_add3 else ActionType.Cast)
+                        .setGrpId(card.grpId)
+                        .setInstanceId(card.instanceId)
+                        .setAbilityGrpId(freeCast.abilityGrpId)
+                        .setSourceId(freeCast.sourceInstanceId),
+                )
+            }
     }
 
     fun commanderOptional(
