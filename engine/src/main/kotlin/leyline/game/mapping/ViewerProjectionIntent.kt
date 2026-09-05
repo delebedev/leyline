@@ -74,7 +74,7 @@ sealed interface ProjectionSupplement {
         val forgeAbilityId: Int,
     ) : ProjectionSupplement
 
-    /** Ability visible during pre-stack cost payment and retained in the next diff baseline. */
+    /** Ability visible before Forge admits it to the stack and retained in the next diff baseline. */
     data class PreStackAbility(
         val forgeAbilityId: Int,
         val sourceForgeCardId: ForgeCardId,
@@ -83,6 +83,7 @@ sealed interface ProjectionSupplement {
         val ownerSeatId: SeatId,
         val controllerSeatId: SeatId,
         val targetForgeCardIds: List<ForgeCardId>,
+        val isActivatedAbility: Boolean = true,
     ) : ProjectionSupplement
 
     /** Copied spell visible on the client stack while Forge is choosing its new targets. */

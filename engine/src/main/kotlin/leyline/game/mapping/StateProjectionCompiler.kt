@@ -458,7 +458,7 @@ object StateProjectionCompiler {
                             grpId = ability.abilityGrpId,
                             sourceCardGrpId = ability.sourceCardGrpId,
                             isSpell = false,
-                            isActivatedAbility = true,
+                            isActivatedAbility = ability.isActivatedAbility,
                             targets = ability.targetForgeCardIds,
                             forgeAbilityId = ability.forgeAbilityId,
                         ),

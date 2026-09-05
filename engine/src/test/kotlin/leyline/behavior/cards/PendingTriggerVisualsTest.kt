@@ -110,6 +110,15 @@ class PendingTriggerVisualsTest :
                         }
                 }
             }.shouldBeTrue()
+            val promptGsm =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .last { gsm -> gsm.annotationsList.any { AnnotationType.PlayerSelectingTargets in it.typeList } }
+            val selecting = promptGsm.annotationsList.single { AnnotationType.PlayerSelectingTargets in it.typeList }
+            promptGsm.annotationsList
+                .single { AnnotationType.AbilityInstanceCreated in it.typeList }
+                .affectedIdsList shouldContain selecting.affectedIdsList.single()
             selectTargets(listOf(targetIid))
             passUntil(maxPasses = 10) { holderFor(ennis) != null }.shouldBeTrue()
             val affectedIid =
