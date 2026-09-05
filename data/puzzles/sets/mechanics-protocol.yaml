@@ -162,7 +162,9 @@ scenarios:
       - expect:
           action: { type: activate, card: Serpent Specialist }
       - activate: { card: Serpent Specialist, ability_grp_id: 206280 }
-      - resolve_stack: {}
+      - pass_until:
+          battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
+          max_passes: 12
       - expect:
           all:
             - battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
