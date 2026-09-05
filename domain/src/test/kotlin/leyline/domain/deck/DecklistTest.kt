@@ -29,6 +29,21 @@ class DecklistTest :
             }
         }
 
+        test("parses x quantities and optional printing details") {
+            val entries =
+                parseDecklist(
+                    """
+                    1x High Tide (FEM) 18a
+                    1 Control Magic (ARENA)
+                    """.trimIndent(),
+                ).entries
+
+            assertSoftly {
+                entries[0] shouldBe DecklistEntry(DecklistSection.Main, 1, "High Tide", "FEM")
+                entries[1] shouldBe DecklistEntry(DecklistSection.Main, 1, "Control Magic", "ARENA")
+            }
+        }
+
         test("routes bare label section headers, including Deck and Main") {
             val decklist =
                 parseDecklist(
@@ -54,6 +69,13 @@ class DecklistTest :
                 bySection["Lurrus of the Dream-Den"] shouldBe DecklistSection.Companion
                 bySection["Mountain"] shouldBe DecklistSection.Main
             }
+        }
+
+        test("routes bracketed section headers") {
+            val decklist = parseDecklist("[Commander]\n1 Empress Galina\n[Deck]\n99 Island\n[Sideboard]\n1 Negate")
+
+            decklist.entries.map { it.section } shouldBe
+                listOf(DecklistSection.Commander, DecklistSection.Main, DecklistSection.Sideboard)
         }
 
         test("parses a representative bundled deck header sequence") {
@@ -98,8 +120,14 @@ class DecklistTest :
             ex.errors shouldHaveSize 1
         }
 
-        test("rejects an unsupported bracket header instead of silently routing to Main") {
+        test("rejects an unknown bracket header instead of silently routing to Main") {
             val ex = shouldThrow<DecklistException> { parseDecklist("[Maybeboard]\n4 Lightning Bolt") }
+
+            ex.errors shouldHaveSize 1
+        }
+
+        test("rejects an unmatched section bracket") {
+            val ex = shouldThrow<DecklistException> { parseDecklist("[Deck\n4 Lightning Bolt") }
 
             ex.errors shouldHaveSize 1
         }
