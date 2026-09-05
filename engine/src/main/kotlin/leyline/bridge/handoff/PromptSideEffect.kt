@@ -72,6 +72,8 @@ sealed interface PromptSideEffect {
     data class CastingPermission(
         val cardForgeId: ForgeCardId,
         val castAbilityGrpId: Int,
+        val sourceAbilityForgeId: Int,
+        val sourceForgeCardId: ForgeCardId,
     ) : PromptSideEffect
 
     data class ConvokePayment(

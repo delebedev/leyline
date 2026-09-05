@@ -58,6 +58,7 @@ class OptionalActionGate(
         logContext: String,
         customPromptId: Int? = null,
         commanderReturn: CommanderReturnPromptContext? = null,
+        freeCast: BlockingInteraction.FreeCast? = null,
         etbPayLifeReplacement: Boolean = false,
     ): Boolean {
         if (hostCard == null) return true
@@ -67,6 +68,7 @@ class OptionalActionGate(
                 forceSnapshotBeforePrompt = forceSnapshotBeforePrompt,
                 customPromptId = customPromptId,
                 commanderReturn = commanderReturn,
+                freeCast = freeCast,
                 etbPayLifeReplacement = etbPayLifeReplacement,
             ),
             sourceCard = hostCard,

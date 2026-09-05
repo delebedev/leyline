@@ -64,6 +64,7 @@ import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
@@ -556,24 +557,14 @@ class PlayerController(
      * Forge's PlayEffect for Madness, Discover, Cascade-into-cast, and similar
      * optional-cast paths. The default inherited behavior (PlayerControllerHuman)
      * routes through PlaySpellAbility which bypasses the client entirely;
-     * we need to surface the choice as an OptionalActionMessage so the player can
-     * Accept or Decline through the normal client UI. On Accept, delegate to
+     * we need to surface the choice through the client. Cascade and Discover use
+     * a free-cast action window; other play effects retain the optional action UI.
+     * On Accept, delegate to
      * `super.playSaFromPlayEffect(tgtSA)` which drives the real cast flow via
      * PlaySpellAbility (targeting, mana payment, stack placement — our alt-cost
      * rail emits CastingTimeOption + UAT alternativeGrpId along the way). On
-     * Decline, return false so Forge's PlayEffect SubAbility fires the
-     * "otherwise put in graveyard" branch (Exile→GY category=Put via our heuristic).
+     * Decline, return false so Forge's PlayEffect owns its fallback destination.
      *
-     * SHORTCUT vs production-client behavior: the client already knows how to
-     * render this moment from an `ActionsAvailableReq` with exactly one Cast and
-     * one Pass action for the exiled card. Leyline shortcuts via
-     * OptionalActionMessage (Take Action / Decline UI) because the existing
-     * plumbing handles Accept/Decline uniformly. To align with the client's
-     * native rendering path: skip this override entirely, let the trigger
-     * resolve as a decline (returns false), and have ActionMapper offer Cast
-     * for the exile-resident madness-eligible card during the next priority
-     * window. Deferred because it requires broader ActionMapper +
-     * priority-flow changes.
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
         if (isParadigmCopyCast(tgtSA)) return super.playSaFromPlayEffect(tgtSA)
@@ -581,20 +572,29 @@ class PlayerController(
         val hostCard = tgtSA.hostCard
         val castingPermission = castingPermission(hostCard)
         castingPermission?.let(bridge.journal::record)
+        val freeCast =
+            castingPermission?.let {
+                BlockingInteraction.FreeCast(
+                    cardGrpId = hostCard?.let(bridge::resolveCardGrpId) ?: 0,
+                    abilityGrpId = it.castAbilityGrpId,
+                    sourceAbilityForgeId = it.sourceAbilityForgeId,
+                    alternativeSourceForgeCardId = it.sourceForgeCardId,
+                )
+            }
         log.info(
             "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
             hostCard?.name,
             tgtSA.getAlternativeCost(),
         )
         // Decline on timeout — safer than surprise-casting. On accept, super drives
-        // the real cast flow (targeting, mana payment, stack placement). On decline,
-        // Forge's PlayEffect SubAbility fires the "otherwise put in graveyard" branch.
+        // the real cast flow (targeting, mana payment, stack placement).
         val accepted =
             optionalActionGate.await(
                 hostCard = hostCard,
                 forceSnapshotBeforePrompt = true,
                 defaultOnTimeout = false,
                 logContext = "playSaFromPlayEffect",
+                freeCast = freeCast,
             )
         if (!accepted) {
             castingPermission?.let(bridge.journal::clearCastingPermission)
@@ -622,7 +622,14 @@ class PlayerController(
             }
         return card
             ?.takeIf { castAbilityGrpId != 0 }
-            ?.let { PromptSideEffect.CastingPermission(ForgeCardId(it.id), castAbilityGrpId) }
+            ?.let {
+                PromptSideEffect.CastingPermission(
+                    ForgeCardId(it.id),
+                    castAbilityGrpId,
+                    stackAbility.id,
+                    ForgeCardId(stackAbility.hostCard.id),
+                )
+            }
     }
 
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =

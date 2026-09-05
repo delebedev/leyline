@@ -6,13 +6,17 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 private val PUZZLE =
     """
@@ -53,7 +57,7 @@ private val DISCOVER_PUZZLE =
 
     humanhand=Geological Appraiser
     humanbattlefield=Mountain;Mountain;Mountain;Mountain
-    humanlibrary=Llanowar Elves;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+    humanlibrary=Forest;Llanowar Elves;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
     aibattlefield=Grizzly Bears
     ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
     """.trimIndent()
@@ -110,6 +114,11 @@ class CascadeDiscoverProjectionTest :
                 projectedStates
                     .flatMap { it.gameObjectsList }
                     .first { it.instanceId == triggeringObject.affectedIdsList.single() }
+            val freeCastRequest =
+                allMessages.last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
+            val freeCastActions = freeCastRequest.actionsAvailableReq.actionsList
+            val freeCast = freeCastActions.single { it.actionType == ActionType.Cast }
+            val exileCard = projectedStates.flatMap { it.gameObjectsList }.first { it.instanceId == freeCast.instanceId }
             assertSoftly {
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
                 cascadeEntry.grpId shouldBe 86
@@ -120,6 +129,19 @@ class CascadeDiscoverProjectionTest :
                 projectedStates.flatMap { it.persistentAnnotationsList }.none {
                     AnnotationType.CastingTimeOption in it.typeList
                 } shouldBe true
+                exileCard.zoneId shouldBe ZoneIds.EXILE
+                freeCastRequest.allowCancel shouldBe AllowCancel.No_a526
+                freeCastActions.map { it.actionType } shouldBe listOf(ActionType.Cast, ActionType.Pass)
+                freeCastRequest.actionsAvailableReq.inactiveActionsList shouldBe emptyList()
+                freeCast.grpId shouldBe exileCard.grpId
+                freeCast.instanceId shouldBe exileCard.instanceId
+                freeCast.abilityGrpId shouldBe KeywordAbilityIds.CASCADE
+                freeCast.sourceId shouldBe cascadeEntry.instanceId
+                freeCast.alternativeGrpId shouldBe 149
+                freeCast.alternativeSourceZcid shouldBe triggeringSource.instanceId
+                freeCastRequest.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                freeCastRequest.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number)
+                freeCastRequest.prompt.parametersList.map { it.numberValue } shouldBe listOf(triggeringSource.instanceId)
                 require(cascadeEntry.grpId != cascadeEntry.objectSourceGrpId) {
                     "ability grpId and sourceCardGrpId collapsed back to the same value"
                 }
@@ -159,10 +181,50 @@ class CascadeDiscoverProjectionTest :
             castSpellByName("Geological Appraiser") shouldBe true
 
             val projectedStates = messagesSince(before).gameStateMessages()
+            val appraiser =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .last {
+                        it.grpId == bridge.cardRepository.findGrpIdByName("Geological Appraiser") &&
+                            it.zoneId == ZoneIds.BATTLEFIELD
+                    }
+            val discoverEntry =
+                projectedStates
+                    .flatMap { it.gameObjectsList }
+                    .filter { it.type == GameObjectType.Ability && it.grpId == 169_621 }
+                    .distinctBy { it.instanceId }
+                    .single()
+            val freeCastRequest =
+                allMessages.last { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
+            val freeCastActions = freeCastRequest.actionsAvailableReq.actionsList
+            val freeCast = freeCastActions.single { it.actionType == ActionType.Cast }
+            val exileCard = projectedStates.flatMap { it.gameObjectsList }.first { it.instanceId == freeCast.instanceId }
+            val skippedCard =
+                projectedStates.flatMap { it.gameObjectsList }.first {
+                    it.grpId == bridge.cardRepository.findGrpIdByName("Forest") && it.zoneId == ZoneIds.EXILE
+                }
+            val inactive = freeCastRequest.actionsAvailableReq.inactiveActionsList.single()
             assertSoftly {
                 projectedStates.flatMap { it.persistentAnnotationsList }.none {
                     AnnotationType.CastingTimeOption in it.typeList
                 } shouldBe true
+                exileCard.zoneId shouldBe ZoneIds.EXILE
+                freeCastRequest.allowCancel shouldBe AllowCancel.No_a526
+                freeCastActions.map { it.actionType } shouldBe listOf(ActionType.Cast, ActionType.Pass)
+                freeCast.grpId shouldBe exileCard.grpId
+                freeCast.instanceId shouldBe exileCard.instanceId
+                freeCast.abilityGrpId shouldBe 169_621
+                freeCast.sourceId shouldBe discoverEntry.instanceId
+                freeCast.alternativeGrpId shouldBe 149
+                freeCast.alternativeSourceZcid shouldBe appraiser.instanceId
+                freeCastRequest.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                freeCastRequest.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number)
+                freeCastRequest.prompt.parametersList.map { it.numberValue } shouldBe listOf(appraiser.instanceId)
+                inactive.actionType shouldBe ActionType.Play_add3
+                inactive.grpId shouldBe skippedCard.grpId
+                inactive.instanceId shouldBe skippedCard.instanceId
+                inactive.abilityGrpId shouldBe 169_621
+                inactive.sourceId shouldBe discoverEntry.instanceId
             }
 
             val beforeCast = messageSnapshot()

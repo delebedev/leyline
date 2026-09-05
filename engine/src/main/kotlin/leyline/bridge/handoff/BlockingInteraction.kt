@@ -10,8 +10,16 @@ sealed interface BlockingInteraction {
         val forceSnapshotBeforePrompt: Boolean,
         val customPromptId: Int?,
         val commanderReturn: CommanderReturnPromptContext?,
+        val freeCast: FreeCast? = null,
         val etbPayLifeReplacement: Boolean = false,
     ) : BlockingInteraction
+
+    data class FreeCast(
+        val cardGrpId: Int,
+        val abilityGrpId: Int,
+        val sourceAbilityForgeId: Int,
+        val alternativeSourceForgeCardId: ForgeCardId,
+    )
 
     data class Numeric(
         val sourceId: ForgeCardId?,
