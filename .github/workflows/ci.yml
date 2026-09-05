@@ -75,7 +75,8 @@ jobs:
     if: needs.plan.outputs.run-heavy == 'true'
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
+      ORG_GRADLE_PROJECT_kotestParallelism: '2'
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
       LEYLINE_FORGE_M2_ROOT: ${{ github.workspace }}/.ci-forge-m2
     steps:
       - name: Generate app token
@@ -148,7 +149,7 @@ jobs:
     if: needs.plan.outputs.run-heavy == 'true'
     runs-on: ubuntu-24.04-arm
     env:
-      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
       LEYLINE_FORGE_M2_ROOT: ${{ github.workspace }}/.ci-forge-m2
     steps:
       - name: Generate app token
@@ -196,7 +197,7 @@ jobs:
 
       - name: Test (integration)
         id: integration
-        run: just test-integration
+        run: just test-integration 2
         continue-on-error: true
 
       - name: Test (simclient)
