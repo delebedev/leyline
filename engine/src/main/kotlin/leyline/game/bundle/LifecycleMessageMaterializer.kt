@@ -109,7 +109,7 @@ object LifecycleMessageMaterializer {
                         seatId.value,
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
                     )
-                initialGsm.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
+                seedProtoZones(editor, initialGsm)
                 if (seedProjectionCursor) {
                     editor.viewerCursors[seatId] =
                         ViewerProjectionCursor(
@@ -192,7 +192,7 @@ object LifecycleMessageMaterializer {
                             viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
-                    gsm.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
+                    seedProtoZones(editor, gsm)
                     editor.viewerCursors[seatId] =
                         ViewerProjectionCursor(
                             previousSnapshot = snapshot,
@@ -526,13 +526,25 @@ object LifecycleMessageMaterializer {
         snapshot: GsmSnapshot,
         gsm: GameStateMessage,
     ) {
-        gsm.gameObjectsList.forEach { obj -> editor.protoZones[obj.instanceId] = obj.zoneId }
+        seedProtoZones(editor, gsm)
         val prior = editor.viewerCursors[seatId] ?: ViewerProjectionCursor()
         editor.viewerCursors[seatId] =
             prior.copy(
                 previousSnapshot = snapshot.withGameStateId(gsm.gameStateId),
                 fullState = prior.fullState?.applyDiff(gsm),
             )
+    }
+
+    /** Keep hidden cards in the zone ledger so later public moves have a source identity. */
+    private fun seedProtoZones(
+        editor: ProjectionState.Editor,
+        gsm: GameStateMessage,
+    ) {
+        gsm.zonesList.forEach { zone ->
+            zone.objectInstanceIdsList.forEach { instanceId ->
+                editor.protoZones[instanceId] = zone.zoneId
+            }
+        }
     }
 
     private fun redrawIdentityFamily(

@@ -56,18 +56,21 @@ class OpeningHandLifecycleTest :
                     AnnotationType.AbilityInstanceDeleted in it.typeList && abilityId in it.affectedIdsList
                 }
             val lifecycle =
-                annotations.mapNotNull { annotation ->
-                    when {
-                        AnnotationType.AbilityInstanceCreated in annotation.typeList -> "created"
-                        AnnotationType.ResolutionStart in annotation.typeList -> "resolving"
-                        AnnotationType.ObjectIdChanged in annotation.typeList -> "identity"
-                        AnnotationType.ZoneTransfer_af5a in annotation.typeList -> "transfer"
-                        AnnotationType.ResolutionComplete in annotation.typeList -> "resolved"
-                        AnnotationType.AbilityInstanceDeleted in annotation.typeList -> "deleted"
-                        AnnotationType.UserActionTaken in annotation.typeList -> "action"
-                        else -> null
+                annotations
+                    .filter { annotation ->
+                        abilityId in annotation.affectedIdsList || annotation.affectorId == abilityId
+                    }.mapNotNull { annotation ->
+                        when {
+                            AnnotationType.AbilityInstanceCreated in annotation.typeList -> "created"
+                            AnnotationType.ResolutionStart in annotation.typeList -> "resolving"
+                            AnnotationType.ObjectIdChanged in annotation.typeList -> "identity"
+                            AnnotationType.ZoneTransfer_af5a in annotation.typeList -> "transfer"
+                            AnnotationType.ResolutionComplete in annotation.typeList -> "resolved"
+                            AnnotationType.AbilityInstanceDeleted in annotation.typeList -> "deleted"
+                            AnnotationType.UserActionTaken in annotation.typeList -> "action"
+                            else -> null
+                        }
                     }
-                }
 
             assertSoftly {
                 human.battlefield.card("Leyline Axe").name shouldBe "Leyline Axe"

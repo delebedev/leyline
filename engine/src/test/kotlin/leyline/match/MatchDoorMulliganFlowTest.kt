@@ -19,8 +19,10 @@ import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ChooseStartingPlayerResp
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -399,6 +401,48 @@ class MatchDoorMulliganFlowTest :
                     session.gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false
+                }
+            } finally {
+                local.close()
+                familiar.close()
+            }
+        }
+
+        test("actual match session preserves opening-hand lifecycle for both seats") {
+            TestCardRegistry.ensureCardRegistered("Leyline Axe")
+            val registry = MatchRegistry()
+            val matchId = "opening-hand-lifecycle-both-seats"
+            val (local, familiar) = connectPair(registry, matchId, deckList = "60 Leyline Axe", drainInitial = false)
+
+            try {
+                greOutbound(local)
+                greOutbound(familiar)
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(
+                            MulliganOption.AcceptHand,
+                            registry
+                                .getMatch(matchId)!!
+                                .bridge
+                                .committedSequence()
+                                .lastPromptMsgId,
+                        ),
+                        6,
+                    ),
+                )
+                val openingActions =
+                    greOutbound(local)
+                        .flatMap { message ->
+                            if (message.hasGameStateMessage()) message.gameStateMessage.annotationsList else emptyList()
+                        }.filter { annotation ->
+                            AnnotationType.UserActionTaken in annotation.typeList &&
+                                annotation.detailInt("actionType") == ActionType.OpeningHandAction.number
+                        }
+
+                assertSoftly {
+                    openingActions.size shouldBe 14
+                    openingActions.map { it.affectorId }.toSet() shouldBe setOf(1, 2)
+                    openingActions.map { it.detailInt("abilityGrpId") }.toSet() shouldBe setOf(175903)
                 }
             } finally {
                 local.close()
