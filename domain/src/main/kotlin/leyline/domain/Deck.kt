@@ -17,6 +17,7 @@ enum class Format {
     Timeless,
     Alchemy,
     Brawl,
+    Commander,
     ;
 
     companion object {
