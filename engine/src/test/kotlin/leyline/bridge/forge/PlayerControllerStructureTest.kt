@@ -78,6 +78,7 @@ class PlayerControllerStructureTest :
                 "playChosenSpellAbility",
                 "playSaFromPlayEffect",
                 "playSpellAbilityNoStack",
+                "playTrigger",
                 "reveal",
                 "selectTargetsInteractively",
                 "tuckCardsViaMulligan",

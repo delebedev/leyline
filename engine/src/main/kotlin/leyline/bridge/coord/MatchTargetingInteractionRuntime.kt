@@ -14,6 +14,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.TargetingWindowMaterializer
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.snapshot.BoundCard
 import leyline.game.state.ProjectionState
 import java.util.UUID
@@ -180,7 +181,11 @@ internal class MatchTargetingInteractionRuntime(
                         stackAbilitiesByOptionIndex = capture.resolveStackAbilities(value),
                         instanceIdByOptionIndex = capture.resolveInstanceIds(value, projection),
                         sourceInstanceId =
-                            value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
+                            value.forgeAbilityId
+                                .takeIf { (value.isTriggeredAbility || value.isActivatedAbility) && it != 0 }
+                                ?.let(FrameIdResolver::triggerStackAbilityForgeId)
+                                ?.let(projection.identities.forgeIdToInstanceId::get)
+                                ?: value.sourceForgeCardId?.let(projection.identities.forgeIdToInstanceId::get),
                         exchange =
                             InteractiveCommandExchange(
                                 deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) },

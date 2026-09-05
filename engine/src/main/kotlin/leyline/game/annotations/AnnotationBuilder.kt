@@ -442,6 +442,21 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.LIFE, lifeDelta))
             .build()
 
+    fun replacementEffect(
+        replacementId: EffectId,
+        affectedId: InstanceId,
+        abilityGrpId: GrpId,
+        sourceZoneChangeId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(checkNotNull(AnnotationType.forNumber(62)))
+            .setAffectorId(replacementId.value)
+            .addAffectedIds(affectedId.value)
+            .addDetails(int32Detail(DetailKeys.GRPID, abilityGrpId.value))
+            .addDetails(int32Detail(DetailKeys.REPLACEMENT_SOURCE_ZCID, sourceZoneChangeId.value))
+            .build()
+
     fun choiceResult(
         sourceInstanceId: InstanceId,
         chooserSeatId: SeatId,

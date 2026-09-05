@@ -512,8 +512,14 @@ class TargetingInteractionTest :
         ) {
             holdNextOptionalAction()
             passPriority()
-            respondToOptionalAction(accept = true)
+            val promptMessages = after { respondToOptionalAction(accept = true) }.messages
             val vendorIid = human.battlefield.iid("Spellbook Vendor")
+            val selecting =
+                promptMessages
+                    .gameStateMessages()
+                    .flatMap { it.annotationsList }
+                    .single { AnnotationType.PlayerSelectingTargets in it.typeList }
+            val abilityIid = selecting.affectedIdsList.single()
 
             val phase1Messages = after { selectTargetsIterative(listOf(vendorIid)) }.messages
 
@@ -534,7 +540,18 @@ class TargetingInteractionTest :
                 group.targetsList.single().legalAction shouldBe SelectAction.Unselect
             }
             // Completion still lands on the client's SubmitTargetsReq.
-            after { submitTargets() }.messages.count { it.hasSubmitTargetsResp() } shouldBe 1
+            val submitMessages = after { submitTargets() }.messages
+            submitMessages.count { it.hasSubmitTargetsResp() } shouldBe 1
+            val submitted =
+                submitMessages
+                    .gameStateMessages()
+                    .flatMap { it.annotationsList }
+                    .single { AnnotationType.PlayerSubmittedTargets in it.typeList }
+            val targetSpec = submitMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
+            assertSoftly {
+                submitted.affectedIdsList shouldBe listOf(abilityIid)
+                targetSpec.affectorId shouldBe abilityIid
+            }
         }
 
         // ─── Run Away Together: multi-target + TargetsWithDifferentControllers ──

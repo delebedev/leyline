@@ -10,6 +10,7 @@ sealed interface BlockingInteraction {
         val forceSnapshotBeforePrompt: Boolean,
         val customPromptId: Int?,
         val commanderReturn: CommanderReturnPromptContext?,
+        val etbPayLifeReplacement: Boolean = false,
     ) : BlockingInteraction
 
     data class Numeric(
