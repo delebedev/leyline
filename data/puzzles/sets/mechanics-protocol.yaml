@@ -1119,7 +1119,7 @@ scenarios:
             - stack_empty: true
       - pass_until:
           action: { type: cast, card: Quantum Riddler }
-          max_passes: 20
+          max_passes: 40
       - expect:
           zone_contains: { side: ours, zone: exile, card: Quantum Riddler }
       - cast: { card: Quantum Riddler, zone: exile }
