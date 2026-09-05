@@ -1,5 +1,6 @@
 package leyline.session.actions
 
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -139,6 +140,11 @@ class ActivatedAbilityInteractionTest :
                 linkInfo.detailInt("LinkType") shouldBe 2
             }
 
+            respondToOptionalAction(accept = true)
+            passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Llanowar Elves" } &&
+                    human.getZone(ZoneType.Graveyard).cards.any { it.name == "Hidden Courtyard" }
+            }.shouldBeTrue()
             allMessages.deletedPersistentAnnotationIds() shouldContain linkInfo.id
             human.battlefield.card("Llanowar Elves")
             human.graveyard.card("Hidden Courtyard")
