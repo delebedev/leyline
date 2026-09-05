@@ -355,7 +355,7 @@ object TransferAnnotations {
                 instanceId = spellIid,
                 seatId = ev.seatId,
                 actionType = castActionType,
-                abilityGrpId = castAbilityGrpId,
+                abilityGrpId = if (ev.evokePaid) GrpId(0) else castAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
             ),
         )

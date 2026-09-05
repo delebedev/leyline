@@ -2,6 +2,8 @@ package leyline.bridge.coord
 
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.GsmBuilder
+import leyline.game.bundle.GsmFrame
 import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.state.ProjectionState
@@ -9,6 +11,8 @@ import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 
 internal data class MulliganRedrawFacts(
@@ -69,6 +73,14 @@ internal class MatchLifecycleRuntime(
         owner.requireViewer(seatId)
         return synchronized(owner.feedLock) {
             initialPublication?.let { publication ->
+                val horizon = owner.actions.reconnectHorizon(seatId)
+                val hasProgressed =
+                    owner.bridge
+                        .projectionStateSnapshot()
+                        .sequence.committedOutputOrdinal > publication.outputOrdinal
+                if (horizon != null || hasProgressed) {
+                    return@synchronized publishReconnect(seatId, publication, horizon)
+                }
                 val viewerIndex = publication.outputs.indexOfFirst { it.seatId == seatId }
                 check(viewerIndex >= 0) { "Initial output is unavailable for viewer $seatId" }
                 val output = publication.outputs[viewerIndex]
@@ -124,6 +136,86 @@ internal class MatchLifecycleRuntime(
             )
             gameStateId
         }
+    }
+
+    private fun publishReconnect(
+        seatId: SeatId,
+        initial: InitialPublication,
+        horizon: MatchActionWindowRuntime.ReconnectHorizon?,
+    ): Int {
+        owner.ensureOpen()
+        val prior = owner.bridge.projectionStateSnapshot()
+        val planner = LogicalSequencePlanner(prior.sequence)
+        val gameStateId = planner.nextGsId()
+        val feed = owner.feed(seatId)
+        val priorCursor = checkNotNull(prior.viewerCursors[seatId]) { "Reconnect cursor is unavailable for $seatId" }
+        val snapshot = checkNotNull(priorCursor.previousSnapshot) { "Reconnect snapshot is unavailable for $seatId" }
+        val retainedFull = checkNotNull(priorCursor.fullState) { "Reconnect state is unavailable for $seatId" }
+        val rebasedSnapshot = snapshot.withGameStateId(gameStateId)
+        val rebasedFull =
+            retainedFull
+                .toBuilder()
+                .setType(GameStateType.Full)
+                .setGameStateId(gameStateId)
+                .clearPrevGameStateId()
+                .clearAnnotations()
+                .clearActions()
+                .clearDiffDeletedInstanceIds()
+                .setPendingMessageCount(0)
+                .setUpdate(GameStateUpdate.SendAndRecord)
+                .build()
+        val horizonMessage = horizon?.decisionMessage
+        val gsm =
+            horizonMessage?.takeIf { it.hasActionsAvailableReq() }?.let {
+                GsmBuilder.embedActions(rebasedFull, it.actionsAvailableReq, GsmFrame.from(rebasedSnapshot), seatId.value)
+            } ?: rebasedFull
+        val editor = prior.editor()
+        editor.viewerCursors[seatId] = priorCursor.copy(previousSnapshot = rebasedSnapshot, fullState = rebasedFull)
+        val transition = ProjectionTransition(prior.revision, editor.freeze())
+        val initialMessages =
+            initial.outputs
+                .single { it.seatId == seatId }
+                .batches
+                .flatten()
+        val messages =
+            buildList {
+                initialMessages
+                    .singleOrNull { it.hasConnectResp() }
+                    ?.let { add(it.toBuilder().setMsgId(planner.nextMsgId()).build()) }
+                add(
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.GameStateMessage_695e)
+                        .setMsgId(planner.nextMsgId())
+                        .setGameStateId(gameStateId)
+                        .addSystemSeatIds(seatId.value)
+                        .setGameStateMessage(gsm)
+                        .build(),
+                )
+                horizonMessage?.let {
+                    add(
+                        it
+                            .toBuilder()
+                            .setMsgId(planner.nextMsgId())
+                            .setGameStateId(gameStateId)
+                            .build(),
+                    )
+                }
+            }
+        owner.cutInstaller.install(
+            feed,
+            PreparedCut.prepare(prior, planner, messages, transition, closesPlaybackFrame = false),
+            replaces =
+                horizon
+                    ?.publishedBatch
+                    ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
+                    .orEmpty(),
+            onInstalled = {
+                horizon?.let { owner.actions.bindReconnectHorizon(it, gameStateId, messages) }
+            },
+            onFailure = owner::fail,
+        )
+        return gameStateId
     }
 
     /** Claim the automatic Familiar startup transition once both match seats are connected. */
@@ -204,6 +296,7 @@ internal class MatchLifecycleRuntime(
                         requestGameStateId,
                         owner.bridge,
                         seatId,
+                        owner.registeredViewers(),
                         facts.reportedMulliganCount,
                         facts.numCards,
                     )

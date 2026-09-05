@@ -34,8 +34,16 @@ internal object PersistentTemporaryFeedBuilder {
         val tokenSources = facts.endStepTokenSources.associate { it.tokenForgeCardId to it.sourceForgeCardId }
         val decayedHolders = decayedHolders(decayedCleanupSourcesThisGsm, snap, frameIds, transferResult, references)
         val pending = pendingTriggers(snap, frameIds)
+        val evoked =
+            snap.boundCards.values.mapNotNull { bound ->
+                if (!bound.snapshot.evokePaid) return@mapNotNull null
+                val abilityGrpId = bound.altCost(KeywordAbilityIds.EVOKE)?.abilityGrpId ?: return@mapNotNull null
+                val instanceId = frameIds.cardIid(bound.forgeCardId)
+                AnnotationBuilder.temporaryPermanent(instanceId, GrpId(abilityGrpId))
+            }
         val temporary =
             pending.temporaryPermanent +
+                evoked +
                 eotTokens.map { token ->
                     val tokenIid = frameIds.cardIid(token.forgeCardId)
                     val sourceForgeId = tokenSources[token.forgeCardId]
@@ -46,14 +54,14 @@ internal object PersistentTemporaryFeedBuilder {
                     val affector =
                         mobilize?.let { frameIds.cardIid(FrameIdResolver.delayedTriggerHolderForgeId(it.first)) } ?: tokenIid
                     AnnotationBuilder.temporaryPermanent(
-                        tokenInstanceId = tokenIid,
+                        affectedInstanceId = tokenIid,
                         abilityGrpId = mobilize?.second?.let(::GrpId) ?: AnnotationConstants.EOT_SACRIFICE_GRP_ID,
                         affectorId = affector,
                     )
                 } +
                 decayedHolders.map { holder ->
                     AnnotationBuilder.temporaryPermanent(
-                        tokenInstanceId = InstanceId(holder.parentIid),
+                        affectedInstanceId = InstanceId(holder.parentIid),
                         abilityGrpId = GrpId(holder.cleanupGrpId),
                         affectorId = InstanceId(holder.iid),
                     )
@@ -116,7 +124,7 @@ internal object PersistentTemporaryFeedBuilder {
                 val holderIid = frameIds.cardIid(pending.holderForgeId)
                 pending.affectedCardIds.map { affected ->
                     AnnotationBuilder.temporaryPermanent(
-                        tokenInstanceId = frameIds.cardIid(affected),
+                        affectedInstanceId = frameIds.cardIid(affected),
                         abilityGrpId = GrpId(pending.cleanupAbilityGrpId),
                         affectorId = holderIid,
                     )

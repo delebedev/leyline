@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Activate Hidden Courtyard's Discover 4 ability and cast the eligible card.
+# Forcing: The scripted path must activate the land because Llanowar Elves starts in the library.
+# AI behavior: The opponent has no hand or battlefield choices and cannot interrupt the activation.
+# Failure modes:
+#   WIN   = the activated Discover path cast Llanowar Elves.
+#   LOSE  = the ability or discovered cast did not complete before the turn limit.
+#   TIMEOUT = activation, cost payment, or the cast choice failed to advance.
+# Card roles:
+#   Hidden Courtyard — source of the activated Discover ability.
+#   Plains — pays the five-mana activation cost.
+#   Llanowar Elves — deterministic eligible Discover result.
+# Protocol path: Activate action, Ability object, LinkInfo type 2, free-cast choice, and zone transfers.
+
+[metadata]
+Name:Discover Hidden Courtyard
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Activate Hidden Courtyard, Discover 4, and cast Llanowar Elves.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Hidden Courtyard;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Llanowar Elves;Plains;Plains;Plains;Plains;Plains
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

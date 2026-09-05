@@ -67,6 +67,7 @@ internal class SqliteCardRepository(
     private object Abilities : Table("Abilities") {
         val id = integer("Id")
         val baseId = integer("BaseId").default(0)
+        val textId = integer("TextId").default(0)
         val oldSchoolManaText = text("OldSchoolManaText").nullable()
         val modalChildIds = text("ModalChildIds").nullable()
 
@@ -94,6 +95,7 @@ internal class SqliteCardRepository(
     private val missingTokenNames = ConcurrentHashMap.newKeySet<String>()
     private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
     private val abilityInfoCache = ConcurrentHashMap<Int, java.util.Optional<AbilityInfo>>()
+    private val abilityLocalizationCache = ConcurrentHashMap<Int, java.util.Optional<AbilityLocalization>>()
 
     // --- CardRepository ---
 
@@ -208,6 +210,33 @@ internal class SqliteCardRepository(
         abilityInfoCache[abilityGrpId] = java.util.Optional.ofNullable(info)
         return info
     }
+
+    override fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? {
+        abilityLocalizationCache[abilityGrpId]?.let { return it.orElse(null) }
+        val localization = queryAbilityLocalization(abilityGrpId)
+        abilityLocalizationCache[abilityGrpId] = java.util.Optional.ofNullable(localization)
+        return localization
+    }
+
+    private fun queryAbilityLocalization(abilityGrpId: Int): AbilityLocalization? =
+        try {
+            transaction(database) {
+                Abilities
+                    .join(Localizations, JoinType.INNER, Abilities.textId, Localizations.locId)
+                    .selectAll()
+                    .where { (Abilities.id eq abilityGrpId) and (Localizations.formatted eq 1) }
+                    .firstOrNull()
+                    ?.let { row ->
+                        AbilityLocalization(
+                            text = row[Localizations.loc],
+                            manaCost = parseManaCost(row[Abilities.oldSchoolManaText]),
+                        )
+                    }
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to query ability localization for id={}: {}", abilityGrpId, e.message)
+            null
+        }
 
     private fun queryAbilityInfo(abilityGrpId: Int): AbilityInfo? =
         try {

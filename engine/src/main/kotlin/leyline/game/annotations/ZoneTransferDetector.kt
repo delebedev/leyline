@@ -77,6 +77,7 @@ data class StackAbilityAppearance(
     val sourceZoneId: Int,
     val grpId: Int,
     val isActivatedAbility: Boolean = false,
+    val isActivatedDiscover: Boolean = false,
     val activationZoneId: Int = 0,
     val triggeringObjectInstanceId: Int? = null,
     val triggeringObjectZoneId: Int = 0,
@@ -1288,7 +1289,7 @@ object ZoneTransferDetector {
                 if (isParadigmTrigger) {
                     paradigmSourceIidLookup(sourceCardForgeId) ?: idLookup(sourceCardForgeId).value
                 } else {
-                    idLookup(sourceCardForgeId).value
+                    matchingCast?.sourceInstanceIdAtCast?.value ?: idLookup(sourceCardForgeId).value
                 }
             val sourceZoneId =
                 matchingCast
@@ -1312,6 +1313,7 @@ object ZoneTransferDetector {
                     sourceZoneId = sourceZoneId,
                     grpId = obj.grpId,
                     isActivatedAbility = isActivated,
+                    isActivatedDiscover = matchingCast?.isActivatedDiscover == true,
                     activationZoneId = activationZone,
                     triggeringObjectInstanceId = triggeringObjectIid,
                     triggeringObjectZoneId = triggeringObjectZone,

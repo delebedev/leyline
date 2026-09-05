@@ -4,12 +4,18 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.ZoneIds
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.deletedPersistentAnnotationIds
+import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 /**
  * Session-tier activated ability tests — full MatchSession round-trip.
@@ -18,6 +24,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  */
 class ActivatedAbilityInteractionTest :
     SessionTest({
+        fun MatchFlowHarness.enableStackAutoResolve() {
+            updateSettings(
+                SettingsMessage
+                    .newBuilder()
+                    .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                    .build(),
+            )
+        }
 
         session(
             "Goblin Fireslinger tap-to-ping deals damage to opponent",
@@ -56,6 +70,9 @@ class ActivatedAbilityInteractionTest :
             assertSoftly {
                 stackAbilityIids shouldContain targetSpec.affectorId
                 targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
+                allMessages.persistentAnnotationsOfType(AnnotationType.LinkInfo).none {
+                    it.affectorId in stackAbilityIids
+                } shouldBe true
                 passUntil(maxPasses = 10) { ai.life < 5 }.shouldBeTrue()
                 ai.life shouldBe 4
                 allMessages.deletedPersistentAnnotationIds() shouldContain targetSpec.id
@@ -88,5 +105,46 @@ class ActivatedAbilityInteractionTest :
                     .modalReq
             modalReq.modalOptionsList.map { it.grpId } shouldBe listOf(121501)
             modalReq.excludedOptionsList.map { it.grpId } shouldBe listOf(121502)
+        }
+
+        session(
+            "activated Discover links its stack ability to the sacrificed source",
+            puzzleFile = "data/puzzles/discover-hidden-courtyard.pzl",
+        ) {
+            val sourceIid = human.battlefield.iid("Hidden Courtyard")
+
+            enableStackAutoResolve()
+            activateAbility("Hidden Courtyard").shouldBeTrue()
+            passUntil(maxPasses = 5) {
+                allMessages.persistentAnnotationsOfType(AnnotationType.LinkInfo).isNotEmpty()
+            }.shouldBeTrue()
+
+            val abilityObjects =
+                allMessages
+                    .gameStateMessages()
+                    .flatMap { it.gameObjectsList }
+                    .filter { it.type == GameObjectType.Ability }
+                    .distinctBy { it.instanceId }
+            val abilityObject =
+                abilityObjects.firstOrNull { it.grpId == 169776 }
+                    ?: error(
+                        "No activated Discover Ability object; projected=" +
+                            abilityObjects.map { "iid=${it.instanceId} grp=${it.grpId} source=${it.objectSourceGrpId}" },
+                    )
+            val linkInfo = allMessages.persistentAnnotationsOfType(AnnotationType.LinkInfo).single()
+            assertSoftly {
+                abilityObject.objectSourceGrpId shouldBe 87440
+                linkInfo.affectorId shouldBe abilityObject.instanceId
+                linkInfo.affectedIdsList shouldBe listOf(sourceIid)
+                linkInfo.detailInt("LinkType") shouldBe 2
+            }
+
+            allMessages.deletedPersistentAnnotationIds() shouldContain linkInfo.id
+            human.battlefield.card("Llanowar Elves")
+            human.graveyard.card("Hidden Courtyard")
+            allMessages.persistentAnnotationsOfType(AnnotationType.TriggeringObject).none {
+                it.affectorId == abilityObject.instanceId
+            } shouldBe true
+            abilityObject.zoneId shouldBe ZoneIds.STACK
         }
     })
