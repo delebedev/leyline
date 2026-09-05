@@ -6,6 +6,7 @@ import leyline.game.data.KeywordAbilityIds
 internal data class PendingTriggerVisualPolicy(
     val cleanupAbilityGrpId: Int,
     val displaysAffectedCards: Boolean,
+    val holderUsesSourceCardGrpId: Boolean = false,
     val removesFromZone: Int? = null,
     val emitsTemporaryPermanent: Boolean = true,
 ) {
@@ -14,6 +15,7 @@ internal data class PendingTriggerVisualPolicy(
             PendingTriggerVisualPolicy(
                 cleanupAbilityGrpId = KeywordAbilityIds.WARP_DELAYED_TRIGGER,
                 displaysAffectedCards = false,
+                holderUsesSourceCardGrpId = true,
                 removesFromZone = 1,
                 emitsTemporaryPermanent = false,
             )

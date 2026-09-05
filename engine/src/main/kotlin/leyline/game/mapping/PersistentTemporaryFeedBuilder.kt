@@ -103,7 +103,7 @@ internal object PersistentTemporaryFeedBuilder {
                 HolderRecord(
                     iid = frameIds.cardIid(pending.holderForgeId).value,
                     ownerSeat = pending.owner.value,
-                    objectSourceGrpId = pending.sourceAbilityGrpId,
+                    objectSourceGrpId = pending.holderObjectSourceGrpId,
                     parentIid = pending.parentInstanceId,
                     cleanupGrpId = pending.cleanupAbilityGrpId,
                     sourceForgeCardId = pending.sourceForgeCardId,

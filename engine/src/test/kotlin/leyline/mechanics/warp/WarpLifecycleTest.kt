@@ -177,12 +177,20 @@ class WarpLifecycleTest :
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
 
             val battlefieldIid = human.battlefield.iid("Quantum Riddler")
+            val holder =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .single { it.type == GameObjectType.TriggerHolder }
             val pending =
                 allMessages
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .single { AnnotationType.DelayedTriggerAffectees in it.typeList }
             assertSoftly {
+                holder.objectSourceGrpId shouldBe riddlerGrpId
+                holder.parentId shouldBe battlefieldIid
+                holder.uniqueAbilitiesList.single().grpId shouldBe WARP_DELAYED_ABILITY_GRP_ID
                 pending.affectedIdsList shouldBe listOf(battlefieldIid)
                 pending.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe WARP_DELAYED_ABILITY_GRP_ID
                 pending.detailInt(DetailKeys.REMOVES_FROM_ZONE) shouldBe 1

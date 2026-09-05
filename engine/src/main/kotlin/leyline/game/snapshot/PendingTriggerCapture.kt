@@ -56,7 +56,7 @@ internal object PendingTriggerCapture {
             owner = owner,
             sourceForgeCardId = sourceForgeCardId,
             parentInstanceId = sourceParentInstanceId(sourceForgeCardId, bridge),
-            sourceAbilityGrpId = sourceAbilityGrpId,
+            holderObjectSourceGrpId = if (policy.holderUsesSourceCardGrpId) sourceGrpId else sourceAbilityGrpId,
             cleanupAbilityGrpId = policy.cleanupAbilityGrpId,
             affectedCardIds = affectedCardIds,
             displaysAffectedCards = policy.displaysAffectedCards,
@@ -106,7 +106,7 @@ internal object PendingTriggerCapture {
                 owner = bridge.seatOf(source.controller) ?: SeatId(1),
                 sourceForgeCardId = sourceForgeCardId,
                 parentInstanceId = parentInstanceId,
-                sourceAbilityGrpId = sourceGrpId,
+                holderObjectSourceGrpId = sourceGrpId,
                 cleanupAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
             )
         }

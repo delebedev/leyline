@@ -12,7 +12,7 @@ data class PendingTriggerSnapshot(
     val owner: SeatId,
     val sourceForgeCardId: ForgeCardId,
     val parentInstanceId: Int,
-    val sourceAbilityGrpId: Int,
+    val holderObjectSourceGrpId: Int,
     val cleanupAbilityGrpId: Int,
     val affectedCardIds: List<ForgeCardId> = emptyList(),
     /** Exile-and-return relations also display each affected card under the holder. */
