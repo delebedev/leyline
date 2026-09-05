@@ -110,9 +110,7 @@ class LandManaTest :
                 landObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
 
-                val retiredObj = gsm.gameObjectsList.first { it.instanceId == origId }
-                retiredObj.zoneId shouldBe ZoneIds.LIMBO
-
+                gsm.gameObjectsList.none { it.instanceId == origId } shouldBe true
                 assertLimboContains(gsm, origId)
                 gsm.diffDeletedInstanceIdsList shouldNotContain origId
             }
