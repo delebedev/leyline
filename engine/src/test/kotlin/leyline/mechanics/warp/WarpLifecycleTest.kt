@@ -10,7 +10,9 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
@@ -19,6 +21,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasCard
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
@@ -247,6 +250,12 @@ class WarpLifecycleTest :
             check(passUntil(maxPasses = 30) { getAllCastableAbilities(exiled, human).isNotEmpty() })
             check(!isGameOver())
             getAllCastableAbilities(exiled, human).shouldNotBeEmpty()
+            val exileCast =
+                ActionMapper
+                    .buildFromSnapshot(1, SnapshotCapture.run(game(), bridge, "test", 0), bridge)
+                    .actionsList
+                    .single { it.actionType == ActionType.Cast && it.instanceId == bridge.instanceId(exiled) }
+            exileCast.hasAutoTapSolution() shouldBe true
             check(castFromExile("Quantum Riddler"))
             check(passUntil(maxPasses = 20) { game().stack.isEmpty })
             "Quantum Riddler" should beOnBattlefieldOf(human)
