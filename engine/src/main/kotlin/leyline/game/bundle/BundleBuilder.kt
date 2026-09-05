@@ -807,12 +807,13 @@ class BundleBuilder(
         )
     }
 
-    private fun playbackGsm(gsm: GameStateMessage): GameStateMessage =
+    private fun playbackGsm(gsm: GameStateMessage): GameStateMessage {
+        val builder = gsm.toBuilder().setPendingMessageCount(0)
         if (gsm.persistentAnnotationsList.any { AnnotationType.ModifiedType in it.typeList }) {
-            gsm.toBuilder().setUpdate(GameStateUpdate.SendAndRecord).build()
-        } else {
-            gsm
+            builder.setUpdate(GameStateUpdate.SendAndRecord)
         }
+        return builder.build()
+    }
 
     private fun EffectProjectionFacts.withoutPendingEarthbendResolutions(): EffectProjectionFacts =
         EffectProjectionFacts(
