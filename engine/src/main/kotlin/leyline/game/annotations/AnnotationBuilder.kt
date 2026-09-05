@@ -488,6 +488,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId.value))
             .build()
 
+    fun linkInfoActivatedAbility(
+        abilityInstanceId: InstanceId,
+        sourceCardInstanceId: InstanceId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.LinkInfo)
+            .setAffectorId(abilityInstanceId.value)
+            .addAffectedIds(sourceCardInstanceId.value)
+            .addDetails(int32Detail(DetailKeys.LINK_TYPE, 2))
+            .build()
+
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
      *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
     fun modifiedPower(instanceId: InstanceId): AnnotationInfo =
