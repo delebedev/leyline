@@ -409,7 +409,6 @@ class GameEventCollector(
                 isMdfc = isMdfc,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
-                evokePaid = saAltCost == AlternativeCost.Evoke,
                 stackInstanceId = paradigmCopyStackIid,
                 sourceInstanceIdAtCast = if (isAbility) bridge.peekInstanceId(cardId) else null,
                 isAbility = isAbility,

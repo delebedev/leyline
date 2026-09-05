@@ -21,6 +21,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.testkit.detailString
 import leyline.testkit.hasCard
+import leyline.testkit.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -187,7 +188,17 @@ class WarpLifecycleTest :
                     .filter { it.hasGameStateMessage() }
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .single { AnnotationType.DelayedTriggerAffectees in it.typeList }
+            val castAction =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .single {
+                        AnnotationType.UserActionTaken in it.typeList &&
+                            it.hasDetail(DetailKeys.ALTERNATIVE_GRP_ID) &&
+                            it.detailInt(DetailKeys.ALTERNATIVE_GRP_ID) == warpAbilityGrpId
+                    }
             assertSoftly {
+                castAction.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe 0
                 holder.objectSourceGrpId shouldBe riddlerGrpId
                 holder.parentId shouldBe battlefieldIid
                 holder.uniqueAbilitiesList.single().grpId shouldBe WARP_DELAYED_ABILITY_GRP_ID

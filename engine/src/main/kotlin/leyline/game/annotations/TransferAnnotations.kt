@@ -350,12 +350,14 @@ object TransferAnnotations {
             }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
         val castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId)
+        val actionAbilityGrpId =
+            castAbilityGrpId.takeUnless { altCostGrpId.value != 0 && it == altCostGrpId } ?: GrpId(0)
         annotations.add(
             AnnotationBuilder.userActionTaken(
                 instanceId = spellIid,
                 seatId = ev.seatId,
                 actionType = castActionType,
-                abilityGrpId = if (ev.evokePaid) GrpId(0) else castAbilityGrpId,
+                abilityGrpId = actionAbilityGrpId,
                 alternativeGrpId = altCostGrpId,
             ),
         )
