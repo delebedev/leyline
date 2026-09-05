@@ -30,9 +30,14 @@ class MatchdoorAcceptanceExecutor(
         onComplete: (List<GREToClientMessage>) -> Unit = {},
     ): Int {
         require(scenario.steps.isNotEmpty()) { "scenario ${scenario.id} has no executable steps" }
-        val harness = MatchFlowHarness(seed = seed)
+        val harness =
+            MatchFlowHarness(
+                seed = seed,
+                deckList = scenario.deckList,
+                opponentDeckList = scenario.opponentDeckList,
+            )
         try {
-            harness.connectAndKeepPuzzleText(readPuzzleText(scenario.puzzle))
+            scenario.puzzle?.let { harness.connectAndKeepPuzzleText(readPuzzleText(it)) } ?: harness.connectAndKeep()
             val run = ScenarioRun(harness, scenario.id)
             var remainingOptionalActions = scenario.steps.count { it is OptionalActionStep }
             if (remainingOptionalActions > 0) harness.holdNextOptionalAction()

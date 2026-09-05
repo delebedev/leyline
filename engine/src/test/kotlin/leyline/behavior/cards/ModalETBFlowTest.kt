@@ -270,6 +270,9 @@ class ModalETBFlowTest :
         ) {
             castSpellUntilCastingTimeOptionsReq("Charming Prince")
             respondModalChoice(listOf(princeFlickerModeGrpId))
+            val targetIid = human.battlefield.iid("Grizzly Bears")
+            passUntil(maxPasses = 10) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            selectTargets(listOf(targetIid))
 
             val gameStates = allMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             val holder =

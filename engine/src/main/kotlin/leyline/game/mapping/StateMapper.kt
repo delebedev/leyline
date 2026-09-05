@@ -630,6 +630,12 @@ object StateMapper {
                     (stackTransferDeletedIds(transferResult) + resolvedStackAbilityIids)
                         .distinct()
                         .map { InstanceId(it) },
+                openingHandAbilityDeletedInstanceIds =
+                    transferResult.transfers
+                        .map { it.openingHandAbilityInstanceId }
+                        .filter { it != 0 }
+                        .distinct()
+                        .map(::InstanceId),
                 consumedEarthbendResolutionVersions = earthbendResolutions.mapTo(mutableSetOf()) { it.version },
                 priorPersistentAnnotations = persistSnapshot,
             )
@@ -1211,7 +1217,13 @@ object StateMapper {
         // Fold TriggerHolder gameObjects retired this GSM into the delete list.
         // The batch is compute metadata; the transition already contains its next state.
         val holderDeletions = fullResult.output.holderBatch.removed
-        val allDeletedIds = (deletedIds + holderDeletions + fullResult.output.diffDeletedInstanceIds.map { it.value }).distinct()
+        val allDeletedIds =
+            (
+                deletedIds +
+                    holderDeletions +
+                    fullResult.output.diffDeletedInstanceIds.map { it.value } +
+                    fullResult.output.openingHandAbilityDeletedInstanceIds.map { it.value }
+            ).distinct()
         if (allDeletedIds.isNotEmpty()) {
             builder.addAllDiffDeletedInstanceIds(allDeletedIds)
         }

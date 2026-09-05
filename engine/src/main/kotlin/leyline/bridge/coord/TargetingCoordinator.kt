@@ -750,8 +750,6 @@ class TargetingCoordinator(
 
         if (allCandidates.isEmpty()) return TargetSelectionResult(false, true)
 
-        if (autoSelectSingleTarget(sa, allCandidates, mandatory, minTargets)) return TargetSelectionResult(true, true)
-
         val labels =
             allCandidates.map { entity ->
                 when (entity) {
@@ -809,19 +807,6 @@ class TargetingCoordinator(
     }
 
     // -- Private helpers --------------------------------------------------
-
-    private fun autoSelectSingleTarget(
-        sa: SpellAbility,
-        candidates: List<GameEntity>,
-        mandatory: Boolean,
-        minTargets: Int,
-    ): Boolean {
-        if (candidates.size != 1 || !mandatory || minTargets < 1) return false
-        val target = candidates.single()
-        if (target is Card && target.isInZone(ZoneType.Stack)) return false
-        sa.targets.add(target)
-        return true
-    }
 
     private fun applySelectedTargets(
         sa: SpellAbility,

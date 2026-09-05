@@ -109,6 +109,7 @@ object LifecycleMessageMaterializer {
                         seatId.value,
                         includeStartingPlayerDecision = includeStartingPlayerPrompt,
                     )
+                seedInitialProtoZones(editor, initialGsm, initSnap, bridge)
                 if (seedProjectionCursor) {
                     editor.viewerCursors[seatId] =
                         ViewerProjectionCursor(
@@ -191,6 +192,7 @@ object LifecycleMessageMaterializer {
                             viewingSeatId = seatId.value.takeIf { viewer.role == ProjectionViewerRole.Player } ?: -1,
                             includeStartingPlayerDecision = hasStartingPlayerDecision,
                         )
+                    seedInitialProtoZones(editor, gsm, snapshot, bridge)
                     editor.viewerCursors[seatId] =
                         ViewerProjectionCursor(
                             previousSnapshot = snapshot,
@@ -524,12 +526,40 @@ object LifecycleMessageMaterializer {
         snapshot: GsmSnapshot,
         gsm: GameStateMessage,
     ) {
+        seedProtoZones(editor, gsm)
         val prior = editor.viewerCursors[seatId] ?: ViewerProjectionCursor()
         editor.viewerCursors[seatId] =
             prior.copy(
                 previousSnapshot = snapshot.withGameStateId(gsm.gameStateId),
                 fullState = prior.fullState?.applyDiff(gsm),
             )
+    }
+
+    /** Keep hidden cards in the zone ledger so later public moves have a source identity. */
+    private fun seedProtoZones(
+        editor: ProjectionState.Editor,
+        gsm: GameStateMessage,
+    ) {
+        gsm.zonesList.forEach { zone ->
+            zone.objectInstanceIdsList.forEach { instanceId ->
+                editor.protoZones[instanceId] = zone.zoneId
+            }
+        }
+    }
+
+    /** Keep the pre-deal hidden hand cards in their engine zone for later opening actions. */
+    private fun seedInitialProtoZones(
+        editor: ProjectionState.Editor,
+        gsm: GameStateMessage,
+        snapshot: GsmSnapshot,
+        bridge: GameBridge,
+    ) {
+        seedProtoZones(editor, gsm)
+        listOf(ZoneIds.P1_HAND, ZoneIds.P2_HAND).forEach { handZoneId ->
+            snapshot.zones[handZoneId]?.contents.orEmpty().forEach { forgeCardId ->
+                editor.protoZones[bridge.getOrAllocInstanceId(forgeCardId).value] = handZoneId
+            }
+        }
     }
 
     private fun redrawIdentityFamily(

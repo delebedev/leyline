@@ -19,6 +19,7 @@ object TransferCategoryResolver {
         val destruction =
             events.filterIsInstance<GameEvent.CardDestroyed>().firstOrNull { it.cardId == forgeCardId }?.destruction
         return when {
+            events.has<GameEvent.OpeningHandAction>(forgeCardId) -> TransferCategory.Put
             events.has<GameEvent.LandPlayed>(forgeCardId) -> TransferCategory.PlayLand
             events.hasSpellCast(forgeCardId) -> TransferCategory.CastSpell
             events.hasFizzledResolution(forgeCardId) -> TransferCategory.Countered
@@ -95,6 +96,7 @@ private inline fun <reified T : GameEvent> List<GameEvent>.has(forgeCardId: Forg
 @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Only operation-specific events carry a fallback card id.
 private fun GameEvent.cardId(): ForgeCardId? =
     when (this) {
+        is GameEvent.OpeningHandAction -> cardId
         is GameEvent.LandPlayed -> cardId
         is GameEvent.LegendRuleDeath -> cardId
         is GameEvent.CardSurveiled -> cardId

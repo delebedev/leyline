@@ -10,10 +10,14 @@ import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
 import leyline.game.PendingPromptCut
 import leyline.game.PlaybackCutBoundary
+import leyline.game.PlaybackCutReason
 import leyline.game.PlaybackCutRequest
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import leyline.game.state.GameBridge
 import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
@@ -355,8 +359,17 @@ internal class MatchCutCoordinator(
     fun onMainGameLoopStarted(seatId: SeatId) {
         synchronized(feedLock) {
             ensureOpen()
-            bridge.closeBundleFrame(seatId.value)
-            feed(seatId).requestedCut = null
+            val feed = feed(seatId)
+            val events = bridge.closeBundleFrame(seatId.value).openingHandActions()
+            feed.requestedCut = null
+            if (events.events.isNotEmpty()) {
+                installPlaybackCut(
+                    seatId,
+                    feed,
+                    PlaybackCutRequest(PlaybackCutReason.OpeningHandAction, 0, turnStarted = false),
+                    events,
+                )
+            }
         }
     }
 
@@ -364,73 +377,93 @@ internal class MatchCutCoordinator(
         seatId: SeatId,
         boundary: PlaybackCutBoundary,
     ) {
-        val game = bridge.getGame()
         val request =
             synchronized(feedLock) {
                 ensureOpen()
                 val feed = feed(seatId)
-                val prior = bridge.projectionStateSnapshot()
-                val planner = LogicalSequencePlanner(prior.sequence)
                 val request = feed.requestedCut ?: return
                 if (request.boundary != boundary) return
-                if (game == null) {
-                    failPlayback(
-                        IllegalStateException("Game unavailable"),
-                        diagnostic = MaterializationDiagnostic(request, null),
-                    )
-                }
                 val events =
                     try {
                         bridge.closeBundleFrame(seatId.value)
                     } catch (ex: Exception) {
                         failPlayback(ex, diagnostic = MaterializationDiagnostic(request, null))
                     }
-                val pending =
-                    try {
-                        PendingCut(
-                            request,
-                            feed.builder.materializePlaybackCut(
-                                game,
-                                planner,
-                                PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
-                            ),
-                        )
-                    } catch (ex: Exception) {
-                        failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
-                    }
-                feed.pendingCut = pending
-                val prepared =
-                    try {
-                        feed.builder.compilePlaybackCut(
-                            pending.projection,
-                            viewerRoutes(),
-                        )
-                    } catch (ex: Exception) {
-                        failPlayback(ex, pending = pending)
-                    }
-                val cut =
-                    PreparedCut.prepareForViewers(
-                        prior,
-                        planner,
-                        prepared.viewers.map { output ->
-                            PreparedViewerOutput(output.seatId, output.batches)
-                        },
-                        prepared.transition,
-                        closesPlaybackFrame = true,
-                        playbackOwnerSeatId = seatId,
-                    )
-                cutInstaller.install(
-                    cut = cut,
-                    onInstalled = {
-                        feed.pendingCut = null
-                        feed.requestedCut = null
-                    },
-                    onFailure = { failPlayback(it, pending = pending) },
-                )
+                installPlaybackCut(seatId, feed, request, events)
                 request
             }
         pacePlayback(request.delayMs, delayMultiplier)
         bridge.prioritySignal.signal()
+    }
+
+    private fun installPlaybackCut(
+        seatId: SeatId,
+        feed: ViewerFeed,
+        request: PlaybackCutRequest,
+        events: FrameEventLog,
+    ) {
+        val game =
+            bridge.getGame()
+                ?: failPlayback(
+                    IllegalStateException("Game unavailable"),
+                    diagnostic = MaterializationDiagnostic(request, events),
+                )
+        val prior = bridge.projectionStateSnapshot()
+        val planner = LogicalSequencePlanner(prior.sequence)
+        val pending =
+            try {
+                PendingCut(
+                    request,
+                    feed.builder.materializePlaybackCut(
+                        game,
+                        planner,
+                        PlaybackFrameSpecMaterializer.materialize(bridge, game, seatId, request, events),
+                    ),
+                )
+            } catch (ex: Exception) {
+                failPlayback(ex, diagnostic = MaterializationDiagnostic(request, events))
+            }
+        feed.pendingCut = pending
+        val prepared =
+            try {
+                feed.builder.compilePlaybackCut(pending.projection, viewerRoutes())
+            } catch (ex: Exception) {
+                failPlayback(ex, pending = pending)
+            }
+        val cut =
+            PreparedCut.prepareForViewers(
+                prior,
+                planner,
+                prepared.viewers.map { output -> PreparedViewerOutput(output.seatId, output.batches) },
+                prepared.transition,
+                closesPlaybackFrame = true,
+                playbackOwnerSeatId = seatId,
+            )
+        cutInstaller.install(
+            cut = cut,
+            onInstalled = {
+                feed.pendingCut = null
+                feed.requestedCut = null
+            },
+            onFailure = { failPlayback(it, pending = pending) },
+        )
+    }
+
+    private fun FrameEventLog.openingHandActions(): FrameEventLog {
+        val cardIds = events.filterIsInstance<GameEvent.OpeningHandAction>().mapTo(mutableSetOf()) { it.cardId }
+        if (cardIds.isEmpty()) return FrameEventLog.EMPTY
+        return FrameEventLog(
+            events.filter { event ->
+                event is GameEvent.OpeningHandAction ||
+                    event is GameEvent.ZoneChanged &&
+                    event.cardId in cardIds &&
+                    event.from == Zone.Hand &&
+                    event.to == Zone.Battlefield
+            },
+            zoneMoves.filter { move ->
+                move.cardId in cardIds && move.from == Zone.Hand && move.to == Zone.Battlefield
+            },
+        )
     }
 
     fun acknowledgeExternalFrame(seatId: SeatId) {

@@ -78,6 +78,18 @@ object InstanceIdRegistry {
             return retired.toList()
         }
 
+        fun reallocTo(
+            forgeCardId: ForgeCardId,
+            new: InstanceId,
+        ): IdReallocation {
+            val old = getOrAlloc(forgeCardId)
+            check(reverse[new] == null || reverse[new] == forgeCardId) { "Reserved instance id belongs to another card" }
+            nextInstanceId = maxOf(nextInstanceId, new.value + 1)
+            forward[forgeCardId] = new
+            reverse[new] = forgeCardId
+            return IdReallocation(old, new)
+        }
+
         fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = reverse[instanceId]
 
         fun replace(state: State) {

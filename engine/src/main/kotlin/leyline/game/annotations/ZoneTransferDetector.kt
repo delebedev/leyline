@@ -57,6 +57,9 @@ data class AppliedTransfer(
     val chosenCostPromptId: Int = 0,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
     val chosenX: Int = 0,
+    val openingHandAbilityInstanceId: Int = 0,
+    val openingHandAbilityGrpId: Int = 0,
+    val openingHandSeatId: Int = 0,
 )
 
 /** A triggered or activated ability that just appeared on the stack (no previousZone entry).
@@ -441,6 +444,14 @@ object ZoneTransferDetector {
                     } else {
                         affectorId
                     }
+                val openingHandAction =
+                    forgeCardId?.let { id ->
+                        events.filterIsInstance<GameEvent.OpeningHandAction>().firstOrNull { it.cardId == id }
+                    }
+                val openingHandAbilityInstanceId =
+                    openingHandAction
+                        ?.let { idLookup(FrameIdResolver.triggerStackAbilityForgeId(it.abilityForgeId)).value }
+                        ?: 0
 
                 transfers.add(
                     AppliedTransfer(
@@ -452,7 +463,7 @@ object ZoneTransferDetector {
                         forgeCardId = forgeCardId,
                         grpId = transferGrpId,
                         ownerSeatId = obj.ownerSeatId,
-                        affectorId = transferAffectorId,
+                        affectorId = openingHandAbilityInstanceId.takeIf { it != 0 } ?: transferAffectorId,
                         colorOrdinals = colorOrdinals,
                         isMdfcLandPlay = isMdfcLandPlay,
                         manaPayments = manaPayments,
@@ -464,6 +475,9 @@ object ZoneTransferDetector {
                         additionalCostGrpId = additionalCostGrpId,
                         chosenCostPromptId = chosenCostPromptId,
                         chosenX = chosenX,
+                        openingHandAbilityInstanceId = openingHandAbilityInstanceId,
+                        openingHandAbilityGrpId = openingHandAction?.abilityGrpId ?: 0,
+                        openingHandSeatId = openingHandAction?.seatId?.value ?: 0,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
@@ -1669,7 +1683,6 @@ object ZoneTransferDetector {
         val origId = limbo.value
         val newId = handoff.realloc.new.value
         val obj = patchedObjects[objectIndex]
-        patchedObjects.add(obj.toBuilder().setZoneId(ZoneIds.LIMBO).build())
         patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
         patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
         retiredIds.add(origId)

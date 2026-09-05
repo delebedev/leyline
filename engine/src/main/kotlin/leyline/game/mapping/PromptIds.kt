@@ -2,6 +2,8 @@ package leyline.game.mapping
 
 /** Protocol prompt IDs matching expected protocol values. */
 object PromptIds {
+    /** Cast a revealed card without paying its mana cost. */
+    const val FREE_CAST_FROM_REVEAL = 1134
     const val PASS_PRIORITY = 2
     const val DECLARE_ATTACKERS = 6
     const val ORDER_BLOCKERS = 7
