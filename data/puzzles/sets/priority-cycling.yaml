@@ -1,0 +1,22 @@
+name: priority-cycling
+description: Opponent priority distinguishes cycling legality from mana affordability.
+scenarios:
+  - id: unpayable-cycling-skips-opponent
+    puzzle: priority-cycling-unpayable
+    run: wait through the opponent turn without taking an action
+    expect: the first decision is the human main phase and cycling is unavailable
+    steps:
+      - expect:
+          all:
+            - phase: Main1
+            - action: { type: play_land, card: Plains }
+            - action_not_available: { type: activate, card: Shark Typhoon }
+  - id: payable-cycling-stops-opponent
+    puzzle: priority-cycling-payable
+    run: observe the available cycling response during the opponent turn
+    expect: the initial upkeep offers cycling with two Islands available
+    steps:
+      - expect:
+          all:
+            - phase: UPKEEP
+            - action: { type: activate, card: Shark Typhoon }

@@ -72,7 +72,7 @@ Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(c
 
 `SpellAbility.canPlay()` answers legality, not mana affordability.
 
-It checks timing, zone restrictions, activator restrictions, activation limits, phase restrictions, and similar rule gates. A legal ability can still be unpayable.
+It checks timing, zone restrictions, activator restrictions, activation limits, phase restrictions, and similar rule gates. A legal ability can still be unpayable. Opponent-turn priority stops therefore require payable mana for non-mana activations as well as casts. See the `priority-cycling` acceptance suite for paired available and unavailable response windows.
 
 For mana affordability, call:
 

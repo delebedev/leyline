@@ -2,6 +2,7 @@ package leyline.bridge
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import leyline.game.mapping.ActionMapper
@@ -33,6 +34,34 @@ class PriorityActionCandidatesTest :
                 projection.actions.inactiveActionsList
                     .filter { it.actionType == ActionType.Cast }
                     .shouldHaveSize(1)
+            }
+        }
+        for (manaAvailable in listOf(false, true)) {
+            test("opponent cycling stop requires payable mana: $manaAvailable") {
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard("Shark Typhoon", human, ZoneType.Hand)
+                        if (manaAvailable) repeat(2) { addCard("Island", human, ZoneType.Battlefield) }
+                    }
+                val candidates = PriorityActionCandidates.query(board.game, board.human)
+                val projection =
+                    ActionMapper.buildProjectionFromSnapshot(
+                        1,
+                        SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                        board.bridge,
+                        candidates,
+                    )
+                assertSoftly {
+                    if (manaAvailable) {
+                        candidates.hasLegalNonManaAction(board.human, isOwnTurn = false).shouldBeTrue()
+                        PriorityActionCandidates.hasLegalNonManaAction(board.game, board.human, isOwnTurn = false).shouldBeTrue()
+                        projection.actions.ofType(ActionType.Activate_add3).shouldHaveSize(1)
+                    } else {
+                        candidates.hasLegalNonManaAction(board.human, isOwnTurn = false).shouldBeFalse()
+                        PriorityActionCandidates.hasLegalNonManaAction(board.game, board.human, isOwnTurn = false).shouldBeFalse()
+                        projection.actions.ofType(ActionType.Activate_add3).shouldHaveSize(0)
+                    }
+                }
             }
         }
     })
