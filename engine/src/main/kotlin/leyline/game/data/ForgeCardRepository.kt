@@ -18,16 +18,11 @@ import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.HexFormat
 
-class UnsupportedCardDefinitionException(
-    message: String,
-) : IllegalArgumentException(message)
-
 /** Forge-backed card metadata with catalog-scoped GRE identities. */
 class ForgeCardRepository private constructor(
     private val cardIndexByName: Map<String, Int>,
     internal val catalogIdentityIds: Map<String, Int>,
     private val faceAliases: Map<String, List<FaceAlias>>,
-    private val ambiguousFaceParents: Set<String>,
     val catalogVersion: String,
 ) : CardRepository {
     private val rows = InMemoryCardRepository()
@@ -52,7 +47,6 @@ class ForgeCardRepository private constructor(
             val indexes: Map<String, Int>,
             val identityIds: Map<String, Int>,
             val faceAliases: Map<String, List<FaceAlias>>,
-            val ambiguousFaceParents: Set<String>,
             val version: String,
         )
 
@@ -68,13 +62,11 @@ class ForgeCardRepository private constructor(
             val keys = names.flatMap(::definitionKeys).distinct().sorted()
             val identityIds = keys.withIndex().associate { it.value to DERIVED_ID_BASE + it.index }
             val aliases = names.flatMap(::faceAliases)
-            val collidingAliases = aliases.map { it.name }.toSet().intersect(names.toSet())
             require(DERIVED_ID_BASE.toLong() + keys.size <= Int.MAX_VALUE) { "Card catalog exceeds the GRE identity range" }
             CatalogDescriptor(
                 names.withIndex().associate { it.value to it.index },
                 identityIds,
                 aliases.groupBy { it.name },
-                aliases.filter { it.name in collidingAliases }.mapTo(mutableSetOf()) { it.parentName },
                 definitionVersion(names),
             )
         }
@@ -84,7 +76,6 @@ class ForgeCardRepository private constructor(
                 descriptor.indexes,
                 descriptor.identityIds,
                 descriptor.faceAliases,
-                descriptor.ambiguousFaceParents,
                 descriptor.version,
             )
 
@@ -203,9 +194,6 @@ class ForgeCardRepository private constructor(
         rules: CardRules,
         catalogIndex: Int,
     ) {
-        if (rules.name in ambiguousFaceParents) {
-            throw UnsupportedCardDefinitionException("Unsupported ambiguous face name collides with a primary card: ${rules.name}")
-        }
         val faces = rules.allFaces
         val parentId = CARD_BASE + catalogIndex
         val hasCombinedParent = rules.splitType.name == "Split"

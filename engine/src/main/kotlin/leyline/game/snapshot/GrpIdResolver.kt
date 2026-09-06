@@ -186,8 +186,13 @@ object GrpIdResolver {
                 ?: GameBridge.FALLBACK_GRPID
         }
 
-        if (card.isSplitCard && card.isInZone(forge.game.zone.ZoneType.Stack)) {
-            cards.findGrpIdByNameAnyFace(card.name)?.let { return it }
+        if ((card.isInZone(forge.game.zone.ZoneType.Stack) && card.isSplitCard) || card.isSpecialized) {
+            val parentName = card.getOriginalState(forge.card.CardStateName.Original)?.name
+            val parentGrpId = parentName?.let(cards::findGrpIdByName)
+            parentGrpId
+                ?.let(cards::findLinkedFaces)
+                ?.singleOrNull { cards.findNameByGrpId(it) == card.name }
+                ?.let { return it }
         }
 
         // Rooms (split enchantments with two doors) carry the parent grpId

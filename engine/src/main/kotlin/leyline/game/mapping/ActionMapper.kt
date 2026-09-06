@@ -1270,7 +1270,12 @@ object ActionMapper {
             val abilityIndex = castable.indexOfFirst { it.cardStateName == state && it.alternativeCost == null }
             val sa = castable.getOrNull(abilityIndex) ?: continue
             val faceName = card.getState(state)?.name ?: continue
-            val faceGrpId = cardRepository.findGrpIdByNameAnyFace(faceName) ?: continue
+            val parentName = card.getOriginalState(CardStateName.Original)?.name ?: continue
+            val parentGrpId = cardRepository.findGrpIdByName(parentName) ?: continue
+            val faceGrpId =
+                cardRepository.findLinkedFaces(parentGrpId).singleOrNull {
+                    cardRepository.findNameByGrpId(it) == faceName
+                } ?: continue
             sa.setActivatingPlayer(player)
             val action =
                 Action

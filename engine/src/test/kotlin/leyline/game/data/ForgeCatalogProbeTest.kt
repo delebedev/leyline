@@ -10,6 +10,7 @@ import kotlinx.serialization.json.*
 import leyline.ForgeCatalogTag
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.StaticChoiceIds
 import leyline.testkit.battlefield
 import leyline.testkit.exile
 import leyline.testkit.graveyard
@@ -174,8 +175,7 @@ class ForgeCatalogProbeTest :
         test("split halves keep distinct cast identities and resolve their own effects") {
             probe(
                 "split",
-                "humanhand=Dead // Gone;Dead // Gone\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain\n" +
-                    "aibattlefield=Grizzly Bears;Walking Corpse",
+                puzzleFile = "data/puzzles/split-dead-gone.pzl",
             ) { repo ->
                 val parent = requireNotNull(repo.findGrpIdByName("Dead // Gone"))
                 val dead = requireNotNull(repo.findGrpIdByNameAnyFace("Dead"))
@@ -208,6 +208,115 @@ class ForgeCatalogProbeTest :
                     human.graveyard.cards.count { it.name == "Dead // Gone" } shouldBe 2
                     repo.findGrpIdByName("Gone") shouldBe parent
                 }
+            }
+        }
+        test("Room doors use combined metadata and preserve both unlocked designations") {
+            probe(
+                "room",
+                puzzleFile = "data/puzzles/room-surgical-suite.pzl",
+            ) { repo ->
+                val parent = requireNotNull(repo.findGrpIdByName("Surgical Suite // Hospital Room"))
+                val suite = requireNotNull(repo.findGrpIdByNameAnyFace("Surgical Suite"))
+                val hospital = requireNotNull(repo.findGrpIdByNameAnyFace("Hospital Room"))
+                requireNotNull(repo.findByGrpId(parent)).linkedFaceGrpIds shouldBe listOf(suite, hospital)
+                val corpse = human.graveyard.iid("Walking Corpse")
+                val left =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                        it.actionType == ActionType.CastLeftRoom
+                    }
+                submitAction(left)
+                selectTargets(listOf(corpse))
+                passUntil(10) { human.battlefield.cards.any { it.name == "Walking Corpse" } }.shouldBeTrue()
+                human.battlefield.cards.count { it.name == "Walking Corpse" } shouldBe 1
+
+                passUntil(5) {
+                    allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
+                        it.actionType == ActionType.CastRightRoom
+                    } == true
+                }.shouldBeTrue()
+                val right =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                        it.actionType == ActionType.CastRightRoom
+                    }
+                submitAction(right)
+                passUntilResolved()
+
+                val room = human.battlefield.cards.single { it.isRoom }
+                val roomIid = human.battlefield.iid(room)
+                val designations =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                        .filter { AnnotationType.Designation in it.typeList && roomIid in it.affectedIdsList }
+                        .flatMap { annotation ->
+                            annotation.detailsList
+                                .filter { it.key == "DesignationType" }
+                                .flatMap { it.valueInt32List }
+                        }.toSet()
+                assertSoftly {
+                    room.unlockedRooms shouldBe setOf(forge.card.CardStateName.LeftSplit, forge.card.CardStateName.RightSplit)
+                    designations.containsAll(setOf(19, 20)).shouldBeTrue()
+                }
+            }
+        }
+        test("Specialize selects a color and publishes the resulting form identity") {
+            probe(
+                "specialize",
+                puzzleFile = "data/puzzles/specialize-ambergris.pzl",
+            ) { repo ->
+                val base = requireNotNull(repo.findGrpIdByName("Ambergris, Citadel Agent"))
+                val tyranny = requireNotNull(repo.findGrpIdByNameAnyFace("Ambergris, Agent of Tyranny"))
+                val ambergris = human.battlefield.card("Ambergris, Citadel Agent")
+                val ambergrisIid = human.battlefield.iid(ambergris)
+                activateAbility("Ambergris, Citadel Agent").shouldBeTrue()
+                val colorReq = lastSelectNReq()
+                colorReq.staticList shouldBe StaticList.Colors
+                respondToSelectN(listOf(requireNotNull(StaticChoiceIds.colorIdForName("Black"))))
+                val discardReq = lastSelectNReq()
+                respondToSelectN(listOf(findInstanceId(discardReq.idsList, "Swamp")))
+                passUntil(10) { ambergris.name == "Ambergris, Agent of Tyranny" }.shouldBeTrue()
+                val formObjects =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .filter { it.instanceId == ambergrisIid }
+                assertSoftly {
+                    ambergris.netPower shouldBe 4
+                    ambergris.netToughness shouldBe 3
+                    formObjects.last().grpId shouldBe tyranny
+                    repo.findGrpIdByName("Ambergris, Agent of Tyranny") shouldBe base
+                    human.graveyard.cards.count { it.name == "Swamp" } shouldBe 1
+                }
+
+                holdNextOptionalAction()
+                passUntil(10) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+                declareAttackers(listOf(ambergrisIid))
+                passUntil(5) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
+                respondToOptionalAction(accept = true)
+                passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
+                passUntil(10) { ai.graveyard.cards.any { it.name == "Grizzly Bears" } }.shouldBeTrue()
+                assertSoftly {
+                    ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
+                    human.graveyard.cards.count { it.name == "Walking Corpse" } shouldBe 1
+                    human.hand.cards.count { it.name == "Unsummon" } shouldBe 2
+                }
+
+                val unsummon = requireNotNull(repo.findGrpIdByName("Unsummon"))
+                passUntil(10) {
+                    allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
+                        it.actionType == ActionType.Cast && it.grpId == unsummon
+                    } == true
+                }.shouldBeTrue()
+                castSpellByName("Unsummon").shouldBeTrue()
+                selectTargets(listOf(ambergrisIid))
+                passUntil(10) { human.hand.cards.any { it.name == "Ambergris, Agent of Tyranny" } }.shouldBeTrue()
+                val movedObjects =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .filter { it.instanceId == ambergrisIid }
+                movedObjects.last().grpId shouldBe tyranny
             }
         }
         test("triggered removal resolves using a derived trigger slot") {
@@ -254,35 +363,24 @@ class ForgeCatalogProbeTest :
                     .sorted()
             val repo = ForgeCardRepository.open()
             val failures = mutableListOf<String>()
-            val unsupported = mutableListOf<String>()
             for (name in names) {
                 runCatching { requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName(name)))) }
-                    .onFailure {
-                        if (it is IllegalArgumentException &&
-                            it.message.orEmpty().startsWith("Unsupported")
-                        ) {
-                            unsupported += "$name: ${it.message}"
-                        } else {
-                            failures += "$name: ${it.message}"
-                        }
-                    }
+                    .onFailure { failures += "$name: ${it.message}" }
             }
             val result =
                 listOf(
                     "total=${names.size}",
                     "cards=${repo.findAllGrpIds().size}",
                     "identities=${repo.identityKeys.size}",
-                    "failures=${failures.size}",
-                    "unsupported=${unsupported.size}\n",
+                    "failures=${failures.size}\n",
                 ).joinToString(" ") +
-                    (failures + unsupported).joinToString("\n")
+                    failures.joinToString("\n")
             File("build/forge-catalog-probe/catalog.txt").apply {
                 parentFile.mkdirs()
                 writeText(result)
             }
             println("FORGE_CATALOG_AUDIT $result")
             check(failures.isEmpty()) { result }
-            check(unsupported.all { it.contains("ambiguous face name") }) { result }
             repo.catalogIdentityIds.values
                 .toSet()
                 .size shouldBe repo.catalogIdentityIds.size
@@ -367,38 +465,60 @@ class ForgeCatalogProbeTest :
         }
         test("standalone primary names win over colliding face aliases") {
             val repo = ForgeCardRepository.open()
-            val primary = requireNotNull(repo.findGrpIdByName("Ancestral Recall"))
+            val primaryNames =
+                StaticData
+                    .instance()
+                    .commonCards.uniqueCards
+                    .mapTo(mutableSetOf()) { it.name }
+            val collision =
+                StaticData
+                    .instance()
+                    .commonCards.uniqueCards
+                    .asSequence()
+                    .map { it.rules }
+                    .flatMap { rules -> rules.allFaces.asSequence().map { rules.name to it.name } }
+                    .first { (parent, face) -> face != parent && face in primaryNames }
+            val parent = requireNotNull(repo.findGrpIdByName(collision.first))
+            val primary = requireNotNull(repo.findGrpIdByName(collision.second))
+            val linkedFace = repo.findLinkedFaces(parent).single { repo.findNameByGrpId(it) == collision.second }
 
             assertSoftly {
-                repo.findGrpIdByNameAnyFace("Ancestral Recall") shouldBe primary
-                repo.findNameByGrpId(primary) shouldBe "Ancestral Recall"
+                repo.findGrpIdByNameAnyFace(collision.second) shouldBe primary
+                repo.findNameByGrpId(primary) shouldBe collision.second
+                (linkedFace in repo.catalogIdentityIds.values).shouldBeTrue()
+                (linkedFace != primary).shouldBeTrue()
             }
         }
     })
 
 private fun probe(
     name: String,
-    board: String,
+    board: String = "",
+    puzzleFile: String? = null,
     block: MatchFlowHarness.(ForgeCardRepository) -> Unit,
 ) {
     val repo = ForgeCardRepository.open()
     val harness = MatchFlowHarness(cardRepositoryOverride = repo)
     val puzzle =
-        """
-        [metadata]
-        Name:Forge catalog $name
-        Goal:Win
-        Turns:5
-        Difficulty:Easy
-        Description:Exercise one GRE interaction using Forge-derived metadata.
-        [state]
-        ActivePlayer=Human
-        ActivePhase=Main1
-        HumanLife=20
-        AILife=20
-        humanlibrary=Forest;Forest;Forest;Forest;Forest
-        ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent() + "\n" + board
+        puzzleFile?.let { path ->
+            sequenceOf(File(path), File("..", path)).first { it.isFile }.readText()
+        }
+            ?:
+                """
+                [metadata]
+                Name:Forge catalog $name
+                Goal:Win
+                Turns:5
+                Difficulty:Easy
+                Description:Exercise one GRE interaction using Forge-derived metadata.
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanlibrary=Forest;Forest;Forest;Forest;Forest
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """.trimIndent() + "\n" + board
     try {
         harness.connect(puzzleText = puzzle)
         harness.block(repo)
