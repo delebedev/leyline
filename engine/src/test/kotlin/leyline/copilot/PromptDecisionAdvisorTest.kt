@@ -8,6 +8,8 @@ import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
 import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostReq
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.Group
@@ -15,6 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GroupReq
 import wotc.mtgo.gre.external.messaging.Messages.GroupSpecification
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.SearchFromGroupsReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
@@ -36,6 +39,88 @@ class PromptDecisionAdvisorTest :
             val unavailable = result.shouldBeInstanceOf<PromptDecisionResult.Unavailable>()
             unavailable.reason shouldBe PromptUnavailableReason.UnsupportedPrompt
             unavailable.detail shouldBe "no advisor route for None_aa0d"
+        }
+
+        test("forced effect cost remains payable without reconstructed Forge cost context") {
+            val advisor = PromptDecisionAdvisor(ForgeAiPolicy({ error("no live cost context") }, leyline.bridge.types.SeatId(1)))
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setPayCostsReq(
+                        wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+                            .newBuilder()
+                            .setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(
+                                        SelectNReq
+                                            .newBuilder()
+                                            .setMinSel(1)
+                                            .setMaxSel(1)
+                                            .setMinWeight(Int.MIN_VALUE)
+                                            .setMaxWeight(Int.MAX_VALUE)
+                                            .addIds(226)
+                                            .addWeights(1),
+                                    ),
+                            ),
+                    ).build()
+
+            val chosen = advisor.decide(prompt).shouldBeInstanceOf<PromptDecisionResult.Chosen>()
+            chosen.source shouldBe PromptDecisionSource.Default
+            chosen.forgeAiAttempted shouldBe true
+            chosen.decision shouldBe SimDecision.EffectCost(listOf(226))
+        }
+
+        test("effect costs without a forced prompt answer remain unavailable") {
+            val advisor = PromptDecisionAdvisor(ForgeAiPolicy({ error("no live cost context") }, leyline.bridge.types.SeatId(1)))
+
+            fun prompt(selection: SelectNReq): GREToClientMessage =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setPayCostsReq(
+                        wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
+                            .newBuilder()
+                            .setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(selection),
+                            ),
+                    ).build()
+
+            val strategic =
+                prompt(
+                    SelectNReq
+                        .newBuilder()
+                        .setMinSel(1)
+                        .setMaxSel(1)
+                        .setMinWeight(Int.MIN_VALUE)
+                        .setMaxWeight(Int.MAX_VALUE)
+                        .addIds(226)
+                        .addIds(227)
+                        .build(),
+                )
+            advisor.decide(strategic).shouldBeInstanceOf<PromptDecisionResult.Unavailable>().reason shouldBe
+                PromptUnavailableReason.NoForgeChoice
+
+            val incompleteWeights =
+                prompt(
+                    SelectNReq
+                        .newBuilder()
+                        .setMinSel(1)
+                        .setMaxSel(1)
+                        .setMinWeight(1)
+                        .setMaxWeight(1)
+                        .addIds(226)
+                        .addWeights(1)
+                        .addWeights(1)
+                        .build(),
+                )
+            advisor.decide(incompleteWeights).shouldBeInstanceOf<PromptDecisionResult.Unavailable>().reason shouldBe
+                PromptUnavailableReason.NoForgeChoice
         }
 
         test("prompt-derived decisions reject incomplete or constrained legal domains") {
