@@ -78,6 +78,23 @@ internal object DefaultDecisions {
         return SimDecision.Distribution(targets.associateWith { amount })
     }
 
+    /** Submit an effect-cost selection only when every offered candidate is required. */
+    fun forcedEffectCost(msg: GREToClientMessage): SimDecision.EffectCost? {
+        if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return null
+        val selection = msg.payCostsReq.effectCostReq.costSelection
+        val ids = selection.idsList
+        if (ids.isEmpty() || ids.distinct().size != ids.size) return null
+        val min = selection.minSel.coerceAtLeast(0)
+        val max = if (selection.maxSel > 0) selection.maxSel else min
+        if (min == 0 || ids.size != min || ids.size > max) return null
+        if (selection.weightsCount !in setOf(0, ids.size)) return null
+        if (selection.weightsCount == ids.size) {
+            val weight = selection.weightsList.sum()
+            if (weight !in selection.minWeight..selection.maxWeight) return null
+        }
+        return SimDecision.EffectCost(ids)
+    }
+
     /** Answer a "you may" trigger; accept by default. */
     fun optionalAction(accept: Boolean = true): SimDecision = SimDecision.OptionalAction(accept)
 

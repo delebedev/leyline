@@ -191,6 +191,7 @@ internal class PromptDecisionAdvisor(
             return defaulted(SimDecision.AutoTapPayment(0))
         }
         return forgeAi.chooseEffectCostPayment(prompt)?.let { forgeChosen(SimDecision.EffectCost(it)) }
+            ?: DefaultDecisions.forcedEffectCost(prompt)?.let { defaulted(it, forgeAiAttempted = true) }
             ?: unavailable(
                 PromptUnavailableReason.NoForgeChoice,
                 "Forge AI returned no effect-cost selection",
@@ -402,11 +403,22 @@ internal object PromptDecisionValidator {
             is SimDecision.OptionalAction -> prompt.hasOptionalActionMessage()
             SimDecision.DeclareNoBlockers ->
                 prompt.hasDeclareBlockersReq() && !prompt.declareBlockersReq.hasRequirements
+            is SimDecision.EffectCost ->
+                prompt.hasPayCostsReq() &&
+                    prompt.payCostsReq.hasEffectCostReq() &&
+                    effectCostSelectionIds(decision.selectedInstanceIds, prompt.payCostsReq.effectCostReq.costSelection) != null &&
+                    run {
+                        val selection = prompt.payCostsReq.effectCostReq.costSelection
+                        selection.weightsCount == 0 ||
+                            selection.weightsCount == selection.idsCount &&
+                            decision.selectedInstanceIds.sumOf { id ->
+                                selection.getWeights(selection.idsList.indexOf(id))
+                            } in selection.minWeight..selection.maxWeight
+                    }
             is SimDecision.PerformAction,
             is SimDecision.SelectTargets,
             is SimDecision.UnselectTargets,
             SimDecision.SubmitTargets,
-            is SimDecision.EffectCost,
             is SimDecision.CastingTimeX,
             SimDecision.DeclareAllAttackers,
             is SimDecision.DeclareAttackers,

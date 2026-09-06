@@ -574,12 +574,18 @@ class SnapshotHydrationTest :
             }
         }
 
-        test("attacker and committed blocker hydrate into Forge combat") {
+        test("combat state and attachments hydrate before declare blockers") {
             val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
             val blockerGrpId = TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            val auraGrpId = 71_124
+            TestCardRegistry.repo.register(auraGrpId, "Mystic Subdual")
+            val reconfigureGrpId = 81_081
+            TestCardRegistry.repo.register(reconfigureGrpId, "Inchblade Companion")
             val battlefieldZoneId = 7
             val attackerId = 201
             val blockerId = 101
+            val auraId = 301
+            val equipmentId = 302
             val gsm =
                 GameStateMessage
                     .newBuilder()
@@ -622,11 +628,47 @@ class SnapshotHydrationTest :
                             .setOwnerSeatId(2)
                             .setControllerSeatId(2)
                             .setAttackState(AttackState.Attacking),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(auraId)
+                            .setGrpId(auraGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .addCardTypes(CardType.Enchantment)
+                            .addSubtypes(SubType.Aura),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(equipmentId)
+                            .setGrpId(reconfigureGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .addCardTypes(CardType.Artifact_a80b)
+                            .addSubtypes(SubType.Equipment),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(302)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(auraId)
+                            .addAffectedIds(blockerId),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(303)
+                            .addType(AnnotationType.Attachment)
+                            .setAffectorId(equipmentId)
+                            .addAffectedIds(blockerId),
                     ).build()
 
-            val hydrated = SnapshotHydration.hydrate(gsm, 1, TestCardRegistry.repo)
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
             try {
-                val game = hydrated.getGame().shouldNotBeNull()
+                val game = hydrated.bridge.getGame().shouldNotBeNull()
                 val combat = game.combat.shouldNotBeNull()
                 val blocker =
                     game.players[0]
@@ -638,14 +680,29 @@ class SnapshotHydrationTest :
                         .getZone(ForgeZoneType.Battlefield)
                         .cards
                         .single { it.name == "Raging Goblin" }
+                val aura =
+                    game.players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Mystic Subdual" }
+                val equipment =
+                    game.players[1]
+                        .getZone(ForgeZoneType.Battlefield)
+                        .cards
+                        .single { it.name == "Inchblade Companion" }
 
                 game.phaseHandler.phase.toString() shouldBe "COMBAT_DECLARE_BLOCKERS"
                 combat.isAttacking(attacker) shouldBe true
                 combat.isBlocking(blocker) shouldBe true
                 combat.getAttackersBlockedBy(blocker).single() shouldBe attacker
                 game.phaseHandler.priorityPlayer shouldBe game.players[0]
+                aura.entityAttachedTo shouldBe blocker
+                equipment.entityAttachedTo shouldBe blocker
+                hydrated.fidelity.features
+                    .single { it.feature == "attachments" }
+                    .status shouldBe "carried"
             } finally {
-                hydrated.teardownResources()
+                hydrated.bridge.teardownResources()
             }
         }
 
