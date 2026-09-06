@@ -91,9 +91,10 @@ exact version before use.
 
 Combined Split and Room cards expose one parent identity with ordered face
 identities. Specialize cards expose the base identity with five form identities.
-Normal name lookup maps a face or form back to the deck-legal parent, while live
-objects use the selected face identity. Split casting currently offers either
-half through the generic cast action; fused casting is not exposed.
+Normal name lookup maps Split faces and Specialize forms back to the deck-legal
+parent, while live objects use the selected face identity. Split casting
+currently offers either half through the generic cast action; fused casting is
+not exposed.
 
 Run `./gradlew :engine:testForgeCatalog` for the Forge catalog classification,
 identity, and gameplay checks. This isolated lane supplies an invalid card-database

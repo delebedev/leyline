@@ -11,6 +11,7 @@ import leyline.ForgeCatalogTag
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.StaticChoiceIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.battlefield
 import leyline.testkit.exile
 import leyline.testkit.graveyard
@@ -311,12 +312,17 @@ class ForgeCatalogProbeTest :
                 castSpellByName("Unsummon").shouldBeTrue()
                 selectTargets(listOf(ambergrisIid))
                 passUntil(10) { human.hand.cards.any { it.name == "Ambergris, Agent of Tyranny" } }.shouldBeTrue()
-                val movedObjects =
+                val movedAmbergris = human.hand.card("Ambergris, Agent of Tyranny")
+                val movedAmbergrisIid = human.hand.iid(movedAmbergris)
+                val movedObject =
                     allMessages
                         .filter { it.hasGameStateMessage() }
                         .flatMap { it.gameStateMessage.gameObjectsList }
-                        .filter { it.instanceId == ambergrisIid }
-                movedObjects.last().grpId shouldBe tyranny
+                        .last { it.instanceId == movedAmbergrisIid && it.zoneId == ZoneIds.P1_HAND }
+                assertSoftly {
+                    movedObject.grpId shouldBe tyranny
+                    (movedAmbergrisIid != ambergrisIid).shouldBeTrue()
+                }
             }
         }
         test("triggered removal resolves using a derived trigger slot") {
