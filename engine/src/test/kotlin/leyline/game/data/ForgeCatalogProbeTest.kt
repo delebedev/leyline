@@ -6,6 +6,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.serialization.json.*
 import leyline.ForgeCatalogTag
 import leyline.IntegrationTag
@@ -227,14 +228,15 @@ class ForgeCatalogProbeTest :
                     }
                 submitAction(left)
                 selectTargets(listOf(corpse))
-                passUntil(10) { human.battlefield.cards.any { it.name == "Walking Corpse" } }.shouldBeTrue()
-                human.battlefield.cards.count { it.name == "Walking Corpse" } shouldBe 1
-
-                passUntil(5) {
-                    allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
-                        it.actionType == ActionType.CastRightRoom
-                    } == true
-                }.shouldBeTrue()
+                assertSoftly {
+                    passUntil(10) { human.battlefield.cards.any { it.name == "Walking Corpse" } }.shouldBeTrue()
+                    human.battlefield.cards.count { it.name == "Walking Corpse" } shouldBe 1
+                    passUntil(5) {
+                        allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
+                            it.actionType == ActionType.CastRightRoom
+                        } == true
+                    }.shouldBeTrue()
+                }
                 val right =
                     allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
                         it.actionType == ActionType.CastRightRoom
@@ -321,7 +323,7 @@ class ForgeCatalogProbeTest :
                         .last { it.instanceId == movedAmbergrisIid && it.zoneId == ZoneIds.P1_HAND }
                 assertSoftly {
                     movedObject.grpId shouldBe tyranny
-                    (movedAmbergrisIid != ambergrisIid).shouldBeTrue()
+                    movedAmbergrisIid shouldNotBe ambergrisIid
                 }
             }
         }
@@ -492,7 +494,7 @@ class ForgeCatalogProbeTest :
                 repo.findGrpIdByNameAnyFace(collision.second) shouldBe primary
                 repo.findNameByGrpId(primary) shouldBe collision.second
                 (linkedFace in repo.catalogIdentityIds.values).shouldBeTrue()
-                (linkedFace != primary).shouldBeTrue()
+                linkedFace shouldNotBe primary
             }
         }
     })
@@ -506,25 +508,26 @@ private fun probe(
     val repo = ForgeCardRepository.open()
     val harness = MatchFlowHarness(cardRepositoryOverride = repo)
     val puzzle =
-        puzzleFile?.let { path ->
+        if (puzzleFile != null) {
+            val path = puzzleFile
             sequenceOf(File(path), File("..", path)).first { it.isFile }.readText()
+        } else {
+            """
+            [metadata]
+            Name:Forge catalog $name
+            Goal:Win
+            Turns:5
+            Difficulty:Easy
+            Description:Exercise one GRE interaction using Forge-derived metadata.
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanlibrary=Forest;Forest;Forest;Forest;Forest
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent() + "\n" + board
         }
-            ?:
-                """
-                [metadata]
-                Name:Forge catalog $name
-                Goal:Win
-                Turns:5
-                Difficulty:Easy
-                Description:Exercise one GRE interaction using Forge-derived metadata.
-                [state]
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-                humanlibrary=Forest;Forest;Forest;Forest;Forest
-                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent() + "\n" + board
     try {
         harness.connect(puzzleText = puzzle)
         harness.block(repo)
