@@ -8,6 +8,8 @@ object BoardTag : Tag()
 
 object IntegrationTag : Tag()
 
+object ForgeCatalogTag : Tag()
+
 /** Puzzle-backed scripted acceptance suites. Run via `just test-acceptance`. */
 object AcceptanceTag : Tag()
 
