@@ -1,0 +1,18 @@
+name: "Shark"
+grpId: 71333
+titleId: 428078
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+isToken: true
+isPrimaryCard: false
+power: "*"
+toughness: "*"
+colors: []
+types:
+  - 2
+subtypes:
+  - 378
+supertypes: []
+manaCost: ""

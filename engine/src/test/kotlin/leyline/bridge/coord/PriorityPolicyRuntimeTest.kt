@@ -208,6 +208,25 @@ class PriorityPolicyRuntimeTest :
             }
         }
 
+        test("web and native settings preserve meaningful opponent response windows") {
+            for (option in listOf(AutoPassOption.FullControl, AutoPassOption.ResolveMyStackEffects)) {
+                val runtime = PriorityPolicyRuntime()
+                runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
+                runtime.submit(settingsMessage { autoPassOption = option })
+                val window = observation(isOwnTurn = false, phase = PhaseType.UPKEEP)
+                runtime.classifyPriorityWindow(window).shouldBeInstanceOf<PriorityWindowDecision.Skip>()
+                runtime
+                    .classifyPriorityWindow(window.copy(hasMeaningfulAction = true))
+                    .shouldBeInstanceOf<PriorityWindowDecision.Present>()
+                    .mode shouldBe PriorityWindowMode.Visible
+                runtime.submitAutoPassPriority(AutoPassPriority.No_a099)
+                runtime
+                    .classifyPriorityWindow(window)
+                    .shouldBeInstanceOf<PriorityWindowDecision.Present>()
+                    .mode shouldBe PriorityWindowMode.Visible
+            }
+        }
+
         test("full control makes a stopped phase visible") {
             val runtime = PriorityPolicyRuntime()
             runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)

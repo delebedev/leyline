@@ -1,0 +1,19 @@
+name: "Shark Typhoon"
+grpId: 71134
+titleId: 428065
+abilities:
+  - id: 137210
+    textId: 511301
+    category: 2
+  - id: 137211
+    textId: 428067
+    category: 1
+    baseId: 30
+    mana: "oXo1oU"
+  - id: 137212
+    textId: 942518
+    category: 2
+expansionCode: "IKO"
+tokens:
+  "137210": 71333
+  "137212": 71333
