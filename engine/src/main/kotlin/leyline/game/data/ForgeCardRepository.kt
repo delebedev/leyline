@@ -16,6 +16,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.MessageDigest
+import java.util.HexFormat
 
 class UnsupportedCardDefinitionException(
     message: String,
@@ -147,7 +148,7 @@ class ForgeCardRepository private constructor(
                         }
                     }
                 }
-            return digest.digest().joinToString("") { "%02x".format(it) }
+            return HexFormat.of().formatHex(digest.digest())
         }
     }
 

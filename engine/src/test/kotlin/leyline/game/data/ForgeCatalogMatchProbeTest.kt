@@ -44,9 +44,15 @@ class ForgeCatalogMatchProbeTest :
                         check(stats.errorsByType.isEmpty()) { stats.toString() }
                         check(stats.validationViolations.isEmpty()) { stats.toString() }
                         TestCardRegistry.repo.registeredCount shouldBe 0
-                        println(
-                            "FORGE_MATCH_PASS seed=$seed turns=${stats.turn} messages=${stats.totalMessages} winner=${stats.winnerSeat} reason=${stats.completionReason}",
-                        )
+                        val result =
+                            listOf(
+                                "seed=$seed",
+                                "turns=${stats.turn}",
+                                "messages=${stats.totalMessages}",
+                                "winner=${stats.winnerSeat}",
+                                "reason=${stats.completionReason}",
+                            ).joinToString(" ", "FORGE_MATCH_PASS ")
+                        println(result)
                     } finally {
                         harness.shutdown()
                     }

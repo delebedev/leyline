@@ -2,6 +2,7 @@ package leyline.game.data
 
 import com.google.protobuf.util.JsonFormat
 import forge.StaticData
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -69,16 +70,20 @@ class ForgeCatalogProbeTest :
                 respondModalChoice(listOf(modal.getModalOptions(1).grpId))
                 selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
                 passUntilResolved()
-                ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
-                human.graveyard.cards.count { it.name == "Thunder Magic" } shouldBe 1
-                human.battlefield.cards.count { it.isTapped } shouldBe 4
+                assertSoftly {
+                    ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
+                    human.graveyard.cards.count { it.name == "Thunder Magic" } shouldBe 1
+                    human.battlefield.cards.count { it.isTapped } shouldBe 4
+                }
             }
         }
         test("token spell produces distinct resolvable token metadata in GRE") {
             probe("tokens", "humanhand=Raise the Alarm\nhumanbattlefield=Plains;Plains") { repo ->
-                castSpellByName("Raise the Alarm").shouldBeTrue()
-                passUntil(10) { human.battlefield.cards.count { it.isToken } == 2 }.shouldBeTrue()
-                human.battlefield.cards.count { it.isToken } shouldBe 2
+                assertSoftly {
+                    castSpellByName("Raise the Alarm").shouldBeTrue()
+                    passUntil(10) { human.battlefield.cards.count { it.isToken } == 2 }.shouldBeTrue()
+                    human.battlefield.cards.count { it.isToken } shouldBe 2
+                }
                 val tokenObjects =
                     allMessages
                         .filter { it.hasGameStateMessage() }
@@ -91,9 +96,11 @@ class ForgeCatalogProbeTest :
         test("activated transform publishes the second face identity") {
             probe("transform", "humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp") { repo ->
                 val card = human.battlefield.card("Concealing Curtains")
-                activateAbility("Concealing Curtains").shouldBeTrue()
-                passUntil(10) { card.isBackSide }.shouldBeTrue()
-                card.name shouldBe "Revealing Eye"
+                assertSoftly {
+                    activateAbility("Concealing Curtains").shouldBeTrue()
+                    passUntil(10) { card.isBackSide }.shouldBeTrue()
+                    card.name shouldBe "Revealing Eye"
+                }
                 val backId = requireNotNull(repo.findGrpIdByName("Revealing Eye"))
                 check(
                     allMessages
@@ -123,14 +130,18 @@ class ForgeCatalogProbeTest :
                 val cardId = requireNotNull(repo.findGrpIdByName("Think Twice"))
                 val keyword = requireNotNull(repo.findKeywordAbilityGrpId(cardId, KeywordAbilityIds.FLASHBACK))
                 check(repo.findAbilityInfo(keyword)?.manaCost?.isNotEmpty() == true)
-                castSpellByName("Think Twice").shouldBeTrue()
-                passUntil(10) { human.graveyard.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
-                human.graveyard.cards.count { it.name == "Think Twice" } shouldBe 1
+                assertSoftly {
+                    castSpellByName("Think Twice").shouldBeTrue()
+                    passUntil(10) { human.graveyard.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
+                    human.graveyard.cards.count { it.name == "Think Twice" } shouldBe 1
+                }
                 val before = human.hand.cards.size
-                castFromGraveyard("Think Twice").shouldBeTrue()
-                passUntil(10) { human.exile.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
-                human.exile.cards.count { it.name == "Think Twice" } shouldBe 1
-                human.hand.cards.size shouldBe before + 1
+                assertSoftly {
+                    castFromGraveyard("Think Twice").shouldBeTrue()
+                    passUntil(10) { human.exile.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
+                    human.exile.cards.count { it.name == "Think Twice" } shouldBe 1
+                    human.hand.cards.size shouldBe before + 1
+                }
             }
         }
         test("adventure resolves into exile and the creature is then cast from exile") {
@@ -151,11 +162,13 @@ class ForgeCatalogProbeTest :
                 // An unsuccessful search is legal and avoids a library-order dependency.
                 val grouped = allMessages.lastOrNull { it.hasSearchFromGroupsReq() }
                 if (grouped != null) respondToGroupedSearchFail() else respondToSearch(emptyList())
-                passUntil(10) { human.exile.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
-                human.exile.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
-                castFromExile("Beanstalk Giant").shouldBeTrue()
-                passUntil(10) { human.battlefield.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
-                human.battlefield.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
+                assertSoftly {
+                    passUntil(10) { human.exile.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
+                    human.exile.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
+                    castFromExile("Beanstalk Giant").shouldBeTrue()
+                    passUntil(10) { human.battlefield.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
+                    human.battlefield.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
+                }
             }
         }
         test("triggered removal resolves using a derived trigger slot") {
@@ -182,12 +195,14 @@ class ForgeCatalogProbeTest :
                 val before = human.hand.cards.size
                 val aiBefore = ai.hand.cards.size
                 val data = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Jace Beleren"))))
-                data.abilityKinds.count { it == leyline.game.codes.SlotKind.Activated } shouldBe 3
-                activateAbility("Jace Beleren", 0).shouldBeTrue()
-                passUntil(10) { human.hand.cards.size == before + 1 && ai.hand.cards.size == aiBefore + 1 }.shouldBeTrue()
-                human.hand.cards.size shouldBe before + 1
-                ai.hand.cards.size shouldBe aiBefore + 1
-                card.getCounters(forge.game.card.CounterEnumType.LOYALTY) shouldBe 5
+                assertSoftly {
+                    data.abilityKinds.count { it == leyline.game.codes.SlotKind.Activated } shouldBe 3
+                    activateAbility("Jace Beleren", 0).shouldBeTrue()
+                    passUntil(10) { human.hand.cards.size == before + 1 && ai.hand.cards.size == aiBefore + 1 }.shouldBeTrue()
+                    human.hand.cards.size shouldBe before + 1
+                    ai.hand.cards.size shouldBe aiBefore + 1
+                    card.getCounters(forge.game.card.CounterEnumType.LOYALTY) shouldBe 5
+                }
             }
         }
         test("every catalog definition resolves or reports an explicit unsupported card shape") {
@@ -272,11 +287,13 @@ class ForgeCatalogProbeTest :
             val fertileFootsteps = requireNotNull(first.findGrpIdByNameAnyFace("Fertile Footsteps"))
             val restarted = ForgeCardRepository.open()
 
-            restarted.findNameByGrpId(revealingEye) shouldBe "Revealing Eye"
-            restarted.findNameByGrpId(fertileFootsteps) shouldBe "Fertile Footsteps"
-            requireNotNull(restarted.findByGrpId(revealingEye)).grpId shouldBe revealingEye
-            requireNotNull(restarted.findByGrpId(fertileFootsteps)).grpId shouldBe fertileFootsteps
-            restarted.findGrpIdByName("Zombie") shouldBe null
+            assertSoftly {
+                restarted.findNameByGrpId(revealingEye) shouldBe "Revealing Eye"
+                restarted.findNameByGrpId(fertileFootsteps) shouldBe "Fertile Footsteps"
+                requireNotNull(restarted.findByGrpId(revealingEye)).grpId shouldBe revealingEye
+                requireNotNull(restarted.findByGrpId(fertileFootsteps)).grpId shouldBe fertileFootsteps
+                restarted.findGrpIdByName("Zombie") shouldBe null
+            }
         }
     })
 
