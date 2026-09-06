@@ -1,0 +1,23 @@
+# Mechanic: Opponent-turn priority for cycling requires payable mana.
+# Forcing: Shark Typhoon is the only potential response. No combat or AI spells.
+# AI behavior: Empty hand and battlefield leave only phase progression.
+# Failure modes: An unpayable response must not stop the opponent turn;
+# a payable response must remain available before the human turn.
+# Card roles: Shark Typhoon provides cycling; Islands control affordability.
+# Protocol path: ActionsAvailableReq active versus inactive activations.
+[metadata]
+Name:priority-cycling-unpayable
+Goal:Verify opponent priority stops only for payable cycling.
+Turns:3
+Difficulty:Tutorial
+Description:Observe cycling availability through the opponent turn.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Upkeep
+HumanLife=20
+AILife=20
+humanhand=Shark Typhoon
+humanbattlefield=
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains

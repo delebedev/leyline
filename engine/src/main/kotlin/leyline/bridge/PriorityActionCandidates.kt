@@ -31,7 +31,7 @@ class PriorityActionCandidates private constructor(
     ): Boolean =
         byCardId.values.any { candidate ->
             candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
-                candidate.activations.any { it.canPlay() } ||
+                candidate.activations.any { if (isOwnTurn) it.canPlay() else canPlayAndPayManaCost(it, player) } ||
                 (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(candidate.card, false, it) } == true) ||
                 (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
         }
@@ -60,7 +60,7 @@ class PriorityActionCandidates private constructor(
             return candidateCards(game, player).any { card ->
                 val candidate = buildCandidate(card, player, handIds, battlefieldIds)
                 candidate.casts.any { isOwnTurn || canPlayAndPayManaCost(it, player) } ||
-                    candidate.activations.any { it.canPlay() } ||
+                    candidate.activations.any { if (isOwnTurn) it.canPlay() else canPlayAndPayManaCost(it, player) } ||
                     (isOwnTurn && candidate.landAbility?.let { player.canPlayLand(card, false, it) } == true) ||
                     (isOwnTurn && candidate.mdfcLandAbility?.canPlay() == true)
             }
