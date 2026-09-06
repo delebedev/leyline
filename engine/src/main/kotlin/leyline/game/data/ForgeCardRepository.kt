@@ -329,15 +329,15 @@ class ForgeCardRepository private constructor(
             kinds += kind
             categories += category
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
-            val parsed = params(raw)
+            val parsed = parseParams(raw)
             val text = parsed["SpellDescription"] ?: parsed["TriggerDescription"] ?: parsed["Description"] ?: raw
             rows.registerAbilityLocalization(id, AbilityLocalization(text, mana))
-            val effect = parsed["Execute"]?.let(variables::get)?.let(::params) ?: parsed
+            val effect = parsed["Execute"]?.let(variables::get)?.let(::parseParams) ?: parsed
             effect["Choices"]
                 ?.split(",")
                 ?.mapIndexed { index, variable ->
                     val child = identityId("$identityPrefix:mode:$keySlot:$index:$variable")
-                    val description = variables[variable]?.let(::params)?.get("SpellDescription") ?: variable
+                    val description = variables[variable]?.let(::parseParams)?.get("SpellDescription") ?: variable
                     rows.registerAbilityLocalization(child, AbilityLocalization(description))
                     child
                 }?.let { rows.registerModalOptions(cardId, ModalAbilityInfo(id, it)) }
@@ -349,7 +349,7 @@ class ForgeCardRepository private constructor(
             addRow(keyword, 8, SlotKind.Keyword, keywordBases[normalize(parts.first())] ?: 0, parts.getOrElse(1) { "" })
         }
         face.abilities.forEach { raw ->
-            val parsed = params(raw)
+            val parsed = parseParams(raw)
             val activated = parsed.containsKey("AB")
             val mana = parsed["AB"] in listOf("Mana", "ManaReflected")
             addRow(
@@ -434,14 +434,6 @@ class ForgeCardRepository private constructor(
         names: List<String>,
         values: List<Pair<String, Int>>,
     ): List<Int> = names.mapNotNull { name -> values.firstOrNull { normalize(it.first.substringBefore('_')) == normalize(name) }?.second }
-
-    private fun params(raw: String): Map<String, String> =
-        raw
-            .split('|')
-            .mapNotNull {
-                val parts = it.split('$', limit = 2)
-                if (parts.size == 2) parts[0].trim() to parts[1].trim() else null
-            }.toMap()
 
     @Synchronized
     override fun findByGrpId(grpId: Int): CardData? {
