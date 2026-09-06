@@ -58,7 +58,7 @@ class MatchFlowHarness(
             // timeout disabled; here the engine
             // Candidate projection can traverse a full action set under suite
             // load; this remains short enough to surface a stalled game loop.
-            bridgeTimeoutMs = 15_000L,
+            bridgeTimeoutMs = 30_000L,
             aiTurnWaitMs = 2_000L,
             mulliganWaitMs = 2_000L,
         ),
@@ -197,7 +197,6 @@ class MatchFlowHarness(
         drainSink()
 
         val mulliganPrompt = allMessages.last { it.type == GREMessageType.MulliganReq_aa0d }
-        val outputEpoch = localOutput.snapshot()
         val outputStart = messageSnapshot()
         localConnection.submitGREMessage(
             ClientToGREMessage
@@ -216,12 +215,20 @@ class MatchFlowHarness(
                 accumulator.turnInfo?.phase == Phase.Main1_a549
         }
         if (messagesSince(outputStart).none(humanMain1)) {
-            val reachedMain1 =
-                advanceUntil(50) {
-                    messagesSince(outputStart).any(humanMain1)
-                }
-            if (!reachedMain1) {
-                awaitNamedOutput(outputEpoch, outputStart, "initial human main phase") { humanMain1(it) }
+            GameLoopPoller.awaitCondition(timeoutMs = 20_000L) {
+                drainSink()
+                val pending = bridge.actionBridge(seatId).getPending()
+                val humanMain1Pending =
+                    phase() == "MAIN1" &&
+                        !isAiTurn() &&
+                        pending?.state?.kind == PendingActionKind.PRIORITY
+                messagesSince(outputStart).any(humanMain1) ||
+                    humanMain1Pending
+            }
+        }
+        bridge.actionBridge(seatId).getPending()?.let { pending ->
+            if (pending.state.kind == PendingActionKind.PRIORITY && phase() == "MAIN1" && !isAiTurn()) {
+                awaitPendingActionHorizon(pending, outputStart)
             }
         }
     }

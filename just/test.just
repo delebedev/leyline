@@ -61,10 +61,12 @@ test-gate: docs-lint
         :native:jacocoTestReport
 
 # engine integration tests (boots engine per fork — run after risky engine changes)
-# Run serially by default; forked integration runs contend on Forge's shared
-# local state under load. Pass a number to override for local experiments.
+# Forked JVMs run test classes in parallel; each fork boots its own card DB
+# (~4s) and keeps Forge's static state (MyRandom et al.) isolated, unlike
+# in-process kotest parallelism which races on it. Fork count defaults to
+# ~cores/4 (gradle-side); pass a number to override.
 [group('test')]
-test-integration forks='1':
+test-integration forks='':
     cd "{{project_dir}}" && ./gradlew -PforceTests -PintegrationForks={{forks}} :engine:testIntegration :engine:jacocoTestReport
 
 # puzzle-backed scripted acceptance suites
