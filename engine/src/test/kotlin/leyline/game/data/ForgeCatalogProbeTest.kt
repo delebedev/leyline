@@ -1,0 +1,353 @@
+package leyline.game.data
+
+import com.google.protobuf.util.JsonFormat
+import forge.StaticData
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.*
+import leyline.ForgeCatalogTag
+import leyline.IntegrationTag
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.battlefield
+import leyline.testkit.exile
+import leyline.testkit.graveyard
+import leyline.testkit.hand
+import leyline.tooling.headless.MatchFlowHarness
+import leyline.tooling.headless.TestCardRegistry
+import leyline.tooling.headless.dumpDiagnostics
+import wotc.mtgo.gre.external.messaging.Messages.*
+import java.io.File
+
+class ForgeCatalogProbeTest :
+    FunSpec({
+        tags(IntegrationTag, ForgeCatalogTag)
+        timeout = 600_000L
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            check(
+                java.nio.file.Files
+                    .isDirectory(
+                        java.nio.file.Paths
+                            .get(System.getenv("LEYLINE_CARD_DB")),
+                    ),
+            )
+            check(runCatching { Class.forName("org.sqlite.JDBC") }.isFailure) { "SQLite driver must be absent" }
+            check(javaClass.classLoader.getResource("test-cards/forest.yaml") == null) { "Fixture resources must be absent" }
+        }
+        afterEach { TestCardRegistry.repo.registeredCount shouldBe 0 }
+
+        test("targeted activated ability resolves with a generated ability identity") {
+            probe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
+                activateAbility("Goblin Fireslinger").shouldBeTrue()
+                passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                selectTargets(listOf(2))
+                passUntil(10) { ai.life == 19 }.shouldBeTrue()
+                ai.life shouldBe 19
+                val abilities =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .filter { it.type == GameObjectType.Ability }
+                check(abilities.isNotEmpty())
+                check(abilities.any { repo.findAbilityInfo(it.grpId) != null })
+            }
+        }
+        test("modal spell accepts generated option IDs and pays a selected extra cost") {
+            probe(
+                "modal",
+                "humanhand=Thunder Magic\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain\naibattlefield=Grizzly Bears",
+            ) { repo ->
+                val prompt = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
+                val modal = prompt.getCastingTimeOptionReq(0).modalReq
+                modal.modalOptionsCount shouldBe 3
+                check(modal.modalOptionsList.all { !repo.findAbilityLocalization(it.grpId)?.text.isNullOrBlank() })
+                modal
+                    .getModalOptions(1)
+                    .getModeCost(0)
+                    .manaCost.count shouldBe 3
+                respondModalChoice(listOf(modal.getModalOptions(1).grpId))
+                selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
+                passUntilResolved()
+                ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
+                human.graveyard.cards.count { it.name == "Thunder Magic" } shouldBe 1
+                human.battlefield.cards.count { it.isTapped } shouldBe 4
+            }
+        }
+        test("token spell produces distinct resolvable token metadata in GRE") {
+            probe("tokens", "humanhand=Raise the Alarm\nhumanbattlefield=Plains;Plains") { repo ->
+                castSpellByName("Raise the Alarm").shouldBeTrue()
+                passUntil(10) { human.battlefield.cards.count { it.isToken } == 2 }.shouldBeTrue()
+                human.battlefield.cards.count { it.isToken } shouldBe 2
+                val tokenObjects =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .filter { it.type == GameObjectType.Token }
+                check(tokenObjects.map { it.instanceId }.distinct().size == 2)
+                check(tokenObjects.all { repo.findByGrpId(it.grpId)?.types?.contains(CardType.Creature.number) == true })
+            }
+        }
+        test("activated transform publishes the second face identity") {
+            probe("transform", "humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp") { repo ->
+                val card = human.battlefield.card("Concealing Curtains")
+                activateAbility("Concealing Curtains").shouldBeTrue()
+                passUntil(10) { card.isBackSide }.shouldBeTrue()
+                card.name shouldBe "Revealing Eye"
+                val backId = requireNotNull(repo.findGrpIdByName("Revealing Eye"))
+                check(
+                    allMessages
+                        .filter {
+                            it.hasGameStateMessage()
+                        }.flatMap { it.gameStateMessage.gameObjectsList }
+                        .any { it.grpId == backId },
+                )
+                check(repo.findLinkedFaces(requireNotNull(repo.findGrpIdByName("Concealing Curtains"))).contains(backId))
+                val back = requireNotNull(repo.findByGrpId(backId))
+                val triggerIds =
+                    back.abilityIds
+                        .zip(back.abilityCategories)
+                        .filter { it.second == 2 }
+                        .map { it.first.first }
+                        .toSet()
+                check(
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .any { it.type == GameObjectType.Ability && it.grpId in triggerIds },
+                )
+            }
+        }
+        test("flashback offer and lifecycle use Forge-derived keyword cost metadata") {
+            probe("flashback", "humanhand=Think Twice\nhumanbattlefield=Island;Island;Island;Island;Island;Island") { repo ->
+                val cardId = requireNotNull(repo.findGrpIdByName("Think Twice"))
+                val keyword = requireNotNull(repo.findKeywordAbilityGrpId(cardId, KeywordAbilityIds.FLASHBACK))
+                check(repo.findAbilityInfo(keyword)?.manaCost?.isNotEmpty() == true)
+                castSpellByName("Think Twice").shouldBeTrue()
+                passUntil(10) { human.graveyard.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
+                human.graveyard.cards.count { it.name == "Think Twice" } shouldBe 1
+                val before = human.hand.cards.size
+                castFromGraveyard("Think Twice").shouldBeTrue()
+                passUntil(10) { human.exile.cards.any { it.name == "Think Twice" } }.shouldBeTrue()
+                human.exile.cards.count { it.name == "Think Twice" } shouldBe 1
+                human.hand.cards.size shouldBe before + 1
+            }
+        }
+        test("adventure resolves into exile and the creature is then cast from exile") {
+            probe(
+                "adventure",
+                "humanhand=Beanstalk Giant\nhumanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest",
+            ) { repo ->
+                val parent = requireNotNull(repo.findGrpIdByName("Beanstalk Giant"))
+                val other = requireNotNull(repo.findGrpIdByName("Fertile Footsteps"))
+                check(repo.findLinkedFaces(parent).contains(other))
+                val action =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                        it.actionType ==
+                            ActionType.CastAdventure
+                    }
+                submitAction(action)
+                passUntil(10) { allMessages.any { it.hasSearchReq() || it.hasSearchFromGroupsReq() } }.shouldBeTrue()
+                // An unsuccessful search is legal and avoids a library-order dependency.
+                val grouped = allMessages.lastOrNull { it.hasSearchFromGroupsReq() }
+                if (grouped != null) respondToGroupedSearchFail() else respondToSearch(emptyList())
+                passUntil(10) { human.exile.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
+                human.exile.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
+                castFromExile("Beanstalk Giant").shouldBeTrue()
+                passUntil(10) { human.battlefield.cards.any { it.name == "Beanstalk Giant" } }.shouldBeTrue()
+                human.battlefield.cards.count { it.name == "Beanstalk Giant" } shouldBe 1
+            }
+        }
+        test("triggered removal resolves using a derived trigger slot") {
+            probe(
+                "trigger",
+                "humanhand=Ravenous Chupacabra\nhumanbattlefield=Swamp;Swamp;Swamp;Swamp\naibattlefield=Centaur Courser",
+            ) { repo ->
+                castSpellByName("Ravenous Chupacabra").shouldBeTrue()
+                passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
+                passUntil(10) { ai.graveyard.cards.any { it.name == "Centaur Courser" } }.shouldBeTrue()
+                ai.graveyard.cards.count { it.name == "Centaur Courser" } shouldBe 1
+                check(
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .any { it.type == GameObjectType.Ability && repo.findAbilityInfo(it.grpId)?.category == 2 },
+                )
+            }
+        }
+        test("planeswalker activation retains distinct slots and changes loyalty") {
+            probe("planeswalker", "humanbattlefield=Jace Beleren|Counters:LOYALTY=3") { repo ->
+                val card = human.battlefield.card("Jace Beleren")
+                val before = human.hand.cards.size
+                val aiBefore = ai.hand.cards.size
+                val data = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Jace Beleren"))))
+                data.abilityKinds.count { it == leyline.game.codes.SlotKind.Activated } shouldBe 3
+                activateAbility("Jace Beleren", 0).shouldBeTrue()
+                passUntil(10) { human.hand.cards.size == before + 1 && ai.hand.cards.size == aiBefore + 1 }.shouldBeTrue()
+                human.hand.cards.size shouldBe before + 1
+                ai.hand.cards.size shouldBe aiBefore + 1
+                card.getCounters(forge.game.card.CounterEnumType.LOYALTY) shouldBe 5
+            }
+        }
+        test("every catalog definition resolves or reports an explicit unsupported card shape") {
+            val names =
+                StaticData
+                    .instance()
+                    .commonCards.uniqueCards
+                    .map { it.name }
+                    .distinct()
+                    .sorted()
+            val repo = ForgeCardRepository.open()
+            val failures = mutableListOf<String>()
+            val unsupported = mutableListOf<String>()
+            for (name in names) {
+                runCatching { requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName(name)))) }
+                    .onFailure {
+                        if (it is IllegalArgumentException &&
+                            it.message.orEmpty().startsWith("Unsupported")
+                        ) {
+                            unsupported += "$name: ${it.message}"
+                        } else {
+                            failures += "$name: ${it.message}"
+                        }
+                    }
+            }
+            val result =
+                listOf(
+                    "total=${names.size}",
+                    "cards=${repo.findAllGrpIds().size}",
+                    "identities=${repo.identityKeys.size}",
+                    "failures=${failures.size}",
+                    "unsupported=${unsupported.size}\n",
+                ).joinToString(" ") +
+                    (failures + unsupported).joinToString("\n")
+            File("build/forge-catalog-probe/catalog.txt").apply {
+                parentFile.mkdirs()
+                writeText(result)
+            }
+            println("FORGE_CATALOG_AUDIT $result")
+            check(failures.isEmpty()) { result }
+            check(unsupported.isNotEmpty()) { "Expected explicit combined or specialize exclusions" }
+            repo.identityKeys.size shouldBe repo.findAllGrpIds().size + repo.catalogIdentityIds.size
+            repo.catalogIdentityIds.forEach { (key, id) -> repo.identityKeys[id] shouldBe key }
+        }
+        test("identities and metadata are independent of registration order") {
+            val names =
+                listOf("Goblin Fireslinger", "Thunder Magic", "Raise the Alarm", "Concealing Curtains", "Think Twice", "Beanstalk Giant")
+            val a = ForgeCardRepository.open()
+            val b = ForgeCardRepository.open()
+            names.forEach { requireNotNull(a.findGrpIdByName(it)) }
+            names.reversed().forEach { requireNotNull(b.findGrpIdByName(it)) }
+            a.catalogVersion shouldBe b.catalogVersion
+            names.forEach { a.findGrpIdByName(it) shouldBe b.findGrpIdByName(it) }
+            names.mapNotNull(a::findGrpIdByName).forEach { a.findByGrpId(it) shouldBe b.findByGrpId(it) }
+        }
+        test("display metadata preserves Forge-only subtypes and keywords") {
+            val repo = ForgeCardRepository.open()
+            val chaplain = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Primaris Chaplain"))))
+            val angel = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Serra Angel"))))
+
+            check("Astartes" in chaplain.subtypeNames)
+            check(angel.keywordNames.any { it.equals("Flying", ignoreCase = true) })
+            check(angel.keywordNames.any { it.equals("Vigilance", ignoreCase = true) })
+        }
+        test("same-named token definitions keep source-specific identities") {
+            val repo = ForgeCardRepository.open()
+            val jadar = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Jadar, Ghoulcaller of Nephalia"))))
+            val moan = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Moan of the Unhallowed"))))
+            val decayedToken = jadar.tokenGrpIds.values.single()
+            val ordinaryToken = moan.tokenGrpIds.values.single()
+
+            check(decayedToken != ordinaryToken)
+            repo.findNameByGrpId(decayedToken) shouldBe repo.findNameByGrpId(ordinaryToken)
+            check(requireNotNull(repo.findByGrpId(decayedToken)).keywordNames.any { it.equals("Decayed", ignoreCase = true) })
+            check(requireNotNull(repo.findByGrpId(ordinaryToken)).keywordNames.none { it.equals("Decayed", ignoreCase = true) })
+            repo.findTokenGrpIdByName("Zombie") shouldBe null
+            repo.findGrpIdByName("Zombie") shouldBe null
+        }
+        test("secondary faces resolve from a cold repository without admitting token names") {
+            val first = ForgeCardRepository.open()
+            val revealingEye = requireNotNull(first.findGrpIdByNameAnyFace("Revealing Eye"))
+            val fertileFootsteps = requireNotNull(first.findGrpIdByNameAnyFace("Fertile Footsteps"))
+            val restarted = ForgeCardRepository.open()
+
+            restarted.findNameByGrpId(revealingEye) shouldBe "Revealing Eye"
+            restarted.findNameByGrpId(fertileFootsteps) shouldBe "Fertile Footsteps"
+            requireNotNull(restarted.findByGrpId(revealingEye)).grpId shouldBe revealingEye
+            requireNotNull(restarted.findByGrpId(fertileFootsteps)).grpId shouldBe fertileFootsteps
+            restarted.findGrpIdByName("Zombie") shouldBe null
+        }
+    })
+
+private fun probe(
+    name: String,
+    board: String,
+    block: MatchFlowHarness.(ForgeCardRepository) -> Unit,
+) {
+    val repo = ForgeCardRepository.open()
+    val harness = MatchFlowHarness(cardRepositoryOverride = repo)
+    val puzzle =
+        """
+        [metadata]
+        Name:Forge catalog $name
+        Goal:Win
+        Turns:5
+        Difficulty:Easy
+        Description:Exercise one GRE interaction using Forge-derived metadata.
+        [state]
+        ActivePlayer=Human
+        ActivePhase=Main1
+        HumanLife=20
+        AILife=20
+        humanlibrary=Forest;Forest;Forest;Forest;Forest
+        ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+        """.trimIndent() + "\n" + board
+    try {
+        harness.connect(puzzleText = puzzle)
+        harness.block(repo)
+        println("FORGE_PROBE_PASS $name cards=${repo.findAllGrpIds().size} messages=${harness.allMessages.size}")
+    } catch (error: Throwable) {
+        harness.dumpDiagnostics(name)
+        throw error
+    } finally {
+        val output = File("build/forge-catalog-probe").apply { mkdirs() }
+        File(output, "$name.gre.json").writeText(harness.allMessages.joinToString(",", "[", "]") { JsonFormat.printer().print(it) })
+        val cardIds =
+            harness.allMessages
+                .filter {
+                    it.hasGameStateMessage()
+                }.flatMap { it.gameStateMessage.gameObjectsList }
+                .map { it.grpId }
+                .toSet()
+        val metadata =
+            buildJsonObject {
+                for (id in cardIds) {
+                    val data = repo.findByGrpId(id)
+                    val label = repo.findNameByGrpId(id) ?: continue
+                    put(
+                        id.toString(),
+                        buildJsonObject {
+                            put("name", label)
+                            put("power", data?.power.orEmpty())
+                            put("toughness", data?.toughness.orEmpty())
+                            put(
+                                "types",
+                                data?.types.orEmpty().joinToString(" ") {
+                                    CardType
+                                        .forNumber(it)
+                                        ?.name
+                                        .orEmpty()
+                                        .substringBefore('_')
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+        File(output, "$name.cards.json").writeText(metadata.toString())
+        harness.shutdown()
+    }
+}
+
+private val leyline.tooling.headless.PlayerZone.cards get() = player.getZone(zone).cards

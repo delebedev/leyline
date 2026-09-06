@@ -64,7 +64,7 @@ dependencies {
 }
 
 tasks.named<Test>("test") {
-    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag")
+    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag & !ForgeCatalogTag")
     systemProperty("leyline.content.root", rootProject.projectDir.absolutePath)
 }
 
@@ -113,18 +113,28 @@ val testGate =
 
 val testIntegration =
     registerEngineTest("testIntegration") {
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
     }
 
 val testIntegrationStrict =
     registerEngineTest("testIntegrationStrict") {
         (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
         outputs.cacheIf { false }
         outputs.upToDateWhen { false }
     }
+
+registerEngineTest("testForgeCatalog") {
+    systemProperty("kotest.tags", "ForgeCatalogTag")
+    environment("LEYLINE_CARD_DB", rootProject.projectDir.absolutePath)
+    filter { includeTestsMatching("leyline.game.data.ForgeCatalog*ProbeTest") }
+    classpath = classpath.filter { !it.path.contains("/build/resources/test") && !it.name.contains("sqlite-jdbc") }
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("forge/forge-gui/res/cardsfolder"))
+    inputs.dir(rootProject.layout.projectDirectory.dir("forge/forge-gui/res/tokenscripts"))
+}
 
 registerEngineTest("testAcceptance") {
     systemProperty("kotest.tags", "AcceptanceTag")

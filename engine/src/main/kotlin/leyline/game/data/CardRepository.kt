@@ -4,10 +4,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import kotlin.collections.iterator
 
 /**
- * Read-only card data repository — abstracts the client's local card database.
+ * Read-only card metadata used by GRE projection and embedding hosts.
  *
- * Production impl ([SqliteCardRepository]) reads from the client's SQLite via
- * [ClientCardDatabase]. Tests use `InMemoryCardRepository` with fixture data.
+ * [SqliteCardRepository] preserves native-client identities from [ClientCardDatabase].
+ * [ForgeCardRepository] provides catalog-scoped identities from Forge definitions.
+ * Tests use [leyline.game.InMemoryCardRepository] with fixture data.
  */
 interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
@@ -41,11 +42,9 @@ interface CardRepository {
     fun findLinkedFaces(grpId: Int): List<Int> = findByGrpId(grpId)?.linkedFaceGrpIds ?: emptyList()
 
     /**
-     * Look up a single ability row from the client's Abilities table.
+     * Look up one ability's GRE metadata.
      *
-     * Returns null if the repository does not carry Abilities-table data
-     * (in-memory test repos) or the row is absent. Production impl is
-     * [SqliteCardRepository] which reads the client SQLite.
+     * Returns null if the repository does not carry ability data or the row is absent.
      */
     fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = null
 

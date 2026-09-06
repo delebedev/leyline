@@ -82,6 +82,17 @@ Within `engine`, responsibilities follow the execution boundary:
 
 Module-local ownership and dependency rules live in the nearest `AGENTS.md`.
 
+`CardRepository` is the card-metadata seam shared by projection and embedding
+hosts. The native composition root uses `SqliteCardRepository` for native-client
+identifiers. A Web embedding host can use `ForgeCardRepository`, whose generated
+identifiers are scoped to its `catalogVersion`. The version covers the Forge card
+definitions and identity scheme; persisted identifiers must be bound to that
+exact version before use.
+
+Run `./gradlew :engine:testForgeCatalog` for the Forge catalog classification,
+identity, and gameplay checks. This isolated lane supplies an invalid card-database
+path to verify that the adapter has no native card-database dependency.
+
 ## Match runtime
 
 Forge is synchronous and mutable. One engine thread advances each game and
