@@ -447,6 +447,24 @@ object ActionMapper {
                 continue
             }
             val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
+            if (forgeCard.isSplitCard) {
+                val instanceId = bridge.getOrAllocInstanceId(fid).value
+                addSplitCastActions(
+                    forgeCard,
+                    player,
+                    instanceId,
+                    builder,
+                    castable,
+                    bridge.cardRepository,
+                ) { action, index, ability, faceGrpId ->
+                    bindOffer(
+                        action,
+                        PlayerAction.CastSpell(fid, index, ability = ability),
+                        spellGrpId = faceGrpId,
+                    )
+                }
+                continue
+            }
             val sa = choosePrimaryHandCastAbility(forgeCard, castable) ?: continue
             val abilityIndex = castable.indexOfFirst { it === sa }
             val noLegalTargets = hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)
@@ -1235,6 +1253,41 @@ object ActionMapper {
                 onActive(action, abilityIndex, sa)
             } else {
                 builder.addInactiveActions(actionBuilder)
+            }
+        }
+    }
+
+    private fun addSplitCastActions(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        builder: ActionsAvailableReq.Builder,
+        castable: List<SpellAbility>,
+        cardRepository: CardRepository,
+        onActive: (Action, Int, SpellAbility, Int) -> Unit,
+    ) {
+        for (state in listOf(CardStateName.LeftSplit, CardStateName.RightSplit)) {
+            val abilityIndex = castable.indexOfFirst { it.cardStateName == state && it.alternativeCost == null }
+            val sa = castable.getOrNull(abilityIndex) ?: continue
+            val faceName = card.getState(state)?.name ?: continue
+            val faceGrpId = cardRepository.findGrpIdByNameAnyFace(faceName) ?: continue
+            sa.setActivatingPlayer(player)
+            val action =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(faceGrpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+                    .addAllManaCost(CastDisplayCost.requirements(sa, player, null))
+            val canCast = !hasUnmetTargeting(sa) && !hasNoLegalCharmModes(sa) && canPayManaCost(sa, player)
+            if (canCast) {
+                val built = action.build()
+                builder.addActions(built)
+                onActive(built, abilityIndex, sa, faceGrpId)
+            } else {
+                builder.addInactiveActions(action)
             }
         }
     }

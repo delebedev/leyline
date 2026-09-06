@@ -1,0 +1,17 @@
+[metadata]
+Name:Forge catalog split halves
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast each half of a split card.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Dead // Gone;Dead // Gone
+humanbattlefield=Mountain;Mountain;Mountain;Mountain
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Grizzly Bears;Walking Corpse
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

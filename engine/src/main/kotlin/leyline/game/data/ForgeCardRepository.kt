@@ -27,6 +27,7 @@ class ForgeCardRepository private constructor(
     private val cardIndexByName: Map<String, Int>,
     internal val catalogIdentityIds: Map<String, Int>,
     private val faceAliases: Map<String, List<FaceAlias>>,
+    private val ambiguousFaceParents: Set<String>,
     val catalogVersion: String,
 ) : CardRepository {
     private val rows = InMemoryCardRepository()
@@ -45,12 +46,13 @@ class ForgeCardRepository private constructor(
     companion object {
         private const val CARD_BASE = 200_000_000
         private const val DERIVED_ID_BASE = 300_000_000
-        private const val IDENTITY_SCHEME = "forge-card-catalog-v2-dense-semantic-keys"
+        private const val IDENTITY_SCHEME = "forge-card-catalog-v3-combined-and-specialize-faces"
 
         private data class CatalogDescriptor(
             val indexes: Map<String, Int>,
             val identityIds: Map<String, Int>,
             val faceAliases: Map<String, List<FaceAlias>>,
+            val ambiguousFaceParents: Set<String>,
             val version: String,
         )
 
@@ -65,33 +67,48 @@ class ForgeCardRepository private constructor(
                     .sorted()
             val keys = names.flatMap(::definitionKeys).distinct().sorted()
             val identityIds = keys.withIndex().associate { it.value to DERIVED_ID_BASE + it.index }
+            val aliases = names.flatMap(::faceAliases)
+            val collidingAliases = aliases.map { it.name }.toSet().intersect(names.toSet())
             require(DERIVED_ID_BASE.toLong() + keys.size <= Int.MAX_VALUE) { "Card catalog exceeds the GRE identity range" }
             CatalogDescriptor(
                 names.withIndex().associate { it.value to it.index },
                 identityIds,
-                names.flatMap(::faceAliases).groupBy { it.name },
+                aliases.groupBy { it.name },
+                aliases.filter { it.name in collidingAliases }.mapTo(mutableSetOf()) { it.parentName },
                 definitionVersion(names),
             )
         }
 
         fun open(): ForgeCardRepository =
-            ForgeCardRepository(descriptor.indexes, descriptor.identityIds, descriptor.faceAliases, descriptor.version)
+            ForgeCardRepository(
+                descriptor.indexes,
+                descriptor.identityIds,
+                descriptor.faceAliases,
+                descriptor.ambiguousFaceParents,
+                descriptor.version,
+            )
 
         private fun faceAliases(name: String): List<FaceAlias> {
             val rules = requireNotNull(StaticData.instance().commonCards.getCard(name)).rules
-            if (rules.splitType.name in setOf("Split", "Specialize")) return emptyList()
-            return rules.allFaces.drop(1).mapIndexed { offset, face ->
-                val index = offset + 1
-                FaceAlias(face.name, rules.name, "face:${rules.name}:$index:${face.name}")
+            return rules.allFaces.mapIndexedNotNull { index, face ->
+                if (face.name == rules.name) {
+                    null
+                } else {
+                    FaceAlias(
+                        face.name,
+                        rules.name,
+                        faceIdentityKey(rules, index),
+                        canonicalizeToParent = rules.splitType.name in setOf("Split", "Specialize"),
+                    )
+                }
             }
         }
 
         private fun definitionKeys(name: String): List<String> {
             val rules = requireNotNull(StaticData.instance().commonCards.getCard(name)).rules
-            if (rules.splitType.name in setOf("Split", "Specialize")) return emptyList()
             return buildList {
                 rules.allFaces.forEachIndexed { faceIndex, face ->
-                    if (faceIndex > 0) add("face:${rules.name}:$faceIndex:${face.name}")
+                    if (faceIndex > 0 || rules.splitType.name == "Split") add(faceIdentityKey(rules, faceIndex))
                     addFaceKeys(face, "${rules.name}:face:$faceIndex")
                 }
                 rules.tokens.distinct().forEachIndexed { tokenIndex, script ->
@@ -102,6 +119,11 @@ class ForgeCardRepository private constructor(
                 }
             }
         }
+
+        private fun faceIdentityKey(
+            rules: CardRules,
+            index: Int,
+        ): String = "face:${rules.name}:$index:${rules.allFaces[index].name}"
 
         private fun MutableList<String>.addFaceKeys(
             face: ICardFace,
@@ -157,7 +179,8 @@ class ForgeCardRepository private constructor(
         val catalogIndex = cardIndexByName[name]
         if (catalogIndex == null) {
             val alias = faceAliases[name]?.singleOrNull() ?: return null
-            findGrpIdByName(alias.parentName) ?: return null
+            val parentId = findGrpIdByName(alias.parentName) ?: return null
+            if (alias.canonicalizeToParent) return parentId
             return catalogIdentityIds[alias.identityKey]
         }
         rows.findByGrpId(CARD_BASE + catalogIndex)?.let { return it.grpId }
@@ -180,21 +203,25 @@ class ForgeCardRepository private constructor(
         rules: CardRules,
         catalogIndex: Int,
     ) {
-        if (rules.splitType.name == "Split") throw UnsupportedCardDefinitionException("Unsupported combined card identity: ${rules.name}")
-        if (rules.splitType.name == "Specialize") throw UnsupportedCardDefinitionException("Unsupported specialize identity: ${rules.name}")
+        if (rules.name in ambiguousFaceParents) {
+            throw UnsupportedCardDefinitionException("Unsupported ambiguous face name collides with a primary card: ${rules.name}")
+        }
         val faces = rules.allFaces
+        val parentId = CARD_BASE + catalogIndex
+        val hasCombinedParent = rules.splitType.name == "Split"
         val faceIds =
             faces.indices.map {
-                if (it ==
-                    0
-                ) {
-                    CARD_BASE + catalogIndex
+                if (it == 0 && !hasCombinedParent) {
+                    parentId
                 } else {
                     identityId("face:${rules.name}:$it:${faces[it].name}")
                 }
             }
         faces.forEachIndexed { index, face ->
-            claim(faceIds[index], if (index == 0) "card:${rules.name}" else "face:${rules.name}:$index:${face.name}")
+            claim(
+                faceIds[index],
+                if (index == 0 && !hasCombinedParent) "card:${rules.name}" else "face:${rules.name}:$index:${face.name}",
+            )
             val linkedType =
                 if (rules.splitType.name == "Adventure") {
                     if (index == 0) {
@@ -207,7 +234,8 @@ class ForgeCardRepository private constructor(
                 }
             registerFace(face, faceIds[index], faceIds.filter { it != faceIds[index] }, linkedType, "${rules.name}:face:$index")
         }
-        rows.register(faceIds.first(), rules.name)
+        if (hasCombinedParent) registerCombinedParent(rules, parentId, faceIds)
+        rows.register(parentId, rules.name)
 
         val tokenIds =
             rules.tokens
@@ -227,11 +255,62 @@ class ForgeCardRepository private constructor(
                     tokens.getOrPut(tokenName.removeSuffix(" Token")) { mutableSetOf() }.add(tokenId)
                     identityId("${rules.name}:token-source:$index:$script") to tokenId
                 }.toMap()
-        faces.forEachIndexed { index, face ->
-            val row = requireNotNull(rows.findByGrpId(faceIds[index]))
-            rows.registerData(row.copy(tokenGrpIds = tokenIds), face.name)
+        val namedIds =
+            buildList {
+                add(parentId to rules.name)
+                faces.forEachIndexed { index, face -> add(faceIds[index] to face.name) }
+            }.distinctBy { it.first }
+        namedIds.forEach { (id, name) ->
+            val row = requireNotNull(rows.findByGrpId(id))
+            rows.registerData(row.copy(tokenGrpIds = tokenIds), name)
         }
-        rows.register(faceIds.first(), rules.name)
+        rows.register(parentId, rules.name)
+    }
+
+    private fun registerCombinedParent(
+        rules: CardRules,
+        parentId: Int,
+        faceIds: List<Int>,
+    ) {
+        claim(parentId, "card:${rules.name}")
+        val faceRows = faceIds.map { requireNotNull(rows.findByGrpId(it)) }
+        val typeNames = rules.type.coreTypes.map { it.name }
+        val subtypeNames = rules.type.subtypes.toList()
+        val abilities = faceRows.flatMap { it.abilityIds }
+        val kinds = faceRows.flatMap { it.abilityKinds }
+        val categories = faceRows.flatMap { it.abilityCategories }
+        rows.registerData(
+            CardData(
+                grpId = parentId,
+                titleId = parentId,
+                power = rules.power.orEmpty(),
+                toughness = rules.toughness.orEmpty(),
+                colors =
+                    listOf(
+                        1 to rules.color.hasWhite(),
+                        2 to rules.color.hasBlue(),
+                        3 to rules.color.hasBlack(),
+                        4 to rules.color.hasRed(),
+                        5 to rules.color.hasGreen(),
+                    ).filter { it.second }.map { it.first },
+                types = enums(typeNames, CardType.values().filter { it.name != "UNRECOGNIZED" }.map { it.name to it.number }),
+                subtypes = enums(subtypeNames, SubType.values().filter { it.name != "UNRECOGNIZED" }.map { it.name to it.number }),
+                supertypes =
+                    enums(
+                        rules.type.supertypes.map { it.name },
+                        SuperType.values().filter { it.name != "UNRECOGNIZED" }.map { it.name to it.number },
+                    ),
+                abilityIds = abilities,
+                abilityKinds = kinds,
+                abilityCategories = categories,
+                manaCost = ManaColorMapping.deriveManaCost(rules.manaCost),
+                linkedFaceGrpIds = faceIds,
+                typeNames = typeNames,
+                subtypeNames = subtypeNames,
+                keywordNames = faceRows.flatMap { it.keywordNames }.distinct(),
+            ),
+            rules.name,
+        )
     }
 
     private fun registerFace(
@@ -387,7 +466,13 @@ class ForgeCardRepository private constructor(
     @Synchronized
     override fun findNameByGrpId(grpId: Int): String? = rows.findNameByGrpId(grpId) ?: primaryNameById[grpId] ?: faceAliasById[grpId]?.name
 
-    override fun findGrpIdByNameAnyFace(name: String): Int? = findGrpIdByName(name)
+    @Synchronized
+    override fun findGrpIdByNameAnyFace(name: String): Int? {
+        if (name in cardIndexByName) return findGrpIdByName(name)
+        val alias = faceAliases[name]?.singleOrNull() ?: return findGrpIdByName(name)
+        findGrpIdByName(alias.parentName) ?: return null
+        return catalogIdentityIds[alias.identityKey]
+    }
 
     @Synchronized
     override fun findTokenGrpIdByName(name: String): Int? = (tokens[name] ?: tokens[name.removeSuffix(" Token")])?.singleOrNull()
@@ -410,6 +495,7 @@ private data class FaceAlias(
     val name: String,
     val parentName: String,
     val identityKey: String,
+    val canonicalizeToParent: Boolean,
 )
 
 private fun parseParams(raw: String): Map<String, String> =

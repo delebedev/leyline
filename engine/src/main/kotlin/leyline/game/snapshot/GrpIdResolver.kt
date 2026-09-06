@@ -186,6 +186,10 @@ object GrpIdResolver {
                 ?: GameBridge.FALLBACK_GRPID
         }
 
+        if (card.isSplitCard && card.isInZone(forge.game.zone.ZoneType.Stack)) {
+            cards.findGrpIdByNameAnyFace(card.name)?.let { return it }
+        }
+
         // Rooms (split enchantments with two doors) carry the parent grpId
         // everywhere except on the stack — Forge's active state flips to
         // LeftSplit / RightSplit when a door unlocks, but the projected card

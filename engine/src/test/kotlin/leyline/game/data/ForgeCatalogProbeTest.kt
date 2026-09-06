@@ -171,6 +171,45 @@ class ForgeCatalogProbeTest :
                 }
             }
         }
+        test("split halves keep distinct cast identities and resolve their own effects") {
+            probe(
+                "split",
+                "humanhand=Dead // Gone;Dead // Gone\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain\n" +
+                    "aibattlefield=Grizzly Bears;Walking Corpse",
+            ) { repo ->
+                val parent = requireNotNull(repo.findGrpIdByName("Dead // Gone"))
+                val dead = requireNotNull(repo.findGrpIdByNameAnyFace("Dead"))
+                val gone = requireNotNull(repo.findGrpIdByNameAnyFace("Gone"))
+                val firstOffers =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.filter {
+                        it.actionType == ActionType.Cast && it.grpId in setOf(dead, gone)
+                    }
+                firstOffers.map { it.grpId }.toSet() shouldBe setOf(dead, gone)
+
+                submitAction(firstOffers.first { it.grpId == gone })
+                selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
+                passUntilResolved()
+                ai.hand.cards.count { it.name == "Grizzly Bears" } shouldBe 1
+                passUntil(5) {
+                    allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
+                        it.actionType == ActionType.Cast && it.grpId == dead
+                    } == true
+                }.shouldBeTrue()
+
+                val deadOffer =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                        it.actionType == ActionType.Cast && it.grpId == dead
+                    }
+                submitAction(deadOffer)
+                selectTargets(listOf(ai.battlefield.iid("Walking Corpse")))
+                passUntilResolved()
+                assertSoftly {
+                    ai.graveyard.cards.count { it.name == "Walking Corpse" } shouldBe 1
+                    human.graveyard.cards.count { it.name == "Dead // Gone" } shouldBe 2
+                    repo.findGrpIdByName("Gone") shouldBe parent
+                }
+            }
+        }
         test("triggered removal resolves using a derived trigger slot") {
             probe(
                 "trigger",
@@ -243,9 +282,11 @@ class ForgeCatalogProbeTest :
             }
             println("FORGE_CATALOG_AUDIT $result")
             check(failures.isEmpty()) { result }
-            check(unsupported.isNotEmpty()) { "Expected explicit combined or specialize exclusions" }
-            repo.identityKeys.size shouldBe repo.findAllGrpIds().size + repo.catalogIdentityIds.size
-            repo.catalogIdentityIds.forEach { (key, id) -> repo.identityKeys[id] shouldBe key }
+            check(unsupported.all { it.contains("ambiguous face name") }) { result }
+            repo.catalogIdentityIds.values
+                .toSet()
+                .size shouldBe repo.catalogIdentityIds.size
+            repo.identityKeys.filterKeys { it >= 300_000_000 }.forEach { (id, key) -> repo.catalogIdentityIds[key] shouldBe id }
         }
         test("identities and metadata are independent of registration order") {
             val names =
@@ -293,6 +334,44 @@ class ForgeCatalogProbeTest :
                 requireNotNull(restarted.findByGrpId(revealingEye)).grpId shouldBe revealingEye
                 requireNotNull(restarted.findByGrpId(fertileFootsteps)).grpId shouldBe fertileFootsteps
                 restarted.findGrpIdByName("Zombie") shouldBe null
+            }
+        }
+        test("combined and specialize faces keep cold catalog identities") {
+            val first = ForgeCardRepository.open()
+            val splitParent = requireNotNull(first.findGrpIdByName("Dead // Gone"))
+            val dead = requireNotNull(first.findGrpIdByNameAnyFace("Dead"))
+            val gone = requireNotNull(first.findGrpIdByNameAnyFace("Gone"))
+            val roomParent = requireNotNull(first.findGrpIdByName("Surgical Suite // Hospital Room"))
+            val suite = requireNotNull(first.findGrpIdByNameAnyFace("Surgical Suite"))
+            val hospital = requireNotNull(first.findGrpIdByNameAnyFace("Hospital Room"))
+            val specializeParent = requireNotNull(first.findGrpIdByName("Ambergris, Citadel Agent"))
+            val tyranny = requireNotNull(first.findGrpIdByNameAnyFace("Ambergris, Agent of Tyranny"))
+            val restarted = ForgeCardRepository.open()
+
+            assertSoftly {
+                listOf(splitParent, dead, gone).distinct().size shouldBe 3
+                first.findGrpIdByName("Gone") shouldBe splitParent
+                requireNotNull(first.findByGrpId(splitParent)).linkedFaceGrpIds shouldBe listOf(dead, gone)
+                listOf(roomParent, suite, hospital).distinct().size shouldBe 3
+                first.findGrpIdByName("Hospital Room") shouldBe roomParent
+                requireNotNull(first.findByGrpId(roomParent)).linkedFaceGrpIds shouldBe listOf(suite, hospital)
+                first.findGrpIdByName("Ambergris, Agent of Tyranny") shouldBe specializeParent
+                requireNotNull(first.findByGrpId(specializeParent)).linkedFaceGrpIds.size shouldBe 5
+                restarted.findNameByGrpId(gone) shouldBe "Gone"
+                restarted.findNameByGrpId(hospital) shouldBe "Hospital Room"
+                restarted.findNameByGrpId(tyranny) shouldBe "Ambergris, Agent of Tyranny"
+                requireNotNull(restarted.findByGrpId(gone)).grpId shouldBe gone
+                requireNotNull(restarted.findByGrpId(hospital)).grpId shouldBe hospital
+                requireNotNull(restarted.findByGrpId(tyranny)).grpId shouldBe tyranny
+            }
+        }
+        test("standalone primary names win over colliding face aliases") {
+            val repo = ForgeCardRepository.open()
+            val primary = requireNotNull(repo.findGrpIdByName("Ancestral Recall"))
+
+            assertSoftly {
+                repo.findGrpIdByNameAnyFace("Ancestral Recall") shouldBe primary
+                repo.findNameByGrpId(primary) shouldBe "Ancestral Recall"
             }
         }
     })
