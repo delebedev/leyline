@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import forge.card.mana.ManaCost
 import forge.game.card.Card
+import forge.game.cost.CostTap
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import leyline.bridge.getNonManaActivatedAbilities
@@ -155,11 +156,11 @@ internal object ActivatedActionEmitter {
     ): List<ManaAction> {
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
-        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
-        return abilities.mapIndexedNotNull { abilityIndex, sa ->
-            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
+        return distinctManaAbilities(card, abilities).mapNotNull { (abilityIndex, sa) ->
+            val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId
             val colors = producedManaColors(sa)
-            if (colors.isEmpty()) return@mapIndexedNotNull null
+            if (colors.isEmpty()) return@mapNotNull null
 
             val actionBuilder =
                 Action
@@ -230,11 +231,11 @@ internal object ActivatedActionEmitter {
     ): List<Action> {
         val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
         val registry = abilityRegistryLookup(card, cardData)
-        val basicLandAbilityGrpId = basicLandAbilityGrpId(card)
-        return card.manaAbilities.mapNotNull { sa ->
+        return distinctManaAbilities(card, card.manaAbilities).mapNotNull { (_, sa) ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
-            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId(card)
+            val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
+            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId
             val actionBuilder =
                 Action
                     .newBuilder()
@@ -256,7 +257,58 @@ internal object ActivatedActionEmitter {
         }
     }
 
-    fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
+    fun basicLandAbilityGrpId(
+        card: Card,
+        ability: SpellAbility,
+    ): Int =
+        BasicLandAbilities.byTypeDerivedManaAbility(card, ability)
+            ?: BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes)
+            ?: 0
+
+    private fun distinctManaAbilities(
+        card: Card,
+        abilities: Iterable<SpellAbility>,
+    ): List<IndexedValue<SpellAbility>> {
+        val all = abilities.toList()
+        return all.withIndex().filterNot { (_, candidate) ->
+            isGeneratedBasicManaAbility(card, candidate) &&
+                all.any { existing ->
+                    existing !== candidate &&
+                        !isGeneratedBasicManaAbility(card, existing) &&
+                        equivalentBasicManaExecution(existing, candidate)
+                }
+        }
+    }
+
+    private fun isGeneratedBasicManaAbility(
+        card: Card,
+        ability: SpellAbility,
+    ): Boolean =
+        BasicLandAbilities.byTypeDerivedManaAbility(card, ability) != null &&
+            ability.getOriginalParam("Cost") == "T" &&
+            producedManaColors(ability).singleOrNull() != null &&
+            ability.payCosts.costParts.size == 1 &&
+            ability.payCosts.hasOnlySpecificCostType(CostTap::class.java) &&
+            ability.subAbility == null &&
+            ability.additionalAbilities.isEmpty() &&
+            ability.additionalAbilityLists.isEmpty()
+
+    private fun equivalentBasicManaExecution(
+        existing: SpellAbility,
+        generated: SpellAbility,
+    ): Boolean =
+        existing.api == generated.api &&
+            producedManaColors(existing) == producedManaColors(generated) &&
+            existing.payCosts.costParts.map { it.javaClass to it.toString() } ==
+            generated.payCosts.costParts.map { it.javaClass to it.toString() } &&
+            existing.mapParams.withoutSecondaryMarker() == generated.mapParams.withoutSecondaryMarker() &&
+            existing.originalMapParams.withoutSecondaryMarker() == generated.originalMapParams.withoutSecondaryMarker() &&
+            existing.sVars == generated.sVars &&
+            existing.subAbility == null &&
+            existing.additionalAbilities.isEmpty() &&
+            existing.additionalAbilityLists.isEmpty()
+
+    private fun Map<String, String>.withoutSecondaryMarker(): Map<String, String> = this - "Secondary"
 
     fun uniqueAbilityIdFor(
         cardData: CardData?,

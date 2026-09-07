@@ -1,0 +1,8 @@
+name: "Urborg, Tomb of Yawgmoth"
+grpId: 94351
+titleId: 2856
+abilities:
+  - id: 5720
+    textId: 2858
+    category: 3
+expansionCode: "PIO"

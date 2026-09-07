@@ -12,6 +12,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.codes.SlotEntry
 import leyline.game.codes.SlotKind
 import leyline.game.codes.SlotLayout
+import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 
@@ -285,6 +286,7 @@ class AbilityRegistry private constructor(
             var idx = 0
             for (sa in card.manaAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
+                if (BasicLandAbilities.byTypeDerivedManaAbility(card, sa) != null) continue
                 val slotIdx = manaSlotIndices.getOrNull(idx)
                 val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId
                 saMap.putIfAbsent(sa.definitionId, grpId)

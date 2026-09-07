@@ -104,6 +104,31 @@ class ManaPoolSessionTest :
         }
 
         session(
+            "type-granted duplicate activates the printed mana ability",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Takenuma, Abandoned Mire;Urborg, Tomb of Yawgmoth
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val takenumaIid = instanceIdOf("Takenuma, Abandoned Mire")
+            val messages = after { activateMana("Takenuma, Abandoned Mire").shouldBeTrue() }.messages
+            val mana = messages.latestHumanManaPool().single()
+
+            assertSoftly {
+                mana.srcInstanceId shouldBe takenumaIid
+                mana.color shouldBe ManaColor.Black_afc9
+                mana.count shouldBe 1
+                human.battlefield.card("Takenuma, Abandoned Mire").isTapped shouldBe true
+            }
+        }
+
+        session(
             "cast payment retains each producing mana ability identity",
             puzzle = """
                 ActivePlayer=Human
