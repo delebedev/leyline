@@ -155,6 +155,42 @@ class GameEventCollectorTest :
             }
         }
 
+        test("spell cast payment retains a dual-land generated color identity") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Lightning Bolt", human, ZoneType.Hand)
+                    addCard("Bayou", human, ZoneType.Battlefield)
+                }
+            val collector = b.eventCollector!!
+            collector.closeFrame()
+            val spell = game.humanPlayer.hand.card("Lightning Bolt")
+            val source = game.humanPlayer.battlefield.card("Bayou")
+            val greenAbility = source.manaAbilities.single { it.manaPart.origProduced == "G" }
+
+            game.fireEvent(
+                GameEventSpellAbilityCast(
+                    SpellAbilityView.get(spell.firstSpellAbility),
+                    null,
+                    0,
+                    null,
+                    listOf(GameEventSpellAbilityCast.ManaPaymentInfo(source.id, MagicColor.GREEN, greenAbility.definitionId)),
+                ),
+            )
+
+            val payment =
+                collector
+                    .closeFrame()
+                    .events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .single()
+                    .manaPayments
+                    .single()
+            assertSoftly {
+                payment.sourceCardId shouldBe ForgeCardId(source.id)
+                payment.abilityGrpId shouldBe 1005
+            }
+        }
+
         // -- SpellResolved --
 
         test("spell resolved event") {

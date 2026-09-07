@@ -286,7 +286,11 @@ class AbilityRegistry private constructor(
             var idx = 0
             for (sa in card.manaAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
-                if (BasicLandAbilities.byTypeDerivedManaAbility(card, sa) != null) continue
+                val generatedGrpId = BasicLandAbilities.byTypeDerivedManaAbility(card, sa)
+                if (generatedGrpId != null) {
+                    saMap.putIfAbsent(sa.definitionId, generatedGrpId)
+                    continue
+                }
                 val slotIdx = manaSlotIndices.getOrNull(idx)
                 val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId
                 saMap.putIfAbsent(sa.definitionId, grpId)

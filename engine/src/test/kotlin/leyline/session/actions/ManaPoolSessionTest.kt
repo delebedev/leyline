@@ -30,6 +30,7 @@ class ManaPoolSessionTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
+            TestCardRegistry.ensureCardRegistered("Bayou")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -89,6 +90,33 @@ class ManaPoolSessionTest :
             assertSoftly {
                 pool.size shouldBe 1
                 pool.hasManaFrom(landIid, ManaColor.Green_afc9).shouldBeTrue()
+            }
+        }
+
+        session(
+            "type-derived dual-land mana retains the selected floating color identity",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Bayou
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val landIid = instanceIdOf("Bayou")
+            val mana =
+                after { activateMana("Bayou", abilityIndex = 1).shouldBeTrue() }
+                    .messages
+                    .latestHumanManaPool()
+                    .single()
+
+            assertSoftly {
+                mana.srcInstanceId shouldBe landIid
+                mana.color shouldBe ManaColor.Green_afc9
+                mana.abilityGrpId shouldBe 1005
             }
         }
 
