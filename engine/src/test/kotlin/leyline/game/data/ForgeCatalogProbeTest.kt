@@ -1,7 +1,10 @@
 package leyline.game.data
 
 import com.google.protobuf.util.JsonFormat
+import forge.ImageKeys
 import forge.StaticData
+import forge.card.GamePieceType
+import forge.game.card.Card
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -13,6 +16,7 @@ import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.GrpIdResolver
 import leyline.testkit.battlefield
 import leyline.testkit.exile
 import leyline.testkit.graveyard
@@ -94,6 +98,41 @@ class ForgeCatalogProbeTest :
                         .filter { it.type == GameObjectType.Token }
                 check(tokenObjects.map { it.instanceId }.distinct().size == 2)
                 check(tokenObjects.all { repo.findByGrpId(it.grpId)?.types?.contains(CardType.Creature.number) == true })
+            }
+        }
+        test("generated tokens resolve from their Forge token script identity") {
+            val repo = ForgeCardRepository.open()
+            val scripts =
+                mapOf(
+                    "Human Soldier Token" to "w_1_1_human_soldier",
+                    "Servo Token" to "c_1_1_a_servo",
+                    "Clue Token" to "c_a_clue_draw",
+                    "Treasure Token" to "c_a_treasure_sac",
+                )
+
+            scripts.forEach { (name, script) ->
+                val token = Card(1, null, null)
+                token.name = name
+                token.setGamePieceType(GamePieceType.TOKEN)
+                token.imageKey = ImageKeys.getTokenKey("$script|TST")
+
+                val grpId = GrpIdResolver.resolve(token, repo)
+                grpId shouldNotBe 0
+                repo.findNameByGrpId(grpId) shouldBe name
+            }
+        }
+        test("keyword-generated token publishes resolvable metadata") {
+            probe("keyword-token", puzzleFile = "data/puzzles/forge-catalog-clue-token.pzl") { repo ->
+                castSpellByName("Thraben Inspector").shouldBeTrue()
+                passUntil(10) { human.battlefield.cards.any { it.name == "Clue Token" } }.shouldBeTrue()
+
+                val token =
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .last { it.type == GameObjectType.Token }
+                token.grpId shouldNotBe 0
+                repo.findNameByGrpId(token.grpId) shouldBe "Clue Token"
             }
         }
         test("activated transform publishes the second face identity") {

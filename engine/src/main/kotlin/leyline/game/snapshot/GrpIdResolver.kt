@@ -1,5 +1,6 @@
 package leyline.game.snapshot
 
+import forge.ImageKeys
 import forge.card.GamePieceType
 import forge.game.card.Card
 import leyline.DevCheck
@@ -299,6 +300,10 @@ object GrpIdResolver {
         card: Card,
         cards: CardRepository,
     ): Int? =
-        cards.findTokenGrpIdByName(card.name)
+        ImageKeys
+            .getTokenImageName(card.imageKey)
+            ?.substringBefore('|')
+            ?.let(cards::findTokenGrpIdByScript)
+            ?: cards.findTokenGrpIdByName(card.name)
             ?: card.displayName.takeIf { it != card.name }?.let { cards.findTokenGrpIdByName(it) }
 }
