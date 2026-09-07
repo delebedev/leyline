@@ -81,6 +81,7 @@ internal class MatchLifecycleRuntime(
                 val mulliganPrompt =
                     seatId
                         .takeIf { it == owner.humanSeat }
+                        ?.takeIf { currentKeepRequest != null }
                         ?.let { owner.bridge.mulliganBridge(it).pendingPrompt() }
                 val hasProgressed =
                     owner.bridge
