@@ -20,6 +20,7 @@ import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.game.codes.SlotKind
+import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -29,6 +30,30 @@ import leyline.testkit.TestCardInjector
 
 class AbilityRegistryTest :
     BoardTest({
+
+        test("type-derived dual-land mana definitions retain their shared color identities") {
+            val (bridge, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Bayou", human, ZoneType.Battlefield)
+                }
+            val bayou =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Bayou" }
+            val cardData = checkNotNull(bridge.cardRepository.findByGrpId(checkNotNull(bridge.cardRepository.findGrpIdByName("Bayou"))))
+            val registry = AbilityRegistry.build(bayou, cardData)
+            val generated =
+                bayou.manaAbilities
+                    .filter { BasicLandAbilities.byTypeDerivedManaAbility(bayou, it) != null }
+                    .associateBy { it.manaPart.origProduced }
+
+            assertSoftly {
+                generated.keys shouldBe setOf("B", "G")
+                registry.forSpellAbility(generated.getValue("B").definitionId) shouldBe 1003
+                registry.forSpellAbility(generated.getValue("G")) shouldBe 1005
+            }
+        }
 
         test("normalized frame events invalidate affected ability registries") {
             val (bridge, _, _) =

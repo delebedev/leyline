@@ -1,0 +1,13 @@
+name: "Bayou"
+grpId: 60255
+titleId: 20846
+abilities:
+  - id: 1003
+    textId: 227601
+    category: 1
+    subCategory: 1
+  - id: 1005
+    textId: 227393
+    category: 1
+    subCategory: 1
+expansionCode: "VMA"

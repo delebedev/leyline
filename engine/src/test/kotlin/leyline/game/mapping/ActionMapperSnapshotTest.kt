@@ -8,6 +8,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.coord.hasAmbiguousActionCatalog
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
@@ -96,6 +97,80 @@ class ActionMapperSnapshotTest :
             val fromSnap = ActionMapper.buildFromSnapshot(1, snap, b)
 
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
+        }
+
+        test("type-granted duplicate mana ability keeps printed execution") {
+            var takenumaForgeId = 0
+            val (b, game, _) =
+                startWithBoard { game, human, _ ->
+                    addCard("Takenuma, Abandoned Mire", human, ZoneType.Battlefield).also { takenumaForgeId = it.id }
+                    addCard("Urborg, Tomb of Yawgmoth", human, ZoneType.Battlefield)
+                    game.action.checkStateEffects(true)
+                }
+
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val takenumaInstanceId = b.getOrAllocInstanceId(ForgeCardId(takenumaForgeId)).value
+            val offer =
+                projection.offers.single {
+                    it.action.actionType == ActionType.ActivateMana && it.action.instanceId == takenumaInstanceId
+                }
+            val command = offer.command.shouldBeInstanceOf<PlayerAction.ActivateMana>()
+
+            assertSoftly {
+                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                offer.action.abilityGrpId shouldBe 1003
+                command.abilityId shouldBe 0
+                command.ability?.getOriginalParam("Secondary") shouldBe null
+            }
+        }
+
+        test("dual basic land types retain each color identity") {
+            var bayouForgeId = 0
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Bayou", human, ZoneType.Battlefield).also { bayouForgeId = it.id }
+                }
+
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val bayouInstanceId = b.getOrAllocInstanceId(ForgeCardId(bayouForgeId)).value
+            val actions =
+                projection.offers
+                    .filter { it.action.actionType == ActionType.ActivateMana && it.action.instanceId == bayouInstanceId }
+                    .map { it.action }
+
+            assertSoftly {
+                actions.size shouldBe 2
+                actions.map { it.abilityGrpId }.toSet() shouldBe setOf(1003, 1005)
+                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+            }
+        }
+
+        test("type-granted mana preserves abilities with distinct costs and amounts") {
+            var towerForgeId = 0
+            val (b, game, _) =
+                startWithBoard { game, human, _ ->
+                    addCard("Phyrexian Tower", human, ZoneType.Battlefield).also { towerForgeId = it.id }
+                    addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                    addCard("Urborg, Tomb of Yawgmoth", human, ZoneType.Battlefield)
+                    game.action.checkStateEffects(true)
+                }
+
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val towerInstanceId = b.getOrAllocInstanceId(ForgeCardId(towerForgeId)).value
+            val offers =
+                projection.offers.filter {
+                    it.action.actionType == ActionType.ActivateMana && it.action.instanceId == towerInstanceId
+                }
+
+            assertSoftly {
+                offers.size shouldBe 3
+                offers.map { it.action.abilityGrpId }.toSet() shouldBe setOf(1003, 1152, 13714)
+                offers
+                    .map { it.command.shouldBeInstanceOf<PlayerAction.ActivateMana>().ability!! }
+                    .single { it.originalMapParams["Amount"] == "2" }
+                    .payCosts.costParts.size shouldBe 2
+                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+            }
         }
 
         test("tapped land on battlefield — ActivateMana is inactive with identity only") {

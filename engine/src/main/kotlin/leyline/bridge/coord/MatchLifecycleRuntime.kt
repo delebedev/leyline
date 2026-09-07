@@ -1,11 +1,13 @@
 package leyline.bridge.coord
 
+import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.GsmBuilder
 import leyline.game.bundle.GsmFrame
 import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
+import leyline.game.mapping.ZoneIds
 import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
@@ -32,6 +34,8 @@ internal class MatchLifecycleRuntime(
 
     private var initialPublication: InitialPublication? = null
     private var familiarStartupClaimed = false
+    private var currentKeepRequest: GREToClientMessage? = null
+    private var currentMulliganBatch: List<GREToClientMessage>? = null
     internal var beforeRedrawInstall: (() -> Unit)? = null
     internal var afterRedrawInstall: (() -> Unit)? = null
 
@@ -74,12 +78,17 @@ internal class MatchLifecycleRuntime(
         return synchronized(owner.feedLock) {
             initialPublication?.let { publication ->
                 val horizon = owner.actions.reconnectHorizon(seatId)
+                val mulliganPrompt =
+                    seatId
+                        .takeIf { it == owner.humanSeat }
+                        ?.takeIf { currentKeepRequest != null }
+                        ?.let { owner.bridge.mulliganBridge(it).pendingPrompt() }
                 val hasProgressed =
                     owner.bridge
                         .projectionStateSnapshot()
                         .sequence.committedOutputOrdinal > publication.outputOrdinal
-                if (horizon != null || hasProgressed) {
-                    return@synchronized publishReconnect(seatId, publication, horizon)
+                if (horizon != null || mulliganPrompt != null || hasProgressed) {
+                    return@synchronized publishReconnect(seatId, publication, horizon, mulliganPrompt)
                 }
                 val viewerIndex = publication.outputs.indexOfFirst { it.seatId == seatId }
                 check(viewerIndex >= 0) { "Initial output is unavailable for viewer $seatId" }
@@ -142,6 +151,7 @@ internal class MatchLifecycleRuntime(
         seatId: SeatId,
         initial: InitialPublication,
         horizon: MatchActionWindowRuntime.ReconnectHorizon?,
+        mulliganPrompt: MulliganBridge.PendingPrompt?,
     ): Int {
         owner.ensureOpen()
         val prior = owner.bridge.projectionStateSnapshot()
@@ -164,11 +174,26 @@ internal class MatchLifecycleRuntime(
                 .setPendingMessageCount(0)
                 .setUpdate(GameStateUpdate.SendAndRecord)
                 .build()
-        val horizonMessage = horizon?.decisionMessage
+        val handInstanceIds =
+            rebasedFull.zonesList
+                .firstOrNull { it.zoneId == ZoneIds.handOf(seatId.value) }
+                ?.objectInstanceIdsList
+                .orEmpty()
+        val horizonMessage =
+            mulliganPrompt?.let {
+                LifecycleMessageMaterializer.reconnectMulliganRequest(
+                    msgId = planner.currentMsgId(),
+                    gameStateId = gameStateId,
+                    seatId = seatId,
+                    prompt = it,
+                    handInstanceIds = handInstanceIds,
+                    keepRequest = currentKeepRequest,
+                )
+            } ?: horizon?.decisionMessage
         val gsm =
             horizonMessage?.takeIf { it.hasActionsAvailableReq() }?.let {
                 GsmBuilder.embedActions(rebasedFull, it.actionsAvailableReq, GsmFrame.from(rebasedSnapshot), seatId.value)
-            } ?: rebasedFull
+            } ?: rebasedFull.toBuilder().setPendingMessageCount(if (horizonMessage == null) 0 else 1).build()
         val editor = prior.editor()
         editor.viewerCursors[seatId] = priorCursor.copy(previousSnapshot = rebasedSnapshot, fullState = rebasedFull)
         val transition = ProjectionTransition(prior.revision, editor.freeze())
@@ -209,9 +234,15 @@ internal class MatchLifecycleRuntime(
                 horizon
                     ?.publishedBatch
                     ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
-                    .orEmpty(),
+                    ?: currentMulliganBatch
+                        ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
+                        .orEmpty(),
             onInstalled = {
                 horizon?.let { owner.actions.bindReconnectHorizon(it, gameStateId, messages) }
+                if (mulliganPrompt != null) {
+                    currentMulliganBatch = messages
+                    messages.singleOrNull { it.hasMulliganReq() }?.let { currentKeepRequest = it }
+                }
             },
             onFailure = owner::fail,
         )
@@ -279,6 +310,8 @@ internal class MatchLifecycleRuntime(
                     )
                 }
             install(seatId, prior, planner, prepared)
+            currentKeepRequest = prepared.messages.single { it.hasMulliganReq() }
+            currentMulliganBatch = prepared.messages
             gameStateId
         }
 
@@ -308,6 +341,8 @@ internal class MatchLifecycleRuntime(
                 prepared,
                 hooks = CutInstallHooks(beforeInstall = beforeRedrawInstall, afterInstall = afterRedrawInstall),
             )
+            currentKeepRequest = prepared.messages.last { it.hasMulliganReq() }
+            currentMulliganBatch = prepared.messages
             requestGameStateId
         }
 

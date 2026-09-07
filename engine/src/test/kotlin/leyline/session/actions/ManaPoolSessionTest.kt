@@ -30,6 +30,7 @@ class ManaPoolSessionTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
+            TestCardRegistry.ensureCardRegistered("Bayou")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -93,6 +94,33 @@ class ManaPoolSessionTest :
         }
 
         session(
+            "type-derived dual-land mana retains the selected floating color identity",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Bayou
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val landIid = instanceIdOf("Bayou")
+            val mana =
+                after { activateMana("Bayou", abilityIndex = 1).shouldBeTrue() }
+                    .messages
+                    .latestHumanManaPool()
+                    .single()
+
+            assertSoftly {
+                mana.srcInstanceId shouldBe landIid
+                mana.color shouldBe ManaColor.Green_afc9
+                mana.abilityGrpId shouldBe 1005
+            }
+        }
+
+        session(
             "unsupported mana color leaves projection state unchanged",
             puzzle = racersRingPuzzle,
         ) {
@@ -101,6 +129,31 @@ class ManaPoolSessionTest :
             activateMana("Racers' Ring", selectedColor = ManaColor.Blue_afc9).shouldBeFalse()
 
             bridge.projectionStateSnapshot() shouldBe before
+        }
+
+        session(
+            "type-granted duplicate activates the printed mana ability",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Takenuma, Abandoned Mire;Urborg, Tomb of Yawgmoth
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val takenumaIid = instanceIdOf("Takenuma, Abandoned Mire")
+            val messages = after { activateMana("Takenuma, Abandoned Mire").shouldBeTrue() }.messages
+            val mana = messages.latestHumanManaPool().single()
+
+            assertSoftly {
+                mana.srcInstanceId shouldBe takenumaIid
+                mana.color shouldBe ManaColor.Black_afc9
+                mana.count shouldBe 1
+                human.battlefield.card("Takenuma, Abandoned Mire").isTapped shouldBe true
+            }
         }
 
         session(
