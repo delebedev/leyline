@@ -148,6 +148,7 @@ private class ScenarioRun(
             is ModalChoiceStep -> modalChoice(step)
             is StaticChoiceStep -> staticChoice(step)
             is OptionalActionStep -> respondToOptionalAction(step)
+            CancelActionStep -> harness.cancelAction()
             is TargetStep -> target(step.target)
             is TargetsStep -> targets(step.targets)
             is DistributeStep -> distribute(step)
