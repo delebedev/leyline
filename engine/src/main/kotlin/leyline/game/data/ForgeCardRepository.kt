@@ -41,7 +41,7 @@ class ForgeCardRepository private constructor(
     companion object {
         private const val CARD_BASE = 200_000_000
         private const val DERIVED_ID_BASE = 300_000_000
-        private const val IDENTITY_SCHEME = "forge-card-catalog-v3-combined-and-specialize-faces"
+        private const val IDENTITY_SCHEME = "forge-card-catalog-v4-definition-backed-tokens"
 
         private data class CatalogDescriptor(
             val indexes: Map<String, Int>,
@@ -59,7 +59,22 @@ class ForgeCardRepository private constructor(
                     .map { it.name }
                     .distinct()
                     .sorted()
-            val keys = names.flatMap(::definitionKeys).distinct().sorted()
+            val tokenScripts =
+                Files
+                    .list(Paths.get(ForgeConstants.TOKEN_DATA_DIR))
+                    .use { paths ->
+                        paths
+                            .filter(Files::isRegularFile)
+                            .map { it.fileName.toString() }
+                            .filter { it.endsWith(".txt") }
+                            .map { it.removeSuffix(".txt") }
+                            .sorted()
+                            .toList()
+                    }
+            val keys =
+                (names.flatMap(::definitionKeys) + tokenScripts.flatMap(::tokenDefinitionKeys))
+                    .distinct()
+                    .sorted()
             val identityIds = keys.withIndex().associate { it.value to DERIVED_ID_BASE + it.index }
             val aliases = names.flatMap(::faceAliases)
             require(DERIVED_ID_BASE.toLong() + keys.size <= Int.MAX_VALUE) { "Card catalog exceeds the GRE identity range" }
@@ -108,6 +123,14 @@ class ForgeCardRepository private constructor(
                     addFaceKeys(token.rules.mainPart, "${rules.name}:token:$tokenIndex:$script")
                     add("${rules.name}:token-source:$tokenIndex:$script")
                 }
+            }
+        }
+
+        private fun tokenDefinitionKeys(script: String): List<String> {
+            val token = StaticData.instance().allTokens.getToken(script) ?: return emptyList()
+            return buildList {
+                add("token-script:$script")
+                addFaceKeys(token.rules.mainPart, "token-script:$script")
             }
         }
 
@@ -456,6 +479,19 @@ class ForgeCardRepository private constructor(
 
     @Synchronized
     override fun findTokenGrpIdByName(name: String): Int? = (tokens[name] ?: tokens[name.removeSuffix(" Token")])?.singleOrNull()
+
+    @Synchronized
+    override fun findTokenGrpIdByScript(script: String): Int? {
+        val id = catalogIdentityIds["token-script:$script"] ?: return null
+        rows.findByGrpId(id)?.let { return id }
+        val token = StaticData.instance().allTokens.getToken(script) ?: return null
+        registerFace(token.rules.mainPart, id, emptyList(), 0, "token-script:$script")
+        claim(id, "token-script:$script")
+        val name = token.rules.mainPart.name
+        tokens.getOrPut(name) { mutableSetOf() }.add(id)
+        tokens.getOrPut(name.removeSuffix(" Token")) { mutableSetOf() }.add(id)
+        return id
+    }
 
     override fun findAllGrpIds(): List<Int> = primaryIds.toList()
 

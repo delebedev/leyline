@@ -1,0 +1,16 @@
+[metadata]
+Name:Forge catalog Clue token
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Thraben Inspector and inspect its generated Clue.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Thraben Inspector
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain

@@ -23,6 +23,9 @@ interface CardRepository {
     /** Token-only name lookup. Forge often appends " Token" to the DB display name. */
     fun findTokenGrpIdByName(name: String): Int? = null
 
+    /** Exact token-script lookup for repositories whose token identities are definition-backed. */
+    fun findTokenGrpIdByScript(script: String): Int? = null
+
     fun findGrpIdByNameAndSet(
         name: String,
         setCode: String,
