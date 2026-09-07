@@ -115,80 +115,30 @@ class GameEventCollectorTest :
             }
         }
 
-        test("spell cast payment retains producing mana ability identity") {
+        test("spell cast payments retain printed and generated mana ability identities") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
                     addCard("Lightning Bolt", human, ZoneType.Hand)
                     addCard("Llanowar Elves", human, ZoneType.Battlefield)
+                    addCard("Bayou", human, ZoneType.Battlefield)
                 }
             val collector = b.eventCollector!!
             collector.closeFrame()
             val spell = game.humanPlayer.hand.card("Lightning Bolt")
-            val source = game.humanPlayer.battlefield.card("Llanowar Elves")
-            val manaAbility = source.spellAbilities.single { it.isManaAbility() }
-            val payment =
-                GameEventSpellAbilityCast.ManaPaymentInfo(
-                    source.id,
-                    MagicColor.GREEN,
-                    manaAbility.definitionId,
-                )
-
-            game.fireEvent(
-                GameEventSpellAbilityCast(
-                    SpellAbilityView.get(spell.firstSpellAbility),
-                    null,
-                    0,
-                    null,
-                    listOf(payment),
-                ),
-            )
-
+            val sources = listOf("Llanowar Elves", "Bayou").map { game.humanPlayer.battlefield.card(it) }
+            val payments =
+                sources.map { source ->
+                    val ability = source.manaAbilities.single { it.manaPart.origProduced == "G" }
+                    GameEventSpellAbilityCast.ManaPaymentInfo(source.id, MagicColor.GREEN, ability.definitionId)
+                }
+            game.fireEvent(GameEventSpellAbilityCast(SpellAbilityView.get(spell.firstSpellAbility), null, 0, null, payments))
             val cast =
                 collector
                     .closeFrame()
                     .events
                     .filterIsInstance<GameEvent.SpellCast>()
                     .single()
-            assertSoftly {
-                cast.manaPayments.single().sourceCardId shouldBe ForgeCardId(source.id)
-                cast.manaPayments.single().abilityGrpId shouldBe 1005
-            }
-        }
-
-        test("spell cast payment retains a dual-land generated color identity") {
-            val (b, game, _) =
-                startWithBoard { _, human, _ ->
-                    addCard("Lightning Bolt", human, ZoneType.Hand)
-                    addCard("Bayou", human, ZoneType.Battlefield)
-                }
-            val collector = b.eventCollector!!
-            collector.closeFrame()
-            val spell = game.humanPlayer.hand.card("Lightning Bolt")
-            val source = game.humanPlayer.battlefield.card("Bayou")
-            val greenAbility = source.manaAbilities.single { it.manaPart.origProduced == "G" }
-
-            game.fireEvent(
-                GameEventSpellAbilityCast(
-                    SpellAbilityView.get(spell.firstSpellAbility),
-                    null,
-                    0,
-                    null,
-                    listOf(GameEventSpellAbilityCast.ManaPaymentInfo(source.id, MagicColor.GREEN, greenAbility.definitionId)),
-                ),
-            )
-
-            val payment =
-                collector
-                    .closeFrame()
-                    .events
-                    .filterIsInstance<GameEvent.SpellCast>()
-                    .single()
-                    .manaPayments
-                    .single()
-            assertSoftly {
-                payment.sourceCardId shouldBe ForgeCardId(source.id)
-                payment.abilityGrpId shouldBe 1005
-            }
+            cast.manaPayments.map { it.sourceCardId to it.abilityGrpId } shouldBe sources.map { ForgeCardId(it.id) to 1005 }
         }
 
         // -- SpellResolved --
