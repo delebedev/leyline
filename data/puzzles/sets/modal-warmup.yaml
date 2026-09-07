@@ -1,6 +1,23 @@
 name: modal-warmup
 description: Modal, optional-cost, optional-action, and static-choice prompt smoke.
 scenarios:
+  - id: goblin-cratermaker-cancel
+    puzzle: goblin-cratermaker-cancel
+    run: start Goblin Cratermaker's damage ability, then cancel its target prompt
+    expect: priority returns with the ability uncommitted and Goblin Cratermaker still playable
+    steps:
+      - expect:
+          action: { type: activate, card: Goblin Cratermaker }
+      - activate: Goblin Cratermaker
+      - modal_choice: { index: 0 }
+      - expect:
+          prompt: SelectTargetsReq
+      - cancel_action: {}
+      - expect:
+          all:
+            - action: { type: activate, card: Goblin Cratermaker }
+            - zone_contains: { side: ours, zone: battlefield, card: Goblin Cratermaker }
+            - zone_contains: { side: ours, zone: battlefield, card: Mountain }
   - id: charming-prince-flicker
     puzzle: charming-prince-flicker
     run: cast Charming Prince and choose its exile mode; Grizzly Bears is the only legal target
