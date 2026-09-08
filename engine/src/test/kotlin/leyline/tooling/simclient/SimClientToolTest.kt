@@ -24,6 +24,8 @@ class SimClientToolTest :
                         "1..3",
                         "--policy",
                         "forge-ai",
+                        "--card-catalog",
+                        "forge",
                         "--max-turns",
                         "7",
                         "--game-timeout-seconds",
@@ -50,6 +52,7 @@ class SimClientToolTest :
                 config.opponentDeck shouldBe "forest-only"
                 config.seedSpec shouldBe "1..3"
                 config.policy shouldBe SimClientPolicyMode.ForgeAi
+                config.cardCatalog shouldBe SimClientCardCatalog.Forge
                 config.maxTurns shouldBe 7
                 config.gameTimeoutSeconds shouldBe 11
                 config.resume shouldBe true
@@ -64,9 +67,14 @@ class SimClientToolTest :
         }
 
         test("config parser accepts verbose env") {
-            val config = SimClientConfig.parse(emptyList(), mapOf("SIMCLIENT_VERBOSE" to "true"))!!
+            val config =
+                SimClientConfig.parse(
+                    emptyList(),
+                    mapOf("SIMCLIENT_VERBOSE" to "true", "SIMCLIENT_CARD_CATALOG" to "forge"),
+                )!!
 
             config.verbose shouldBe true
+            config.cardCatalog shouldBe SimClientCardCatalog.Forge
         }
 
         test("config parser accepts snapshot policy") {

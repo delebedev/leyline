@@ -2,12 +2,15 @@ package leyline.game.data
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.ForgeCatalogTag
 import leyline.IntegrationTag
 import leyline.tooling.artifact.SyntheticArtifactWriter
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.headless.TestCardRegistry
+import leyline.tooling.simclient.SimClientCardCatalog
 import leyline.tooling.simclient.SimClientDriver
+import leyline.tooling.simclient.openSimClientCardRepository
 import java.io.File
 
 class ForgeCatalogMatchProbeTest :
@@ -58,5 +61,11 @@ class ForgeCatalogMatchProbeTest :
                     }
                 }
             }
+        }
+
+        test("simclient Forge catalog selection does not open the client database") {
+            val repo = openSimClientCardRepository(SimClientCardCatalog.Forge, "/missing/client-card-database")
+
+            repo.findGrpIdByName("Spike Feeder") shouldNotBe null
         }
     })

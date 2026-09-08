@@ -34,6 +34,9 @@ YAML verdict. Route a finding through this order:
 Use `just simclient` as the consolidated runner entrypoint. Do not promote an
 autonomous soak result directly into acceptance.
 
+Select `--card-catalog forge` when the workload targets Forge Web or includes
+Forge-only cards. Omit it for native-client work, which keeps Arena identities.
+
 ## Promotion Path
 
 Scout rows are discovery artifacts, not acceptance contracts. Keep the original
