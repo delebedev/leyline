@@ -104,6 +104,12 @@ For land color production:
 - Single-color sources use `manaPart.origProduced`.
 - Split produced tokens on spaces, not characters.
 
+Manual mana activation remains a player decision when its source has non-mana
+costs. Pay those costs through the active controller's
+`getCostDecisionMaker(...)` and `CostPayment.payCost(...)` so sacrifice and
+other choices reach the frontend. Reserve `AiCostDecision` and
+`payComputerCosts(...)` for automatic AI payment paths.
+
 ## 7. Cost Payment Decisions
 
 Forge cost payment uses visitor-style cost parts. `CostDecision` is the bridge point for interactive non-mana cost decisions.

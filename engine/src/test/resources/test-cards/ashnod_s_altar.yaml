@@ -1,0 +1,16 @@
+name: "Ashnod's Altar"
+grpId: 82803
+titleId: 21596
+abilities:
+  - id: 12285
+    textId: 234072
+    category: 1
+expansionCode: "BRR"
+power: ""
+toughness: ""
+colors: []
+types:
+  - 1
+subtypes: []
+supertypes: []
+manaCost: "o3"
