@@ -254,8 +254,8 @@ seed-db: (_require classpath) check-java
 # Run the standalone simclient runner with CLI passthrough and ingest results
 # into ~/.scry/games/.
 #
-# Card data comes from the client database (LEYLINE_CARD_DB override or
-# standard-location autodiscovery); every deck and puzzle row requires it.
+# Card data defaults to the client database (LEYLINE_CARD_DB override or
+# standard-location autodiscovery). Use --card-catalog forge for Forge Web.
 # Deck names resolve as data/decks/<name>.txt basenames. Default matrix:
 # forest-only,bears,mono-g-curve,mono-r-burn.
 #

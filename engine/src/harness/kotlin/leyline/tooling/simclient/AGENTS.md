@@ -14,9 +14,10 @@ SIMCLIENT_POLICY=forge-ai just simclient --decks bears --seeds 3  # policy + fix
 just simclient --puzzles bolt-face.pzl --seeds 7   # puzzle matrix
 ```
 
-Every deck and puzzle row is backed by the client card database, resolved
+Deck and puzzle rows use the native client card database by default, resolved
 through `leyline.game.data.ClientCardDatabase` (`LEYLINE_CARD_DB` override or
-standard-location autodiscovery). Store reusable decks under `data/decks/` and
+standard-location autodiscovery). Use `--card-catalog forge` for Forge Web and
+Forge-only deck workloads. Store reusable decks under `data/decks/` and
 reference them by basename. Use environment variables or CLI flags for run
 configuration; do not hardcode local paths.
 
