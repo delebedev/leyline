@@ -1,6 +1,5 @@
 package leyline.bridge.coord
 
-import forge.ai.AiCostDecision
 import forge.game.Game
 import forge.game.GameObject
 import forge.game.cost.CostPayment
@@ -138,7 +137,8 @@ class SpellExecutor(
         val costs = manaAbility.payCosts
         if (costs != null) {
             val payment = CostPayment(costs, manaAbility)
-            if (!payment.payComputerCosts(AiCostDecision(player, manaAbility, false))) return false
+            val decision = player.controller.getCostDecisionMaker(player, manaAbility, false)
+            if (!payment.payCost(decision)) return false
         }
         try {
             val controller = player.controller as? PlayerController

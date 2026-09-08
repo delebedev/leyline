@@ -31,6 +31,7 @@ class ManaPoolSessionTest :
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
             TestCardRegistry.ensureCardRegistered("Bayou")
+            TestCardRegistry.ensureCardRegistered("Ashnod's Altar")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -153,6 +154,33 @@ class ManaPoolSessionTest :
                 mana.color shouldBe ManaColor.Black_afc9
                 mana.count shouldBe 1
                 human.battlefield.card("Takenuma, Abandoned Mire").isTapped shouldBe true
+            }
+        }
+
+        session(
+            "sacrifice mana ability uses the bridged cost decision",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Ashnod's Altar;Grizzly Bears
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val altarIid = human.battlefield.iid("Ashnod's Altar")
+            val creatureIid = human.battlefield.iid("Grizzly Bears")
+
+            activateMana("Ashnod's Altar").shouldBeTrue()
+            respondToEffectCost(listOf(creatureIid))
+
+            val mana = allMessages.latestHumanManaPool().single { it.srcInstanceId == altarIid }
+            assertSoftly {
+                human.graveyard.card("Grizzly Bears")
+                mana.color shouldBe ManaColor.Colorless_afc9
+                mana.count shouldBe 2
             }
         }
 
