@@ -40,6 +40,8 @@ data class CopilotProposal(
     val targetGroups: Map<String, List<Int>> = emptyMap(),
     /** Ordered group destinations and their assigned cards for `group`. */
     val groupAssignments: List<GroupAssignment> = emptyList(),
+    /** Per-assigner recipient damage carried by `assign_damage`. */
+    val combatDamageAssignments: List<CombatDamageAssignment> = emptyList(),
     /** Blocker→attacker assignments for `block`. */
     val blocks: List<BlockAssignment> = emptyList(),
     /** Chosen modal grpIds for `modal`. */
@@ -87,6 +89,18 @@ data class GroupAssignment(
     val zoneType: Int,
     val subZoneType: Int,
     val instanceIds: List<Int>,
+)
+
+@Serializable
+data class CombatDamageAssignment(
+    val assignerId: Int,
+    val recipients: List<CombatDamageRecipient>,
+)
+
+@Serializable
+data class CombatDamageRecipient(
+    val recipientId: Int,
+    val amount: Int,
 )
 
 @Serializable

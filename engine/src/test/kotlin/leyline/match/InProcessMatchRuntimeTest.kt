@@ -5,11 +5,14 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import kotlinx.coroutines.delay
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
+import leyline.copilot.CombatDamageAssignment
+import leyline.copilot.CombatDamageRecipient
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.ForgeCardRepository
@@ -140,6 +143,57 @@ class InProcessMatchRuntimeTest :
             } finally {
                 baseline.close()
                 advised.close()
+            }
+        }
+
+        test("advice projects the pending combat damage response without submitting it") {
+            val frames = CopyOnWriteArrayList<ByteArray>()
+            val handle =
+                catalogRuntime().launch(
+                    MatchRuntimeLaunch(
+                        RuntimeMatchConfig(
+                            "advice-damage",
+                            puzzleDefinition = PuzzleDefinition("advice-damage", damageAssignmentPuzzle),
+                        ),
+                        frames::add,
+                    ),
+                )
+            try {
+                handle.receive(auth("damage-player"))
+                handle.receive(connect("advice-damage"))
+
+                var proposal = handle.copilotProposal()
+                var attempts = 0
+                while (proposal.promptType != GREMessageType.AssignDamageReq_695e.name && attempts++ < 200) {
+                    proposal.responses.firstOrNull()?.let { handle.receive(greResponse(it)) } ?: delay(25)
+                    proposal = handle.copilotProposal()
+                }
+
+                proposal.promptType shouldBe GREMessageType.AssignDamageReq_695e.name
+                val before = frames.toList()
+                val prompt = before.greMessages().last { it.hasAssignDamageReq() }
+                val advised = handle.copilotProposal()
+                val expected =
+                    prompt.assignDamageReq.damageAssignersList.map { assigner ->
+                        CombatDamageAssignment(
+                            assignerId = assigner.instanceId,
+                            recipients =
+                                assigner.assignmentsList.map { assignment ->
+                                    CombatDamageRecipient(assignment.instanceId, assignment.assignedDamage)
+                                },
+                        )
+                    }
+                assertSoftly {
+                    advised.combatDamageAssignments shouldBe expected
+                    advised.combatDamageAssignments
+                        .single()
+                        .recipients
+                        .map { it.amount } shouldBe listOf(2, 2, 1)
+                    frames.toList() shouldBe before
+                    handle.result.toCompletableFuture().isDone shouldBe false
+                }
+            } finally {
+                handle.close()
             }
         }
 
@@ -311,6 +365,16 @@ private fun cast(prompt: wotc.mtgo.gre.external.messaging.Messages.GREToClientMe
         .toByteArray()
 }
 
+private fun greResponse(hex: String): ByteArray {
+    val bytes = ByteArray(hex.length / 2) { index -> hex.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
+    return ClientToMatchServiceMessage
+        .newBuilder()
+        .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToGremessage)
+        .setPayload(ClientToGREMessage.parseFrom(bytes).toByteString())
+        .build()
+        .toByteArray()
+}
+
 private fun List<ByteArray>.greMessages() =
     map(MatchServiceToClientMessage::parseFrom)
         .flatMap { it.greToClientEvent.greToClientMessagesList }
@@ -374,4 +438,25 @@ private val boltPuzzle =
     humanbattlefield=Mountain
     humanlibrary=Mountain
     ailibrary=Mountain
+    """.trimIndent()
+
+private val damageAssignmentPuzzle =
+    """
+    [metadata]
+    Name:Runtime damage assignment
+    Goal:Win
+    Turns:10
+    Difficulty:Tutorial
+    Description:Assign lethal damage and trample overflow.
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=1
+
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Charging Monstrosaur
+    humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+    aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
+    ailibrary=Forest;Forest;Forest;Forest;Forest
     """.trimIndent()
