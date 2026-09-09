@@ -38,6 +38,8 @@ data class CopilotProposal(
     val targets: List<EntityRef> = emptyList(),
     /** Desired target ids keyed by the GRE target group's targetIdx. */
     val targetGroups: Map<String, List<Int>> = emptyMap(),
+    /** Ordered group destinations and their assigned cards for `group`. */
+    val groupAssignments: List<GroupAssignment> = emptyList(),
     /** Blocker→attacker assignments for `block`. */
     val blocks: List<BlockAssignment> = emptyList(),
     /** Chosen modal grpIds for `modal`. */
@@ -78,6 +80,13 @@ data class EntityRef(
 data class BlockAssignment(
     val blocker: EntityRef,
     val attacker: EntityRef,
+)
+
+@Serializable
+data class GroupAssignment(
+    val zoneType: Int,
+    val subZoneType: Int,
+    val instanceIds: List<Int>,
 )
 
 @Serializable

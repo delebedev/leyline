@@ -466,7 +466,14 @@ internal object CopilotProposalRealizer {
 
             is SimDecision.GroupTop ->
                 withResponses(
-                    base("group", promptType, seat).copy(responseIds = decision.instanceIds),
+                    base("group", promptType, seat).copy(
+                        responseIds = decision.instanceIds,
+                        groupAssignments =
+                            listOf(
+                                GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, decision.instanceIds),
+                                GroupAssignment(ZoneType.Library.number, SubZoneType.Bottom.number, emptyList()),
+                            ),
+                    ),
                     listOf(
                         message(ClientMessageType.GroupResp_097b, gsId, seat, respId) {
                             setGroupResp(
@@ -484,7 +491,18 @@ internal object CopilotProposalRealizer {
                 val keepIds = decision.allInstanceIds.filter { it !in decision.awayInstanceIds }
                 val surveil = decision.context == GroupingContext.Surveil
                 withResponses(
-                    base("group", promptType, seat).copy(responseIds = decision.awayInstanceIds),
+                    base("group", promptType, seat).copy(
+                        responseIds = decision.awayInstanceIds,
+                        groupAssignments =
+                            listOf(
+                                GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, keepIds),
+                                GroupAssignment(
+                                    (if (surveil) ZoneType.Graveyard else ZoneType.Library).number,
+                                    (if (surveil) SubZoneType.None_a455 else SubZoneType.Bottom).number,
+                                    decision.awayInstanceIds,
+                                ),
+                            ),
+                    ),
                     listOf(
                         message(ClientMessageType.GroupResp_097b, gsId, seat, respId) {
                             setGroupResp(
