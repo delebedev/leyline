@@ -528,14 +528,14 @@ class MatchDoorMulliganFlowTest :
                         6,
                     ),
                 )
-                val priorPrompt = greOutbound(local).single { it.hasActionsAvailableReq() }
+                val priorPrompt = greOutbound(local).last { it.hasActionsAvailableReq() }
                 greOutbound(familiar)
 
                 local.writeInbound(auth("local-player", 7))
                 greOutbound(local)
                 local.writeInbound(connect(matchId, seatId = 1, requestId = 8))
                 val reconnect = greOutbound(local)
-                val reconnectPrompt = reconnect.single { it.hasActionsAvailableReq() }
+                val reconnectPrompt = reconnect.last { it.hasActionsAvailableReq() }
 
                 local.writeInbound(greServiceMessage(passPriority(reconnectPrompt), 9))
                 val postReconnect = greOutbound(local)
