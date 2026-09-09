@@ -1,4 +1,4 @@
-package leyline.game.generator
+package leyline.match
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -13,11 +13,6 @@ import leyline.config.RuntimeMatchLaunchResponse
 import leyline.copilot.CopilotProposal
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.ForgeCardRepository
-import leyline.match.InProcessMatchRuntime
-import leyline.match.MatchResultObservation
-import leyline.match.MatchRuntime
-import leyline.match.MatchRuntimeHandle
-import leyline.match.MatchRuntimeLaunch
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import java.io.File

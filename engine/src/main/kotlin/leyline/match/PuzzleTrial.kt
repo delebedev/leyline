@@ -1,14 +1,10 @@
-package leyline.game.generator
+package leyline.match
 
 import com.google.protobuf.ByteString
 import kotlinx.serialization.Serializable
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.copilot.CopilotProposal
-import leyline.match.MatchResultObservation
-import leyline.match.MatchRuntime
-import leyline.match.MatchRuntimeHandle
-import leyline.match.MatchRuntimeLaunch
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage

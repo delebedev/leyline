@@ -214,7 +214,7 @@ class ForgeAiPolicy(
     ): Choice? {
         // Forge AI writes its preferred targets onto source abilities while choosing an action.
         // Restore them so consulting here cannot consume a later targeting interaction.
-        val targetSnapshots = snapshotCardAbilityTargets()
+        val targetSnapshots = snapshotCardAbilityTargets(game())
         val abilities =
             try {
                 askAi("chooseSpellAbilityToPlay") { aiController.chooseSpellAbilityToPlay() }
@@ -246,15 +246,6 @@ class ForgeAiPolicy(
         }
         return null
     }
-
-    private fun snapshotCardAbilityTargets(): List<Pair<SpellAbility, TargetChoices>> =
-        game()
-            .cardsInGame
-            .flatMap { card ->
-                card.allSpellAbilities.flatMap { root ->
-                    generateSequence(root) { it.subAbility }.filter { it.usesTargeting() }.toList()
-                }
-            }.map { ability -> ability to ability.targets.clone() }
 
     /**
      * Last priority-window safeguard for a cast the normal AI declines at the
@@ -927,6 +918,14 @@ class ForgeAiPolicy(
         private val log = LoggerFactory.getLogger(ForgeAiPolicy::class.java)
     }
 }
+
+private fun snapshotCardAbilityTargets(game: Game): List<Pair<SpellAbility, TargetChoices>> =
+    game.cardsInGame
+        .flatMap { card ->
+            card.allSpellAbilities.flatMap { root ->
+                generateSequence(root) { it.subAbility }.filter { it.usesTargeting() }.toList()
+            }
+        }.map { ability -> ability to ability.targets.clone() }
 
 private fun isSingleChooseXCto(options: List<wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq>): Boolean {
     if (options.size != 1) return false
