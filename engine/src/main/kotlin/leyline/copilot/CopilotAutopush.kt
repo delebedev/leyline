@@ -16,9 +16,9 @@ class CopilotAutopush(
     nativeReadyChecks: Int = 60,
     private val landPollMs: Long = 80,
     private val landPollChecks: Int = 8,
+    private val service: CopilotProposalService = CopilotProposalService(gameBridge, seatId),
 ) {
     private val log = LoggerFactory.getLogger(CopilotAutopush::class.java)
-    private val service = CopilotProposalService(gameBridge, seatId)
     private val transport = CopilotNativeTransport(bridgeUrl, nativeReadyPollMs, nativeReadyChecks)
 
     // Serialized off the session thread to preserve prompt order.

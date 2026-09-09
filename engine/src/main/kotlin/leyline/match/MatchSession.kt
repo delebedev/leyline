@@ -2,6 +2,8 @@ package leyline.match
 
 import leyline.bridge.coord.SettledPromptAdmission
 import leyline.bridge.types.SeatId
+import leyline.copilot.CopilotProposal
+import leyline.copilot.CopilotProposalService
 import leyline.game.bundle.PROMPT_GRE_TYPES
 import leyline.game.state.GameBridge
 import leyline.infra.MessageSink
@@ -51,9 +53,15 @@ class MatchSession(
 
     fun lastPromptMessage(): GREToClientMessage? = lastPrompt
 
+    private val copilotProposalService by lazy { CopilotProposalService(gameBridge, seatId) }
+
     private val autopush: leyline.copilot.CopilotAutopush? by lazy {
         val dev = gameBridge.engineSettings.dev
-        if (dev.copilotAutopush) leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl) else null
+        if (dev.copilotAutopush) {
+            leyline.copilot.CopilotAutopush(gameBridge, seatId, dev.copilotBridgeUrl, service = copilotProposalService)
+        } else {
+            null
+        }
     }
 
     private val runtimeContinuation = MatchRuntimeContinuation(this, gameBridge, seatId, matchId)
@@ -99,6 +107,42 @@ class MatchSession(
         )
 
     // --- Public entry points (called by MatchHandler) ---
+
+    /** Consult the advisor for this session's exact pending prompt without submitting a response. */
+    fun copilotProposal(): CopilotProposal =
+        synchronized(sessionLock) {
+            val prompt =
+                lastPrompt
+                    ?: return@synchronized unavailableCopilotProposal("match has no pending prompt", seat = seatId.value)
+            if (!isOutstandingCopilotPrompt(prompt)) {
+                return@synchronized unavailableCopilotProposal(
+                    "stale prompt: pending prompt is no longer outstanding",
+                    prompt,
+                    seatId.value,
+                )
+            }
+            val proposal = copilotProposalService.propose(prompt)
+            if (!isOutstandingCopilotPrompt(prompt)) {
+                unavailableCopilotProposal(
+                    "stale prompt: pending prompt changed during copilot consultation",
+                    prompt,
+                    seatId.value,
+                )
+            } else {
+                proposal
+            }
+        }
+
+    private fun isOutstandingCopilotPrompt(prompt: GREToClientMessage): Boolean {
+        val current = lastPrompt
+        val sequence = gameBridge.committedSequence()
+        return current?.gameStateId == prompt.gameStateId &&
+            current.msgId == prompt.msgId &&
+            current.type == prompt.type &&
+            sequence.lastPromptGsId == prompt.gameStateId &&
+            sequence.lastPromptMsgId == prompt.msgId &&
+            gameBridge.responseAcceptance.hasOutstandingPrompt(prompt.msgId)
+    }
 
     /**
      * After keep: bind the first client-owned horizon and arm autonomous delivery.

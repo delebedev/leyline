@@ -59,6 +59,14 @@ Action-window visibility and prompt correlation may be read without `feedLock`
 from volatile state written while holding it. Those reads are observation only;
 they do not claim or complete a window.
 
+Read-only runtime advice enters through the owning match handle and then the
+human session's `sessionLock`. The engine is already blocked on the published
+prompt while Forge AI inspects the game. Each session shares one serialized
+proposal service with autonomous delivery because both temporarily use the same
+Forge controller slot. The caller checks the prompt identity again after the
+consult and returns an unavailable proposal if it changed. This path never
+holds `feedLock` and never submits a response.
+
 ## Publication transaction
 
 When the engine blocks for a visible decision, the delivery signal means the

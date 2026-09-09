@@ -7,7 +7,10 @@ import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
  * Pins the SimDecision → CopilotProposal contract for every prompt family the
@@ -40,6 +43,34 @@ class CopilotProposalRealizerTest :
                 .build()
 
         val aar = GREMessageType.ActionsAvailableReq_695e
+
+        test("group proposals identify every card's destination without serialized responses") {
+            val top = CopilotProposalRealizer.realize(SimDecision.GroupTop(listOf(11, 12)), GREMessageType.GroupReq_695e, 1, resolve)
+            top.groupAssignments shouldBe
+                listOf(
+                    GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, listOf(11, 12)),
+                    GroupAssignment(ZoneType.Library.number, SubZoneType.Bottom.number, emptyList()),
+                )
+            for (context in listOf(GroupingContext.Scry_a0f6, GroupingContext.Surveil)) {
+                val proposal =
+                    CopilotProposalRealizer.realize(
+                        SimDecision.GroupAway(listOf(12), listOf(11, 12), context),
+                        GREMessageType.GroupReq_695e,
+                        1,
+                        resolve,
+                    )
+                val surveil = context == GroupingContext.Surveil
+                proposal.groupAssignments shouldBe
+                    listOf(
+                        GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, listOf(11)),
+                        GroupAssignment(
+                            (if (surveil) ZoneType.Graveyard else ZoneType.Library).number,
+                            (if (surveil) SubZoneType.None_a455 else SubZoneType.Bottom).number,
+                            listOf(12),
+                        ),
+                    )
+            }
+        }
 
         test("play-land action → play_land intent with resolved card") {
             val p =

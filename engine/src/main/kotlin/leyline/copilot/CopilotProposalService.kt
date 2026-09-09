@@ -22,6 +22,9 @@ class CopilotProposalService(
     private val bridge: GameBridge,
     private val seatId: SeatId,
 ) {
+    // A MatchSession shares one service with every advice caller because Forge
+    // AI consultations temporarily occupy one fixed controller slot.
+    private val consultationLock = Any()
     private val policy = ForgeAiPolicy({ bridge }, seatId)
     private val advisor = PromptDecisionAdvisor(policy)
     private val resolver = EntityResolver(::resolveEntity)
@@ -42,20 +45,23 @@ class CopilotProposalService(
     }
 
     /** Propose a response for [prompt]; null / uncovered / failed consults yield `unrealizable`. */
-    fun propose(prompt: GREToClientMessage?): CopilotProposal {
-        if (prompt == null) {
-            return CopilotProposalRealizer.unrealizable(
-                GREMessageType.PromptReq,
-                seatId.value,
-                "no pending prompt for seat ${seatId.value}",
-            )
-        }
-        return runCatching { route(prompt) }
-            .getOrElse { t ->
-                log.warn("copilot proposal for {} failed: {}", prompt.type, t.message, t)
-                CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "consult failed: ${t.message}")
+    fun propose(prompt: GREToClientMessage?): CopilotProposal =
+        synchronized(consultationLock) {
+            if (prompt == null) {
+                return@synchronized CopilotProposalRealizer.unrealizable(
+                    GREMessageType.PromptReq,
+                    seatId.value,
+                    "no pending prompt for seat ${seatId.value}",
+                )
             }
-    }
+            val proposal =
+                runCatching { route(prompt) }
+                    .getOrElse { t ->
+                        log.warn("copilot proposal for {} failed: {}", prompt.type, t.message, t)
+                        CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "consult failed: ${t.message}")
+                    }
+            stampPrompt(proposal, prompt)
+        }
 
     // GREMessageType is a large proto enum; only these families are decoded and
     // the else fallthrough to `unrealizable` is intentional, not a gap.
@@ -126,14 +132,11 @@ class CopilotProposalService(
         }
 
     private fun startingPlayerProposal(prompt: GREToClientMessage): CopilotProposal =
-        stampPrompt(
-            CopilotProposalRealizer.chooseStartingPlayer(
-                promptType = prompt.type,
-                seat = seatId.value,
-                gsId = prompt.gameStateId,
-                respId = prompt.msgId,
-            ),
-            prompt,
+        CopilotProposalRealizer.chooseStartingPlayer(
+            promptType = prompt.type,
+            seat = seatId.value,
+            gsId = prompt.gameStateId,
+            respId = prompt.msgId,
         )
 
     private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
@@ -217,16 +220,13 @@ class CopilotProposalService(
         decision: SimDecision,
         prompt: GREToClientMessage,
     ): CopilotProposal =
-        stampPrompt(
-            CopilotProposalRealizer.realize(
-                decision = decision,
-                promptType = prompt.type,
-                seat = seatId.value,
-                resolve = resolver,
-                gsId = prompt.gameStateId,
-                respId = prompt.msgId,
-            ),
-            prompt,
+        CopilotProposalRealizer.realize(
+            decision = decision,
+            promptType = prompt.type,
+            seat = seatId.value,
+            resolve = resolver,
+            gsId = prompt.gameStateId,
+            respId = prompt.msgId,
         )
 
     private fun stampPrompt(

@@ -654,7 +654,15 @@ internal object CopilotProposalRealizer {
     private fun withResponses(
         proposal: CopilotProposal,
         responses: List<ClientToGREMessage>,
-    ): CopilotProposal = proposal.copy(responses = hexMessages(responses))
+    ): CopilotProposal =
+        proposal.copy(
+            responses = hexMessages(responses),
+            groupAssignments =
+                responses
+                    .flatMap { it.groupResp.groupsList }
+                    .map { GroupAssignment(it.zoneType.number, it.subZoneType.number, it.idsList) },
+            combatDamageAssignments = responses.combatDamageAssignments(),
+        )
 
     private fun message(
         type: ClientMessageType,
@@ -686,3 +694,18 @@ internal object CopilotProposalRealizer {
     private fun hexMessages(msgs: List<ClientToGREMessage>): List<String> =
         msgs.map { msg -> msg.toByteArray().joinToString("") { "%02x".format(Locale.ROOT, it) } }
 }
+
+private fun List<ClientToGREMessage>.combatDamageAssignments(): List<CombatDamageAssignment> =
+    flatMap { it.assignDamageResp.assignersList }
+        .map { assigner ->
+            CombatDamageAssignment(
+                assignerId = assigner.instanceId,
+                recipients =
+                    assigner.assignmentsList.map { assignment ->
+                        CombatDamageRecipient(
+                            recipientId = assignment.instanceId,
+                            amount = assignment.assignedDamage,
+                        )
+                    },
+            )
+        }

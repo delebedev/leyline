@@ -300,11 +300,32 @@ class CopilotProposalRealizerResponseTest :
                                 listOf(
                                     SimDecision.DamageAssignmentDecision(400, minDamage = 3, maxDamage = 5, assignedDamage = 3),
                                     SimDecision.DamageAssignmentDecision(401, minDamage = 2, maxDamage = 5, assignedDamage = 2),
+                                    SimDecision.DamageAssignmentDecision(402, minDamage = 0, maxDamage = 5, assignedDamage = 0),
                                 ),
                         ),
                     ),
                 )
-            val msgs = bytesOf(decision)
+            val proposal =
+                CopilotProposalRealizer.realize(
+                    decision,
+                    GREMessageType.AssignDamageReq_695e,
+                    seat = 1,
+                    gsId = 42,
+                    respId = 804,
+                )
+            proposal.combatDamageAssignments shouldBe
+                listOf(
+                    CombatDamageAssignment(
+                        assignerId = 263,
+                        recipients =
+                            listOf(
+                                CombatDamageRecipient(recipientId = 400, amount = 3),
+                                CombatDamageRecipient(recipientId = 401, amount = 2),
+                                CombatDamageRecipient(recipientId = 402, amount = 0),
+                            ),
+                    ),
+                )
+            val msgs = decode(proposal.responses.single())
             msgs.size shouldBe 1
             msgs[0].type shouldBe ClientMessageType.AssignDamageResp_097b
             val assigner = msgs[0].assignDamageResp.assignersList.single()
@@ -312,7 +333,7 @@ class CopilotProposalRealizerResponseTest :
             assigner.totalDamage shouldBe 5
             assigner.assignmentsList.map {
                 listOf(it.instanceId, it.minDamage, it.maxDamage, it.assignedDamage)
-            } shouldBe listOf(listOf(400, 3, 5, 3), listOf(401, 2, 5, 2))
+            } shouldBe listOf(listOf(400, 3, 5, 3), listOf(401, 2, 5, 2), listOf(402, 0, 5, 0))
         }
 
         test("scry keep-on-top puts every id in the top group and nothing on the bottom") {
