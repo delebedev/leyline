@@ -24,6 +24,7 @@ import forge.game.spellability.AbilitySub
 import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import forge.game.spellability.TargetChoices
 import forge.game.zone.ZoneType
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
@@ -211,7 +212,15 @@ class ForgeAiPolicy(
         promptActions: List<Action>,
         isSkipped: (Action) -> Boolean = { false },
     ): Choice? {
-        val abilities = askAi("chooseSpellAbilityToPlay") { aiController.chooseSpellAbilityToPlay() }
+        // Forge AI writes its preferred targets onto source abilities while choosing an action.
+        // Restore them so consulting here cannot consume a later targeting interaction.
+        val targetSnapshots = snapshotCardAbilityTargets()
+        val abilities =
+            try {
+                askAi("chooseSpellAbilityToPlay") { aiController.chooseSpellAbilityToPlay() }
+            } finally {
+                targetSnapshots.forEach { (ability, targets) -> ability.setTargets(targets) }
+            }
         if (abilities.isNullOrEmpty()) return null
 
         for (sa in abilities) {
@@ -237,6 +246,15 @@ class ForgeAiPolicy(
         }
         return null
     }
+
+    private fun snapshotCardAbilityTargets(): List<Pair<SpellAbility, TargetChoices>> =
+        game()
+            .cardsInGame
+            .flatMap { card ->
+                card.allSpellAbilities.flatMap { root ->
+                    generateSequence(root) { it.subAbility }.filter { it.usesTargeting() }.toList()
+                }
+            }.map { ability -> ability to ability.targets.clone() }
 
     /**
      * Last priority-window safeguard for a cast the normal AI declines at the

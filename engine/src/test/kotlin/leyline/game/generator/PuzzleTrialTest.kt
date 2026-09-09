@@ -45,6 +45,7 @@ class PuzzleTrialTest :
                 result.decisions.shouldNotBeEmpty()
                 result.decisions.all { it.promptKey != null && it.gameStateId != null && it.respId != null } shouldBe true
                 result.decisions.any { it.intent == "cast" } shouldBe true
+                result.decisions.any { it.intent == "target" } shouldBe true
             }
         }
 
