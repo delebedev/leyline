@@ -75,5 +75,7 @@ class PuzzleValidationTest :
             validator.validate(PuzzleDefinition("phase", content.replace("ActivePhase=Main1", "ActivePhase=Combat"))).status shouldBe
                 PuzzleValidationStatus.Unsupported
             validator.validate(PuzzleDefinition("duplicate", "$content\np0life=12")).status shouldBe PuzzleValidationStatus.Invalid
+            val onePlayer = content.lineSequence().filterNot { it.lowercase().startsWith("ai") }.joinToString("\n")
+            validator.validate(PuzzleDefinition("one-player", onePlayer)).status shouldBe PuzzleValidationStatus.Invalid
         }
     })

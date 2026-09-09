@@ -76,6 +76,9 @@ class PuzzleValidation(
                 }
             }
         }
+        if (seen.none { it.startsWith("p0") } || seen.none { it.startsWith("p1") }) {
+            return invalid("State must define both Human and AI player positions")
+        }
         if (count == 0) return invalid("At least one card is required")
         val bridge = GameBridge(cardRepository = cards)
         return try {
