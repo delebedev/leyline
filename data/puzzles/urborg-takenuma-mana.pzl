@@ -1,0 +1,16 @@
+[metadata]
+Name:Urborg and Takenuma mana
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Use Takenuma for black mana while Urborg is on the battlefield.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Vampire of the Dire Moon
+humanbattlefield=Takenuma, Abandoned Mire;Urborg, Tomb of Yawgmoth
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain

@@ -4,9 +4,10 @@ import leyline.game.codes.SlotKind
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
- * Immutable card metadata from the client's card database.
+ * Immutable card metadata from a [CardRepository].
  *
- * DB enum values (CardColor, CardType, SubType) map 1:1 to proto enum values.
+ * Numeric enum values map 1:1 to proto values. Display-name fields preserve values
+ * that do not have a corresponding protocol enum.
  */
 data class CardData(
     val grpId: Int,
@@ -43,6 +44,10 @@ data class CardData(
     /** Client card-DB relationship category for [linkedFaceGrpIds]. */
     val linkedFaceType: Int = 0,
     val linkedFaceGrpIds: List<Int> = emptyList(),
+    /** Forge names that have no corresponding fixed GRE enum remain available to non-native heads. */
+    val typeNames: List<String> = emptyList(),
+    val subtypeNames: List<String> = emptyList(),
+    val keywordNames: List<String> = emptyList(),
 ) {
     val isMultiFace: Boolean get() = linkedFaceGrpIds.isNotEmpty()
 }

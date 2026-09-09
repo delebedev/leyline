@@ -1,0 +1,13 @@
+name: "Phyrexian Tower"
+grpId: 91129
+titleId: 4193
+abilities:
+  - id: 1152
+    textId: 227595
+    category: 1
+    subCategory: 1
+  - id: 13714
+    textId: 234490
+    category: 1
+    subCategory: 1
+expansionCode: "MH3"

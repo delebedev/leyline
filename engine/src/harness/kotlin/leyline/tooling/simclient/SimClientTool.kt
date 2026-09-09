@@ -4,6 +4,7 @@ import leyline.copilot.ForgeAiPolicy
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.CardRepository
 import leyline.game.data.ClientCardDatabase
+import leyline.game.data.ForgeCardRepository
 import leyline.tooling.artifact.SyntheticArtifactIdentity
 import leyline.tooling.artifact.SyntheticArtifactQuarantine
 import leyline.tooling.artifact.SyntheticArtifactQuarantineSide
@@ -44,24 +45,23 @@ object SimClientMain {
 
 class SimClientRunner internal constructor(
     private val config: SimClientConfig,
-    /** Test-only seam; production runs always resolve the client card database. */
+    /** Test-only seam; production runs resolve the selected catalog. */
     private val cardRepositoryOverride: CardRepository? = null,
     private val rowRunnerOverride: ((SimClientRow) -> GameStats)? = null,
 ) {
-    /** One shared client-database repository for every row in this run. */
+    /** One shared card repository for every row in this run. */
     private val cardRepo: CardRepository by lazy {
         cardRepositoryOverride
-            ?: ClientCardDatabase.open(overridePath = System.getenv("LEYLINE_CARD_DB")).cardRepository()
+            ?: openSimClientCardRepository(config.cardCatalog, System.getenv("LEYLINE_CARD_DB"))
     }
 
     fun run(): SimClientRunResult {
         config.outDir.mkdirs()
         val rows = expandSimClientRows(config)
-        // Every deck and puzzle row is client-database-backed; resolve early so
-        // a missing database fails the run before any game starts.
+        // Resolve the selected catalog before any game starts.
         if (rows.isNotEmpty()) cardRepo
         val runLine =
-            "=== simclient: ${rows.size} row(s) policy=${config.policy.name} " +
+            "=== simclient: ${rows.size} row(s) policy=${config.policy.name} catalog=${config.cardCatalog.name} " +
                 "out=${config.outDir} strict=${config.strict} resume=${config.resume} ==="
         println(runLine)
         val results = mutableListOf<SimClientRowResult>()
@@ -378,6 +378,15 @@ class SimClientRunner internal constructor(
         return current
     }
 }
+
+internal fun openSimClientCardRepository(
+    catalog: SimClientCardCatalog,
+    clientDatabasePath: String?,
+): CardRepository =
+    when (catalog) {
+        SimClientCardCatalog.Client -> ClientCardDatabase.open(overridePath = clientDatabasePath).cardRepository()
+        SimClientCardCatalog.Forge -> ForgeCardRepository.open()
+    }
 
 private data class TimedRunContext(
     val tag: String,

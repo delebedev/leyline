@@ -1269,7 +1269,9 @@ class GameBridge(
         cardData: CardData?,
     ): AbilityRegistry? {
         if (cardData == null) return null
-        return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
+        return abilityRegistries.compute(card.id) { _, cached ->
+            cached?.takeIf { it.sourceCardGrpId == cardData.grpId } ?: AbilityRegistry.build(card, cardData)
+        }
     }
 
     @VisibleForTesting

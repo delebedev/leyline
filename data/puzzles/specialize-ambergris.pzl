@@ -1,0 +1,17 @@
+[metadata]
+Name:Forge catalog Specialize forms
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Specialize Ambergris to black and use its attack trigger.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Swamp;Walking Corpse
+humanbattlefield=Ambergris, Citadel Agent;Swamp;Swamp;Swamp;Island
+humanlibrary=Unsummon;Unsummon;Forest;Forest;Forest
+aibattlefield=Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

@@ -390,7 +390,14 @@ class MatchDoorMulliganFlowTest :
                 val postKeep = postKeepGre.map { it.type }
                 val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
                 val pending = checkNotNull(session.gameBridge.actionBridge(leyline.bridge.types.SeatId(1)).getPending())
-                val actionPrompt = postKeepGre.last { it.hasActionsAvailableReq() }
+                val pendingGameStateId = checkNotNull(pending.promptGameStateId)
+                val committedPromptMsgId = session.gameBridge.committedSequence().lastPromptMsgId
+                val actionPrompt =
+                    postKeepGre.single {
+                        it.hasActionsAvailableReq() &&
+                            it.gameStateId == pendingGameStateId &&
+                            it.msgId == committedPromptMsgId
+                    }
 
                 assertSoftly {
                     mulliganPrompt shouldContain GREMessageType.GameStateMessage_695e
@@ -398,7 +405,7 @@ class MatchDoorMulliganFlowTest :
                     mulliganPrompt shouldContain GREMessageType.MulliganReq_aa0d
                     postKeep shouldContain GREMessageType.GameStateMessage_695e
                     postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
-                    pending.promptGameStateId shouldBe actionPrompt.gameStateId
+                    pendingGameStateId shouldBe actionPrompt.gameStateId
                     session.gameBridge
                         .getGame()
                         ?.isGameOver shouldBe false

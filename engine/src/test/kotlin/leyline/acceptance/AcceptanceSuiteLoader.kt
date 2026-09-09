@@ -81,6 +81,7 @@ object AcceptanceSuiteLoader {
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
+            "cancel_action" -> CancelActionStep
             "target" -> TargetStep(parseTarget(value, "$context.target"))
             "targets" ->
                 TargetsStep(

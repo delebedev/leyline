@@ -38,6 +38,19 @@ scenarios:
       - resolve_stack: {}
       - expect:
           opponent_life: 3
+  - id: sacrifice-mana-source
+    puzzle: phyrexian-tower-sacrifice-mana
+    run: cast Bad Moon with Phyrexian Tower as the only available mana source
+    expect: the sacrifice pays for Bad Moon and both permanents reach their expected zones
+    steps:
+      - expect:
+          action: { type: cast, card: Bad Moon }
+      - cast: Bad Moon
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Bad Moon }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
   - id: eaten-alive-sacrifice
     puzzle: eaten-alive
     native:

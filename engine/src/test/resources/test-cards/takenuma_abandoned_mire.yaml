@@ -1,0 +1,13 @@
+name: "Takenuma, Abandoned Mire"
+grpId: 79718
+titleId: 558324
+abilities:
+  - id: 1003
+    textId: 227601
+    category: 1
+    subCategory: 1
+  - id: 148137
+    textId: 957324
+    category: 1
+    mana: "o3oB"
+expansionCode: "NEO"

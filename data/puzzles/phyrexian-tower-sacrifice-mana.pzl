@@ -1,0 +1,16 @@
+[metadata]
+Name:Phyrexian Tower sacrifice mana
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Use Phyrexian Tower and sacrifice a creature to pay for Bad Moon.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Bad Moon
+humanbattlefield=Phyrexian Tower;Grizzly Bears
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain

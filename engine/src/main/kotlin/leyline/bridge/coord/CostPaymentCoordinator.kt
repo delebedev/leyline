@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.ai.ComputerUtilMana
+import forge.ai.PlayerControllerAi
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.card.Card
@@ -147,11 +148,7 @@ class CostPaymentCoordinator(
         )
     }
 
-    /**
-     * AI-driven mana payment for engine-initiated abilities. The human seat
-     * still pays via [Forge's PlaySpellAbility.payManaCost][payManaCostForHuman]
-     * on `PlayerController` (which must hand `this` to the helper).
-     */
+    /** Automatic mana payment reached from Forge's `PlaySpellAbility` path. */
     fun applyManaToCost(
         toPay: ManaCostBeingPaid,
         ability: SpellAbility,
@@ -159,7 +156,24 @@ class CostPaymentCoordinator(
     ): Boolean {
         log.debug("applyManaToCost [AI]: {} for {}", toPay, ability.hostCard?.name)
         applyHybridManaChoices(toPay, ability)
-        return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
+        if (player.controller is PlayerControllerAi) {
+            return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
+        }
+        // GameBridge keeps the bridged controller at Long.MAX_VALUE - 1, so
+        // Forge's timestamp-based runWithController cannot put an AI controller
+        // above it. ComputerUtilMana requires that controller while it pays the
+        // non-mana costs of selected sources.
+        player.addController(
+            Long.MAX_VALUE,
+            player,
+            PlayerControllerAi(player.game, player, player.originalLobbyPlayer),
+            false,
+        )
+        return try {
+            ComputerUtilMana.payManaCost(toPay, ability, player, effect)
+        } finally {
+            player.removeController(Long.MAX_VALUE, false)
+        }
     }
 
     private fun applyHybridManaChoices(

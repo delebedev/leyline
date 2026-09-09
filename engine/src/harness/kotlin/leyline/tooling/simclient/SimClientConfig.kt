@@ -12,6 +12,7 @@ data class SimClientConfig(
     val seedSpec: String = DEFAULT_SEEDS,
     val puzzleSpec: String? = null,
     val policy: SimClientPolicyMode = SimClientPolicyMode.Greedy,
+    val cardCatalog: SimClientCardCatalog = SimClientCardCatalog.Client,
     val maxTurns: Int = 25,
     val gameTimeoutSeconds: Long = 120,
     val outDir: File = File("engine/build/simclient"),
@@ -54,6 +55,7 @@ data class SimClientConfig(
                     seedSpec = envOrDefault("SIMCLIENT_SEEDS") ?: DEFAULT_SEEDS,
                     puzzleSpec = envOrDefault("SIMCLIENT_PUZZLE"),
                     policy = SimClientPolicyMode.parse(envOrDefault("SIMCLIENT_POLICY") ?: "greedy"),
+                    cardCatalog = SimClientCardCatalog.parse(envOrDefault("SIMCLIENT_CARD_CATALOG") ?: "client"),
                     maxTurns = (envOrDefault("SIMCLIENT_MAX_TURNS") ?: "25").toInt().coerceAtLeast(1),
                     gameTimeoutSeconds = (envOrDefault("SIMCLIENT_GAME_TIMEOUT_SECONDS") ?: "120").toLong().coerceAtLeast(1),
                     continueOnException = envOrDefault("SIMCLIENT_CONTINUE_ON_EXCEPTION")?.equals("true", ignoreCase = true) ?: true,
@@ -85,6 +87,7 @@ data class SimClientConfig(
                         "--seeds" -> config.copy(seedSpec = value())
                         "--puzzles" -> config.copy(puzzleSpec = value(allowSpaces = true))
                         "--policy" -> config.copy(policy = SimClientPolicyMode.parse(value()))
+                        "--card-catalog" -> config.copy(cardCatalog = SimClientCardCatalog.parse(value()))
                         "--max-turns" -> config.copy(maxTurns = value().toInt())
                         "--game-timeout-seconds" -> config.copy(gameTimeoutSeconds = value().toLong())
                         "--out-dir" -> config.copy(outDir = File(value()))
@@ -118,9 +121,9 @@ data class SimClientConfig(
                 """
                 Usage: simclient [options]
 
-                Card data comes from the client database — LEYLINE_CARD_DB
-                override or standard-location autodiscovery; every row
-                requires it.
+                Card data defaults to the client database — LEYLINE_CARD_DB
+                override or standard-location autodiscovery. Forge Web work
+                can select Forge's generated catalog instead.
 
                   --decks <a,b>                 Deck matrix, data/decks basenames.
                   --opponent-deck <name>        Fixed seat-2 deck; omitted means mirror.
@@ -128,6 +131,7 @@ data class SimClientConfig(
                   --seeds <1..20|1,2,3>         Seed matrix.
                   --policy <greedy|forge-ai|shadow-ai|snapshot-shadow|snapshot>
                                                   snapshot drives reconstructed-state proposals; snapshot-shadow compares.
+                  --card-catalog <client|forge>   GRE card identities; defaults to the native client catalog.
                   --max-turns <n>               Turn cap.
                   --game-timeout-seconds <n>    Per-game wall-clock watchdog.
                   --out-dir <path>              Artifact directory.
@@ -156,6 +160,21 @@ private fun defaultQuarantineFile(): File? =
         File("../$DEFAULT_QUARANTINE_FILE"),
         File("../../$DEFAULT_QUARANTINE_FILE"),
     ).firstOrNull { it.exists() }
+
+enum class SimClientCardCatalog {
+    Client,
+    Forge,
+    ;
+
+    companion object {
+        fun parse(value: String): SimClientCardCatalog =
+            when (value.trim().lowercase()) {
+                "client" -> Client
+                "forge" -> Forge
+                else -> error("unknown SIMCLIENT_CARD_CATALOG: $value")
+            }
+    }
+}
 
 enum class SimClientPolicyMode {
     Greedy,

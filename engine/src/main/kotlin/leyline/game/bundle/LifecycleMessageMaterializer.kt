@@ -1,6 +1,8 @@
 package leyline.game.bundle
 
+import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ActionMapper
@@ -32,6 +34,38 @@ object LifecycleMessageMaterializer {
         val viewers: List<Pair<SeatId, List<GREToClientMessage>>>,
         val transition: ProjectionTransition,
     )
+
+    internal fun reconnectMulliganRequest(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: SeatId,
+        prompt: MulliganBridge.PendingPrompt,
+        handInstanceIds: List<Int>,
+        keepRequest: GREToClientMessage?,
+    ): GREToClientMessage =
+        when (prompt.phase) {
+            MulliganPhase.WaitingKeep ->
+                keepRequest
+                    ?.toBuilder()
+                    ?.setMsgId(msgId)
+                    ?.setGameStateId(gameStateId)
+                    ?.build()
+                    ?: GsmBuilder.buildMulliganReq(
+                        msgId = msgId,
+                        gameStateId = gameStateId,
+                        seatId = seatId.value,
+                        numCards = handInstanceIds.size,
+                        mulliganCount = prompt.mulliganCount,
+                    )
+            MulliganPhase.WaitingTuck ->
+                GsmBuilder.buildGroupReq(
+                    msgId = msgId,
+                    gameStateId = gameStateId,
+                    seatId = seatId.value,
+                    handInstanceIds = handInstanceIds,
+                    cardsToTuck = prompt.cardsToTuck,
+                )
+        }
 
     internal fun lifecycleMessages(
         messages: List<GREToClientMessage>,

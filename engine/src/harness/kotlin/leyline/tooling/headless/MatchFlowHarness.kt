@@ -4,6 +4,7 @@ import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
@@ -493,7 +494,7 @@ class MatchFlowHarness(
                 val cardData = bridge.cardRepository.findByGrpId(grpId)
                 val abilityGrpId =
                     bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability)
-                        ?: basicLandAbilityGrpId(card)
+                        ?: basicLandAbilityGrpId(card, ability)
                 val offer =
                     ActionMapper
                         .buildFromSnapshot(seatId.value, GsmSnapshot.capture(game(), bridge, "activateMana", 0), bridge)
@@ -531,7 +532,13 @@ class MatchFlowHarness(
         return true
     }
 
-    private fun basicLandAbilityGrpId(card: Card): Int = BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes) ?: 0
+    private fun basicLandAbilityGrpId(
+        card: Card,
+        ability: SpellAbility,
+    ): Int =
+        BasicLandAbilities.byTypeDerivedManaAbility(card, ability)
+            ?: BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes)
+            ?: 0
 
     /** Advance one exact priority or state-only synchronization stop. */
     fun passPriority() {

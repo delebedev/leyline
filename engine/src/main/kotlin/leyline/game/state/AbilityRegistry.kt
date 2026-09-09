@@ -12,6 +12,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.codes.SlotEntry
 import leyline.game.codes.SlotKind
 import leyline.game.codes.SlotLayout
+import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
 
@@ -29,6 +30,7 @@ class AbilityRegistry private constructor(
     private val triggerMap: Map<Int, Int>,
     private val keywordFamilies: Map<AbilityDefinitionRef, AbilityKeywordFamily>,
     private val hiddenAbilityIds: List<Pair<Int, Int>> = emptyList(),
+    val sourceCardGrpId: Int,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
 ) {
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
@@ -71,7 +73,8 @@ class AbilityRegistry private constructor(
 
     companion object {
         /** Empty registry — no mappings. */
-        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), slotLayout = SlotLayout.Companion.EMPTY)
+        val EMPTY =
+            AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), sourceCardGrpId = 0, slotLayout = SlotLayout.Companion.EMPTY)
 
         /**
          * Build a registry from a live Forge [card] and its [cardData].
@@ -82,7 +85,9 @@ class AbilityRegistry private constructor(
             cardData: CardData,
         ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
-            if (abilityIds.isEmpty()) return EMPTY
+            if (abilityIds.isEmpty()) {
+                return AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), sourceCardGrpId = cardData.grpId)
+            }
 
             val fallbackGrpId = abilityIds[0].first
             val saMap = mutableMapOf<Int, Int>()
@@ -139,7 +144,7 @@ class AbilityRegistry private constructor(
                 } + virtualSlots
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, cardData.hiddenAbilityIds, layout)
+            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, cardData.hiddenAbilityIds, cardData.grpId, layout)
         }
 
         private fun generatedAbilities(card: Card): List<SpellAbility> =
@@ -281,6 +286,11 @@ class AbilityRegistry private constructor(
             var idx = 0
             for (sa in card.manaAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
+                val generatedGrpId = BasicLandAbilities.byTypeDerivedManaAbility(card, sa)
+                if (generatedGrpId != null) {
+                    saMap.putIfAbsent(sa.definitionId, generatedGrpId)
+                    continue
+                }
                 val slotIdx = manaSlotIndices.getOrNull(idx)
                 val grpId = if (slotIdx != null && slotIdx < abilityIds.size) abilityIds[slotIdx].first else fallbackGrpId
                 saMap.putIfAbsent(sa.definitionId, grpId)

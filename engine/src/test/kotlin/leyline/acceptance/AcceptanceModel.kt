@@ -81,6 +81,10 @@ data class OptionalActionStep(
     override val label: String = if (accept) "optional_action accept" else "optional_action decline"
 }
 
+data object CancelActionStep : AcceptanceStep {
+    override val label: String = "cancel_action"
+}
+
 data class TargetStep(
     val target: AcceptanceTargetSpec,
 ) : AcceptanceStep {

@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Cancelling target selection aborts Goblin Cratermaker's activated ability before costs are paid.
+# Forcing: One creature per side keeps the damage-mode target domain small and reaches one bounded target prompt.
+# AI behavior: The scenario stops after the human cancels; the opponent has no decision.
+# Failure modes:
+#   WIN = The browser cancels back to priority with Goblin Cratermaker and Mountain unchanged.
+#   LOSE = The ability resolves or the turn limit expires.
+#   TIMEOUT = Target cancellation does not return to priority.
+# Card roles:
+#   Goblin Cratermaker — supplies a modal targeted ability with mana and sacrifice costs.
+#   Grizzly Bears — supplies an opposing legal target for the damage mode.
+#   Mountain — pays the generic activation cost and keeps both libraries non-empty.
+# Protocol path: ActionsAvailableReq -> CastingTimeOptionsReq -> SelectTargetsReq with Abort -> CancelActionReq -> priority state.
+
+[metadata]
+Name:Goblin Cratermaker Cancel
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Start Goblin Cratermaker's damage ability, then cancel target selection before paying its costs.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Goblin Cratermaker;Mountain
+humanlibrary=Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Mountain
