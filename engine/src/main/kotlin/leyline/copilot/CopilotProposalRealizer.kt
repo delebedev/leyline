@@ -466,14 +466,7 @@ internal object CopilotProposalRealizer {
 
             is SimDecision.GroupTop ->
                 withResponses(
-                    base("group", promptType, seat).copy(
-                        responseIds = decision.instanceIds,
-                        groupAssignments =
-                            listOf(
-                                GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, decision.instanceIds),
-                                GroupAssignment(ZoneType.Library.number, SubZoneType.Bottom.number, emptyList()),
-                            ),
-                    ),
+                    base("group", promptType, seat).copy(responseIds = decision.instanceIds),
                     listOf(
                         message(ClientMessageType.GroupResp_097b, gsId, seat, respId) {
                             setGroupResp(
@@ -491,18 +484,7 @@ internal object CopilotProposalRealizer {
                 val keepIds = decision.allInstanceIds.filter { it !in decision.awayInstanceIds }
                 val surveil = decision.context == GroupingContext.Surveil
                 withResponses(
-                    base("group", promptType, seat).copy(
-                        responseIds = decision.awayInstanceIds,
-                        groupAssignments =
-                            listOf(
-                                GroupAssignment(ZoneType.Library.number, SubZoneType.Top.number, keepIds),
-                                GroupAssignment(
-                                    (if (surveil) ZoneType.Graveyard else ZoneType.Library).number,
-                                    (if (surveil) SubZoneType.None_a455 else SubZoneType.Bottom).number,
-                                    decision.awayInstanceIds,
-                                ),
-                            ),
-                    ),
+                    base("group", promptType, seat).copy(responseIds = decision.awayInstanceIds),
                     listOf(
                         message(ClientMessageType.GroupResp_097b, gsId, seat, respId) {
                             setGroupResp(
@@ -672,7 +654,14 @@ internal object CopilotProposalRealizer {
     private fun withResponses(
         proposal: CopilotProposal,
         responses: List<ClientToGREMessage>,
-    ): CopilotProposal = proposal.copy(responses = hexMessages(responses))
+    ): CopilotProposal =
+        proposal.copy(
+            responses = hexMessages(responses),
+            groupAssignments =
+                responses
+                    .flatMap { it.groupResp.groupsList }
+                    .map { GroupAssignment(it.zoneType.number, it.subZoneType.number, it.idsList) },
+        )
 
     private fun message(
         type: ClientMessageType,
