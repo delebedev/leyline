@@ -13,7 +13,15 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import java.util.HexFormat
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 
 private const val TRANSIENT_POLL_NANOS = 5_000_000L
@@ -85,9 +93,70 @@ class PuzzleTrial(
     ): PuzzleTrialResult {
         val startedAt = System.nanoTime()
         val deadline = startedAt + limits.maxElapsedMillis * 1_000_000L
+        val progress = AtomicReference(TrialProgress())
+        val cleanupDone = CountDownLatch(1)
+
+        fun pendingCleanup() = if (cleanupDone.count > 0) "; runtime cleanup pending" else ""
+
+        fun result(
+            status: PuzzleTrialStatus,
+            reason: String,
+        ): PuzzleTrialResult {
+            val snapshot = progress.get()
+            return PuzzleTrialResult(
+                status = status,
+                definitionId = definition.identity,
+                matchId = snapshot.matchId,
+                engineSeed = engineSeed,
+                limits = limits,
+                elapsedMillis = elapsedMillis(startedAt),
+                decisions = snapshot.decisions,
+                reason = reason,
+            )
+        }
+
+        val future =
+            try {
+                trialExecutor.submit<PuzzleTrialResult> {
+                    try {
+                        runOwned(definition, limits, startedAt, deadline, progress)
+                    } finally {
+                        cleanupDone.countDown()
+                    }
+                }
+            } catch (_: RejectedExecutionException) {
+                return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
+            }
+
+        return try {
+            future.get((deadline - System.nanoTime()).coerceAtLeast(0), TimeUnit.NANOSECONDS)
+        } catch (_: TimeoutException) {
+            future.cancel(true)
+            result(PuzzleTrialStatus.TimeBudgetExceeded, "puzzle trial exceeded ${limits.maxElapsedMillis} ms${pendingCleanup()}")
+        } catch (_: InterruptedException) {
+            future.cancel(true)
+            Thread.currentThread().interrupt()
+            result(PuzzleTrialStatus.Interrupted, "puzzle trial thread was interrupted${pendingCleanup()}")
+        } catch (failure: ExecutionException) {
+            val cause = failure.cause ?: failure
+            result(PuzzleTrialStatus.EngineFailure, cause.message ?: cause.javaClass.simpleName)
+        }
+    }
+
+    private fun runOwned(
+        definition: PuzzleDefinition,
+        limits: PuzzleTrialLimits,
+        startedAt: Long,
+        deadline: Long,
+        progress: AtomicReference<TrialProgress>,
+    ): PuzzleTrialResult {
         val decisions = mutableListOf<PuzzleTrialDecision>()
         var matchId: String? = null
         var handle: MatchRuntimeHandle? = null
+
+        fun publishProgress() {
+            progress.set(TrialProgress(matchId, decisions.toList()))
+        }
 
         fun result(
             status: PuzzleTrialStatus,
@@ -99,7 +168,7 @@ class PuzzleTrial(
             matchId = matchId,
             engineSeed = engineSeed,
             limits = limits,
-            elapsedMillis = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0),
+            elapsedMillis = elapsedMillis(startedAt),
             decisions = decisions.toList(),
             outcome = outcome?.let { PuzzleTrialOutcome(it.playerSeatId, it.winningTeam, it.won) },
             reason = reason,
@@ -121,12 +190,13 @@ class PuzzleTrial(
                     )
                 handle = launched
                 matchId = launched.response.matchId
+                publishProgress()
                 if (!launched.response.accepted) {
                     TrialCompletion(PuzzleTrialStatus.EngineFailure, "runtime rejected the puzzle trial")
                 } else {
                     launched.receive(TrialClientMessages.authenticate("puzzle-trial"))
                     launched.receive(TrialClientMessages.connect(checkNotNull(matchId)))
-                    drive(launched, limits, deadline, decisions)
+                    drive(launched, limits, deadline, decisions, ::publishProgress)
                 }
             } catch (failure: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -153,6 +223,7 @@ class PuzzleTrial(
         limits: PuzzleTrialLimits,
         deadline: Long,
         decisions: MutableList<PuzzleTrialDecision>,
+        publishProgress: () -> Unit,
     ): TrialCompletion {
         var lastSubmission: String? = null
         var transientSince: Long? = null
@@ -186,6 +257,7 @@ class PuzzleTrial(
 
             val payload = TrialClientMessages.response(response)
             decisions += proposal.toDecision(decisions.size + 1)
+            publishProgress()
             lastSubmission = submission
             handle.receive(payload)
         }
@@ -197,14 +269,14 @@ class PuzzleTrial(
         deadline: Long,
         decisionCount: Int,
     ): TrialCompletion? {
-        terminalResult(handle)?.let { observed ->
-            return TrialCompletion(if (observed.won) PuzzleTrialStatus.Won else PuzzleTrialStatus.Lost, outcome = observed)
-        }
         if (Thread.currentThread().isInterrupted) {
             return TrialCompletion(PuzzleTrialStatus.Interrupted, "puzzle trial thread was interrupted")
         }
         if (System.nanoTime() >= deadline) {
             return TrialCompletion(PuzzleTrialStatus.TimeBudgetExceeded, "puzzle trial exceeded ${limits.maxElapsedMillis} ms")
+        }
+        terminalResult(handle)?.let { observed ->
+            return TrialCompletion(if (observed.won) PuzzleTrialStatus.Won else PuzzleTrialStatus.Lost, outcome = observed)
         }
         if (decisionCount >= limits.maxDecisions) {
             return TrialCompletion(PuzzleTrialStatus.DecisionBudgetExceeded, "puzzle trial reached ${limits.maxDecisions} decisions")
@@ -232,14 +304,34 @@ class PuzzleTrial(
     private fun String.failureStatus() =
         when {
             contains("no copilot decoder") -> PuzzleTrialStatus.Unsupported
+            startsWith("advisor unavailable: UnsupportedPrompt:") -> PuzzleTrialStatus.Unsupported
             contains("runtime handle is closed") -> PuzzleTrialStatus.EngineFailure
             else -> PuzzleTrialStatus.AdvisorUnavailable
         }
 
     private companion object {
         val nextTrialId = AtomicLong()
+
+        // A shared no-queue worker caps abandoned runtime work at one trial.
+        val trialExecutor =
+            ThreadPoolExecutor(
+                1,
+                1,
+                1,
+                TimeUnit.SECONDS,
+                SynchronousQueue(),
+                { task -> Thread(task, "puzzle-trial").apply { isDaemon = true } },
+                ThreadPoolExecutor.AbortPolicy(),
+            ).apply { allowCoreThreadTimeOut(true) }
     }
 }
+
+private fun elapsedMillis(startedAt: Long) = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0)
+
+private data class TrialProgress(
+    val matchId: String? = null,
+    val decisions: List<PuzzleTrialDecision> = emptyList(),
+)
 
 private data class TrialCompletion(
     val status: PuzzleTrialStatus,

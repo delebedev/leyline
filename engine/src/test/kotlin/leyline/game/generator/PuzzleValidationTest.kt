@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.BoardTag
 import leyline.config.PuzzleDefinition
+import leyline.game.data.CardRepository
 import leyline.game.data.ForgeCardRepository
 
 class PuzzleValidationTest :
@@ -51,6 +52,19 @@ class PuzzleValidationTest :
             val result = validator.validate(PuzzleDefinition("unknown", content.replace("Lightning Bolt", "No Such Puzzle Card")))
             result.status shouldBe PuzzleValidationStatus.Invalid
             result.issues.single() shouldContain "No Such Puzzle Card"
+        }
+
+        test("catalog failures remain structured engine results") {
+            val catalog = ForgeCardRepository.open()
+            val failing =
+                object : CardRepository by catalog {
+                    override fun findGrpIdByName(name: String): Int? = error("catalog broke")
+                }
+
+            val result = PuzzleValidation(failing).validate(PuzzleDefinition("catalog-failure", content))
+
+            result.status shouldBe PuzzleValidationStatus.EngineFailure
+            result.issues.single() shouldContain "catalog broke"
         }
 
         test("unsupported goals and state fields never become a loaded candidate") {

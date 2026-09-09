@@ -89,7 +89,8 @@ Embedding hosts can call `PuzzleValidation(cardRepository).validate(definition)`
 before offering generated puzzle text for play. Validation checks card names
 against both the supplied catalog and Forge, then applies the definition to a
 disposable game through the same puzzle setup path. `Loaded` means engine setup
-succeeded. It does not establish solvability or exercise a client interaction.
+succeeded. Catalog, setup, and cleanup failures return `EngineFailure`. A
+`Loaded` result does not establish solvability or exercise a client interaction.
 
 The candidate format currently supports two players starting at Human Main1 on
 turn one, positive life totals, ordinary card zones, lands played, mana pools,
@@ -113,6 +114,12 @@ runtime handle, consults advice for each current prompt, submits the first
 encoded response, and closes the handle after a terminal or bounded result.
 The default limits are 100 submitted decisions and 30 seconds; callers can
 supply smaller positive limits.
+
+The elapsed limit is a caller deadline. Trials share one worker and have no
+request queue. At the deadline, the caller interrupts the worker and returns
+the last immutable progress as `TimeBudgetExceeded`. The worker remains the
+sole owner of runtime cleanup. If cleanup is still running, the result says so
+and new trials return `EngineFailure` until that worker exits.
 
 The serializable result reports the definition and match identities, the
 caller-provided engine seed, elapsed time, semantic prompt-bound decisions, and

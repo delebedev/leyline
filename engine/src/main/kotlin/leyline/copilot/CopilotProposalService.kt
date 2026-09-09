@@ -132,14 +132,11 @@ class CopilotProposalService(
         }
 
     private fun startingPlayerProposal(prompt: GREToClientMessage): CopilotProposal =
-        stampPrompt(
-            CopilotProposalRealizer.chooseStartingPlayer(
-                promptType = prompt.type,
-                seat = seatId.value,
-                gsId = prompt.gameStateId,
-                respId = prompt.msgId,
-            ),
-            prompt,
+        CopilotProposalRealizer.chooseStartingPlayer(
+            promptType = prompt.type,
+            seat = seatId.value,
+            gsId = prompt.gameStateId,
+            respId = prompt.msgId,
         )
 
     private fun aarProposal(prompt: GREToClientMessage): CopilotProposal {
@@ -223,16 +220,13 @@ class CopilotProposalService(
         decision: SimDecision,
         prompt: GREToClientMessage,
     ): CopilotProposal =
-        stampPrompt(
-            CopilotProposalRealizer.realize(
-                decision = decision,
-                promptType = prompt.type,
-                seat = seatId.value,
-                resolve = resolver,
-                gsId = prompt.gameStateId,
-                respId = prompt.msgId,
-            ),
-            prompt,
+        CopilotProposalRealizer.realize(
+            decision = decision,
+            promptType = prompt.type,
+            seat = seatId.value,
+            resolve = resolver,
+            gsId = prompt.gameStateId,
+            respId = prompt.msgId,
         )
 
     private fun stampPrompt(

@@ -19,7 +19,11 @@ import java.io.File
 import java.util.HexFormat
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class PuzzleTrialTest :
     FunSpec({
@@ -71,6 +75,88 @@ class PuzzleTrialTest :
                 result.decisions shouldBe emptyList()
                 closed.get() shouldBe true
             }
+        }
+
+        test("an unsupported prompt reason keeps its distinct trial status") {
+            val proposal = unavailableProposal.copy(reason = "advisor unavailable: UnsupportedPrompt: prompt has no forced choice")
+
+            val result = PuzzleTrial(fakeRuntime(proposal)).run(PuzzleDefinition("unsupported-prompt", boltPuzzle))
+
+            result.status shouldBe PuzzleTrialStatus.Unsupported
+        }
+
+        test("the elapsed budget returns immutable progress while its worker owns pending cleanup") {
+            val blocked = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val closed = CountDownLatch(1)
+            val calls = AtomicInteger()
+            val adviceThread = AtomicReference<String>()
+            val closeThread = AtomicReference<String>()
+            val response =
+                ClientToGREMessage
+                    .newBuilder()
+                    .setType(ClientMessageType.PerformActionResp_097b)
+                    .setGameStateId(1)
+                    .setRespId(2)
+                    .setSystemSeatId(1)
+                    .build()
+            val submitted =
+                unavailableProposal.copy(
+                    intent = "pass",
+                    reason = null,
+                    responses = listOf(HexFormat.of().formatHex(response.toByteArray())),
+                )
+            val runtime =
+                fakeRuntime(
+                    proposal = submitted,
+                    onProposal = {
+                        if (calls.getAndIncrement() == 0) {
+                            submitted
+                        } else {
+                            adviceThread.set(Thread.currentThread().name)
+                            blocked.countDown()
+                            while (release.count > 0) {
+                                try {
+                                    release.await(10, TimeUnit.MILLISECONDS)
+                                } catch (_: InterruptedException) {
+                                    // Keep this fake uncooperative until the test releases it.
+                                }
+                            }
+                            unavailableProposal
+                        }
+                    },
+                    onClose = {
+                        closeThread.set(Thread.currentThread().name)
+                        closed.countDown()
+                    },
+                )
+            val invocation =
+                CompletableFuture.supplyAsync {
+                    PuzzleTrial(runtime).run(
+                        PuzzleDefinition("timed-out", boltPuzzle),
+                        PuzzleTrialLimits(maxElapsedMillis = 100),
+                    )
+                }
+
+            try {
+                blocked.await(1, TimeUnit.SECONDS) shouldBe true
+                val result = invocation.get(1, TimeUnit.SECONDS)
+                assertSoftly {
+                    result.status shouldBe PuzzleTrialStatus.TimeBudgetExceeded
+                    result.decisions.size shouldBe 1
+                    result.reason shouldContain "cleanup pending"
+                }
+
+                val rejected = PuzzleTrial(fakeRuntime()).run(PuzzleDefinition("while-busy", boltPuzzle))
+                assertSoftly {
+                    rejected.status shouldBe PuzzleTrialStatus.EngineFailure
+                    rejected.reason shouldContain "worker is busy"
+                }
+            } finally {
+                release.countDown()
+            }
+            closed.await(1, TimeUnit.SECONDS) shouldBe true
+            closeThread.get() shouldBe adviceThread.get()
         }
 
         test("a close failure remains a structured engine result") {
@@ -152,6 +238,7 @@ private val unavailableProposal =
 
 private fun fakeRuntime(
     proposal: CopilotProposal = unavailableProposal,
+    onProposal: () -> CopilotProposal = { proposal },
     onClose: () -> Unit = {},
 ): MatchRuntime =
     object : MatchRuntime {
@@ -168,7 +255,7 @@ private fun fakeRuntime(
 
                 override fun receive(payload: ByteArray) = Unit
 
-                override fun copilotProposal() = proposal
+                override fun copilotProposal() = onProposal()
 
                 override fun close() = onClose()
             }

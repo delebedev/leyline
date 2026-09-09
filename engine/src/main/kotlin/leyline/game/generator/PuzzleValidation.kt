@@ -26,7 +26,7 @@ data class PuzzleValidationResult(
 class PuzzleValidation(
     private val cards: CardRepository,
 ) {
-    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    @Suppress("ReturnCount")
     fun validate(definition: PuzzleDefinition): PuzzleValidationResult {
         if (definition.content.length > MAX_TEXT_LENGTH) return invalid("Puzzle text exceeds $MAX_TEXT_LENGTH characters")
         val sections = FileSection.parseSections(definition.content.lines())
@@ -42,6 +42,21 @@ class PuzzleValidation(
         if (state["activephase"]?.lowercase() != "main1") return unsupported("ActivePhase must be Main1")
         if (state["turn"] != null && state["turn"] != "1") return unsupported("Candidate starting turn must be 1")
 
+        return try {
+            validateWithEngine(definition, state, name, goal, turns)
+        } catch (failure: Exception) {
+            PuzzleValidationResult(PuzzleValidationStatus.EngineFailure, listOf(failure.message ?: failure.javaClass.simpleName))
+        }
+    }
+
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    private fun validateWithEngine(
+        definition: PuzzleDefinition,
+        state: Map<String, String>,
+        name: String,
+        goal: String,
+        turns: Int,
+    ): PuzzleValidationResult {
         GameBootstrap.initializeCardDatabase(quiet = true)
         var count = 0
         val seen = mutableSetOf<String>()
@@ -82,11 +97,9 @@ class PuzzleValidation(
         }
         if (count == 0) return invalid("At least one card is required")
         val bridge = GameBridge(cardRepository = cards)
-        return try {
+        try {
             bridge.startStaticPuzzle(PuzzleSource.load(definition), SeatId(1), beforeRuntimeStart = {})
-            PuzzleValidationResult(PuzzleValidationStatus.Loaded, name = name, goal = goal, turns = turns, inputCardCount = count)
-        } catch (failure: Exception) {
-            PuzzleValidationResult(PuzzleValidationStatus.EngineFailure, listOf(failure.message ?: failure.javaClass.simpleName))
+            return PuzzleValidationResult(PuzzleValidationStatus.Loaded, name = name, goal = goal, turns = turns, inputCardCount = count)
         } finally {
             bridge.teardownResources()
         }
