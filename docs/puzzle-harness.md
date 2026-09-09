@@ -104,3 +104,21 @@ Keep validation results with the original definition. After a `Loaded` result,
 launch that exact definition and observe its objective and required decisions
 through the chosen client. A failed advisor attempt is inconclusive about the
 puzzle's solvability.
+
+## Bounded engine trial
+
+`PuzzleTrial(matchRuntime, engineSeed).run(definition)` can screen a loaded
+definition inside the engine before an interactive trial. It authenticates one
+runtime handle, consults advice for each current prompt, submits the first
+encoded response, and closes the handle after a terminal or bounded result.
+The default limits are 100 submitted decisions and 30 seconds; callers can
+supply smaller positive limits.
+
+The serializable result reports the definition and match identities, the
+caller-provided engine seed, elapsed time, semantic prompt-bound decisions, and
+any observed winner. `Won` and `Lost` require a terminal engine observation.
+Unsupported prompts, unavailable advice, repeated responses, decision and time
+limits, interruption, and engine failure have distinct statuses. These
+non-terminal statuses are inconclusive about whether another line can solve the
+puzzle. The submission loop belongs to this engine-only trial; interactive
+hosts should use prompt advice without submitting through `PuzzleTrial`.
