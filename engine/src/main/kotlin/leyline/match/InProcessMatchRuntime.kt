@@ -5,6 +5,7 @@ import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.config.RuntimeMatchLaunchResponse
+import leyline.copilot.CopilotProposal
 import leyline.domain.service.MatchCoordinator
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleLibrary
@@ -35,8 +36,26 @@ interface MatchRuntimeHandle {
 
     fun receive(payload: ByteArray)
 
+    /** Read-only advice for this handle's current human-seat prompt. */
+    fun copilotProposal(): CopilotProposal = unavailableCopilotProposal("copilot advice is unavailable for this runtime handle")
+
     fun close()
 }
+
+internal fun unavailableCopilotProposal(
+    reason: String,
+    prompt: wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage? = null,
+    seat: Int = 1,
+): CopilotProposal =
+    CopilotProposal(
+        intent = "unrealizable",
+        promptType = prompt?.type?.name ?: "PromptReq",
+        seat = seat,
+        promptKey = prompt?.let { "${it.gameStateId}:${it.msgId}" },
+        gameStateId = prompt?.gameStateId,
+        respId = prompt?.msgId,
+        reason = reason,
+    )
 
 /** Owns one in-process engine lifecycle per launched handle. */
 class InProcessMatchRuntime(
@@ -115,6 +134,17 @@ class InProcessMatchRuntime(
                 }
             }
         }
+
+        override fun copilotProposal(): CopilotProposal =
+            synchronized(lock) {
+                when {
+                    closed -> unavailableCopilotProposal("match runtime handle is closed")
+                    result.isDone -> unavailableCopilotProposal("match runtime handle is terminal")
+                    else ->
+                        registry.activeHumanSession()?.copilotProposal()
+                            ?: unavailableCopilotProposal("match runtime handle is not connected")
+                }
+            }
 
         override fun close() {
             synchronized(lock) {
