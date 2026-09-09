@@ -26,6 +26,7 @@ data class PuzzleValidationResult(
 class PuzzleValidation(
     private val cards: CardRepository,
 ) {
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
     fun validate(definition: PuzzleDefinition): PuzzleValidationResult {
         if (definition.content.length > MAX_TEXT_LENGTH) return invalid("Puzzle text exceeds $MAX_TEXT_LENGTH characters")
         val sections = FileSection.parseSections(definition.content.lines())
