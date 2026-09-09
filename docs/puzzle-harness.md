@@ -82,3 +82,25 @@ Add more seeders only for stable facts that can be read from current engine stat
 - Add a Full GSM projector when current engine state already contains the needed fact.
 - Add a seeder only for stable, snapshot-readable state.
 - Avoid arbitrary mutation for impossible or under-specified states.
+
+## Candidate validation
+
+Embedding hosts can call `PuzzleValidation(cardRepository).validate(definition)`
+before offering generated puzzle text for play. Validation checks card names
+against both the supplied catalog and Forge, then applies the definition to a
+disposable game through the same puzzle setup path. `Loaded` means engine setup
+succeeded. It does not establish solvability or exercise a client interaction.
+
+The candidate format currently supports two players starting at Human Main1 on
+turn one, positive life totals, ordinary card zones, lands played, mana pools,
+and the `Tapped` and `SummonSick` card flags. Goals are `Win`, `Survive`, and
+`Win before opponent's next turn`, with a limit of 1–99 turns. Text is limited
+to 32,768 characters and 100 cards. Unknown cards and malformed values are
+invalid. Other state fields, card flags and objectives are unsupported, rather
+than silently accepted. Existing authored fixtures retain the full puzzle
+loader; extending candidate support requires proof that its state is applied.
+
+Keep validation results with the original definition. After a `Loaded` result,
+launch that exact definition and observe its objective and required decisions
+through the chosen client. A failed advisor attempt is inconclusive about the
+puzzle's solvability.
