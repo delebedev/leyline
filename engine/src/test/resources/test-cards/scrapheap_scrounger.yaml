@@ -1,0 +1,12 @@
+name: "Scrapheap Scrounger"
+grpId: 75845
+titleId: 51588
+abilities:
+  - id: 1663
+    textId: 29855
+    category: 3
+  - id: 103470
+    textId: 947984
+    category: 1
+    mana: "o1oB"
+expansionCode: "KLR"

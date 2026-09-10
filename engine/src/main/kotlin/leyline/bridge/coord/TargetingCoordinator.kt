@@ -748,7 +748,7 @@ class TargetingCoordinator(
             maxTargets,
         )
 
-        if (allCandidates.isEmpty()) return TargetSelectionResult(false, true)
+        if (allCandidates.isEmpty()) return TargetSelectionResult(minTargets == 0, true)
 
         val labels =
             allCandidates.map { entity ->

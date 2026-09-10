@@ -1,0 +1,14 @@
+name: "Kaya, Orzhov Usurper"
+grpId: 69314
+titleId: 280065
+abilities:
+  - id: 121915
+    textId: 280067
+    category: 1
+  - id: 143176
+    textId: 518008
+    category: 1
+  - id: 121917
+    textId: 938572
+    category: 1
+expansionCode: "RNA"

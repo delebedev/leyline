@@ -380,7 +380,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 0
+                    min shouldBe 1
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.StationTapCost
                 }
@@ -483,7 +483,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 0
+                    min shouldBe 1
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
@@ -511,7 +511,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 0
+                    min shouldBe 1
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
@@ -540,7 +540,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 0
+                    min shouldBe 1
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }
@@ -606,7 +606,7 @@ class CostDecisionTest :
                     .single(),
             ) {
                 assertSoftly {
-                    min shouldBe 0
+                    min shouldBe 1
                     max shouldBe 1
                     semantic shouldBe PromptSemantic.Generic
                 }

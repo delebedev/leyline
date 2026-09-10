@@ -1,0 +1,18 @@
+name: "It'll Quench Ya!"
+grpId: 97332
+titleId: 1070483
+abilities:
+  - id: 6374
+    textId: 30988
+    category: 4
+expansionCode: "TLA"
+power: ""
+toughness: ""
+colors:
+  - 2
+types:
+  - 4
+subtypes:
+  - 388
+supertypes: []
+manaCost: "o1oU"

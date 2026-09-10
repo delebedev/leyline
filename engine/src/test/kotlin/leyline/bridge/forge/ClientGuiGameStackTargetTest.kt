@@ -117,4 +117,37 @@ class ClientGuiGameStackTargetTest :
             request.min shouldBe 0
             request.targetingFinishOptionIndex shouldBe 1
         }
+
+        test("oneOrNone keeps a stack target required while preserving action cancellation") {
+            val bridge = InteractivePromptBridge(timeoutMs = 1_000)
+            val observed = AtomicReference<PromptRequest>()
+            bridge.runtimeBindings =
+                leyline.bridge.handoff.PromptRuntimeBindings(
+                    targeting =
+                        object : TargetingInteractionRuntime {
+                            override fun awaitTargeting(
+                                request: PromptRequest,
+                                targetingAbility: SpellAbility?,
+                                abilityIdentity: ResolvedAbilityIdentity?,
+                                timeoutMs: Long?,
+                            ): List<Int> {
+                                observed.set(request)
+                                return listOf(0)
+                            }
+                        },
+                )
+            val gui =
+                ClientGuiGame(
+                    bridge,
+                    stackTargetingActive = { true },
+                    stackTargetCandidate = { index, option ->
+                        if (option == "stack") candidate(index) else null
+                    },
+                )
+
+            gui.oneOrNone("Choose a stack target", listOf("stack")) shouldBe "stack"
+            val request = observed.get()
+            request.min shouldBe 1
+            request.targetingFinishOptionIndex shouldBe null
+        }
     })

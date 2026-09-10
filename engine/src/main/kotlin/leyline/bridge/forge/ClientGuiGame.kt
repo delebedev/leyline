@@ -213,7 +213,7 @@ class ClientGuiGame(
                 promptType = if (targetingCandidates.isNotEmpty()) "choose_cards" else "choose_one",
                 message = message,
                 options = labels,
-                min = 0,
+                min = if (stackTargetOptions.finishOptionIndex != null) 0 else 1,
                 max = 1,
                 defaultIndex = firstSelectableIndex(labels),
                 targetingCandidates = targetingCandidates,
