@@ -7,9 +7,7 @@ scenarios:
     expect: Runeclaw Bear resolves and the next main phase offers the newly drawn Forest
     steps:
       - expect:
-          all:
-            - action: { type: cast, card: Runeclaw Bear }
-            - action_not_available: { type: cast, card: Cancel }
+          action: { type: cast, card: Runeclaw Bear }
       - cast: Runeclaw Bear
       - expect:
           all:

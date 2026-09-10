@@ -1,9 +1,9 @@
 [metadata]
-Name: Priority flow - opponent response
-Goal: Survive
-Turns: 4
-Difficulty: Easy
-Description: Pass the turn while holding Cancel. The opponent's creature spell opens a response window and interrupts turn yield.
+Name:Priority flow - opponent response
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Pass the turn while holding Cancel. The opponent's creature spell opens a response window and interrupts turn yield.
 
 [state]
 ActivePlayer=Human
