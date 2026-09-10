@@ -147,6 +147,16 @@ internal class MatchLifecycleRuntime(
         }
     }
 
+    private fun currentConnectResponse(
+        message: GREToClientMessage,
+        msgId: Int,
+    ): GREToClientMessage =
+        message
+            .toBuilder()
+            .setMsgId(msgId)
+            .setConnectResp(message.connectResp.toBuilder().setSettings(owner.bridge.priorityPolicy.currentSettings()))
+            .build()
+
     private fun publishReconnect(
         seatId: SeatId,
         initial: InitialPublication,
@@ -206,7 +216,7 @@ internal class MatchLifecycleRuntime(
             buildList {
                 initialMessages
                     .singleOrNull { it.hasConnectResp() }
-                    ?.let { add(it.toBuilder().setMsgId(planner.nextMsgId()).build()) }
+                    ?.let { add(currentConnectResponse(it, planner.nextMsgId())) }
                 add(
                     GREToClientMessage
                         .newBuilder()

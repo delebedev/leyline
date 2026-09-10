@@ -44,15 +44,6 @@ internal object ActionManaCosts {
             fallback = { canPayOrTwoGenericManaCost(sa, player) },
         )
 
-    fun canPlayAndPayManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean =
-        affordabilityProbe(
-            probe = { sa.canPlay() && canPayManaCost(sa, player) },
-            fallback = { false },
-        )
-
     internal fun affordabilityProbe(
         probe: () -> Boolean,
         fallback: () -> Boolean,

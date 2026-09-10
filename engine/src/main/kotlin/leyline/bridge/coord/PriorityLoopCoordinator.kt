@@ -21,7 +21,6 @@ import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.resolveAttackDefender
-import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PriorityDecision
 import leyline.game.data.KeywordAbilityIds
@@ -54,8 +53,6 @@ class PriorityLoopCoordinator(
     private val damageAssignmentGate = DamageAssignmentGate(actionBridge, interactionRuntime)
     private var pendingAttackAlternativeByAttacker: Map<ForgeCardId, Int> = emptyMap()
 
-    private var lastSeenTurn: Int = -1
-
     /**
      * Main priority window entry point. Notify state, block until the client
      * responds, translate the response into a Forge [SpellAbility] (or null
@@ -65,15 +62,9 @@ class PriorityLoopCoordinator(
     fun chooseSpellAbility(): List<SpellAbility>? {
         val handler = game.phaseHandler
 
-        val currentTurn = handler.turn
-        if (currentTurn != lastSeenTurn) {
-            lastSeenTurn = currentTurn
-            actionBridge.setAutoPassUntilEndOfTurn(false)
-        }
-
         if (actionBridge.autoPassUntilEndOfTurn) {
-            priorityPolicy.recordDecision(game, PriorityDecision.Skip(AutoPassReason.EndTurnFlag))
-            return null
+            actionBridge.setAutoPassUntilEndOfTurn(false)
+            priorityPolicy.requestTurnYield(handler.turn)
         }
 
         val isOwnTurn = handler.playerTurn?.id == player.id
@@ -82,18 +73,20 @@ class PriorityLoopCoordinator(
         var forceVisibleAfterMana = false
         while (true) {
             val priorityCandidates = PriorityActionCandidates.query(game, player)
-            val continuation = actionBridge.consumeSynchronizationContinuation()
+            actionBridge.consumeSynchronizationContinuation()
             val promptJustResolved = actionBridge.prioritySignal?.consumePromptResolved() == true
             val decision =
                 priorityPolicy.classifyPriorityWindow(
                     PriorityWindowObservation(
                         isOwnTurn = isOwnTurn,
+                        turn = handler.turn,
+                        playerId = player.id,
+                        stack = game.stack.map { PriorityStackObject(it.id, it.activatingPlayer.id) },
                         phase = handler.phase,
                         smartPhaseSkip = smartPhaseSkip,
                         promptJustResolved = promptJustResolved,
                         stackEmpty = game.stack.isEmpty,
                         forceVisible = forceVisibleAfterMana,
-                        continuation = continuation,
                         hasMeaningfulAction = priorityCandidates.hasLegalNonManaAction(player, isOwnTurn),
                     ),
                 )
@@ -136,9 +129,13 @@ class PriorityLoopCoordinator(
             val action = actionBridge.awaitAction(state, priorityCandidates.takeIf { mode == PriorityWindowMode.Visible })
             actionBridge.armSynchronizationContinuation(state.synchronizationContinuation)
             when (action) {
-                is PlayerAction.PassPriority -> return null
+                is PlayerAction.PassPriority -> {
+                    priorityPolicy.actionCompleted(true)
+                    return null
+                }
                 is PlayerAction.EndTurn -> {
-                    actionBridge.setAutoPassUntilEndOfTurn(true)
+                    priorityPolicy.actionCompleted(true)
+                    priorityPolicy.requestTurnYield(handler.turn)
                     return null
                 }
                 is PlayerAction.CastSpell -> return spellExecutor.castSpell(action.cardId, action.abilityId, action.targets, action.ability)
@@ -149,9 +146,11 @@ class PriorityLoopCoordinator(
                     action.ability,
                 )
                 is PlayerAction.ActivateMana -> {
-                    if (!spellExecutor.activateMana(action.cardId, action.abilityId, action.selectedColor, action.ability)) {
+                    val success = spellExecutor.activateMana(action.cardId, action.abilityId, action.selectedColor, action.ability)
+                    if (!success) {
                         log.debug("Mana activation failed for card {}", action.cardId.value)
                     }
+                    priorityPolicy.actionCompleted(success)
                     forceVisibleAfterMana = true
                     continue
                 }
@@ -162,6 +161,8 @@ class PriorityLoopCoordinator(
             }
         }
     }
+
+    internal fun actionCompleted(success: Boolean) = priorityPolicy.actionCompleted(success)
 
     companion object {
         internal fun synchronizationContinuation(

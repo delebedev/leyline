@@ -394,7 +394,7 @@ class MatchSession(
                 incoming.transientStopsCount,
             )
 
-            val settings = gameBridge.priorityPolicy.submit(incoming)
+            val settings = gameBridge.priorityPolicy.submit(incoming, reqSettings.turnNumber)
             gameBridge.cutCoordinator.publishSettings(seatId, settings)
             drainCoordinatorFeed()
         }

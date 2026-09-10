@@ -1,0 +1,16 @@
+[metadata]
+Name: Priority flow - self response
+Goal: Survive
+Turns: 4
+Difficulty: Easy
+Description: Cast Runeclaw Bear with Shock still payable. Normal play passes over your spell. Full control preserves a response window.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest;Mountain
+humanhand=Runeclaw Bear;Shock
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

@@ -1,0 +1,18 @@
+[metadata]
+Name: Priority flow - opponent response
+Goal: Survive
+Turns: 4
+Difficulty: Easy
+Description: Pass the turn while holding Cancel. The opponent's creature spell opens a response window and interrupts turn yield.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Island;Island;Island
+humanhand=Island;Cancel
+humanlibrary=Island;Island;Island;Island;Island;Island
+aihand=Runeclaw Bear
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aibattlefield=Forest;Forest

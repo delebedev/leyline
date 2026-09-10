@@ -1,0 +1,23 @@
+# Mechanic: Automatic priority after the last payable spell.
+# Forcing: Two Forests pay for Runeclaw Bear; Cancel has no blue mana or legal target afterward.
+# AI behavior: An empty hand and battlefield leave only turn progression.
+# Failure modes: A pending Resolve or Pass before the next land draw exposes an unnecessary stop.
+# Card roles: Runeclaw Bear supplies a simple cast, Cancel supplies an inactive instant,
+# Forest supplies payment and the next turn's playable land.
+# Protocol path: Cast action, state-only resolution and turn progression, then a land action request.
+[metadata]
+Name:priority-flow-last-spell
+Goal:Survive
+Turns:3
+Difficulty:Tutorial
+Description:Cast Runeclaw Bear and reach your next land play without passing priority manually.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest
+humanhand=Runeclaw Bear;Cancel
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

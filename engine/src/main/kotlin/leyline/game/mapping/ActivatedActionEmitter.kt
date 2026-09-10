@@ -68,7 +68,7 @@ internal object ActivatedActionEmitter {
         for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
             if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
-            val canPay = ActionManaCosts.canPayManaCost(ability, player)
+            val canPay = ActionAvailability.canExecute(ability, player)
             val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
             val autoTap =
                 if (canPay && abilityCost != null && !abilityCost.isNoCost) {

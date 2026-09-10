@@ -1,5 +1,6 @@
 package leyline.game.bundle
 
+import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.MulliganPhase
@@ -120,7 +121,7 @@ object LifecycleMessageMaterializer {
         // Role-scoped decisions use `Seating` (see `GameBridge.seating`).
         if (seatId == SeatId(1)) {
             // ConnectResp with deck + default settings
-            messages.add(buildConnectResp(msgId++, seatId, deckMessage))
+            messages.add(buildConnectResp(msgId++, seatId, deckMessage, bridge.priorityPolicy.currentSettings()))
         }
 
         // DieRollResults (both seats see this)
@@ -234,7 +235,11 @@ object LifecycleMessageMaterializer {
                         )
                     val output =
                         buildList {
-                            if (seatId == SeatId(1)) add(buildConnectResp(connectMsgId, seatId, deck))
+                            if (seatId ==
+                                SeatId(1)
+                            ) {
+                                add(buildConnectResp(connectMsgId, seatId, deck, bridge.priorityPolicy.currentSettings()))
+                            }
                             add(buildDieRollResults(dieRollMsgId, dieRollWinner))
                             add(
                                 GREToClientMessage
@@ -492,7 +497,7 @@ object LifecycleMessageMaterializer {
         // Role gate: only the human seat gets a ConnectResp handshake.
         if (seatId == bridge.seating.humanSeat) {
             val deck = GsmBuilder.buildDeckMessage(bridge.getDeckGrpIds(seatId), bridge.getCommanderGrpIds(seatId))
-            messages.add(buildConnectResp(msgId++, seatId, deck))
+            messages.add(buildConnectResp(msgId++, seatId, deck, bridge.priorityPolicy.currentSettings()))
         }
 
         // Full GSM built from live game state (stage=Play, cards in zones)
@@ -651,6 +656,7 @@ object LifecycleMessageMaterializer {
         msgId: Int,
         seatId: SeatId,
         deckMessage: DeckMessage,
+        settings: SettingsMessage,
     ): GREToClientMessage =
         GREToClientMessage
             .newBuilder()
@@ -662,7 +668,7 @@ object LifecycleMessageMaterializer {
                     .newBuilder()
                     .setStatus(ConnectionStatus.Success_aa9e)
                     .setProtoVer(ProtoVersion.PersistentAnnotations)
-                    .setSettings(defaultSettings())
+                    .setSettings(settings)
                     .setDeckMessage(deckMessage)
                     .setGrpVersion(
                         Version
@@ -679,64 +685,5 @@ object LifecycleMessageMaterializer {
                     ),
             ).build()
 
-    /** Default stop settings matching the expected initial configuration. */
-    internal fun defaultSettings(): SettingsMessage {
-        // (StopType, Team status, Opponents status)
-        val stopDefs =
-            listOf(
-                Triple(StopType.UpkeepStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-                Triple(StopType.DrawStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-                Triple(StopType.PrecombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
-                Triple(StopType.BeginCombatStep, SettingStatus.Set, SettingStatus.Set),
-                Triple(StopType.DeclareAttackersStep, SettingStatus.Set, SettingStatus.Set),
-                Triple(StopType.DeclareBlockersStep, SettingStatus.Set, SettingStatus.Set),
-                Triple(StopType.CombatDamageStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-                Triple(StopType.EndCombatStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
-                Triple(StopType.PostcombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
-                Triple(StopType.EndStep_ad1f, SettingStatus.Clear_a3fe, SettingStatus.Set),
-                Triple(StopType.FirstStrikeDamageStep, SettingStatus.Set, SettingStatus.Set),
-            )
-        val builder = SettingsMessage.newBuilder()
-        for ((type, teamStatus, oppStatus) in stopDefs) {
-            builder.addStops(
-                Stop
-                    .newBuilder()
-                    .setStopType(type)
-                    .setAppliesTo(SettingScope.Team_ac6e)
-                    .setStatus(teamStatus),
-            )
-            builder.addStops(
-                Stop
-                    .newBuilder()
-                    .setStopType(type)
-                    .setAppliesTo(SettingScope.Opponents)
-                    .setStatus(oppStatus),
-            )
-            // Transient stops — all Clear
-            builder.addTransientStops(
-                Stop
-                    .newBuilder()
-                    .setStopType(type)
-                    .setAppliesTo(SettingScope.Team_ac6e)
-                    .setStatus(SettingStatus.Clear_a3fe),
-            )
-            builder.addTransientStops(
-                Stop
-                    .newBuilder()
-                    .setStopType(type)
-                    .setAppliesTo(SettingScope.Opponents)
-                    .setStatus(SettingStatus.Clear_a3fe),
-            )
-        }
-        builder
-            .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-            .setGraveyardOrder(OrderingType.OrderArbitraryAlways)
-            .setManaSelectionType(ManaSelectionType.Auto_a88a)
-            .setDefaultAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-            .setSmartStopsSetting(SmartStopsSetting.Enable_a188)
-            .setAutoTapStopsSetting(AutoTapStopsSetting.Enable_ac12)
-            .setAutoOptionalPaymentCancellationSetting(Setting.Enable_a20a)
-            .setStackAutoPassOption(AutoPassOption.Clear_a465)
-        return builder.build()
-    }
+    internal fun defaultSettings(): SettingsMessage = PriorityPolicyRuntime.defaultSettings()
 }

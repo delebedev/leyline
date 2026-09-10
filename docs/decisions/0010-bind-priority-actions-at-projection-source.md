@@ -94,8 +94,9 @@ responsibilities relocate to the Forge runtime thread and its bounded token
 table; the invariants they protect stay the same.
 
 Legality and affordability remain distinct. A legal but unaffordable candidate
-must remain available to projection as an inactive action and must prevent smart
-phase skipping.
+must remain available to projection as an inactive action. Only executable
+non-mana actions prevent automatic priority passing. Priority classification and
+active action projection use the same legality, cost, target, and mode checks.
 
 ## Candidate Query
 

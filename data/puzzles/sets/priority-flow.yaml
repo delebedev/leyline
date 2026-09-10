@@ -1,0 +1,19 @@
+name: priority-flow
+description: Automatic priority preserves meaningful decisions without empty pass windows.
+scenarios:
+  - id: last-spell-advances-to-next-land
+    puzzle: priority-flow-last-spell
+    run: cast the only affordable spell and observe the next playable land without passing
+    expect: Runeclaw Bear resolves and the next main phase offers the newly drawn Forest
+    steps:
+      - expect:
+          all:
+            - action: { type: cast, card: Runeclaw Bear }
+            - action_not_available: { type: cast, card: Cancel }
+      - cast: Runeclaw Bear
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Runeclaw Bear }
+            - zone_contains: { side: ours, zone: hand, card: Forest }
+            - phase: Main1
+            - action: { type: play_land, card: Forest }

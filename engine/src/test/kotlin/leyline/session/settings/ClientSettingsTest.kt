@@ -61,6 +61,8 @@ class ClientSettingsTest :
                     setOf(
                         PhaseType.UPKEEP,
                         PhaseType.MAIN1,
+                        PhaseType.COMBAT_BEGIN,
+                        PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
                         PhaseType.COMBAT_DECLARE_ATTACKERS,
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
                         PhaseType.MAIN2,
@@ -82,6 +84,8 @@ class ClientSettingsTest :
                 policy.isPhaseStopped(humanId, PhaseType.MAIN1).shouldBeFalse()
                 policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
+                        PhaseType.COMBAT_BEGIN,
+                        PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
                         PhaseType.COMBAT_DECLARE_ATTACKERS,
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
                         PhaseType.MAIN2,
@@ -107,6 +111,8 @@ class ClientSettingsTest :
                     setOf(
                         PhaseType.DRAW,
                         PhaseType.MAIN1,
+                        PhaseType.COMBAT_BEGIN,
+                        PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
                         PhaseType.COMBAT_DECLARE_ATTACKERS,
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
                     )
@@ -139,6 +145,8 @@ class ClientSettingsTest :
                 policy.enabledPhaseStops(humanId) shouldBe
                     setOf(
                         PhaseType.MAIN1,
+                        PhaseType.COMBAT_BEGIN,
+                        PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
                         PhaseType.COMBAT_DECLARE_ATTACKERS,
                         PhaseType.COMBAT_DECLARE_BLOCKERS,
                         PhaseType.MAIN2,
