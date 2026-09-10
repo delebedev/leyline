@@ -76,6 +76,7 @@ class MatchFlowHarness(
      */
     private val cardRepositoryOverride: CardRepository? = null,
     val responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
+    private val fullControl: Boolean = false,
 ) {
     companion object {
         private const val DEFAULT_DECK = """
@@ -232,6 +233,7 @@ class MatchFlowHarness(
                 awaitPendingActionHorizon(pending, outputStart)
             }
         }
+        if (fullControl) updateSettings(SettingsMessage.newBuilder().setAutoPassOption(AutoPassOption.FullControl).build())
     }
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
@@ -266,9 +268,12 @@ class MatchFlowHarness(
     ) {
         val repo = cardRepositoryForPuzzle()
         localOutput = SinkMatchOutput(effectiveSink)
-        val beforeRuntimeStart =
-            aiScript?.let { script ->
-                { puzzleBridge: GameBridge ->
+        val beforeRuntimeStart: (GameBridge) -> Unit =
+            { puzzleBridge: GameBridge ->
+                if (fullControl) {
+                    puzzleBridge.priorityPolicy.submit(SettingsMessage.newBuilder().setAutoPassOption(AutoPassOption.FullControl).build())
+                }
+                aiScript?.let { script ->
                     val game = checkNotNull(puzzleBridge.getGame())
                     val aiPlayer = game.players.first { it.lobbyPlayer is LobbyPlayerAi }
                     aiPlayer.addController(
@@ -298,6 +303,7 @@ class MatchFlowHarness(
                 ?.state
                 ?.kind
         awaitNamedOutput(outputEpoch, outputStart, "initial puzzle prompt") { message ->
+            if (bridge.hasPendingNonActionInteraction()) return@awaitNamedOutput true
             when (pendingKind) {
                 PendingActionKind.DECLARE_ATTACKERS -> message.hasDeclareAttackersReq()
                 PendingActionKind.DECLARE_BLOCKERS -> message.hasDeclareBlockersReq()
@@ -684,13 +690,12 @@ class MatchFlowHarness(
     /**
      * Pass priority until the stack is empty. Use after cast + target to resolve.
      *
-     * Always passes at least once: the stack may already be empty before the
-     * action's effect lands, because the engine can resolve it during
-     * `selectTargets` / `drainSink`.
+     * An already resolved stack needs no pass. A required choice stops this
+     * helper so its caller can submit the typed response.
      */
     fun passUntilResolved(maxPasses: Int = 10) {
         repeat(maxPasses) {
-            if (isGameOver()) return
+            if (isGameOver() || bridge.hasPendingNonActionInteraction()) return
             val retainedSynchronization =
                 bridge
                     .actionBridge(seatId)
@@ -1340,14 +1345,14 @@ class MatchFlowHarness(
     fun castFromExile(cardName: String): Boolean = castSpellByName(cardName, zone = ZoneType.Exile)
 
     /**
-     * Cast a spell and pass once to resolve it.
+     * Cast a spell and wait for its stack resolution.
      *
      * Use only for spells that do not require an interactive client response
      * (no targeting, grouping, modal, or SelectN prompt).
      */
     fun resolveSpell(cardName: String): Boolean {
         if (!castSpellByName(cardName)) return false
-        passPriority()
+        passUntilResolved()
         return true
     }
 

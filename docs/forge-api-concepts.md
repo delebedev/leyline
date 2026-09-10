@@ -89,6 +89,10 @@ Normal action building pattern:
 3. Check `ComputerUtilMana.canPayManaCost(...)`.
 4. Emit active or inactive action with the right cost fields.
 
+Shared priority visibility and player controls are described in
+[Priority flow](priority-flow.md). Inactive actions remain presentation data;
+they do not require a visible priority decision.
+
 ## 6. Mana And Costs
 
 For cast actions, use the effective Forge cost, not printed card data, whenever a live `SpellAbility` exists. Effective cost applies raises and reductions through Forge's `CostAdjustment` pipeline.

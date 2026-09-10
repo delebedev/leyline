@@ -10,6 +10,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.SnapshotCapture

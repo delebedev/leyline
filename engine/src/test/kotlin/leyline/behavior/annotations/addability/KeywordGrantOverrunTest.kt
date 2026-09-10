@@ -25,8 +25,7 @@ class KeywordGrantOverrunTest :
             puzzleFile = "data/puzzles/keyword-grant-overrun.pzl",
         ) {
             castSpellByName("Overrun").shouldBeTrue()
-            // Pass priority to let Overrun resolve
-            passPriority()
+            passUntilResolved()
 
             // Find AddAbility persistent annotation
             val addAbility =
@@ -55,8 +54,7 @@ class KeywordGrantOverrunTest :
             bears.size shouldBe 2
 
             castSpellByName("Overrun").shouldBeTrue()
-            // Pass priority to let Overrun resolve
-            passPriority()
+            passUntilResolved()
 
             val bearIids = bears.map { human.battlefield.iid(it) }.toSet()
             val bearObjects = bearIids.mapNotNull { accumulator.objects[it] }

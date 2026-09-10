@@ -2,19 +2,18 @@ package leyline.bridge.coord
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.types.AutoPassReason
 import leyline.bridge.types.PriorityDecision
 import leyline.game.mapping.StopTypeMapping
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
-import wotc.mtgo.gre.external.messaging.Messages.SettingScope
-import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
-import wotc.mtgo.gre.external.messaging.Messages.Stop
+import wotc.mtgo.gre.external.messaging.Messages.*
 
-/** Engine facts required for one atomic priority-policy classification. */
+internal data class PriorityStackObject(
+    val id: Int,
+    val controllerId: Int,
+)
+
+/** Engine facts sampled together at a genuine rules-priority boundary. */
 internal data class PriorityWindowObservation(
     val isOwnTurn: Boolean,
     val phase: PhaseType?,
@@ -22,11 +21,12 @@ internal data class PriorityWindowObservation(
     val promptJustResolved: Boolean,
     val stackEmpty: Boolean,
     val forceVisible: Boolean,
-    val continuation: SynchronizationContinuation,
     val hasMeaningfulAction: Boolean,
+    val turn: Int = 0,
+    val playerId: Int = 1,
+    val stack: List<PriorityStackObject> = emptyList(),
 )
 
-/** Runtime result consumed by the engine priority loop. */
 internal sealed interface PriorityWindowDecision {
     data class Present(
         val mode: PriorityWindowMode,
@@ -38,27 +38,53 @@ internal sealed interface PriorityWindowDecision {
     ) : PriorityWindowDecision
 }
 
-/**
- * The sole owner of client priority policy and its mutable settings state.
- *
- * Protocol heads submit immutable [SettingsMessage] values. The engine reads
- * decisions from this runtime; it never reconstructs policy from client
- * messages or maintains a second settings state.
- */
+private enum class PriorityWindowReason(
+    val visible: Boolean,
+) {
+    FULL_CONTROL(true),
+    ACTION_HOLD(true),
+    EXPLICIT_STOP(true),
+    MANUAL_MANA(true),
+    TURN_YIELD(false),
+    STACK_YIELD(false),
+    NO_EXECUTABLE_ACTION(false),
+    OWN_STACK(false),
+    OPPONENT_STACK(true),
+    OPPONENT_RESPONSE(true),
+    ENABLED_PHASE(true),
+    PHASE_NOT_ENABLED(false),
+}
+
+/** Owns priority preferences, explicit stops and bounded player-requested yields. */
 class PriorityPolicyRuntime(
     private val matchId: String? = null,
 ) {
     private val log = LoggerFactory.getLogger(PriorityPolicyRuntime::class.java)
     private val stateLock = Any()
-    private var authoritativeSettings: SettingsMessage? = null
-    private var autoPassOption = AutoPassOption.None_a465
-    private var autoPassPriority = AutoPassPriority.None_a099
-    private val opponentStops = mutableSetOf<PhaseType>()
-    private val phaseStops = mutableMapOf<Int, MutableSet<PhaseType>>()
+    private var settings = defaultSettings()
+    private var settingsChanged = false
     private var humanPlayerId: Int? = null
     private var opponentPlayerId: Int? = null
+    private var lastObservation: PriorityWindowObservation? = null
 
-    /** Install engine defaults for the current Forge game. Client auto-pass choices survive game replacement. */
+    private data class StopKey(
+        val type: StopType,
+        val scope: SettingScope,
+    )
+
+    private data class Occurrence(
+        val turn: Int,
+        val ownTurn: Boolean,
+        val phase: PhaseType?,
+    )
+
+    private val reachedStops = mutableMapOf<StopKey, Occurrence>()
+    private var turnYield: Int? = null
+    private var yieldStackIds: Set<Int>? = null
+    private var pendingHold = false
+    private var holdNextPriority = false
+
+    /** Replace game identities while retaining preferences and clearing game-scoped controls. */
     fun installPhaseStops(
         humanPlayerId: Int,
         opponentPlayerId: Int,
@@ -66,212 +92,360 @@ class PriorityPolicyRuntime(
         synchronized(stateLock) {
             this.humanPlayerId = humanPlayerId
             this.opponentPlayerId = opponentPlayerId
-            phaseStops.clear()
-            phaseStops[humanPlayerId] = HUMAN_DEFAULTS.toMutableSet()
-            phaseStops[opponentPlayerId] = AI_DEFAULTS.toMutableSet()
-        }
-    }
-
-    /** Enabled own-turn stops for diagnostics without exposing mutable policy state. */
-    fun enabledPhaseStops(playerId: Int): Set<PhaseType> = synchronized(stateLock) { phaseStops[playerId]?.toSet() ?: emptySet() }
-
-    /** Apply one immutable settings delta and return the authoritative accumulated settings. */
-    fun submit(settings: SettingsMessage): SettingsMessage =
-        synchronized(stateLock) {
-            authoritativeSettings = mergeSettings(authoritativeSettings, settings)
-            val humanId = humanPlayerId
-            val opponentId = opponentPlayerId
-
-            if (settings.autoPassOption != AutoPassOption.None_a465) autoPassOption = settings.autoPassOption
-
-            if (settings.clearAllStops == SettingStatus.Set ||
-                settings.clearAllYields == SettingStatus.Set
-            ) {
-                humanId?.let { phaseStops[it]?.clear() }
-                opponentId?.let { phaseStops[it]?.clear() }
-                opponentStops.clear()
+            if (lastObservation != null) {
+                settings =
+                    settings
+                        .toBuilder()
+                        .setAutoPassOption(normalOption())
+                        .setStackAutoPassOption(AutoPassOption.Clear_a465)
+                        .clearTransientStops()
+                        .addAllTransientStops(defaultSettings().transientStopsList)
+                        .build()
             }
-
-            val allStops = settings.stopsList + settings.transientStopsList
-            if (humanId != null) applyStopsForPlayer(allStops, SettingScope.Team_ac6e, humanId)
-            if (opponentId != null) applyStopsForPlayer(allStops, SettingScope.Opponents, opponentId)
-
-            val opponentEnabled = StopTypeMapping.parseStops(allStops, SettingScope.Opponents)
-            val opponentDisabled =
-                allStops
-                    .filter { it.status == SettingStatus.Clear_a3fe }
-                    .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
-                    .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                    .toSet()
-            opponentEnabled.forEach { opponentStops.add(it) }
-            opponentDisabled.forEach { opponentStops.remove(it) }
-            checkNotNull(authoritativeSettings)
-        }
-
-    /** Install the client full-control value submitted with a priority response. */
-    fun submitAutoPassPriority(priority: AutoPassPriority) {
-        synchronized(stateLock) {
-            if (priority != AutoPassPriority.None_a099) autoPassPriority = priority
+            lastObservation = null
+            reachedStops.clear()
+            turnYield = null
+            yieldStackIds = null
+            pendingHold = false
+            holdNextPriority = false
         }
     }
 
-    fun isFullControl(): Boolean = synchronized(stateLock) { autoPassPriority == AutoPassPriority.No_a099 }
+    fun currentSettings(): SettingsMessage = synchronized(stateLock) { settings }
 
-    fun shouldAutoPass(): Boolean = synchronized(stateLock) { shouldAutoPassLocked() }
+    /** Consumed by the coordinator when publishing the next engine-owned horizon. */
+    internal fun takeChangedSettings(): SettingsMessage? =
+        synchronized(stateLock) {
+            if (!settingsChanged) null else settings.also { settingsChanged = false }
+        }
 
-    fun hasOpponentStop(phase: PhaseType): Boolean = synchronized(stateLock) { phase in opponentStops }
-
-    fun shouldStopForOpponent(
-        isAiTurn: Boolean,
-        phase: PhaseType?,
-    ): Boolean = synchronized(stateLock) { isAiTurn && phase != null && phase in opponentStops }
+    fun enabledPhaseStops(playerId: Int): Set<PhaseType> =
+        synchronized(stateLock) {
+            val scope =
+                if (playerId ==
+                    humanPlayerId
+                ) {
+                    SettingScope.Team_ac6e
+                } else if (playerId == opponentPlayerId) {
+                    SettingScope.Opponents
+                } else {
+                    null
+                }
+            if (scope == null) emptySet() else StopTypeMapping.parseStops(settings.stopsList, scope)
+        }
 
     fun isPhaseStopped(
         playerId: Int,
         phase: PhaseType,
-    ): Boolean = synchronized(stateLock) { phaseStops[playerId]?.contains(phase) == true }
+    ): Boolean = phase in enabledPhaseStops(playerId)
 
-    /** Sole source of phase-stop gating and Visible, SyncOnly, and Skip classification. */
+    fun hasOpponentStop(phase: PhaseType): Boolean =
+        synchronized(stateLock) {
+            phase in StopTypeMapping.parseStops(settings.transientStopsList, SettingScope.Opponents)
+        }
+
+    fun shouldStopForOpponent(
+        isAiTurn: Boolean,
+        phase: PhaseType?,
+    ): Boolean = isAiTurn && phase != null && hasOpponentStop(phase)
+
+    fun isFullControl(): Boolean = synchronized(stateLock) { settings.autoPassOption == AutoPassOption.FullControl }
+
+    fun shouldAutoPass(): Boolean = synchronized(stateLock) { settings.autoPassOption != AutoPassOption.FullControl && !holdNextPriority }
+
+    /** Merge a protocol delta; turnNumber identifies the scope of a requested turn yield. */
+    fun submit(
+        incoming: SettingsMessage,
+        turnNumber: Int = 0,
+    ): SettingsMessage =
+        synchronized(stateLock) {
+            val builder = settings.toBuilder().mergeFrom(incoming)
+            builder.clearStops().addAllStops(
+                mergeStops(settings.stopsList, incoming.stopsList, incoming.clearAllStops == SettingStatus.Set),
+            )
+            builder.clearTransientStops().addAllTransientStops(
+                mergeStops(
+                    settings.transientStopsList,
+                    incoming.transientStopsList,
+                    incoming.clearAllStops == SettingStatus.Set,
+                ),
+            )
+            if (incoming.clearAllStops == SettingStatus.Set) reachedStops.clear()
+            incoming.transientStopsList.forEach { stop ->
+                scopes(stop.appliesTo).forEach { reachedStops.remove(StopKey(stop.stopType, it)) }
+            }
+            settings = builder.clearClearAllStops().clearClearAllYields().build()
+            if (incoming.clearAllYields == SettingStatus.Set) {
+                settings =
+                    settings
+                        .toBuilder()
+                        .setAutoPassOption(normalOption())
+                        .setStackAutoPassOption(AutoPassOption.Clear_a465)
+                        .build()
+            }
+            if (incoming.autoPassOption == AutoPassOption.Clear_a465) {
+                settings = settings.toBuilder().setAutoPassOption(normalOption()).build()
+                pendingHold = false
+                holdNextPriority = false
+            }
+            if (incoming.autoPassOption != AutoPassOption.None_a465 || incoming.clearAllYields == SettingStatus.Set) {
+                turnYield =
+                    if (settings.autoPassOption ==
+                        AutoPassOption.UnlessOpponentAction
+                    ) {
+                        turnNumber.takeIf { it > 0 } ?: lastObservation?.turn
+                    } else {
+                        null
+                    }
+                yieldStackIds = lastObservation?.stack?.mapTo(mutableSetOf()) { it.id }
+            }
+            if (incoming.stackAutoPassOption != AutoPassOption.None_a465) {
+                yieldStackIds = lastObservation?.stack?.mapTo(mutableSetOf()) { it.id }
+            }
+            if (settings.autoPassOption == AutoPassOption.FullControl) cancelYields()
+            settings
+        }
+
+    /** The wire hold applies after a completed action, not to unrelated future turns. */
+    fun submitAutoPassPriority(priority: AutoPassPriority) =
+        synchronized(stateLock) {
+            if (priority != AutoPassPriority.None_a099) pendingHold = priority == AutoPassPriority.No_a099
+        }
+
+    internal fun actionCompleted(success: Boolean) =
+        synchronized(stateLock) {
+            holdNextPriority = success && pendingHold
+            pendingHold = false
+        }
+
+    internal fun requestTurnYield(turn: Int) =
+        synchronized(stateLock) {
+            submit(SettingsMessage.newBuilder().setAutoPassOption(AutoPassOption.UnlessOpponentAction).build(), turn)
+            settingsChanged = true
+        }
+
     internal fun classifyPriorityWindow(observation: PriorityWindowObservation): PriorityWindowDecision =
         synchronized(stateLock) {
-            val fullControl = autoPassPriority == AutoPassPriority.No_a099
-            val ownTurnStopped =
-                observation.isOwnTurn &&
-                    observation.phase?.let { phase ->
-                        humanPlayerId?.let { phaseStops[it]?.contains(phase) }
-                    } == true
-            if (!fullControl && observation.isOwnTurn && !ownTurnStopped) {
-                return@synchronized PriorityWindowDecision.Skip(
-                    AutoPassReason.PhaseNotStopped(observation.phase?.name ?: "UNKNOWN"),
-                )
-            }
+            val forcedStop = advanceControls(observation)
+            val held = holdNextPriority
+            holdNextPriority = false
 
-            val opponentStop =
-                !observation.isOwnTurn &&
-                    observation.phase?.let { it in opponentStops } == true
-            val intentionalPhaseStop =
-                ownTurnStopped &&
-                    observation.stackEmpty
-            val mode =
-                priorityWindowMode(
-                    fullControl = fullControl,
-                    phaseStop = intentionalPhaseStop,
-                    smartPhaseSkip = observation.smartPhaseSkip,
-                    promptJustResolved = observation.promptJustResolved,
-                    stackEmpty = observation.stackEmpty,
-                    opponentStop = opponentStop,
-                    hasMeaningfulAction = observation.hasMeaningfulAction,
-                    forceVisible = observation.forceVisible,
-                    continuation = observation.continuation,
-                )
-            if (mode == PriorityWindowMode.Skip) {
-                PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
-            } else {
-                PriorityWindowDecision.Present(mode, shouldAutoPassLocked())
-            }
+            val reason =
+                when {
+                    settings.autoPassOption == AutoPassOption.FullControl -> PriorityWindowReason.FULL_CONTROL
+                    held -> PriorityWindowReason.ACTION_HOLD
+                    forcedStop -> PriorityWindowReason.EXPLICIT_STOP
+                    observation.forceVisible -> PriorityWindowReason.MANUAL_MANA
+                    settings.autoPassOption == AutoPassOption.UnlessOpponentAction -> PriorityWindowReason.TURN_YIELD
+                    settings.stackAutoPassOption == AutoPassOption.ResolveAll -> PriorityWindowReason.STACK_YIELD
+                    !observation.hasMeaningfulAction -> PriorityWindowReason.NO_EXECUTABLE_ACTION
+                    !observation.stackEmpty &&
+                        observation.stack.firstOrNull()?.controllerId == observation.playerId -> PriorityWindowReason.OWN_STACK
+                    !observation.stackEmpty -> PriorityWindowReason.OPPONENT_STACK
+                    !observation.isOwnTurn -> PriorityWindowReason.OPPONENT_RESPONSE
+                    observation.phase in enabledPhaseStops(observation.playerId) -> PriorityWindowReason.ENABLED_PHASE
+                    else -> PriorityWindowReason.PHASE_NOT_ENABLED
+                }
+            val visible = reason.visible
+            val decision =
+                if (visible) {
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+                } else if (!observation.stackEmpty ||
+                    observation.promptJustResolved ||
+                    !observation.smartPhaseSkip
+                ) {
+                    PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = true)
+                } else {
+                    PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
+                }
+            log
+                .atDebug()
+                .addKeyValue("event", "match.priority_decision")
+                .addKeyValue("match_id", matchId)
+                .addKeyValue("turn", observation.turn)
+                .addKeyValue("phase", observation.phase?.name)
+                .addKeyValue("reason", reason.name.lowercase())
+                .addKeyValue("visible", visible)
+                .addKeyValue("stack_top_id", observation.stack.firstOrNull()?.id)
+                .addKeyValue("stack_controller", observation.stack.firstOrNull()?.controllerId)
+                .log("Priority classified")
+            decision
         }
 
-    private fun priorityWindowMode(
-        fullControl: Boolean,
-        phaseStop: Boolean,
-        smartPhaseSkip: Boolean,
-        promptJustResolved: Boolean,
-        stackEmpty: Boolean,
-        opponentStop: Boolean,
-        hasMeaningfulAction: Boolean,
-        forceVisible: Boolean,
-        continuation: SynchronizationContinuation,
-    ): PriorityWindowMode =
-        when {
-            fullControl ||
-                forceVisible ||
-                opponentStop ||
-                hasMeaningfulAction ||
-                (phaseStop && !promptJustResolved && smartPhaseSkip) ||
-                (continuation == SynchronizationContinuation.RequireVisible && phaseStop) ->
-                PriorityWindowMode.Visible
-            promptJustResolved ||
-                continuation == SynchronizationContinuation.AllowSyncOnly ||
-                !stackEmpty ||
-                !smartPhaseSkip ->
-                PriorityWindowMode.SyncOnly
-            else -> PriorityWindowMode.Skip
+    /** Update control lifetimes while holding stateLock, before deciding visibility. */
+    private fun advanceControls(observation: PriorityWindowObservation): Boolean {
+        val before = settings
+        val occurrence = Occurrence(observation.turn, observation.isOwnTurn, observation.phase)
+        val expired = reachedStops.filterValues { it != occurrence }.keys
+        if (expired.isNotEmpty()) {
+            settings =
+                settings
+                    .toBuilder()
+                    .clearTransientStops()
+                    .addAllTransientStops(
+                        settings.transientStopsList.map { stop ->
+                            if (StopKey(stop.stopType, stop.appliesTo) in
+                                expired
+                            ) {
+                                stop.toBuilder().setStatus(SettingStatus.Clear_a3fe).build()
+                            } else {
+                                stop
+                            }
+                        },
+                    ).build()
+            expired.toList().forEach(reachedStops::remove)
+        }
+        val forcedStop =
+            settings.transientStopsList.any { stop ->
+                val matches =
+                    stop.status == SettingStatus.Set &&
+                        stop.appliesTo == (if (observation.isOwnTurn) SettingScope.Team_ac6e else SettingScope.Opponents) &&
+                        StopTypeMapping.toPhaseType(stop.stopType) == observation.phase
+                if (matches) reachedStops[StopKey(stop.stopType, stop.appliesTo)] = occurrence
+                matches
+            }
+        val currentStackIds = observation.stack.mapTo(mutableSetOf()) { it.id }
+        val knownIds = yieldStackIds
+        val newOpponentObject =
+            knownIds != null && observation.stack.any { it.id !in knownIds && it.controllerId != observation.playerId }
+        if (settings.autoPassOption == AutoPassOption.UnlessOpponentAction && turnYield == null) turnYield = observation.turn
+        val turnExpired = turnYield != null && turnYield != observation.turn
+        val stackDrained = settings.stackAutoPassOption == AutoPassOption.ResolveAll && observation.stackEmpty
+        if (turnExpired || newOpponentObject || forcedStop) {
+            cancelYields()
+        } else if (stackDrained) {
+            settings = settings.toBuilder().setStackAutoPassOption(AutoPassOption.Clear_a465).build()
+        }
+        if (settings.autoPassOption == AutoPassOption.UnlessOpponentAction ||
+            settings.stackAutoPassOption == AutoPassOption.ResolveAll
+        ) {
+            yieldStackIds = knownIds.orEmpty() + currentStackIds
+        } else {
+            yieldStackIds = null
+        }
+        lastObservation = observation
+        if (before != settings) settingsChanged = true
+        return forcedStop
+    }
+
+    private fun cancelYields() {
+        if (settings.autoPassOption == AutoPassOption.UnlessOpponentAction || settings.autoPassOption == AutoPassOption.ResolveAll) {
+            settings = settings.toBuilder().setAutoPassOption(normalOption()).build()
+        }
+        if (settings.stackAutoPassOption ==
+            AutoPassOption.ResolveAll
+        ) {
+            settings = settings.toBuilder().setStackAutoPassOption(AutoPassOption.Clear_a465).build()
+        }
+        turnYield = null
+        yieldStackIds = null
+    }
+
+    private fun normalOption(): AutoPassOption =
+        settings.defaultAutoPassOption.takeIf { it == AutoPassOption.ResolveMyStackEffects } ?: AutoPassOption.ResolveMyStackEffects
+
+    private fun scopes(scope: SettingScope): List<SettingScope> =
+        if (scope ==
+            SettingScope.AnyPlayer
+        ) {
+            listOf(SettingScope.Team_ac6e, SettingScope.Opponents)
+        } else {
+            listOf(scope)
         }
 
-    /** One diagnostic trail for every runtime priority classification. */
+    private fun mergeStops(
+        existing: List<Stop>,
+        incoming: List<Stop>,
+        clear: Boolean,
+    ): List<Stop> {
+        val stops = linkedMapOf<StopKey, Stop>()
+        existing.forEach { stop ->
+            stops[StopKey(stop.stopType, stop.appliesTo)] =
+                if (clear) stop.toBuilder().setStatus(SettingStatus.Clear_a3fe).build() else stop
+        }
+        incoming.forEach { stop ->
+            scopes(stop.appliesTo).forEach { scope ->
+                stops[StopKey(stop.stopType, scope)] = stop.toBuilder().setAppliesTo(scope).build()
+            }
+        }
+        return stops.values.toList()
+    }
+
     internal fun recordDecision(
         game: Game,
         decision: PriorityDecision,
     ) {
         val skipped = decision as? PriorityDecision.Skip ?: return
-        val event =
-            log
-                .atDebug()
-                .addKeyValue("event", "match.priority_skipped")
-                .addKeyValue("reason", skipped.reason.toString())
-                .addKeyValue("phase", game.phaseHandler.phase?.name ?: "UNKNOWN")
-                .addKeyValue("turn", game.phaseHandler.turn)
-        val correlatedEvent = matchId?.let { event.addKeyValue("match_id", it) } ?: event
-        correlatedEvent.log("Priority skipped")
+        log
+            .atDebug()
+            .addKeyValue("event", "match.priority_skipped")
+            .addKeyValue("match_id", matchId)
+            .addKeyValue("reason", skipped.reason.toString())
+            .addKeyValue("phase", game.phaseHandler.phase?.name)
+            .addKeyValue("turn", game.phaseHandler.turn)
+            .log("Priority skipped")
     }
 
-    private fun applyStopsForPlayer(
-        stops: List<Stop>,
-        scope: SettingScope,
-        playerId: Int,
-    ) {
-        val enabled = StopTypeMapping.parseStops(stops, scope)
-        val disabled =
-            stops
-                .filter { it.status == SettingStatus.Clear_a3fe }
-                .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-                .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
-                .toSet()
-        val playerStops = phaseStops.getOrPut(playerId) { mutableSetOf() }
-        enabled.forEach { playerStops.add(it) }
-        disabled.forEach { playerStops.remove(it) }
-    }
-
-    private fun shouldAutoPassLocked(): Boolean {
-        if (autoPassPriority == AutoPassPriority.No_a099) return false
-        return autoPassOption == AutoPassOption.ResolveAll || autoPassOption == AutoPassOption.ResolveMyStackEffects
-    }
-
-    private fun mergeSettings(
-        existing: SettingsMessage?,
-        incoming: SettingsMessage,
-    ): SettingsMessage {
-        if (existing == null) return incoming
-        val merged = existing.toBuilder()
-        val stops = linkedMapOf<Pair<Int, Int>, Stop>()
-        existing.stopsList.forEach { stops[it.stopType.number to it.appliesTo.number] = it }
-        incoming.stopsList.forEach { stops[it.stopType.number to it.appliesTo.number] = it }
-        merged.clearStops().addAllStops(stops.values)
-
-        val transientStops = linkedMapOf<Pair<Int, Int>, Stop>()
-        existing.transientStopsList.forEach { transientStops[it.stopType.number to it.appliesTo.number] = it }
-        incoming.transientStopsList.forEach { transientStops[it.stopType.number to it.appliesTo.number] = it }
-        merged.clearTransientStops().addAllTransientStops(transientStops.values)
-
-        if (incoming.autoPassOption != AutoPassOption.None_a465) merged.autoPassOption = incoming.autoPassOption
-        if (incoming.stackAutoPassOption != AutoPassOption.None_a465) merged.stackAutoPassOption = incoming.stackAutoPassOption
-        return merged.build()
-    }
-
-    private companion object {
-        val HUMAN_DEFAULTS =
-            setOf(
-                PhaseType.MAIN1,
-                PhaseType.COMBAT_DECLARE_ATTACKERS,
-                PhaseType.COMBAT_DECLARE_BLOCKERS,
-                PhaseType.MAIN2,
-            )
-        val AI_DEFAULTS =
-            setOf(
-                PhaseType.COMBAT_BEGIN,
-                PhaseType.COMBAT_DECLARE_ATTACKERS,
-                PhaseType.COMBAT_DECLARE_BLOCKERS,
-                PhaseType.END_OF_TURN,
-            )
+    companion object {
+        /** Default stop settings matching the expected initial configuration. */
+        fun defaultSettings(): SettingsMessage {
+            // (StopType, Team status, Opponents status)
+            val stopDefs =
+                listOf(
+                    Triple(StopType.UpkeepStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                    Triple(StopType.DrawStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                    Triple(StopType.PrecombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                    Triple(StopType.BeginCombatStep, SettingStatus.Set, SettingStatus.Set),
+                    Triple(StopType.DeclareAttackersStep, SettingStatus.Set, SettingStatus.Set),
+                    Triple(StopType.DeclareBlockersStep, SettingStatus.Set, SettingStatus.Set),
+                    Triple(StopType.CombatDamageStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                    Triple(StopType.EndCombatStep, SettingStatus.Clear_a3fe, SettingStatus.Clear_a3fe),
+                    Triple(StopType.PostcombatMainPhase, SettingStatus.Set, SettingStatus.Clear_a3fe),
+                    Triple(StopType.EndStep_ad1f, SettingStatus.Clear_a3fe, SettingStatus.Set),
+                    Triple(StopType.FirstStrikeDamageStep, SettingStatus.Set, SettingStatus.Set),
+                )
+            val builder = SettingsMessage.newBuilder()
+            for ((type, teamStatus, oppStatus) in stopDefs) {
+                builder.addStops(
+                    Stop
+                        .newBuilder()
+                        .setStopType(type)
+                        .setAppliesTo(SettingScope.Team_ac6e)
+                        .setStatus(teamStatus),
+                )
+                builder.addStops(
+                    Stop
+                        .newBuilder()
+                        .setStopType(type)
+                        .setAppliesTo(SettingScope.Opponents)
+                        .setStatus(oppStatus),
+                )
+                // Transient stops — all Clear
+                builder.addTransientStops(
+                    Stop
+                        .newBuilder()
+                        .setStopType(type)
+                        .setAppliesTo(SettingScope.Team_ac6e)
+                        .setStatus(SettingStatus.Clear_a3fe),
+                )
+                builder.addTransientStops(
+                    Stop
+                        .newBuilder()
+                        .setStopType(type)
+                        .setAppliesTo(SettingScope.Opponents)
+                        .setStatus(SettingStatus.Clear_a3fe),
+                )
+            }
+            builder
+                .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                .setGraveyardOrder(OrderingType.OrderArbitraryAlways)
+                .setManaSelectionType(ManaSelectionType.Auto_a88a)
+                .setDefaultAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                .setSmartStopsSetting(SmartStopsSetting.Enable_a188)
+                .setAutoTapStopsSetting(AutoTapStopsSetting.Enable_ac12)
+                .setAutoOptionalPaymentCancellationSetting(Setting.Enable_a20a)
+                .setStackAutoPassOption(AutoPassOption.Clear_a465)
+            return builder.build()
+        }
     }
 }

@@ -3,293 +3,307 @@ package leyline.bridge.coord
 import forge.game.phase.PhaseType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.types.AutoPassReason
 import leyline.testkit.settingsMessage
 import leyline.testkit.stop
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
-import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
-import wotc.mtgo.gre.external.messaging.Messages.SettingScope
-import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
-import wotc.mtgo.gre.external.messaging.Messages.Stop
-import wotc.mtgo.gre.external.messaging.Messages.StopType
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 class PriorityPolicyRuntimeTest :
     FunSpec({
         tags(UnitTag)
-
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
-        test("settings update the runtime-owned stops") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-            runtime.submit(
-                settingsMessage {
-                    addStops(
-                        Stop
-                            .newBuilder()
-                            .setStopType(StopType.UpkeepStep)
-                            .setAppliesTo(SettingScope.Team_ac6e)
-                            .setStatus(SettingStatus.Set)
-                            .build(),
-                    )
-                    addStops(
-                        Stop
-                            .newBuilder()
-                            .setStopType(StopType.BeginCombatStep)
-                            .setAppliesTo(SettingScope.Opponents)
-                            .setStatus(SettingStatus.Set)
-                            .build(),
-                    )
-                },
-            )
+        fun runtime() = PriorityPolicyRuntime().also { it.installPhaseStops(1, 2) }
 
+        fun PriorityPolicyRuntime.visible(window: PriorityWindowObservation): Boolean =
+            (classifyPriorityWindow(window) as? PriorityWindowDecision.Present)?.mode == PriorityWindowMode.Visible
+
+        test("runtime and advertised settings share defaults") {
             assertSoftly {
-                runtime.isPhaseStopped(1, PhaseType.UPKEEP).shouldBeTrue()
-                runtime.hasOpponentStop(PhaseType.COMBAT_BEGIN).shouldBeTrue()
-                runtime.isPhaseStopped(2, PhaseType.COMBAT_BEGIN).shouldBeTrue()
-                runtime.enabledPhaseStops(1) shouldBe
-                    setOf(
-                        PhaseType.UPKEEP,
-                        PhaseType.MAIN1,
-                        PhaseType.COMBAT_DECLARE_ATTACKERS,
-                        PhaseType.COMBAT_DECLARE_BLOCKERS,
-                        PhaseType.MAIN2,
-                    )
+                val policy = runtime()
+                policy.currentSettings() shouldBe PriorityPolicyRuntime.defaultSettings()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.enabledPhaseStops(1).containsAll(listOf(PhaseType.MAIN1, PhaseType.MAIN2, PhaseType.COMBAT_BEGIN)).shouldBeTrue()
+                policy.hasOpponentStop(PhaseType.COMBAT_BEGIN).shouldBeFalse()
             }
         }
 
-        test("installing a new game resets phase stops but keeps settings") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-            runtime.submit(settingsMessage { addStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set)) })
-
-            runtime.installPhaseStops(humanPlayerId = 10, opponentPlayerId = 20)
-
+        test("ordinary priority requires an executable action on either turn") {
             assertSoftly {
-                runtime.isPhaseStopped(1, PhaseType.UPKEEP) shouldBe false
-                runtime.isPhaseStopped(10, PhaseType.UPKEEP) shouldBe false
-                runtime.isPhaseStopped(20, PhaseType.COMBAT_BEGIN) shouldBe true
-                runtime.shouldAutoPass() shouldBe true
+                val policy = runtime()
+                for (own in listOf(true, false)) {
+                    for (phase in listOf(PhaseType.MAIN1, PhaseType.MAIN2, PhaseType.COMBAT_DECLARE_BLOCKERS)) {
+                        policy.visible(observation(own = own, phase = phase)).shouldBeFalse()
+                        policy.visible(observation(own = own, phase = phase, meaningful = true)).shouldBeTrue()
+                    }
+                }
+                policy.classifyPriorityWindow(observation()) shouldBe PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
             }
         }
 
-        test("submit accumulates stops and returns the authoritative settings") {
-            val runtime = PriorityPolicyRuntime()
-            val first = settingsMessage { addStops(stop(StopType.PostcombatMainPhase, SettingScope.Opponents, SettingStatus.Set)) }
-            val second = settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) }
-
-            runtime.submit(first)
-            val authoritative = runtime.submit(second)
-
-            authoritative.stopsList.map { it.stopType }.toSet() shouldBe
-                setOf(StopType.PostcombatMainPhase, StopType.EndStep_ad1f)
+        test("opponent upkeep remains eligible while own upkeep is a phase preference") {
+            assertSoftly {
+                val policy = runtime()
+                policy.visible(observation(own = false, phase = PhaseType.UPKEEP, meaningful = true)).shouldBeTrue()
+                policy.visible(observation(phase = PhaseType.UPKEEP, meaningful = true)).shouldBeFalse()
+                policy.submit(settingsMessage { addStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set)) })
+                policy.visible(observation(phase = PhaseType.UPKEEP, meaningful = true)).shouldBeTrue()
+                policy.visible(observation(phase = PhaseType.UPKEEP)).shouldBeFalse()
+                policy.classifyPriorityWindow(observation(own = false, phase = PhaseType.UPKEEP, meaningful = true)) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+            }
         }
 
-        test("submit replaces a stop by type and scope") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) })
+        test("own stack passes but new opponent response reopens even during a disabled phase") {
+            assertSoftly {
+                val policy = runtime()
+                val ownSpell = PriorityStackObject(1, 1)
+                val response = PriorityStackObject(2, 2)
+                policy.visible(observation(phase = PhaseType.UPKEEP, meaningful = true, stack = listOf(ownSpell))).shouldBeFalse()
+                policy.visible(observation(phase = PhaseType.UPKEEP, meaningful = true, stack = listOf(response, ownSpell))).shouldBeTrue()
+                policy.visible(observation(phase = PhaseType.UPKEEP, stack = listOf(response, ownSpell))).shouldBeFalse()
+                policy.classifyPriorityWindow(observation(meaningful = true, stack = listOf(ownSpell))) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = true)
+            }
+        }
 
-            val authoritative =
-                runtime.submit(
-                    settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe)) },
+        test("settings full control overrides empty actions and own stack until cleared") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.FullControl })
+                policy.isFullControl().shouldBeTrue()
+                policy.visible(observation(phase = PhaseType.DRAW)).shouldBeTrue()
+                policy.visible(observation(stack = listOf(PriorityStackObject(1, 1)))).shouldBeTrue()
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.Clear_a465 })
+                policy.isFullControl().shouldBeFalse()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.visible(observation()).shouldBeFalse()
+            }
+        }
+
+        test("response No holds exactly one ensuing priority after successful action") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submitAutoPassPriority(AutoPassPriority.No_a099)
+                policy.actionCompleted(true)
+                policy.visible(observation(stack = listOf(PriorityStackObject(1, 1)))).shouldBeTrue()
+                policy.visible(observation(stack = listOf(PriorityStackObject(1, 1)))).shouldBeFalse()
+                policy.isFullControl().shouldBeFalse()
+                policy.submitAutoPassPriority(AutoPassPriority.No_a099)
+                policy.actionCompleted(false)
+                policy.visible(observation()).shouldBeFalse()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+            }
+        }
+
+        test("manual mana retains its window without creating later empty stops") {
+            assertSoftly {
+                val policy = runtime()
+                policy.visible(observation(phase = PhaseType.UPKEEP).copy(forceVisible = true)).shouldBeTrue()
+                policy.visible(observation()).shouldBeFalse()
+                policy.visible(observation().copy(promptJustResolved = true)).shouldBeFalse()
+                policy.classifyPriorityWindow(observation().copy(forceVisible = true)) shouldBe
+                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+            }
+        }
+
+        test("transient stops force exact scoped occurrence and expire after leaving it") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submit(
+                    settingsMessage {
+                        addTransientStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set))
+                        addTransientStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                    },
                 )
-
-            authoritative.stopsCount shouldBe 1
-            authoritative.stopsList.single().status shouldBe SettingStatus.Clear_a3fe
+                policy.visible(observation(own = false, phase = PhaseType.UPKEEP)).shouldBeFalse()
+                policy.visible(observation(turn = 2, phase = PhaseType.UPKEEP)).shouldBeTrue()
+                policy.visible(observation(turn = 2, phase = PhaseType.UPKEEP, stack = listOf(PriorityStackObject(1, 1)))).shouldBeTrue()
+                policy.visible(observation(turn = 2, phase = PhaseType.DRAW)).shouldBeFalse()
+                policy
+                    .takeChangedSettings()!!
+                    .transientStopsList
+                    .single {
+                        it.stopType == StopType.UpkeepStep &&
+                            it.appliesTo == SettingScope.Team_ac6e
+                    }.status shouldBe
+                    SettingStatus.Clear_a3fe
+                policy.visible(observation(turn = 3, own = false, phase = PhaseType.END_OF_TURN)).shouldBeTrue()
+                policy.visible(observation(turn = 4, phase = PhaseType.UPKEEP)).shouldBeFalse()
+                policy.hasOpponentStop(PhaseType.END_OF_TURN).shouldBeFalse()
+            }
         }
 
-        test("submit accumulates transient stops") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(settingsMessage { addTransientStops(stop(StopType.UpkeepStep, SettingScope.Opponents, SettingStatus.Set)) })
-
-            val authoritative =
-                runtime.submit(settingsMessage { addTransientStops(stop(StopType.DrawStep, SettingScope.Opponents, SettingStatus.Set)) })
-
-            authoritative.transientStopsCount shouldBe 2
-        }
-
-        test("submit preserves a scalar when the delta is None") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-
-            val authoritative =
-                runtime.submit(settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set)) })
-
-            authoritative.autoPassOption shouldBe AutoPassOption.ResolveAll
-        }
-
-        test("submit updates a scalar when the delta is non-None") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-
-            val authoritative = runtime.submit(settingsMessage { autoPassOption = AutoPassOption.FullControl })
-
-            authoritative.autoPassOption shouldBe AutoPassOption.FullControl
-        }
-
-        test("submit keeps stop scopes independent") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(
-                settingsMessage {
-                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Team_ac6e, SettingStatus.Set))
-                    addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
-                },
-            )
-
-            val authoritative =
-                runtime.submit(
-                    settingsMessage { addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe)) },
+        test("transient stop clear is independent of baseline and other seat") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submit(
+                    settingsMessage { addTransientStops(stop(StopType.PrecombatMainPhase, SettingScope.AnyPlayer, SettingStatus.Set)) },
                 )
+                policy.submit(
+                    settingsMessage {
+                        addTransientStops(
+                            stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
+                        )
+                    },
+                )
+                policy.visible(observation()).shouldBeFalse()
+                policy.visible(observation(own = false)).shouldBeTrue()
+                policy.isPhaseStopped(1, PhaseType.MAIN1).shouldBeTrue()
+                policy
+                    .currentSettings()
+                    .transientStopsList
+                    .single {
+                        it.stopType == StopType.PrecombatMainPhase && it.appliesTo == SettingScope.Team_ac6e
+                    }.status shouldBe SettingStatus.Clear_a3fe
+            }
+        }
 
+        test("turn yield expires at turn boundary and publishes restored settings") {
             assertSoftly {
-                authoritative.stopsCount shouldBe 2
-                authoritative.stopsList.first { it.appliesTo == SettingScope.Team_ac6e }.status shouldBe SettingStatus.Set
-                authoritative.stopsList.first { it.appliesTo == SettingScope.Opponents }.status shouldBe SettingStatus.Clear_a3fe
+                val policy = runtime()
+                policy.visible(observation(turn = 2, meaningful = true)).shouldBeTrue()
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.UnlessOpponentAction }, turnNumber = 2)
+                policy.visible(observation(turn = 2, meaningful = true)).shouldBeFalse()
+                policy.visible(observation(turn = 3, own = false, meaningful = true)).shouldBeTrue()
+                policy.takeChangedSettings()!!.autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.takeChangedSettings() shouldBe null
             }
         }
 
-        test("full control and auto-pass values are decided by the runtime") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-            runtime.shouldAutoPass() shouldBe true
-
-            runtime.submitAutoPassPriority(AutoPassPriority.No_a099)
+        test("turn yield resumes for opponent additions or an explicit stop and can be cancelled") {
             assertSoftly {
-                runtime.isFullControl() shouldBe true
-                runtime.shouldAutoPass() shouldBe false
+                val policy = runtime()
+                policy.visible(observation(meaningful = true))
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.UnlessOpponentAction }, 1)
+                policy.visible(observation(meaningful = true, stack = listOf(PriorityStackObject(1, 2)))).shouldBeTrue()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.UnlessOpponentAction }, 1)
+                policy.submit(settingsMessage { addTransientStops(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set)) })
+                policy.visible(observation(phase = PhaseType.DRAW)).shouldBeTrue()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.UnlessOpponentAction }, 1)
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.Clear_a465 })
+                policy.visible(observation(meaningful = true)).shouldBeTrue()
             }
         }
 
-        test("one observation classifies own stops, opponent stops, sync, and skip") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-
-            val ownStop = runtime.classifyPriorityWindow(observation(phase = PhaseType.DRAW))
-            val ownSkip = ownStop.shouldBeInstanceOf<PriorityWindowDecision.Skip>()
-            ownSkip.reason.shouldBeInstanceOf<AutoPassReason.PhaseNotStopped>().phase shouldBe "DRAW"
-
-            runtime.submit(
-                settingsMessage {
-                    addStops(
-                        Stop
-                            .newBuilder()
-                            .setStopType(StopType.UpkeepStep)
-                            .setAppliesTo(SettingScope.Opponents)
-                            .setStatus(SettingStatus.Set)
-                            .build(),
-                    )
-                },
-            )
+        test("resolve all follows identities through pops and expires on empty stack") {
             assertSoftly {
-                runtime.classifyPriorityWindow(observation(isOwnTurn = false, phase = PhaseType.UPKEEP)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
-                runtime.classifyPriorityWindow(observation(stackEmpty = false)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = false)
-                runtime.classifyPriorityWindow(observation(isOwnTurn = false, phase = PhaseType.DRAW)) shouldBe
-                    PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
-                runtime.classifyPriorityWindow(observation(hasMeaningfulAction = true)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
-                runtime.classifyPriorityWindow(observation(promptJustResolved = true)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = false)
-                runtime.classifyPriorityWindow(observation(smartPhaseSkip = false)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = false)
-                runtime.classifyPriorityWindow(observation(forceVisible = true)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
-                runtime.classifyPriorityWindow(
-                    observation(continuation = SynchronizationContinuation.RequireVisible),
-                ) shouldBe PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+                val policy = runtime()
+                val bottom = PriorityStackObject(1, 2)
+                val top = PriorityStackObject(2, 2)
+                policy.visible(observation(meaningful = true, stack = listOf(top, bottom))).shouldBeTrue()
+                policy.submit(settingsMessage { stackAutoPassOption = AutoPassOption.ResolveAll })
+                policy.visible(observation(meaningful = true, stack = listOf(top, bottom))).shouldBeFalse()
+                policy.visible(observation(meaningful = true, stack = listOf(bottom))).shouldBeFalse()
+                policy.visible(observation(meaningful = true)).shouldBeTrue()
+                policy.takeChangedSettings()!!.stackAutoPassOption shouldBe AutoPassOption.Clear_a465
             }
         }
 
-        test("web and native settings preserve meaningful opponent response windows") {
-            for (option in listOf(AutoPassOption.FullControl, AutoPassOption.ResolveMyStackEffects)) {
-                val runtime = PriorityPolicyRuntime()
-                runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-                runtime.submit(settingsMessage { autoPassOption = option })
-                val window = observation(isOwnTurn = false, phase = PhaseType.UPKEEP)
-                runtime.classifyPriorityWindow(window).shouldBeInstanceOf<PriorityWindowDecision.Skip>()
-                runtime
-                    .classifyPriorityWindow(window.copy(hasMeaningfulAction = true))
-                    .shouldBeInstanceOf<PriorityWindowDecision.Present>()
-                    .mode shouldBe PriorityWindowMode.Visible
-                runtime.submitAutoPassPriority(AutoPassPriority.No_a099)
-                runtime
-                    .classifyPriorityWindow(window)
-                    .shouldBeInstanceOf<PriorityWindowDecision.Present>()
-                    .mode shouldBe PriorityWindowMode.Visible
+        test("resolve all interrupts on a new opponent object but accepts own additions") {
+            assertSoftly {
+                val policy = runtime()
+                val original = PriorityStackObject(1, 2)
+                policy.visible(observation(meaningful = true, stack = listOf(original)))
+                policy.submit(settingsMessage { stackAutoPassOption = AutoPassOption.ResolveAll })
+                policy.visible(observation(meaningful = true, stack = listOf(PriorityStackObject(2, 1), original))).shouldBeFalse()
+                policy.visible(observation(meaningful = true, stack = listOf(PriorityStackObject(3, 2), original))).shouldBeTrue()
+                policy.currentSettings().stackAutoPassOption shouldBe AutoPassOption.Clear_a465
+                policy.submit(settingsMessage { stackAutoPassOption = AutoPassOption.ResolveAll })
+                policy.submit(settingsMessage { stackAutoPassOption = AutoPassOption.Clear_a465 })
+                policy.visible(observation(meaningful = true, stack = listOf(original))).shouldBeTrue()
             }
         }
 
-        test("full control makes a stopped phase visible") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-            runtime.submitAutoPassPriority(AutoPassPriority.No_a099)
-
-            runtime.classifyPriorityWindow(observation(phase = PhaseType.DRAW)) shouldBe
-                PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
-        }
-
-        test("configured phase stops keep pass-only windows visible") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-
-            listOf(
-                PhaseType.MAIN1,
-                PhaseType.COMBAT_DECLARE_ATTACKERS,
-                PhaseType.COMBAT_DECLARE_BLOCKERS,
-            ).forEach { phase ->
-                runtime.classifyPriorityWindow(observation(phase = phase)) shouldBe
-                    PriorityWindowDecision.Present(PriorityWindowMode.Visible, autoResolve = false)
+        test("settings deltas preserve unrelated preferences and clear-all yields does not clear stops") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submit(
+                    settingsMessage {
+                        addStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set))
+                        autoPassOption = AutoPassOption.FullControl
+                    },
+                )
+                policy.submit(settingsMessage { clearAllYields = SettingStatus.Set })
+                policy.isFullControl().shouldBeFalse()
+                policy.isPhaseStopped(1, PhaseType.UPKEEP).shouldBeTrue()
+                policy.submit(settingsMessage { clearAllStops = SettingStatus.Set })
+                policy.enabledPhaseStops(1) shouldBe emptySet()
+                policy.enabledPhaseStops(2) shouldBe emptySet()
             }
         }
 
-        test("ordinary pass-only continuation still skips") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-
-            runtime.classifyPriorityWindow(
-                observation(
-                    isOwnTurn = false,
-                    phase = PhaseType.MAIN2,
-                    continuation = SynchronizationContinuation.RequireVisible,
-                ),
-            ) shouldBe PriorityWindowDecision.Skip(AutoPassReason.SmartPhaseSkip)
+        test("replacement game preserves preferences but clears old game controls") {
+            assertSoftly {
+                val policy = runtime()
+                policy.submit(settingsMessage { addStops(stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Set)) })
+                policy.visible(observation())
+                policy.submit(
+                    settingsMessage {
+                        autoPassOption = AutoPassOption.UnlessOpponentAction
+                        addTransientStops(stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set))
+                    },
+                    1,
+                )
+                policy.installPhaseStops(10, 20)
+                policy.isPhaseStopped(10, PhaseType.UPKEEP).shouldBeTrue()
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy
+                    .currentSettings()
+                    .transientStopsList
+                    .all { it.status == SettingStatus.Clear_a3fe }
+                    .shouldBeTrue()
+            }
         }
-
-        test("classification carries the runtime auto-resolve value") {
-            val runtime = PriorityPolicyRuntime()
-            runtime.installPhaseStops(humanPlayerId = 1, opponentPlayerId = 2)
-            runtime.submit(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
-
-            runtime.classifyPriorityWindow(observation(stackEmpty = false)) shouldBe
-                PriorityWindowDecision.Present(PriorityWindowMode.SyncOnly, autoResolve = true)
+        test("explicit yield commands replace full control and each other atomically") {
+            assertSoftly {
+                val policy = runtime()
+                val stack = listOf(PriorityStackObject(1, 2))
+                policy.visible(observation(meaningful = true, stack = stack))
+                policy.submit(settingsMessage { autoPassOption = AutoPassOption.FullControl })
+                policy.submit(
+                    settingsMessage {
+                        autoPassOption = AutoPassOption.Clear_a465
+                        stackAutoPassOption = AutoPassOption.ResolveAll
+                    },
+                )
+                policy.currentSettings().autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
+                policy.visible(observation(meaningful = true, stack = stack)).shouldBeFalse()
+                policy.submit(
+                    settingsMessage {
+                        autoPassOption = AutoPassOption.UnlessOpponentAction
+                        stackAutoPassOption = AutoPassOption.Clear_a465
+                    },
+                    1,
+                )
+                policy.currentSettings().stackAutoPassOption shouldBe AutoPassOption.Clear_a465
+                policy.visible(observation(meaningful = true)).shouldBeFalse()
+            }
         }
     })
 
 private fun observation(
-    isOwnTurn: Boolean = true,
+    own: Boolean = true,
     phase: PhaseType = PhaseType.MAIN1,
-    smartPhaseSkip: Boolean = true,
-    promptJustResolved: Boolean = false,
-    stackEmpty: Boolean = true,
-    forceVisible: Boolean = false,
-    continuation: SynchronizationContinuation = SynchronizationContinuation.Reevaluate,
-    hasMeaningfulAction: Boolean = false,
-): PriorityWindowObservation =
-    PriorityWindowObservation(
-        isOwnTurn = isOwnTurn,
-        phase = phase,
-        smartPhaseSkip = smartPhaseSkip,
-        promptJustResolved = promptJustResolved,
-        stackEmpty = stackEmpty,
-        forceVisible = forceVisible,
-        continuation = continuation,
-        hasMeaningfulAction = hasMeaningfulAction,
-    )
+    meaningful: Boolean = false,
+    turn: Int = 1,
+    stack: List<PriorityStackObject> = emptyList(),
+) = PriorityWindowObservation(
+    isOwnTurn = own,
+    phase = phase,
+    smartPhaseSkip = true,
+    promptJustResolved = false,
+    stackEmpty = stack.isEmpty(),
+    forceVisible = false,
+    hasMeaningfulAction = meaningful,
+    turn = turn,
+    playerId = 1,
+    stack = stack,
+)

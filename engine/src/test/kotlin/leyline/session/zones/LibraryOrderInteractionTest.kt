@@ -238,7 +238,11 @@ class LibraryOrderInteractionTest :
             human.library should haveOnTop("Forest")
         }
 
-        session("scry 1 — keep on top", puzzleFile = "data/puzzles/scry-wall-of-runes.pzl") {
+        session(
+            "scry 1 — keep on top",
+            fullControl = true,
+            puzzleFile = "data/puzzles/scry-wall-of-runes.pzl",
+        ) {
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)

@@ -227,7 +227,6 @@ class GameEndTest :
                 """.trimIndent(),
         ) {
             val startTurn = turn()
-            passPriority()
             declareAllAttackers()
             submitAttackers()
             passThroughCombat(startTurn)

@@ -164,7 +164,11 @@ class CopyTokenIntegrationTest :
             }
         }
 
-        session("copy token fields survive diff GSM", puzzle = puzzleText) {
+        session(
+            "copy token fields survive diff GSM",
+            fullControl = true,
+            puzzle = puzzleText,
+        ) {
             val (_, copyIid) = castAndResolveCopy()
 
             // First GSM — establishes baseline (apply mutations so recordZone fires)

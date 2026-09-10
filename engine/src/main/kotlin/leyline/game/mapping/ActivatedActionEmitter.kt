@@ -5,6 +5,8 @@ import forge.game.card.Card
 import forge.game.cost.CostTap
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionAvailability
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.game.data.BasicLandAbilities
@@ -68,7 +70,7 @@ internal object ActivatedActionEmitter {
         for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
             if (skipSpecialTurnFaceUp && ability.isTurnFaceUp) continue
-            val canPay = ActionManaCosts.canPayManaCost(ability, player)
+            val canPay = ActionAvailability.canExecute(ability, player)
             val abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana
             val autoTap =
                 if (canPay && abilityCost != null && !abilityCost.isNoCost) {

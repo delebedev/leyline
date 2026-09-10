@@ -164,7 +164,7 @@ internal class ActionPerformer(
                 .addKeyValue("phase", pending.state.phase)
                 .log("Client action accepted")
 
-            // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
+            // Bind an optional hold to the accepted action; the engine confirms its completion.
             val autoPassPriority = greMsg.performActionResp.autoPassPriority
             if (autoPassPriority != AutoPassPriority.None_a099) {
                 priorityPolicy.submitAutoPassPriority(autoPassPriority)

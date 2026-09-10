@@ -1,4 +1,4 @@
-package leyline.game.mapping
+package leyline.bridge
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec

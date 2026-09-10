@@ -53,7 +53,7 @@ private fun MatchFlowHarness.setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
     // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
     playLand("Mountain").shouldBeTrue()
     castSpellByName("Raging Goblin").shouldBeTrue()
-    passPriority() // resolve
+    passUntilResolved()
 
     // Human combat: decline if prompted. Runtime horizons may process the AI
     // turn (land, cast, attack) and publish DeclareBlockersReq in the same call.

@@ -2,7 +2,7 @@ name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
   - id: opening-hand-battlefield-put
-    deck: [60 Leyline Axe]
+    deck: [30 Leyline Axe, 30 Forest]
     opponent_deck: [60 Plains]
     native: { skip: constructed-deck startup is not puzzle injectable }
     run: keep an opening hand containing Leyline Axe
@@ -106,7 +106,7 @@ scenarios:
             - stack_empty: true
   - id: crew-vehicle
     puzzle: vehicle-crew
-    run: crew Brute Suit with Centaur Courser and hold priority in Main1
+    run: crew Brute Suit with Centaur Courser in Main1
     expect: Brute Suit becomes a creature before combat advances
     steps:
       - expect:
@@ -116,7 +116,6 @@ scenarios:
       - resolve_stack: {}
       - expect:
           all:
-            - phase: Main1
             - annotation_seen_in_phase: { type: ModifiedType, phase: MAIN1 }
             - stack_empty: true
   - id: saddle-drover-grizzly
@@ -467,6 +466,7 @@ scenarios:
             - stack_empty: true
   - id: casualty-make-disappear-stack-spells
     puzzle: make-disappear-own-stack-casualty
+    headless: { full_control: true }
     web:
       skip: Browser runner does not reach the expected board state for this mechanic — deterministic gap on the per-mechanic ledger.
     run: cast Shock, Lightning Bolt, then Make Disappear with Casualty to counter both stack spells
@@ -486,6 +486,9 @@ scenarios:
       - choose: { optional_cost: additional_cost }
       - target: { side: ours, zone: stack, card: Lightning Bolt }
       - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 4
       - target: { side: ours, zone: stack, card: Shock }
       - resolve_stack: {}
       - expect:
@@ -507,7 +510,9 @@ scenarios:
       - target: opponent
       - resolve_stack: {}
       - expect:
-          action: { type: cast, card: Spawn of Mayhem, alt_cost: spectacle }
+          all:
+            - action: { type: cast, card: Spawn of Mayhem, alt_cost: spectacle }
+            - opponent_life: 18
       - cast: { card: Spawn of Mayhem, alt_cost: spectacle }
       - resolve_stack: {}
       - expect:
@@ -515,7 +520,6 @@ scenarios:
             - annotation_seen: CastingTimeOption
             - zone_contains: { side: ours, zone: battlefield, card: Spawn of Mayhem }
             - zone_contains: { side: ours, zone: graveyard, card: Shock }
-            - opponent_life: 18
             - stack_empty: true
   - id: harmonize-winternight-stories
     puzzle: harmonize-winternight-stories

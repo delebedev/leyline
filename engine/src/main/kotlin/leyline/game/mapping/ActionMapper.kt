@@ -2,13 +2,12 @@ package leyline.game.mapping
 
 import forge.card.CardStateName
 import forge.card.mana.ManaCost
-import forge.game.ability.ApiType
-import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
-import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionAvailability
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
@@ -30,7 +29,6 @@ import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Projects Forge priority choices into client [Action] / [ActionsAvailableReq]
@@ -64,15 +62,10 @@ object ActionMapper {
         val offers: List<ActionOffer>,
     )
 
-    private fun canPayManaCost(
+    private fun canExecute(
         sa: SpellAbility,
         player: Player,
-    ): Boolean = ActionManaCosts.canPayManaCost(sa, player)
-
-    private fun canPlayAndPayManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean = ActionManaCosts.canPlayAndPayManaCost(sa, player)
+    ): Boolean = ActionAvailability.canExecute(sa, player)
 
     /**
      * Naive action list for opponent-turn / remote-frame GSM embedding: Cast
@@ -467,13 +460,7 @@ object ActionMapper {
             }
             val sa = choosePrimaryHandCastAbility(forgeCard, castable) ?: continue
             val abilityIndex = castable.indexOfFirst { it === sa }
-            val noLegalTargets = hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)
-            val canPay =
-                if (usesPaymentSourceReducer(sa)) {
-                    canPayWithPaymentSourceReducer(sa, player)
-                } else {
-                    canPayManaCost(sa, player)
-                }
+            val canPay = canExecute(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
             val grpId = cardSnap.grpId
             val preferAltCostFirst = castable.any { it.isCastFaceDown }
@@ -498,7 +485,7 @@ object ActionMapper {
                 )
             }
 
-            if (noLegalTargets || !canPay) {
+            if (!canPay) {
                 val inactiveBuilder =
                     Action
                         .newBuilder()
@@ -745,10 +732,7 @@ object ActionMapper {
                         ?: bridge.resolveGrpId(forgeCard, instanceId)
                 val bound = snap.boundCards[fid]
                 val rail = rails.firstOrNull { it.saPredicate(sa) }
-                val executable =
-                    canPayManaCost(sa, player) &&
-                        !hasUnmetTargeting(sa) &&
-                        !hasNoLegalCharmModes(sa)
+                val executable = canExecute(sa, player)
                 val omit = rail?.omitGrpIdAndFacetId == true
                 val actionGrpId =
                     when (rail?.grpIdMode) {
@@ -858,7 +842,7 @@ object ActionMapper {
             val cardData = snap.boundCards[fid]?.data
             for ((abilityIndex, ability) in (candidates?.forCard(forgeCard)?.activations ?: emptyList()).withIndex()) {
                 if (!ability.canPlay()) continue
-                val canPay = canPayManaCost(ability, player)
+                val canPay = canExecute(ability, player)
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
                 val registry = bridge.abilityRegistryFor(forgeCard, cardData)
                 val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
@@ -1019,7 +1003,7 @@ object ActionMapper {
         if (backSpell != null) {
             val action = buildMdfcSpellAction(backSpell, player, instanceId, parentGrpId, cardRepository)
             if (action != null) {
-                if (!checkLegality || canPlayAndPayManaCost(backSpell, player)) {
+                if (!checkLegality || canExecute(backSpell, player)) {
                     builder.addActions(action)
                     val index = castable.indexOfFirst { it === backSpell }
                     check(!checkLegality || index >= 0) { "MDFC spell ability is absent from its candidate set" }
@@ -1057,7 +1041,7 @@ object ActionMapper {
         parentGrpId: Int,
         cardRepository: CardRepository?,
     ): Action? {
-        if (hasUnmetTargeting(sa) || hasNoLegalCharmModes(sa)) return null
+        if (!ActionAvailability.hasLegalTargetsAndModes(sa)) return null
         sa.setActivatingPlayer(player)
         val actionBuilder =
             Action
@@ -1193,7 +1177,7 @@ object ActionMapper {
     ): Action? {
         if (checkLegality) {
             adventureSa.setActivatingPlayer(player)
-            val canCast = canPlayAndPayManaCost(adventureSa, player)
+            val canCast = canExecute(adventureSa, player)
             if (!canCast) return null
         }
 
@@ -1236,7 +1220,7 @@ object ActionMapper {
             sa.setActivatingPlayer(player)
             val canPay =
                 if (checkLegality) {
-                    canPlayAndPayManaCost(sa, player)
+                    canExecute(sa, player)
                 } else {
                     true
                 }
@@ -1286,7 +1270,7 @@ object ActionMapper {
                     .setFacetId(instanceId)
                     .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
                     .addAllManaCost(CastDisplayCost.requirements(sa, player, null))
-            val canCast = !hasUnmetTargeting(sa) && !hasNoLegalCharmModes(sa) && canPayManaCost(sa, player)
+            val canCast = canExecute(sa, player)
             if (canCast) {
                 val built = action.build()
                 builder.addActions(built)
@@ -1320,7 +1304,7 @@ object ActionMapper {
         val abilityIndex = abilities.indexOfFirst { it.isTurnFaceUp }
         val turnFaceUpSa = abilities.getOrNull(abilityIndex) ?: return
         turnFaceUpSa.setActivatingPlayer(player)
-        val canPay = canPayManaCost(turnFaceUpSa, player)
+        val canPay = canExecute(turnFaceUpSa, player)
         val registry = abilityRegistryLookup(card, cardData)
         val alternativeGrpId = registry?.forSpellAbility(turnFaceUpSa.definitionId) ?: fallbackAlternativeGrpId
         if (alternativeGrpId == 0) return
@@ -1356,7 +1340,7 @@ object ActionMapper {
     ): Action? {
         if (checkLegality) {
             omenSa.setActivatingPlayer(player)
-            val canCast = canPlayAndPayManaCost(omenSa, player)
+            val canCast = canExecute(omenSa, player)
             if (!canCast) return null
         }
 
@@ -1435,12 +1419,12 @@ object ActionMapper {
         val emitted = mutableSetOf<Pair<Int, List<Pair<ManaColor, Int>>>>()
         for ((abilityIndex, sa) in castable.withIndex()) {
             val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
-            if (rail.kind == AltCostKind.MUTATE && hasUnmetTargeting(sa)) continue
+            if (!ActionAvailability.hasLegalTargetsAndModes(sa)) continue
             val effectiveCost = computeEffectiveCostForOffer(rail, sa, player, altCosts)
             val payCostPairs = effectiveCost.first
             val alternativeGrpId = effectiveCost.second
             if (rail.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
-            val canPay = if (rail.kind == AltCostKind.EMERGE) canPayEmerge(payCostPairs, player) else canPayManaCost(sa, player)
+            val canPay = canExecute(sa, player)
             if (!canPay) continue
             if (alternativeGrpId <= 0) continue
             if (!emitted.add(alternativeGrpId to payCostPairs)) continue
@@ -1488,14 +1472,6 @@ object ActionMapper {
         return payCostPairs to resolveAltGrpId(rail, altCosts, payCostPairs)
     }
 
-    private fun canPayEmerge(
-        cost: List<Pair<ManaColor, Int>>,
-        player: Player,
-    ): Boolean {
-        val maxReduction = player.getCardsIn(ForgeZoneType.Battlefield).filter { it.isCreature }.maxOfOrNull { it.getCMC() } ?: return false
-        return ActionManaCosts.canPayManaCostPairsWithGenericReduction(cost, player, maxReduction)
-    }
-
     internal fun passOnlyActions(): ActionsAvailableReq =
         ActionsAvailableReq
             .newBuilder()
@@ -1520,27 +1496,6 @@ object ActionMapper {
         sa: SpellAbility,
         player: Player,
     ): forge.card.mana.ManaCost? = ActionManaCosts.computeEffectiveCost(sa, player)
-
-    private fun usesPaymentSourceReducer(sa: SpellAbility): Boolean {
-        val host = sa.hostCard ?: return false
-        return host.hasKeyword(Keyword.CONVOKE) || host.hasKeyword(Keyword.IMPROVISE)
-    }
-
-    private fun canPayWithPaymentSourceReducer(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean {
-        val host = sa.hostCard ?: return false
-        val usesConvoke = host.hasKeyword(Keyword.CONVOKE)
-        val usesImprovise = host.hasKeyword(Keyword.IMPROVISE)
-        if (!usesConvoke && !usesImprovise) return false
-        return ActionManaCosts.canPayWithPaymentSourceReducer(
-            sa,
-            player,
-            artifacts = usesImprovise,
-            creatures = usesConvoke,
-        )
-    }
 
     internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> =
         ActionManaCosts.forgeManaCostToPairs(manaCost)
@@ -1606,35 +1561,5 @@ object ActionMapper {
             b.setInstanceId(action.instanceId)
         }
         return b.build()
-    }
-
-    /**
-     * True if any ability in the SA chain requires targets and has no legal candidates.
-     *
-     * Special case: Forge's [TargetRestrictions.hasCandidates] short-circuits to true
-     * for stack-zone targets without checking stack contents. For spells targeting
-     * the stack (counterspells), check per-candidate legality directly — matching
-     * Forge's own [TargetRestrictions.getNumCandidates] stack-counting logic.
-     */
-    private fun hasUnmetTargeting(sa: SpellAbility): Boolean {
-        val game = sa.hostCard?.game ?: return false
-        var node: SpellAbility? = sa
-        while (node != null) {
-            val tr = node.targetRestrictions
-            if (tr != null) {
-                if (tr.zone.contains(forge.game.zone.ZoneType.Stack)) {
-                    if (game.stack.none { node.canTargetSpellAbility(it.spellAbility) }) return true
-                } else if (!tr.hasCandidates(node)) {
-                    return true
-                }
-            }
-            node = node.subAbility
-        }
-        return false
-    }
-
-    private fun hasNoLegalCharmModes(sa: SpellAbility): Boolean {
-        if (sa.api != ApiType.Charm) return false
-        return CharmEffect.makePossibleOptions(sa).isEmpty()
     }
 }

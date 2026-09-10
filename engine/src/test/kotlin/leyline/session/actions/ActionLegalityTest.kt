@@ -83,6 +83,7 @@ class ActionLegalityTest :
 
         session(
             "counterspell targeting noncreature spells not offered when only a creature spell is on stack",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=AI
                 ActivePhase=Main1
@@ -130,6 +131,7 @@ class ActionLegalityTest :
 
         session(
             "counterspell targeting mana value 2 not offered when stack spell has a different mana value",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=AI
                 ActivePhase=Main1

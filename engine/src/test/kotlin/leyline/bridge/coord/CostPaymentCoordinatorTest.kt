@@ -11,6 +11,7 @@ class CostPaymentCoordinatorTest :
     SessionTest({
         session(
             "automatic payment handles a mana source that sacrifices another creature",
+            fullControl = true,
             puzzleFile = "data/puzzles/phyrexian-tower-sacrifice-mana.pzl",
         ) {
             val bridgedController = human.controller

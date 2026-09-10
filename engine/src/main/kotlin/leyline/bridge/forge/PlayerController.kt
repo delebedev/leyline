@@ -1447,8 +1447,10 @@ class PlayerController(
         chosenSa.setActivatingPlayer(player)
 
         if (chosenSa.isLandAbility) {
-            if (chosenSa.canPlay()) chosenSa.resolve()
-            return true
+            val success = chosenSa.canPlay()
+            if (success) chosenSa.resolve()
+            priorityLoopCoordinator?.actionCompleted(success)
+            return success
         }
 
         // Apply optional costs (kicker, buyback, etc.) BEFORE playAbility.
@@ -1481,7 +1483,7 @@ class PlayerController(
         return withActiveSpellSource(sa) {
             val req = PlaySpellAbility(this, sa)
             req.playAbility(needsTargeting, false, false)
-        }
+        }.also { priorityLoopCoordinator?.actionCompleted(it) }
     }
 
     private fun <T> withActiveSpellSource(

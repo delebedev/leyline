@@ -1,4 +1,4 @@
-package leyline.game.mapping
+package leyline.bridge
 
 import forge.ai.ComputerUtilMana
 import forge.card.mana.ManaCost
@@ -8,8 +8,6 @@ import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
-import leyline.bridge.NonInteractiveScope
-import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ManaColorMapping
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -42,15 +40,6 @@ internal object ActionManaCosts {
                     canPayOrTwoGenericManaCost(sa, player)
             },
             fallback = { canPayOrTwoGenericManaCost(sa, player) },
-        )
-
-    fun canPlayAndPayManaCost(
-        sa: SpellAbility,
-        player: Player,
-    ): Boolean =
-        affordabilityProbe(
-            probe = { sa.canPlay() && canPayManaCost(sa, player) },
-            fallback = { false },
         )
 
     internal fun affordabilityProbe(

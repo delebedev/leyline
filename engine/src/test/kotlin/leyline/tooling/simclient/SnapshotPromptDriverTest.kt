@@ -128,7 +128,7 @@ class SnapshotPromptDriverTest :
                 snapshot.cleanupConcede shouldBe false
                 snapshot.promptProgressSamples.any { it.decisionKind == "snapshot-fallback:perform:Cast" } shouldBe true
                 snapshot.promptProgressSamples.any { it.decisionKind == "snapshot:select-targets" } shouldBe true
-                snapshot.advisorUnavailableByReason["NoForgeChoice"] shouldBe 3
+                snapshot.advisorUnavailableByReason["NoForgeChoice"] shouldBe 1
             }
         }
     })

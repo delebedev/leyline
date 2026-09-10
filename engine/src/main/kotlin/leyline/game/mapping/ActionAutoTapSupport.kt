@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import forge.card.mana.ManaCost
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ManaColorMapping
 import wotc.mtgo.gre.external.messaging.Messages.AutoTapAction

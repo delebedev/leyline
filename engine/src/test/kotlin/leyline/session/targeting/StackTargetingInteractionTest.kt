@@ -69,6 +69,7 @@ class StackTargetingInteractionTest :
 
         session(
             "targeted instant can be cast while another targeted instant is on stack",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -99,6 +100,7 @@ class StackTargetingInteractionTest :
 
         session(
             "Make Disappear without Casualty counters the only stack spell",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -126,6 +128,7 @@ class StackTargetingInteractionTest :
 
         session(
             "Make Disappear with Casualty can counter two stack spells",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -152,6 +155,7 @@ class StackTargetingInteractionTest :
             val boltTarget = latestTargetIidByCardName("Lightning Bolt")
             selectTargets(listOf(boltTarget))
             respondToEffectCost(listOf(bearIid))
+            passUntil(maxPasses = 4) { bridge.cutCoordinator.targeting.current() != null }.shouldBeTrue()
             latestTargetSourceName() shouldBe "Make Disappear"
             val copyPrompt = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq
             assertSoftly {

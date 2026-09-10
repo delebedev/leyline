@@ -138,8 +138,16 @@ class MatchLifecycleRuntimeTest :
             val priorObserverCursor = board.bridge.projectionStateSnapshot().viewerCursors[SeatId(2)]
             board.human.setLife(7, null)
 
+            board.bridge.priorityPolicy.submit(
+                wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+                    .newBuilder()
+                    .setAutoPassOption(wotc.mtgo.gre.external.messaging.Messages.AutoPassOption.FullControl)
+                    .build(),
+            )
             val reconnectGameStateId = coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
             val reconnect = coordinator.drain(SeatId(1)).single()
+            reconnect.single { it.hasConnectResp() }.connectResp.settings shouldBe board.bridge.priorityPolicy.currentSettings()
+
             val committed = board.bridge.projectionStateSnapshot()
 
             assertSoftly {

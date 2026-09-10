@@ -62,8 +62,7 @@ class SagaCreatureTypeTest :
 
                 harness.castSpellByName("Summon: Brynhildr").shouldBeTrue()
                 // Let the cast resolve onto the battlefield.
-                harness.passPriority()
-                harness.passPriority()
+                harness.passUntilResolved()
 
                 val saga =
                     game.humanPlayer

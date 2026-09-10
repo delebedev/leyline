@@ -245,6 +245,7 @@ internal class MatchActionWindowRuntime(
             val reopened = checkNotNull(actionWindows[claim.actionId])
             reopened.selections.clear()
             reopened.status = ActionWindowStatus.Published
+            owner.bridge.priorityPolicy.actionCompleted(false)
             true
         }
 
@@ -494,6 +495,9 @@ internal class MatchActionWindowRuntime(
         seatId: SeatId,
         pending: GameActionBridge.PendingAction,
     ) {
+        owner.bridge.priorityPolicy
+            .takeChangedSettings()
+            ?.let { owner.publishSettings(seatId, it) }
         if (pending.state.kind == PendingActionKind.SYNC_ONLY) {
             owner.syncOnly.publish(seatId, pending)
             return
