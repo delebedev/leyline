@@ -17,7 +17,9 @@ import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GrpIdResolver
+import leyline.testkit.annotationsOfType
 import leyline.testkit.battlefield
+import leyline.testkit.detailInt
 import leyline.testkit.exile
 import leyline.testkit.graveyard
 import leyline.testkit.hand
@@ -74,13 +76,21 @@ class ForgeCatalogProbeTest :
                     .getModalOptions(1)
                     .getModeCost(0)
                     .manaCost.count shouldBe 3
+                val paymentStart = messageSnapshot()
                 respondModalChoice(listOf(modal.getModalOptions(1).grpId))
                 selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
                 passUntilResolved()
+                val tappedLandsDuringPayment =
+                    messagesSince(paymentStart)
+                        .annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                        .filter { it.detailInt("tapped") == 1 }
+                        .flatMap { it.affectedIdsList }
+                        .distinct()
+                        .size
                 assertSoftly {
                     ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
                     human.graveyard.cards.count { it.name == "Thunder Magic" } shouldBe 1
-                    human.battlefield.cards.count { it.isTapped } shouldBe 4
+                    tappedLandsDuringPayment shouldBe 4
                 }
             }
         }

@@ -287,9 +287,12 @@ object GameBootstrap {
         ensureLocalization()
     }
 
-    fun initializeCardDatabase(quiet: Boolean = false) {
+    fun initializeCardDatabase(
+        quiet: Boolean = false,
+        lazyCards: Boolean = false,
+    ) {
         if (quiet) CardDb.quietInit = true
-        ensureCardDatabaseLoaded()
+        ensureCardDatabaseLoaded(lazyCards)
     }
 
     private fun ensureLocalization() {
@@ -311,7 +314,7 @@ object GameBootstrap {
         }
     }
 
-    private fun ensureCardDatabaseLoaded() {
+    private fun ensureCardDatabaseLoaded(lazyCards: Boolean) {
         if (cardDatabaseInitialized) {
             awaitAndRethrow()
             return
@@ -327,7 +330,7 @@ object GameBootstrap {
                 ensureGuiBase()
 
                 FModel.initialize(null) { preferences ->
-                    preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
+                    preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, lazyCards)
                     preferences.setPref(FPref.UI_LANGUAGE, "en-US")
                     preferences.setPref(FPref.DECKGEN_CARDBASED, false)
                     null
