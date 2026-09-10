@@ -71,6 +71,7 @@ abstract class SessionTest(
      * - neither — a normal game (mulligan + keep) using [deckList].
      *
      * [timeout] bounds a test that can hang the engine loop rather than fail.
+     * [fullControl] holds priority for tests that manually inspect stack or phase state.
      *
      * When the block throws, harness diagnostics are printed before the
      * failure propagates; the harness is shut down either way.
@@ -90,6 +91,7 @@ abstract class SessionTest(
         validating: Boolean = true,
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
         aiScript: List<ScriptedAction>? = null,
+        fullControl: Boolean = false,
         timeout: Duration? = null,
         block: suspend MatchFlowHarness.() -> Unit,
     ) {
@@ -111,6 +113,7 @@ abstract class SessionTest(
                     opponentDeckList = opponentDeckList,
                     validating = validating,
                     validation = validation,
+                    fullControl = fullControl,
                 )
             try {
                 harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)

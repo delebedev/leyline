@@ -5,6 +5,8 @@ import forge.game.card.Card
 import forge.game.cost.CostTap
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionAvailability
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.game.data.BasicLandAbilities

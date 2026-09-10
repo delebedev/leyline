@@ -65,32 +65,12 @@ class SagaTargetedChapterTest :
                 val bearIid = harness.bridge.instanceId(bear)
 
                 harness.castSpellByName("Teachings of the Kirin").shouldBeTrue()
-
-                // Turn 3 Main1 fires Ch II → SelectTargetsReq → submit bear.
-                // Answer any SelectTargetsReq as it arrives during the tick-through.
-                var bearHasCounter = false
-                var lastSeenTargetReq = harness.allMessages.size
-                harness.passUntil(maxPasses = 40) {
-                    // Check for new SelectTargetsReq since last iteration.
-                    val newSelectReq =
-                        allMessages
-                            .drop(lastSeenTargetReq)
-                            .any { it.type == GREMessageType.SelectTargetsReq_695e }
-                    lastSeenTargetReq = allMessages.size
-                    if (newSelectReq) {
-                        selectTargets(listOf(bearIid))
-                    }
-
-                    val liveBear =
-                        game.humanPlayer
-                            .getZone(ZoneType.Battlefield)
-                            .cards
-                            .firstOrNull { it.name == "Grizzly Bears" }
-                    if (liveBear != null && liveBear.getCounters(CounterEnumType.P1P1) >= 1) {
-                        bearHasCounter = true
-                    }
-                    bearHasCounter
-                }
+                harness
+                    .passUntil(maxPasses = 40) {
+                        bridge.cutCoordinator.targeting.current() != null
+                    }.shouldBeTrue()
+                harness.selectTargets(listOf(bearIid))
+                val bearHasCounter = bear.getCounters(CounterEnumType.P1P1) >= 1
 
                 withClue(
                     "turn=${harness.turn()} phase=${harness.phase()} " +

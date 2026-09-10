@@ -72,6 +72,7 @@ class VehicleCrewPuzzleTest :
 
         session(
             "crew payment binds weighted helpers to the stack ability",
+            fullControl = true,
             puzzle =
                 """
                 [metadata]

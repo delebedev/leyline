@@ -3,6 +3,7 @@ package leyline.game.mapping
 import forge.card.mana.ManaCost
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionManaCosts
 import leyline.game.data.CardData
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaRequirement

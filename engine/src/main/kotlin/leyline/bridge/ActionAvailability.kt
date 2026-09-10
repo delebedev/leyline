@@ -1,4 +1,4 @@
-package leyline.game.mapping
+package leyline.bridge
 
 import forge.ai.ComputerUtilAbility
 import forge.game.ability.ApiType
@@ -6,7 +6,6 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
-import leyline.bridge.NonInteractiveScope
 
 /** Shared executable-action checks for priority decisions and active action offers. */
 internal object ActionAvailability {

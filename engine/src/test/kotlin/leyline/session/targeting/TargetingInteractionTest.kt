@@ -181,7 +181,7 @@ class TargetingInteractionTest :
             assertAccumulatorConsistent("before targeting")
             castSpellByName("Giant Growth").shouldBeTrue()
             selectTargets(listOf(creatureIid))
-            passPriority()
+            passUntilResolved()
 
             assertAccumulatorConsistent("after targeting flow")
             assertGsIdChain(allMessages, context = "targeting flow")
@@ -498,6 +498,7 @@ class TargetingInteractionTest :
 
         session(
             "triggered mandatory single-target selection re-prompts until submit",
+            fullControl = true,
             puzzle =
                 """
                 ActivePlayer=Human
@@ -511,7 +512,7 @@ class TargetingInteractionTest :
                 """.trimIndent(),
         ) {
             holdNextOptionalAction()
-            passPriority()
+            passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
             val promptMessages = after { respondToOptionalAction(accept = true) }.messages
             val vendorIid = human.battlefield.iid("Spellbook Vendor")
             val selecting =

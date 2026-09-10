@@ -17,7 +17,9 @@ import leyline.game.mapping.ActionMapper
 import leyline.game.seedDiffBaseline
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 /**
  * Board-tier test context: the bridge, game, and message counter produced by
@@ -279,6 +281,8 @@ class Board(
             val b =
                 GameBridge(engineSettings = engineSettings, initialSequence = counter.snapshot(), cardRepository = TestCardRegistry.repo)
 
+            // Board fixtures hold their requested phase for direct inspection and manual prompt publication.
+            b.priorityPolicy.submit(SettingsMessage.newBuilder().setAutoPassOption(AutoPassOption.FullControl).build())
             b.startPuzzle(puzzle)
 
             val game = b.getGame()!!

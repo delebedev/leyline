@@ -6,6 +6,8 @@ import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionAvailability
+import leyline.bridge.ActionManaCosts
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities

@@ -164,7 +164,7 @@ class CombatInteractionTest :
             // Turn 1: play Mountain, cast Raging Goblin #1
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
-            passPriority() // resolve
+            passUntilResolved()
 
             // Advance through opponent-turn priority windows back to our Main1.
             passBackToHumanMain1()
@@ -172,7 +172,7 @@ class CombatInteractionTest :
             // Play second land + cast second creature
             playLand("Mountain")
             val cast2 = castSpellByName("Raging Goblin")
-            if (cast2) passPriority() // resolve
+            if (cast2) passUntilResolved()
 
             val creatures = humanBattlefieldCreatures()
             creatures.size shouldBeGreaterThanOrEqualTo 2
@@ -183,7 +183,7 @@ class CombatInteractionTest :
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
-            passPriority() // resolve
+            passUntilResolved()
 
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 1
@@ -739,7 +739,7 @@ class CombatInteractionTest :
             // Human turn 1: play Mountain, cast Raging Goblin
             playLand("Mountain").shouldBeTrue()
             castSpellByName("Raging Goblin").shouldBeTrue()
-            passPriority() // resolve
+            passUntilResolved()
 
             val creatures = humanBattlefieldCreatures()
             creatures shouldHaveSize 1
@@ -996,7 +996,7 @@ class CombatInteractionTest :
             val attackerObj =
                 postSubmit
                     .allGameObjects()
-                    .single { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
+                    .first { it.instanceId == attackerIid && it.attackState == AttackState.Attacking }
             attackerObj.isTapped.shouldBeTrue()
 
             passThroughCombat(startTurn)
@@ -1081,8 +1081,7 @@ class CombatInteractionTest :
             // WPC.assignCombatDamage blocks on dedicated future; the runtime horizon
             // resumes through checkPendingDamageAssignment and sends AssignDamageReq.
             declareAttackers(listOf(dreadmawIid))
-            passPriority()
-            passPriority()
+            passUntil(maxPasses = 4) { allMessages.any { it.hasAssignDamageReq() } }.shouldBeTrue()
 
             // AssignDamageReq should be in messages (sent before session lock released)
             val assignReq = allMessages.lastOrNull { it.hasAssignDamageReq() }

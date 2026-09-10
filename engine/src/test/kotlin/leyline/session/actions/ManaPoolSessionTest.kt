@@ -96,6 +96,7 @@ class ManaPoolSessionTest :
 
         session(
             "type-derived dual-land mana retains the selected floating color identity",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -134,6 +135,7 @@ class ManaPoolSessionTest :
 
         session(
             "type-granted duplicate activates the printed mana ability",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
@@ -159,6 +161,7 @@ class ManaPoolSessionTest :
 
         session(
             "sacrifice mana ability uses the bridged cost decision",
+            fullControl = true,
             puzzle = """
                 ActivePlayer=Human
                 ActivePhase=Main1
