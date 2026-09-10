@@ -1182,7 +1182,7 @@ class PlayerController(
         val selected =
             targetingCoordinator.chooseCardsViaBridge(
                 cards = optionList,
-                min = if (isOptional) 0 else amount,
+                min = amount,
                 max = amount,
                 message = prompt,
                 semantic = semantic,
@@ -1204,6 +1204,57 @@ class PlayerController(
         }
         return selected
     }
+
+    @Suppress("LongParameterList") // mirrors the Forge hook's flat contract
+    override fun chooseCardsForZoneChange(
+        destination: ZoneType,
+        origin: List<ZoneType>,
+        sa: SpellAbility,
+        fetchList: CardCollection,
+        min: Int,
+        max: Int,
+        delayedReveal: DelayedReveal?,
+        selectPrompt: String?,
+        decider: Player?,
+    ): List<Card> =
+        if (isActiveGraveyardExileCost(destination, origin, sa)) {
+            chooseExactGraveyardExileCost(fetchList, sa, max, selectPrompt.orEmpty())
+        } else {
+            super.chooseCardsForZoneChange(destination, origin, sa, fetchList, min, max, delayedReveal, selectPrompt, decider)
+        }
+
+    private fun isActiveGraveyardExileCost(
+        destination: ZoneType,
+        origin: List<ZoneType>,
+        sa: SpellAbility,
+    ): Boolean {
+        val activeCost =
+            sa.hostCard.game
+                .costPaymentStack
+                .peek()
+        return destination == ZoneType.Exile &&
+            origin.singleOrNull() == ZoneType.Graveyard &&
+            activeCost?.cost is CostExile &&
+            activeCost.payment.ability === sa
+    }
+
+    private fun chooseExactGraveyardExileCost(
+        optionList: CardCollectionView,
+        sa: SpellAbility,
+        amount: Int,
+        prompt: String,
+    ): List<Card> =
+        targetingCoordinator
+            .chooseCardsViaBridge(
+                cards = optionList,
+                min = amount,
+                max = amount,
+                message = prompt,
+                semantic = PromptSemantic.SelectNCostExileFromGrave,
+                candidateRefs = optionList.toCandidateRefs(),
+                sourceEntityId = sa.hostCard.id.takeIf { it > 0 },
+                forcePrompt = true,
+            ).toList()
 
     override fun chooseCardsForCollectEvidence(
         optionList: CardCollectionView,

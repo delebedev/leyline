@@ -11,6 +11,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.gameStateMessages
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -124,6 +125,83 @@ class StackTargetingInteractionTest :
             passUntilResolved(maxPasses = 10)
 
             ai.life shouldBe 20
+        }
+
+        session(
+            "required stack target stays distinct from cancelling the counterspell",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Shock;It'll Quench Ya!
+                humanbattlefield=Mountain;Island;Island
+                humanlibrary=Mountain;Mountain;Mountain
+                ailibrary=Plains;Plains;Plains
+                """,
+        ) {
+            castSpellByName("Shock").shouldBeTrue()
+            selectTargets(listOf(OPPONENT_SEAT))
+
+            castSpellByName("It'll Quench Ya!").shouldBeTrue()
+            val prompt = allMessages.last { it.hasSelectTargetsReq() }
+            val selection = prompt.selectTargetsReq.targetsList.single()
+            val shockTarget = latestTargetIidByCardName("Shock")
+            assertSoftly {
+                selection.minTargets shouldBe 1
+                selection.maxTargets shouldBe 1
+                prompt.allowCancel shouldBe AllowCancel.Abort
+            }
+            selectTargets(listOf(shockTarget))
+            passUntilResolved(maxPasses = 10)
+
+            assertSoftly {
+                ai.life shouldBe 20
+                human.graveyard.card("Shock").name shouldBe "Shock"
+                human.graveyard.card("It'll Quench Ya!").name shouldBe "It'll Quench Ya!"
+            }
+        }
+
+        session(
+            "cancelling a required stack target restores the parent cast without paying mana",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Shock;It'll Quench Ya!
+                humanbattlefield=Mountain;Island;Island
+                humanlibrary=Mountain;Mountain;Mountain
+                ailibrary=Plains;Plains;Plains
+                """,
+        ) {
+            castSpellByName("Shock").shouldBeTrue()
+            selectTargets(listOf(OPPONENT_SEAT))
+            val tappedBeforeCounterspell =
+                human
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.isLand && it.isTapped }
+                    .map { it.id }
+                    .toSet()
+            castSpellByName("It'll Quench Ya!").shouldBeTrue()
+
+            cancelAction()
+
+            assertSoftly {
+                human.hand.card("It'll Quench Ya!").name shouldBe "It'll Quench Ya!"
+                human
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .filter { it.isLand && it.isTapped }
+                    .map { it.id }
+                    .toSet() shouldBe tappedBeforeCounterspell
+                game().stackZone.size() shouldBe 1
+            }
         }
 
         session(

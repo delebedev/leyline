@@ -1,0 +1,82 @@
+name: selection-cardinality
+description: Required selections, legal zero-target completion, and parent-action cancellation.
+scenarios:
+  - id: required-stack-target
+    puzzle: selection-required-stack-target
+    headless: { full_control: true }
+    run: cast Shock, then counter it after selecting the required stack target
+    expect: both spells finish in the graveyard and the opponent takes no damage
+    steps:
+      - cast: Shock
+      - target: opponent
+      - cast: "It'll Quench Ya!"
+      - expect:
+          prompt: SelectTargetsReq
+      - target: { side: ours, zone: stack, card: Shock }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 20
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - zone_contains: { side: ours, zone: graveyard, card: "It'll Quench Ya!" }
+            - stack_empty: true
+  - id: required-stack-target-cancel
+    puzzle: selection-required-stack-target
+    headless: { full_control: true }
+    run: start casting the counterspell, then cancel its required target prompt
+    expect: the counterspell returns to hand without paying its mana and Shock resolves normally
+    steps:
+      - cast: Shock
+      - target: opponent
+      - cast: "It'll Quench Ya!"
+      - expect:
+          prompt: SelectTargetsReq
+      - cancel_action: {}
+      - expect:
+          zone_contains: { side: ours, zone: hand, card: "It'll Quench Ya!" }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 18
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+            - stack_empty: true
+  - id: required-graveyard-cost
+    puzzle: selection-required-graveyard-cost
+    run: activate Scrapheap Scrounger and choose the required exile payment
+    expect: Grizzly Bears is exiled and Scrapheap Scrounger returns to the battlefield
+    steps:
+      - activate: { card: Scrapheap Scrounger, zone: graveyard }
+      - expect:
+          prompt: PayCostsReq
+      - select_cost: { zone: graveyard, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Scrapheap Scrounger }
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - stack_empty: true
+  - id: required-graveyard-cost-cancel
+    puzzle: selection-required-graveyard-cost
+    run: start Scrapheap Scrounger's activation, then cancel its required exile payment
+    expect: both cards remain in the graveyard and the activation is not committed
+    steps:
+      - activate: { card: Scrapheap Scrounger, zone: graveyard }
+      - expect:
+          prompt: PayCostsReq
+      - cancel_action: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Scrapheap Scrounger }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - stack_empty: true
+  - id: legal-zero-target-ability
+    puzzle: selection-zero-target-ability
+    run: activate Kaya's up-to-two ability with no legal graveyard targets
+    expect: the ability resolves without a target prompt and Kaya remains on the battlefield
+    steps:
+      - activate: { card: "Kaya, Orzhov Usurper", ability_index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: "Kaya, Orzhov Usurper" }
+            - stack_empty: true

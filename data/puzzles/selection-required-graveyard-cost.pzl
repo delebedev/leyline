@@ -1,0 +1,17 @@
+[metadata]
+Name:Required Graveyard Cost
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Return Scrapheap Scrounger by exiling the required creature card from the graveyard.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Swamp;Swamp
+humangraveyard=Scrapheap Scrounger;Grizzly Bears
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Plains;Plains;Plains

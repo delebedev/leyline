@@ -1,0 +1,16 @@
+[metadata]
+Name:Legal Zero Target Ability
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Activate Kaya's up-to-two ability with no graveyard cards and resolve it normally.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Kaya, Orzhov Usurper|Counters:LOYALTY=3
+humanlibrary=Plains;Plains;Plains
+ailibrary=Swamp;Swamp;Swamp

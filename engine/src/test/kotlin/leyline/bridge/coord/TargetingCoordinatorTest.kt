@@ -178,6 +178,34 @@ class TargetingCoordinatorTest :
             bridge.history.shouldBeEmpty()
         }
 
+        test("empty target candidates complete only a zero-target ability") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Kaya, Orzhov Usurper", human, ZoneType.Hand)
+                }
+            val kaya =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val abilities = kaya.spellAbilities.filter { it.isActivatedAbility }
+            val optional = abilities.single { it.minTargets == 0 && it.usesTargeting() }
+            val required = abilities.first { it.minTargets > 0 && it.usesTargeting() }
+            optional.activatingPlayer = board.human
+            required.activatingPlayer = board.human
+            val coordinator = TargetingCoordinator(testPromptBridge(), testSeating)
+
+            val optionalResult = coordinator.selectTargets(emptyList(), optional, mandatory = false, numTargets = null)
+            val requiredResult = coordinator.selectTargets(emptyList(), required, mandatory = true, numTargets = null)
+
+            assertSoftly {
+                optionalResult.isChosen shouldBe true
+                optionalResult.isDone shouldBe true
+                requiredResult.isChosen shouldBe false
+                requiredResult.isDone shouldBe true
+            }
+        }
+
         test("legend rule returns the exact selected handle and records every unchosen victim") {
             val cards = legendCards()
             val bridge = testPromptBridge(cardSelectRuntime = selectingCard(1))
