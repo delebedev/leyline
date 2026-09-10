@@ -62,6 +62,7 @@ class AcceptanceSuiteLoaderTest :
                 suite.scenarios shouldHaveSize 1
                 val scenario = suite.scenarios.single()
                 scenario.id shouldBe "cast-face"
+                scenario.fullControl shouldBe false
                 scenario.steps shouldHaveSize 21
                 scenario.steps[0] shouldBe WaitStep(listOf(ActionAvailableCondition(AcceptanceActionType.Activate, "Miscalculation")))
                 scenario.steps[1] shouldBe ActivateStep("Miscalculation", AcceptanceZone.Hand, 0, 188841)
@@ -168,6 +169,7 @@ class AcceptanceSuiteLoaderTest :
                           - id: battlefield-put
                             deck: [60 Leyline Axe]
                             opponent_deck: [60 Plains]
+                            headless: { full_control: true }
                             steps:
                               - expect: { phase: MAIN1 }
                         """.trimIndent(),
@@ -178,6 +180,7 @@ class AcceptanceSuiteLoaderTest :
                 scenario.puzzle shouldBe null
                 scenario.deckList shouldBe "60 Leyline Axe"
                 scenario.opponentDeckList shouldBe "60 Plains"
+                scenario.fullControl shouldBe true
             }
         }
 

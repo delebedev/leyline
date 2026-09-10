@@ -35,6 +35,7 @@ class MatchdoorAcceptanceExecutor(
                 seed = seed,
                 deckList = scenario.deckList,
                 opponentDeckList = scenario.opponentDeckList,
+                fullControl = scenario.fullControl,
             )
         try {
             scenario.puzzle?.let { harness.connectAndKeepPuzzleText(readPuzzleText(it)) } ?: harness.connectAndKeep()
@@ -609,7 +610,7 @@ private class ScenarioRun(
 
     private fun passUntil(step: PassUntilStep) {
         harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(step) }
-        val reached = runCatching { step.conditions.all { matchesCondition(it) } }.getOrDefault(false)
+        val reached = runCatching { step.conditions.all { matchesPassUntilCondition(it) } }.getOrDefault(false)
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
@@ -638,11 +639,21 @@ private class ScenarioRun(
         try {
             GameLoopPoller.awaitCondition(timeoutMs = 200, pollIntervalMs = 20) {
                 harness.drainSink()
-                step.conditions.all { matchesCondition(it) }
+                step.conditions.all { matchesPassUntilCondition(it) }
             }
             true
         } catch (_: Throwable) {
             false
+        }
+
+    private fun matchesPassUntilCondition(condition: AcceptanceCondition): Boolean =
+        if (condition is PromptCondition) {
+            latestPromptMessage()?.let { prompt ->
+                prompt.matchesPrompt(condition.prompt, condition.promptId) &&
+                    harness.bridge.responseAcceptance.hasOutstandingPrompt(prompt.msgId)
+            } == true
+        } else {
+            matchesCondition(condition)
         }
 
     private fun assertConditions(conditions: List<AcceptanceCondition>) {

@@ -16,6 +16,8 @@ data class AcceptanceScenario(
     val run: String?,
     val expect: String?,
     val steps: List<AcceptanceStep>,
+    /** Headless-only control for scenarios that explicitly respond to their own stack. */
+    val fullControl: Boolean = false,
 )
 
 sealed interface AcceptanceStep {
