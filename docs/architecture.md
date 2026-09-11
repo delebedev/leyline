@@ -89,6 +89,15 @@ identifiers are scoped to its `catalogVersion`. The version covers the Forge car
 definitions and identity scheme; persisted identifiers must be bound to that
 exact version before use.
 
+Embedding hosts may generate the complete identity index with
+`ForgeCardRepository.writeCatalogIndex` during their asset build, then open that
+index with the matching resource archive SHA-256. The host verifies the archive
+bytes before passing that digest. This preserves catalog-wide identities while
+Forge materializes definitions on demand. `GameBootstrap.initializeCardDatabase`
+selects eager loading by default; a host opting into lazy loading must do so on
+the first initialization and reuse the same resource catalog for that JVM.
+The no-index repository path deliberately materializes the full catalog.
+
 Combined Split and Room cards expose one parent identity with ordered face
 identities. Specialize cards expose the base identity with five form identities.
 Normal name lookup maps Split faces and Specialize forms back to the deck-legal

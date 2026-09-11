@@ -51,28 +51,37 @@ subprojects {
 group = "leyline"
 version = "0.1.0-SNAPSHOT"
 
+val runtimeJavaVersion =
+    providers
+        .gradleProperty("runtimeJavaVersion")
+        .orElse("21")
+        .get()
+        .toInt()
+
 allprojects {
+    pluginManager.withPlugin("java") {
+        tasks.withType<JavaCompile>().configureEach {
+            options.release.set(runtimeJavaVersion)
+        }
+    }
     pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
         extensions.configure<KotlinJvmProjectExtension> {
-            jvmToolchain(21)
-            compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+            jvmToolchain(runtimeJavaVersion)
+            compilerOptions.jvmTarget.set(JvmTarget.fromTarget(runtimeJavaVersion.toString()))
         }
         extensions.configure<JavaPluginExtension> {
-            toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+            toolchain.languageVersion.set(JavaLanguageVersion.of(runtimeJavaVersion))
         }
 
-        val java21Launcher =
+        val runtimeLauncher =
             extensions.getByType<JavaToolchainService>().launcherFor {
-                languageVersion.set(JavaLanguageVersion.of(21))
+                languageVersion.set(JavaLanguageVersion.of(runtimeJavaVersion))
             }
-        tasks.withType<JavaCompile>().configureEach {
-            options.release.set(21)
-        }
         tasks.withType<Test>().configureEach {
-            javaLauncher.set(java21Launcher)
+            javaLauncher.set(runtimeLauncher)
         }
         tasks.withType<JavaExec>().configureEach {
-            javaLauncher.set(java21Launcher)
+            javaLauncher.set(runtimeLauncher)
         }
     }
 }

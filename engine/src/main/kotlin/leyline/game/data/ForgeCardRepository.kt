@@ -14,6 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
 import java.nio.ByteBuffer
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.HexFormat
@@ -41,17 +42,9 @@ class ForgeCardRepository private constructor(
     companion object {
         private const val CARD_BASE = 200_000_000
         private const val DERIVED_ID_BASE = 300_000_000
-        private const val IDENTITY_SCHEME = "forge-card-catalog-v4-definition-backed-tokens"
-
-        private data class CatalogDescriptor(
-            val indexes: Map<String, Int>,
-            val identityIds: Map<String, Int>,
-            val faceAliases: Map<String, List<FaceAlias>>,
-            val version: String,
-        )
-
-        private val descriptor: CatalogDescriptor by lazy {
+        private val descriptor: ForgeCatalogDescriptor by lazy {
             GameBootstrap.initializeCardDatabase(quiet = true)
+            StaticData.instance().ensureAllCardsLoaded()
             val names =
                 StaticData
                     .instance()
@@ -78,7 +71,7 @@ class ForgeCardRepository private constructor(
             val identityIds = keys.withIndex().associate { it.value to DERIVED_ID_BASE + it.index }
             val aliases = names.flatMap(::faceAliases)
             require(DERIVED_ID_BASE.toLong() + keys.size <= Int.MAX_VALUE) { "Card catalog exceeds the GRE identity range" }
-            CatalogDescriptor(
+            ForgeCatalogDescriptor(
                 names.withIndex().associate { it.value to it.index },
                 identityIds,
                 aliases.groupBy { it.name },
@@ -86,7 +79,24 @@ class ForgeCardRepository private constructor(
             )
         }
 
-        fun open(): ForgeCardRepository =
+        /** Materializes the complete catalog before deriving its identity set. */
+        fun open(): ForgeCardRepository = create(descriptor)
+
+        /** Reads a generated identity index after the host initializes its Forge catalog. */
+        fun open(
+            indexPath: Path,
+            resourceSha256: String,
+        ): ForgeCardRepository = create(ForgeCatalogIndex.read(indexPath, resourceSha256))
+
+        /** Export from an eagerly loaded catalog using the exact packaged resource hash. */
+        fun writeCatalogIndex(
+            path: Path,
+            resourceSha256: String,
+        ) {
+            ForgeCatalogIndex.write(path, resourceSha256, descriptor)
+        }
+
+        private fun create(descriptor: ForgeCatalogDescriptor): ForgeCardRepository =
             ForgeCardRepository(
                 descriptor.indexes,
                 descriptor.identityIds,
@@ -170,7 +180,7 @@ class ForgeCardRepository private constructor(
                 digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value.size).array())
                 digest.update(value)
             }
-            frame(IDENTITY_SCHEME.toByteArray())
+            frame(ForgeCatalogIndex.IDENTITY_SCHEME.toByteArray())
             names.forEach { frame(it.toByteArray()) }
             listOf(ForgeConstants.CARD_DATA_DIR, ForgeConstants.TOKEN_DATA_DIR)
                 .map(Paths::get)
@@ -506,13 +516,6 @@ class ForgeCardRepository private constructor(
 }
 
 private fun normalize(value: String): String = value.lowercase().filter(Char::isLetterOrDigit)
-
-private data class FaceAlias(
-    val name: String,
-    val parentName: String,
-    val identityKey: String,
-    val canonicalizeToParent: Boolean,
-)
 
 private fun parseParams(raw: String): Map<String, String> =
     raw
