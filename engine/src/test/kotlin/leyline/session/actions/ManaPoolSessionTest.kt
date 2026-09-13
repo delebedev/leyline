@@ -266,8 +266,8 @@ class ManaPoolSessionTest :
                     .last { it.hasActionsAvailableReq() }
                     .actionsAvailableReq
                     .actionsList
-                    .any { it.actionType == ActionType.Cast && it.instanceId == rubyIid }
-            offered.shouldBeTrue()
+                    .count { it.actionType == ActionType.Cast && it.instanceId == rubyIid }
+            offered shouldBe 1
 
             castSpellByName("Ruby Medallion").shouldBeTrue()
             passUntilResolved()
@@ -340,9 +340,9 @@ class ManaPoolSessionTest :
             val eggIid = human.battlefield.iid("Golden Egg")
 
             assertSoftly {
-                actions.actionsList.none { it.actionType == ActionType.Cast && it.instanceId == cavalierIid }.shouldBeTrue()
-                actions.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == cavalierIid }.shouldBeTrue()
-                actions.actionsList.any { it.actionType == ActionType.ActivateMana && it.instanceId == eggIid }.shouldBeTrue()
+                actions.actionsList.count { it.actionType == ActionType.Cast && it.instanceId == cavalierIid } shouldBe 0
+                actions.inactiveActionsList.count { it.actionType == ActionType.Cast && it.instanceId == cavalierIid } shouldBe 1
+                actions.actionsList.count { it.actionType == ActionType.ActivateMana && it.instanceId == eggIid } shouldBe 1
             }
         }
 
@@ -365,8 +365,8 @@ class ManaPoolSessionTest :
             val rubyIid = human.hand.iid("Ruby Medallion")
 
             assertSoftly {
-                actions.actionsList.none { it.actionType == ActionType.Cast && it.instanceId == rubyIid }.shouldBeTrue()
-                actions.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == rubyIid }.shouldBeTrue()
+                actions.actionsList.count { it.actionType == ActionType.Cast && it.instanceId == rubyIid } shouldBe 0
+                actions.inactiveActionsList.count { it.actionType == ActionType.Cast && it.instanceId == rubyIid } shouldBe 1
             }
         }
 
@@ -414,10 +414,12 @@ class ManaPoolSessionTest :
                 ailibrary=Mountain
                 """,
         ) {
-            activateMana("Path of Ancestry", selectedColor = ManaColor.Red_afc9).shouldBeTrue()
-            activateMana("Mossfire Valley").shouldBeTrue()
-            allMessages.latestHumanManaPool().size shouldBe 2
-            human.manaPool.totalMana() shouldBe 2
+            assertSoftly {
+                activateMana("Path of Ancestry", selectedColor = ManaColor.Red_afc9).shouldBeTrue()
+                activateMana("Mossfire Valley").shouldBeTrue()
+                allMessages.latestHumanManaPool().size shouldBe 2
+                human.manaPool.totalMana() shouldBe 2
+            }
             castSpellByName("Ruby Medallion").shouldBeTrue()
             passUntilResolved()
 
