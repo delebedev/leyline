@@ -294,16 +294,22 @@ class MatchManaSourcePaymentFailureTest :
             timeoutEntered.await(3, TimeUnit.SECONDS) shouldBe true
             val selected = board.instanceId(candidates(board).first().id)
             val accepted = AtomicReference<Any?>()
+            val responseFinished = CountDownLatch(1)
             Thread {
-                accepted.set(
-                    coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, listOf(selected)),
-                )
+                try {
+                    accepted.set(
+                        coordinator.manaSourcePayments.complete(published.interactionId, published.gameStateId, listOf(selected)),
+                    )
+                } finally {
+                    responseFinished.countDown()
+                }
             }.start()
             commandEnqueued.await(3, TimeUnit.SECONDS) shouldBe true
             releaseTimeout.countDown()
 
             assertSoftly {
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
+                responseFinished.await(3, TimeUnit.SECONDS) shouldBe true
                 accepted.get().shouldNotBeNull()
                 result.get() shouldContainExactly listOf(0)
                 failure.get().shouldBeNull()
