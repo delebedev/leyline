@@ -133,6 +133,7 @@ internal object ActionManaCosts {
         player: Player,
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
+        if (cost.cmc > ComputerUtilMana.getAvailableManaEstimate(player)) return false
         val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
 
         val coloredRequirements =

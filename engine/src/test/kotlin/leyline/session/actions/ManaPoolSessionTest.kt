@@ -36,6 +36,8 @@ class ManaPoolSessionTest :
             TestCardRegistry.ensureCardRegistered("Mossfire Valley")
             TestCardRegistry.ensureCardRegistered("Ruby Medallion")
             TestCardRegistry.ensureCardRegistered("Kenrith, the Returned King")
+            TestCardRegistry.ensureCardRegistered("Golden Egg")
+            TestCardRegistry.ensureCardRegistered("Cavalier of Dawn")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -251,7 +253,7 @@ class ManaPoolSessionTest :
                 HumanLife=20
                 AILife=20
 
-                humanhand=Ruby Medallion
+                humanhand=Forest;Mountain;Ruby Medallion
                 humanbattlefield=Path of Ancestry;Mossfire Valley
                 humancommand=Kenrith, the Returned King|IsCommander
                 humanlibrary=Forest
@@ -274,6 +276,93 @@ class ManaPoolSessionTest :
             assertSoftly {
                 human.battlefield.card("Path of Ancestry").isTapped.shouldBeTrue()
                 human.battlefield.card("Mossfire Valley").isTapped.shouldBeTrue()
+            }
+        }
+
+        session(
+            "paid source availability is independent of hand position",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruby Medallion;Forest;Ruby Medallion;Mountain;Ruby Medallion
+                humanbattlefield=Path of Ancestry;Mossfire Valley
+                humancommand=Kenrith, the Returned King|IsCommander
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val rubyIds =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .filter { it.name == "Ruby Medallion" }
+                    .map { bridge.instanceId(it) }
+                    .toSet()
+            val castIds =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq
+                    .actionsList
+                    .filter { it.actionType == ActionType.Cast }
+                    .map { it.instanceId }
+                    .toSet()
+
+            castIds shouldBe rubyIds
+        }
+
+        session(
+            "net-zero mana filter is not free casting mana",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Cavalier of Dawn
+                humanbattlefield=Plains;Plains;Plains;Plains;Golden Egg
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val actions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq
+            val cavalierIid = human.hand.iid("Cavalier of Dawn")
+            val eggIid = human.battlefield.iid("Golden Egg")
+
+            assertSoftly {
+                actions.actionsList.none { it.actionType == ActionType.Cast && it.instanceId == cavalierIid }.shouldBeTrue()
+                actions.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == cavalierIid }.shouldBeTrue()
+                actions.actionsList.any { it.actionType == ActionType.ActivateMana && it.instanceId == eggIid }.shouldBeTrue()
+            }
+        }
+
+        session(
+            "five ordinary mana sources keep the spell castable",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Cavalier of Dawn
+                humanbattlefield=Plains;Plains;Plains;Plains;Plains;Golden Egg
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val actions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq
+            val cavalierIid = human.hand.iid("Cavalier of Dawn")
+            val eggIid = human.battlefield.iid("Golden Egg")
+            val cast = actions.actionsList.single { it.actionType == ActionType.Cast && it.instanceId == cavalierIid }
+
+            assertSoftly {
+                cast.autoTapSolution.autoTapActionsCount shouldBe 5
+                cast.autoTapSolution.autoTapActionsList.none { it.instanceId == eggIid }.shouldBeTrue()
             }
         }
 
