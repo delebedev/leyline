@@ -1,0 +1,16 @@
+name: "Golem"
+grpId: 96295
+titleId: 354
+abilities: []
+isToken: true
+isPrimaryCard: false
+power: "3"
+toughness: "3"
+colors: []
+types:
+  - 1
+  - 2
+subtypes:
+  - 35
+supertypes: []
+manaCost: ""

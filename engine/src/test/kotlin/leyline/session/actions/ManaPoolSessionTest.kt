@@ -32,6 +32,10 @@ class ManaPoolSessionTest :
             TestCardRegistry.ensureCardRegistered("Racers' Ring")
             TestCardRegistry.ensureCardRegistered("Bayou")
             TestCardRegistry.ensureCardRegistered("Ashnod's Altar")
+            TestCardRegistry.ensureCardRegistered("Path of Ancestry")
+            TestCardRegistry.ensureCardRegistered("Mossfire Valley")
+            TestCardRegistry.ensureCardRegistered("Ruby Medallion")
+            TestCardRegistry.ensureCardRegistered("Kenrith, the Returned King")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -236,6 +240,67 @@ class ManaPoolSessionTest :
                     deleted.affectorId shouldBe created.affectorId
                 }
             }
+        }
+
+        session(
+            "paid mana filter is used after its activation cost source",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruby Medallion
+                humanbattlefield=Path of Ancestry;Mossfire Valley
+                humancommand=Kenrith, the Returned King|IsCommander
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val rubyIid = human.hand.iid("Ruby Medallion")
+            val offered =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq
+                    .actionsList
+                    .any { it.actionType == ActionType.Cast && it.instanceId == rubyIid }
+            offered.shouldBeTrue()
+
+            castSpellByName("Ruby Medallion").shouldBeTrue()
+            passUntilResolved()
+
+            human.battlefield.card("Ruby Medallion")
+            assertSoftly {
+                human.battlefield.card("Path of Ancestry").isTapped.shouldBeTrue()
+                human.battlefield.card("Mossfire Valley").isTapped.shouldBeTrue()
+            }
+        }
+
+        session(
+            "explicit paid mana filter activation remains available",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruby Medallion
+                humanbattlefield=Path of Ancestry;Mossfire Valley
+                humancommand=Kenrith, the Returned King|IsCommander
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            activateMana("Path of Ancestry", selectedColor = ManaColor.Red_afc9).shouldBeTrue()
+            activateMana("Mossfire Valley").shouldBeTrue()
+            allMessages.latestHumanManaPool().size shouldBe 2
+            human.manaPool.totalMana() shouldBe 2
+            castSpellByName("Ruby Medallion").shouldBeTrue()
+            passUntilResolved()
+
+            human.battlefield.card("Ruby Medallion")
         }
     })
 

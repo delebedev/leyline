@@ -1,0 +1,25 @@
+name: "Kenrith, the Returned King"
+grpId: 96252
+titleId: 414511
+abilities:
+  - id: 136358
+    textId: 414512
+    category: 1
+    mana: "oR"
+  - id: 136367
+    textId: 414513
+    category: 1
+    mana: "o1oG"
+  - id: 136346
+    textId: 414514
+    category: 1
+    mana: "o2oW"
+  - id: 136347
+    textId: 414515
+    category: 1
+    mana: "o3oU"
+  - id: 136348
+    textId: 414516
+    category: 1
+    mana: "o4oB"
+expansionCode: "FCA"

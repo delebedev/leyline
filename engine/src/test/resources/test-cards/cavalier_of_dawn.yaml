@@ -1,0 +1,16 @@
+name: "Cavalier of Dawn"
+grpId: 95106
+titleId: 351685
+abilities:
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 133537
+    textId: 939720
+    category: 2
+  - id: 133424
+    textId: 939721
+    category: 2
+expansionCode: "SPG"
+tokens:
+  "133537": 96295
