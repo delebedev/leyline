@@ -1,0 +1,35 @@
+# Design Narrative
+# Mechanic: Pay for one mana ability with another source, then spend its larger output on a spell.
+# Forcing: Path of Ancestry cannot cast Ruby Medallion alone, and Mossfire Valley cannot activate itself.
+# AI behavior: The opponent has no battlefield or hand, so it makes no decisions.
+# Failure modes:
+#   WIN = Path pays for Mossfire Valley and Ruby Medallion resolves.
+#   LOSE = the spell is not cast before the one-turn deadline.
+#   TIMEOUT = activation, payment, or resolution stops advancing.
+# Card roles:
+#   Path of Ancestry — pays Mossfire Valley's activation cost.
+#   Mossfire Valley — produces the two mana needed for Ruby Medallion.
+#   Ruby Medallion — observable consumer of the paid mana source.
+#   Kenrith, the Returned King — gives Path of Ancestry access to red mana.
+#   Forest and Mountain — fix Ruby Medallion in the third hand position.
+# Protocol path: cast action, nested mana payment, land taps, spell payment, and permanent resolution.
+
+[metadata]
+Name:Paid Mana Filter
+Goal:Play the Specified Permanent
+Targets:Ruby Medallion
+Turns:1
+Difficulty:Easy
+Description:Use Path of Ancestry to activate Mossfire Valley and cast Ruby Medallion.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Forest;Mountain;Ruby Medallion
+humanbattlefield=Path of Ancestry;Mossfire Valley
+humancommand=Kenrith, the Returned King|IsCommander
+humanlibrary=Forest
+ailibrary=Mountain
