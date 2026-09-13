@@ -133,7 +133,6 @@ internal object ActionManaCosts {
         player: Player,
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
-        if (cost.cmc > ComputerUtilMana.getAvailableManaEstimate(player)) return false
         val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
 
         val coloredRequirements =
@@ -207,7 +206,9 @@ internal object ActionManaCosts {
             .cards
             .filterNot { it.isTapped }
             .mapNotNull { card ->
+                val plannerAbilities = ComputerUtilMana.getAIPlayableMana(card).toSet()
                 getPlayableManaAbilities(card, player)
+                    .filter { it in plannerAbilities }
                     .flatMap { sa ->
                         val mana = sa.manaPart ?: return@flatMap emptyList()
                         if (payingAbility != null && !mana.meetsManaRestrictions(payingAbility)) {
