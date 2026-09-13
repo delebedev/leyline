@@ -341,6 +341,30 @@ class ManaPoolSessionTest :
         }
 
         session(
+            "paid mana filter without seed mana is not castable",
+            fullControl = true,
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Ruby Medallion
+                humanbattlefield=Mossfire Valley
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            val actions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq
+            val rubyIid = human.hand.iid("Ruby Medallion")
+
+            assertSoftly {
+                actions.actionsList.none { it.actionType == ActionType.Cast && it.instanceId == rubyIid }.shouldBeTrue()
+                actions.inactiveActionsList.any { it.actionType == ActionType.Cast && it.instanceId == rubyIid }.shouldBeTrue()
+            }
+        }
+
+        session(
             "five ordinary mana sources keep the spell castable",
             fullControl = true,
             puzzle = """
