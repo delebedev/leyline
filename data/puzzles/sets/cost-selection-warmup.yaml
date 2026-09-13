@@ -1,6 +1,17 @@
 name: cost-selection-warmup
 description: Alternate costs, sacrifice/discard payments, and payment-selection smoke.
 scenarios:
+  - id: paid-mana-filter
+    puzzle: paid-mana-filter
+    run: cast Ruby Medallion by paying for Mossfire Valley with Path of Ancestry
+    expect: both lands tap and Ruby Medallion resolves
+    steps:
+      - expect:
+          action: { type: cast, card: Ruby Medallion }
+      - cast: Ruby Medallion
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Ruby Medallion }
   - id: sacrifice-source-cost
     puzzle: sacrifice-cost-confirm
     run: activate Evolving Wilds, pay its self-sacrifice cost, and choose Forest

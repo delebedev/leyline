@@ -206,7 +206,9 @@ internal object ActionManaCosts {
             .cards
             .filterNot { it.isTapped }
             .mapNotNull { card ->
+                val plannerAbilities = ComputerUtilMana.getAIPlayableMana(card).toSet()
                 getPlayableManaAbilities(card, player)
+                    .filter { it in plannerAbilities }
                     .flatMap { sa ->
                         val mana = sa.manaPart ?: return@flatMap emptyList()
                         if (payingAbility != null && !mana.meetsManaRestrictions(payingAbility)) {
