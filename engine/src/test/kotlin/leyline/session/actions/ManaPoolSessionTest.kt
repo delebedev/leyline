@@ -274,8 +274,14 @@ class ManaPoolSessionTest :
 
             human.battlefield.card("Ruby Medallion")
             assertSoftly {
-                human.battlefield.card("Path of Ancestry").isTapped.shouldBeTrue()
-                human.battlefield.card("Mossfire Valley").isTapped.shouldBeTrue()
+                human.battlefield
+                    .card("Path of Ancestry")
+                    .isTapped
+                    .shouldBeTrue()
+                human.battlefield
+                    .card("Mossfire Valley")
+                    .isTapped
+                    .shouldBeTrue()
             }
         }
 
@@ -386,7 +392,9 @@ class ManaPoolSessionTest :
 
             assertSoftly {
                 cast.autoTapSolution.autoTapActionsCount shouldBe 5
-                cast.autoTapSolution.autoTapActionsList.none { it.instanceId == eggIid }.shouldBeTrue()
+                cast.autoTapSolution.autoTapActionsList
+                    .none { it.instanceId == eggIid }
+                    .shouldBeTrue()
             }
         }
 
