@@ -146,7 +146,8 @@ fun getAllCastableAbilities(
 }
 
 private fun secondaryFaceSpellAbilities(card: Card): List<SpellAbility> {
-    if (card.isInPlay || !card.hasState(forge.card.CardStateName.Secondary) ||
+    if (card.isInPlay ||
+        !card.hasState(forge.card.CardStateName.Secondary) ||
         card.currentStateName != forge.card.CardStateName.Original
     ) {
         return emptyList()
