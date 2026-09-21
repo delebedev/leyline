@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Ill-Timed Explosion draws two cards, then its optional two-card discard sets damage to the greatest discarded mana value.
+# Forcing: The four lands can cast Explosion but not Lava Axe. Three damage clears the blocker and leaves the 2/4 attacker alive; five also kills that attacker.
+# AI behavior: The opponent has no hand or mana and only a 3/3 blocker. The player chooses the discard and then attacks.
+# Failure modes:
+#   WIN = Cancel and an Island were discarded, the blocker died, Those Who Serve survived, and its attack was lethal.
+#   LOSE = the discard was declined and left the blocker, or too much damage killed the attacker.
+#   TIMEOUT = the optional discard or two-card selection did not complete.
+# Card roles:
+#   Ill-Timed Explosion — draws cards and offers the variable-damage discard.
+#   Cancel — the three-mana-value discard that sets useful damage.
+#   Lava Axe — a five-mana-value trap that also kills the player's attacker.
+#   Centaur Courser — the three-toughness blocker.
+#   Those Who Serve — the four-toughness attacker that wins after the measured blast.
+# Protocol path: Cast, draw two, discard two, resolve damage, then attack.
+[metadata]
+Name:Measured Blast
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. Your own creature is standing too close to the blast.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+humanhand=Ill-Timed Explosion;Lava Axe
+humanbattlefield=Those Who Serve;Island;Island;Mountain;Mountain
+humanlibrary=Cancel;Island
+aibattlefield=Centaur Courser
+ailibrary=Forest

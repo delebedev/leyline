@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Selfless Spirit is sacrificed to give friendly creatures indestructible before Anger of the Gods resolves.
+# Forcing: Anger alone kills every creature. Sacrificing the Spirit first preserves two attackers while removing both blockers.
+# AI behavior: The opponent has two blockers and no cards or abilities to change the board.
+# Failure modes:
+#   WIN = the Spirit protects both friendly attackers, Anger removes the blockers, and the survivors attack for five.
+#   LOSE = Anger is cast before the Spirit's ability, destroying the attackers too.
+#   TIMEOUT = sacrifice ability or board-wipe resolution did not complete.
+# Card roles:
+#   Selfless Spirit — protects the two attackers at the cost of itself.
+#   Anger of the Gods — clears blockers while threatening friendly creatures.
+#   Grizzly Bears and Centaur Courser — exact-five-power attackers.
+#   Opposing Bears and Courser — blockers removed by the sweep.
+# Protocol path: Sacrifice Spirit, resolve indestructible, cast Anger, attack.
+[metadata]
+Name:Through the Fire, Together
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The board wipe does not distinguish friend from foe.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+humanhand=Anger of the Gods
+humanbattlefield=Selfless Spirit;Grizzly Bears;Centaur Courser;Mountain;Mountain;Mountain
+humanlibrary=Plains
+aibattlefield=Grizzly Bears;Centaur Courser
+ailibrary=Forest

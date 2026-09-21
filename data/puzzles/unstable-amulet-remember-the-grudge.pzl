@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Unstable Amulet damages the opponent only when a spell is cast from outside its controller's hand.
+# Forcing: Two copies of Ancient Grudge can destroy the opposing artifact, but only the graveyard copy's flashback triggers lethal Amulet damage.
+# AI behavior: The opponent has no mana or responses. Both cast origins are available at the start, but the hand cast consumes both lands.
+# Failure modes:
+#   WIN = Ancient Grudge is cast for flashback and Amulet's cast trigger deals one to the opponent.
+#   LOSE = the hand copy destroys the artifact without causing Amulet damage.
+#   TIMEOUT = flashback action or cast trigger did not complete.
+# Card roles:
+#   Unstable Amulet — converts a non-hand cast into the win.
+#   Ancient Grudge in graveyard — the winning flashback spell.
+#   Ancient Grudge in hand — the visually similar losing cast.
+#   Ornithopter — a legal artifact target for both casts.
+# Protocol path: Cast from graveyard for flashback, trigger Amulet, deal lethal before the spell resolves.
+[metadata]
+Name:Remember the Grudge
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The same spell is available from two different zones.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+humanhand=Ancient Grudge
+humangraveyard=Ancient Grudge
+humanbattlefield=Unstable Amulet;Forest;Mountain
+humanlibrary=Forest
+aibattlefield=Ornithopter
+ailibrary=Forest

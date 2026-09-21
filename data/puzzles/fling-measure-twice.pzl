@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Fling deals damage equal to the sacrificed creature's power as it was sacrificed.
+# Forcing: Grizzly Bears starts at two power and the opponent has five life. Giant Growth must resolve before Fling's sacrifice cost is paid.
+# AI behavior: Giant Spider blocks the Bear if the player tries to win through combat. The opponent has no spells or abilities.
+# Failure modes:
+#   WIN = Growth makes the Bear five power, then Fling sacrifices it to deal five to the opponent.
+#   LOSE = Fling is cast before Growth, dealing only two.
+#   TIMEOUT = sacrifice selection or Fling's target did not complete.
+# Card roles:
+#   Giant Growth — raises the Bear to lethal power.
+#   Fling — converts that power into direct damage at the cost of the Bear.
+#   Grizzly Bears — the only creature available for the sacrifice.
+#   Giant Spider — makes attacking an ineffective shortcut.
+# Protocol path: Grow Bear, cast Fling, select Bear as cost, target opponent.
+[metadata]
+Name:Measure Twice, Throw Once
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The throw measures your creature at the moment you pay for it.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+humanhand=Giant Growth;Fling
+humanbattlefield=Grizzly Bears;Forest;Mountain;Mountain
+humanlibrary=Forest
+aibattlefield=Giant Spider
+ailibrary=Forest

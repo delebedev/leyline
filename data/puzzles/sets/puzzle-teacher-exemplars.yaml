@@ -1,0 +1,375 @@
+name: puzzle-teacher-exemplars
+description: Scripted winning and losing lines for puzzle-design exemplars.
+web:
+  skip: Headless puzzle-design checks.
+scenarios:
+  - id: scrapshooter-ninth-gift
+    puzzle: scrapshooter-ninth-gift
+    native:
+      skip: Headless puzzle-design check.
+    run: remove Nine Lives's hexproof, promise a card with Scrapshooter, and destroy Nine Lives
+    expect: Nine Lives enters the graveyard and the opponent loses before the gift reaches its hand
+    steps:
+      - expect:
+          action: { type: activate, card: Shadowspear }
+      - activate: Shadowspear
+      - resolve_stack: {}
+      - cast: Scrapshooter
+      - choose: { optional_cost: additional_cost }
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: opponent, zone: battlefield, card: Nine Lives }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: hand, card: Forest }
+            - zone_contains: { side: opponent, zone: graveyard, card: Nine Lives }
+  - id: ill-timed-explosion-measured-blast
+    puzzle: ill-timed-explosion-measured-blast
+    native:
+      skip: Headless puzzle-design check.
+    run: discard Cancel and an Island to clear the blocker without killing the attacker
+    expect: Centaur Courser dies, Those Who Serve survives, and its attack wins
+    steps:
+      - cast: Ill-Timed Explosion
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_cards: { zone: hand, cards: [Cancel, Island] }
+      - pass_until:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+            - zone_contains: { side: ours, zone: battlefield, card: Those Who Serve }
+          max_passes: 8
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Cancel }
+            - zone_contains: { side: ours, zone: graveyard, card: Island }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Those Who Serve] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: ill-timed-explosion-overblast
+    puzzle: ill-timed-explosion-measured-blast
+    native:
+      skip: Headless puzzle-design check.
+    run: discard Lava Axe and an Island, wiping out the attacker with the blocker
+    expect: both creatures die and the opponent survives the turn
+    steps:
+      - cast: Ill-Timed Explosion
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 8
+      - select_cards: { zone: hand, cards: [Lava Axe, Island] }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Those Who Serve }
+            - zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
+          max_passes: 8
+      - expect:
+          opponent_life: 2
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: cyclone-right-type
+    puzzle: cyclone-right-type
+    native:
+      skip: Headless puzzle-design check.
+    run: cycle Boon of the Wish-Giver to cast Lava Axe for free
+    expect: the creature is skipped and Lava Axe deals exact lethal damage
+    steps:
+      - activate: { card: Boon of the Wish-Giver, zone: hand }
+      - pass_until:
+          prompt: OptionalActionMessage
+          max_passes: 8
+      - optional_action: { accept: true }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 12
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: Lava Axe }
+  - id: cyclone-wrong-type
+    puzzle: cyclone-right-type
+    native:
+      skip: Headless puzzle-design check.
+    run: cycle Curator of Mysteries and find a creature that cannot win this turn
+    expect: the opponent survives this turn
+    steps:
+      - activate: { card: Curator of Mysteries, zone: hand }
+      - pass_until:
+          prompt: OptionalActionMessage
+          max_passes: 8
+      - optional_action: { accept: true }
+      - expect:
+          all:
+            - opponent_life: 5
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: tainted-remedy-cure-is-worse
+    puzzle: tainted-remedy-cure-is-worse
+    native:
+      skip: Headless puzzle-design check.
+    run: exile Colossal Dreadmaw so its controller loses six life instead of gaining it
+    expect: Dreadmaw is exiled and the opponent loses
+    steps:
+      - cast: Swords to Plowshares
+      - target: { side: opponent, zone: battlefield, card: Colossal Dreadmaw }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+      - expect:
+          zone_contains: { side: opponent, zone: exile, card: Colossal Dreadmaw }
+  - id: tainted-remedy-small-target
+    puzzle: tainted-remedy-cure-is-worse
+    native:
+      skip: Headless puzzle-design check.
+    run: exile Grizzly Bears and leave the opponent alive
+    expect: the opponent loses only two life and wins at the turn limit
+    steps:
+      - cast: Swords to Plowshares
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 4
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: act-of-treason-borrowed-fuse
+    puzzle: act-of-treason-borrowed-fuse
+    native:
+      skip: Headless puzzle-design check.
+    run: borrow Perilous Myr, attack, then sacrifice it for the last three damage
+    expect: Myr deals combat, Bombardment, and death-trigger damage before the opponent loses
+    steps:
+      - cast: Act of Treason
+      - target: { side: opponent, zone: battlefield, card: Perilous Myr }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Perilous Myr] }
+      - pass_until:
+          opponent_life: 3
+          max_passes: 8
+      - activate: Goblin Bombardment
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Perilous Myr] }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+  - id: act-of-treason-premature-fuse
+    puzzle: act-of-treason-borrowed-fuse
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice the borrowed Myr before it can attack
+    expect: Bombardment and death-trigger damage leave the opponent at one
+    steps:
+      - cast: Act of Treason
+      - target: { side: opponent, zone: battlefield, card: Perilous Myr }
+      - resolve_stack: {}
+      - activate: Goblin Bombardment
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Perilous Myr] }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 1
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: selfless-spirit-through-fire
+    puzzle: selfless-spirit-through-fire
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice Selfless Spirit before sweeping both sides with Anger of the Gods
+    expect: both friendly attackers survive, both opposing blockers leave, and combat deals five
+    steps:
+      - activate: Selfless Spirit
+      - resolve_stack: {}
+      - cast: Anger of the Gods
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Grizzly Bears, Centaur Courser] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: selfless-spirit-too-late
+    puzzle: selfless-spirit-through-fire
+    native:
+      skip: Headless puzzle-design check.
+    run: sweep before sacrificing Selfless Spirit
+    expect: the sweep removes every attacker
+    steps:
+      - cast: Anger of the Gods
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Selfless Spirit }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: unstable-amulet-remember-the-grudge
+    puzzle: unstable-amulet-remember-the-grudge
+    native:
+      skip: Headless puzzle-design check.
+    run: flash back Ancient Grudge to trigger Amulet from outside the hand
+    expect: Amulet deals the last damage before the artifact-destruction spell resolves
+    steps:
+      - cast: { card: Ancient Grudge, zone: graveyard }
+      - target: { side: opponent, zone: battlefield, card: Ornithopter }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+      - expect:
+          zone_contains: { side: opponent, zone: battlefield, card: Ornithopter }
+  - id: unstable-amulet-hand-cast
+    puzzle: unstable-amulet-remember-the-grudge
+    native:
+      skip: Headless puzzle-design check.
+    run: cast the identical Ancient Grudge from hand and miss the Amulet trigger
+    expect: Ornithopter dies but the opponent remains at one
+    steps:
+      - cast: { card: Ancient Grudge, zone: hand }
+      - target: { side: opponent, zone: battlefield, card: Ornithopter }
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 1
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: village-rites-wrong-offering
+    puzzle: village-rites-wrong-offering
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice Perilous Myr to Village Rites and aim its death damage at the opponent
+    expect: the two damage wins before Rites draws cards
+    steps:
+      - cast: Village Rites
+      - select_cost: { zone: battlefield, cards: [Perilous Myr] }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+  - id: village-rites-bear-sacrifice
+    puzzle: village-rites-wrong-offering
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice Grizzly Bears and leave the Myr alive
+    expect: drawing cards does not deal lethal damage
+    steps:
+      - cast: Village Rites
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 2
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: mizzium-mortars-crowd-target
+    puzzle: mizzium-mortars-crowd-target
+    native:
+      skip: Headless puzzle-design check.
+    run: overload Mortars so both blockers die, then attack with both creatures
+    expect: the attackers deal exact-five damage
+    steps:
+      - cast: { card: Mizzium Mortars, alt_cost: overload }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Grizzly Bears, Centaur Courser] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8
+  - id: mizzium-mortars-single-target
+    puzzle: mizzium-mortars-crowd-target
+    native:
+      skip: Headless puzzle-design check.
+    run: use normal Mortars on only one blocker
+    expect: the remaining blocker prevents exact-five combat damage
+    steps:
+      - cast: Mizzium Mortars
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Grizzly Bears, Centaur Courser] }
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: fling-measure-twice
+    puzzle: fling-measure-twice
+    native:
+      skip: Headless puzzle-design check.
+    run: grow the Bear before sacrificing it to Fling for exact lethal
+    expect: Fling deals five damage while Spider keeps combat from being a shortcut
+    steps:
+      - cast: Giant Growth
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - cast: Fling
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+  - id: fling-too-early
+    puzzle: fling-measure-twice
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice the Bear before it has been grown
+    expect: Fling deals only two damage and the opponent survives
+    steps:
+      - cast: Fling
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 3
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20

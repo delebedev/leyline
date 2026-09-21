@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Village Rites sacrifices a creature as a casting cost; Perilous Myr's death trigger deals two before Rites resolves.
+# Forcing: The opposing Spider blocks ordinary attacks. Sacrificing the Myr wins immediately, while sacrificing the larger Bear does not.
+# AI behavior: The opponent has no hand or mana. The player selects one of two creatures for the additional cost.
+# Failure modes:
+#   WIN = Perilous Myr is sacrificed, its death trigger targets the opponent, and two damage is lethal.
+#   LOSE = Grizzly Bears is sacrificed, or the player attacks instead of casting Rites.
+#   TIMEOUT = sacrifice selection or death-trigger targeting did not complete.
+# Card roles:
+#   Village Rites — forces a sacrifice while drawing harmless cards.
+#   Perilous Myr — the precise two-damage sacrifice.
+#   Grizzly Bears — the tempting ordinary sacrifice.
+#   Giant Spider — prevents a simple attack from winning.
+# Protocol path: Cast with sacrifice cost, put death trigger above Rites, target opponent.
+[metadata]
+Name:The Wrong Offering
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The creature you sacrifice matters more than the cards you draw.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+humanhand=Village Rites
+humanbattlefield=Perilous Myr;Grizzly Bears;Swamp
+humanlibrary=Forest;Forest
+aibattlefield=Giant Spider
+ailibrary=Forest
