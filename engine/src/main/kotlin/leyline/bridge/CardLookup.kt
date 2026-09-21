@@ -79,7 +79,7 @@ fun getAllCastableAbilities(
             card.getOriginalState(forge.card.CardStateName.Original)?.nonManaAbilities?.filter { it.isSpell }
                 ?: emptyList()
         } else {
-            card.getSpells()
+            card.getSpells() + secondaryFaceSpellAbilities(card)
         }
 
     // No early-return for empty baseAbilities: the keyword-handSA appendage
@@ -143,6 +143,19 @@ fun getAllCastableAbilities(
 
     if (!checkTiming) return expanded
     return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+}
+
+private fun secondaryFaceSpellAbilities(card: Card): List<SpellAbility> {
+    if (card.isInPlay ||
+        !card.hasState(forge.card.CardStateName.Secondary) ||
+        card.currentStateName != forge.card.CardStateName.Original
+    ) {
+        return emptyList()
+    }
+    return card
+        .getState(forge.card.CardStateName.Secondary)
+        .nonManaAbilities
+        .filter { it.isSpell && !(it.isAdventure && card.isOnAdventure) }
 }
 
 private fun appendKeywordHandSAs(
