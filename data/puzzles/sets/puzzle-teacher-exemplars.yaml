@@ -339,12 +339,30 @@ scenarios:
           winner: opponent
           loser: ours
           max_passes: 20
-  - id: fling-measure-twice
-    puzzle: fling-measure-twice
+  - id: fling-smallest-throw
+    puzzle: fling-smallest-throw
     native:
       skip: Headless puzzle-design check.
-    run: grow the Bear before sacrificing it to Fling for exact lethal
-    expect: Fling deals five damage while Spider keeps combat from being a shortcut
+    run: grow Perilous Myr before throwing it so its death trigger supplies the last two damage
+    expect: four Fling damage plus two death-trigger damage wins through the Spider
+    steps:
+      - cast: Giant Growth
+      - target: { side: ours, zone: battlefield, card: Perilous Myr }
+      - resolve_stack: {}
+      - cast: Fling
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Perilous Myr] }
+      - target: opponent
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+  - id: fling-wrong-offering
+    puzzle: fling-smallest-throw
+    native:
+      skip: Headless puzzle-design check.
+    run: grow and sacrifice the larger Bear, overlooking Myr's death damage
+    expect: Fling deals five damage and the opponent survives at one
     steps:
       - cast: Giant Growth
       - target: { side: ours, zone: battlefield, card: Grizzly Bears }
@@ -352,23 +370,9 @@ scenarios:
       - cast: Fling
       - target: opponent
       - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
-      - pass_until:
-          winner: ours
-          loser: opponent
-          max_passes: 10
-  - id: fling-too-early
-    puzzle: fling-measure-twice
-    native:
-      skip: Headless puzzle-design check.
-    run: sacrifice the Bear before it has been grown
-    expect: Fling deals only two damage and the opponent survives
-    steps:
-      - cast: Fling
-      - target: opponent
-      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
       - resolve_stack: {}
       - expect:
-          opponent_life: 3
+          opponent_life: 1
       - pass_until:
           winner: opponent
           loser: ours
