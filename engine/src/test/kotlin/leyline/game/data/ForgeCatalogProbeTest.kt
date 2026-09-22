@@ -69,19 +69,9 @@ class ForgeCatalogProbeTest :
                 "humanhand=Thunder Magic\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain\naibattlefield=Grizzly Bears",
             ) { repo ->
                 val prompt = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
-                val option = prompt.getCastingTimeOptionReq(0)
-                val modal = option.modalReq
-                assertSoftly {
-                    option.ctoId shouldBe 2
-                    option.playerIdToPrompt shouldBe 1
-                    option.grpId shouldBe repo.findGrpIdByName("Thunder Magic")
-                    modal.minSel shouldBe 1
-                    modal.maxSel shouldBe 1
-                    modal.modalOptionsCount shouldBe 3
-                    modal.excludedOptionsCount shouldBe 0
-                    repo.findAbilityLocalization(modal.abilityGrpId)?.text.isNullOrBlank() shouldBe false
-                    modal.modalOptionsList.all { !repo.findAbilityLocalization(it.grpId)?.text.isNullOrBlank() } shouldBe true
-                }
+                val modal = prompt.getCastingTimeOptionReq(0).modalReq
+                modal.modalOptionsCount shouldBe 3
+                check(modal.modalOptionsList.all { !repo.findAbilityLocalization(it.grpId)?.text.isNullOrBlank() })
                 modal
                     .getModalOptions(1)
                     .getModeCost(0)

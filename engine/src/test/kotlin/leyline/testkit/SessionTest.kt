@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
 import leyline.game.bundle.InvariantSelection
+import leyline.game.data.ForgeCardRepository
 import leyline.tooling.headless.ScriptedAction
 import leyline.tooling.headless.dumpDiagnostics
 import kotlin.time.Duration
@@ -72,6 +73,7 @@ abstract class SessionTest(
      *
      * [timeout] bounds a test that can hang the engine loop rather than fail.
      * [fullControl] holds priority for tests that manually inspect stack or phase state.
+     * [forgeCatalog] resolves generated card identities without per-card test fixtures.
      *
      * When the block throws, harness diagnostics are printed before the
      * failure propagates; the harness is shut down either way.
@@ -92,6 +94,7 @@ abstract class SessionTest(
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
         aiScript: List<ScriptedAction>? = null,
         fullControl: Boolean = false,
+        forgeCatalog: Boolean = false,
         timeout: Duration? = null,
         block: suspend MatchFlowHarness.() -> Unit,
     ) {
@@ -114,6 +117,7 @@ abstract class SessionTest(
                     validating = validating,
                     validation = validation,
                     fullControl = fullControl,
+                    cardRepositoryOverride = if (forgeCatalog) ForgeCardRepository.open() else null,
                 )
             try {
                 harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)

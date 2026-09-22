@@ -5,9 +5,35 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
+import leyline.testkit.detailInt
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+
+private val TIERED_THUNDER_MAGIC_PUZZLE =
+    """
+    [metadata]
+    Name:Tiered Thunder Magic
+    Goal:Destroy Specified Creature
+    Turns:3
+    Difficulty:Easy
+    Description:Cast Thunder Magic and choose the middle Tiered option to deal 4 damage to Grizzly Bears.
+    Targets:Grizzly Bears
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+
+    humanbattlefield=Mountain;Mountain;Mountain;Mountain
+    humanhand=Thunder Magic
+    humanlibrary=Mountain
+    aibattlefield=Grizzly Bears
+    ailibrary=Forest
+    """.trimIndent()
 
 class TieredModalCostTest :
     SessionTest({
@@ -57,6 +83,49 @@ class TieredModalCostTest :
             assertSoftly {
                 "Grizzly Bears" should beInHandOf(human)
                 "Ice Magic" should beInGraveyardOf(human)
+            }
+        }
+
+        session(
+            "Thunder Magic selected middle tier pays the tier cost and resolves",
+            puzzle = TIERED_THUNDER_MAGIC_PUZZLE,
+            forgeCatalog = true,
+        ) {
+            val cto = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
+            val option = cto.getCastingTimeOptionReq(0)
+            val modalReq = option.modalReq
+            val middleTier = modalReq.getModalOptions(1)
+            val repo = bridge.cardRepository
+
+            assertSoftly {
+                option.ctoId shouldBe 2
+                option.playerIdToPrompt shouldBe 1
+                option.grpId shouldBe repo.findGrpIdByName("Thunder Magic")
+                modalReq.minSel shouldBe 1
+                modalReq.maxSel shouldBe 1
+                modalReq.modalOptionsCount shouldBe 3
+                modalReq.excludedOptionsCount shouldBe 0
+                repo.findAbilityLocalization(modalReq.abilityGrpId)?.text.isNullOrBlank() shouldBe false
+                modalReq.modalOptionsList.all { !repo.findAbilityLocalization(it.grpId)?.text.isNullOrBlank() } shouldBe true
+                middleTier.getModeCost(0).manaCost.count shouldBe 3
+            }
+
+            val paymentStart = messageSnapshot()
+            respondModalChoice(listOf(middleTier.grpId))
+            selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
+            passUntilResolved()
+            val tappedLandsDuringPayment =
+                messagesSince(paymentStart)
+                    .annotationsOfType(AnnotationType.TappedUntappedPermanent)
+                    .filter { it.detailInt("tapped") == 1 }
+                    .flatMap { it.affectedIdsList }
+                    .distinct()
+                    .size
+
+            assertSoftly {
+                "Grizzly Bears" should beInGraveyardOf(ai)
+                "Thunder Magic" should beInGraveyardOf(human)
+                tappedLandsDuringPayment shouldBe 4
             }
         }
     })
