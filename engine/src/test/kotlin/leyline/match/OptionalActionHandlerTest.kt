@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.hand
 
 class OptionalActionHandlerTest :
     SessionTest({
@@ -28,6 +29,9 @@ class OptionalActionHandlerTest :
             passUntil(maxPasses = 4) { allMessages.any { it.hasOptionalActionMessage() } } shouldBe true
 
             respondToOptionalAction(accept = true)
+            allMessages.last().hasSelectNReq() shouldBe true
+            respondToSelectN(listOf(human.hand.iid("Forest")))
+            human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Forest"
             val search = allMessages.lastOrNull { it.hasSearchReq() }?.searchReq ?: error("Expected chained SearchReq")
 
             search.itemsSoughtCount shouldBe 1
