@@ -17,7 +17,6 @@ import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
-import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -26,6 +25,7 @@ import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge

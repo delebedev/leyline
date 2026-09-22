@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import forge.game.spellability.SpellAbility
 import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import kotlin.collections.iterator
@@ -308,4 +309,12 @@ object KeywordAbilityIds {
         )
 
     fun fromForgeAltCostName(name: String): Int? = FORGE_ALT_COST_KEYWORD_IDS[name.uppercase()]
+}
+
+/** Use the granted keyword definition retained by Forge across casting and resolution. */
+internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? {
+    val keyword = sa.keyword ?: sa.trigger?.keyword ?: return null
+    if (keyword.isIntrinsic || keyword.static == null) return null
+    val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return null
+    return findGrantedKeywordAbilityGrpId(sourceGrpId, keyword.original)
 }

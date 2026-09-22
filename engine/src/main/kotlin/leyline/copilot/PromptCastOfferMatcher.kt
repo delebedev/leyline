@@ -3,8 +3,8 @@ package leyline.copilot
 import forge.card.CardStateName
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
-import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.game.data.CardRepository
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.CastDisplayCost
 import leyline.game.mapping.CastRails

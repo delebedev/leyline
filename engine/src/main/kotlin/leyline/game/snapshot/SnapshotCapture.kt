@@ -3,7 +3,6 @@ package leyline.game.snapshot
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
-import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -12,6 +11,7 @@ import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds

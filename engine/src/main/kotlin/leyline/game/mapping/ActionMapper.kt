@@ -12,7 +12,6 @@ import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
-import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -22,6 +21,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.snapshot.AltCostBinding
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
