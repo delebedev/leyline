@@ -46,13 +46,15 @@ object FixtureCardLoader {
         repo: InMemoryCardRepository,
         cardName: String,
     ): Int {
-        repo.findGrpIdByName(cardName)?.let { return it }
-
+        // Decide from the fixture inventory, not from [repo]: a repository with
+        // a catalog-backed fallback would otherwise answer for a fixture-pinned
+        // card before its identity rows are registered.
         val closure = findClosure(cardName)
         if (closure.isEmpty()) {
-            // No fixture. If Forge has no entry either, treat as engine-internal
-            // (Puzzle Goal, DetachedCardEffect, etc.) — return 0 quietly. If
-            // Forge knows the name, the card is real and a fixture is missing.
+            // No fixture. A catalog-backed repo resolves the name directly; a
+            // plain in-memory repo cannot. If Forge knows the name, the card is
+            // real and a fixture is missing.
+            repo.findGrpIdByName(cardName)?.let { return it }
             if (forgeHas(cardName)) {
                 error(
                     "No fixture for '$cardName' under engine/src/test/resources/test-cards/. " +

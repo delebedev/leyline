@@ -1,18 +1,21 @@
 package leyline.tooling.headless
 
-import leyline.game.InMemoryCardRepository
-
 /**
- * Registers test deck cards in the shared [InMemoryCardRepository].
+ * Registers test cards in the shared in-memory repository.
  *
- * Routes through [FixtureCardLoader]: client identity (grpId, ability ids,
- * tokens, linked faces) comes from per-card YAML fixtures under
- * `engine/src/test/resources/test-cards/`; rules data (P/T, types, mana,
- * etc.) is derived from Forge's `CardRules` at test startup. No SQLite needed.
+ * Routes through [FixtureCardLoader]: a card that still has a per-card YAML
+ * fixture under `engine/src/test/resources/test-cards/` keeps its pinned
+ * client identity, while every other card resolves through
+ * [ForgeCatalogTestRepository]'s catalog-scoped identities. Rules data (P/T,
+ * types, mana, etc.) comes from Forge's `CardRules` either way. No SQLite
+ * needed.
  */
 object TestCardRegistry {
-    /** Shared repository for all tests. */
-    val repo = InMemoryCardRepository()
+    /**
+     * Shared repository for all tests. Fixture-registered rows win; the
+     * Forge catalog fills in every card without a fixture.
+     */
+    val repo = ForgeCatalogTestRepository()
 
     /** Default deck card names (GameBridge.DEFAULT_DECK). */
     private val DEFAULT_DECK_CARDS =
