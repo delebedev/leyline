@@ -181,7 +181,6 @@ scenarios:
     puzzle: bite-down
     run: cast Bite Down using Grizzly Bears to remove opposing Grizzly Bears
     expect: opposing Grizzly Bears leaves battlefield
-    headless: { card_catalog: forge }
     steps:
       - expect:
           action: { type: cast, card: Bite Down }

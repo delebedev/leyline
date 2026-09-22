@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.detailInt
@@ -15,6 +16,7 @@ import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@FixturePinned
 class OpeningHandLifecycleTest :
     SessionTest({
         session(

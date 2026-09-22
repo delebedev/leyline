@@ -2,6 +2,7 @@ name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
   - id: opening-hand-battlefield-put
+    headless: {card_catalog: fixture}
     deck: [30 Leyline Axe, 30 Forest]
     opponent_deck: [60 Plains]
     native: { skip: constructed-deck startup is not puzzle injectable }
@@ -161,6 +162,7 @@ scenarios:
             - annotation_seen: AbilityExhausted
             - stack_empty: true
   - id: power-up-serpent-specialist
+    headless: {card_catalog: fixture}
     puzzle: power-up-serpent-specialist
     run: wait until the starting Serpent Specialist is not newly entered, then activate Power Up once for its full cost
     expect: Serpent Specialist becomes exactly 3/3 and its Power Up ability is exhausted
@@ -205,6 +207,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Human Warrior Token }
             - stack_empty: true
   - id: case-gateway-express-lifecycle
+    headless: {card_catalog: fixture}
     puzzle: case-gateway-express-lifecycle
     run: attack with three Savannah Lions and advance to the Case solve trigger
     expect: solve progress reaches three, the solve ability resolves, and the solved power effect is emitted
@@ -419,6 +422,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Geological Appraiser }
             - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
   - id: discover-hidden-courtyard
+    headless: {card_catalog: fixture}
     puzzle: discover-hidden-courtyard
     run: activate Hidden Courtyard, accept the discovered Llanowar Elves cast
     expect: Hidden Courtyard is sacrificed and Llanowar Elves resolves to the battlefield
@@ -588,6 +592,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Enduring Bondwarden }
             - battlefield_stats_at_least: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
   - id: expend-roughshod-duo
+    headless: {card_catalog: fixture}
     puzzle: expend-roughshod-duo
     run: cast Teapot Slinger to expend four, then target Grizzly Bears with Roughshod Duo
     expect: ExpendedMana is visible and Grizzly Bears becomes 3/3 from the Expend trigger
@@ -609,6 +614,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Teapot Slinger }
             - stack_empty: true
   - id: devotion-heliod
+    headless: {card_catalog: fixture}
     puzzle: devotion-heliod
     run: cast Savannah Lions to raise white devotion from four to five
     expect: Devotion reaches five and Heliod becomes a 5/5 creature
@@ -624,6 +630,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Savannah Lions }
             - stack_empty: true
   - id: descend-everflowing-well
+    headless: {card_catalog: fixture}
     puzzle: descend-everflowing-well
     run: discard the eighth permanent card, then advance to the Descend 8 upkeep trigger
     expect: Descend displays eight of eight and The Everflowing Well transforms
@@ -646,6 +653,7 @@ scenarios:
             - zone_not_contains: { side: ours, zone: battlefield, card: The Everflowing Well }
             - stack_empty: true
   - id: spell-count-reverberating-summons
+    headless: {card_catalog: fixture}
     puzzle: spell-count-reverberating-summons
     run: cast Soul Warden and Savannah Lions, then advance to combat
     expect: the spell count reaches two and Reverberating Summons becomes a 3/3 Monk
@@ -665,6 +673,7 @@ scenarios:
             - battlefield_stats: { side: ours, card: Reverberating Summons, power: 3, toughness: 3 }
             - stack_empty: true
   - id: creature-death-emeritus
+    headless: {card_catalog: fixture}
     puzzle: creature-death-emeritus
     run: cast two Shocks to destroy two opposing creatures
     expect: NumberOfCreaturesDiedThisTurn reaches two and both creatures are in the graveyard
@@ -691,6 +700,7 @@ scenarios:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Soul Warden }
             - stack_empty: true
   - id: enchantment-count-hallowed-haunting
+    headless: {card_catalog: fixture}
     puzzle: enchantment-count-hallowed-haunting
     run: cast the seventh enchantment and target the opposing creature
     expect: NumberOfEnchantmentYouControl reaches seven
@@ -890,6 +900,7 @@ scenarios:
             - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
             - stack_empty: true
   - id: retrace-waves-of-aggression
+    headless: {card_catalog: fixture}
     puzzle: retrace-waves-of-aggression
     run: cast Waves of Aggression from graveyard with Retrace and auto-pay the only land discard
     expect: Retrace exposes a graveyard cast and pays the land-discard additional cost
@@ -937,6 +948,7 @@ scenarios:
             - zone_count_at_least: { side: ours, zone: hand, count: 3 }
             - stack_empty: true
   - id: investigate-novice-inspector
+    headless: {card_catalog: fixture}
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw
     expect: Clue leaves battlefield and a card is drawn

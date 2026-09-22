@@ -38,7 +38,6 @@ class LearnLessonTest :
         session(
             "Learn emits SelectNReq with sideboard Lesson candidate",
             puzzleFile = learnPuzzle,
-            forgeCatalog = true,
         ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
@@ -108,7 +107,6 @@ class LearnLessonTest :
                 humansideboard=Environmental Sciences
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
-            forgeCatalog = true,
         ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val message = allMessages.last { it.hasSelectNReq() }
@@ -128,7 +126,6 @@ class LearnLessonTest :
         session(
             "selecting sideboard Lesson reveals and moves it to hand",
             puzzleFile = learnPuzzle,
-            forgeCatalog = true,
         ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)

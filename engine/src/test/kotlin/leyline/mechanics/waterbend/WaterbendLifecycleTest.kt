@@ -13,6 +13,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.ClientAccumulator
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
@@ -27,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
 import wotc.mtgo.gre.external.messaging.Messages.PayCostsReq
 
+@FixturePinned
 class WaterbendLifecycleTest :
     SessionTest({
         session(

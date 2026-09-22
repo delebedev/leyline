@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.mapping.PromptIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -19,6 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AttackState
 
 private const val NINJUTSU_GRP_ID = 5341
 
+@FixturePinned
 class NinjutsuPuzzleTest :
     SessionTest({
         beforeSpec {

@@ -21,6 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * Validates: payCostToPreventEffect routes through OptionalActionMessage,
  * life payment works correctly, tapped/untapped state matches decision.
  */
+@FixturePinned
 class ShockLandEtbTest :
     SessionTest({
 

@@ -2,6 +2,7 @@ name: max-speed
 description: Max Speed continuous ability projection and activation smoke suite.
 scenarios:
   - id: gas-guzzler-speed-four
+    headless: {card_catalog: fixture}
     puzzle: max-speed-gas-guzzler
     run: cast Shock at the opponent, sacrifice Walking Corpse to Gas Guzzler, draw Grizzly Bears, then Shock Gas Guzzler
     expect: Gas Guzzler is unavailable below speed four, gains its stable max-speed activation at speed four, draws after the sacrifice, and retires the grant when it leaves

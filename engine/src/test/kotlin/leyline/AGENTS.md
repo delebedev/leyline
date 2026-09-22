@@ -85,14 +85,23 @@ For puzzle state limits and setup-action choices, read
 
 ## Reuse test cards
 
-Prefer registered test-card fixtures for setup and expected results. Add
-`engine/src/test/resources/test-cards/<card>.yaml` only when no registered card
-exercises the required behavior.
+Card identity comes from the Forge-backed catalog by default. Naming a card is
+enough: `SessionTest` and headless acceptance resolve its client grpId, ability
+ids, faces, and tokens from Forge definitions, so ordinary behavioral coverage
+needs no per-card YAML. The shared repository
+(`TestCardRegistry.repo`) layers any retained fixture over that catalog.
 
-Use YAML fixtures for ordinary metadata. Use handwritten registration only
-when the fixture schema cannot express required runtime ability IDs. Use
-`TestCardInjector.inject(...)` to place an already registered card into a live
-game; it returns `InjectedCard(card, grpId, instanceId, forgeCardId)`.
+Keep `engine/src/test/resources/test-cards/<card>.yaml` only when the test
+asserts exact client identity the catalog cannot reproduce (a literal grpId or
+ability id). Annotate a `SessionTest` spec that pins fixtures with
+`@FixturePinned`; an acceptance scenario sets
+`headless: {card_catalog: fixture}`. Those specs then resolve through the
+retained fixtures, so never delete a fixture a pinned spec relies on.
+
+Use handwritten registration only when the fixture schema cannot express
+required runtime ability IDs. Use `TestCardInjector.inject(...)` to place an
+already registered card into a live game; it returns
+`InjectedCard(card, grpId, instanceId, forgeCardId)`.
 
 ## Write assertions that fail for the claimed reason
 

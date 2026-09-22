@@ -106,6 +106,7 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Mardu Outrider }
             - zone_contains: { side: ours, zone: graveyard, card: Mountain }
   - id: jump-start-radical-idea
+    headless: {card_catalog: fixture}
     puzzle: jump-start-radical-idea
     run: cast Radical Idea from graveyard by discarding Coral Merfolk
     expect: Coral Merfolk is discarded and Radical Idea leaves graveyard

@@ -10,6 +10,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -54,6 +55,7 @@ private val PRINCE_FLICKER_PUZZLE =
  * affectedId/affectorId pointing at the ability instanceId (not the card),
  * as the protocol requires.
  */
+@FixturePinned
 class ModalETBFlowTest :
     SessionTest({
 

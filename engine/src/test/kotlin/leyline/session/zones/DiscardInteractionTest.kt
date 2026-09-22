@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.acceptSettled
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.SeatId
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.assertAccumulatorConsistent
@@ -23,6 +24,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * Board-level discard annotation tests would go in a BoardTest file.
  */
+@FixturePinned
 class DiscardInteractionTest :
     SessionTest({
 

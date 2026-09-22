@@ -41,7 +41,6 @@ class CyclingPuzzleTest :
         session(
             "Miscalculation cycle from hand draws + discards",
             puzzle = CYCLE_MISCALCULATION_PUZZLE,
-            forgeCatalog = true,
         ) {
             // Pre-cycle invariants
             human

@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -21,6 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
 
+@FixturePinned
 class ManaPoolSessionTest :
     SessionTest({
         // Racers' Ring isn't in the default deck registry — register it before

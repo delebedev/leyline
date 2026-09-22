@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -32,6 +33,7 @@ private val PUZZLE =
     ailibrary=Mountain;Mountain;Mountain
     """.trimIndent()
 
+@FixturePinned
 class CleaveLifecycleTest :
     SessionTest({
         session("cleaved Path of Peril uses alt-cost rail and applies full board wipe", puzzle = PUZZLE) {

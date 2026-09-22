@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.beInGraveyardOf
@@ -35,6 +36,7 @@ private val TIERED_THUNDER_MAGIC_PUZZLE =
     ailibrary=Forest
     """.trimIndent()
 
+@FixturePinned
 class TieredModalCostTest :
     SessionTest({
 

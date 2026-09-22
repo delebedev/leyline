@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
@@ -23,6 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
  *
  * Board-level action field tests live in [ActivatedAbilityTest] (BoardTest).
  */
+@FixturePinned
 class ActivatedAbilityInteractionTest :
     SessionTest({
         fun MatchFlowHarness.enableStackAutoResolve() {

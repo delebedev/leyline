@@ -691,7 +691,6 @@ class TargetingInteractionTest :
         session(
             "Bite Down — resolution state: damage, destroy, target in GY",
             puzzleFile = "data/puzzles/bite-down.pzl",
-            forgeCatalog = true,
         ) {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
@@ -729,7 +728,6 @@ class TargetingInteractionTest :
         session(
             "Bite Down — two TargetSpec persistent annotations, cleaned up on resolve",
             puzzleFile = "data/puzzles/bite-down.pzl",
-            forgeCatalog = true,
         ) {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")

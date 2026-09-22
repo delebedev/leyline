@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.InstanceId
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
@@ -23,6 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+@FixturePinned
 class OmenLifecycleTest :
     SessionTest({
         fun AnnotationInfo.isType(type: AnnotationType): Boolean = type in typeList

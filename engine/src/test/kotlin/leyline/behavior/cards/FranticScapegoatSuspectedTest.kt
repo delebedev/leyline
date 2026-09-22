@@ -44,6 +44,7 @@ private const val SCAPEGOAT_TRANSFER_ABILITY_GRP_ID = 170504
 
 private fun AnnotationInfo.detailInts(key: String): List<Int> = detailsList.filter { it.key == key }.flatMap { it.valueInt32List }
 
+@FixturePinned
 class FranticScapegoatSuspectedTest :
     SessionTest({
         session("Frantic Scapegoat moves Suspected to the chosen entering creature", puzzle = PUZZLE) {

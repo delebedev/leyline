@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.annotation
@@ -17,6 +18,7 @@ import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@FixturePinned
 class EnlistTrainingLifecycleTest :
     SessionTest({
         session("Training attack trigger resolves as keyword counter ability", puzzle = trainingPuzzle) {

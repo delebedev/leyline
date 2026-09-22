@@ -8,6 +8,7 @@ import leyline.BoardTag
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
@@ -79,6 +80,7 @@ private val DISCOVER_PUZZLE =
  * The free-cast decision carries no CastingTimeOption row. Accepting the cast
  * creates the row on the resulting stack spell.
  */
+@FixturePinned
 class CascadeDiscoverProjectionTest :
     SessionTest({
 

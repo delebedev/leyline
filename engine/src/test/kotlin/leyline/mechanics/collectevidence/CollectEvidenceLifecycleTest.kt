@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.detail
@@ -38,6 +39,7 @@ private val PUZZLE =
     ailibrary=Mountain;Mountain;Mountain
     """.trimIndent()
 
+@FixturePinned
 class CollectEvidenceLifecycleTest :
     SessionTest({
         session("Behind the Mask pays Collect Evidence through weighted PayCostsReq", puzzle = PUZZLE) {
