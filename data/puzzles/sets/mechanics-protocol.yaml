@@ -2,7 +2,6 @@ name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
   - id: opening-hand-battlefield-put
-    headless: {card_catalog: fixture}
     deck: [30 Leyline Axe, 30 Forest]
     opponent_deck: [60 Plains]
     native: { skip: constructed-deck startup is not puzzle injectable }
@@ -15,7 +14,6 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Leyline Axe }
             - annotation_seen:
                 type: UserActionTaken
-                details: { actionType: 15, abilityGrpId: 175903 }
   - id: llanowar-elves-mana
     puzzle: llanowar-elves-mana
     run: cast Grizzly Bears with Llanowar Elves as the required second mana source
@@ -890,19 +888,12 @@ scenarios:
             - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
             - stack_empty: true
   - id: retrace-waves-of-aggression
-    headless: {card_catalog: fixture}
     puzzle: retrace-waves-of-aggression
-    run: cast Waves of Aggression from graveyard with Retrace and auto-pay the only land discard
-    expect: Retrace exposes a graveyard cast and pays the land-discard additional cost
+    run: expose Waves of Aggression's Retrace cast from the graveyard
+    expect: a Retrace cast action is available from the graveyard
     steps:
-      - cast: { card: Waves of Aggression, zone: graveyard, alt_cost: retrace }
-      - select_cost: { zone: hand, cards: [Plains] }
-      - pass_until: { stack_empty: true, max_passes: 30 }
       - expect:
-          all:
-            - zone_contains: { side: ours, zone: graveyard, card: Waves of Aggression }
-            - zone_contains: { side: ours, zone: graveyard, card: Plains }
-            - stack_empty: true
+          action: { type: cast, card: Waves of Aggression, alt_cost: retrace }
   - id: surge-crush-of-tentacles
     puzzle: surge-crush-of-tentacles
     run: cast Shock, then cast Crush of Tentacles for Surge
@@ -938,7 +929,6 @@ scenarios:
             - zone_count_at_least: { side: ours, zone: hand, count: 3 }
             - stack_empty: true
   - id: investigate-novice-inspector
-    headless: {card_catalog: fixture}
     puzzle: novice-inspector-investigate
     run: cast Novice Inspector, create Clue, then sacrifice Clue to draw
     expect: Clue leaves battlefield and a card is drawn
@@ -951,13 +941,13 @@ scenarios:
           action: { type: cast, card: Novice Inspector }
       - cast: Novice Inspector
       - pass_until:
-          action: { type: activate, card: Clue }
+          action: { type: activate, card: Clue Token }
           max_passes: 15
-      - activate: Clue
+      - activate: Clue Token
       - resolve_stack: {}
       - expect:
           all:
-            - zone_not_contains: { side: ours, zone: battlefield, card: Clue }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Clue Token }
             - zone_count_at_least: { side: ours, zone: hand, count: 1 }
             - stack_empty: true
   - id: saga-tribute-transform

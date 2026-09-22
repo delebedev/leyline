@@ -196,6 +196,13 @@ class ForgeCatalogProbeTest :
                 }
             }
         }
+        test("intrinsic alternative costs retain their keyword identity") {
+            val repo = ForgeCardRepository.open()
+            val cardId = requireNotNull(repo.findGrpIdByName("Path of Peril"))
+            val cleaveId = requireNotNull(repo.findKeywordAbilityGrpId(cardId, KeywordAbilityIds.CLEAVE))
+
+            repo.findAbilityInfo(cleaveId)?.manaCost?.isNotEmpty() shouldBe true
+        }
         test("adventure resolves into exile and the creature is then cast from exile") {
             probe(
                 "adventure",

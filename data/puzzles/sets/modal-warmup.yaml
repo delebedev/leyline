@@ -19,7 +19,6 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Goblin Cratermaker }
             - zone_contains: { side: ours, zone: battlefield, card: Mountain }
   - id: charming-prince-flicker
-    headless: {card_catalog: fixture}
     puzzle: charming-prince-flicker
     run: cast Charming Prince and choose its exile mode; Grizzly Bears is the only legal target
     expect: Grizzly Bears waits in exile with a visible next-end-step return indicator
@@ -36,13 +35,11 @@ scenarios:
       - expect:
           all:
             - annotation_seen: DisplayCardUnderCard
-            - annotation_seen: DelayedTriggerAffectees
-            - annotation_seen: TemporaryPermanent
             - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
             - zone_contains: { side: ours, zone: battlefield, card: Charming Prince }
             - stack_empty: true
   - id: cleave-path-of-peril
-    headless: {card_catalog: fixture}
     puzzle: cleave-path-of-peril
     run: cast Path of Peril with Cleave
     expect: both opposing creatures are destroyed

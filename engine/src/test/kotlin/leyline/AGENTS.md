@@ -94,9 +94,9 @@ needs no per-card YAML. The shared repository
 Keep `engine/src/test/resources/test-cards/<card>.yaml` only when the test
 asserts exact client identity the catalog cannot reproduce (a literal grpId or
 ability id). Annotate a `SessionTest` spec that pins fixtures with
-`@FixturePinned`; an acceptance scenario sets
-`headless: {card_catalog: fixture}`. Those specs then resolve through the
-retained fixtures, so never delete a fixture a pinned spec relies on.
+`@FixturePinned`. Those specs then resolve through the retained fixtures, so
+never delete a fixture a pinned spec relies on. Acceptance always uses the
+Forge-backed catalog and asserts semantic behavior rather than exact identity.
 
 Use handwritten registration only when the fixture schema cannot express
 required runtime ability IDs. Use `TestCardInjector.inject(...)` to place an
