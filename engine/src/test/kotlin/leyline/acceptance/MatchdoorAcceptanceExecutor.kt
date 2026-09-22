@@ -448,15 +448,18 @@ private class ScenarioRun(
     }
 
     private fun modalChoice(step: ModalChoiceStep) {
-        val option =
+        val options =
             harness.allMessages
                 .lastOrNull { it.hasCastingTimeOptionsReq() }
                 ?.castingTimeOptionsReq
                 ?.castingTimeOptionReqList
                 ?.flatMap { it.modalReq.modalOptionsList }
-                ?.getOrNull(step.index)
-                ?: error("$context missing modal option index ${step.index}")
-        harness.respondModalChoice(listOf(option.grpId))
+                ?: error("$context missing modal prompt")
+        harness.respondModalChoice(
+            step.indices.map { index ->
+                options.getOrNull(index)?.grpId ?: error("$context missing modal option index $index")
+            },
+        )
     }
 
     private fun staticChoice(step: StaticChoiceStep) {

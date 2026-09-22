@@ -1,0 +1,19 @@
+# Shrapnel Slinger's reflexive trigger requires a real creature sacrifice.
+# Grizzly Bears supplies the cost; Sol Ring is the only opposing artifact.
+[metadata]
+Name:Reflexive sacrifice trigger
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Cast Shrapnel Slinger, sacrifice Grizzly Bears and destroy Sol Ring.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Mountain;Mountain;Grizzly Bears
+humanhand=Shrapnel Slinger
+humanlibrary=Plains;Plains;Plains;Plains
+aibattlefield=Sol Ring
+ailibrary=Plains;Plains;Plains;Plains

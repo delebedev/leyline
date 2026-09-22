@@ -243,7 +243,12 @@ object AcceptanceSuiteLoader {
         context: String,
     ): ModalChoiceStep {
         val map = raw.asMap(context)
-        return ModalChoiceStep(index = map.requiredInt("index", context))
+        require(("index" in map) xor ("indices" in map)) { "$context requires index or indices" }
+        val indices =
+            map.optionalList("indices", context)?.map { it.asInt(context) }
+                ?: listOf(map.requiredInt("index", context))
+        require(indices.isNotEmpty() && indices.all { it >= 0 }) { "$context requires nonnegative modal indices" }
+        return ModalChoiceStep(indices)
     }
 
     private fun parseStaticChoice(

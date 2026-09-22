@@ -1,0 +1,18 @@
+# Caesar's attack trigger reaches its modal effect through a reflexive trigger.
+# Grizzly Bears supplies the sacrifice. Empty opposing zones prevent responses.
+# Choosing tokens and draw must sacrifice the Bears, create two attackers and draw once.
+[metadata]
+Name:Reflexive modal attack trigger
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Attack, sacrifice Grizzly Bears, then choose Caesar's token and draw modes.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Caesar, Legion's Emperor;Grizzly Bears
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains

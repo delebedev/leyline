@@ -11,7 +11,6 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityKey
-import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -1563,19 +1562,6 @@ class PlayerController(
                 .firstOrNull()
                 ?.sourceCard
                 ?.id
-
-    override fun playSpellAbilityNoStack(
-        effectSA: SpellAbility,
-        mayChoseNewTargets: Boolean,
-    ) {
-        // Direct resolve — this is called by the engine for triggered abilities,
-        // replacement effects, and other no-stack effects.
-        // Must use AbilityUtils.resolve (not raw effectSA.resolve()) so that
-        // chained sub-abilities execute — e.g. CharmEffect chains the chosen
-        // mode as a sub, and the sub must resolve after the parent no-op.
-        effectSA.activatingPlayer = player
-        AbilityUtils.resolve(effectSA)
-    }
 
     override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
         usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)

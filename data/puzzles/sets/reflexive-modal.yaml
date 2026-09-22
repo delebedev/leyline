@@ -1,0 +1,56 @@
+name: reflexive-modal
+description: Modal effects reached through a reflexive trigger.
+scenarios:
+  - id: caesar-sacrifice-two-modes
+    puzzle: reflexive-modal-caesar
+    native: { skip: Caesar is unavailable in the native card catalog. }
+    run: attack with Caesar, sacrifice Grizzly Bears and choose the token and draw modes
+    expect: two Soldier tokens enter attacking, one card is drawn and play continues
+    steps:
+      - attack: { cards: ["Caesar, Legion's Emperor"] }
+      - optional_action: { accept: true }
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - modal_choice: { indices: [0, 1] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: hand, card: Plains }
+            - zone_contains: { side: ours, zone: battlefield, card: Soldier Token }
+            - our_life: 19
+            - stack_empty: true
+  - id: caesar-decline-sacrifice
+    puzzle: reflexive-modal-caesar
+    native: { skip: Caesar is unavailable in the native card catalog. }
+    run: attack with Caesar and decline the sacrifice
+    expect: Grizzly Bears remains and no modal effect changes our hand or life
+    steps:
+      - attack: { cards: ["Caesar, Legion's Emperor"] }
+      - optional_action: { accept: false }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_not_contains: { side: ours, zone: hand, card: Plains }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Soldier Token }
+            - our_life: 20
+            - stack_empty: true
+  - id: slinger-sacrifice-before-destroy
+    puzzle: reflexive-sacrifice-slinger
+    run: cast Shrapnel Slinger, sacrifice Grizzly Bears and target Sol Ring
+    expect: the sacrificed creature and opposing artifact reach their graveyards
+    steps:
+      - cast: Shrapnel Slinger
+      - optional_action: { accept: true }
+      - select_cost: { zone: battlefield, cards: [Grizzly Bears] }
+      - pass_until: { prompt: SelectTargetsReq }
+      - target: { side: opponent, zone: battlefield, card: Sol Ring }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Shrapnel Slinger }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: graveyard, card: Sol Ring }
+            - stack_empty: true

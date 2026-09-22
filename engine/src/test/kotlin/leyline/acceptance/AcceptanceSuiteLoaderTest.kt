@@ -11,6 +11,14 @@ class AcceptanceSuiteLoaderTest :
     FunSpec({
         tags(UnitTag)
 
+        test("parses multiple modal choices") {
+            val scenario = AcceptanceSuiteLoader.load("reflexive-modal").scenarios.first()
+            scenario.steps
+                .filterIsInstance<ModalChoiceStep>()
+                .single()
+                .indices shouldBe listOf(0, 1)
+        }
+
         test("parses backend-neutral executable steps") {
             val suite =
                 AcceptanceSuiteLoader.loadFromText(
@@ -76,7 +84,7 @@ class AcceptanceSuiteLoaderTest :
                             AcceptanceManaTypeChoice.Red,
                         ),
                     )
-                scenario.steps[5] shouldBe ModalChoiceStep(0)
+                scenario.steps[5] shouldBe ModalChoiceStep(listOf(0))
                 scenario.steps[6] shouldBe StaticChoiceStep(34)
                 scenario.steps[7] shouldBe OptionalActionStep(accept = true)
                 scenario.steps[8] shouldBe CancelActionStep

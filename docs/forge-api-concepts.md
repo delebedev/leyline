@@ -51,7 +51,7 @@ Prefer Forge helpers that walk or resolve the chain:
 
 - `PlaySpellAbility.playAbility(..., mayChooseTargets = true, ...)` for normal spell play.
 - `setupTargets()` through Forge's play path for targets that are not already set.
-- `AbilityUtils.resolve(effectSA)` for no-stack resolution.
+- `PlaySpellAbility.playSpellAbilityNoStack(...)` for no-stack effects that can carry costs; it preserves payment and resolves the sub-ability chain.
 - `getRootAbility()` or recursive target checks where Forge exposes them.
 
 When the client supplied targets before the Forge play path starts, `sa.targets.isEmpty()` is the stable gate: if targets are already present, do not ask Forge to choose them again.
