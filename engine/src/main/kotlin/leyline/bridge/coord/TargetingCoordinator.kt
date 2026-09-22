@@ -27,6 +27,7 @@ import leyline.bridge.handoff.ResolutionRouteInput
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.SearchSourceValue
 import leyline.bridge.handoff.TapPaymentDescriptor
+import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.interaction.ChooseCardsForEffectContext
 import leyline.bridge.interaction.ChooseCardsForEffectPlanner
 import leyline.bridge.interaction.ChooseEntitiesContext
@@ -51,6 +52,7 @@ import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.SearchShape
+import leyline.game.mapping.ZoneIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -81,6 +83,15 @@ class TargetingCoordinator(
     private val isCastingSpell: () -> Boolean = { false },
     private val currentStackAbilityId: () -> Int? = { null },
 ) {
+    fun cardTargetCandidate(
+        optionIndex: Int,
+        card: Card,
+    ): TargetingCandidateValue.Card? {
+        val zone = card.zone?.zoneType?.let(::revealZone) ?: return null
+        val ownerSeat = if (card.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        return TargetingCandidateValue.Card(optionIndex, ForgeCardId(card.id), ZoneIds.revealZone(zone, ownerSeat))
+    }
+
     private val log = LoggerFactory.getLogger(TargetingCoordinator::class.java)
     private val spellAffectorIids = mutableMapOf<Int, Int>()
 

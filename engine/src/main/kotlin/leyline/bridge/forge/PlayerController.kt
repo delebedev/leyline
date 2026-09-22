@@ -84,7 +84,6 @@ import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
-import leyline.game.mapping.ZoneIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import java.util.function.Predicate
@@ -980,24 +979,13 @@ class PlayerController(
     }
 
     /** Forge list targeting mixes card views from several zones with stack entries. */
-    @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Only client-visible card zones can be offered as targets.
     internal fun listTargetCandidate(
         optionIndex: Int,
         option: Any?,
     ): TargetingCandidateValue? {
         if (option !is CardView || option.zone == ZoneType.Stack) return stackTargetCandidate(optionIndex, option)
         val card = getCard(option) ?: return null
-        val ownerSeat = if (card.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
-        val zoneId =
-            when (card.zone?.zoneType) {
-                ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
-                ZoneType.Exile -> ZoneIds.EXILE
-                ZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
-                ZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
-                ZoneType.Hand -> ZoneIds.handOf(ownerSeat)
-                else -> return null
-            }
-        return TargetingCandidateValue.Card(optionIndex, ForgeCardId(card.id), zoneId)
+        return targetingCoordinator.cardTargetCandidate(optionIndex, card)
     }
 
     internal fun stackTargetCandidate(
