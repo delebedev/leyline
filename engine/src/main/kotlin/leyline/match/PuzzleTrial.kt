@@ -238,13 +238,17 @@ class PuzzleTrial(
         var lastSubmission: String? = null
         var transientSince: Long? = null
         var moveIndex = 0
-        while (true) {
-            stopBeforeDecision(handle, limits, deadline, decisions.size)?.let {
-                if (it.status == PuzzleTrialStatus.Won && moveIndex < moves.size) {
-                    return TrialCompletion(PuzzleTrialStatus.Unsupported, "puzzle won before answer-key move ${moveIndex + 1}")
+
+        fun stop(): TrialCompletion? =
+            stopBeforeDecision(handle, limits, deadline, decisions.size)?.let { completion ->
+                if (completion.status == PuzzleTrialStatus.Won && moveIndex < moves.size) {
+                    TrialCompletion(PuzzleTrialStatus.Unsupported, "puzzle won before answer-key move ${moveIndex + 1}")
+                } else {
+                    completion
                 }
-                return it
             }
+        while (true) {
+            stop()?.let { return it }
 
             val proposal =
                 when {
@@ -252,7 +256,7 @@ class PuzzleTrial(
                     moves.isNotEmpty() -> handle.puzzleProposal(PuzzleMove("pass", ""))
                     else -> handle.copilotProposal()
                 }
-            stopBeforeDecision(handle, limits, deadline, decisions.size)?.let { return it }
+            stop()?.let { return it }
             if (proposal.intent == "unrealizable") {
                 val reason = proposal.reason ?: "copilot returned no usable response"
                 if (reason.isTransientPromptState()) {

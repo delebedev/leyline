@@ -79,6 +79,22 @@ class PuzzleTrialTest :
             check(result.status == PuzzleTrialStatus.Won) { result.toString() }
         }
 
+        test("winning before a claimed later move does not certify the answer key") {
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("premature-win", boltPuzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(
+                        PuzzleMove("cast", "Lightning Bolt"),
+                        PuzzleMove("target", "opponent"),
+                        PuzzleMove("attack", "Grizzly Bears"),
+                    ),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.Unsupported
+            result.reason shouldContain "before answer-key move 3"
+        }
+
         test("an unreachable win stops at its decision budget as inconclusive") {
             val result =
                 PuzzleTrial(runtime(), engineSeed = 42L).run(
