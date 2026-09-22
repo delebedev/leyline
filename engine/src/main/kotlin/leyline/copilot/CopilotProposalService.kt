@@ -4,7 +4,9 @@ import forge.game.card.Card
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
+import leyline.match.PuzzleMove
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
@@ -61,6 +63,109 @@ class CopilotProposalService(
                         CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "consult failed: ${t.message}")
                     }
             stampPrompt(proposal, prompt)
+        }
+
+    /** Resolve a named answer-key move using the live offer, with ordinary defaults between moves. */
+    fun proposePuzzleMove(
+        prompt: GREToClientMessage,
+        move: PuzzleMove,
+    ): CopilotProposal =
+        synchronized(consultationLock) {
+            val decision = puzzleDecision(prompt, move)
+            stampPrompt(
+                decision?.let { proposalFor(it, prompt) }
+                    ?: CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "move is not legal at ${prompt.type}"),
+                prompt,
+            )
+        }
+
+    private fun puzzleDecision(
+        prompt: GREToClientMessage,
+        move: PuzzleMove,
+    ): SimDecision? =
+        when (move.action) {
+            "cast" ->
+                if (prompt.hasActionsAvailableReq()) {
+                    prompt.actionsAvailableReq.actionsList
+                        .singleOrNull { it.actionType == ActionType.Cast && resolver.resolve(it.instanceId).name == move.card }
+                        ?.let(SimDecision::PerformAction)
+                } else {
+                    auxiliaryDecision(prompt)
+                }
+            "target" ->
+                if (prompt.hasSelectTargetsReq()) {
+                    val req = prompt.selectTargetsReq
+                    val candidates =
+                        req.targetsList.flatMap { group ->
+                            group.targetsList.map { group.targetIdx to it.targetInstanceId }
+                        }
+                    val match = candidates.filter { (_, id) -> matchesPuzzleEntity(id, move.card) }
+                    if (match.size != 1) {
+                        null
+                    } else {
+                        TargetSelectionDiff.step(
+                            req,
+                            TargetSelectionDiff.committedTargets(req),
+                            mapOf(match.single().first to listOf(match.single().second)),
+                        )
+                    }
+                } else {
+                    auxiliaryDecision(prompt)
+                }
+            "attack" ->
+                when {
+                    prompt.hasActionsAvailableReq() -> SimDecision.PassPriority
+                    prompt.hasDeclareAttackersReq() -> {
+                        val req = prompt.declareAttackersReq
+                        val ids = req.qualifiedAttackersList.map { it.attackerInstanceId }
+                        val match = ids.filter { matchesPuzzleEntity(it, move.card) }
+                        if (match.size != 1) {
+                            null
+                        } else {
+                            CombatDeclarationDiff.attackerStep(
+                                CombatDeclarationDiff.committedAttackers(req),
+                                setOf(match.single()),
+                            )
+                        }
+                    }
+                    else -> auxiliaryDecision(prompt)
+                }
+            "sacrifice" ->
+                if (prompt.hasPayCostsReq() && prompt.payCostsReq.hasEffectCostReq()) {
+                    val ids = prompt.payCostsReq.effectCostReq.costSelection.idsList
+                    val match = ids.filter { matchesPuzzleEntity(it, move.card) }
+                    match.singleOrNull()?.let { SimDecision.EffectCost(listOf(it)) }
+                } else {
+                    auxiliaryDecision(prompt)
+                }
+            "pass" ->
+                when {
+                    prompt.hasActionsAvailableReq() -> SimDecision.PassPriority
+                    prompt.hasDeclareAttackersReq() -> SimDecision.SubmitAttackers
+                    else -> auxiliaryDecision(prompt)
+                }
+            else -> null
+        }
+
+    private fun matchesPuzzleEntity(
+        id: Int,
+        card: String,
+    ): Boolean {
+        val entity = resolver.resolve(id)
+        return if (card == "opponent") {
+            entity.kind == "player" && id == (if (seatId.value == 1) 2 else 1)
+        } else {
+            entity.name == card
+        }
+    }
+
+    private fun auxiliaryDecision(prompt: GREToClientMessage): SimDecision? =
+        when (val result = advisor.decide(prompt)) {
+            is PromptDecisionResult.Chosen ->
+                result.decision.takeUnless {
+                    prompt.hasActionsAvailableReq() || prompt.hasDeclareAttackersReq() || prompt.hasSelectTargetsReq()
+                }
+            is PromptDecisionResult.Unavailable -> null
         }
 
     // GREMessageType is a large proto enum; only these families are decoded and

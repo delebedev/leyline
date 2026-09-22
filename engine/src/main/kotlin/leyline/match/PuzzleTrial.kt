@@ -51,6 +51,13 @@ enum class PuzzleTrialStatus {
     EngineFailure,
 }
 
+/** Deliberately small answer-key vocabulary; a move names a legal card or the opponent. */
+@Serializable
+data class PuzzleMove(
+    val action: String,
+    val card: String,
+)
+
 @Serializable
 data class PuzzleTrialDecision(
     val index: Int,
@@ -90,6 +97,7 @@ class PuzzleTrial(
     fun run(
         definition: PuzzleDefinition,
         limits: PuzzleTrialLimits = PuzzleTrialLimits(),
+        moves: List<PuzzleMove> = emptyList(),
     ): PuzzleTrialResult {
         val startedAt = System.nanoTime()
         val deadline = startedAt + limits.maxElapsedMillis * 1_000_000L
@@ -119,7 +127,7 @@ class PuzzleTrial(
             try {
                 trialExecutor.submit<PuzzleTrialResult> {
                     try {
-                        runOwned(definition, limits, startedAt, deadline, progress)
+                        runOwned(definition, limits, moves, startedAt, deadline, progress)
                     } finally {
                         cleanupDone.countDown()
                     }
@@ -146,6 +154,7 @@ class PuzzleTrial(
     private fun runOwned(
         definition: PuzzleDefinition,
         limits: PuzzleTrialLimits,
+        moves: List<PuzzleMove>,
         startedAt: Long,
         deadline: Long,
         progress: AtomicReference<TrialProgress>,
@@ -196,7 +205,7 @@ class PuzzleTrial(
                 } else {
                     launched.receive(TrialClientMessages.authenticate("puzzle-trial"))
                     launched.receive(TrialClientMessages.connect(checkNotNull(matchId)))
-                    drive(launched, limits, deadline, decisions, ::publishProgress)
+                    drive(launched, limits, moves, deadline, decisions, ::publishProgress)
                 }
             } catch (failure: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -221,16 +230,28 @@ class PuzzleTrial(
     private fun drive(
         handle: MatchRuntimeHandle,
         limits: PuzzleTrialLimits,
+        moves: List<PuzzleMove>,
         deadline: Long,
         decisions: MutableList<PuzzleTrialDecision>,
         publishProgress: () -> Unit,
     ): TrialCompletion {
         var lastSubmission: String? = null
         var transientSince: Long? = null
+        var moveIndex = 0
         while (true) {
-            stopBeforeDecision(handle, limits, deadline, decisions.size)?.let { return it }
+            stopBeforeDecision(handle, limits, deadline, decisions.size)?.let {
+                if (it.status == PuzzleTrialStatus.Won && moveIndex < moves.size) {
+                    return TrialCompletion(PuzzleTrialStatus.Unsupported, "puzzle won before answer-key move ${moveIndex + 1}")
+                }
+                return it
+            }
 
-            val proposal = handle.copilotProposal()
+            val proposal =
+                when {
+                    moveIndex < moves.size -> handle.puzzleProposal(moves[moveIndex])
+                    moves.isNotEmpty() -> handle.puzzleProposal(PuzzleMove("pass", ""))
+                    else -> handle.copilotProposal()
+                }
             stopBeforeDecision(handle, limits, deadline, decisions.size)?.let { return it }
             if (proposal.intent == "unrealizable") {
                 val reason = proposal.reason ?: "copilot returned no usable response"
@@ -243,7 +264,16 @@ class PuzzleTrial(
                     LockSupport.parkNanos(TRANSIENT_POLL_NANOS)
                     continue
                 }
-                return TrialCompletion(reason.failureStatus(), reason)
+                return TrialCompletion(
+                    if (moveIndex < moves.size) PuzzleTrialStatus.Unsupported else reason.failureStatus(),
+                    if (moveIndex <
+                        moves.size
+                    ) {
+                        "answer key move ${moveIndex + 1} (${moves[moveIndex].action} ${moves[moveIndex].card}): $reason"
+                    } else {
+                        reason
+                    },
+                )
             }
             transientSince = null
 
@@ -260,8 +290,18 @@ class PuzzleTrial(
             publishProgress()
             lastSubmission = submission
             handle.receive(payload)
+            if (moveIndex < moves.size && proposal.completes(moves[moveIndex])) moveIndex++
         }
     }
+
+    private fun leyline.copilot.CopilotProposal.completes(move: PuzzleMove): Boolean =
+        when (move.action) {
+            "cast" -> intent == "cast" || intent == "cast_mdfc"
+            "target" -> intent == "submit_targets"
+            "attack" -> intent == "submit_attackers"
+            "sacrifice" -> intent == "pay_cost"
+            else -> false
+        }
 
     private fun stopBeforeDecision(
         handle: MatchRuntimeHandle,
