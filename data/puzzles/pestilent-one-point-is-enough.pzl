@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Pestilent Spirit gives Blazing Volley deathtouch against multiple blockers.
+# Forcing: Two reach creatures can block the menacing attacker; one damage from Volley kills both only with deathtouch.
+# AI behavior: The opponent has no hand interaction and cannot block after the sweep.
+# Failure modes:
+#   WIN = Volley kills both blockers and Spirit attacks for exactly three.
+#   LOSE = Attacking before the sweep leaves two reach blockers in play.
+#   TIMEOUT = Spell resolution, deathtouch cleanup, or combat did not complete.
+# Card roles:
+#   Pestilent Spirit — grants deathtouch to the sorcery and supplies lethal combat damage.
+#   Blazing Volley — deals one damage to each opposing creature.
+#   Giant Spiders — require the deathtouch sweep before the attack.
+#   Mountain — pays for Volley.
+# Protocol path: ActionsAvailableReq, ZoneTransfer, DeclareAttackersReq.
+
+[metadata]
+Name:One Point Is Enough
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Turn one damage into a clear path for lethal combat.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanhand=Blazing Volley
+humanbattlefield=Pestilent Spirit;Mountain
+humanlibrary=Swamp
+aibattlefield=Giant Spider;Giant Spider
+ailibrary=Forest
