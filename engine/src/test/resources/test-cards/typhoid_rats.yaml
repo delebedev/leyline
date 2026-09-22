@@ -1,8 +1,0 @@
-name: "Typhoid Rats"
-grpId: 93048
-titleId: 1229
-abilities:
-  - id: 1
-    textId: 100
-    category: 3
-expansionCode: "J25"

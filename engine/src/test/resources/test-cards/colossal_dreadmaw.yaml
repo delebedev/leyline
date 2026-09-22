@@ -1,8 +1,0 @@
-name: "Colossal Dreadmaw"
-grpId: 93204
-titleId: 1016
-abilities:
-  - id: 14
-    textId: 28
-    category: 3
-expansionCode: "J25"
