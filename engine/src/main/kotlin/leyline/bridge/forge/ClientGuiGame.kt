@@ -59,12 +59,12 @@ class ClientGuiGame(
     private val currentStackTargetPromptId: () -> Int? = { null },
     private val playerSeatOf: (Player) -> Int? = { null },
     private val playerViewSeatOf: (PlayerView) -> Int? = { null },
-    private val stackTargetCandidate: (Int, Any?) -> TargetingCandidateValue.StackObject? = { _, _ -> null },
+    private val stackTargetCandidate: (Int, Any?) -> TargetingCandidateValue? = { _, _ -> null },
     private val currentDividedAllocationAbility: () -> SpellAbility? = { null },
     private val beforeDividedAllocation: (SpellAbility) -> List<DistributionTargetRef> = { emptyList() },
 ) : IGuiGame {
     private data class StackTargetOptionSet(
-        val candidates: List<TargetingCandidateValue.StackObject>,
+        val candidates: List<TargetingCandidateValue>,
         val finishOptionIndex: Int?,
     )
 
@@ -480,8 +480,7 @@ class ClientGuiGame(
         return if (isOptional) null else optionList.firstOrNull()
     }
 
-    internal fun stackTargetCandidates(optionList: List<*>): List<TargetingCandidateValue.StackObject> =
-        stackTargetOptions(optionList).candidates
+    internal fun stackTargetCandidates(optionList: List<*>): List<TargetingCandidateValue> = stackTargetOptions(optionList).candidates
 
     /**
      * Index of the engine's "finish targeting" sentinel, if it offered one.
@@ -511,9 +510,16 @@ class ClientGuiGame(
         if (!stackTargetingActive()) return StackTargetOptionSet(emptyList(), finishTargetingIndex(optionList))
         val candidates =
             optionList.mapIndexed { index, option ->
-                index to if (option == FINISH_TARGETING) null else stackTargetCandidate(index, option)
+                index to
+                    if (option == FINISH_TARGETING ||
+                        (option is String && option.isZoneCaption())
+                    ) {
+                        null
+                    } else {
+                        stackTargetCandidate(index, option)
+                    }
             }
-        val expectedCount = optionList.count { it != FINISH_TARGETING }
+        val expectedCount = optionList.count { it != FINISH_TARGETING && !(it is String && it.isZoneCaption()) }
         val resolvedCount = candidates.count { it.second != null }
         if (resolvedCount != expectedCount) {
             DevCheck.fail {

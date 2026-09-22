@@ -1,0 +1,20 @@
+# Commit shares stack/permanent targeting with mixed-zone instants.
+# Two eligible creatures make the chosen nonfirst target distinguishable.
+# Four Islands pay Commit. Empty opposing hand removes response decisions.
+# Success returns Grizzly Bears to the library while Llanowar Elves remains.
+[metadata]
+Name:Mixed-zone permanent targeting
+Goal:Survive
+Turns:3
+Difficulty:Tutorial
+Description:Cast Commit targeting Grizzly Bears and continue with Llanowar Elves still in play.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Llanowar Elves;Grizzly Bears;Island;Island;Island;Island
+humanhand=Commit // Memory
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

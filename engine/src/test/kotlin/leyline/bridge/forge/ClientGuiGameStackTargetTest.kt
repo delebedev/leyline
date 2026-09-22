@@ -42,6 +42,24 @@ class ClientGuiGameStackTargetTest :
             gui.stackTargetCandidates(listOf("opaque", "[FINISH TARGETING]")).map { it.optionIndex } shouldContainExactly listOf(0)
         }
 
+        test("mixed-zone candidates omit captions while preserving callback indexes") {
+            val permanent = TargetingCandidateValue.Card(1, ForgeCardId(42), 28)
+            val gui =
+                ClientGuiGame(
+                    InteractivePromptBridge(timeoutMs = 0),
+                    stackTargetingActive = { true },
+                    stackTargetCandidate = { index, option ->
+                        when (option) {
+                            "permanent" -> permanent
+                            "stack" -> candidate(index)
+                            else -> null
+                        }
+                    },
+                )
+            gui.stackTargetCandidates(listOf("--CARDS ON BATTLEFIELD:--", "permanent", "--CARDS IN STACK:--", "stack")) shouldContainExactly
+                listOf(permanent, candidate(3))
+        }
+
         test("a defaulted target choice never answers with a zone caption") {
             val gui =
                 ClientGuiGame(

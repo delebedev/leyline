@@ -1,0 +1,17 @@
+name: mixed-zone-targets
+description: Explicit choices for spells targeting the stack or permanents.
+scenarios:
+  - id: commit-nonfirst-permanent
+    puzzle: mixed-zone-commit
+    run: cast Commit and select the second eligible permanent
+    expect: Grizzly Bears goes to the library and Llanowar Elves remains
+    steps:
+      - cast: Commit
+      - expect:
+          prompt: { type: SelectTargetsReq }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: library, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }

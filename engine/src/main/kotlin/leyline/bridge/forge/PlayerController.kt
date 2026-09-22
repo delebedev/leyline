@@ -84,6 +84,7 @@ import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 import java.util.function.Predicate
@@ -275,7 +276,7 @@ class PlayerController(
                             if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
                         }
                 },
-                stackTargetCandidate = ::stackTargetCandidate,
+                stackTargetCandidate = ::listTargetCandidate,
                 currentDividedAllocationAbility = { activeDividedAllocationAbility },
                 beforeDividedAllocation = targetingCoordinator::recordCompletedTargetSpec,
             ),
@@ -960,7 +961,7 @@ class PlayerController(
         val previousStackTargetingAbility = activeStackTargetingAbility
         activeStackTargetingAbility =
             currentAbility
-                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+                .takeIf { it.getTargetRestrictions()?.getZone()?.contains(ZoneType.Stack) == true }
         val previousDividedAllocationAbility = activeDividedAllocationAbility
         activeDividedAllocationAbility = currentAbility
         val chosen =
@@ -976,6 +977,27 @@ class PlayerController(
             targetingCoordinator.discardCompletedTargetSpec(currentAbility)
         }
         return chosen
+    }
+
+    /** Forge list targeting mixes card views from several zones with stack entries. */
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen") // Only client-visible card zones can be offered as targets.
+    internal fun listTargetCandidate(
+        optionIndex: Int,
+        option: Any?,
+    ): TargetingCandidateValue? {
+        if (option !is CardView || option.zone == ZoneType.Stack) return stackTargetCandidate(optionIndex, option)
+        val card = getCard(option) ?: return null
+        val ownerSeat = if (card.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val zoneId =
+            when (card.zone?.zoneType) {
+                ZoneType.Battlefield -> ZoneIds.BATTLEFIELD
+                ZoneType.Exile -> ZoneIds.EXILE
+                ZoneType.Graveyard -> ZoneIds.graveyardOf(ownerSeat)
+                ZoneType.Library -> ZoneIds.libraryOf(ownerSeat)
+                ZoneType.Hand -> ZoneIds.handOf(ownerSeat)
+                else -> return null
+            }
+        return TargetingCandidateValue.Card(optionIndex, ForgeCardId(card.id), zoneId)
     }
 
     internal fun stackTargetCandidate(
@@ -1027,7 +1049,7 @@ class PlayerController(
         val previousStackTargetingAbility = activeStackTargetingAbility
         activeStackTargetingAbility =
             ability
-                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+                .takeIf { it.getTargetRestrictions()?.getZone()?.contains(ZoneType.Stack) == true }
         val previousDividedAllocationAbility = activeDividedAllocationAbility
         activeDividedAllocationAbility = ability
         val selected =

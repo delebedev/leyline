@@ -76,6 +76,11 @@ stops applying.
 
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
+Spells that can target both stack objects and permanents use Forge’s list-choice
+callback. The bridge keeps both candidate kinds explicit and excludes zone
+headings from selectable options; the generic choice default must not choose
+a target. Cancellation returns through the ordinary spell rollback path.
+
 ## 5. Legality Versus Affordability
 
 `SpellAbility.canPlay()` answers legality, not mana affordability.

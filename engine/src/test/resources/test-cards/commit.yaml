@@ -1,0 +1,11 @@
+name: "Commit"
+grpId: 73829
+titleId: 76849
+abilities:
+  - id: 87988
+    textId: 76848
+    category: 4
+expansionCode: "AKR"
+linkedFaces:
+  - 73828
+isPrimaryCard: false
