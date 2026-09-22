@@ -50,6 +50,7 @@ scenarios:
     puzzle: mechanic-cycling-miscalculation
     run: activate Miscalculation cycling
     expect: Miscalculation leaves hand and Lightning Bolt is drawn
+    headless: { card_catalog: forge }
     steps:
       - wait:
           action: { type: activate, card: Miscalculation }
@@ -79,6 +80,7 @@ scenarios:
     puzzle: learn-cram-session
     run: cast Cram Session and take Environmental Sciences from sideboard
     expect: Cram Session gains 4 life and the Lesson moves to hand
+    headless: { card_catalog: forge }
     steps:
       - wait:
           action: { type: cast, card: Cram Session }

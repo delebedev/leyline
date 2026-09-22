@@ -35,7 +35,11 @@ class LearnLessonTest :
     SessionTest({
         val learnPuzzle = "data/puzzles/learn-cram-session.pzl"
 
-        session("Learn emits SelectNReq with sideboard Lesson candidate", puzzleFile = learnPuzzle) {
+        session(
+            "Learn emits SelectNReq with sideboard Lesson candidate",
+            puzzleFile = learnPuzzle,
+            forgeCatalog = true,
+        ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val handDiscardId = instanceIdOf("Forest", human, ZoneType.Hand)
@@ -85,7 +89,7 @@ class LearnLessonTest :
                 lessonObj.zoneId shouldBe ZoneIds.P1_SIDEBOARD
                 lessonObj.visibility shouldBe Visibility.Private
                 lessonObj.viewersList shouldContain SeatId(1).value
-                lessonObj.grpId shouldBe 76393
+                lessonObj.grpId shouldBe bridge.cardRepository.findGrpIdByName("Environmental Sciences")
             }
         }
 
@@ -104,6 +108,7 @@ class LearnLessonTest :
                 humansideboard=Environmental Sciences
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
+            forgeCatalog = true,
         ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val message = allMessages.last { it.hasSelectNReq() }
@@ -120,7 +125,11 @@ class LearnLessonTest :
             }
         }
 
-        session("selecting sideboard Lesson reveals and moves it to hand", puzzleFile = learnPuzzle) {
+        session(
+            "selecting sideboard Lesson reveals and moves it to hand",
+            puzzleFile = learnPuzzle,
+            forgeCatalog = true,
+        ) {
             val req = castSpellUntilSelectNReq("Cram Session")
             val lessonId = instanceIdOf("Environmental Sciences", human, ZoneType.Sideboard)
             val resolution =
