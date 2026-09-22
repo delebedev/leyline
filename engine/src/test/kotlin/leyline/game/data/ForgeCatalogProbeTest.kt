@@ -701,4 +701,4 @@ internal fun forgeCatalogProbe(
     }
 }
 
-private val leyline.tooling.headless.PlayerZone.cards get() = player.getZone(zone).cards
+internal val leyline.tooling.headless.PlayerZone.cards get() = player.getZone(zone).cards
