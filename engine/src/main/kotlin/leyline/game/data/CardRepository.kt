@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import kotlin.collections.iterator
 
@@ -16,6 +17,21 @@ interface CardRepository {
     fun findNameByGrpId(grpId: Int): String?
 
     fun findGrpIdByName(name: String): Int?
+
+    /** Catalog identity for a dynamically granted keyword definition, when supported. */
+    fun findGrantedKeywordAbilityGrpId(
+        sourceGrpId: Int,
+        keyword: String,
+    ): Int? {
+        val parts = keyword.split(":")
+        val baseId = KeywordAbilityIds.fromForgeAltCostName(parts.first()) ?: return null
+        val cost = parts.getOrNull(1) ?: return null
+        val mana = cost.split(Regex("\\s+")).map { manaTokenToPair(it) ?: return null }.toMap()
+        return findByGrpId(sourceGrpId)?.hiddenAbilityIds?.map { it.first }?.singleOrNull { id ->
+            val info = findAbilityInfo(id)
+            info?.baseId == baseId && info.manaCost.toMap() == mana
+        }
+    }
 
     /** Deck-entry lookup. Repositories may accept exact catalog aliases while returning the deck-legal parent. */
     fun findDeckGrpIdByName(name: String): Int? = findGrpIdByName(name)

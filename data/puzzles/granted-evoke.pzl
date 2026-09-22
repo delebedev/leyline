@@ -1,0 +1,19 @@
+# Ashling grants evoke {4}; Yarok has no printed evoke cost.
+# Both casting paths are payable. Grizzly Bears is a non-Elemental control.
+# Evoke must sacrifice the original Yarok, allowing Ashling's copy trigger.
+[metadata]
+Name:granted-evoke
+Goal:Survive
+Turns:2
+Difficulty:Tutorial
+Description:Cast Yarok using a granted evoke cost and resolve its sacrifice.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Ashling, the Limitless;Island;Island;Swamp;Forest;Plains
+humanhand=Yarok, the Desecrated;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain

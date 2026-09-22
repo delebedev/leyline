@@ -12,6 +12,7 @@ import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -471,6 +472,7 @@ object ActionMapper {
                 // face-down option first so the modal commit submits the
                 // `alternativeGrpId=307` action instead of the printed spell.
                 addHandAltCostCastActions(
+                    bridge = bridge,
                     card = forgeCard,
                     player = player,
                     instanceId = instanceId,
@@ -496,6 +498,7 @@ object ActionMapper {
                 builder.addInactiveActions(inactiveBuilder)
                 if (!preferAltCostFirst) {
                     addHandAltCostCastActions(
+                        bridge = bridge,
                         card = forgeCard,
                         player = player,
                         instanceId = instanceId,
@@ -538,6 +541,7 @@ object ActionMapper {
 
             if (!preferAltCostFirst) {
                 addHandAltCostCastActions(
+                    bridge = bridge,
                     card = forgeCard,
                     player = player,
                     instanceId = instanceId,
@@ -1406,6 +1410,7 @@ object ActionMapper {
      * Madness, zone-cast for Flashback).
      */
     private fun addHandAltCostCastActions(
+        bridge: GameBridge,
         card: Card,
         player: Player,
         instanceId: Int,
@@ -1421,7 +1426,7 @@ object ActionMapper {
             if (!ActionAvailability.hasLegalTargetsAndModes(sa)) continue
             val effectiveCost = computeEffectiveCostForOffer(rail, sa, player, altCosts)
             val payCostPairs = effectiveCost.first
-            val alternativeGrpId = effectiveCost.second
+            val alternativeGrpId = bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: effectiveCost.second
             if (rail.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
             val canPay = canExecute(sa, player)
             if (!canPay) continue

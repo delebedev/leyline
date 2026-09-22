@@ -1,0 +1,15 @@
+name: granted-costs
+scenarios:
+  - id: granted-evoke
+    puzzle: granted-evoke
+    headless: {card_catalog: forge}
+    run: evoke Yarok through Ashling's granted alternative cost
+    expect: the original Yarok is sacrificed and Ashling creates a copy
+    steps:
+      - cast: {card: "Yarok, the Desecrated", alt_cost: evoke}
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: {side: ours, zone: graveyard, card: "Yarok, the Desecrated"}
+            - zone_contains: {side: ours, zone: battlefield, card: "Yarok, the Desecrated"}
+            - stack_empty: true

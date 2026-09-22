@@ -3,6 +3,7 @@ package leyline.game.snapshot
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
+import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -532,6 +533,7 @@ object SnapshotCapture {
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
+            grantedCastAbilityGrpId = card.castSA?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) },
             evokePaid =
                 (onBf || card.isInZone(ForgeZoneType.Stack)) &&
                     card.castSA?.isEvoke == true,

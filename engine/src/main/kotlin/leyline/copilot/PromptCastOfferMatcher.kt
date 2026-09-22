@@ -3,6 +3,7 @@ package leyline.copilot
 import forge.card.CardStateName
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.game.data.CardRepository
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.CastDisplayCost
@@ -112,7 +113,7 @@ private fun expectedCastVariant(
             ?.let { ActionMapper.forgeManaCostToPairs(it) }
             ?: emptyList()
     val alternativeGrpId =
-        rails.firstNotNullOfOrNull { rail ->
+        cardRepository.grantedKeywordAbilityGrpId(sa) ?: rails.firstNotNullOfOrNull { rail ->
             resolveAltGrpId(rail, altCosts, payCostPairs).takeIf { it > 0 }
         }
     return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative

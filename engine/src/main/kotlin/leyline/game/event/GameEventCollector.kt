@@ -17,6 +17,7 @@ import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.grantedKeywordAbilityGrpId
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -277,7 +278,8 @@ class GameEventCollector(
                 // arrives later via the same path.
                 KeywordAbilityIds.DISGUISE
             } else if (grpId != 0 && keywordId != null) {
-                bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
+                topSa?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) }
+                    ?: bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
                 0
             }
@@ -506,7 +508,7 @@ class GameEventCollector(
         when {
             isParadigmDelayedTrigger(sa, card) -> KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
             sa.api == ApiType.Sacrifice && sa.trigger?.getParam("ValidCard") == "Card.Self+evoked" ->
-                bridge.cardRepository
+                bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: bridge.cardRepository
                     .findGrpIdByName(card.name)
                     ?.let { bridge.cardRepository.findKeywordAbilityGrpId(it, KeywordAbilityIds.EVOKE) }
             sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION

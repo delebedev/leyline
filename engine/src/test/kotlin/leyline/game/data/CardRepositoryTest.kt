@@ -24,6 +24,55 @@ class CardRepositoryTest :
             repo = InMemoryCardRepository()
         }
 
+        test("granted keyword uses the source hidden row with matching keyword and cost") {
+            repo.registerData(
+                CardData(
+                    grpId = 3000,
+                    titleId = 0,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                    hiddenAbilityIds =
+                        listOf(
+                            4100 to 0,
+                            4101 to 0,
+                        ),
+                ),
+                "Grant source",
+            )
+            repo.registerAbilityInfo(
+                4100,
+                AbilityInfo(
+                    KeywordAbilityIds.EVOKE,
+                    listOf(
+                        wotc.mtgo.gre.external.messaging.Messages.ManaColor.Generic to 4,
+                    ),
+                    8,
+                    0,
+                ),
+            )
+            repo.registerAbilityInfo(
+                4101,
+                AbilityInfo(
+                    KeywordAbilityIds.EVOKE,
+                    listOf(
+                        wotc.mtgo.gre.external.messaging.Messages.ManaColor.Generic to 3,
+                    ),
+                    8,
+                    0,
+                ),
+            )
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:4") shouldBe 4100
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:3") shouldBe 4101
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:5").shouldBeNull()
+            repo.findGrantedKeywordAbilityGrpId(3000, "Blitz:4").shouldBeNull()
+        }
+
         // --- parseTokenGrpIds ---
 
         test("parse token grp ids single entry") {

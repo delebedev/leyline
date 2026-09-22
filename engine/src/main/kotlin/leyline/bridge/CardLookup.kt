@@ -12,6 +12,7 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.handoff.Target
 import leyline.bridge.types.ForgeCardId
+import leyline.game.data.CardRepository
 
 internal val searchableZones =
     listOf(
@@ -300,4 +301,12 @@ internal fun abilityLabel(ability: SpellAbility): String {
     val stackDescription = ability.stackDescription?.trim()?.takeIf { it.isNotBlank() }
     if (stackDescription != null) return stackDescription
     return "Activated ability"
+}
+
+/** Use the granted keyword definition retained by Forge across casting and resolution. */
+internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? {
+    val keyword = sa.keyword ?: sa.trigger?.keyword ?: return null
+    if (keyword.isIntrinsic || keyword.static == null) return null
+    val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return null
+    return findGrantedKeywordAbilityGrpId(sourceGrpId, keyword.original)
 }
