@@ -54,9 +54,4 @@ class ForgeCatalogTestRepository : InMemoryCardRepository() {
 
     override fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? =
         super.findAbilityLocalization(abilityGrpId) ?: catalog.findAbilityLocalization(abilityGrpId)
-
-    override fun findGrantedKeywordAbilityGrpId(
-        sourceGrpId: Int,
-        keyword: String,
-    ): Int? = super.findGrantedKeywordAbilityGrpId(sourceGrpId, keyword) ?: catalog.findGrantedKeywordAbilityGrpId(sourceGrpId, keyword)
 }
