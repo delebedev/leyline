@@ -297,7 +297,7 @@ class StateMapperShapeTest :
             }
         }
 
-        test("resolved ability is deleted when the current stack snapshot still carries it") {
+        test("stack ability membership is emitted on addition and retirement") {
             val (b, game) =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -335,6 +335,27 @@ class StateMapperShapeTest :
             val previous = snapshot(1)
             val current = snapshot(2)
             val abilityIid = FrameIdResolver(b.projectionIdentityWorkspace()).triggerStackAbilityIid(777).value
+
+            fun diffFrom(prior: GsmSnapshot) =
+                StateMapper
+                    .buildDiff(
+                        prev = prior,
+                        cur = previous,
+                        events = FrameEventLog.EMPTY,
+                        gameStateId = 1,
+                        matchId = Board.TEST_MATCH_ID,
+                        bridge = b,
+                        viewingSeatId = 1,
+                        effectFacts = b.materializeEffectProjectionFacts(),
+                        abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
+                        mechanicSourceFacts = MechanicSourceFacts(),
+                    ).gsm
+            val added = diffFrom(base)
+            added.gameObjectsList.map { it.instanceId } shouldContain abilityIid
+            added.zonesList
+                .single { it.zoneId == ZoneIds.STACK }
+                .objectInstanceIdsList shouldContainExactly listOf(abilityIid)
+            diffFrom(previous).zonesList.map { it.zoneId } shouldNotContain ZoneIds.STACK
 
             val gsm =
                 StateMapper
