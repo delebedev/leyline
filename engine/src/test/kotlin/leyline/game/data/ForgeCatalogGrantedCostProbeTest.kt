@@ -2,6 +2,7 @@ package leyline.game.data
 
 import com.google.protobuf.util.JsonFormat
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ForgeCatalogTag
@@ -37,13 +38,15 @@ class ForgeCatalogGrantedCostProbeTest :
                 evoke.manaCostList.sumOf { it.count } shouldBe 4
                 submitAction(evoke)
                 passUntilResolved(maxPasses = 20)
-                human.getZone(ZoneType.Graveyard).cards.count { it.name == "Yarok, the Desecrated" } shouldBe 1
-                allMessages
-                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
-                    .any { it.detailInt("alternateCostGrpId") == evoke.alternativeGrpId } shouldBe true
-                allMessages
-                    .persistentAnnotationsOfType(AnnotationType.TemporaryPermanent)
-                    .any { it.detailInt("AbilityGrpId") == evoke.alternativeGrpId } shouldBe true
+                assertSoftly {
+                    human.getZone(ZoneType.Graveyard).cards.count { it.name == "Yarok, the Desecrated" } shouldBe 1
+                    allMessages
+                        .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                        .any { it.detailInt("alternateCostGrpId") == evoke.alternativeGrpId } shouldBe true
+                    allMessages
+                        .persistentAnnotationsOfType(AnnotationType.TemporaryPermanent)
+                        .any { it.detailInt("AbilityGrpId") == evoke.alternativeGrpId } shouldBe true
+                }
                 val sacrifice =
                     allMessages
                         .annotationsOfType(AnnotationType.ZoneTransfer_af5a)

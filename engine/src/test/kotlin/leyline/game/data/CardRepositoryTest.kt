@@ -68,10 +68,12 @@ class CardRepositoryTest :
                     0,
                 ),
             )
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:4") shouldBe 4100
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:3") shouldBe 4101
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:5").shouldBeNull()
-            repo.findGrantedKeywordAbilityGrpId(3000, "Blitz:4").shouldBeNull()
+            assertSoftly {
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:4") shouldBe 4100
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:3") shouldBe 4101
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:5").shouldBeNull()
+                repo.findGrantedKeywordAbilityGrpId(3000, "Blitz:4").shouldBeNull()
+            }
         }
 
         test("granted keyword distinguishes repeated colored symbols from a single symbol") {
@@ -93,9 +95,11 @@ class CardRepositoryTest :
             )
             repo.registerAbilityInfo(4100, AbilityInfo(KeywordAbilityIds.EVOKE, listOf(ManaColor.Blue_afc9 to 2), 8, 0))
             repo.registerAbilityInfo(4101, AbilityInfo(KeywordAbilityIds.EVOKE, listOf(ManaColor.Blue_afc9 to 1), 8, 0))
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U") shouldBe 4100
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U") shouldBe 4101
-            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U U").shouldBeNull()
+            assertSoftly {
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U") shouldBe 4100
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U") shouldBe 4101
+                repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U U").shouldBeNull()
+            }
 
             repo.registerAbilityInfo(
                 4100,
