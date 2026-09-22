@@ -48,7 +48,7 @@ class ForgeCatalogProbeTest :
         afterEach { TestCardRegistry.repo.registeredCount shouldBe 0 }
 
         test("reflexive modal attack resolves two modes and retains the unchosen mode") {
-            probe("reflexive-modal", puzzleFile = "data/puzzles/reflexive-modal-caesar.pzl") { repo ->
+            forgeCatalogProbe("reflexive-modal", puzzleFile = "data/puzzles/reflexive-modal-caesar.pzl") { repo ->
                 advanceToCombat()
                 declareAttackers(listOf(human.battlefield.iid("Caesar, Legion's Emperor")))
                 passUntil(10) { allMessages.any { it.hasPayCostsReq() } }.shouldBeTrue()
@@ -89,41 +89,8 @@ class ForgeCatalogProbeTest :
             repo.lookupModalOptions(inspector) shouldBe null
         }
 
-        test("mixed-zone spell asks for a nonfirst permanent target") {
-            probe(
-                "mixed-zone-target",
-                "humanhand=Crystal Spray\nhumanbattlefield=Island;Grizzly Bears;Island;Island",
-            ) {
-                castSpellByName("Crystal Spray").shouldBeTrue()
-                val prompt = allMessages.lastOrNull { it.hasSelectTargetsReq() }
-                checkNotNull(prompt) { "Crystal Spray must request its target before choosing text" }
-                val target = human.battlefield.iid("Grizzly Bears")
-                check(
-                    prompt.selectTargetsReq.targetsList
-                        .flatMap { it.targetsList }
-                        .any { it.targetInstanceId == target },
-                )
-                selectTargets(listOf(target))
-                val ability = game().stack.firstOrNull { it.sourceCard.name == "Crystal Spray" }?.spellAbility
-                checkNotNull(ability)
-                ability.targetCard.name shouldBe "Grizzly Bears"
-            }
-        }
-        test("mixed-zone targeting cancellation leaves the spell and mana reusable") {
-            probe("mixed-zone-cancel", "humanhand=Crystal Spray\nhumanbattlefield=Island;Grizzly Bears;Island;Island") {
-                castSpellByName("Crystal Spray").shouldBeTrue()
-                check(allMessages.any { it.hasSelectTargetsReq() })
-                cancelAction()
-                assertSoftly {
-                    human.hand.cards.count { it.name == "Crystal Spray" } shouldBe 1
-                    human.battlefield.cards.count { it.isTapped } shouldBe 0
-                }
-                castSpellByName("Crystal Spray").shouldBeTrue()
-                check(allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq.targetsCount > 0)
-            }
-        }
         test("targeted activated ability resolves with a generated ability identity") {
-            probe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
+            forgeCatalogProbe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
                 activateAbility("Goblin Fireslinger").shouldBeTrue()
                 passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
                 selectTargets(listOf(2))
@@ -139,7 +106,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("modal spell accepts generated option IDs and pays a selected extra cost") {
-            probe(
+            forgeCatalogProbe(
                 "modal",
                 "humanhand=Thunder Magic\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain\naibattlefield=Grizzly Bears",
             ) { repo ->
@@ -170,7 +137,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("token spell produces distinct resolvable token metadata in GRE") {
-            probe("tokens", "humanhand=Raise the Alarm\nhumanbattlefield=Plains;Plains") { repo ->
+            forgeCatalogProbe("tokens", "humanhand=Raise the Alarm\nhumanbattlefield=Plains;Plains") { repo ->
                 assertSoftly {
                     castSpellByName("Raise the Alarm").shouldBeTrue()
                     passUntil(10) { human.battlefield.cards.count { it.isToken } == 2 }.shouldBeTrue()
@@ -207,7 +174,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("keyword-generated token publishes resolvable metadata") {
-            probe("keyword-token", puzzleFile = "data/puzzles/forge-catalog-clue-token.pzl") { repo ->
+            forgeCatalogProbe("keyword-token", puzzleFile = "data/puzzles/forge-catalog-clue-token.pzl") { repo ->
                 castSpellByName("Thraben Inspector").shouldBeTrue()
                 passUntil(10) { human.battlefield.cards.any { it.name == "Clue Token" } }.shouldBeTrue()
 
@@ -221,7 +188,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("activated transform publishes the second face identity") {
-            probe("transform", "humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp") { repo ->
+            forgeCatalogProbe("transform", "humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp") { repo ->
                 val card = human.battlefield.card("Concealing Curtains")
                 assertSoftly {
                     activateAbility("Concealing Curtains").shouldBeTrue()
@@ -253,7 +220,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("flashback offer and lifecycle use Forge-derived keyword cost metadata") {
-            probe("flashback", "humanhand=Think Twice\nhumanbattlefield=Island;Island;Island;Island;Island;Island") { repo ->
+            forgeCatalogProbe("flashback", "humanhand=Think Twice\nhumanbattlefield=Island;Island;Island;Island;Island;Island") { repo ->
                 val cardId = requireNotNull(repo.findGrpIdByName("Think Twice"))
                 val keyword = requireNotNull(repo.findKeywordAbilityGrpId(cardId, KeywordAbilityIds.FLASHBACK))
                 check(repo.findAbilityInfo(keyword)?.manaCost?.isNotEmpty() == true)
@@ -279,7 +246,7 @@ class ForgeCatalogProbeTest :
             repo.findAbilityInfo(cleaveId)?.manaCost?.isNotEmpty() shouldBe true
         }
         test("adventure resolves into exile and the creature is then cast from exile") {
-            probe(
+            forgeCatalogProbe(
                 "adventure",
                 "humanhand=Beanstalk Giant\nhumanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest",
             ) { repo ->
@@ -306,7 +273,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("split halves keep distinct cast identities and resolve their own effects") {
-            probe(
+            forgeCatalogProbe(
                 "split",
                 puzzleFile = "data/puzzles/split-dead-gone.pzl",
             ) { repo ->
@@ -344,7 +311,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("Room doors use combined metadata and preserve both unlocked designations") {
-            probe(
+            forgeCatalogProbe(
                 "room",
                 puzzleFile = "data/puzzles/room-surgical-suite.pzl",
             ) { repo ->
@@ -394,7 +361,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("Specialize selects a color and publishes the resulting form identity") {
-            probe(
+            forgeCatalogProbe(
                 "specialize",
                 puzzleFile = "data/puzzles/specialize-ambergris.pzl",
             ) { repo ->
@@ -459,7 +426,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("triggered removal resolves using a derived trigger slot") {
-            probe(
+            forgeCatalogProbe(
                 "trigger",
                 "humanhand=Ravenous Chupacabra\nhumanbattlefield=Swamp;Swamp;Swamp;Swamp\naibattlefield=Centaur Courser",
             ) { repo ->
@@ -477,7 +444,7 @@ class ForgeCatalogProbeTest :
             }
         }
         test("planeswalker activation retains distinct slots and changes loyalty") {
-            probe("planeswalker", "humanbattlefield=Jace Beleren|Counters:LOYALTY=3") { repo ->
+            forgeCatalogProbe("planeswalker", "humanbattlefield=Jace Beleren|Counters:LOYALTY=3") { repo ->
                 val card = human.battlefield.card("Jace Beleren")
                 val before = human.hand.cards.size
                 val aiBefore = ai.hand.cards.size
@@ -658,7 +625,7 @@ class ForgeCatalogProbeTest :
         }
     })
 
-private fun probe(
+internal fun forgeCatalogProbe(
     name: String,
     board: String = "",
     puzzleFile: String? = null,
