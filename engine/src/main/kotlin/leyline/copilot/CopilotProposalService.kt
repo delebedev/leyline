@@ -65,7 +65,7 @@ class CopilotProposalService(
             stampPrompt(proposal, prompt)
         }
 
-    /** Resolve a named answer-key move using the live offer, with ordinary defaults between moves. */
+    /** Resolve a named answer-key move using the live offer, with mechanical defaults between moves. */
     fun proposePuzzleMove(
         prompt: GREToClientMessage,
         move: PuzzleMove,
@@ -160,12 +160,11 @@ class CopilotProposalService(
     }
 
     private fun auxiliaryDecision(prompt: GREToClientMessage): SimDecision? =
-        when (val result = advisor.decide(prompt)) {
-            is PromptDecisionResult.Chosen ->
-                result.decision.takeUnless {
-                    prompt.hasActionsAvailableReq() || prompt.hasDeclareAttackersReq() || prompt.hasSelectTargetsReq()
-                }
-            is PromptDecisionResult.Unavailable -> null
+        when {
+            prompt.hasPayCostsReq() && prompt.payCostsReq.autoTapActionsReq.autoTapSolutionsCount > 0 ->
+                SimDecision.AutoTapPayment(0)
+            prompt.hasAssignDamageReq() -> DefaultDecisions.assignDamage(prompt)
+            else -> null
         }
 
     // GREMessageType is a large proto enum; only these families are decoded and

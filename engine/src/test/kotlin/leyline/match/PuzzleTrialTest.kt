@@ -67,6 +67,25 @@ class PuzzleTrialTest :
             result.status shouldBe PuzzleTrialStatus.Won
         }
 
+        test("answer key cannot let the advisor choose an omitted sacrifice") {
+            val puzzle = File("../data/puzzles/claim-borrow-then-burn.pzl").readText()
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("claim-incomplete-key", puzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(
+                        PuzzleMove("cast", "Claim the Firstborn"),
+                        PuzzleMove("target", "Centaur Courser"),
+                        PuzzleMove("attack", "Centaur Courser"),
+                        PuzzleMove("cast", "Thud"),
+                        PuzzleMove("target", "opponent"),
+                    ),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.AdvisorUnavailable
+            result.reason shouldContain "move is not legal at PayCostsReq"
+        }
+
         test("named answer key wins with Pestilent Spirit and Blazing Volley") {
             val puzzle = File("../data/puzzles/pestilent-one-point-is-enough.pzl").readText()
             val result =
