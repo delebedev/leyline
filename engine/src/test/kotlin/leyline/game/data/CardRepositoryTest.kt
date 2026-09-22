@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.InMemoryCardRepository
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 class CardRepositoryTest :
     FunSpec({
@@ -71,6 +72,36 @@ class CardRepositoryTest :
             repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:3") shouldBe 4101
             repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:5").shouldBeNull()
             repo.findGrantedKeywordAbilityGrpId(3000, "Blitz:4").shouldBeNull()
+        }
+
+        test("granted keyword distinguishes repeated colored symbols from a single symbol") {
+            repo.registerData(
+                CardData(
+                    grpId = 3000,
+                    titleId = 0,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = emptyList(),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                    hiddenAbilityIds = listOf(4100 to 0, 4101 to 0),
+                ),
+                "Grant source",
+            )
+            repo.registerAbilityInfo(4100, AbilityInfo(KeywordAbilityIds.EVOKE, listOf(ManaColor.Blue_afc9 to 2), 8, 0))
+            repo.registerAbilityInfo(4101, AbilityInfo(KeywordAbilityIds.EVOKE, listOf(ManaColor.Blue_afc9 to 1), 8, 0))
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U") shouldBe 4100
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U") shouldBe 4101
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U U").shouldBeNull()
+
+            repo.registerAbilityInfo(
+                4100,
+                AbilityInfo(KeywordAbilityIds.EVOKE, listOf(ManaColor.Blue_afc9 to 1, ManaColor.Blue_afc9 to 1), 8, 0),
+            )
+            repo.findGrantedKeywordAbilityGrpId(3000, "Evoke:U U") shouldBe 4100
         }
 
         // --- parseTokenGrpIds ---

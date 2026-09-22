@@ -26,10 +26,12 @@ interface CardRepository {
         val parts = keyword.split(":")
         val baseId = KeywordAbilityIds.fromForgeAltCostName(parts.first()) ?: return null
         val cost = parts.getOrNull(1) ?: return null
-        val mana = cost.split(Regex("\\s+")).map { manaTokenToPair(it) ?: return null }.toMap()
+
+        fun List<Pair<ManaColor, Int>>.totals() = groupBy { it.first }.mapValues { (_, symbols) -> symbols.sumOf { it.second } }
+        val mana = cost.split(Regex("\\s+")).map { manaTokenToPair(it) ?: return null }.totals()
         return findByGrpId(sourceGrpId)?.hiddenAbilityIds?.map { it.first }?.singleOrNull { id ->
             val info = findAbilityInfo(id)
-            info?.baseId == baseId && info.manaCost.toMap() == mana
+            info?.baseId == baseId && info.manaCost.totals() == mana
         }
     }
 
