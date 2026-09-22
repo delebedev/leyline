@@ -9,29 +9,6 @@ import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
-private val TIERED_THUNDER_MAGIC_PUZZLE =
-    """
-    [metadata]
-    Name:Tiered Thunder Magic
-    Goal:Destroy Specified Creature
-    Turns:3
-    Difficulty:Easy
-    Description:Cast Thunder Magic and choose the middle Tiered option to deal 4 damage to Grizzly Bears.
-    Targets:Grizzly Bears
-
-    [state]
-    ActivePlayer=Human
-    ActivePhase=Main1
-    HumanLife=20
-    AILife=20
-
-    humanbattlefield=Mountain;Mountain;Mountain;Mountain
-    humanhand=Thunder Magic
-    humanlibrary=Mountain
-    aibattlefield=Grizzly Bears
-    ailibrary=Forest
-    """.trimIndent()
-
 class TieredModalCostTest :
     SessionTest({
 
@@ -80,37 +57,6 @@ class TieredModalCostTest :
             assertSoftly {
                 "Grizzly Bears" should beInHandOf(human)
                 "Ice Magic" should beInGraveyardOf(human)
-            }
-        }
-
-        session(
-            "Thunder Magic selected middle tier pays the tier cost and resolves",
-            puzzle = TIERED_THUNDER_MAGIC_PUZZLE,
-        ) {
-            val cto = castSpellUntilCastingTimeOptionsReq("Thunder Magic")
-            val option = cto.getCastingTimeOptionReq(0)
-            val modalReq = option.modalReq
-            val middleTier = modalReq.getModalOptions(1)
-
-            assertSoftly {
-                option.ctoId shouldBe 2
-                option.playerIdToPrompt shouldBe 1
-                option.grpId shouldBe 96031
-                modalReq.abilityGrpId shouldBe 189322
-                modalReq.minSel shouldBe 1
-                modalReq.maxSel shouldBe 1
-                modalReq.modalOptionsList.map { it.grpId } shouldContainExactly listOf(189319, 189320, 189321)
-                middleTier.grpId shouldBe 189320
-                middleTier.getModeCost(0).manaCost.count shouldBe 3
-            }
-
-            respondModalChoice(listOf(middleTier.grpId))
-            selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
-            passUntilResolved()
-
-            assertSoftly {
-                "Grizzly Bears" should beInGraveyardOf(ai)
-                "Thunder Magic" should beInGraveyardOf(human)
             }
         }
     })

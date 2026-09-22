@@ -114,6 +114,7 @@ scenarios:
     puzzle: tiered-thunder-magic
     run: cast Thunder Magic choosing the middle paid Tiered option
     expect: Grizzly Bears takes 4 damage and dies
+    headless: { card_catalog: forge }
     steps:
       - expect:
           action: { type: cast, card: Thunder Magic }
