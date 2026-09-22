@@ -1,0 +1,20 @@
+# Venser's trigger can target a spell or permanent through the same choice.
+# Llanowar Elves precedes Grizzly Bears, so choosing Bears cannot use the first default.
+# Four Islands pay for Venser. The opposing hand is empty.
+# Success returns Bears to hand while Elves and Venser remain on the battlefield.
+[metadata]
+Name:Mixed-zone ability targeting
+Goal:Survive
+Turns:3
+Difficulty:Tutorial
+Description:Cast Venser, then return Grizzly Bears to hand while keeping Llanowar Elves.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Llanowar Elves;Grizzly Bears;Island;Island;Island;Island
+humanhand=Venser, Shaper Savant
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
