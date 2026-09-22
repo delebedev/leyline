@@ -64,6 +64,11 @@ Targeted acceptance command:
   -PacceptanceScenarios=eaten-alive-sacrifice-lethal
 ```
 
+Headless acceptance resolves card identity from the Forge-backed catalog.
+Acceptance assertions describe semantic actions and gameplay outcomes; exact
+client identities belong to conformance checks. Native execution still requires
+a card available in that client's catalog.
+
 ## One-Turn Win Fixtures
 
 Default generated fixtures should be short and terminal:

@@ -22,6 +22,7 @@ import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
+@FixturePinned
 class OpusAbilityWordLifecycleTest :
     SessionTest({
         fun MatchFlowHarness.castTargetedSpell(

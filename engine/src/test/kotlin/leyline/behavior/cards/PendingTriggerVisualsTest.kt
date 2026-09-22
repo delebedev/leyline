@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AbilityInfo
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
@@ -13,6 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+@FixturePinned
 class PendingTriggerVisualsTest :
     SessionTest({
         data class Candidate(

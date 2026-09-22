@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -42,6 +43,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
  * continuation run through the whole human turn and asserts on the message
  * stream.
  */
+@FixturePinned
 class MobilizeKeywordTest :
     SessionTest({
 

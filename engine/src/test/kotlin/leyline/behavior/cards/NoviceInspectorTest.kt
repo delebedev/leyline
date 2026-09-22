@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 
@@ -19,6 +20,7 @@ import leyline.testkit.TestCardRegistry
  * Cast {W} 1/2 creature → ETB creates Clue artifact token →
  * activate Clue ({2}, sacrifice: draw a card) → verify draw + Clue gone.
  */
+@FixturePinned
 class NoviceInspectorTest :
     SessionTest({
 

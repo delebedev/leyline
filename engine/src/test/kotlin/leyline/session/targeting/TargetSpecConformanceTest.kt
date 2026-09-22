@@ -4,12 +4,14 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@FixturePinned
 class TargetSpecConformanceTest :
     SessionTest({
         session(

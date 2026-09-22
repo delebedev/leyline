@@ -432,6 +432,7 @@ class ForgeCardRepository private constructor(
                 } else {
                     SlotKind.Intrinsic
                 },
+                base = parsed["PrecostDesc"]?.let { keywordBases[normalize(it)] } ?: 0,
                 cost = parsed["Cost"].orEmpty(),
             )
         }

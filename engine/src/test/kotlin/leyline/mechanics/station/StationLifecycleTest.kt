@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotation
@@ -13,6 +14,7 @@ import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotation
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@FixturePinned
 class StationLifecycleTest :
     SessionTest({
         session(

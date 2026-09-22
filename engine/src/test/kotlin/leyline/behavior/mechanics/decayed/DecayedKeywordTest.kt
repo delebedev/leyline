@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.game.data.AbilityInfo
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
@@ -27,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 private const val DECAYED_CLEANUP_GRP_ID = 147665
 
+@FixturePinned
 class DecayedKeywordTest :
     SessionTest({
         beforeSpec {

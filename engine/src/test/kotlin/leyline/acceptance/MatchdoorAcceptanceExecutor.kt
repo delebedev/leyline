@@ -36,6 +36,9 @@ class MatchdoorAcceptanceExecutor(
                 deckList = scenario.deckList,
                 opponentDeckList = scenario.opponentDeckList,
                 fullControl = scenario.fullControl,
+                cardRepositoryOverride =
+                    leyline.game.data.ForgeCardRepository
+                        .open(),
             )
         try {
             scenario.puzzle?.let { harness.connectAndKeepPuzzleText(readPuzzleText(it)) } ?: harness.connectAndKeep()
@@ -198,7 +201,10 @@ private class ScenarioRun(
                     actionCardName(action).equals(step.card, ignoreCase = true) &&
                     actionMatchesZone(action, step.zone) &&
                     actionMatchesAltCost(action, step.altCost)
-            } ?: error("$context no cast action for ${step.card} in ${step.zone.yamlName}")
+            } ?: error(
+                "$context no cast action for ${step.card} in ${step.zone.yamlName}; " +
+                    "actions=${harness.accumulator.actions?.actionsList.orEmpty().map(::actionSummary)}",
+            )
         submitAction(action)
     }
 

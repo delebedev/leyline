@@ -10,6 +10,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.getAllCastableAbilities
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -19,6 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 
+@FixturePinned
 class RetraceLifecycleTest :
     SessionTest({
         session(

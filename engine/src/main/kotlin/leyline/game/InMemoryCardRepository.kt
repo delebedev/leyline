@@ -15,8 +15,12 @@ import leyline.game.data.ModalAbilityInfo
  * [findKeywordAbilityGrpId] entry point as production
  * (well-known ability ids from [leyline.game.data.KeywordAbilityIds]) —
  * no test-only fallback path.
+ *
+ * Open so embedding hosts can layer an additional identity source over the
+ * registered rows — the test harness resolves fixture-pinned cards here and
+ * falls back to a Forge-backed catalog for everything else.
  */
-class InMemoryCardRepository : CardRepository {
+open class InMemoryCardRepository : CardRepository {
     // ConcurrentHashMap: tests that run concurrent Kotest specs call register()
     // via TestCardRegistry from multiple threads; plain mutableMapOf races.
     private val cache = java.util.concurrent.ConcurrentHashMap<Int, CardData>()

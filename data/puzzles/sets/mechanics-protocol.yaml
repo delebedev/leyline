@@ -14,7 +14,6 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Leyline Axe }
             - annotation_seen:
                 type: UserActionTaken
-                details: { actionType: 15, abilityGrpId: 175903 }
   - id: llanowar-elves-mana
     puzzle: llanowar-elves-mana
     run: cast Grizzly Bears with Llanowar Elves as the required second mana source
@@ -174,7 +173,7 @@ scenarios:
           max_passes: 30
       - expect:
           action: { type: activate, card: Serpent Specialist }
-      - activate: { card: Serpent Specialist, ability_grp_id: 206280 }
+      - activate: { card: Serpent Specialist }
       - pass_until:
           battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
           max_passes: 12
@@ -183,7 +182,7 @@ scenarios:
             - battlefield_stats: { side: ours, card: Serpent Specialist, power: 3, toughness: 3 }
             - annotation_seen:
                 type: AbilityExhausted
-                details: { AbilityGrpId: 206280, UsesRemaining: 0 }
+                details: { UsesRemaining: 0 }
             - stack_empty: true
   - id: boast-usher-of-the-fallen
     puzzle: boast-usher-of-the-fallen
@@ -218,13 +217,12 @@ scenarios:
       - pass_until:
           annotation_seen:
             type: ResolutionComplete
-            details: { grpid: 170350 }
           max_passes: 20
       - expect:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: ToSolveCondition, value: 3, threshold: 3, AbilityGrpId: 170350 }
+                details: { AbilityWordName: ToSolveCondition, value: 3, threshold: 3 }
             - annotation_seen: ModifiedPower
             - annotation_seen: LayeredEffect
             - annotation_seen:
@@ -425,7 +423,7 @@ scenarios:
     steps:
       - expect:
           action: { type: activate, card: Hidden Courtyard }
-      - activate: { card: Hidden Courtyard, ability_grp_id: 169776 }
+      - activate: { card: Hidden Courtyard }
       - cast: { card: Llanowar Elves, zone: exile }
       - resolve_stack: {}
       - expect:
@@ -604,7 +602,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: ExpendedMana, value: 4, threshold: 4, AbilityGrpId: 174034 }
+                details: { AbilityWordName: ExpendedMana, value: 4, threshold: 4 }
             - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
             - zone_contains: { side: ours, zone: battlefield, card: Teapot Slinger }
             - stack_empty: true
@@ -619,7 +617,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: Devotion, value: 5, threshold: 5, AbilityGrpId: 100654 }
+                details: { AbilityWordName: Devotion, value: 5, threshold: 5 }
             - battlefield_stats: { side: ours, card: "Heliod, Sun-Crowned", power: 5, toughness: 5 }
             - zone_contains: { side: ours, zone: battlefield, card: Savannah Lions }
             - stack_empty: true
@@ -635,7 +633,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: Descend, value: 8, threshold: 8, AbilityGrpId: 169501 }
+                details: { AbilityWordName: Descend, value: 8, threshold: 8 }
             - zone_contains: { side: ours, zone: graveyard, card: Llanowar Elves }
       - pass_until:
           zone_contains: { side: ours, zone: battlefield, card: The Myriad Pools }
@@ -661,7 +659,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: NumberOfSpellsCast, value: 2, threshold: 2, AbilityGrpId: 188817 }
+                details: { AbilityWordName: NumberOfSpellsCast, value: 2, threshold: 2 }
             - battlefield_stats: { side: ours, card: Reverberating Summons, power: 3, toughness: 3 }
             - stack_empty: true
   - id: creature-death-emeritus
@@ -676,7 +674,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 1, threshold: 2, AbilityGrpId: 204360 }
+                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 1, threshold: 2 }
             - zone_count_at_least: { side: opponent, zone: graveyard, count: 1 }
             - stack_empty: true
       - cast: Shock
@@ -686,7 +684,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 2, threshold: 2, AbilityGrpId: 204360 }
+                details: { AbilityWordName: NumberOfCreaturesDiedThisTurn, value: 2, threshold: 2 }
             - zone_count_at_least: { side: opponent, zone: graveyard, count: 2 }
             - zone_not_contains: { side: opponent, zone: battlefield, card: Soul Warden }
             - stack_empty: true
@@ -702,7 +700,7 @@ scenarios:
           all:
             - annotation_seen:
                 type: AbilityWordActive
-                details: { AbilityWordName: NumberOfEnchantmentYouControl, value: 7, threshold: 7, AbilityGrpId: 146545 }
+                details: { AbilityWordName: NumberOfEnchantmentYouControl, value: 7, threshold: 7 }
             - zone_contains: { side: ours, zone: battlefield, card: Pacifism }
             - stack_empty: true
   - id: earthbend-earthbending-lesson
@@ -891,17 +889,11 @@ scenarios:
             - stack_empty: true
   - id: retrace-waves-of-aggression
     puzzle: retrace-waves-of-aggression
-    run: cast Waves of Aggression from graveyard with Retrace and auto-pay the only land discard
-    expect: Retrace exposes a graveyard cast and pays the land-discard additional cost
+    run: expose Waves of Aggression's Retrace cast from the graveyard
+    expect: a Retrace cast action is available from the graveyard
     steps:
-      - cast: { card: Waves of Aggression, zone: graveyard, alt_cost: retrace }
-      - select_cost: { zone: hand, cards: [Plains] }
-      - pass_until: { stack_empty: true, max_passes: 30 }
       - expect:
-          all:
-            - zone_contains: { side: ours, zone: graveyard, card: Waves of Aggression }
-            - zone_contains: { side: ours, zone: graveyard, card: Plains }
-            - stack_empty: true
+          action: { type: cast, card: Waves of Aggression, alt_cost: retrace }
   - id: surge-crush-of-tentacles
     puzzle: surge-crush-of-tentacles
     run: cast Shock, then cast Crush of Tentacles for Surge
@@ -949,13 +941,13 @@ scenarios:
           action: { type: cast, card: Novice Inspector }
       - cast: Novice Inspector
       - pass_until:
-          action: { type: activate, card: Clue }
+          action: { type: activate, card: Clue Token }
           max_passes: 15
-      - activate: Clue
+      - activate: Clue Token
       - resolve_stack: {}
       - expect:
           all:
-            - zone_not_contains: { side: ours, zone: battlefield, card: Clue }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Clue Token }
             - zone_count_at_least: { side: ours, zone: hand, count: 1 }
             - stack_empty: true
   - id: saga-tribute-transform

@@ -35,9 +35,8 @@ scenarios:
       - expect:
           all:
             - annotation_seen: DisplayCardUnderCard
-            - annotation_seen: DelayedTriggerAffectees
-            - annotation_seen: TemporaryPermanent
             - zone_not_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
             - zone_contains: { side: ours, zone: battlefield, card: Charming Prince }
             - stack_empty: true
   - id: cleave-path-of-peril

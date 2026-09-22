@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldNotBe
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
@@ -23,6 +24,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+@FixturePinned
 class BoastLifecycleTest :
     SessionTest({
         session(

@@ -688,7 +688,10 @@ class TargetingInteractionTest :
 
         // ─── Bite Down: multi-group fight targeting ────────────────────────────
 
-        session("Bite Down — resolution state: damage, destroy, target in GY", puzzleFile = "data/puzzles/bite-down.pzl") {
+        session(
+            "Bite Down — resolution state: damage, destroy, target in GY",
+            puzzleFile = "data/puzzles/bite-down.pzl",
+        ) {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 
@@ -722,7 +725,10 @@ class TargetingInteractionTest :
             }
         }
 
-        session("Bite Down — two TargetSpec persistent annotations, cleaned up on resolve", puzzleFile = "data/puzzles/bite-down.pzl") {
+        session(
+            "Bite Down — two TargetSpec persistent annotations, cleaned up on resolve",
+            puzzleFile = "data/puzzles/bite-down.pzl",
+        ) {
             val dealerIid = human.battlefield.iid("Grizzly Bears")
             val targetIid = ai.battlefield.iid("Grizzly Bears")
 

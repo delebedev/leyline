@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
@@ -36,6 +37,7 @@ private val PUZZLE =
     ailibrary=Mountain;Mountain;Mountain
     """.trimIndent()
 
+@FixturePinned
 class JumpStartLifecycleTest :
     SessionTest({
         session("Jump-start prompts for discard, resolves, and exiles the spell", puzzle = PUZZLE) {

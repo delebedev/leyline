@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.detailInt
@@ -61,6 +62,7 @@ private val DECORUM_PUZZLE =
     ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
     """.trimIndent()
 
+@FixturePinned
 class ParadigmLifecycleTest :
     SessionTest({
         session(

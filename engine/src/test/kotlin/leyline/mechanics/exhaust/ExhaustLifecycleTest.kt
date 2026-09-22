@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.game.bundle.AbilityExhaustionFactsCapture
 import leyline.game.codes.DetailKeys
 import leyline.game.snapshot.GsmSnapshot
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.allActions
 import leyline.testkit.detailInt
@@ -17,6 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import leyline.testkit.StateMapperShell as StateMapper
 
+@FixturePinned
 class ExhaustLifecycleTest :
     SessionTest({
         session(

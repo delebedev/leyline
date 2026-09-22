@@ -1,8 +1,0 @@
-name: "Temur Tawnyback"
-grpId: 95755
-titleId: 927358
-abilities:
-  - id: 92280
-    textId: 823276
-    category: 2
-expansionCode: "TDM"

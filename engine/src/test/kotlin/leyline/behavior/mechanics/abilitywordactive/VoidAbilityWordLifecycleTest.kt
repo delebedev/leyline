@@ -17,6 +17,7 @@ import leyline.testkit.detailUint
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@FixturePinned
 class VoidAbilityWordLifecycleTest :
     SessionTest({
         session(

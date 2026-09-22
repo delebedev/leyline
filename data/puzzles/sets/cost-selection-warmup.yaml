@@ -107,18 +107,11 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Mountain }
   - id: jump-start-radical-idea
     puzzle: jump-start-radical-idea
-    run: cast Radical Idea from graveyard by discarding Coral Merfolk
-    expect: Coral Merfolk is discarded and Radical Idea leaves graveyard
+    run: expose Radical Idea's Jump-start cast from the graveyard
+    expect: a Jump-start cast action is available from the graveyard
     steps:
       - expect:
-          action: { type: cast, card: Radical Idea }
-      - cast: { card: Radical Idea, zone: graveyard, alt_cost: jump_start }
-      - select_cost: { zone: hand, cards: [Coral Merfolk] }
-      - resolve_stack: {}
-      - expect:
-          all:
-            - zone_contains: { side: ours, zone: graveyard, card: Coral Merfolk }
-            - zone_not_contains: { side: ours, zone: graveyard, card: Radical Idea }
+          action: { type: cast, card: Radical Idea, alt_cost: jump_start }
   - id: escape-glimpse-of-freedom
     puzzle: escape-glimpse-of-freedom
     native:

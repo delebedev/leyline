@@ -51,6 +51,7 @@ private val HERALDIC_BANNER_PUZZLE =
     ailibrary=Forest
     """.trimIndent()
 
+@FixturePinned
 class BannerStaticChoiceTest :
     SessionTest({
         session(

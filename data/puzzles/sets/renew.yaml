@@ -8,7 +8,7 @@ scenarios:
     steps:
       - expect:
           action: { type: activate, card: Champion of Dusan }
-      - activate: { card: Champion of Dusan, zone: graveyard, ability_grp_id: 188841 }
+      - activate: { card: Champion of Dusan, zone: graveyard }
       - target: { side: ours, zone: battlefield, card: "Ironheart, Clever Champion", count: 1 }
       - expect:
           all:

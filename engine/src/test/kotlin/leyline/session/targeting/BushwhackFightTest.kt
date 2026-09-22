@@ -8,6 +8,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.PromptIds
+import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
@@ -29,6 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * skipped → sub-SA chain never gets chooseTargetsFor → no SelectTargetsReq.
  * The cast silently dropped after the modal pick.
  */
+@FixturePinned
 class BushwhackFightTest :
     SessionTest({
 

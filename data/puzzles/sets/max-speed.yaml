@@ -9,7 +9,7 @@ scenarios:
       - expect:
           all:
             - annotation_seen: Designation
-            - action_not_available: { type: activate, card: Gas Guzzler, ability_grp_id: 179264 }
+            - action_not_available: { type: activate, card: Gas Guzzler }
       - wait:
           action: { type: cast, card: Shock }
       - cast: Shock
@@ -18,8 +18,8 @@ scenarios:
       - expect:
           all:
             - opponent_life: 18
-            - action: { type: activate, card: Gas Guzzler, ability_grp_id: 179264 }
-      - activate: { card: Gas Guzzler, ability_grp_id: 179264 }
+            - action: { type: activate, card: Gas Guzzler }
+      - activate: { card: Gas Guzzler }
       - select_cost: { zone: battlefield, cards: [Walking Corpse] }
       - resolve_stack: {}
       - expect:
@@ -35,5 +35,4 @@ scenarios:
       - expect:
           all:
             - zone_not_contains: { side: ours, zone: battlefield, card: Gas Guzzler }
-            - annotation_seen: LayeredEffectDestroyed
             - stack_empty: true

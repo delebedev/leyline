@@ -4,9 +4,21 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
 import leyline.game.bundle.InvariantSelection
+import leyline.game.data.ForgeCardRepository
 import leyline.tooling.headless.ScriptedAction
 import leyline.tooling.headless.dumpDiagnostics
 import kotlin.time.Duration
+
+/**
+ * Pin one session spec's card identities to the retained per-card YAML
+ * fixtures instead of the Forge-backed catalog.
+ *
+ * Apply when the spec asserts exact client grpIds or ability ids that only a
+ * fixture carries. Ordinary behavioral specs resolve through the catalog and
+ * need no annotation.
+ */
+@Target(AnnotationTarget.CLASS)
+annotation class FixturePinned
 
 /**
  * Base class for session-tier interaction tests.
@@ -72,6 +84,9 @@ abstract class SessionTest(
      *
      * [timeout] bounds a test that can hang the engine loop rather than fail.
      * [fullControl] holds priority for tests that manually inspect stack or phase state.
+     * [forgeCatalog] resolves card identities from the Forge-backed catalog
+     *   rather than the retained per-card fixtures. On by default; a
+     *   [FixturePinned] spec turns it off for every session it declares.
      *
      * When the block throws, harness diagnostics are printed before the
      * failure propagates; the harness is shut down either way.
@@ -92,6 +107,7 @@ abstract class SessionTest(
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
         aiScript: List<ScriptedAction>? = null,
         fullControl: Boolean = false,
+        forgeCatalog: Boolean = javaClass.getAnnotation(FixturePinned::class.java) == null,
         timeout: Duration? = null,
         block: suspend MatchFlowHarness.() -> Unit,
     ) {
@@ -114,6 +130,7 @@ abstract class SessionTest(
                     validating = validating,
                     validation = validation,
                     fullControl = fullControl,
+                    cardRepositoryOverride = if (forgeCatalog) ForgeCardRepository.open() else null,
                 )
             try {
                 harness.connect(puzzleText = puzzleText, puzzleResource = puzzleFile, aiScript = aiScript)
