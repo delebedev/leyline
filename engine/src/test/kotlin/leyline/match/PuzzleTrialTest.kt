@@ -64,7 +64,7 @@ class PuzzleTrialTest :
                     ),
                 )
 
-            check(result.status == PuzzleTrialStatus.Won) { result.toString() }
+            result.status shouldBe PuzzleTrialStatus.Won
         }
 
         test("named answer key wins with Pestilent Spirit and Blazing Volley") {
@@ -76,7 +76,7 @@ class PuzzleTrialTest :
                     listOf(PuzzleMove("cast", "Blazing Volley"), PuzzleMove("attack", "Pestilent Spirit")),
                 )
 
-            check(result.status == PuzzleTrialStatus.Won) { result.toString() }
+            result.status shouldBe PuzzleTrialStatus.Won
         }
 
         test("winning before a claimed later move does not certify the answer key") {
