@@ -351,11 +351,13 @@ class StateMapperShapeTest :
                         mechanicSourceFacts = MechanicSourceFacts(),
                     ).gsm
             val added = diffFrom(base)
-            added.gameObjectsList.map { it.instanceId } shouldContain abilityIid
-            added.zonesList
-                .single { it.zoneId == ZoneIds.STACK }
-                .objectInstanceIdsList shouldContainExactly listOf(abilityIid)
-            diffFrom(previous).zonesList.map { it.zoneId } shouldNotContain ZoneIds.STACK
+            assertSoftly {
+                added.gameObjectsList.map { it.instanceId } shouldContain abilityIid
+                added.zonesList
+                    .single { it.zoneId == ZoneIds.STACK }
+                    .objectInstanceIdsList shouldContainExactly listOf(abilityIid)
+                diffFrom(previous).zonesList.map { it.zoneId } shouldNotContain ZoneIds.STACK
+            }
 
             val gsm =
                 StateMapper
