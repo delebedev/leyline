@@ -932,6 +932,13 @@ private class ScenarioRun(
                     ?.let { harness.bridge.resolveGrpId(it, action.instanceId) }
                 ?: return false
         val keywordId = altCost.keywordAbilityId
+        val repository = harness.bridge.cardRepository
+        if (listOf(action.alternativeGrpId, action.abilityGrpId).any { id ->
+                id != 0 && repository.findAbilityInfo(id)?.baseId == keywordId
+            }
+        ) {
+            return true
+        }
         val abilityGrpId = harness.bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, keywordId)
         return action.alternativeGrpId == keywordId ||
             action.abilityGrpId == keywordId ||
