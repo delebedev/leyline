@@ -275,7 +275,7 @@ class PlayerController(
                             if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
                         }
                 },
-                stackTargetCandidate = ::stackTargetCandidate,
+                stackTargetCandidate = ::listTargetCandidate,
                 currentDividedAllocationAbility = { activeDividedAllocationAbility },
                 beforeDividedAllocation = targetingCoordinator::recordCompletedTargetSpec,
             ),
@@ -960,7 +960,7 @@ class PlayerController(
         val previousStackTargetingAbility = activeStackTargetingAbility
         activeStackTargetingAbility =
             currentAbility
-                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+                .takeIf { it.getTargetRestrictions()?.getZone()?.contains(ZoneType.Stack) == true }
         val previousDividedAllocationAbility = activeDividedAllocationAbility
         activeDividedAllocationAbility = currentAbility
         val chosen =
@@ -976,6 +976,16 @@ class PlayerController(
             targetingCoordinator.discardCompletedTargetSpec(currentAbility)
         }
         return chosen
+    }
+
+    /** Forge list targeting mixes card views from several zones with stack entries. */
+    internal fun listTargetCandidate(
+        optionIndex: Int,
+        option: Any?,
+    ): TargetingCandidateValue? {
+        if (option !is CardView || option.zone == ZoneType.Stack) return stackTargetCandidate(optionIndex, option)
+        val card = getCard(option) ?: return null
+        return targetingCoordinator.cardTargetCandidate(optionIndex, card)
     }
 
     internal fun stackTargetCandidate(
@@ -1027,7 +1037,7 @@ class PlayerController(
         val previousStackTargetingAbility = activeStackTargetingAbility
         activeStackTargetingAbility =
             ability
-                .takeIf { it.getTargetRestrictions()?.getZone()?.singleOrNull() == ZoneType.Stack }
+                .takeIf { it.getTargetRestrictions()?.getZone()?.contains(ZoneType.Stack) == true }
         val previousDividedAllocationAbility = activeDividedAllocationAbility
         activeDividedAllocationAbility = ability
         val selected =

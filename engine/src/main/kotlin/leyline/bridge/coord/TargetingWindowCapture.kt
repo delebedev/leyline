@@ -212,7 +212,11 @@ internal class TargetingWindowCapture(
 
     private fun candidateSourceZoneId(request: PromptRequest): Int =
         if (request.targetingCandidates.isNotEmpty()) {
-            ZoneIds.STACK
+            when (val candidate = request.targetingCandidates.first()) {
+                is TargetingCandidateValue.Card -> candidate.zoneId
+                is TargetingCandidateValue.StackObject -> ZoneIds.STACK
+                is TargetingCandidateValue.Player -> 0
+            }
         } else {
             request.candidateRefs
                 .firstOrNull { it.kind == PromptCandidateKind.Card && it.zone != null }

@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Crystal Spray must let its caster choose Aragorn rather than another permanent.
+# Forcing: An Island precedes Aragorn in battlefield order, then white is changed to blue before Ponder.
+# AI behavior: The human acts in main phase; the opponent has no relevant choices.
+# Failure modes:
+#   PASS = the player can target Aragorn and Ponder creates both applicable triggers.
+#   FAIL = the engine silently targets the first permanent and Ponder creates only the native blue trigger.
+#   TIMEOUT = target or color-word selection does not reach the player.
+# Card roles:
+#   First Island — distinguishes an explicit target from first-card selection.
+#   Aragorn, the Uniter — intended Crystal Spray target.
+#   Crystal Spray — changes white to blue until end of turn.
+#   Ponder — subsequent monoblue spell.
+# Protocol path: target selection, color-word choices, and triggered ability creation.
+[metadata]
+Name:Explicit text-change targeting
+Goal:Survive
+Turns:3
+Difficulty:Tutorial
+Description:Target Aragorn with Crystal Spray, change white to blue, then cast Ponder.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Island;Aragorn, the Uniter;Island;Island;Island
+humanhand=Crystal Spray;Ponder
+humanlibrary=Plains;Mountain;Forest;Swamp;Plains
+ailibrary=Mountain;Mountain;Mountain
