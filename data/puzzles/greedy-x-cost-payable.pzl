@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Choose the largest payable X when casting a spell with a fixed colored base cost.
+# Forcing: Light Up the Night is the only nonland card, and three Mountains make exactly X=2 lethal.
+# AI behavior: The opponent is at two life, so the greedy advisor takes the immediate lethal cast.
+# Failure modes:
+#   WIN = the advisor chooses X=2, pays {2}{R}, and deals lethal damage.
+#   LOSE = the spell does not resolve before the one-turn deadline.
+#   TIMEOUT = the advisor repeats the cast or numeric prompt without committing the spell.
+# Card roles:
+#   Light Up the Night — exercises an X cost with one fixed colored mana and provides exact lethal.
+#   Mountain — supplies the exact maximum payable value of X=2.
+#   Forest and Mountain — keep both libraries non-empty without adding choices.
+# Protocol path: cast action, NumericInputReq, NumericInputResp, target selection, mana payment, and resolution.
+
+[metadata]
+Name:Greedy Payable X Cost
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Choose a payable value for X and cast Light Up the Night for exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+
+humanhand=Light Up the Night
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Forest
+ailibrary=Mountain

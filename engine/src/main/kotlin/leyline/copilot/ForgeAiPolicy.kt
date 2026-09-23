@@ -113,6 +113,23 @@ private fun costPartsForRoute(
         .map { Triple(sa, it, kind) }
 }
 
+private fun choosePayableX(
+    ability: SpellAbility,
+    player: Player,
+    controller: PlayerControllerAi,
+    min: Int,
+    promptMax: Int,
+): Int? {
+    val root = ability.rootAbility
+    val previous = root.xManaCostPaid
+    return try {
+        val max = ComputerUtilCost.setMaxXValue(ability, player, ability.isTrigger).coerceAtMost(promptMax)
+        if (max < min) null else controller.chooseNumber(ability, "Choose X", min, max).takeIf { it in min..max }
+    } finally {
+        root.xManaCostPaid = previous
+    }
+}
+
 /**
  * Forge-AI advisor that picks the response the AI would submit for a pending
  * prompt on behalf of a seat, without displacing leyline's bridged controller.
@@ -159,6 +176,7 @@ private fun costPartsForRoute(
  * method — and any consult that fails closed — fall through to the caller's
  * greedy responder.
  */
+@Suppress("LargeClass") // Prompt-family adapters share the controller swap and live bridge identity map.
 class ForgeAiPolicy(
     private val bridgeSupplier: () -> GameBridge,
     private val seatId: SeatId,
@@ -461,6 +479,16 @@ class ForgeAiPolicy(
             } ?: return null
         val chosenIds = chosen.map { instanceIdForCard(it) }.filter { it != 0 }
         return chosenIds.takeIf { it.size >= count }?.take(count)
+    }
+
+    fun chooseNumericInput(msg: GREToClientMessage): Int? {
+        if (!msg.hasNumericInputReq()) return null
+        val req = msg.numericInputReq
+        val ability = cardForInstance(req.sourceId)?.castSA ?: return null
+        if (ability.getSVar("X") != "Count\$xPaid" || ability.payCosts?.hasXInAnyCostPart() != true) return null
+
+        val min = req.minValue.coerceAtLeast(0)
+        return askAi("chooseNumericInput") { choosePayableX(ability, seatPlayer, aiController, min, req.maxValue) }
     }
 
     fun canChooseStaticColorSelectN(msg: GREToClientMessage): Boolean {

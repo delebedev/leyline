@@ -135,6 +135,7 @@ class MatchFlowHarness(
     private var nextOptionalResponse: OptionResponse? = null
     private var holdNextOptionalResponse = false
     private var nextNumericInputValue: Int? = null
+    private var holdNextNumericInputResponse = false
     private lateinit var localConnection: MatchConnection
     private lateinit var localOutput: SinkMatchOutput
     private var familiarConnection: MatchConnection? = null
@@ -1999,6 +2000,7 @@ class MatchFlowHarness(
             ?.takeIf { it.interaction is leyline.bridge.handoff.BlockingInteraction.Numeric }
             ?: return false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e } ?: return false
+        if (holdNextNumericInputResponse) return false
 
         val value = nextNumericInputValue ?: 0
         nextNumericInputValue = null
@@ -2026,11 +2028,17 @@ class MatchFlowHarness(
         nextNumericInputValue = value
     }
 
+    /** Leave the next NumericInputReq pending so the test can inspect or answer it explicitly. */
+    fun holdNextNumericInput() {
+        holdNextNumericInputResponse = true
+    }
+
     /**
      * Respond to a NumericInputReq with [value] explicitly.
      * For tests that need direct control over the numeric pick.
      */
     fun respondToNumericInput(value: Int) {
+        holdNextNumericInputResponse = false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }
         val greMsg =
             ClientToGREMessage
