@@ -457,7 +457,10 @@ class ForgeCardRepository private constructor(
             )
         }
         face.triggers.forEach { raw -> addRow(raw, 2, SlotKind.Intrinsic) }
-        face.staticAbilities.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
+        face.staticAbilities.forEach { raw ->
+            val category = if (parseParams(raw)["Mode"] == "AlternativeCost") 8 else 3
+            addRow(raw, category, SlotKind.Intrinsic)
+        }
         face.replacements.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
         if (face.type.isBasicLand) {
             BasicLandAbilities.byForgeSubtypeNames(face.type.subtypes)?.let { id ->

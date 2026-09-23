@@ -84,6 +84,16 @@ interface CardRepository {
     /** Raw localized text and owned cost metadata for one ability row. */
     fun findAbilityLocalization(abilityGrpId: Int): AbilityLocalization? = null
 
+    /** Per-card row for a script-defined alternative cost without a keyword BaseId. */
+    fun findGenericAlternativeCostAbilityGrpId(cardGrpId: Int): Int? =
+        findByGrpId(cardGrpId)
+            ?.abilityIds
+            ?.map { it.first }
+            ?.singleOrNull {
+                val info = findAbilityInfo(it)
+                info?.category == 8 && info.baseId == 0
+            }
+
     /**
      * Keyword presence lookup. [keywordAbilityId] is one of the well-known
      * ability identifiers from [KeywordAbilityIds]. Returns the per-card

@@ -415,6 +415,7 @@ enum class AcceptanceAltCost(
     val yamlName: String,
     val keywordAbilityId: Int,
 ) {
+    Generic("generic", 0),
     Cleave("cleave", KeywordAbilityIds.CLEAVE),
     Disguise("disguise", KeywordAbilityIds.DISGUISE),
     Overload("overload", KeywordAbilityIds.OVERLOAD),

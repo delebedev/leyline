@@ -277,6 +277,8 @@ class GameEventCollector(
                 // ability row. Disguise is the only mechanic in v1; Morph
                 // arrives later via the same path.
                 KeywordAbilityIds.DISGUISE
+            } else if (grpId != 0 && topSa?.isOptionalCostPaid(OptionalCost.AltCost) == true) {
+                bridge.cardRepository.findGenericAlternativeCostAbilityGrpId(grpId) ?: 0
             } else if (grpId != 0 && keywordId != null) {
                 topSa?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) }
                     ?: bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
