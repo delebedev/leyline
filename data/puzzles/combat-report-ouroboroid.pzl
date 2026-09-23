@@ -1,0 +1,29 @@
+# Design Narrative
+# Mechanic: Ouroboroid's beginning-of-combat trigger puts counters equal to its power on each controlled creature.
+# Forcing: Advancing from Main1 is the only action needed and both creatures expose the exact counter result.
+# AI behavior: The opponent has no permanents or decisions, so priority passes deterministically.
+# Failure modes:
+#   WIN = Both creatures gain one +1/+1 counter before attackers are declared.
+#   LOSE = Combat advances without the expected power and toughness changes.
+#   TIMEOUT = The phase trigger or its resolution fails to converge.
+# Card roles:
+#   Ouroboroid — source of the beginning-of-combat trigger and its power value.
+#   Grizzly Bears — second recipient proving the effect applies to every controlled creature.
+# Protocol path: Phase progression, triggered stack lifecycle, counter annotations, and refreshed object characteristics.
+
+[metadata]
+Name:Combat Report Ouroboroid
+Goal:Survive
+Turns:1
+Difficulty:Tutorial
+Description:Advance to combat and verify Ouroboroid puts one counter on each controlled creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Ouroboroid;Grizzly Bears
+humanlibrary=Forest
+ailibrary=Forest
