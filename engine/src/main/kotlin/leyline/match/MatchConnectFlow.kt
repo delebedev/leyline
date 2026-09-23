@@ -28,6 +28,7 @@ internal class MatchConnectFlow(
     private val sendInitialBundle: () -> Unit,
     private val resolveSeatDecks: () -> Pair<DeckSource, DeckSource>,
     private val resolveGameVariant: () -> String?,
+    private val resolveSeed: () -> Long?,
     private val isSpectatorMode: () -> Boolean,
     private val onLocalPlayerConnected: (GameBridge) -> Unit,
 ) {
@@ -83,14 +84,14 @@ internal class MatchConnectFlow(
                     val decks = resolveSeatDecks()
                     if (isSpectatorMode()) {
                         newMatch.startAiVsAi(
-                            seed = engineSettings.seed,
+                            seed = resolveSeed(),
                             deck1 = decks.first,
                             deck2 = decks.second,
                             variant = gameVariant,
                         )
                     } else {
                         newMatch.start(
-                            seed = engineSettings.seed,
+                            seed = resolveSeed(),
                             deck1 = decks.first,
                             deck2 = decks.second,
                             variant = gameVariant,

@@ -1,0 +1,20 @@
+name: "Wan Shi Tong, Librarian"
+grpId: 97353
+titleId: 1070560
+abilities:
+  - id: 7
+    textId: 43
+    category: 3
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 15
+    textId: 137
+    category: 3
+  - id: 192636
+    textId: 1070562
+    category: 2
+  - id: 192637
+    textId: 1070564
+    category: 2
+expansionCode: "TLA"

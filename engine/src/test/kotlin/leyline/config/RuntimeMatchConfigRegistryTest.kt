@@ -21,6 +21,7 @@ class RuntimeMatchConfigRegistryTest :
                         seat1 = DeckSource.ForgeText("1 Shock"),
                         seat2 = DeckSource.ForgeText("1 Plains"),
                         gameVariant = " brawl ",
+                        seed = 42,
                         spectatorMode = true,
                     ),
                 )
@@ -30,6 +31,7 @@ class RuntimeMatchConfigRegistryTest :
                 stored.seat1 shouldBe DeckSource.ForgeText("1 Shock")
                 stored.seat2 shouldBe DeckSource.ForgeText("1 Plains")
                 stored.gameVariant shouldBe "brawl"
+                stored.seed shouldBe 42
                 stored.spectatorMode shouldBe true
                 registry.get("web-gre-1") shouldBe stored
                 registry.get(" web-gre-1 ").shouldBeNull()

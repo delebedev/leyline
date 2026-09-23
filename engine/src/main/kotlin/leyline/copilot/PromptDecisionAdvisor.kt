@@ -125,7 +125,9 @@ internal class PromptDecisionAdvisor(
 
             GREMessageType.SelectReplacementReq_695e -> defaulted(DefaultDecisions.selectReplacement(prompt))
 
-            GREMessageType.NumericInputReq_695e -> defaulted(DefaultDecisions.numericInput(prompt))
+            GREMessageType.NumericInputReq_695e ->
+                forgeAi.chooseNumericInput(prompt)?.let { forgeChosen(SimDecision.NumericInput(it)) }
+                    ?: defaulted(DefaultDecisions.numericInput(prompt), forgeAiAttempted = true)
 
             GREMessageType.DistributionReq_695e ->
                 DefaultDecisions.forcedDistribution(prompt)?.let(::defaulted)

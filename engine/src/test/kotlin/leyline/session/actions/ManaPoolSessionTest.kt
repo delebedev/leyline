@@ -5,8 +5,11 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
+import leyline.copilot.CopilotProposalService
 import leyline.game.generator.PuzzleSource
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.FixturePinned
@@ -14,6 +17,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
+import leyline.testkit.beMissingFrom
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -40,6 +44,8 @@ class ManaPoolSessionTest :
             TestCardRegistry.ensureCardRegistered("Kenrith, the Returned King")
             TestCardRegistry.ensureCardRegistered("Golden Egg")
             TestCardRegistry.ensureCardRegistered("Cavalier of Dawn")
+            TestCardRegistry.ensureCardRegistered("Wan Shi Tong, Librarian")
+            TestCardRegistry.ensureCardRegistered("Stonecoil Serpent")
         }
 
         val racersRingPuzzle = PuzzleSource.definitionFromResource("data/puzzles/racers-ring-draw.pzl").content
@@ -398,6 +404,65 @@ class ManaPoolSessionTest :
                     .none { it.instanceId == eggIid }
                     .shouldBeTrue()
             }
+        }
+
+        session(
+            "greedy numeric choice keeps X cast payable and commits it",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Wan Shi Tong, Librarian
+                humanbattlefield=Island;Island;Island;Island
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            holdNextNumericInput()
+            castSpellByName("Wan Shi Tong, Librarian").shouldBeTrue()
+            val prompt = allMessages.last { it.hasNumericInputReq() }
+            val proposal = CopilotProposalService(bridge, SeatId(1)).propose(prompt)
+
+            assertSoftly {
+                proposal.numericValue shouldBe 2
+                game()
+                    .stackZone.cards
+                    .single { it.name == "Wan Shi Tong, Librarian" }
+                    .castSA.xManaCostPaid shouldBe null
+            }
+            respondToNumericInput(checkNotNull(proposal.numericValue))
+
+            assertSoftly {
+                "Wan Shi Tong, Librarian" should beMissingFrom(ZoneType.Hand, human)
+                human.battlefield.card("Wan Shi Tong, Librarian").netPower shouldBe 3
+            }
+        }
+
+        session(
+            "greedy numeric choice respects payable X on a zero-base-cost spell",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Stonecoil Serpent
+                humanbattlefield=Forest;Forest
+                humanlibrary=Forest
+                ailibrary=Mountain
+                """,
+        ) {
+            holdNextNumericInput()
+            castSpellByName("Stonecoil Serpent").shouldBeTrue()
+            val prompt = allMessages.last { it.hasNumericInputReq() }
+            val proposal = CopilotProposalService(bridge, SeatId(1)).propose(prompt)
+
+            proposal.numericValue shouldBe 2
+            respondToNumericInput(checkNotNull(proposal.numericValue))
+
+            human.battlefield.card("Stonecoil Serpent").netPower shouldBe 2
         }
 
         session(
