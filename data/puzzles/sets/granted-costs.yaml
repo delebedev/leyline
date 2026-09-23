@@ -2,7 +2,6 @@ name: granted-costs
 scenarios:
   - id: granted-evoke
     puzzle: granted-evoke
-    headless: {card_catalog: forge}
     run: evoke Yarok through Ashling's granted alternative cost
     expect: the original Yarok is sacrificed and Ashling creates a copy
     steps:
