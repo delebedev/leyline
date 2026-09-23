@@ -1054,11 +1054,13 @@ object StateMapper {
                 else -> null
             }
         val hasStackRetirement = fullResult.output.diffDeletedInstanceIds.isNotEmpty()
+        // Ability membership is projected from stack entries, outside ZoneSnapshot.contents.
+        val hasStackChanges = prev.stack != projectedCur.stack || hasStackRetirement
         val changedZones =
             current.zonesList
                 .filter { zone ->
                     zone.zoneId in changedZoneIds ||
-                        (zone.zoneId == ZoneIds.STACK && hasStackRetirement) ||
+                        (zone.zoneId == ZoneIds.STACK && hasStackChanges) ||
                         (
                             zone.zoneId == ZoneIds.LIMBO &&
                                 (

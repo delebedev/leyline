@@ -15,3 +15,18 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: library, card: Grizzly Bears }
             - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: venser-nonfirst-permanent
+    puzzle: mixed-zone-venser
+    run: cast Venser and explicitly choose Grizzly Bears for its trigger
+    expect: Bears returns to hand while Elves and Venser remain
+    steps:
+      - cast: "Venser, Shaper Savant"
+      - pass_until: { prompt: SelectTargetsReq }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+            - zone_contains: { side: ours, zone: battlefield, card: "Venser, Shaper Savant" }
+            - stack_empty: true
