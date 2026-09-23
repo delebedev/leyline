@@ -1,0 +1,85 @@
+name: combat-reports
+description: Player-visible combat trigger, restriction, and delayed-effect regressions.
+scenarios:
+  - id: ouroboroid-begin-combat-counters
+    puzzle: combat-report-ouroboroid
+    run: advance to combat and resolve Ouroboroid's beginning-of-combat trigger
+    expect: Ouroboroid and Grizzly Bears each receive one +1/+1 counter before attackers are declared
+    steps:
+      - pass_until:
+          battlefield_stats: { side: ours, card: Ouroboroid, power: 2, toughness: 4 }
+          max_passes: 12
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Ouroboroid, power: 2, toughness: 4 }
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
+            - stack_empty: true
+
+  - id: aveline-combat-damage-counters
+    puzzle: combat-report-aveline
+    native: { skip: Aveline de Grandpré is unavailable in the native card catalog. }
+    run: attack with Aveline and resolve its combat-damage trigger
+    expect: Aveline deals three damage and becomes 6/6
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: ["Aveline de Grandpré"] }
+      - pass_until:
+          battlefield_stats: { side: ours, card: "Aveline de Grandpré", power: 6, toughness: 6 }
+          max_passes: 12
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: "Aveline de Grandpré", power: 6, toughness: 6 }
+            - opponent_life: 7
+            - stack_empty: true
+
+  - id: lost-jitte-unblockable-mode
+    puzzle: combat-report-lost-jitte
+    run: activate Lost Jitte's unblockable mode on Grizzly Bears, then attack through Centaur Courser
+    expect: Grizzly Bears remains unblocked and deals two damage
+    steps:
+      - expect:
+          all:
+            - action: { type: activate, card: Lost Jitte }
+            - zone_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - activate: { card: Lost Jitte, ability_index: 0 }
+      - modal_choice: { index: 0, arena_index: 1 }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Grizzly Bears] }
+      - pass_until:
+          opponent_life: 18
+          max_passes: 12
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - opponent_life: 18
+            - stack_empty: true
+
+  - id: lure-forced-blocks-tangle-asp-cleanup
+    puzzle: combat-report-lure-tangle-asp
+    native: { skip: Lure and Tangle Asp are unavailable in the native card catalog. }
+    run: cast Lure on Tangle Asp, then attack into two eligible blockers
+    expect: both creatures block and Tangle Asp destroys both at end of combat
+    steps:
+      - cast: Lure
+      - target: { side: ours, zone: battlefield, card: Tangle Asp }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Tangle Asp] }
+      - pass_until:
+          zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
+          max_passes: 16
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Tangle Asp }
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
+            - stack_empty: true

@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Lure forces every eligible creature to block Tangle Asp, whose delayed triggers destroy those blockers at end of combat.
+# Forcing: Two opposing ground creatures are both eligible, and a -1/-1 counter makes the Asp assign no combat damage.
+# AI behavior: After Lure resolves, both blockers must be assigned to the sole attacker.
+# Failure modes:
+#   WIN = Both blockers and Tangle Asp leave the battlefield, with the blockers destroyed only by delayed triggers.
+#   LOSE = A blocker remains because forced blocking or the delayed destruction failed.
+#   TIMEOUT = Block declaration, damage assignment, or end-of-combat triggers fail to converge.
+# Card roles:
+#   Lure — forces every eligible opposing creature to block the enchanted attacker.
+#   Tangle Asp — zero-power attacker and source of one delayed destruction trigger per blocker.
+#   Grizzly Bears — first eligible blocker.
+#   Centaur Courser — second eligible blocker and proof that the restriction applies to all candidates.
+# Protocol path: Aura cast and targeting, attachment, attacker declaration, forced blocker legality, combat damage, delayed trigger lifecycle, and zone transfers.
+
+[metadata]
+Name:Combat Report Lure and Tangle Asp
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Cast Lure on Tangle Asp, attack, and verify both forced blockers are destroyed at end of combat.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Lure
+humanbattlefield=Tangle Asp|Counters:M1M1=1;Forest;Forest;Forest
+aibattlefield=Grizzly Bears;Centaur Courser
+humanlibrary=Forest
+ailibrary=Forest

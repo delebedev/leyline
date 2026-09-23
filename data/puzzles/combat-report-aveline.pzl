@@ -1,0 +1,28 @@
+# Design Narrative
+# Mechanic: Aveline gains +1/+1 counters equal to combat damage dealt to a player by a controlled deathtouch creature.
+# Forcing: Aveline is the only attacker and the opponent has no blocker, so exactly three combat damage reaches the player.
+# AI behavior: The opponent has no permanents or decisions, so the combat-damage trigger resolves deterministically.
+# Failure modes:
+#   WIN = Aveline deals three damage and becomes 6/6 after its trigger resolves.
+#   LOSE = Damage, the trigger, or the counter placement does not occur.
+#   TIMEOUT = Combat or the triggered stack lifecycle fails to converge.
+# Card roles:
+#   Aveline de Grandpré — attacker, deathtouch source, trigger source, and counter recipient.
+# Protocol path: Attacker declaration, combat damage, triggered stack lifecycle, counter annotations, and refreshed characteristics.
+
+[metadata]
+Name:Combat Report Aveline
+Goal:Survive
+Turns:1
+Difficulty:Tutorial
+Description:Attack with Aveline and verify combat damage adds three counters to it.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=10
+
+humanbattlefield=Aveline de Grandpré
+humanlibrary=Forest
+ailibrary=Forest

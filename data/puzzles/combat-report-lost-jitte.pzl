@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Lost Jitte's unblockable mode makes the targeted creature unblockable for the turn.
+# Forcing: Grizzly Bears attacks into a larger blocker, so surviving and dealing two damage uniquely proves the restriction.
+# AI behavior: Centaur Courser blocks the smaller attacker whenever blocking remains legal.
+# Failure modes:
+#   WIN = Grizzly Bears cannot be blocked, survives combat, and deals two damage to the opponent.
+#   LOSE = Centaur Courser blocks and kills Grizzly Bears because the restriction was not applied.
+#   TIMEOUT = Modal selection, targeting, activation resolution, or combat fails to converge.
+# Card roles:
+#   Lost Jitte — charged equipment whose unblockable mode creates the temporary restriction.
+#   Grizzly Bears — equipped target and attacker.
+#   Centaur Courser — legal blocker and negative control for the restriction.
+# Protocol path: Activated action, modal choice, explicit target, ability stack lifecycle, and blocker legality.
+
+[metadata]
+Name:Combat Report Lost Jitte
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Use Lost Jitte to make Grizzly Bears unblockable, then attack through Centaur Courser.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Grizzly Bears|Id:2;Lost Jitte|Id:1|AttachedTo:2|Counters:CHARGE=1
+aibattlefield=Centaur Courser
+humanlibrary=Forest
+ailibrary=Forest
