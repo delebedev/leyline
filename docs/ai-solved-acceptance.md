@@ -68,9 +68,11 @@ Headless acceptance resolves card identity from the Forge-backed catalog.
 Acceptance assertions describe semantic actions and gameplay outcomes; exact
 client identities belong to conformance checks. Native execution still requires
 a card available in that client's catalog.
+
 Modal responses accept
 `modal_choice: { index: 0 }` for one mode or `modal_choice: { indices: [0, 1] }`
 for multiple modes in one response.
+
 ## One-Turn Win Fixtures
 
 Default generated fixtures should be short and terminal:

@@ -23,7 +23,7 @@ internal data class FaceAlias(
 )
 
 internal object ForgeCatalogIndex {
-    const val IDENTITY_SCHEME = "forge-card-catalog-v5-granted-keywords-modal-options"
+    const val IDENTITY_SCHEME = "forge-card-catalog-v5-modal-options"
 
     @Serializable
     private data class ArchiveIndex(
