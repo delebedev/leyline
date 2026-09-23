@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.SeatId
@@ -15,6 +16,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
 import leyline.testkit.annotationsOfType
+import leyline.testkit.beMissingFrom
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -431,11 +433,7 @@ class ManaPoolSessionTest :
             respondToNumericInput(checkNotNull(proposal.numericValue))
 
             assertSoftly {
-                human
-                    .getZone(ZoneType.Hand)
-                    .cards
-                    .none { it.name == "Wan Shi Tong, Librarian" }
-                    .shouldBeTrue()
+                "Wan Shi Tong, Librarian" should beMissingFrom(ZoneType.Hand, human)
                 human.battlefield.card("Wan Shi Tong, Librarian").netPower shouldBe 3
             }
         }
