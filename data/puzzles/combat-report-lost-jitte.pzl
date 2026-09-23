@@ -8,7 +8,7 @@
 #   TIMEOUT = Modal selection, targeting, activation resolution, or combat fails to converge.
 # Card roles:
 #   Lost Jitte — charged equipment that creates the temporary blocking restriction.
-#   Grizzly Bears — equipped attacker presenting exact lethal damage.
+#   Grizzly Bears — attacker presenting exact lethal damage.
 #   Centaur Courser — sole blocker and positive case for the restriction.
 # Protocol path: Activated action, modal choice, explicit target, ability stack lifecycle, and blocker legality.
 
@@ -25,7 +25,7 @@ ActivePhase=Main1
 HumanLife=20
 AILife=2
 
-humanbattlefield=Grizzly Bears|Id:2;Lost Jitte|Id:1|AttachedTo:2|Counters:CHARGE=1
+humanbattlefield=Grizzly Bears;Lost Jitte|Counters:CHARGE=1
 aibattlefield=Centaur Courser
 humanlibrary=Forest
 ailibrary=Forest
