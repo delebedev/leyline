@@ -153,6 +153,7 @@ class MatchConnection(
             sendInitialBundle = ::sendInitialBundle,
             resolveSeatDecks = { resolveSeatDecks().let { it.seat1 to it.seat2 } },
             resolveGameVariant = ::resolveGameVariant,
+            resolveSeed = { resolveRuntimeMatchConfig()?.seed ?: engineSettings.seed },
             isSpectatorMode = ::isSpectatorMode,
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
