@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Cast Force of Negation for its alternative cost during the opponent's turn by exiling another blue card.
+# Forcing: The opponent's Lightning Bolt is lethal, and the player has no mana, so exiling Opt is the only way to survive.
+# AI behavior: The opponent starts its main phase at three opposing life and has exactly one castable spell, so it casts Lightning Bolt at the player.
+# Failure modes:
+#   WIN = Force of Negation exiles Opt to counter and exile Lightning Bolt before it resolves.
+#   LOSE = Lightning Bolt resolves because the alternative cast or its hand-exile payment is unavailable.
+#   TIMEOUT = the response window, target selection, cost payment, or stack resolution stops advancing.
+# Card roles:
+#   Force of Negation — alternative-cost counterspell under test.
+#   Opt — the only blue card available for the alternative payment.
+#   Lightning Bolt — deterministic lethal noncreature spell to counter.
+#   Mountain — lets the opponent cast Lightning Bolt.
+# Protocol path: opponent priority, alternate hand-cast action, stack targeting, hand-exile payment, countered spell exile, and stack resolution.
+
+[metadata]
+Name:Force of Negation Alternative Cost
+Goal:Survive
+Turns:1
+Difficulty:Tutorial
+Description:Exile Opt to cast Force of Negation without mana and counter a lethal Lightning Bolt.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=3
+AILife=20
+
+humanhand=Force of Negation;Opt
+humanlibrary=Island
+aibattlefield=Mountain
+aihand=Lightning Bolt
+ailibrary=Mountain

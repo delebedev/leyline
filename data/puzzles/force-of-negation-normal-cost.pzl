@@ -1,0 +1,34 @@
+# Design Narrative
+# Mechanic: Cast Force of Negation for its printed mana cost during the opponent's turn.
+# Forcing: The opponent's Lightning Bolt is lethal, Force has no other blue card to exile, and three Islands supply exactly its printed cost.
+# AI behavior: The opponent starts its main phase at three opposing life and has exactly one castable spell, so it casts Lightning Bolt at the player.
+# Failure modes:
+#   WIN = three Islands pay for Force of Negation, which counters and exiles Lightning Bolt before it resolves.
+#   LOSE = Lightning Bolt resolves because the normal cast or payment path is unavailable.
+#   TIMEOUT = the response window, target selection, mana payment, or stack resolution stops advancing.
+# Card roles:
+#   Force of Negation — normal-cost counterspell control path.
+#   Lightning Bolt — deterministic lethal noncreature spell to counter.
+#   Islands — exact payment for Force of Negation's printed cost.
+#   Mountain — lets the opponent cast Lightning Bolt.
+# Protocol path: opponent priority, normal hand-cast action, stack targeting, mana payment, countered spell exile, and stack resolution.
+
+[metadata]
+Name:Force of Negation Normal Cost
+Goal:Survive
+Turns:1
+Difficulty:Tutorial
+Description:Pay three mana for Force of Negation and counter a lethal Lightning Bolt.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=3
+AILife=20
+
+humanhand=Force of Negation
+humanbattlefield=Island;Island;Island
+humanlibrary=Island
+aibattlefield=Mountain
+aihand=Lightning Bolt
+ailibrary=Mountain

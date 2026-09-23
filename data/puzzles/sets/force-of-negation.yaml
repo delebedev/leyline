@@ -1,0 +1,32 @@
+name: force-of-negation
+description: Force of Negation alternate and normal casting paths.
+scenarios:
+  - id: alternative-cost
+    puzzle: force-of-negation-alternative-cost
+    run: counter lethal Lightning Bolt by exiling Opt instead of paying mana
+    expect: the alternative cast exiles Opt and the countered Lightning Bolt while preserving the player's life total
+    steps:
+      - pass_until:
+          action: { type: cast, card: Force of Negation, alt_cost: generic }
+          max_passes: 8
+      - cast: { card: Force of Negation, alt_cost: generic }
+      - target: { side: opponent, zone: stack, card: Lightning Bolt }
+      - select_cost: { zone: hand, cards: [Opt] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 2
+  - id: normal-cost
+    puzzle: force-of-negation-normal-cost
+    run: counter lethal Lightning Bolt by paying Force of Negation's printed mana cost
+    expect: the normal cast counters and exiles Lightning Bolt while preserving the player's life total
+    steps:
+      - pass_until:
+          action: { type: cast, card: Force of Negation }
+          max_passes: 8
+      - cast: Force of Negation
+      - target: { side: opponent, zone: stack, card: Lightning Bolt }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 2
