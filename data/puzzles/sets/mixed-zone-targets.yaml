@@ -17,7 +17,6 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
   - id: venser-nonfirst-permanent
     puzzle: mixed-zone-venser
-    headless: { card_catalog: forge }
     run: cast Venser and explicitly choose Grizzly Bears for its trigger
     expect: Bears returns to hand while Elves and Venser remain
     steps:
