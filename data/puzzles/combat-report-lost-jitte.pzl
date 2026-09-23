@@ -1,15 +1,16 @@
 # Design Narrative
-# Mechanic: Lost Jitte's unblockable mode makes the targeted creature unblockable for the turn.
-# Forcing: Grizzly Bears attacks into a larger blocker, so surviving and dealing two damage uniquely proves the restriction.
-# AI behavior: Centaur Courser blocks the smaller attacker whenever blocking remains legal.
+# Mechanic: Lost Jitte's second mode prevents the targeted creature from blocking for the turn.
+# Forcing: The opponent is at two life with two blockers, so one must block Grizzly Bears to survive.
+# AI behavior: Centaur Courser preserves both blockers when eligible; otherwise Grizzly Bears must trade.
 # Failure modes:
-#   WIN = Grizzly Bears cannot be blocked, survives combat, and deals two damage to the opponent.
+#   WIN = The targeted Centaur Courser cannot block, while the untargeted Grizzly Bears blocks and trades.
 #   LOSE = Centaur Courser blocks and kills Grizzly Bears because the restriction was not applied.
 #   TIMEOUT = Modal selection, targeting, activation resolution, or combat fails to converge.
 # Card roles:
-#   Lost Jitte — charged equipment whose unblockable mode creates the temporary restriction.
-#   Grizzly Bears — equipped target and attacker.
-#   Centaur Courser — legal blocker and negative control for the restriction.
+#   Lost Jitte — charged equipment that creates the temporary blocking restriction.
+#   Human Grizzly Bears — equipped attacker.
+#   Centaur Courser — targeted blocker and positive case for the restriction.
+#   Opposing Grizzly Bears — untargeted blocker and adjacent control.
 # Protocol path: Activated action, modal choice, explicit target, ability stack lifecycle, and blocker legality.
 
 [metadata]
@@ -17,15 +18,15 @@ Name:Combat Report Lost Jitte
 Goal:Survive
 Turns:1
 Difficulty:Easy
-Description:Use Lost Jitte to make Grizzly Bears unblockable, then attack through Centaur Courser.
+Description:Use Lost Jitte to stop Centaur Courser from blocking, then attack into the remaining blocker.
 
 [state]
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=20
+AILife=2
 
 humanbattlefield=Grizzly Bears|Id:2;Lost Jitte|Id:1|AttachedTo:2|Counters:CHARGE=1
-aibattlefield=Centaur Courser
+aibattlefield=Centaur Courser;Grizzly Bears
 humanlibrary=Forest
 ailibrary=Forest

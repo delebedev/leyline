@@ -34,10 +34,10 @@ scenarios:
             - opponent_life: 7
             - stack_empty: true
 
-  - id: lost-jitte-unblockable-mode
+  - id: lost-jitte-cant-block-mode
     puzzle: combat-report-lost-jitte
-    run: activate Lost Jitte's unblockable mode on Grizzly Bears, then attack through Centaur Courser
-    expect: Grizzly Bears remains unblocked and deals two damage
+    run: target Centaur Courser with Lost Jitte's can't-block mode, then attack into the remaining Grizzly Bears
+    expect: Centaur Courser remains out of combat while the untargeted Grizzly Bears blocks and trades
     steps:
       - expect:
           all:
@@ -45,20 +45,22 @@ scenarios:
             - zone_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
       - activate: { card: Lost Jitte, ability_index: 0 }
       - modal_choice: { index: 0, arena_index: 1 }
-      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
       - resolve_stack: {}
       - pass_until:
           prompt: DeclareAttackersReq
           max_passes: 12
       - attack: { cards: [Grizzly Bears] }
       - pass_until:
-          opponent_life: 18
+          zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
           max_passes: 12
       - resolve_stack: {}
       - expect:
           all:
-            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
-            - opponent_life: 18
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
+            - zone_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+            - opponent_life: 2
             - stack_empty: true
 
   - id: lure-forced-blocks-tangle-asp-cleanup
