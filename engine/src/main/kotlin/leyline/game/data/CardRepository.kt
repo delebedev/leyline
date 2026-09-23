@@ -1,5 +1,7 @@
 package leyline.game.data
 
+import forge.game.spellability.SpellAbility
+import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import kotlin.collections.iterator
 
@@ -16,6 +18,23 @@ interface CardRepository {
     fun findNameByGrpId(grpId: Int): String?
 
     fun findGrpIdByName(name: String): Int?
+
+    /** Catalog identity for a dynamically granted keyword definition, when supported. */
+    fun findGrantedKeywordAbilityGrpId(
+        sourceGrpId: Int,
+        keyword: String,
+    ): Int? {
+        val parts = keyword.split(":")
+        val baseId = KeywordAbilityIds.fromForgeAltCostName(parts.first()) ?: return null
+        val cost = parts.getOrNull(1) ?: return null
+
+        fun List<Pair<ManaColor, Int>>.totals() = groupBy { it.first }.mapValues { (_, symbols) -> symbols.sumOf { it.second } }
+        val mana = cost.split(Regex("\\s+")).map { manaTokenToPair(it) ?: return null }.totals()
+        return findByGrpId(sourceGrpId)?.hiddenAbilityIds?.map { it.first }?.singleOrNull { id ->
+            val info = findAbilityInfo(id)
+            info?.baseId == baseId && info.manaCost.totals() == mana
+        }
+    }
 
     /** Deck-entry lookup. Repositories may accept exact catalog aliases while returning the deck-legal parent. */
     fun findDeckGrpIdByName(name: String): Int? = findGrpIdByName(name)
@@ -290,4 +309,12 @@ object KeywordAbilityIds {
         )
 
     fun fromForgeAltCostName(name: String): Int? = FORGE_ALT_COST_KEYWORD_IDS[name.uppercase()]
+}
+
+/** Use the granted keyword definition retained by Forge across casting and resolution. */
+internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? {
+    val keyword = sa.keyword ?: sa.trigger?.keyword ?: return null
+    if (keyword.isIntrinsic || keyword.static == null) return null
+    val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return null
+    return findGrantedKeywordAbilityGrpId(sourceGrpId, keyword.original)
 }

@@ -11,6 +11,7 @@ import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
@@ -532,6 +533,7 @@ object SnapshotCapture {
             currentLoyalty = if (onBf && type.isPlaneswalker) card.currentLoyalty else 0,
             isOnAdventure = card.isOnAdventure,
             endOfTurnLeavePlay = card.isToken && card.hasSVar("EndOfTurnLeavePlay"),
+            grantedCastAbilityGrpId = card.castSA?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) },
             evokePaid =
                 (onBf || card.isInZone(ForgeZoneType.Stack)) &&
                     card.castSA?.isEvoke == true,

@@ -181,6 +181,11 @@ class ForgeCardRepository private constructor(
             addRows(face.abilities)
             addRows(face.triggers)
             addRows(face.staticAbilities)
+            face.staticAbilities.forEach { raw ->
+                parseParams(raw)["AddKeyword"]?.split(" & ")?.forEach { keyword ->
+                    add("granted-keyword:$keyword")
+                }
+            }
             addRows(face.replacements)
         }
 
@@ -562,6 +567,20 @@ class ForgeCardRepository private constructor(
 
     @Synchronized
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = rows.lookupModalOptions(cardGrpId)
+
+    @Synchronized
+    override fun findGrantedKeywordAbilityGrpId(
+        sourceGrpId: Int,
+        keyword: String,
+    ): Int? {
+        val id = catalogIdentityIds["granted-keyword:$keyword"] ?: return null
+        val parts = keyword.split(":")
+        val base = keywordBases[normalize(parts.first())] ?: return null
+        val mana = parts.getOrElse(1) { "" }.split(Regex("\\s+")).mapNotNull(::manaTokenToPair)
+        rows.registerAbilityInfo(id, AbilityInfo(base, mana, 8, 0))
+        rows.registerAbilityLocalization(id, AbilityLocalization(parts.first(), mana))
+        return id
+    }
 
     @Synchronized
     override fun findAbilityInfo(abilityGrpId: Int): AbilityInfo? = rows.findAbilityInfo(abilityGrpId)

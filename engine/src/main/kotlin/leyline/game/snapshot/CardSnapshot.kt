@@ -116,6 +116,8 @@ data class CardSnapshot(
     val endOfTurnLeavePlay: Boolean = false,
     /** True while a spell or permanent retains a paid Evoke cast. */
     val evokePaid: Boolean = false,
+    /** Ability identity retained by the paid keyword grant after its source-zone restriction ends. */
+    val grantedCastAbilityGrpId: Int? = null,
     /**
      * Role this card plays in the Prepared mechanic. [PreparedRole.None] for the
      * vast majority of cards. [PreparedRole.Source] for a battlefield creature

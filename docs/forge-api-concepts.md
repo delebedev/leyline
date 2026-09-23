@@ -66,6 +66,14 @@ Use `chooseCastAbility(card, player)` when you only need the best current cast c
 
 Use `CastRails` when an action needs protocol fields for a named cast rail such as plot, foretell, disturb, escape, warp, or sneak. The rail table is the shared source for action emission and action submission.
 
+Granted alternate costs retain their Forge keyword definition and granting
+static ability. Resolve their protocol identity through
+`CardRepository.grantedKeywordAbilityGrpId`: native metadata uses the granting
+card's hidden keyword row with the same cost, while the Forge catalog uses a
+stable generated keyword-definition identity. The offer, chosen-cast marker,
+and sacrifice trigger use that same identity even after the hand-only grant
+stops applying.
+
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
 ## 5. Legality Versus Affordability
