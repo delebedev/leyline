@@ -47,6 +47,48 @@ class ForgeCatalogProbeTest :
         }
         afterEach { TestCardRegistry.repo.registeredCount shouldBe 0 }
 
+        test("reflexive modal attack resolves two modes and retains the unchosen mode") {
+            probe("reflexive-modal", puzzleFile = "data/puzzles/reflexive-modal-caesar.pzl") { repo ->
+                advanceToCombat()
+                declareAttackers(listOf(human.battlefield.iid("Caesar, Legion's Emperor")))
+                passUntil(10) { allMessages.any { it.hasPayCostsReq() } }.shouldBeTrue()
+                respondToEffectCost(listOf(human.battlefield.iid("Grizzly Bears")))
+                passUntil(10) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
+                human.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
+                val modal =
+                    allMessages
+                        .last { it.hasCastingTimeOptionsReq() }
+                        .castingTimeOptionsReq
+                        .getCastingTimeOptionReq(0)
+                        .modalReq
+                assertSoftly {
+                    modal.minSel shouldBe 2
+                    modal.maxSel shouldBe 2
+                    modal.modalOptionsCount shouldBe 3
+                    check(modal.modalOptionsList.all { !repo.findAbilityLocalization(it.grpId)?.text.isNullOrBlank() })
+                }
+                val handSize = human.hand.cards.size
+                respondModalChoice(modal.modalOptionsList.take(2).map { it.grpId })
+                passUntil(10) { human.battlefield.cards.count { it.isToken } == 2 }.shouldBeTrue()
+                assertSoftly {
+                    human.battlefield.cards.count { it.isToken } shouldBe 2
+                    human.hand.cards.size shouldBe handSize + 1
+                    human.life shouldBe 19
+                    ai.life shouldBe 14
+                }
+            }
+        }
+
+        test("reflexive modal triggers expose every option while nonmodal triggers stay nonmodal") {
+            val repo = ForgeCardRepository.open()
+            val caesar = requireNotNull(repo.findGrpIdByName("Caesar, Legion's Emperor"))
+            val modal = requireNotNull(repo.lookupModalOptions(caesar))
+            modal.childGrpIds.size shouldBe 3
+            check(modal.childGrpIds.all { !repo.findAbilityLocalization(it)?.text.isNullOrBlank() })
+            val inspector = requireNotNull(repo.findGrpIdByName("Thraben Inspector"))
+            repo.lookupModalOptions(inspector) shouldBe null
+        }
+
         test("targeted activated ability resolves with a generated ability identity") {
             probe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
                 activateAbility("Goblin Fireslinger").shouldBeTrue()

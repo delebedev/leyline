@@ -98,6 +98,10 @@ selects eager loading by default; a host opting into lazy loading must do so on
 the first initialization and reuse the same resource catalog for that JVM.
 The no-index repository path deliberately materializes the full catalog.
 
+Modal option identities follow nested `Execute` references, including reflexive
+triggers, so their selectable effects share the catalog's stable identity and
+localization path.
+
 Combined Split and Room cards expose one parent identity with ordered face
 identities. Specialize cards expose the base identity with five form identities.
 Normal name lookup maps Split faces and Specialize forms back to the deck-legal

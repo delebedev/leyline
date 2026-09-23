@@ -11,7 +11,6 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityKey
-import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
@@ -503,53 +502,11 @@ class PlayerController(
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
         if (wrapper.isMandatory) return true
         if (isParadigmDelayedTrigger(wrapper)) return true
-        // Route through the coordinator-owned OptionalActionMessage interaction.
-        val accepted =
-            optionalActionGate.await(
-                hostCard = wrapper.hostCard,
-                defaultOnTimeout = true,
-                logContext = "confirmTrigger",
-            )
-        if (!accepted) return false
-
-        // Announce X for triggered abilities with `Cost$ X`. Forge's standard
-        // X-announce path (`PlaySpellAbility.announceValuesLikeX`) early-exits
-        // for wrapped triggered abilities, so X stays unset and the trigger
-        // resolves with X=0 unless we set it here. The protocol surface for a
-        // "may pay {X}" trigger pairs the optional accept with a follow-up
-        // NumericInputReq (ChooseX) — emitted by routing through the gate.
-        announceXIfPresent(wrapper)
-        return true
-    }
-
-    private fun announceXIfPresent(wrapper: WrappedAbility) {
-        val cost = wrapper.payCosts ?: return
-        if (wrapper.xManaCostPaid != null) return
-
-        // Forge's own X-announce gate (PlaySpellAbility:773) checks
-        // `cost.hasXInAnyCostPart()`, but for wrapped triggered SAs that
-        // accessor returns false even when `Cost$ X` is set (the wrapper
-        // strips the cost into a separate accessor path). So we additionally
-        // accept `SVar:X = Count$xPaid` — Forge's own canonical marker for
-        // "this ability's X is the amount paid as X mana" — which is set on
-        // every `Cost$ X` trigger we've observed (Wildborn Preserver and the
-        // mechanic-mirror cards in `forge/forge-gui/res/cardsfolder`). Other
-        // SVar:X values (Count$Domain, PT$X, etc.) reference X for some other
-        // computation and must not fire a NumericInputReq.
-        val sVar = wrapper.getSVar("X")
-        val needsX = cost.hasXInAnyCostPart() || sVar == "Count\$xPaid"
-        if (!needsX) return
-
-        val maxX = cost.getMaxForNonManaX(wrapper, player, false) ?: Int.MAX_VALUE
-        val x =
-            numericInputGate.await(
-                sourceCard = wrapper.hostCard,
-                min = 0,
-                max = maxX,
-                defaultOnTimeout = 0,
-                logContext = "confirmTrigger-X",
-            )
-        wrapper.setXManaCostPaid(x)
+        return optionalActionGate.await(
+            hostCard = wrapper.hostCard,
+            defaultOnTimeout = true,
+            logContext = "confirmTrigger",
+        )
     }
 
     /**
@@ -1563,19 +1520,6 @@ class PlayerController(
                 .firstOrNull()
                 ?.sourceCard
                 ?.id
-
-    override fun playSpellAbilityNoStack(
-        effectSA: SpellAbility,
-        mayChoseNewTargets: Boolean,
-    ) {
-        // Direct resolve — this is called by the engine for triggered abilities,
-        // replacement effects, and other no-stack effects.
-        // Must use AbilityUtils.resolve (not raw effectSA.resolve()) so that
-        // chained sub-abilities execute — e.g. CharmEffect chains the chosen
-        // mode as a sub, and the sub must resolve after the parent no-op.
-        effectSA.activatingPlayer = player
-        AbilityUtils.resolve(effectSA)
-    }
 
     override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
         usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)

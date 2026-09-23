@@ -171,7 +171,7 @@ class ForgeCardRepository private constructor(
                     add("$prefix:ability:${slot++}:$raw")
                     val variables = face.variables.associate { it.key to it.value }
                     val parsed = parseParams(raw)
-                    val effect = parsed["Execute"]?.let(variables::get)?.let(::parseParams) ?: parsed
+                    val effect = modalEffect(parsed, variables)
                     effect["Choices"]?.split(',')?.forEachIndexed { index, variable ->
                         add("$prefix:mode:${slot - 1}:$index:$variable")
                     }
@@ -182,6 +182,21 @@ class ForgeCardRepository private constructor(
             addRows(face.triggers)
             addRows(face.staticAbilities)
             addRows(face.replacements)
+        }
+
+        /** Reflexive triggers can reach their modes through several Execute references. */
+        private fun modalEffect(
+            params: Map<String, String>,
+            variables: Map<String, String>,
+        ): Map<String, String> {
+            var effect = params
+            val visited = mutableSetOf<String>()
+            while (!effect.containsKey("Choices")) {
+                val variable = effect["Execute"] ?: break
+                if (!visited.add(variable)) break
+                effect = variables[variable]?.let(::parseParams) ?: break
+            }
+            return effect
         }
 
         private fun definitionVersion(names: List<String>): String {
@@ -402,7 +417,7 @@ class ForgeCardRepository private constructor(
             val parsed = parseParams(raw)
             val text = parsed["SpellDescription"] ?: parsed["TriggerDescription"] ?: parsed["Description"] ?: raw
             rows.registerAbilityLocalization(id, AbilityLocalization(text, mana))
-            val effect = parsed["Execute"]?.let(variables::get)?.let(::parseParams) ?: parsed
+            val effect = modalEffect(parsed, variables)
             effect["Choices"]
                 ?.split(",")
                 ?.mapIndexed { index, variable ->

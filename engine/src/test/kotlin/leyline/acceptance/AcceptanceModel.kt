@@ -66,9 +66,9 @@ data class ManaTypeChoicesStep(
 }
 
 data class ModalChoiceStep(
-    val index: Int,
+    val indices: List<Int>,
 ) : AcceptanceStep {
-    override val label: String = "modal_choice $index"
+    override val label: String = "modal_choice $indices"
 }
 
 data class StaticChoiceStep(

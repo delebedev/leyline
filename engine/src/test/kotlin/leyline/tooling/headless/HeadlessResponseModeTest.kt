@@ -1,5 +1,6 @@
 package leyline.tooling.headless
 
+import forge.game.card.CounterEnumType
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -8,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.testkit.MatchFlowHarness
+import leyline.testkit.battlefield
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 
 /**
@@ -62,13 +64,19 @@ class HeadlessResponseModeTest :
         test("AutoForTests answers the optional offer during drain") {
             val h = MatchFlowHarness(responseMode = HeadlessResponseMode.AutoForTests)
             h.connectAndKeepPuzzleText(puzzleText)
+            h.nextNumericInput(2)
             h.castCourserAndResolve()
+            h.passUntilResolved()
 
             withClue("harness auto-accepts, so the offer is consumed and the chained numeric prompt fires") {
                 h.bridge.cutCoordinator
                     .currentBlockingInteraction()
                     .shouldBeNull()
                 h.countOf(GREMessageType.NumericInputReq_695e) shouldBe 1
+            }
+            with(h) {
+                human.battlefield.card("Wildborn Preserver").getCounters(CounterEnumType.P1P1) shouldBe 2
+                human.getZone(forge.game.zone.ZoneType.Battlefield).cards.count { it.isLand && it.isTapped } shouldBe 5
             }
         }
 

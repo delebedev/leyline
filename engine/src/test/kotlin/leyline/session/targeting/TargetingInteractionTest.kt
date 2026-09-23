@@ -506,7 +506,7 @@ class TargetingInteractionTest :
                 HumanLife=20
                 AILife=20
 
-                humanbattlefield=Spellbook Vendor;Grizzly Bears
+                humanbattlefield=Spellbook Vendor;Grizzly Bears;Plains
                 humanlibrary=Plains
                 ailibrary=Mountain
                 """.trimIndent(),
