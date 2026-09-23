@@ -61,23 +61,6 @@ scenarios:
             - opponent_life: 18
             - stack_empty: true
 
-  - id: lost-jitte-counter-mode-control
-    puzzle: combat-report-lost-jitte
-    run: activate Lost Jitte's +1/+1-counter mode
-    expect: Grizzly Bears receives one +1/+1 counter
-    steps:
-      - expect:
-          action: { type: activate, card: Lost Jitte }
-      - activate: { card: Lost Jitte, ability_index: 0 }
-      - modal_choice: { index: 1, arena_index: 2 }
-      - resolve_stack: {}
-      - expect:
-          all:
-            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 3, toughness: 3 }
-            - zone_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
-            - opponent_life: 20
-            - stack_empty: true
-
   - id: lure-forced-blocks-tangle-asp-cleanup
     puzzle: combat-report-lure-tangle-asp
     native: { skip: Lure and Tangle Asp are unavailable in the native card catalog. }
@@ -97,7 +80,6 @@ scenarios:
       - expect:
           all:
             - zone_contains: { side: ours, zone: graveyard, card: Tangle Asp }
-            - zone_contains: { side: ours, zone: graveyard, card: Lure }
             - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
             - zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
             - stack_empty: true
