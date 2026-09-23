@@ -153,7 +153,7 @@ class MatchConnection(
             sendInitialBundle = ::sendInitialBundle,
             resolveSeatDecks = { resolveSeatDecks().let { it.seat1 to it.seat2 } },
             resolveGameVariant = ::resolveGameVariant,
-            resolveSeed = { resolveRuntimeMatchConfig()?.seed ?: engineSettings.seed },
+            resolveSeed = { runtimeMatchSeed(resolveRuntimeMatchConfig(), engineSettings.seed) },
             isSpectatorMode = ::isSpectatorMode,
             onLocalPlayerConnected = ::onLocalPlayerConnected,
         )
@@ -706,3 +706,8 @@ internal fun runtimeGameVariant(
     if (runtimeConfig?.gameVariant != null || runtimeConfig?.spectatorMode == true) return runtimeConfig.gameVariant
     return if (selectedEventName?.contains("Brawl", ignoreCase = true) == true) "brawl" else null
 }
+
+internal fun runtimeMatchSeed(
+    runtimeConfig: RuntimeMatchConfig?,
+    configuredSeed: Long?,
+): Long? = runtimeConfig?.seed ?: configuredSeed
