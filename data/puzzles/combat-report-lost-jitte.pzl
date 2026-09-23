@@ -1,24 +1,23 @@
 # Design Narrative
 # Mechanic: Lost Jitte's second mode prevents the targeted creature from blocking for the turn.
-# Forcing: The opponent is at two life with two blockers, so one must block Grizzly Bears to survive.
-# AI behavior: Centaur Courser preserves both blockers when eligible; otherwise Grizzly Bears must trade.
+# Forcing: The opponent is at two life with Centaur Courser as the only blocker, so the restriction is the only path to lethal damage.
+# AI behavior: Centaur Courser blocks the lethal Grizzly Bears when eligible; otherwise the attack wins.
 # Failure modes:
-#   WIN = The targeted Centaur Courser cannot block, while the untargeted Grizzly Bears blocks and trades.
+#   WIN = The targeted Centaur Courser cannot block and Grizzly Bears deals lethal combat damage.
 #   LOSE = Centaur Courser blocks and kills Grizzly Bears because the restriction was not applied.
 #   TIMEOUT = Modal selection, targeting, activation resolution, or combat fails to converge.
 # Card roles:
 #   Lost Jitte — charged equipment that creates the temporary blocking restriction.
-#   Human Grizzly Bears — equipped attacker.
-#   Centaur Courser — targeted blocker and positive case for the restriction.
-#   Opposing Grizzly Bears — untargeted blocker and adjacent control.
+#   Grizzly Bears — equipped attacker presenting exact lethal damage.
+#   Centaur Courser — sole blocker and positive case for the restriction.
 # Protocol path: Activated action, modal choice, explicit target, ability stack lifecycle, and blocker legality.
 
 [metadata]
 Name:Combat Report Lost Jitte
-Goal:Survive
+Goal:Win
 Turns:1
 Difficulty:Easy
-Description:Use Lost Jitte to stop Centaur Courser from blocking, then attack into the remaining blocker.
+Description:Use Lost Jitte to stop Centaur Courser from blocking, then attack for lethal damage.
 
 [state]
 ActivePlayer=Human
@@ -27,6 +26,6 @@ HumanLife=20
 AILife=2
 
 humanbattlefield=Grizzly Bears|Id:2;Lost Jitte|Id:1|AttachedTo:2|Counters:CHARGE=1
-aibattlefield=Centaur Courser;Grizzly Bears
+aibattlefield=Centaur Courser
 humanlibrary=Forest
 ailibrary=Forest

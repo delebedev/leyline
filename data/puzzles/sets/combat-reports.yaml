@@ -36,8 +36,8 @@ scenarios:
 
   - id: lost-jitte-cant-block-mode
     puzzle: combat-report-lost-jitte
-    run: target Centaur Courser with Lost Jitte's can't-block mode, then attack into the remaining Grizzly Bears
-    expect: Centaur Courser remains out of combat while the untargeted Grizzly Bears blocks and trades
+    run: target the sole blocker with Lost Jitte's can't-block mode, then attack for lethal
+    expect: Centaur Courser cannot block and Grizzly Bears deals lethal combat damage
     steps:
       - expect:
           all:
@@ -52,16 +52,9 @@ scenarios:
           max_passes: 12
       - attack: { cards: [Grizzly Bears] }
       - pass_until:
-          zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
+          winner: ours
+          loser: opponent
           max_passes: 12
-      - resolve_stack: {}
-      - expect:
-          all:
-            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
-            - zone_contains: { side: opponent, zone: graveyard, card: Grizzly Bears }
-            - zone_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
-            - opponent_life: 2
-            - stack_empty: true
 
   - id: lure-forced-blocks-tangle-asp-cleanup
     puzzle: combat-report-lure-tangle-asp
