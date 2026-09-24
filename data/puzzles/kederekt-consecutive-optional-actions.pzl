@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Answer two consecutive optional triggers created by one two-card draw effect.
+# Forcing: Sign in Blood draws exactly two cards for the opponent, creating exactly two Kederekt Parasite triggers.
+# AI behavior: The opponent has no hand or battlefield actions; the human controls every prompt.
+# Failure modes:
+#   WIN = Sign in Blood and both optional triggers reduce the opponent from four life to zero.
+#   LOSE = A trigger resolves with the wrong decision or the expected life change is absent.
+#   TIMEOUT = Either optional prompt cannot submit or the second prompt never becomes actionable.
+# Card roles:
+#   Kederekt Parasite — creates one optional damage trigger for each opponent draw.
+#   Monastery Swiftspear — satisfies the red-permanent condition.
+#   Sign in Blood — creates two draws in one resolution and provides a visible life-total outcome check.
+#   Forest — preserves a human priority action after the two triggers resolve.
+# Protocol path: Targeted cast, two trigger objects, then two ordered OptionalActionMessage/Resp exchanges.
+
+[metadata]
+Name:Consecutive Optional Actions
+Goal:Win
+Turns:2
+Difficulty:Tutorial
+Description:Make the opponent draw twice, then answer both Kederekt Parasite triggers.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Sign in Blood;Forest
+humanbattlefield=Kederekt Parasite|Tapped;Monastery Swiftspear|Tapped;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp
+ailibrary=Plains;Plains;Plains;Plains

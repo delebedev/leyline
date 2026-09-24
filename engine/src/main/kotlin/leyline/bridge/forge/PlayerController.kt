@@ -644,16 +644,24 @@ class PlayerController(
             return awaitCommanderReturn(hostCard, sa, "confirmReplacementEffect:Commander")
         }
 
+        if (isOptionalEtbCopyReplacement(replacementEffect, sa)) {
+            return optionalActionGate.await(
+                hostCard = (affected as? Card) ?: replacementEffect.hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "confirmReplacementEffect:EtbCopy",
+            )
+        }
+
         // PCHuman uses GuiBase + InputConfirm
-        val message = prompt ?: replacementEffect.toString()
         val request =
             PromptRequest(
                 promptType = "confirm",
-                message = message,
+                message = prompt ?: replacementEffect.toString(),
                 options = listOf("Yes", "No"),
                 min = 1,
                 max = 1,
-                defaultIndex = if (isEnterAsCopyReplacement(message)) 1 else 0,
+                defaultIndex = 0,
             )
         val result = bridge.requestChoice(request)
         return result.firstOrNull() == 0
@@ -692,7 +700,13 @@ class PlayerController(
             commanderReturn = hostCard?.let { commanderReturnContext(it, sa) },
         )
 
-    private fun isEnterAsCopyReplacement(message: String): Boolean = message.contains("enter as a copy", ignoreCase = true)
+    private fun isOptionalEtbCopyReplacement(
+        replacementEffect: ReplacementEffect,
+        sa: SpellAbility?,
+    ): Boolean =
+        sa?.api == ApiType.Clone &&
+            replacementEffect.getParam("Event") == "Moved" &&
+            replacementEffect.getParam("Destination") == "Battlefield"
 
     @Suppress("UNCHECKED_CAST")
     private fun commanderReturnContext(
