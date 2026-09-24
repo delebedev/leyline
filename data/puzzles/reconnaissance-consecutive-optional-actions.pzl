@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Submit two consecutive OptionalAction responses through the native client.
+# Forcing: Two Reconnaissance Mission permanents each trigger when Faerie Miscreant deals combat damage.
+# AI behavior: The opponent has no blockers or relevant actions, so every decision belongs to the human seat.
+# Failure modes:
+#   WIN = Both triggers are accepted and exactly two cards are drawn.
+#   LOSE = Either response is lost or the draw result is wrong.
+#   TIMEOUT = Either optional prompt cannot submit or the second prompt never becomes actionable.
+# Card roles:
+#   Reconnaissance Mission — Arena-native source of the same scalar OptionalActionMessage/Resp rail.
+#   Faerie Miscreant — unblocked flying attacker that creates both optional triggers at once.
+#   Island — known top card drawn by the accepted trigger.
+# Protocol path: Combat damage followed by two ordered OptionalActionMessage/Resp exchanges.
+# Paired with: kederekt-consecutive-optional-actions.pzl
+
+[metadata]
+Name:Native Consecutive Optional Actions
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Attack with Faerie Miscreant and accept both Reconnaissance Mission triggers.
+
+[state]
+ActivePlayer=Human
+ActivePhase=COMBAT_DECLARE_ATTACKERS
+HumanLife=20
+AILife=20
+
+humanbattlefield=Reconnaissance Mission;Reconnaissance Mission;Faerie Miscreant
+humanlibrary=Island;Mountain;Forest
+ailibrary=Plains;Plains;Plains

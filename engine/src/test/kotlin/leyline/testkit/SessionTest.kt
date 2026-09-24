@@ -5,6 +5,7 @@ import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.ForgeCardRepository
+import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.ScriptedAction
 import leyline.tooling.headless.dumpDiagnostics
 import kotlin.time.Duration
@@ -107,6 +108,7 @@ abstract class SessionTest(
         validation: InvariantSelection = MatchFlowHarness.defaultValidation(validating),
         aiScript: List<ScriptedAction>? = null,
         fullControl: Boolean = false,
+        responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
         forgeCatalog: Boolean = javaClass.getAnnotation(FixturePinned::class.java) == null,
         timeout: Duration? = null,
         block: suspend MatchFlowHarness.() -> Unit,
@@ -130,6 +132,7 @@ abstract class SessionTest(
                     validating = validating,
                     validation = validation,
                     fullControl = fullControl,
+                    responseMode = responseMode,
                     cardRepositoryOverride = if (forgeCatalog) ForgeCardRepository.open() else null,
                 )
             try {

@@ -11,6 +11,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.testkit.MatchFlowHarness
+import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -36,6 +37,12 @@ class MatchdoorAcceptanceExecutor(
                 deckList = scenario.deckList,
                 opponentDeckList = scenario.opponentDeckList,
                 fullControl = scenario.fullControl,
+                responseMode =
+                    if (scenario.steps.any { it is OptionalActionStep }) {
+                        HeadlessResponseMode.PolicyVisible
+                    } else {
+                        HeadlessResponseMode.AutoForTests
+                    },
                 cardRepositoryOverride =
                     leyline.game.data.ForgeCardRepository
                         .open(),

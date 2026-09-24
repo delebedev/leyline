@@ -1,0 +1,54 @@
+name: optional-interactions
+description: Optional trigger and replacement decisions that must remain actionable across consecutive prompts.
+scenarios:
+  - id: sculpting-steel-copy-sol-ring
+    puzzle: sculpting-steel-copy
+    run: cast Sculpting Steel, accept the optional replacement, and choose Sol Ring
+    expect: Sculpting Steel enters with Sol Ring's characteristics and the stack empties
+    steps:
+      - expect:
+          action: { type: cast, card: Sculpting Steel }
+      - cast: Sculpting Steel
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: true }
+      - pass_until: { prompt: SelectNReq, max_passes: 4 }
+      - select_card: { side: ours, zone: battlefield, card: Sol Ring }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Sculpting Steel }
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 6 }
+            - stack_empty: true
+  - id: kederekt-consecutive-optional-actions
+    puzzle: kederekt-consecutive-optional-actions
+    native: { skip: Kederekt Parasite is unavailable in the native card catalog. }
+    run: cast Sign in Blood on the opponent, accept the first Kederekt Parasite trigger, and decline the second
+    expect: both prompts submit, exactly one trigger deals damage, and the stack empties
+    steps:
+      - cast: Sign in Blood
+      - target: opponent
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: true }
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: false }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 1
+            - stack_empty: true
+  - id: reconnaissance-consecutive-optional-actions
+    puzzle: reconnaissance-consecutive-optional-actions
+    run: attack with Faerie Miscreant and accept both Reconnaissance Mission triggers
+    expect: exactly two cards are drawn and both prompts complete
+    steps:
+      - pass_until: { prompt: DeclareAttackersReq, max_passes: 5 }
+      - attack_all: {}
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: true }
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: true }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Island }
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
+            - stack_empty: true
