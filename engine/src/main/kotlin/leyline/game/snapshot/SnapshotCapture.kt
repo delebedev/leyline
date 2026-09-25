@@ -223,7 +223,7 @@ object SnapshotCapture {
             val controller = entry.activatingPlayer
             val ownerSeat = bridge.seatOf(sourceCard.owner) ?: SeatId(1)
             val controllerSeat = bridge.seatOf(controller) ?: ownerSeat
-            val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge.cardRepository)
+            val sourceCardGrpId = resolveStackSourceCardGrpId(sourceCard, bridge)
             val runtimeTriggerId = entry.spellAbility.trigger?.id ?: 0
             val grpId =
                 bridge.pendingTriggerCleanupAbilityGrpId(runtimeTriggerId)
@@ -250,10 +250,10 @@ object SnapshotCapture {
 
     private fun resolveStackSourceCardGrpId(
         sourceCard: Card,
-        cards: CardRepository,
+        bridge: GameBridge,
     ): Int =
-        cards.findGrpIdByName(sourceCard.name)
-            ?: sourceCard.effectSource?.let { source -> cards.findGrpIdByName(source.name) }
+        bridge.resolveGrpId(sourceCard).takeIf { it != 0 }
+            ?: sourceCard.effectSource?.let(bridge::resolveGrpId)?.takeIf { it != 0 }
             ?: 0
 
     private fun captureZones(

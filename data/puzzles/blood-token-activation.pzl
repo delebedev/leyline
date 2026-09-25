@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Activate a Blood token by paying mana, tapping it, discarding a card, and sacrificing it to draw.
+# Forcing: The scripted path must first create the token, then its activation is the only action that produces the required zone changes and draw.
+# AI behavior: The opponent has no decisions or relevant permanents; every player choice is supplied by the acceptance script.
+# Failure modes:
+#   WIN = The Blood ability resolves, the token and discard leave their zones, and Lightning Bolt is drawn.
+#   LOSE = Token creation, activation, payment, source identity, or resolution failed before the turn limit.
+#   TIMEOUT = A cost or priority prompt did not complete.
+# Card roles:
+#   Voldaren Epicure — creates the Blood token through ordinary gameplay.
+#   Mountain — pays for the spell and activation; the hand copy pays the discard cost.
+#   Lightning Bolt — deterministic draw result proving the activation resolved.
+# Protocol path: Cast and token creation, activated-action offer, cost selection, ability stack lifecycle, and draw resolution.
+
+[metadata]
+Name:Blood Token Activation
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Create and activate a Blood token, discard Mountain, sacrifice the token, and draw Lightning Bolt.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Voldaren Epicure;Mountain
+humanbattlefield=Mountain;Mountain
+humanlibrary=Lightning Bolt;Mountain
+ailibrary=Island;Island

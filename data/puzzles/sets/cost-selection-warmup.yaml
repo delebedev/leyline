@@ -105,6 +105,26 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Mardu Outrider }
             - zone_contains: { side: ours, zone: graveyard, card: Mountain }
+  - id: blood-token-activation
+    puzzle: blood-token-activation
+    run: cast Voldaren Epicure, then activate the Blood token by discarding Mountain
+    expect: the token and Mountain are sacrificed and discarded, and Lightning Bolt is drawn
+    steps:
+      - expect:
+          action: { type: cast, card: Voldaren Epicure }
+      - cast: Voldaren Epicure
+      - resolve_stack: {}
+      - expect:
+          action: { type: activate, card: Blood Token }
+      - activate: Blood Token
+      - select_cost: { zone: hand, cards: [Mountain] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Blood Token }
+            - zone_contains: { side: ours, zone: graveyard, card: Mountain }
+            - zone_contains: { side: ours, zone: hand, card: Lightning Bolt }
+            - stack_empty: true
   - id: jump-start-radical-idea
     puzzle: jump-start-radical-idea
     run: expose Radical Idea's Jump-start cast from the graveyard
