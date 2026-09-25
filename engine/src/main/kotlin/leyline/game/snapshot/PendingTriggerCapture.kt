@@ -31,16 +31,16 @@ internal object PendingTriggerCapture {
         val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
         val sourceForgeCardId = ForgeCardId(sourceCard.id)
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        val sourceAbilityGrpId =
+            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
+                bridge.resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
+                    ?: soleTriggeredAbilityGrpId(sourceGrpId, bridge.cardRepository)
+            } ?: return null
         val policy =
             if (spawningAbility.isWarp) {
                 PendingTriggerVisualPolicy.warp
             } else {
                 PendingTriggerVisualPolicy.forSourceCard(sourceGrpId)
-            } ?: return null
-        val sourceAbilityGrpId =
-            bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
-                bridge.resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
-                    ?: soleTriggeredAbilityGrpId(sourceGrpId, bridge.cardRepository)
             } ?: return null
         bridge.recordPendingTriggerCleanupIdentity(trigger.id, policy.cleanupAbilityGrpId)
         val affectedCardIds =

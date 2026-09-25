@@ -356,6 +356,8 @@ class GameBridge(
 
     fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
 
+    internal fun pendingTriggerAbilityGrpId(triggerId: Int): Int? = pendingTriggerAbilityGrpIds[triggerId]
+
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
         projectionStateSnapshot().annotations.paradigmSourceStackIids[fid]
             ?: findCard(fid)
@@ -1292,7 +1294,15 @@ class GameBridge(
         val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
-        if (ability.trigger != null) return registry.resolve(definition)
+        if (ability.trigger != null) {
+            registry.resolve(definition)?.let { return it }
+            val refreshed = AbilityRegistry.build(card, cardData)
+            abilityRegistries[card.id] = refreshed
+            return refreshed.resolve(definition)
+                ?: ability.trigger
+                    ?.takeIf { it.isIntrinsic }
+                    ?.let { refreshed.resolveSoleIntrinsicTrigger(definition as AbilityDefinitionRef.Trigger) }
+        }
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
@@ -1327,7 +1337,12 @@ class GameBridge(
     ): ResolvedAbilityIdentity? {
         val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
-        return abilityRegistryFor(card, cardData)?.resolve(definition)
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+        return registry.resolve(definition)
+            ?: AbilityRegistry.build(card, cardData).let { refreshed ->
+                abilityRegistries[card.id] = refreshed
+                refreshed.resolve(definition)
+            }
     }
 
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
@@ -1339,6 +1354,14 @@ class GameBridge(
     fun invalidateAbilityRegistries(events: List<GameEvent>) {
         events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
         events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
+    }
+
+    /** Rebuild identities for the current card forms after frame-local invalidation. */
+    internal fun prewarmAbilityRegistries(snapshot: GsmSnapshot) {
+        for ((forgeCardId, bound) in snapshot.boundCards) {
+            val card = findCard(forgeCardId) ?: continue
+            abilityRegistryFor(card, bound.data)
+        }
     }
 
     /**

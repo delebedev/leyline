@@ -496,7 +496,7 @@ class GameEventCollector(
             specialAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
             decayedAbilityGrpIdFor(card, sa)?.let { return ResolvedAbilityIdentity(definition, it) }
         }
-        return if (!isTrigger && sa != null) {
+        return if (sa != null) {
             bridge.resolveAbilityIdentity(card, sa)
         } else {
             bridge.resolveAbilityIdentity(card, definition)
@@ -1210,7 +1210,10 @@ class GameEventCollector(
     ): ResolvedAbilityIdentity? {
         if (!isTrigger || ability == null || definition == null) return null
         val triggerId = ability.trigger?.id ?: return null
-        val abilityGrpId = bridge.pendingTriggerCleanupAbilityGrpId(triggerId) ?: return null
+        val abilityGrpId =
+            bridge.pendingTriggerCleanupAbilityGrpId(triggerId)
+                ?: bridge.pendingTriggerAbilityGrpId(triggerId)
+                ?: return null
         return ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
