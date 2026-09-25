@@ -1213,6 +1213,7 @@ class GameEventCollector(
         val abilityGrpId =
             bridge.pendingTriggerCleanupAbilityGrpId(triggerId)
                 ?: bridge.pendingTriggerAbilityGrpId(triggerId)
+                ?: bridge.resolveSpawningTriggerAbilityGrpId(ability.trigger)
                 ?: return null
         return ResolvedAbilityIdentity(definition, abilityGrpId)
     }

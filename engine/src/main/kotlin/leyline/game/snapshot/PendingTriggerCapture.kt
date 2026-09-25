@@ -6,7 +6,6 @@ import forge.game.trigger.Trigger
 import forge.game.zone.ZoneType
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
-import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -33,8 +32,7 @@ internal object PendingTriggerCapture {
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val sourceAbilityGrpId =
             bridge.resolvePendingTriggerAbilityIdentity(trigger.id, sourceForgeCardId) {
-                bridge.resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
-                    ?: soleTriggeredAbilityGrpId(sourceGrpId, bridge.cardRepository)
+                bridge.resolveSpawningTriggerAbilityGrpId(trigger)
             } ?: return null
         val policy =
             if (spawningAbility.isWarp) {
@@ -78,17 +76,6 @@ internal object PendingTriggerCapture {
             ?.key
             ?.value
             ?: bridge.getOrAllocInstanceId(sourceForgeCardId).value
-
-    private fun soleTriggeredAbilityGrpId(
-        cardGrpId: Int,
-        cards: CardRepository,
-    ): Int? {
-        val candidates =
-            cards.findByGrpId(cardGrpId)?.abilityIds.orEmpty().mapNotNull { (abilityGrpId, _) ->
-                abilityGrpId.takeIf { cards.findAbilityInfo(it)?.category == 2 }
-            }
-        return candidates.singleOrNull()
-    }
 
     private fun captureParadigmTriggers(
         game: Game,
