@@ -39,6 +39,8 @@ import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -416,26 +418,31 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
-        test("mulligan timeout still delivers the first action horizon") {
+        test("connected player can keep after the mulligan transition deadline") {
             val registry = MatchRegistry()
-            val matchId = "mulligan-flow-timeout"
+            val matchId = "mulligan-flow-delayed-keep"
             val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
 
             try {
-                greOutbound(local)
+                val mulliganPrompt = greOutbound(local).single { it.hasMulliganReq() }
                 greOutbound(familiar)
                 val bridge = registry.getMatch(matchId)!!.bridge
-                val deadline = System.nanoTime() + 8_000_000_000L
-                val postTimeout = mutableListOf<GREToClientMessage>()
-                while (System.nanoTime() < deadline && postTimeout.none { it.hasActionsAvailableReq() }) {
-                    postTimeout += greOutbound(local)
-                    bridge.cutCoordinator.deliverySignal.await(100)
-                }
+                CountDownLatch(1).await(2_500, TimeUnit.MILLISECONDS) shouldBe false
+
+                val whileWaiting = greOutbound(local)
+                local.writeInbound(
+                    greServiceMessage(
+                        mulliganDecision(MulliganOption.AcceptHand, mulliganPrompt.msgId),
+                        6,
+                    ),
+                )
+                val postKeep = greOutbound(local)
 
                 assertSoftly {
+                    whileWaiting.none { it.hasActionsAvailableReq() } shouldBe true
                     bridge.mulliganBridge(SeatId(1)).pendingPrompt() shouldBe null
-                    postTimeout.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
-                    postTimeout.any { it.hasGameStateMessage() } shouldBe true
+                    postKeep.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    postKeep.any { it.hasGameStateMessage() } shouldBe true
                 }
             } finally {
                 local.close()

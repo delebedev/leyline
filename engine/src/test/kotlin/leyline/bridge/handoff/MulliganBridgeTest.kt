@@ -6,8 +6,10 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.UnitTag
 import leyline.bridge.types.MulliganPhase
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -28,7 +30,7 @@ class MulliganBridgeTest :
         tags(UnitTag)
 
         test("keep prompt publishes one coherent snapshot and clears after response") {
-            val bridge = MulliganBridge(timeoutMs = 5_000)
+            val bridge = MulliganBridge()
             val ready = CountDownLatch(1)
             val result = AtomicReference<Boolean>()
 
@@ -64,7 +66,7 @@ class MulliganBridgeTest :
         }
 
         test("tuck prompt publishes tuck count without leaking prior keep state") {
-            val bridge = MulliganBridge(timeoutMs = 5_000)
+            val bridge = MulliganBridge()
             val keepReady = CountDownLatch(1)
             val keepThread =
                 Thread {
@@ -110,6 +112,33 @@ class MulliganBridgeTest :
             assertSoftly {
                 resultSize.get() shouldBe 0
                 bridge.pendingPrompt().shouldBeNull()
+            }
+        }
+
+        test("cancelling a pending keep releases the engine waiter without choosing") {
+            val bridge = MulliganBridge()
+            val failure = AtomicReference<Throwable>()
+            val engineThread =
+                Thread {
+                    try {
+                        bridge.awaitKeepDecision(playerId = 1, mulliganCount = 0)
+                    } catch (cause: Throwable) {
+                        failure.set(cause)
+                    }
+                }.apply {
+                    isDaemon = true
+                    start()
+                }
+
+            pollForPrompt(bridge).shouldNotBeNull()
+            bridge.cancelPending()
+            engineThread.join(2_000)
+
+            assertSoftly {
+                engineThread.isAlive shouldBe false
+                failure.get().shouldBeInstanceOf<CancellationException>()
+                bridge.pendingPrompt().shouldBeNull()
+                bridge.submitKeep() shouldBe false
             }
         }
     })
