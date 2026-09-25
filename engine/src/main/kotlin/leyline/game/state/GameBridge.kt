@@ -11,6 +11,7 @@ import forge.game.card.CardTraitChanges
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
+import forge.game.trigger.Trigger
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
@@ -355,6 +356,26 @@ class GameBridge(
     }
 
     fun pendingTriggerCleanupAbilityGrpId(triggerId: Int): Int? = pendingTriggerCleanupGrpIds[triggerId]
+
+    internal fun pendingTriggerAbilityGrpId(triggerId: Int): Int? = pendingTriggerAbilityGrpIds[triggerId]
+
+    internal fun resolveSpawningTriggerAbilityGrpId(trigger: Trigger): Int? {
+        val spawningAbility = trigger.spawningAbility ?: return null
+        val sourceCard = spawningAbility.hostCard?.effectSource ?: spawningAbility.hostCard ?: return null
+        return resolveAbilityIdentity(sourceCard, spawningAbility.rootAbility)?.abilityGrpId
+            ?: cardRepository
+                .findGrpIdByName(sourceCard.name)
+                ?.let(::soleTriggeredAbilityGrpId)
+    }
+
+    private fun soleTriggeredAbilityGrpId(cardGrpId: Int): Int? =
+        cardRepository
+            .findByGrpId(cardGrpId)
+            ?.abilityIds
+            .orEmpty()
+            .mapNotNull { (abilityGrpId, _) ->
+                abilityGrpId.takeIf { cardRepository.findAbilityInfo(it)?.category == 2 }
+            }.singleOrNull()
 
     fun paradigmSourceStackIidFor(fid: ForgeCardId): Int? =
         projectionStateSnapshot().annotations.paradigmSourceStackIids[fid]
@@ -1292,7 +1313,15 @@ class GameBridge(
         val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
-        if (ability.trigger != null) return registry.resolve(definition)
+        if (ability.trigger != null) {
+            registry.resolve(definition)?.let { return it }
+            val refreshed = AbilityRegistry.build(card, cardData)
+            abilityRegistries[card.id] = refreshed
+            return refreshed.resolve(definition)
+                ?: ability.trigger
+                    ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
+                    ?.let { refreshed.resolveSoleIntrinsicTrigger(definition as AbilityDefinitionRef.Trigger) }
+        }
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
             ?: ResolvedAbilityIdentity(definition, abilityGrpId)
@@ -1327,7 +1356,12 @@ class GameBridge(
     ): ResolvedAbilityIdentity? {
         val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
-        return abilityRegistryFor(card, cardData)?.resolve(definition)
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+        return registry.resolve(definition)
+            ?: AbilityRegistry.build(card, cardData).let { refreshed ->
+                abilityRegistries[card.id] = refreshed
+                refreshed.resolve(definition)
+            }
     }
 
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
@@ -1339,6 +1373,27 @@ class GameBridge(
     fun invalidateAbilityRegistries(events: List<GameEvent>) {
         events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
         events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
+    }
+
+    /** Rebuild invalidated identities that may execute before the next client action projection. */
+    internal fun prewarmAbilityRegistries(
+        snapshot: GsmSnapshot,
+        events: List<GameEvent>,
+    ) {
+        val invalidated =
+            (
+                events.filterIsInstance<GameEvent.CardTransformed>().map { it.cardId } +
+                    events.filterIsInstance<GameEvent.ZoneChanged>().map { it.cardId }
+            ).toSet()
+        val immediateActionSources =
+            listOf(ZoneIds.BATTLEFIELD, ZoneIds.P1_HAND, ZoneIds.P2_HAND)
+                .flatMap { snapshot.zones[it]?.contents.orEmpty() }
+                .toSet()
+        for (forgeCardId in invalidated intersect immediateActionSources) {
+            val bound = snapshot.boundCards[forgeCardId] ?: continue
+            val card = findCard(forgeCardId) ?: continue
+            abilityRegistryFor(card, bound.data)
+        }
     }
 
     /**
