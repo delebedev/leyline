@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Act of Treason gives temporary control and haste; a stolen Perilous Myr's death trigger is controlled by its controller when it dies.
+# Forcing: The Myr's attack, Goblin Bombardment damage, and death trigger total four. Sacrificing before combat or stealing the Bear falls short.
+# AI behavior: The opposing Bear begins tapped, so it cannot block the Myr. The opponent has no hand or response mana.
+# Failure modes:
+#   WIN = the stolen Myr attacks, is sacrificed after combat, and both damage effects hit the opponent.
+#   LOSE = Myr is sacrificed before attacking, or Act of Treason steals the Bear.
+#   TIMEOUT = control change, sacrifice cost, or death-trigger target did not complete.
+# Card roles:
+#   Act of Treason — borrows exactly one opposing creature for the turn.
+#   Perilous Myr — contributes one combat damage and two death-trigger damage.
+#   Grizzly Bears — the tapped alternative theft target.
+#   Goblin Bombardment — sacrifices the stolen Myr for the final damage.
+# Protocol path: Gain control, attack, sacrifice as an ability cost, resolve the death trigger.
+[metadata]
+Name:Borrowed Fuse
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn with a creature you must return at end of turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+humanhand=Act of Treason
+humanbattlefield=Goblin Bombardment;Mountain;Mountain;Mountain
+humanlibrary=Mountain
+aibattlefield=Perilous Myr;Grizzly Bears|Tapped
+ailibrary=Forest

@@ -21,6 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.DeclareBlockersResp
 import wotc.mtgo.gre.external.messaging.Messages.Distribution
 import wotc.mtgo.gre.external.messaging.Messages.DistributionResp
 import wotc.mtgo.gre.external.messaging.Messages.EffectCostResp
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.Group
 import wotc.mtgo.gre.external.messaging.Messages.GroupResp
@@ -207,7 +208,7 @@ internal object CopilotProposalRealizer {
                     listOf(
                         message(ClientMessageType.EffectCostResp_097b, gsId, seat, respId) {
                             setEffectCostResp(
-                                EffectCostResp.newBuilder().setCostSelection(
+                                EffectCostResp.newBuilder().setEffectCostType(EffectCostType.Select_a59c).setCostSelection(
                                     SelectNResp.newBuilder().apply { decision.selectedInstanceIds.forEach(::addIds) },
                                 ),
                             )

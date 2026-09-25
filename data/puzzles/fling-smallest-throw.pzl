@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Fling measures the sacrificed creature's power, while Perilous Myr deals two more damage when it dies.
+# Forcing: Growth makes the smaller Myr four power; Fling plus its death trigger then deals six. Growing and throwing the Bear deals only five.
+# AI behavior: Giant Spider blocks an attempted combat win. The opponent has no spells or abilities.
+# Failure modes:
+#   WIN = Growth makes Myr four power, Fling sacrifices it, and Fling plus Myr's death trigger deal six.
+#   LOSE = Growth makes the Bear five power and Fling sacrifices it, leaving the opponent at one.
+#   TIMEOUT = sacrifice selection, Fling's target, or Myr's death-trigger target did not complete.
+# Card roles:
+#   Giant Growth — raises one creature's power, forcing a target choice.
+#   Fling — converts that creature's power into direct damage by sacrificing it.
+#   Perilous Myr — the smaller throw whose death adds two more damage.
+#   Grizzly Bears — the tempting larger throw that falls one damage short.
+#   Giant Spider — makes attacking an ineffective shortcut.
+# Protocol path: Grow Myr, target the opponent with Fling, sacrifice Myr, then aim Myr's trigger at the opponent.
+[metadata]
+Name:The Smallest Throw
+Goal:Win
+Turns:1
+Difficulty:Hard
+Description:Win this turn. The biggest creature is not the best one to throw.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=6
+humanhand=Giant Growth;Fling
+humanbattlefield=Perilous Myr;Grizzly Bears;Forest;Mountain;Mountain
+humanlibrary=Forest
+aibattlefield=Giant Spider
+ailibrary=Forest

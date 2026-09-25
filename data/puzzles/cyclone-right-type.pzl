@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Unpredictable Cyclone replaces a cycling draw with the first library card sharing the cycled card's type and permits a free cast.
+# Forcing: One Island pays for exactly one cycle. The sorcery skips a creature and reaches lethal Lava Axe; the creature finds only a summoning-sick Bear.
+# AI behavior: The opponent has no decisions. Both cycling abilities are available, but only one can be paid for.
+# Failure modes:
+#   WIN = Boon of the Wish-Giver was cycled and Lava Axe dealt exact lethal damage.
+#   LOSE = Curator of Mysteries was cycled, leaving no mana or attacker for a win this turn.
+#   TIMEOUT = the replacement effect or free-cast decision did not complete.
+# Card roles:
+#   Unpredictable Cyclone — converts the chosen card type into a library search and free cast.
+#   Boon of the Wish-Giver — the correct sorcery to cycle.
+#   Curator of Mysteries — the tempting creature to cycle.
+#   Grizzly Bears — the creature hit by the wrong choice and skipped by the right one.
+#   Lava Axe — the exact-lethal sorcery reached by the right choice.
+# Protocol path: Activate cycling, replace draw, cast the exiled matching card, and resolve it.
+[metadata]
+Name:The Right Type of Storm
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The cyclone follows the type of the card you cycle.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+humanbattlefield=Unpredictable Cyclone;Island
+humanhand=Boon of the Wish-Giver;Curator of Mysteries
+humanlibrary=Grizzly Bears;Lava Axe
+ailibrary=Forest

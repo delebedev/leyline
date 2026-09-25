@@ -1,0 +1,70 @@
+name: puzzle-repair-probes
+description: Direct headless lines for repaired puzzle positions.
+web:
+  skip: Headless puzzle-design checks.
+scenarios:
+  - id: claim-borrow-then-burn
+    puzzle: claim-borrow-then-burn
+    native:
+      skip: Headless puzzle-design check.
+    run: attack with the borrowed Courser, then sacrifice it to Thud
+    expect: combat and Thud each deal three damage to win from six life
+    steps:
+      - cast: Claim the Firstborn
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - resolve_stack: {}
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Centaur Courser] }
+      - pass_until:
+          opponent_life: 3
+          max_passes: 8
+      - cast: Thud
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Centaur Courser] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 10
+  - id: claim-premature-thud
+    puzzle: claim-borrow-then-burn
+    native:
+      skip: Headless puzzle-design check.
+    run: sacrifice the borrowed creature before combat and miss three damage
+    expect: Thud leaves the opponent at three and the turn ends in a loss
+    steps:
+      - cast: Claim the Firstborn
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - resolve_stack: {}
+      - cast: Thud
+      - target: opponent
+      - select_cost: { zone: battlefield, cards: [Centaur Courser] }
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 3
+      - pass_until:
+          winner: opponent
+          loser: ours
+          max_passes: 20
+  - id: pestilent-one-point-is-enough
+    puzzle: pestilent-one-point-is-enough
+    native:
+      skip: Headless puzzle-design check.
+    run: give Blazing Volley deathtouch, clear both blockers, and attack
+    expect: both Spiders die and Spirit deals three combat damage
+    steps:
+      - cast: Blazing Volley
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Giant Spider }
+            - zone_contains: { side: ours, zone: battlefield, card: Pestilent Spirit }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Pestilent Spirit] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8

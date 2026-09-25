@@ -1,0 +1,32 @@
+# Design Narrative
+# Mechanic: Claim the Firstborn grants control and haste; Thud can sacrifice that creature after combat.
+# Forcing: The opponent has six life. Combat and Thud each deal three, so neither action alone wins.
+# AI behavior: The opponent has no hand interaction or blockers after its creature changes control.
+# Failure modes:
+#   WIN = The borrowed creature attacks, then is sacrificed for the final three damage.
+#   LOSE = Sacrificing before combat or omitting Thud leaves the opponent alive.
+#   TIMEOUT = The cast, target, sacrifice, or combat path did not complete.
+# Card roles:
+#   Claim the Firstborn — borrows the only creature and lets it attack immediately.
+#   Centaur Courser — supplies both combat damage and Thud's sacrifice damage.
+#   Thud — converts the creature's remaining turn into the final three damage.
+#   Mountains — pay for the two red sorceries.
+# Protocol path: ActionsAvailableReq, SelectTargetsReq, PayCostsReq, DeclareAttackersReq.
+
+[metadata]
+Name:Borrow, Then Burn
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Make the borrowed creature count twice before the turn ends.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=6
+humanhand=Claim the Firstborn;Thud
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain
+aibattlefield=Centaur Courser
+ailibrary=Forest
