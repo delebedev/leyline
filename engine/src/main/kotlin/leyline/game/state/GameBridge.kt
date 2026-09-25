@@ -1375,21 +1375,13 @@ class GameBridge(
         events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
     }
 
-    /** Rebuild invalidated identities that may execute before the next client action projection. */
-    internal fun prewarmAbilityRegistries(
-        snapshot: GsmSnapshot,
-        events: List<GameEvent>,
-    ) {
-        val invalidated =
-            (
-                events.filterIsInstance<GameEvent.CardTransformed>().map { it.cardId } +
-                    events.filterIsInstance<GameEvent.ZoneChanged>().map { it.cardId }
-            ).toSet()
+    /** Build identities that may execute before the next client action projection. */
+    internal fun prewarmAbilityRegistries(snapshot: GsmSnapshot) {
         val immediateActionSources =
             listOf(ZoneIds.BATTLEFIELD, ZoneIds.P1_HAND, ZoneIds.P2_HAND)
                 .flatMap { snapshot.zones[it]?.contents.orEmpty() }
                 .toSet()
-        for (forgeCardId in invalidated intersect immediateActionSources) {
+        for (forgeCardId in immediateActionSources) {
             val bound = snapshot.boundCards[forgeCardId] ?: continue
             val card = findCard(forgeCardId) ?: continue
             abilityRegistryFor(card, bound.data)

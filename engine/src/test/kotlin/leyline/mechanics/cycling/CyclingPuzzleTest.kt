@@ -5,11 +5,8 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.ForgeCardId
 import leyline.game.bundle.StateFrameInputCapture
 import leyline.game.event.FrameEventLog
-import leyline.game.event.GameEvent
-import leyline.game.event.Zone
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
@@ -105,7 +102,7 @@ class CyclingPuzzleTest :
         }
 
         session(
-            "Remote Isle cycling retains its offered ability identity",
+            "Remote Isle cycling retains identity without an action projection",
             puzzle =
                 """
                 ActivePlayer=Human
@@ -124,23 +121,12 @@ class CyclingPuzzleTest :
                     .last { it.hasActionsAvailableReq() }
                     .actionsAvailableReq.actionsList
                     .single { it.actionType == ActionType.Activate_add3 && it.instanceId == cardIid }
-            val forgeCardId =
-                ForgeCardId(
-                    human
-                        .getZone(ZoneType.Hand)
-                        .cards
-                        .single { it.name == "Remote Isle" }
-                        .id,
-                )
             bridge.clearAbilityRegistryCacheForTesting()
             StateFrameInputCapture(bridge, "cycling-identity", 1).captureNeutral(
                 game = game(),
                 gameStateId = 99,
                 revealForSeat = null,
-                events =
-                    StateFrameInputCapture.Events.Supplied(
-                        FrameEventLog(listOf(GameEvent.ZoneChanged(forgeCardId, Zone.Library, Zone.Hand))),
-                    ),
+                events = StateFrameInputCapture.Events.Supplied(FrameEventLog(emptyList())),
             )
             val start = messageSnapshot()
 
