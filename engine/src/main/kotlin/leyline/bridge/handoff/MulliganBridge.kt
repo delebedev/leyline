@@ -2,12 +2,9 @@ package leyline.bridge.handoff
 
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
-import leyline.DevCheck
 import leyline.bridge.types.MulliganPhase
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /**
  * CompletableFuture-based bridge for mulligan decisions.
@@ -21,7 +18,6 @@ import java.util.concurrent.TimeoutException
  */
 class MulliganBridge(
     private val autoKeep: Boolean = false,
-    private val timeoutMs: Long? = 60_000,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(MulliganBridge::class.java)
@@ -118,15 +114,7 @@ class MulliganBridge(
         }
         log.info("MulliganBridge: awaiting keep/mull for player {} (mulls={})", playerId, mulliganCount)
         return try {
-            if (timeoutMs == null) {
-                future.get()
-            } else {
-                future.get(timeoutMs, TimeUnit.MILLISECONDS)
-            }
-        } catch (_: TimeoutException) {
-            log.warn("MulliganBridge: timeout waiting for keep decision, auto-keeping")
-            DevCheck.failOnAutoPass { "Mulligan keep decision timed out" }
-            true
+            future.get()
         } finally {
             synchronized(this) {
                 if ((state as? MulliganState.WaitingKeep)?.future === future) {
@@ -165,15 +153,7 @@ class MulliganBridge(
         }
         log.info("MulliganBridge: awaiting tuck {} cards for player {}", count, playerId)
         return try {
-            if (timeoutMs == null) {
-                future.get()
-            } else {
-                future.get(timeoutMs, TimeUnit.MILLISECONDS)
-            }
-        } catch (_: TimeoutException) {
-            log.warn("MulliganBridge: timeout waiting for tuck, auto-tucking first {}", count)
-            DevCheck.failOnAutoPass { "Mulligan tuck decision timed out" }
-            hand.toList().take(count)
+            future.get()
         } finally {
             synchronized(this) {
                 if ((state as? MulliganState.WaitingTuck)?.future === future) {

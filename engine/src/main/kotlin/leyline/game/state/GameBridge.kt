@@ -433,7 +433,6 @@ class GameBridge(
         mulliganBridges[seatId.value] =
             MulliganBridge(
                 autoKeep = engineSettings.skipMulligan,
-                timeoutMs = engineSettings.mulliganWaitMs,
             )
     }
 
@@ -499,7 +498,7 @@ class GameBridge(
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
             }
-        mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true, timeoutMs = 0)
+        mulliganBridges[seatId.value] = MulliganBridge(autoKeep = true)
         log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId.value)
     }
 
@@ -1893,7 +1892,7 @@ class GameBridge(
             }
         val tempPrompt = InteractivePromptBridge(timeoutMs = 0)
         val tempAction = GameActionBridge(timeoutMs = 0)
-        val tempMulligan = MulliganBridge(autoKeep = true, timeoutMs = 0)
+        val tempMulligan = MulliganBridge(autoKeep = true)
         val tempController =
             BridgedPlayerController(
                 game = player.game,
