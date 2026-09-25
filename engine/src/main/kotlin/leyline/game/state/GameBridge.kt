@@ -1310,7 +1310,7 @@ class GameBridge(
         val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val grpId = resolveGrpId(card)
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         if (ability.trigger != null) {
@@ -1354,7 +1354,7 @@ class GameBridge(
         card: Card,
         definition: AbilityDefinitionRef,
     ): ResolvedAbilityIdentity? {
-        val grpId = cardRepository.findGrpIdByName(card.name) ?: return null
+        val grpId = resolveGrpId(card)
         val cardData = cardRepository.findByGrpId(grpId) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
