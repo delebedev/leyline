@@ -13,10 +13,10 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import java.util.HexFormat
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -320,14 +320,15 @@ class PuzzleTrial(
         val nextTrialId = AtomicLong()
         val trialRunning = AtomicBoolean()
 
-        // A shared no-queue worker caps abandoned runtime work at one trial.
+        // Ownership rejects concurrent trials; one queue slot bridges a completed
+        // callable to the worker becoming ready for its next submission.
         val trialExecutor =
             ThreadPoolExecutor(
                 1,
                 1,
                 1,
                 TimeUnit.SECONDS,
-                SynchronousQueue(),
+                ArrayBlockingQueue(1),
                 { task -> Thread(task, "puzzle-trial").apply { isDaemon = true } },
                 ThreadPoolExecutor.AbortPolicy(),
             ).apply { allowCoreThreadTimeOut(true) }
