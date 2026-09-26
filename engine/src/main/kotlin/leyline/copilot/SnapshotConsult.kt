@@ -31,10 +31,14 @@ object SnapshotConsult {
             val fidelity = hydrated.fidelity.forPrompt(normalizedPrompt)
             if (fidelity.delivery == "unavailable") {
                 return SnapshotDecisionConsult(
-                    PromptDecisionResult.Unavailable(
-                        PromptUnavailableReason.ConsultFailed,
-                        "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
-                    ),
+                    if (fidelity.canSafelyPass(normalizedPrompt)) {
+                        PromptDecisionResult.Chosen(SimDecision.PassPriority, PromptDecisionSource.CopilotSafeguard)
+                    } else {
+                        PromptDecisionResult.Unavailable(
+                            PromptUnavailableReason.ConsultFailed,
+                            "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
+                        )
+                    },
                     fidelity,
                 )
             }
@@ -69,11 +73,21 @@ object SnapshotConsult {
             if (fidelity.delivery == "unavailable") {
                 return ConsultResponse(
                     proposal =
-                        CopilotProposalRealizer.unrealizable(
-                            normalizedPrompt?.type ?: wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
-                            seat,
-                            "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
-                        ),
+                        if (normalizedPrompt != null && fidelity.canSafelyPass(normalizedPrompt)) {
+                            CopilotProposalRealizer.realize(
+                                SimDecision.PassPriority,
+                                normalizedPrompt.type,
+                                seat,
+                                gsId = normalizedPrompt.gameStateId,
+                                respId = normalizedPrompt.msgId,
+                            )
+                        } else {
+                            CopilotProposalRealizer.unrealizable(
+                                normalizedPrompt?.type ?: wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
+                                seat,
+                                "snapshot unavailable: ${fidelity.unavailableReasons.joinToString()}",
+                            )
+                        },
                     fidelity = fidelity,
                 )
             }
@@ -88,6 +102,11 @@ object SnapshotConsult {
             bridge.teardownResources()
         }
     }
+
+    private fun SnapshotFidelityReport.canSafelyPass(prompt: GREToClientMessage): Boolean =
+        prompt.hasActionsAvailableReq() &&
+            unavailableReasons.isNotEmpty() &&
+            unavailableReasons.all { it == "mana_pool:missing" }
 
     /**
      * Mirror the source game's land-drop state onto the hydrated game. The
