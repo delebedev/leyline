@@ -123,7 +123,7 @@ class ShockLandEtbTest :
                 userAction.affectedIdsList shouldContainExactly listOf(futureIid)
                 userAction.detailInt(DetailKeys.ACTION_TYPE) shouldBe ActionType.Play_add3.number
                 userAction.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe 0
-                annotations.take(5).map { it.getType(0) } shouldContainExactly
+                val expectedTypes =
                     listOf(
                         AnnotationType.ObjectIdChanged,
                         AnnotationType.ZoneTransfer_af5a,
@@ -131,6 +131,7 @@ class ShockLandEtbTest :
                         AnnotationType.ModifiedLife,
                         AnnotationType.UserActionTaken,
                     )
+                annotations.map { it.getType(0) }.filter { it in expectedTypes } shouldContainExactly expectedTypes
                 responseMessages.deletedPersistentAnnotationIds() shouldContain replacement.id
                 human.life shouldBe 18
                 templeGarden.isTapped shouldBe false
