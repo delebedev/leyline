@@ -570,11 +570,14 @@ class ForgeCatalogProbeTest :
         }
         test("deck entry resolves Forge flavor names and names without diacritics") {
             val repo = ForgeCardRepository.open()
+            val camera = requireNotNull(repo.findGrpIdByName("Peter Parker's Camera"))
+            val filiAndKili = requireNotNull(repo.findGrpIdByName("Fíli and Kíli, Joyous"))
+            val oin = requireNotNull(repo.findGrpIdByName("Óin the Brave"))
 
             assertSoftly {
-                repo.findDeckGrpIdByName("Phenomena Recorder") shouldBe repo.findGrpIdByName("Peter Parker's Camera")
-                repo.findDeckGrpIdByName("Fili and Kili, Joyous") shouldBe repo.findGrpIdByName("Fíli and Kíli, Joyous")
-                repo.findDeckGrpIdByName("Oin the Brave") shouldBe repo.findGrpIdByName("Óin the Brave")
+                repo.findDeckGrpIdByName("Phenomena Recorder") shouldBe camera
+                repo.findDeckGrpIdByName("Fili and Kili, Joyous") shouldBe filiAndKili
+                repo.findDeckGrpIdByName("Oin the Brave") shouldBe oin
             }
         }
         test("combined and specialize faces keep cold catalog identities") {
