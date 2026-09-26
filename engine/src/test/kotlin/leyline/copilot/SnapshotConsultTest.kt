@@ -29,6 +29,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ManaInfo
 import wotc.mtgo.gre.external.messaging.Messages.ModalOption
 import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import wotc.mtgo.gre.external.messaging.Messages.MulliganReq
@@ -692,6 +694,43 @@ class SnapshotConsultTest :
             result.fidelity.delivery shouldBe "unavailable"
             result.proposal.intent shouldBe "unrealizable"
             result.proposal.responses shouldBe emptyList()
+        }
+
+        test("missing floating mana safely passes priority") {
+            val gsm =
+                copiedRoomGsm()
+                    .toBuilder()
+                    .clearGameObjects()
+                    .setPlayers(
+                        0,
+                        copiedRoomGsm().getPlayers(0).toBuilder().addManaPool(
+                            ManaInfo
+                                .newBuilder()
+                                .setManaId(1)
+                                .setColor(ManaColor.Red_afc9)
+                                .setCount(1),
+                        ),
+                    ).build()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.ActionsAvailableReq_695e)
+                    .setMsgId(17)
+                    .setGameStateId(39)
+                    .setActionsAvailableReq(
+                        ActionsAvailableReq.newBuilder().addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                    ).build()
+
+            val result = SnapshotConsult.consult(gsm, prompt, 1, TestCardRegistry.repo)
+
+            result.fidelity.unavailableReasons shouldBe listOf("mana_pool:missing")
+            result.proposal.intent shouldBe "pass"
+            val response = decodeSingle(result.proposal.responses.single())
+            response.gameStateId shouldBe 39
+            response.respId shouldBe 17
+            response.performActionResp.actionsList
+                .single()
+                .actionType shouldBe ActionType.Pass
         }
 
         test("unrelated unresolved state permits a prompt-complete mulligan response") {
