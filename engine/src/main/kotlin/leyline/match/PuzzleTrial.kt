@@ -20,6 +20,7 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
@@ -115,6 +116,10 @@ class PuzzleTrial(
             )
         }
 
+        if (!trialRunning.compareAndSet(false, true)) {
+            return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
+        }
+
         val future =
             try {
                 trialExecutor.submit<PuzzleTrialResult> {
@@ -122,9 +127,11 @@ class PuzzleTrial(
                         runOwned(definition, limits, startedAt, deadline, progress)
                     } finally {
                         cleanupDone.countDown()
+                        trialRunning.set(false)
                     }
                 }
             } catch (_: RejectedExecutionException) {
+                trialRunning.set(false)
                 return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
             }
 
@@ -311,6 +318,7 @@ class PuzzleTrial(
 
     private companion object {
         val nextTrialId = AtomicLong()
+        val trialRunning = AtomicBoolean()
 
         // A shared no-queue worker caps abandoned runtime work at one trial.
         val trialExecutor =
