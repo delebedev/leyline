@@ -568,6 +568,18 @@ class ForgeCatalogProbeTest :
                     "Delver of Secrets // Insectile Aberration",
                 )
         }
+        test("deck entry resolves Forge flavor names and names without diacritics") {
+            val repo = ForgeCardRepository.open()
+            val camera = requireNotNull(repo.findGrpIdByName("Peter Parker's Camera"))
+            val filiAndKili = requireNotNull(repo.findGrpIdByName("Fíli and Kíli, Joyous"))
+            val oin = requireNotNull(repo.findGrpIdByName("Óin the Brave"))
+
+            assertSoftly {
+                repo.findDeckGrpIdByName("Phenomena Recorder") shouldBe camera
+                repo.findDeckGrpIdByName("Fili and Kili, Joyous") shouldBe filiAndKili
+                repo.findDeckGrpIdByName("Oin the Brave") shouldBe oin
+            }
+        }
         test("combined and specialize faces keep cold catalog identities") {
             val first = ForgeCardRepository.open()
             val splitParent = requireNotNull(first.findGrpIdByName("Dead // Gone"))
