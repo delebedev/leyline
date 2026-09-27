@@ -1,6 +1,8 @@
 package leyline.bridge.coord
 
 import forge.card.ColorSet
+import forge.card.MagicColor
+import forge.game.card.Card
 import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -115,6 +117,34 @@ class StaticChoiceCoordinator(
         val idx = indices.firstOrNull() ?: return 0
         if (idx >= colorOptions.size) return 0
         return colorChoices[idx].colorMask
+    }
+
+    fun chooseColorAllowColorless(
+        message: String,
+        card: Card,
+        colors: ColorSet,
+    ): Byte {
+        if (colors.isColorless) return MagicColor.COLORLESS
+        val colorChoices = colors.orderedColors.toList() + MagicColor.Color.COLORLESS
+        val indices =
+            requestChoice(
+                PromptRequest(
+                    promptType = "choose_one",
+                    message = message,
+                    options = colorChoices.map { it.translatedName },
+                    min = 1,
+                    max = 1,
+                    defaultIndex = 0,
+                    route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
+                    sourceEntityId = card.id,
+                    staticList = StaticList.CardColors,
+                    staticOptionIds =
+                        colorChoices.map {
+                            if (it == MagicColor.Color.COLORLESS) 0 else checkNotNull(StaticChoiceIds.colorIdForMask(it.colorMask))
+                        },
+                ),
+            )
+        return colorChoices.getOrNull(indices.firstOrNull() ?: -1)?.colorMask ?: MagicColor.COLORLESS
     }
 
     fun chooseColors(

@@ -779,6 +779,16 @@ class PlayerController(
         return staticChoiceCoordinator.chooseColor(message, sa, colors)
     }
 
+    /**
+     * PCHuman routes this callback through desktop input. The engine thread blocks on
+     * the match static-choice runtime and receives the selected Forge mana mask.
+     */
+    override fun chooseColorAllowColorless(
+        message: String,
+        card: Card,
+        colors: ColorSet,
+    ): Byte = staticChoiceCoordinator.chooseColorAllowColorless(message, card, colors)
+
     override fun chooseColors(
         message: String,
         sa: SpellAbility?,

@@ -78,6 +78,7 @@ object AcceptanceSuiteLoader {
             "expect" -> ExpectStep(parseConditions(value, "$context.expect"))
             "pass_until" -> parsePassUntil(value, "$context.pass_until")
             "activate" -> parseActivate(value, "$context.activate")
+            "activate_mana" -> parseActivateMana(value, "$context.activate_mana")
             "choose" -> parseChoose(value, "$context.choose")
             "mana_type_choices" -> parseManaTypeChoices(value, "$context.mana_type_choices")
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
@@ -215,6 +216,22 @@ object AcceptanceSuiteLoader {
                     zone = map.optionalString("zone", context)?.let(AcceptanceZone::parse) ?: AcceptanceZone.Battlefield,
                     abilityIndex = map.optionalInt("ability_index", context) ?: 0,
                     abilityGrpId = map.optionalInt("ability_grp_id", context),
+                )
+            }
+        }
+
+    private fun parseActivateMana(
+        raw: Any?,
+        context: String,
+    ): ActivateManaStep =
+        when (raw) {
+            is String -> ActivateManaStep(raw)
+            else -> {
+                val map = raw.asMap(context)
+                ActivateManaStep(
+                    card = map.requiredString("card", context),
+                    abilityIndex = map.optionalInt("ability_index", context) ?: 0,
+                    color = map.optionalString("color", context)?.let(AcceptanceManaTypeChoice::parse),
                 )
             }
         }

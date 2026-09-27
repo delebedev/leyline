@@ -50,35 +50,30 @@ internal class StaticChoiceWindowMaterializer {
     private fun buildRequest(
         window: StaticChoiceWindowValue,
         context: SettledPromptMaterializationContext,
-    ): SelectNReq =
-        SelectNReq
+    ): SelectNReq {
+        val listType =
+            if (window.staticList == StaticList.Colors || window.staticList == StaticList.Parities) {
+                SelectionListType.Static
+            } else {
+                SelectionListType.StaticSubset
+            }
+        return SelectNReq
             .newBuilder()
             .setContext(SelectionContext.Resolution_a163)
-            .setListType(
-                if (window.kind == StaticChoiceKind.Subtype) {
-                    SelectionListType.StaticSubset
-                } else {
-                    SelectionListType.Static
-                },
-            ).setValidationType(SelectionValidationType.NonRepeatable)
+            .setListType(listType)
+            .setValidationType(SelectionValidationType.NonRepeatable)
             .setOptionContext(OptionContext.Resolution_a9d7)
             .setMinWeight(Int.MIN_VALUE)
             .setMaxWeight(Int.MAX_VALUE)
             .setMinSel(window.min)
             .setMaxSel(window.max)
-            .setStaticList(staticList(window.kind))
+            .setStaticList(window.staticList)
             .setPrompt(Prompt.newBuilder())
             .apply {
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "StaticChoice source") }
-                if (window.kind == StaticChoiceKind.Subtype) addAllIds(window.options.map { it.protocolValue })
+                if (listType == SelectionListType.StaticSubset) addAllIds(window.options.map { it.protocolValue })
             }.build()
-
-    private fun staticList(kind: StaticChoiceKind): StaticList =
-        when (kind) {
-            StaticChoiceKind.Color -> StaticList.Colors
-            StaticChoiceKind.Subtype -> StaticList.SubTypes
-            StaticChoiceKind.Parity -> StaticList.Parities
-        }
+    }
 
     private fun outerPromptId(kind: StaticChoiceKind): Int =
         when (kind) {

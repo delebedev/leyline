@@ -52,6 +52,14 @@ data class ActivateStep(
     override val label: String = "activate $card"
 }
 
+data class ActivateManaStep(
+    val card: String,
+    val abilityIndex: Int = 0,
+    val color: AcceptanceManaTypeChoice? = null,
+) : AcceptanceStep {
+    override val label: String = "activate_mana $card"
+}
+
 data class ChooseStep(
     val optionalCost: AcceptanceCastingTimeOption?,
     val ctoId: Int?,
@@ -339,6 +347,7 @@ enum class AcceptanceActionType(
     CastOmen("cast_omen"),
     CastMdfc("cast_mdfc"),
     Activate("activate"),
+    ActivateMana("activate_mana"),
     ;
 
     companion object {

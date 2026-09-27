@@ -154,6 +154,7 @@ private class ScenarioRun(
             }
             is PassUntilStep -> passUntil(step)
             is ActivateStep -> activate(step)
+            is ActivateManaStep -> requireAction { harness.activateMana(step.card, step.abilityIndex, step.color?.toManaColor()) }
             is ChooseStep -> choose(step)
             is ManaTypeChoicesStep -> manaTypeChoices(step)
             is ModalChoiceStep -> modalChoice(step)
@@ -872,6 +873,7 @@ private class ScenarioRun(
                 AcceptanceActionType.CastAdventure -> ActionType.CastAdventure
                 AcceptanceActionType.CastOmen -> ActionType.CastOmen
                 AcceptanceActionType.Activate -> ActionType.Activate_add3
+                AcceptanceActionType.ActivateMana -> ActionType.ActivateMana
             }
         val candidates =
             harness.accumulator.actions
