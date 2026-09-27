@@ -222,7 +222,7 @@ object ObjectMapper {
             }
         val extrinsicKws =
             keywordSnapshot[instanceId]
-                ?.mapNotNull { it.abilityGrpId }
+                ?.mapNotNull { it.resolvedAbilityGrpId }
                 ?: emptyList()
         val extraAbilityGrpIds = extrinsicKws + cardSnap.mergedComponentAbilityGrpIds
         val builder =

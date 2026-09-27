@@ -114,7 +114,7 @@ class ObjectMapperSnapshotTest :
                                 keyword = keyword.title,
                                 abilityGrpId = KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()),
                             )
-                        },
+                        } + EffectTracker.KeywordEntry(timestamp = 2L, staticId = 6L, keyword = "Flying"),
                 )
 
             val projected =
@@ -131,9 +131,9 @@ class ObjectMapperSnapshotTest :
             projected
                 .uniqueAbilitiesList
                 .map { it.grpId }
-                .filter { it in setOf(186, 192, 193) }
+                .filter { it in setOf(8, 186, 192, 193) }
                 .sorted() shouldBe
-                listOf(186, 192, 193)
+                listOf(8, 186, 192, 193)
         }
 
         test("graveyard card: visibility and zone are correct") {
