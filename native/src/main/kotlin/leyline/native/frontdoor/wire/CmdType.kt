@@ -90,6 +90,7 @@ value class CmdType(
         val GET_ALL_PREFERRED_PRINTINGS = CmdType(2600)
         val GET_ALL_PRIZE_WALLS = CmdType(2700)
         val CHALLENGE_RECONNECT_ALL = CmdType(3006)
+        val GET_KILL_SWITCHES = CmdType(4200)
 
         /** Human-readable name for any CmdType value, including unknown ones. */
         fun nameOf(code: Int): String = NAMES[code] ?: "Unknown($code)"
@@ -189,6 +190,7 @@ value class CmdType(
                 3010 to "ChallengeSetSettings",
                 3011 to "ChallengeIssue",
                 3012 to "ChallengeStartLaunchCountdown",
+                4200 to "GetKillSwitches",
             )
     }
 }

@@ -36,7 +36,6 @@ import leyline.native.frontdoor.wire.FdResponse
 import leyline.native.frontdoor.wire.FdResponseWriter
 import leyline.native.frontdoor.wire.FdWireConstants
 import leyline.native.frontdoor.wire.PlayerWireBuilder
-import leyline.native.frontdoor.wire.StartHookBuilder
 import org.slf4j.LoggerFactory
 import java.util.Locale
 import java.util.UUID
@@ -193,6 +192,7 @@ class FrontDoorHandler(
             CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.skusAndListings()) },
             CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
             CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+            CmdType.GET_KILL_SWITCHES.value to { FdResponse.Json(LobbyStubs.killSwitches()) },
             // Typed proto stubs
             CmdType.GET_VOUCHER_DEFINITIONS.value to {
                 FdResponse.TypedProto(
@@ -223,10 +223,7 @@ class FrontDoorHandler(
             }
 
             CmdType.START_HOOK.value -> {
-                val decks = deckRepository.findAllForPlayer(playerId)
-                val hook = StartHookBuilder.build(decks)
-                log.info("Front Door: StartHook ({}B, {} decks)", hook.length, decks.size)
-                writer.send(ctx, txId, FdResponse.Json(hook))
+                writer.send(ctx, txId, FdResponse.TypedProto("Wizards.Arena.Models.Network.StartHookResponseV2"))
             }
 
             CmdType.GRAPH_GET_STATE.value -> handleGraphRequest(ctx, txId, json)

@@ -243,40 +243,13 @@ class FrontDoorHandlerTest :
             }
         }
 
-        test("CmdType 1 - StartHook contains DeckSummaries and Decks") {
-            val obj = sendJson(1)
-            assertSoftly {
-                obj["DeckSummaries"].shouldNotBeNull()
-                (obj["DeckSummaries"] as JsonArray).shouldNotBeEmpty()
-                obj["Decks"].shouldNotBeNull()
-                obj["InventoryInfo"].shouldNotBeNull()
-            }
-        }
-
-        test("CmdType 1 - StartHook deck summaries have required fields") {
-            val obj = sendJson(1)
-            val summaries = obj["DeckSummaries"]!!.jsonArray
-            summaries.shouldNotBeEmpty()
-            val deck = summaries[0].jsonObject
-            assertSoftly {
-                deck["DeckId"].shouldNotBeNull()
-                deck["Name"].shouldNotBeNull()
-                deck["DeckTileId"].shouldNotBeNull()
-                deck["Attributes"].shouldNotBeNull()
-                deck["PreferredCosmetics"].shouldNotBeNull()
-            }
-        }
-
-        test("CmdType 1 - StartHook deck cards have MainDeck and CardSkins") {
-            val obj = sendJson(1)
-            val decks = obj["Decks"]!!.jsonObject
-            decks.entries.shouldNotBeEmpty()
-            for ((_, deckJson) in decks) {
-                val deck = deckJson.jsonObject
-                deck["MainDeck"].shouldNotBeNull()
-                deck["CardSkins"].shouldNotBeNull()
-                deck["ReducedSideboard"] shouldBe null
-            }
+        test("CmdType 1 - StartHook returns current typed response") {
+            val ch = fdChannel()
+            ch.writeCmd(1)
+            val response = ch.readOutbound<ByteBuf>().shouldNotBeNull()
+            val bytes = ByteArray(response.readableBytes()).also(response::readBytes)
+            response.release()
+            bytes.toString(Charsets.UTF_8) shouldContain "type.googleapis.com/Wizards.Arena.Models.Network.StartHookResponseV2"
         }
 
         test("CmdType 6 - GetFormats returns proto response") {
@@ -576,13 +549,13 @@ class FrontDoorHandlerTest :
             // Empty response is fine — just shouldn't crash
         }
 
-        // --- Shape conformance tests ---
-
-        test("CmdType 1 - StartHook matches reference shape") {
-            val refKeys = loadReferenceShape("reference/fd-reference-starthook.json")
-            val obj = sendJson(1)
-            assertKeysMatch(refKeys, obj, "StartHook")
+        test("CmdType 4200 - GetKillSwitches returns startup feature flags") {
+            val obj = sendJson(4200)
+            obj["KillSwitches"]?.jsonObject.shouldNotBeNull()
+            obj["UxKillSwitches"]?.jsonObject.shouldNotBeNull()
         }
+
+        // --- Shape conformance tests ---
 
         test("CmdType 612 - MatchCreated matches reference shape") {
             val refKeys = loadReferenceShape("reference/fd-reference-matchcreated.json")
@@ -593,7 +566,7 @@ class FrontDoorHandlerTest :
             assertKeysMatch(refKeys, pushObj, "MatchCreated")
         }
 
-        test("CmdType 406 - upserted deck appears in next StartHook") {
+        test("CmdType 406 - upserted deck appears in summaries") {
             val deckId = "test-deck-00000000-0000-0000-0000-roundtrip001"
             val payload =
                 """
@@ -611,16 +584,11 @@ class FrontDoorHandlerTest :
             val ch = fdChannel()
             ch.sendCmd(406, payload)
 
-            // StartHook on same channel should include the new deck
-            val hook = ch.sendCmd(1)
-            val hookObj = json.parseToJsonElement(hook.jsonPayload.shouldNotBeNull()).jsonObject
-            val summaries = hookObj["DeckSummaries"]!!.jsonArray
+            val summariesResponse = ch.sendCmd(407)
+            val summariesObj = json.parseToJsonElement(summariesResponse.jsonPayload.shouldNotBeNull()).jsonObject
+            val summaries = summariesObj["Summaries"]!!.jsonArray
             val ids = summaries.map { it.jsonObject["DeckId"]?.jsonPrimitive?.content }
             ids shouldContain deckId
-
-            val decksMap = hookObj["Decks"]!!.jsonObject
-            decksMap.containsKey(deckId) shouldBe true
-            decksMap[deckId]!!.jsonObject["MainDeck"].shouldNotBeNull()
         }
 
         // --- Sealed event lifecycle ---
