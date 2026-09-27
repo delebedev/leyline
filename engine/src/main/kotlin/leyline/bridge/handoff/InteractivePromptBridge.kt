@@ -837,7 +837,7 @@ enum class PromptSemantic {
     /** Learn's exact Lesson/discard card picker. */
     LearnLesson,
 
-    /** Static enum choice: choose one or more colors via `StaticList_Colors`. */
+    /** Static enum choice over a color domain. */
     StaticColorChoice,
 
     /** Static enum choice: choose a subtype via `StaticList_SubTypes`. */

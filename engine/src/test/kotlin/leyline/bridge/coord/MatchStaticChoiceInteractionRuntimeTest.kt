@@ -1,11 +1,14 @@
 package leyline.bridge.coord
 
+import forge.card.ColorSet
+import forge.card.MagicColor
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.forge.PlayerController
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
@@ -257,6 +260,72 @@ class MatchStaticChoiceInteractionRuntimeTest :
                     .snapshotChoiceResults()
                     .shouldBeEmpty()
             }
+        }
+
+        test("color-or-colorless callback publishes the exact subset and returns the selected color mask") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Island" }
+            val controller = board.human.controller as PlayerController
+            val result = AtomicReference<Byte>()
+            val failure = AtomicReference<Throwable?>()
+            val finished = CountDownLatch(1)
+            Thread {
+                try {
+                    board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+                    result.set(
+                        controller.chooseColorAllowColorless(
+                            "Select mana to produce",
+                            source,
+                            ColorSet.fromMask(MagicColor.WHITE.toInt() or MagicColor.BLUE.toInt()),
+                        ),
+                    )
+                } catch (error: Throwable) {
+                    failure.set(error)
+                } finally {
+                    finished.countDown()
+                }
+            }.start()
+
+            val published = awaitPublished(coordinator)
+            val req =
+                coordinator
+                    .drain(SeatId(1))
+                    .flatten()
+                    .single { it.hasSelectNReq() }
+                    .selectNReq
+
+            assertSoftly {
+                req.listType shouldBe SelectionListType.StaticSubset
+                req.staticList shouldBe StaticList.CardColors
+                req.idsList shouldContainExactly listOf(1, 2, 0)
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(0)), published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                failure.get().shouldBeNull()
+                result.get() shouldBe MagicColor.COLORLESS
+            }
+        }
+
+        test("colorless-only callback resolves without publishing a prompt") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val source =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Island" }
+            val controller = board.human.controller as PlayerController
+
+            board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+            controller.chooseColorAllowColorless("Select mana to produce", source, ColorSet.fromMask(0)) shouldBe
+                MagicColor.COLORLESS
+            coordinator.staticChoices.current().shouldBeNull()
         }
 
         test("choice fact is staged before the engine waiter is released") {

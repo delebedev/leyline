@@ -136,6 +136,29 @@ class AcceptanceSuiteLoaderTest :
             }
         }
 
+        test("parses mana activation steps and conditions") {
+            val scenario =
+                AcceptanceSuiteLoader
+                    .loadFromText(
+                        """
+                        name: sample
+                        scenarios:
+                          - id: mana
+                            puzzle: sample
+                            steps:
+                              - expect: { action: { type: activate_mana, card: Reflecting Pool } }
+                              - activate_mana: { card: Reflecting Pool, ability_index: 1, color: blue }
+                        """.trimIndent(),
+                    ).scenarios
+                    .single()
+
+            scenario.steps shouldBe
+                listOf(
+                    ExpectStep(listOf(ActionAvailableCondition(AcceptanceActionType.ActivateMana, "Reflecting Pool"))),
+                    ActivateManaStep("Reflecting Pool", 1, AcceptanceManaTypeChoice.Blue),
+                )
+        }
+
         test("rejects unknown step keys") {
             shouldThrow<IllegalStateException> {
                 AcceptanceSuiteLoader.loadFromText(

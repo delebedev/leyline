@@ -5,13 +5,11 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
 import leyline.bridge.handoff.StaticChoiceInteractionRuntime
 import leyline.bridge.handoff.StaticChoiceInteractionTimeoutException
-import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
 import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.StaticList
 import java.util.concurrent.CompletableFuture
 
 /** Exact static enum SelectN lifecycle beneath [MatchCutCoordinator]. */
@@ -128,7 +126,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                         sourceForgeCardId = source,
                         chooserSeatId = owner.humanSeat,
                         choiceValue = value,
-                        choiceDomain = pending.value.kind.choiceDomain(),
+                        choiceDomain = pending.value.staticList.number,
                         sentiment = 2,
                     ),
                 )
@@ -139,11 +137,4 @@ internal class MatchStaticChoiceInteractionRuntime(
         pending: Window,
         timeoutMs: Long?,
     ): List<Int> = slot.await(pending, timeoutMs, ::StaticChoiceInteractionTimeoutException)
-
-    private fun StaticChoiceKind.choiceDomain(): Int =
-        when (this) {
-            StaticChoiceKind.Color -> StaticList.Colors.number
-            StaticChoiceKind.Subtype -> StaticList.SubTypes.number
-            StaticChoiceKind.Parity -> StaticList.Parities.number
-        }
 }

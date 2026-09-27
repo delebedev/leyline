@@ -19,7 +19,7 @@ class PlayerControllerStructureTest :
 
         tags(UnitTag)
 
-        // The current set of 61 PCHuman overrides. Alphabetical for review stability.
+        // The current set of 62 PCHuman overrides. Alphabetical for review stability.
         val expectedOverrides =
             setOf(
                 "announceRequirements",
@@ -42,6 +42,7 @@ class PlayerControllerStructureTest :
                 "chooseCardsToDiscardUnlessType",
                 "chooseCardsToRevealFromHand",
                 "chooseColor",
+                "chooseColorAllowColorless",
                 "chooseColors",
                 "chooseEntitiesForEffect",
                 "chooseModeForAbility",
@@ -85,8 +86,8 @@ class PlayerControllerStructureTest :
                 "willPutCardOnTop",
             )
 
-        test("override count is pinned at 61") {
-            expectedOverrides.size shouldBe 61
+        test("override count is pinned at 62") {
+            expectedOverrides.size shouldBe 62
         }
 
         test("PlayerController declares exactly the expected overrides") {

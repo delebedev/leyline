@@ -1,7 +1,10 @@
 package leyline.game.mapping
 
+import forge.card.MagicColor
 import forge.card.mana.ManaCost
+import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardUtil
 import forge.game.cost.CostTap
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
@@ -335,6 +338,13 @@ internal object ActivatedActionEmitter {
     }
 
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {
+        if (sa.api == ApiType.ManaReflected) {
+            return CardUtil
+                .getReflectableManaColors(sa)
+                .map(MagicColor::toShortString)
+                .mapNotNull(ActionManaCosts::producedToManaColor)
+                .distinct()
+        }
         val mana = sa.manaPart ?: return emptyList()
         val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
         return produced.split(" ").mapNotNull { ActionManaCosts.producedToManaColor(it) }.distinct()

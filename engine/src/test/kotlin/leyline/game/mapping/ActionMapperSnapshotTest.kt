@@ -99,6 +99,26 @@ class ActionMapperSnapshotTest :
             fromSnap.actionsList.count { it.actionType == ActionType.ActivateMana } shouldBe 1
         }
 
+        test("reflected mana offer uses the land's exact producible types") {
+            var poolForgeId = 0
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Reflecting Pool", human, ZoneType.Battlefield).also { poolForgeId = it.id }
+                    addCard("Adarkar Wastes", human, ZoneType.Battlefield)
+                }
+
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val poolInstanceId = b.getOrAllocInstanceId(ForgeCardId(poolForgeId)).value
+            val action =
+                projection.offers
+                    .single {
+                        it.action.actionType == ActionType.ActivateMana && it.action.instanceId == poolInstanceId
+                    }.action
+
+            action.manaPaymentOptionsList.flatMap { option -> option.manaList.map { it.color } }.toSet() shouldBe
+                setOf(ManaColor.White_afc9, ManaColor.Blue_afc9, ManaColor.Colorless_afc9)
+        }
+
         test("type-granted duplicate mana ability keeps printed execution") {
             var takenumaForgeId = 0
             val (b, game, _) =
