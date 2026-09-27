@@ -10,6 +10,8 @@ pick one. Bug fixes with a test get merged fastest.
 
 **Add a mechanic.** Bug fixes, focused mechanic support, and tests all help.
 
+Focused fixes that fit Leyline's scope and content rules are especially welcome.
+
 ## Setup
 
 ```bash
