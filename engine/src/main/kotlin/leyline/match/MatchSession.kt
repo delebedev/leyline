@@ -133,6 +133,27 @@ class MatchSession(
             }
         }
 
+    /** Realize one puzzle answer-key move against the current outstanding prompt. */
+    fun puzzleProposal(move: PuzzleMove): CopilotProposal =
+        synchronized(sessionLock) {
+            val prompt =
+                lastPrompt
+                    ?: return@synchronized unavailableCopilotProposal("match has no pending prompt", seat = seatId.value)
+            if (!isOutstandingCopilotPrompt(prompt)) {
+                return@synchronized unavailableCopilotProposal(
+                    "stale prompt: pending prompt is no longer outstanding",
+                    prompt,
+                    seatId.value,
+                )
+            }
+            val proposal = copilotProposalService.proposePuzzleMove(prompt, move)
+            if (!isOutstandingCopilotPrompt(prompt)) {
+                unavailableCopilotProposal("stale prompt: pending prompt changed during puzzle consultation", prompt, seatId.value)
+            } else {
+                proposal
+            }
+        }
+
     private fun isOutstandingCopilotPrompt(prompt: GREToClientMessage): Boolean {
         val current = lastPrompt
         val sequence = gameBridge.committedSequence()

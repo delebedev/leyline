@@ -39,6 +39,10 @@ interface MatchRuntimeHandle {
     /** Read-only advice for this handle's current human-seat prompt. */
     fun copilotProposal(): CopilotProposal = unavailableCopilotProposal("copilot advice is unavailable for this runtime handle")
 
+    /** Read-only response for one named move in a headless puzzle answer key. */
+    fun puzzleProposal(move: PuzzleMove): CopilotProposal =
+        unavailableCopilotProposal("puzzle moves are unavailable for this runtime handle")
+
     fun close()
 }
 
@@ -143,6 +147,17 @@ class InProcessMatchRuntime(
                     result.isDone -> unavailableCopilotProposal("match runtime handle is terminal")
                     else ->
                         registry.activeHumanSession()?.copilotProposal()
+                            ?: unavailableCopilotProposal("match runtime handle is not connected")
+                }
+            }
+
+        override fun puzzleProposal(move: PuzzleMove): CopilotProposal =
+            synchronized(lock) {
+                when {
+                    closed -> unavailableCopilotProposal("match runtime handle is closed")
+                    result.isDone -> unavailableCopilotProposal("match runtime handle is terminal")
+                    else ->
+                        registry.activeHumanSession()?.puzzleProposal(move)
                             ?: unavailableCopilotProposal("match runtime handle is not connected")
                 }
             }

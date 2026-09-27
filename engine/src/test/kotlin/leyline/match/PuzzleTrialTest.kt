@@ -48,6 +48,72 @@ class PuzzleTrialTest :
             }
         }
 
+        test("named answer key wins Claim and Thud despite greedy trial loss") {
+            val puzzle = File("../data/puzzles/claim-borrow-then-burn.pzl").readText()
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("claim-answer-key", puzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(
+                        PuzzleMove("cast", "Claim the Firstborn"),
+                        PuzzleMove("target", "Centaur Courser"),
+                        PuzzleMove("attack", "Centaur Courser"),
+                        PuzzleMove("cast", "Thud"),
+                        PuzzleMove("target", "opponent"),
+                        PuzzleMove("sacrifice", "Centaur Courser"),
+                    ),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.Won
+        }
+
+        test("answer key cannot let the advisor choose an omitted sacrifice") {
+            val puzzle = File("../data/puzzles/claim-borrow-then-burn.pzl").readText()
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("claim-incomplete-key", puzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(
+                        PuzzleMove("cast", "Claim the Firstborn"),
+                        PuzzleMove("target", "Centaur Courser"),
+                        PuzzleMove("attack", "Centaur Courser"),
+                        PuzzleMove("cast", "Thud"),
+                        PuzzleMove("target", "opponent"),
+                    ),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.AdvisorUnavailable
+            result.reason shouldContain "move is not legal at PayCostsReq"
+        }
+
+        test("named answer key wins with Pestilent Spirit and Blazing Volley") {
+            val puzzle = File("../data/puzzles/pestilent-one-point-is-enough.pzl").readText()
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("pestilent-answer-key", puzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(PuzzleMove("cast", "Blazing Volley"), PuzzleMove("attack", "Pestilent Spirit")),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.Won
+        }
+
+        test("winning before a claimed later move does not certify the answer key") {
+            val result =
+                PuzzleTrial(runtime(), engineSeed = 42L).run(
+                    PuzzleDefinition("premature-win", boltPuzzle),
+                    PuzzleTrialLimits(maxElapsedMillis = 12_000),
+                    listOf(
+                        PuzzleMove("cast", "Lightning Bolt"),
+                        PuzzleMove("target", "opponent"),
+                        PuzzleMove("attack", "Grizzly Bears"),
+                    ),
+                )
+
+            result.status shouldBe PuzzleTrialStatus.Unsupported
+            result.reason shouldContain "before answer-key move 3"
+        }
+
         test("an unreachable win stops at its decision budget as inconclusive") {
             val result =
                 PuzzleTrial(runtime(), engineSeed = 42L).run(

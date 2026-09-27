@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Overload turns Mizzium Mortars from one targeted hit into damage to every opposing creature.
+# Forcing: Either blocker can stop one attacker if the normal mode removes only the other. Overload clears both, allowing exact-five combat damage.
+# AI behavior: The opponent has no responses. Both attackers are ready and both defenders can block.
+# Failure modes:
+#   WIN = Mortars is overloaded, both blockers die, and both attackers deal five.
+#   LOSE = normal Mortars removes only one blocker, leaving less than five unblocked power.
+#   TIMEOUT = alternate-cost selection or combat did not complete.
+# Card roles:
+#   Mizzium Mortars — changes target scope with its alternate cost.
+#   Friendly Bears and Courser — exact-five attackers.
+#   Opposing Bears and Courser — jointly force the overload decision.
+# Protocol path: Cast with overload cost, deal four to each opposing creature, then attack.
+[metadata]
+Name:The Crowd Is the Target
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. Removing just one blocker is not enough.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+humanhand=Mizzium Mortars
+humanbattlefield=Grizzly Bears;Centaur Courser;Mountain;Mountain;Mountain;Forest;Forest;Forest
+humanlibrary=Forest
+aibattlefield=Grizzly Bears;Centaur Courser
+ailibrary=Forest

@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Tainted Remedy replaces an opponent's life gain with equal life loss.
+# Forcing: Swords to Plowshares is the only spell. Exiling the six-power creature causes exactly six life loss; exiling the smaller one does not.
+# AI behavior: The opponent has no responses, and the player must choose which opposing creature receives Swords to Plowshares.
+# Failure modes:
+#   WIN = Colossal Dreadmaw is exiled and its would-be life gain defeats its controller.
+#   LOSE = Grizzly Bears is exiled instead, or Swords is not cast.
+#   TIMEOUT = the exile target or replacement did not resolve.
+# Card roles:
+#   Tainted Remedy — turns the opponent's life gain into the win condition.
+#   Swords to Plowshares — exiles a creature and creates the life-gain event.
+#   Colossal Dreadmaw — the lethal six-power target.
+#   Grizzly Bears — the tempting cheaper target that leaves the opponent alive.
+# Protocol path: Cast Swords, choose a creature, exile it, replace life gain with life loss.
+[metadata]
+Name:The Cure Is Worse
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn. The removal spell normally gives your opponent life.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=6
+humanhand=Swords to Plowshares
+humanbattlefield=Tainted Remedy;Plains
+humanlibrary=Plains
+aibattlefield=Colossal Dreadmaw;Grizzly Bears
+ailibrary=Forest

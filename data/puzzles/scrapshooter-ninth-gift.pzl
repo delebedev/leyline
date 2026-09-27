@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Scrapshooter's promised gift enables its enters-the-battlefield destruction trigger.
+# Forcing: Nine Lives has hexproof, and its controller loses when it leaves. Shadowspear must remove hexproof before Scrapshooter can destroy it.
+# AI behavior: The opponent has no hand or decisions before the destruction trigger resolves.
+# Failure modes:
+#   WIN = Shadowspear removed hexproof, Scrapshooter promised a card, and Nine Lives left the battlefield.
+#   LOSE = the gift or target was missed, or the turn ended without the loss trigger resolving.
+#   TIMEOUT = an activation, gift, or target prompt did not complete.
+# Card roles:
+#   Shadowspear — makes Nine Lives targetable this turn.
+#   Scrapshooter — offers the gift and destroys the enchantment.
+#   Nine Lives — turns its own destruction into the win condition.
+# Protocol path: Activate Shadowspear, cast Scrapshooter, promise a gift, select Nine Lives, then resolve destruction and the loss trigger.
+[metadata]
+Name:The Ninth Gift
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Win this turn with Scrapshooter. Your opponent's only permanent has hexproof.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Scrapshooter
+humanbattlefield=Shadowspear;Forest;Forest;Forest;Forest
+humanlibrary=Forest
+aibattlefield=Nine Lives
+ailibrary=Forest
