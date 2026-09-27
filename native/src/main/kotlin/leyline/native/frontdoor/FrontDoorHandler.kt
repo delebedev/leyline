@@ -36,7 +36,6 @@ import leyline.native.frontdoor.wire.FdResponse
 import leyline.native.frontdoor.wire.FdResponseWriter
 import leyline.native.frontdoor.wire.FdWireConstants
 import leyline.native.frontdoor.wire.PlayerWireBuilder
-import leyline.native.frontdoor.wire.StartHookBuilder
 import org.slf4j.LoggerFactory
 import java.util.Locale
 import java.util.UUID
@@ -169,7 +168,7 @@ class FrontDoorHandler(
             CmdType.GET_SETS.value to { FdResponse.RawProto(bootstrapData.getSetsProto) },
             // Static bootstrap data (JSON)
             CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(bootstrapData.preconDecksJson) },
-            CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json("[]") },
+            CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json(LobbyStubs.carousel()) },
             CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(bootstrapData.graphDefinitionsJson) },
             CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(bootstrapData.designerMetadataJson) },
             // Lobby stubs
@@ -183,6 +182,9 @@ class FrontDoorHandler(
             CmdType.PERIODIC_REWARDS_GET_STATUS.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
             CmdType.RENEWAL_GET_CURRENT.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
             CmdType.COSMETICS_GET_OWNED.value to { FdResponse.Json(LobbyStubs.cosmetics()) },
+            CmdType.GET_PREFERRED_COSMETICS.value to {
+                FdResponse.TypedProto("Wizards.Arena.Models.Network.PreferredCosmetics")
+            },
             CmdType.GET_NET_DECK_FOLDERS.value to { FdResponse.Json(LobbyStubs.netDeckFolders()) },
             CmdType.GET_PLAYER_INBOX.value to { FdResponse.Json(LobbyStubs.playerInbox()) },
             CmdType.STATIC_CONTENT.value to { FdResponse.Json(LobbyStubs.staticContent()) },
@@ -193,6 +195,7 @@ class FrontDoorHandler(
             CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.skusAndListings()) },
             CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
             CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+            CmdType.GET_KILL_SWITCHES.value to { FdResponse.Json(LobbyStubs.killSwitches()) },
             // Typed proto stubs
             CmdType.GET_VOUCHER_DEFINITIONS.value to {
                 FdResponse.TypedProto(
@@ -224,9 +227,7 @@ class FrontDoorHandler(
 
             CmdType.START_HOOK.value -> {
                 val decks = deckRepository.findAllForPlayer(playerId)
-                val hook = StartHookBuilder.build(decks)
-                log.info("Front Door: StartHook ({}B, {} decks)", hook.length, decks.size)
-                writer.send(ctx, txId, FdResponse.Json(hook))
+                writer.send(ctx, txId, FdResponse.RawProto(FdProtoBuilder.buildStartHookProto(decks)))
             }
 
             CmdType.GRAPH_GET_STATE.value -> handleGraphRequest(ctx, txId, json)

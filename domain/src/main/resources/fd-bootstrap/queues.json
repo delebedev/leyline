@@ -1,5 +1,12 @@
 [
   {
+    "id": "StandardUnranked",
+    "queueType": "Unranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Traditional_Standard_Play",
+    "eventNameBO1": "Play",
+    "eventNameBO3": null
+  },
+  {
     "id": "AIBotMatch",
     "queueType": "Unranked",
     "locTitle": "Events/Event_Title_AIBotMatch",

@@ -48,7 +48,7 @@ just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt
 
 **Worktrees need `just bootstrap` before anything else** — they don't share submodule checkouts, but forge jars are cached globally (`~/.cache/leyline/forge-m2/`) so `mvn install` is skipped if another worktree already built the same forge commit.
 
-**Git hooks are repo-tracked.** `just bootstrap` installs them automatically; run `just hooks-install` manually if you cloned before the hook setup landed.
+**Git hooks are repo-tracked.** `just bootstrap` installs them automatically unless the clone already has a custom hook path. Run `just hooks-install` to explicitly select the repository hooks.
 
 ## Testing
 

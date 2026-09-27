@@ -78,6 +78,7 @@ value class CmdType(
         val GRAPH_GET_STATE = CmdType(1701)
         val GRAPH_ADVANCE_NODE = CmdType(1703)
         val COSMETICS_GET_OWNED = CmdType(1900)
+        val GET_PREFERRED_COSMETICS = CmdType(1902)
         val GET_PLAY_BLADE_QUEUE_CONFIG = CmdType(1910)
         val GET_PLAYER_PREFERENCES = CmdType(1911)
         val SET_PLAYER_PREFERENCES = CmdType(1912)
@@ -90,6 +91,7 @@ value class CmdType(
         val GET_ALL_PREFERRED_PRINTINGS = CmdType(2600)
         val GET_ALL_PRIZE_WALLS = CmdType(2700)
         val CHALLENGE_RECONNECT_ALL = CmdType(3006)
+        val GET_KILL_SWITCHES = CmdType(4200)
 
         /** Human-readable name for any CmdType value, including unknown ones. */
         fun nameOf(code: Int): String = NAMES[code] ?: "Unknown($code)"
@@ -165,6 +167,7 @@ value class CmdType(
                 1702 to "Graph_Process",
                 1703 to "Graph_AdvanceNode",
                 1900 to "Cosmetics_GetPlayerOwnedCosmetics",
+                1902 to "GetPreferredCosmetics",
                 1910 to "GetPlayBladeQueueConfig",
                 1911 to "GetPlayerPreferences",
                 1912 to "SetPlayerPreferences",
@@ -189,6 +192,7 @@ value class CmdType(
                 3010 to "ChallengeSetSettings",
                 3011 to "ChallengeIssue",
                 3012 to "ChallengeStartLaunchCountdown",
+                4200 to "GetKillSwitches",
             )
     }
 }

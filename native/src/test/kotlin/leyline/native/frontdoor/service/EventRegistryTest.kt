@@ -107,17 +107,10 @@ class EventRegistryTest :
             }
         }
 
-        test("courses JSON has default entries referencing valid events") {
-            val eventNames = EventRegistry.events.map { it.internalName }.toSet()
+        test("courses JSON does not invent player history") {
             val result = EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses)
             val courses = json.parseToJsonElement(result).jsonObject["Courses"]!!.jsonArray
-            courses shouldHaveAtLeastSize 1
-            val unknown =
-                courses
-                    .map { it.jsonObject["InternalEventName"]!!.jsonPrimitive.content }
-                    .filterNot(eventNames::contains)
-
-            withClue("default courses referencing an unknown event") { unknown.shouldBeEmpty() }
+            courses.shouldBeEmpty()
         }
 
         test("findEvent returns known event") {
