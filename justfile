@@ -136,10 +136,19 @@ dev: check-java
 
 # install repo-tracked git hooks for this clone
 [group('setup')]
-hooks-install:
+hooks-install mode="force":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"
+    if [[ "{{mode}}" != "force" && "{{mode}}" != "preserve" ]]; then
+        echo "Usage: just hooks-install [force|preserve]" >&2
+        exit 2
+    fi
+    configured_path="$(git config --local --get core.hooksPath || true)"
+    if [[ "{{mode}}" == "preserve" && -n "$configured_path" ]]; then
+        echo "Git hooks already configured at $configured_path; preserving them."
+        exit 0
+    fi
     git config core.hooksPath .githooks
     chmod +x .githooks/pre-push
     echo "Git hooks installed."
@@ -219,7 +228,7 @@ bootstrap:
     just build
 
     echo "==> Installing git hooks..."
-    just hooks-install
+    just hooks-install preserve
 
     echo ""
     echo "Bootstrap complete. You can now:"
