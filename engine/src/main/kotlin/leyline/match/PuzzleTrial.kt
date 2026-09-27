@@ -16,6 +16,7 @@ import java.util.HexFormat
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.FutureTask
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -120,20 +121,20 @@ class PuzzleTrial(
             return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
         }
 
-        val future =
-            try {
-                trialExecutor.submit<PuzzleTrialResult> {
-                    try {
-                        runOwned(definition, limits, startedAt, deadline, progress)
-                    } finally {
-                        cleanupDone.countDown()
-                        trialRunning.set(false)
-                    }
+        val future = FutureTask { runOwned(definition, limits, startedAt, deadline, progress) }
+        try {
+            trialExecutor.execute {
+                try {
+                    future.run()
+                } finally {
+                    cleanupDone.countDown()
+                    trialRunning.set(false)
                 }
-            } catch (_: RejectedExecutionException) {
-                trialRunning.set(false)
-                return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
             }
+        } catch (_: RejectedExecutionException) {
+            trialRunning.set(false)
+            return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
+        }
 
         return try {
             future.get((deadline - System.nanoTime()).coerceAtLeast(0), TimeUnit.NANOSECONDS)
