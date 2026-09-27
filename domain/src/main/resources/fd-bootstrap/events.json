@@ -11,6 +11,14 @@
     ]
   },
   {
+    "internalName": "Play",
+    "publicName": "Play",
+    "deckSelectFormat": "Standard",
+    "displayPriority": -1,
+    "titleLocKey": "Events/Event_Title_Play",
+    "descLocKey": "Events/Event_Desc_Play"
+  },
+  {
     "internalName": "SparkyStarterDeckDuel",
     "publicName": "SparkyStarterDeckDuel",
     "deckSelectFormat": "AllZeroes",

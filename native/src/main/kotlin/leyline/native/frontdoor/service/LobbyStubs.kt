@@ -9,6 +9,9 @@ package leyline.native.frontdoor.service
 object LobbyStubs {
     fun activeMatches() = """{"MatchesV3":[]}"""
 
+    fun carousel() =
+        """[{"Name":"Play","Priority":1,"AssetTreeItem":"URL_MTGA_Decklists","TitleKey":"Events/Event_Title_Play","DescriptionKey":"Events/Event_Desc_Play","Actions":[{"Arguments":"Play","Type":"GoToEvent"}],"HoverActions":[]}]"""
+
     fun currencies() = """{"Currencies":[]}"""
 
     fun boosters() = """{"Boosters":[]}"""

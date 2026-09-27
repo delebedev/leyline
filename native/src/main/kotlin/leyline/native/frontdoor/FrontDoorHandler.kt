@@ -168,7 +168,7 @@ class FrontDoorHandler(
             CmdType.GET_SETS.value to { FdResponse.RawProto(bootstrapData.getSetsProto) },
             // Static bootstrap data (JSON)
             CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(bootstrapData.preconDecksJson) },
-            CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json("[]") },
+            CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json(LobbyStubs.carousel()) },
             CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(bootstrapData.graphDefinitionsJson) },
             CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(bootstrapData.designerMetadataJson) },
             // Lobby stubs

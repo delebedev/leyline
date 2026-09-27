@@ -259,6 +259,22 @@ class FrontDoorHandlerTest :
             // Proto response — jsonPayload may be null but response must exist
         }
 
+        test("CmdType 704 - Carousel opens local Play") {
+            val item =
+                json
+                    .parseToJsonElement(fdChannel().sendCmd(704).jsonPayload.shouldNotBeNull())
+                    .jsonArray
+                    .single()
+                    .jsonObject
+            item["Name"]?.jsonPrimitive?.content shouldBe "Play"
+            item["Actions"]!!
+                .jsonArray
+                .single()
+                .jsonObject["Type"]
+                ?.jsonPrimitive
+                ?.content shouldBe "GoToEvent"
+        }
+
         test("CmdType 612 - AiBotMatch returns ack then MatchCreated with correct EventId") {
             val ch = fdChannel()
             val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","eventName":"AIBotMatch"}""")
@@ -363,14 +379,10 @@ class FrontDoorHandlerTest :
             }
         }
 
-        test("CmdType 623 - EventGetCoursesV2 returns courses with defaults") {
+        test("CmdType 623 - EventGetCoursesV2 does not invent courses") {
             val obj = sendJson(623)
             val courses = obj["Courses"]?.jsonArray
-            assertSoftly {
-                courses.shouldNotBeNull()
-                courses.shouldNotBeEmpty()
-                courses.shouldNotBeEmpty()
-            }
+            courses.shouldNotBeNull().shouldBeEmpty()
         }
 
         test("CmdType 623 - every course matches reference shape") {

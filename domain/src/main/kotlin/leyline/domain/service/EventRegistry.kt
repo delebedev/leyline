@@ -148,16 +148,7 @@ object EventRegistry {
         return mapArenaFormat(event.deckSelectFormat)
     }
 
-    /**
-     * Default courses — events the player has "participated in".
-     * The client expects some baseline course state; we seed a few common ones.
-     * module=CreateMatch means active (shows "Resume"), module=Complete means finished.
-     */
-    val defaultCourses =
-        listOf(
-            "AIBotMatch" to "Complete",
-            "Play_Brawl" to "CreateMatch",
-        )
+    val defaultCourses: List<Pair<String, String>> = emptyList()
 
     private inline fun <reified T> loadResource(path: String): T {
         val text =
