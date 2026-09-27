@@ -261,6 +261,12 @@ class ForgeCardRepository private constructor(
             primaryNamesByLookup[key]?.singleOrNull()
                 ?: faceAliasesByLookup[key]?.map(FaceAlias::parentName)?.distinct()?.singleOrNull()
                 ?: combinedParentsByLookup[key]?.distinct()?.singleOrNull()
+                ?: StaticData
+                    .instance()
+                    .commonCards
+                    .getUniqueByName(name)
+                    ?.rules
+                    ?.name
                 ?: return null
         return findGrpIdByName(parentName)
     }
