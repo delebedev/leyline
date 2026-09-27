@@ -121,16 +121,17 @@ class PuzzleTrial(
             return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
         }
 
-        val future = FutureTask { runOwned(definition, limits, startedAt, deadline, progress) }
-        try {
-            trialExecutor.execute {
+        val future =
+            FutureTask {
                 try {
-                    future.run()
+                    runOwned(definition, limits, startedAt, deadline, progress)
                 } finally {
                     cleanupDone.countDown()
                     trialRunning.set(false)
                 }
             }
+        try {
+            trialExecutor.execute(future)
         } catch (_: RejectedExecutionException) {
             trialRunning.set(false)
             return result(PuzzleTrialStatus.EngineFailure, "puzzle trial worker is busy")
