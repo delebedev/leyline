@@ -92,6 +92,38 @@ class EffectProjectionFactsTest :
             }
         }
 
+        test("materialization retains parameterized keyword titles and identities") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val target =
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single()
+            target.addChangedCardKeywords(
+                listOf("Hexproof:Blue", "Hexproof:Black", "Protection:Blue"),
+                null,
+                false,
+                203L,
+                null,
+            )
+
+            val identities =
+                board.bridge
+                    .materializeEffectProjectionFacts()
+                    .keywordEntries
+                    .associate { it.keyword to it.abilityGrpId }
+
+            identities shouldBe
+                mapOf(
+                    "Hexproof from blue" to 192,
+                    "Hexproof from black" to 193,
+                    "Protection from blue" to 186,
+                )
+        }
+
         test("static boost facts retain the source permanent") {
             val board =
                 startWithBoard { _, human, _ ->

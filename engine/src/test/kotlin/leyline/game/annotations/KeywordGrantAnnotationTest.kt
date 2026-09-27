@@ -1,5 +1,6 @@
 package leyline.game.annotations
 
+import forge.game.keyword.Keyword
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -10,6 +11,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.MechanicAnnotations
 import leyline.game.codes.DetailKeys
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.state.EffectTracker
 import leyline.testkit.detailInt
 import leyline.testkit.detailUint
@@ -100,7 +102,7 @@ class KeywordGrantAnnotationTest :
                     created = emptyList(),
                     destroyed =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Trample"), "Trample"),
+                            trackedKeyword(7010, 389, 1L, 5L, "Trample"),
                         ),
                 )
             val (transient, _) =
@@ -116,7 +118,7 @@ class KeywordGrantAnnotationTest :
                 EffectTracker.KeywordDiffResult(
                     created =
                         listOf(
-                            EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L, "Flanking"), "Flanking"),
+                            trackedKeyword(7010, 389, 1L, 5L, "Flanking"),
                         ),
                     destroyed = emptyList(),
                 )
@@ -203,6 +205,49 @@ class KeywordGrantAnnotationTest :
                 persistent.filter { it.typeList.contains(AnnotationType.AddAbility_af5a) } shouldHaveSize 1
             }
         }
+
+        test("parameterized keyword grants retain exact identities and unknown variants fall back") {
+            val keywords =
+                listOf(
+                    Keyword.getInstance("Hexproof:Blue"),
+                    Keyword.getInstance("Hexproof:Black"),
+                    Keyword.getInstance("Protection:Blue"),
+                )
+            val keywordDiff =
+                EffectTracker().diffKeywords(
+                    mapOf(
+                        100 to
+                            keywords.map { keyword ->
+                                EffectTracker.KeywordEntry(
+                                    timestamp = 1L,
+                                    staticId = 5L,
+                                    keyword = keyword.title,
+                                    abilityGrpId = KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()),
+                                )
+                            } +
+                            EffectTracker.KeywordEntry(
+                                timestamp = 1L,
+                                staticId = 5L,
+                                keyword = "Hexproof from an unlisted type",
+                                abilityGrpId = KeywordGrpIds.forKeyword("Hexproof from an unlisted type", "Hexproof"),
+                            ),
+                    ),
+                )
+            var uniqueId = 500
+            val (_, persistent) =
+                MechanicAnnotations.effectAnnotations(
+                    diff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    keywordDiff = keywordDiff,
+                    keywordAffectorFallbackForgeCardId = ForgeCardId(501),
+                    keywordAffectorInstanceId = ::identityInstanceId,
+                    uniqueAbilityIdAllocator = { uniqueId++ },
+                )
+
+            persistent
+                .filter { it.typeList.contains(AnnotationType.AddAbility_af5a) }
+                .map { it.detailUint(DetailKeys.GRPID) }
+                .sorted() shouldBe listOf(2, 186, 192, 193)
+        }
     })
 
 private fun trackedKeyword(
@@ -218,6 +263,7 @@ private fun trackedKeyword(
         EffectTracker.KeywordFingerprint(cardInstanceId, timestamp, staticId, keyword),
         keyword,
         affector?.let(::ForgeCardId),
+        KeywordGrpIds.forKeyword(keyword),
     )
 
 private fun identityInstanceId(forgeCardId: ForgeCardId): InstanceId = InstanceId(forgeCardId.value)

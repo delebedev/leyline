@@ -67,6 +67,7 @@ class EffectTracker {
         val staticId: Long,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
+        val abilityGrpId: Int? = null,
     )
 
     data class KeywordFingerprint(
@@ -81,6 +82,7 @@ class EffectTracker {
         val fingerprint: KeywordFingerprint,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
+        val abilityGrpId: Int? = null,
     ) {
         val cardInstanceId: Int get() = fingerprint.cardInstanceId
     }
@@ -234,7 +236,7 @@ class EffectTracker {
                     KeywordFingerprint(cardIid, entry.timestamp, entry.staticId, entry.keyword)
                 },
                 createTracked = { fp, entry ->
-                    TrackedKeywordEffect(nextEffectId(), fp, entry.keyword, entry.affectorForgeCardId)
+                    TrackedKeywordEffect(nextEffectId(), fp, entry.keyword, entry.affectorForgeCardId, entry.abilityGrpId)
                 },
             )
         return KeywordDiffResult(diff.created, diff.destroyed)

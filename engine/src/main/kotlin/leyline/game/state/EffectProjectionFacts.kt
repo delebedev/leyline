@@ -64,6 +64,7 @@ data class EffectProjectionFacts private constructor(
         val staticId: Long,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
+        val abilityGrpId: Int? = null,
     )
 
     /** One generated activated ability currently supplied by a continuous effect. */

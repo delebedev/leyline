@@ -782,6 +782,7 @@ object StateMapper {
                         staticId = entry.staticId,
                         keyword = entry.keyword,
                         affectorForgeCardId = entry.affectorForgeCardId,
+                        abilityGrpId = entry.abilityGrpId,
                     ),
                 )
         }
