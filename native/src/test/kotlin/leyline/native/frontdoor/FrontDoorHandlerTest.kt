@@ -243,13 +243,16 @@ class FrontDoorHandlerTest :
             }
         }
 
-        test("CmdType 1 - StartHook returns current typed response") {
+        test("CmdType 1 - StartHook returns playable deck state") {
             val ch = fdChannel()
             ch.writeCmd(1)
             val response = ch.readOutbound<ByteBuf>().shouldNotBeNull()
             val bytes = ByteArray(response.readableBytes()).also(response::readBytes)
             response.release()
-            bytes.toString(Charsets.UTF_8) shouldContain "type.googleapis.com/Wizards.Arena.Models.Network.StartHookResponseV2"
+            val wire = bytes.toString(Charsets.ISO_8859_1)
+            wire shouldContain "type.googleapis.com/Wizards.Arena.Models.Network.StartHookResponseV2"
+            wire shouldContain "Test Deck"
+            wire shouldContain testDeckId
         }
 
         test("CmdType 6 - GetFormats returns proto response") {
@@ -403,6 +406,15 @@ class FrontDoorHandlerTest :
                 val id = queue.jsonObject["Id"]!!.jsonPrimitive.content
                 assertKeysMatch(refKeys, queue.jsonObject, id)
             }
+        }
+
+        test("CmdType 1902 - PreferredCosmetics returns current typed response") {
+            val ch = fdChannel()
+            ch.writeCmd(1902)
+            val response = ch.readOutbound<ByteBuf>().shouldNotBeNull()
+            val bytes = ByteArray(response.readableBytes()).also(response::readBytes)
+            response.release()
+            bytes.toString(Charsets.UTF_8) shouldContain "type.googleapis.com/Wizards.Arena.Models.Network.PreferredCosmetics"
         }
 
         test("CmdType 410 - PreconDecksV3 returns precon decks from bootstrap data") {

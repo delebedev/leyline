@@ -3,6 +3,8 @@ package leyline.native.frontdoor
 import com.google.protobuf.ByteString
 import com.google.protobuf.UnknownFieldSet
 import kotlinx.serialization.Serializable
+import leyline.domain.Deck
+import leyline.domain.DeckCard
 import leyline.domain.json.productionJson
 
 private val json = productionJson { ignoreUnknownKeys = true }
@@ -13,6 +15,53 @@ object FdProtoBuilder {
         "type.googleapis.com/Wizards.Arena.Models.Network.GetFormatsResponse"
     private const val SETS_TYPE_URL =
         "type.googleapis.com/Wizards.Arena.Models.Network.SetMetadataResponse"
+    private const val START_HOOK_TYPE_URL =
+        "type.googleapis.com/Wizards.Arena.Models.Network.StartHookResponseV2"
+
+    fun buildStartHookProto(decks: List<Deck>): ByteArray {
+        val response = UnknownFieldSet.newBuilder()
+        response.addMessage(1, unknownFields {})
+        response.addVarint(2, 1)
+        response.addVarint(4, 1)
+        response.addMessage(9, unknownFields {})
+        response.addVarint(11, 100)
+        for (deck in decks) {
+            response.addMessage(
+                3,
+                unknownFields {
+                    addString(1, deck.id.value)
+                    addString(3, deck.name)
+                    for ((name, value) in deckAttributes(deck)) {
+                        addMessage(
+                            4,
+                            unknownFields {
+                                addString(1, name)
+                                addString(2, value)
+                            },
+                        )
+                    }
+                    addMessage(6, unknownFields { addVarint(1, deck.tileId.toLong()) })
+                    addMessage(9, unknownFields {})
+                },
+            )
+            response.addMessage(
+                5,
+                unknownFields {
+                    addString(1, deck.id.value)
+                    addMessage(
+                        2,
+                        unknownFields {
+                            addCards(1, deck.mainDeck)
+                            addCards(2, deck.sideboard)
+                            addCards(3, deck.commandZone)
+                            addCards(4, deck.companions)
+                        },
+                    )
+                },
+            )
+        }
+        return wrapInAny(START_HOOK_TYPE_URL, response.build())
+    }
 
     fun buildFormatsProto(): ByteArray {
         val text = loadText("fd-bootstrap/format-metadata.json")
@@ -145,6 +194,14 @@ object FdProtoBuilder {
             ?.readBytes()
             ?.toString(Charsets.UTF_8)
             ?: error("Missing classpath resource: $path")
+
+    private fun deckAttributes(deck: Deck): List<Pair<String, String>> =
+        listOf(
+            "Version" to "1",
+            "TileID" to deck.tileId.toString(),
+            "IsFavorite" to deck.isFavorite.toString(),
+            "Format" to deck.format.name,
+        )
 }
 
 // --- helpers ---
@@ -187,6 +244,21 @@ private fun UnknownFieldSet.Builder.addMessage(
             .addLengthDelimited(ByteString.copyFrom(value.toByteArray()))
             .build(),
     )
+}
+
+private fun UnknownFieldSet.Builder.addCards(
+    fieldNum: Int,
+    cards: List<DeckCard>,
+) {
+    for (card in cards) {
+        addMessage(
+            fieldNum,
+            unknownFields {
+                addVarint(1, card.grpId.toLong())
+                addVarint(2, card.quantity.toLong())
+            },
+        )
+    }
 }
 
 private inline fun unknownFields(block: UnknownFieldSet.Builder.() -> Unit): UnknownFieldSet =

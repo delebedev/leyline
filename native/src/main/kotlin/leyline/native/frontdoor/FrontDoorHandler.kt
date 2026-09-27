@@ -182,6 +182,9 @@ class FrontDoorHandler(
             CmdType.PERIODIC_REWARDS_GET_STATUS.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
             CmdType.RENEWAL_GET_CURRENT.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
             CmdType.COSMETICS_GET_OWNED.value to { FdResponse.Json(LobbyStubs.cosmetics()) },
+            CmdType.GET_PREFERRED_COSMETICS.value to {
+                FdResponse.TypedProto("Wizards.Arena.Models.Network.PreferredCosmetics")
+            },
             CmdType.GET_NET_DECK_FOLDERS.value to { FdResponse.Json(LobbyStubs.netDeckFolders()) },
             CmdType.GET_PLAYER_INBOX.value to { FdResponse.Json(LobbyStubs.playerInbox()) },
             CmdType.STATIC_CONTENT.value to { FdResponse.Json(LobbyStubs.staticContent()) },
@@ -223,7 +226,8 @@ class FrontDoorHandler(
             }
 
             CmdType.START_HOOK.value -> {
-                writer.send(ctx, txId, FdResponse.TypedProto("Wizards.Arena.Models.Network.StartHookResponseV2"))
+                val decks = deckRepository.findAllForPlayer(playerId)
+                writer.send(ctx, txId, FdResponse.RawProto(FdProtoBuilder.buildStartHookProto(decks)))
             }
 
             CmdType.GRAPH_GET_STATE.value -> handleGraphRequest(ctx, txId, json)
