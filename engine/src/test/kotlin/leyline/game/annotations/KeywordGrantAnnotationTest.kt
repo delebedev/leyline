@@ -209,15 +209,25 @@ class KeywordGrantAnnotationTest :
         test("parameterized keyword grants retain exact identities and unknown variants fall back") {
             val keywords =
                 listOf(
-                    Keyword.getInstance("Hexproof:Blue"),
-                    Keyword.getInstance("Hexproof:Black"),
-                    Keyword.getInstance("Protection:Blue"),
-                )
+                    Triple("White", 191, 185),
+                    Triple("Blue", 192, 186),
+                    Triple("Black", 193, 187),
+                    Triple("Red", 194, 188),
+                    Triple("Green", 195, 189),
+                ).flatMap { (color, hexproofGrpId, protectionGrpId) ->
+                    listOf(
+                        Keyword.getInstance("Hexproof:$color") to hexproofGrpId,
+                        Keyword.getInstance("Protection:$color") to protectionGrpId,
+                    )
+                }
+            keywords.forEach { (keyword, expectedGrpId) ->
+                KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()) shouldBe expectedGrpId
+            }
             val keywordDiff =
                 EffectTracker().diffKeywords(
                     mapOf(
                         100 to
-                            keywords.map { keyword ->
+                            keywords.map { (keyword, _) ->
                                 EffectTracker.KeywordEntry(
                                     timestamp = 1L,
                                     staticId = 5L,
@@ -246,7 +256,7 @@ class KeywordGrantAnnotationTest :
             persistent
                 .filter { it.typeList.contains(AnnotationType.AddAbility_af5a) }
                 .map { it.detailUint(DetailKeys.GRPID) }
-                .sorted() shouldBe listOf(2, 186, 192, 193)
+                .sorted() shouldBe listOf(2, 185, 186, 187, 188, 189, 191, 192, 193, 194, 195)
         }
     })
 
