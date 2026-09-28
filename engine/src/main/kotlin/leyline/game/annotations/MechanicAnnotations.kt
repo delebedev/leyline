@@ -5,7 +5,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
-import leyline.game.codes.KeywordGrpIds
 import leyline.game.codes.KeywordQualifications
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -539,9 +538,8 @@ object MechanicAnnotations {
             val groups =
                 keywordDiff.created
                     .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
-            for ((key, effects) in groups) {
-                val keyword = key.first
-                val grpId = GrpId(KeywordGrpIds.forKeyword(keyword) ?: continue)
+            for (effects in groups.values) {
+                val grpId = GrpId(effects.first().abilityGrpId ?: continue)
                 val affectorForgeCardId =
                     effects.firstNotNullOfOrNull { it.affectorForgeCardId }
                         ?: keywordAffectorFallbackForgeCardId
@@ -559,7 +557,7 @@ object MechanicAnnotations {
         }
 
         for (effect in keywordDiff.destroyed) {
-            if (KeywordGrpIds.forKeyword(effect.keyword) == null) continue
+            if (effect.abilityGrpId == null) continue
             transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
         }
     }

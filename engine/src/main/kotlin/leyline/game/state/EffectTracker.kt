@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import leyline.bridge.types.ForgeCardId
+import leyline.game.codes.KeywordGrpIds
 import kotlin.collections.iterator
 
 /**
@@ -67,7 +68,10 @@ class EffectTracker {
         val staticId: Long,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
-    )
+        val abilityGrpId: Int? = null,
+    ) {
+        val resolvedAbilityGrpId: Int? get() = abilityGrpId ?: KeywordGrpIds.forKeyword(keyword)
+    }
 
     data class KeywordFingerprint(
         val cardInstanceId: Int,
@@ -81,6 +85,7 @@ class EffectTracker {
         val fingerprint: KeywordFingerprint,
         val keyword: String,
         val affectorForgeCardId: ForgeCardId? = null,
+        val abilityGrpId: Int? = null,
     ) {
         val cardInstanceId: Int get() = fingerprint.cardInstanceId
     }
@@ -234,7 +239,13 @@ class EffectTracker {
                     KeywordFingerprint(cardIid, entry.timestamp, entry.staticId, entry.keyword)
                 },
                 createTracked = { fp, entry ->
-                    TrackedKeywordEffect(nextEffectId(), fp, entry.keyword, entry.affectorForgeCardId)
+                    TrackedKeywordEffect(
+                        nextEffectId(),
+                        fp,
+                        entry.keyword,
+                        entry.affectorForgeCardId,
+                        entry.resolvedAbilityGrpId,
+                    )
                 },
             )
         return KeywordDiffResult(diff.created, diff.destroyed)

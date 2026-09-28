@@ -46,6 +46,7 @@ import leyline.game.GamePlayback
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.LogicalSequenceState
 import leyline.game.codes.CounterTypes
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
@@ -2110,8 +2111,9 @@ class GameBridge(
                                     forgeCardId = forgeCardId,
                                     timestamp = cell.rowKey,
                                     staticId = cell.columnKey,
-                                    keyword = keyword.keyword.toString(),
+                                    keyword = keyword.title,
                                     affectorForgeCardId = keywordAffectorByStaticId[cell.columnKey],
+                                    abilityGrpId = KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()),
                                 )
                         }
                     }

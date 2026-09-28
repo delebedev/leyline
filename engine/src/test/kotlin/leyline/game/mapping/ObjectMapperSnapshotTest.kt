@@ -1,13 +1,16 @@
 package leyline.game.mapping
 
+import forge.game.keyword.Keyword
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.EffectTracker
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
@@ -83,6 +86,54 @@ class ObjectMapperSnapshotTest :
                 fromSnap.toughness.value shouldBe card.netToughness
                 fromSnap.isTapped shouldBe card.isTapped
             }
+        }
+
+        test("parameterized keyword grants project exact unique ability identities") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val card = game.humanPlayer.battlefield.card("Grizzly Bears")
+            val forgeCardId = ForgeCardId(card.id)
+            val instanceId = b.getOrAllocInstanceId(forgeCardId).value
+            val snap = SnapshotCapture.run(game, b, "test", 0)
+            val cardSnap = snap.objects.getValue(forgeCardId)
+            val keywords =
+                listOf(
+                    Keyword.getInstance("Hexproof:Blue"),
+                    Keyword.getInstance("Hexproof:Black"),
+                    Keyword.getInstance("Protection:Blue"),
+                )
+            val keywordSnapshot =
+                mapOf(
+                    instanceId to
+                        keywords.map { keyword ->
+                            EffectTracker.KeywordEntry(
+                                timestamp = 1L,
+                                staticId = 5L,
+                                keyword = keyword.title,
+                                abilityGrpId = KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()),
+                            )
+                        } + EffectTracker.KeywordEntry(timestamp = 2L, staticId = 6L, keyword = "Flying"),
+                )
+
+            val projected =
+                ObjectMapper.buildFromSnapshot(
+                    cardSnap,
+                    instanceId,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    b.cardProto,
+                    Visibility.Public,
+                    keywordSnapshot,
+                )
+
+            projected
+                .uniqueAbilitiesList
+                .map { it.grpId }
+                .filter { it in setOf(8, 186, 192, 193) }
+                .sorted() shouldBe
+                listOf(8, 186, 192, 193)
         }
 
         test("graveyard card: visibility and zone are correct") {
