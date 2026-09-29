@@ -204,6 +204,11 @@ fun buildMdfcBackLandAbility(card: Card): LandAbility? {
     return LandAbility(card, backState)
 }
 
+fun getPlayableLandAbility(
+    card: Card,
+    player: Player,
+): LandAbility? = card.getAllPossibleAbilities(player, true).firstOrNull { it.isLandAbility } as? LandAbility
+
 fun chooseCastAbility(
     card: Card,
     player: Player,

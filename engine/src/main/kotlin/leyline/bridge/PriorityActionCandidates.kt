@@ -88,8 +88,8 @@ class PriorityActionCandidates private constructor(
             battlefieldIds: Set<Int>,
         ): CardCandidates {
             val landAbility =
-                if (card.id in handIds && card.isLand) {
-                    LandAbility(card, card.currentState).also { it.activatingPlayer = player }
+                if (card.isLand) {
+                    getPlayableLandAbility(card, player)
                 } else {
                     null
                 }

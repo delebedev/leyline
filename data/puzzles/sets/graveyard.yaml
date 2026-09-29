@@ -1,6 +1,18 @@
 name: graveyard
-description: Small arena-driven graveyard smoke suite focused on flashback and disturb.
+description: Small arena-driven graveyard smoke suite focused on alternate-zone actions.
 scenarios:
+  - id: graveyard-land-play
+    puzzle: graveyard-land-play
+    run: play Island from the graveyard using Icetill Explorer
+    expect: ordinary land play action moves Island from graveyard to battlefield
+    steps:
+      - wait:
+          action: { type: play_land, card: Island }
+      - play_land: Island
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Island }
+            - zone_not_contains: { side: ours, zone: graveyard, card: Island }
   - id: flashback-think-twice
     puzzle: flashback-think-twice
     run: cast Think Twice from hand, then flash it back from graveyard

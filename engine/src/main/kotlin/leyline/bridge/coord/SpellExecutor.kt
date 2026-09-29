@@ -11,6 +11,7 @@ import leyline.bridge.findCard
 import leyline.bridge.forge.PlayerController
 import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.getPlayableLandAbility
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
@@ -160,7 +161,7 @@ class SpellExecutor(
         val card = findCard(game, cardId) ?: return null
         val landAbility =
             if (card.isLand) {
-                LandAbility(card, card.currentState)
+                getPlayableLandAbility(card, player) ?: return null
             } else {
                 buildMdfcBackLandAbility(card) ?: return null
             }

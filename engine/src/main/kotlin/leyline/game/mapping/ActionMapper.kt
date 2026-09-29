@@ -414,6 +414,23 @@ object ActionMapper {
                 bindOffer(action, PlayerAction.PlayLand(fid))
             }
         }
+        // --- Graveyard, exile, command: lands with explicit play permission ---
+        for (zoneId in listOf(ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD, ZoneIds.EXILE, ZoneIds.COMMAND)) {
+            for (fid in snap.zones[zoneId]?.contents.orEmpty()) {
+                val card = snap.objects[fid] ?: continue
+                if (!card.isLand) continue
+                val forgeCard = bridge.findCard(fid) ?: continue
+                val landAbility = candidates?.forCard(forgeCard)?.landAbility ?: continue
+                if (player?.canPlayLand(forgeCard, false, landAbility) != true) continue
+                emitPlayLandAction(
+                    builder,
+                    bridge.getOrAllocInstanceId(fid).value,
+                    card.grpId,
+                    canPlay = true,
+                    includeCardFields = false,
+                ) { action -> bindOffer(action, PlayerAction.PlayLand(fid)) }
+            }
+        }
 
         // --- Hand: non-land spells (Cast + CastAdventure) ---
         for (fid in hand) {
@@ -876,6 +893,7 @@ object ActionMapper {
         instanceId: Int,
         grpId: Int,
         canPlay: Boolean,
+        includeCardFields: Boolean = true,
         onActive: (Action) -> Unit = {},
     ) {
         val actionBuilder =
@@ -883,8 +901,9 @@ object ActionMapper {
                 .newBuilder()
                 .setActionType(ActionType.Play_add3)
                 .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
+        if (includeCardFields) {
+            actionBuilder.setGrpId(grpId).setFacetId(instanceId)
+        }
         if (canPlay) {
             val action = actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)).build()
             builder.addActions(action)
