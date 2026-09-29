@@ -424,10 +424,10 @@ class MatchFlowHarness(
     private val effectiveMatchConfig: EngineSettings = engineSettings.copy(seed = seed)
 
     /**
-     * Play a land from hand. Returns true if successful.
+     * Play an offered land. Returns true if successful.
      *
      * @param name optional preferred land name. When set, plays that named
-     *             land if present in hand; otherwise falls back to any land.
+     *             land if offered; otherwise falls back to any offered land.
      *             Specifying intent here matters: tests that follow up with
      *             a coloured spell cast (e.g. Raging Goblin needs {R}) must
      *             play a same-coloured basic. Without intent, this picks the
@@ -439,21 +439,18 @@ class MatchFlowHarness(
      *             skips past T1 before the test asserts.
      */
     fun playLand(name: String? = null): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
-        val handCards = player.getZone(ZoneType.Hand).cards
-        val land =
-            (if (name != null) handCards.firstOrNull { it.isLand && it.name.equals(name, ignoreCase = true) } else null)
-                ?: handCards.firstOrNull { it.isLand }
-                ?: return false
         val pending = bridge.actionBridge(seatId).getPending()?.takeIf { it.state.kind == PendingActionKind.PRIORITY } ?: return false
-        val instanceId = bridge.instanceId(land)
-        val action =
+        val actions =
             allMessages
                 .asReversed()
                 .firstOrNull { it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId }
                 ?.actionsAvailableReq
                 ?.actionsList
-                ?.singleOrNull { it.actionType == ActionType.Play_add3 && it.instanceId == instanceId }
+                .orEmpty()
+                .filter { it.actionType == ActionType.Play_add3 && cardByIid(it.instanceId)?.isLand == true }
+        val action =
+            (if (name != null) actions.firstOrNull { cardName(it.instanceId).equals(name, ignoreCase = true) } else null)
+                ?: actions.firstOrNull()
                 ?: return false
 
         submitAndAwaitClientResult(submitWithGsId(performAction(action)), "land play")

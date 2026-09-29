@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Icetill Explorer permits its controller to play lands from their graveyard.
+# Forcing: Island is the only playable land and exists only in the graveyard.
+# AI behavior: The opponent has no meaningful decisions.
+# Failure modes:
+#   WIN = scripted acceptance observes Island on the battlefield.
+#   LOSE = Island remains in the graveyard at the one-turn deadline.
+#   TIMEOUT = the play action or zone transfer stops advancing.
+# Card roles:
+#   Icetill Explorer — grants the alternate-zone land permission.
+#   Island — land played through the ordinary play action.
+#   Forest and Mountain — draw padding.
+# Protocol path: land play action, user action, and graveyard-to-battlefield transfer.
+
+[metadata]
+Name:Graveyard Land Play
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Use Icetill Explorer to play Island from your graveyard.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Icetill Explorer
+humangraveyard=Island
+humanlibrary=Forest
+ailibrary=Mountain

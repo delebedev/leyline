@@ -6,6 +6,9 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.ForgeCardId
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
@@ -115,6 +118,72 @@ class PriorityActionCandidatesTest :
                 )
             candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
             projection.actions.ofType(ActionType.Cast).shouldHaveSize(1)
+        }
+        test("land with graveyard permission uses the ordinary play action") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Graveyard land play
+                    Goal:Play the Specified Permanent
+                    Turns:1
+                    Difficulty:Tutorial
+                    Targets:Island
+                    Description:Play a permitted land from the graveyard.
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Icetill Explorer
+                    humangraveyard=Island
+                    humanlibrary=Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                )
+            val island =
+                board.human
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .single()
+            val candidates = PriorityActionCandidates.query(board.game, board.human)
+            val projection =
+                ActionMapper.buildProjectionFromSnapshot(
+                    1,
+                    SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                    board.bridge,
+                    candidates,
+                )
+
+            assertSoftly {
+                candidates.hasLegalNonManaAction(board.human).shouldBeTrue()
+                projection.actions.ofType(ActionType.Play_add3).shouldHaveSize(1)
+                projection.offers
+                    .single { it.action.actionType == ActionType.Play_add3 }
+                    .command
+                    .shouldBeInstanceOf<PlayerAction.PlayLand>()
+                    .cardId shouldBe ForgeCardId(island.id)
+            }
+        }
+        test("graveyard land without permission is not offered") {
+            val board = startWithBoard { _, human, _ -> addCard("Island", human, ZoneType.Graveyard) }
+            val candidates = PriorityActionCandidates.query(board.game, board.human)
+            val projection =
+                ActionMapper.buildProjectionFromSnapshot(
+                    1,
+                    SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                    board.bridge,
+                    candidates,
+                )
+
+            assertSoftly {
+                candidates.hasLegalNonManaAction(board.human).shouldBeFalse()
+                projection.actions.ofType(ActionType.Play_add3).shouldHaveSize(0)
+                projection.actions.inactiveActionsList
+                    .filter { it.actionType == ActionType.Play_add3 }
+                    .shouldHaveSize(0)
+            }
         }
         for (manaAvailable in listOf(false, true)) {
             test("opponent cycling stop requires payable mana: $manaAvailable") {
