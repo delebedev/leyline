@@ -182,6 +182,9 @@ class ForgeCardRepository private constructor(
             addRows(face.triggers)
             addRows(face.staticAbilities)
             face.staticAbilities.forEach { raw ->
+                parseParams(raw)["AddAbility"]?.split(" & ")?.forEach { variable ->
+                    add("$prefix:granted-ability:$variable")
+                }
                 parseParams(raw)["AddKeyword"]?.split(" & ")?.forEach { keyword ->
                     add("granted-keyword:$keyword")
                 }
@@ -405,6 +408,7 @@ class ForgeCardRepository private constructor(
         identityPrefix: String,
     ) {
         val abilities = mutableListOf<Pair<Int, Int>>()
+        val hiddenAbilities = mutableListOf<Pair<Int, Int>>()
         val kinds = mutableListOf<SlotKind>()
         val categories = mutableListOf<Int>()
         val variables = face.variables.associate { it.key to it.value }
@@ -466,6 +470,10 @@ class ForgeCardRepository private constructor(
         face.staticAbilities.forEach { raw ->
             val category = if (parseParams(raw)["Mode"] == "AlternativeCost") 8 else 3
             addRow(raw, category, SlotKind.Intrinsic)
+            parseParams(raw)["AddAbility"]
+                ?.split(" & ")
+                ?.mapNotNull { registerGrantedAbility(identityPrefix, it, variables) }
+                ?.let(hiddenAbilities::addAll)
         }
         face.replacements.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
         if (face.type.isBasicLand) {
@@ -504,6 +512,7 @@ class ForgeCardRepository private constructor(
                         },
                     ),
                 abilityIds = abilities,
+                hiddenAbilityIds = hiddenAbilities.distinct(),
                 abilityKinds = kinds,
                 abilityCategories = categories,
                 manaCost = ManaColorMapping.deriveManaCost(face.manaCost),
@@ -515,6 +524,20 @@ class ForgeCardRepository private constructor(
             ),
             face.name,
         )
+    }
+
+    private fun registerGrantedAbility(
+        identityPrefix: String,
+        variable: String,
+        variables: Map<String, String>,
+    ): Pair<Int, Int>? {
+        val script = variables[variable] ?: return null
+        val granted = parseParams(script)
+        val id = identityId("$identityPrefix:granted-ability:$variable")
+        val mana = granted["AB"] in listOf("Mana", "ManaReflected")
+        rows.registerAbilityInfo(id, AbilityInfo(0, emptyList(), 1, if (mana) 1 else 0))
+        rows.registerAbilityLocalization(id, AbilityLocalization(granted["SpellDescription"] ?: script))
+        return id to id
     }
 
     private fun identityId(key: String): Int =

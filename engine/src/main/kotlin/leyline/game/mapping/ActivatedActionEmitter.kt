@@ -88,10 +88,7 @@ internal object ActivatedActionEmitter {
             val identityCardData = cardData(grpId(identityCard))
             val registry = abilityRegistryLookup(identityCard, identityCardData)
             val abilityGrpId = registry?.forSpellAbility(ability) ?: 0
-            val grantedIndex =
-                ability
-                    .takeIf { it.grantorStatic != null }
-                    ?.let { abilities.take(abilityIndex).count { prior -> prior.grantorStatic != null } }
+            val grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, ability)
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
@@ -152,7 +149,7 @@ internal object ActivatedActionEmitter {
         card: Card,
         instanceId: Int,
         grpId: Int,
-        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        cardDataLookup: (Card) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): List<Action> = buildActivateManaActions(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup).map { it.action }
 
@@ -160,15 +157,16 @@ internal object ActivatedActionEmitter {
         card: Card,
         instanceId: Int,
         grpId: Int,
-        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        cardDataLookup: (Card) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         abilities: List<SpellAbility> = getPlayableManaAbilities(card, card.controller),
     ): List<ManaAction> {
-        val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
-        val registry = abilityRegistryLookup(card, cardData)
+        val cardData = cardDataLookup(card)
         return distinctManaAbilities(card, abilities).mapNotNull { (abilityIndex, sa) ->
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId
+            val source = sa.grantorStatic?.hostCard ?: card
+            val registry = abilityRegistryLookup(source, cardDataLookup(source))
+            val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
             val colors = producedManaColors(sa)
             if (colors.isEmpty()) return@mapNotNull null
 
@@ -181,8 +179,12 @@ internal object ActivatedActionEmitter {
                     .setFacetId(instanceId)
                     .setIsBatchable(true)
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
-                ?.let(actionBuilder::setUniqueAbilityId)
+            uniqueAbilityIdFor(
+                cardData,
+                abilityGrpId,
+                fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
+                grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, sa),
+            )?.let(actionBuilder::setUniqueAbilityId)
 
             for ((idx, manaColor) in colors.withIndex()) {
                 val manaInfo =
@@ -236,16 +238,17 @@ internal object ActivatedActionEmitter {
         card: Card,
         instanceId: Int,
         grpId: Int,
-        cardDataLookup: (leyline.bridge.types.GrpId) -> CardData?,
+        cardDataLookup: (Card) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): List<Action> {
-        val cardData = cardDataLookup(leyline.bridge.types.GrpId(grpId))
-        val registry = abilityRegistryLookup(card, cardData)
+        val cardData = cardDataLookup(card)
         return distinctManaAbilities(card, card.manaAbilities).mapNotNull { (_, sa) ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: basicLandAbilityGrpId
+            val source = sa.grantorStatic?.hostCard ?: card
+            val registry = abilityRegistryLookup(source, cardDataLookup(source))
+            val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
             val actionBuilder =
                 Action
                     .newBuilder()
@@ -256,8 +259,12 @@ internal object ActivatedActionEmitter {
             actionBuilder
                 .apply {
                     if (abilityGrpId != 0) setAbilityGrpId(abilityGrpId)
-                    uniqueAbilityIdFor(cardData, abilityGrpId, fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId)
-                        ?.let(::setUniqueAbilityId)
+                    uniqueAbilityIdFor(
+                        cardData,
+                        abilityGrpId,
+                        fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
+                        grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, sa),
+                    )?.let(::setUniqueAbilityId)
                 }
             sa.payCosts
                 ?.totalMana

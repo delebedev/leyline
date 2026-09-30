@@ -116,7 +116,7 @@ class AbilityRegistryTest :
             assertSoftly {
                 ability.grantorStatic.hostCard shouldBe card
                 registry.grantedAbilityGrpId(ability) shouldBe 179264
-                registry.grantedAbilityUniqueIndex(ability) shouldBe 0
+                AbilityRegistry.grantedAbilityUniqueIndex(card, ability) shouldBe 0
             }
         }
 

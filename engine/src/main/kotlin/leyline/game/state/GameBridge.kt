@@ -2192,25 +2192,23 @@ class GameBridge(
         card: Card,
         forgeCardId: ForgeCardId,
     ): List<EffectProjectionFacts.GrantedAbilityEntry> {
-        val cardGrpId = cardRepository.findGrpIdByName(card.name)
-        val cardData = cardGrpId?.let(cardRepository::findByGrpId) ?: return emptyList()
-        var grantedIndex = 0
+        val cardData = cardRepository.findByGrpId(resolveGrpId(card)) ?: return emptyList()
         return buildList {
             for (cell in card.changedCardTraits.cellSet()) {
                 for (ability in (cell.value as? CardTraitChanges)?.getAbilities().orEmpty()) {
-                    if (!ability.isActivatedAbility || ability.isManaAbility()) continue
+                    if (!ability.isActivatedAbility) continue
                     val source = ability.grantorStatic?.hostCard ?: continue
-                    val sourceGrpId = cardRepository.findGrpIdByName(source.name) ?: continue
-                    val sourceData = cardRepository.findByGrpId(sourceGrpId) ?: continue
+                    val sourceData = cardRepository.findByGrpId(resolveGrpId(source)) ?: continue
                     val registry = abilityRegistryFor(source, sourceData) ?: continue
                     val abilityGrpId = registry.forSpellAbility(ability) ?: continue
+                    val grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, ability) ?: continue
                     add(
                         EffectProjectionFacts.GrantedAbilityEntry(
                             forgeCardId = forgeCardId,
                             timestamp = cell.rowKey,
                             staticId = cell.columnKey,
                             abilityGrpId = abilityGrpId,
-                            uniqueAbilityId = 50 + cardData.abilityIds.size + grantedIndex++,
+                            uniqueAbilityId = 50 + cardData.abilityIds.size + grantedIndex,
                             sourceForgeCardId = ForgeCardId(source.id),
                         ),
                     )

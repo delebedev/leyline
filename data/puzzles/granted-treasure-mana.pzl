@@ -1,0 +1,21 @@
+# Mechanic: Distinct mana abilities granted to one Treasure retain selectable identities.
+# Forcing: The Mountain pays Strike It Rich, leaving Treasure as the only spell payment.
+# AI behavior: No opponent hand or battlefield choices.
+# Failure modes: Catalog failure blocks priority; printed mana alone cannot pay Lightning Strike.
+# Card roles: Two Goldspans grant mana; Strike It Rich creates Treasure; Lightning Strike consumes it.
+# Protocol path: Cast, token creation, granted mana offers, sacrifice, spell payment and damage.
+[metadata]
+Name:Repeated granted Treasure mana
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Create Treasure under two Goldspan Dragons and use its granted mana to cast Lightning Strike.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanbattlefield=Goldspan Dragon;Goldspan Dragon;Mountain
+humanhand=Strike It Rich;Lightning Strike
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Forest;Forest;Forest

@@ -2,6 +2,7 @@ package leyline.game.state
 
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardTraitChanges
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
@@ -72,10 +73,19 @@ class AbilityRegistry private constructor(
         return hiddenAbilityIds.single().first
     }
 
-    /** Stable client unique-ability slot for a generated activated ability. */
-    fun grantedAbilityUniqueIndex(ability: SpellAbility): Int? = grantedAbilityGrpId(ability)?.let { 0 }
-
     companion object {
+        /** Shared ordinal for activated grants, including mana abilities. */
+        fun grantedAbilityUniqueIndex(
+            card: Card,
+            ability: SpellAbility,
+        ): Int? =
+            card.changedCardTraits
+                .cellSet()
+                .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                .filter { it.isActivatedAbility && it.grantorStatic != null }
+                .indexOfFirst { it.definitionId == ability.definitionId }
+                .takeIf { it >= 0 }
+
         /** Empty registry — no mappings. */
         val EMPTY =
             AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), sourceCardGrpId = 0, slotLayout = SlotLayout.Companion.EMPTY)

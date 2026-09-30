@@ -4,12 +4,10 @@ import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
-import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
-import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -18,11 +16,8 @@ import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
 import leyline.domain.deck.DeckSource
 import leyline.game.bundle.InvariantSelection
-import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.generator.PuzzleSource
-import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.infra.MatchOutput
@@ -489,29 +484,16 @@ class MatchFlowHarness(
                 .getZone(ZoneType.Battlefield)
                 .cards
                 .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-        val ability = getPlayableManaAbilities(card, player).getOrNull(abilityIndex) ?: return false
-        val priorProjection = bridge.projectionStateSnapshot()
-        val (identityAndOffer, nextProjection) =
-            bridge.editProjection(priorProjection) {
-                val iid = bridge.instanceId(card)
-                val grpId = bridge.resolveGrpId(card, iid)
-                val cardData = bridge.cardRepository.findByGrpId(grpId)
-                val abilityGrpId =
-                    bridge.abilityRegistryFor(card, cardData)?.forSpellAbility(ability)
-                        ?: basicLandAbilityGrpId(card, ability)
-                val offer =
-                    ActionMapper
-                        .buildFromSnapshot(seatId.value, GsmSnapshot.capture(game(), bridge, "activateMana", 0), bridge)
-                        .actionsList
-                        .firstOrNull { action ->
-                            action.actionType == ActionType.ActivateMana &&
-                                action.instanceId == iid &&
-                                action.abilityGrpId == abilityGrpId
-                        }
-                iid to offer
-            }
-        val (_, offer) = identityAndOffer
-        if (offer == null) return false
+        val pending = bridge.actionBridge(seatId).getPending()?.takeIf { it.state.kind == PendingActionKind.PRIORITY } ?: return false
+        val iid = bridge.instanceId(card)
+        val offer =
+            allMessages
+                .asReversed()
+                .firstOrNull { it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId }
+                ?.actionsAvailableReq
+                ?.actionsList
+                ?.filter { it.actionType == ActionType.ActivateMana && it.instanceId == iid }
+                ?.getOrNull(abilityIndex) ?: return false
         val action =
             if (selectedColor == null) {
                 offer
@@ -519,15 +501,19 @@ class MatchFlowHarness(
                 val paymentOption =
                     offer.manaPaymentOptionsList.firstOrNull { option ->
                         option.manaList.any { it.color == selectedColor }
-                    } ?: return false
+                    } ?: offer.manaPaymentOptionsList
+                        .firstOrNull { option ->
+                            option.manaList.any { it.color == ManaColor.Generic }
+                        }?.toBuilder()
+                        ?.apply {
+                            getManaBuilder(0).color = selectedColor
+                        }?.build() ?: return false
                 offer
                     .toBuilder()
                     .clearManaPaymentOptions()
                     .addManaPaymentOptions(paymentOption)
                     .build()
             }
-        bridge.commitProjection(leyline.game.state.ProjectionTransition(priorProjection.revision, nextProjection))
-
         val msg =
             performAction {
                 mergeFrom(action)
@@ -535,14 +521,6 @@ class MatchFlowHarness(
         submitAndAwaitClientResult(submitWithGsId(msg), "mana activation")
         return true
     }
-
-    private fun basicLandAbilityGrpId(
-        card: Card,
-        ability: SpellAbility,
-    ): Int =
-        BasicLandAbilities.byTypeDerivedManaAbility(card, ability)
-            ?: BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes)
-            ?: 0
 
     /** Advance one exact priority or state-only synchronization stop. */
     fun passPriority() {
