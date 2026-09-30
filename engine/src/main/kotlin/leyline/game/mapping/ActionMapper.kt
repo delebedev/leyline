@@ -104,7 +104,7 @@ object ActionMapper {
                     forgeCard,
                     instanceId,
                     cardSnap.grpId,
-                    { _ -> snap.boundCards[fid]?.data },
+                    { c -> snap.boundCards[ForgeCardId(c.id)]?.data },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
                 ),
             )
@@ -257,14 +257,13 @@ object ActionMapper {
 
             if (!card.tapped && card.hasManaAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
-                val boundData = snap.boundCards[fid]?.data
                 for (
                 manaAction in
                 ActivatedActionEmitter.buildActivateManaActions(
                     forgeCard,
                     instanceId,
                     grpId,
-                    { boundData },
+                    { c -> snap.boundCards[ForgeCardId(c.id)]?.data },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
                     candidates?.forCard(forgeCard)?.manaAbilities ?: emptyList(),
                 )
@@ -276,14 +275,13 @@ object ActionMapper {
                 }
             } else if (card.tapped && card.hasManaAbilities) {
                 val forgeCard = bridge.findCard(fid) ?: continue
-                val boundData = snap.boundCards[fid]?.data
                 for (
                 manaAction in
                 ActivatedActionEmitter.buildActivateManaActions(
                     forgeCard,
                     instanceId,
                     grpId,
-                    { boundData },
+                    { c -> snap.boundCards[ForgeCardId(c.id)]?.data },
                     { c, d -> bridge.abilityRegistryFor(c, d) },
                     candidates?.forCard(forgeCard)?.manaAbilities ?: emptyList(),
                 )
@@ -298,7 +296,7 @@ object ActionMapper {
                         forgeCard,
                         instanceId,
                         grpId,
-                        { boundData },
+                        { c -> snap.boundCards[ForgeCardId(c.id)]?.data },
                         { c, d -> bridge.abilityRegistryFor(c, d) },
                     ),
                 )

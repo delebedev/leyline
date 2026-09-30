@@ -10,6 +10,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.coord.resolveActionOffer
+import leyline.bridge.handoff.ActionResponseKey
 import leyline.game.mapping.ActionMapper
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
@@ -69,6 +71,63 @@ class TreasureTokenTest :
             aibattlefield=Centaur Courser
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
+
+        for (grantedChoice in 0..1) {
+            session(
+                "each repeated Treasure grant executes its selected ability $grantedChoice",
+                puzzleFile = "data/puzzles/granted-treasure-mana.pzl",
+                fullControl = true,
+            ) {
+                castSpellByName("Strike It Rich").shouldBeTrue()
+                passUntil { human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" } }.shouldBeTrue()
+                val treasure = human.battlefield.card("Treasure Token")
+                val projection = ActionMapper.buildProjectionFromSnapshot(1, GsmSnapshot.capture(game(), bridge, "test", 0), bridge)
+                val grants =
+                    projection.offers.filter {
+                        val command = it.command as? leyline.bridge.handoff.PlayerAction.ActivateMana
+                        command?.ability?.grantorStatic != null
+                    }
+                val projected =
+                    allMessages
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .last { it.instanceId == human.battlefield.iid(treasure) }
+                assertSoftly {
+                    grants.size shouldBe 2
+                    grants.map { it.action.abilityGrpId }.distinct().size shouldBe 1
+                    grants.first().action.abilityGrpId shouldBeGreaterThan 0
+                    grants.map { it.action.uniqueAbilityId }.distinct().size shouldBe 2
+                    grants.forEach { offer ->
+                        projected.uniqueAbilitiesList
+                            .any { it.id == offer.action.uniqueAbilityId && it.grpId == offer.action.abilityGrpId }
+                            .shouldBeTrue()
+                    }
+                    leyline.bridge.coord.hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                }
+                val selected = grants[grantedChoice].action
+                val response = selected.toBuilder()
+                response.getManaPaymentOptionsBuilder(0).getManaBuilder(0).color =
+                    wotc.mtgo.gre.external.messaging.Messages.ManaColor.Red_afc9
+                val catalog =
+                    grants
+                        .mapIndexed { index, offer -> index.toLong() to offer }
+                        .groupBy { ActionResponseKey.from(it.second.action) }
+                resolveActionOffer(catalog, response.build())?.second shouldBe grants[grantedChoice]
+                resolveActionOffer(catalog, response.clone().clearUniqueAbilityId().build()) shouldBe null
+                submitAction(response.build())
+                assertSoftly {
+                    human.manaPool.totalMana() shouldBe 2
+                    human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .none { it.name == "Treasure Token" }
+                        .shouldBeTrue()
+                }
+                castSpellByName("Lightning Strike").shouldBeTrue()
+                selectTargets(listOf(OPPONENT_SEAT))
+                passUntil { isGameOver() }.shouldBeTrue()
+                human.hasWon().shouldBeTrue()
+            }
+        }
 
         session("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal", puzzle = puzzleText) {
             // --- Preconditions ---

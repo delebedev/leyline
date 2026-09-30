@@ -22,6 +22,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.game.codes.SlotKind
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
+import leyline.game.data.ForgeCardRepository
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.testkit.BoardTest
@@ -92,6 +93,35 @@ class AbilityRegistryTest :
             registry.forSpellAbility(stationAbility.id) shouldBe 373
         }
 
+        test("a static granting two abilities resolves each catalog row") {
+            val (_, game, _) =
+                startWithBoard { _, human, _ ->
+                    val land = addCard("Mountain", human, ZoneType.Battlefield)
+                    addCard("Lithoform Blight", human, ZoneType.Battlefield).attachToEntity(land, null, true)
+                    human.game.action.checkStaticAbilities(false)
+                }
+            val source =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Lithoform Blight" }
+            val land =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .single { it.name == "Mountain" }
+            val repository = ForgeCardRepository.open()
+            val data = checkNotNull(repository.findByGrpId(checkNotNull(repository.findGrpIdByName(source.name))))
+            val registry = AbilityRegistry.build(source, data)
+            val grants = land.manaAbilities.filter { it.grantorStatic != null }
+            assertSoftly {
+                grants.shouldHaveSize(2)
+                data.hiddenAbilityIds.shouldHaveSize(2)
+                grants.map { registry.forSpellAbility(it) } shouldBe data.hiddenAbilityIds.map { it.first }
+                grants.map { registry.forSpellAbility(it.copy()) } shouldBe data.hiddenAbilityIds.map { it.first }
+            }
+        }
+
         test("single continuously granted activated ability maps to its hidden slot") {
             val (_, game, _) =
                 startWithBoard { _, human, _ ->
@@ -116,7 +146,7 @@ class AbilityRegistryTest :
             assertSoftly {
                 ability.grantorStatic.hostCard shouldBe card
                 registry.grantedAbilityGrpId(ability) shouldBe 179264
-                registry.grantedAbilityUniqueIndex(ability) shouldBe 0
+                AbilityRegistry.grantedAbilityUniqueIndex(card, ability) shouldBe 0
             }
         }
 
@@ -156,6 +186,9 @@ class AbilityRegistryTest :
             assertSoftly {
                 registry.forSpellAbility(first) shouldBe 179264
                 registry.forSpellAbility(second) shouldBe 179264
+                second.definitionId shouldBe first.definitionId
+                AbilityRegistry.grantedAbilityUniqueIndex(card, first) shouldBe 0
+                AbilityRegistry.grantedAbilityUniqueIndex(card, second) shouldBe 1
             }
         }
 

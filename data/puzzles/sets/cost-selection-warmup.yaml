@@ -60,6 +60,26 @@ scenarios:
       - resolve_stack: {}
       - expect:
           opponent_life: 3
+  - id: granted-treasure-mana
+    puzzle: granted-treasure-mana
+    headless: { full_control: true }
+    native:
+      xfail: Granted mana color selection and quantity prediction are not supported by the native payment path yet.
+    run: create Treasure under two Goldspan Dragons, activate a granted mana ability, and cast Lightning Strike
+    expect: the granted mana pays for lethal damage without a catalog failure
+    steps:
+      - cast: Strike It Rich
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Treasure Token }
+      - activate_mana: { card: Treasure Token, ability_index: 1, color: red }
+      - expect:
+          action: { type: cast, card: Lightning Strike }
+      - cast: Lightning Strike
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          opponent_life: 0
   - id: sacrifice-mana-source
     puzzle: phyrexian-tower-sacrifice-mana
     run: cast Bad Moon with Phyrexian Tower as the only available mana source

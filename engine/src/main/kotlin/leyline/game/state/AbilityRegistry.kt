@@ -1,7 +1,10 @@
 package leyline.game.state
 
+import forge.game.ability.AbilityFactory
+import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardTraitChanges
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
@@ -68,14 +71,41 @@ class AbilityRegistry private constructor(
 
     /** Resolve an ability added by a continuous `AddAbility` effect. */
     fun grantedAbilityGrpId(ability: SpellAbility): Int? {
-        if (ability.grantorStatic == null || hiddenAbilityIds.size != 1) return null
-        return hiddenAbilityIds.single().first
+        val grantor = ability.grantorStatic ?: return null
+        if (hiddenAbilityIds.size == 1) return hiddenAbilityIds.single().first
+        val variables =
+            grantor.hostCard.staticAbilities
+                .orEmpty()
+                .flatMap { it.getParam("AddAbility")?.split(" & ").orEmpty() }
+                .distinct()
+        if (variables.size != hiddenAbilityIds.size) return null
+        val matching =
+            variables.withIndex().filter { (_, variable) ->
+                val script = AbilityUtils.getSVar(grantor, variable)
+                script.isNotEmpty() && AbilityFactory.getMapParams(script) == ability.originalMapParams
+            }
+        return matching.singleOrNull()?.let { hiddenAbilityIds[it.index].first }
     }
 
-    /** Stable client unique-ability slot for a generated activated ability. */
-    fun grantedAbilityUniqueIndex(ability: SpellAbility): Int? = grantedAbilityGrpId(ability)?.let { 0 }
-
     companion object {
+        /** Shared ordinal for activated grants, including mana abilities. */
+        fun grantedAbilityUniqueIndex(
+            card: Card,
+            ability: SpellAbility,
+        ): Int? {
+            val grants =
+                card.changedCardTraits
+                    .cellSet()
+                    .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                    .filter { it.isActivatedAbility && it.grantorStatic != null }
+            grants.indexOfFirst { it.id == ability.id }.takeIf { it >= 0 }?.let { return it }
+            return grants
+                .withIndex()
+                .singleOrNull {
+                    it.value.definitionId == ability.definitionId && it.value.grantorStatic == ability.grantorStatic
+                }?.index
+        }
+
         /** Empty registry — no mappings. */
         val EMPTY =
             AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), sourceCardGrpId = 0, slotLayout = SlotLayout.Companion.EMPTY)

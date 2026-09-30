@@ -176,6 +176,23 @@ class ActionMapperSnapshotTest :
                 offers.map { it.command.shouldBeInstanceOf<PlayerAction.ActivateAbility>().ability }.toSet().size shouldBe 2
                 hasAmbiguousActionCatalog(projection.offers) shouldBe false
             }
+
+            val guard = checkNotNull(b.findCard(ForgeCardId(guardForgeId)))
+            val aura =
+                game.players[0]
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .first { it.name == "Presence of Gond" }
+            aura.unattachFromEntity(guard, null)
+            game.action.checkStaticAbilities(false)
+            val remaining =
+                ActionMapper
+                    .buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 1), b)
+                    .offers
+                    .single { it.action.actionType == ActionType.Activate_add3 && it.action.instanceId == guardInstanceId }
+            val objectAfterRemoval = handshakeFull(game, b, 1).gameObjectsList.single { it.instanceId == guardInstanceId }
+            objectAfterRemoval.uniqueAbilitiesList.filter { it.grpId == 97312 }.map { it.id } shouldBe
+                listOf(remaining.action.uniqueAbilityId)
         }
 
         test("dual basic land types retain each color identity") {

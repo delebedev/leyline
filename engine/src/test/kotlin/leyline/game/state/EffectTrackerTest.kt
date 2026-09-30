@@ -15,6 +15,19 @@ class EffectTrackerTest :
 
         tags(UnitTag)
 
+        test("grant slot changes retire the old object ability identity") {
+            val tracker = EffectTracker()
+            val first = EffectTracker.GrantedAbilityEntry(1L, 10L, 1000, 50)
+            val second = EffectTracker.GrantedAbilityEntry(2L, 20L, 1000, 51)
+            tracker.diffGrantedAbilities(mapOf(100 to listOf(first, second)))
+            val change = tracker.diffGrantedAbilities(mapOf(100 to listOf(second.copy(uniqueAbilityId = 50))))
+            assertSoftly {
+                change.destroyed.map { it.uniqueAbilityId }.sorted() shouldBe listOf(50, 51)
+                change.created.single().uniqueAbilityId shouldBe 50
+                tracker.activeGrantedAbilities().single().uniqueAbilityId shouldBe 50
+            }
+        }
+
         test("allocates synthetic IDs starting at 7002") {
             val tracker = EffectTracker()
             assertSoftly {
