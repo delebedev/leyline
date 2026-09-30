@@ -74,7 +74,7 @@ class PuzzleHandler(
         val bridge = session.gameBridge
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         check(session.preparePuzzleStart()) { "Puzzle start requires the human seat" }
-        bridge.awaitPriority()
+        MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
         val actionBridge = bridge.seat(SeatId(seatId)).action
         val pending = checkNotNull(actionBridge.getPending()) { "Puzzle priority window did not become pending" }
         val publication = bridge.cutCoordinator.lifecycle.publishPuzzleInitial(SeatId(seatId), pending.actionId)

@@ -108,7 +108,7 @@ class InProcessMatchRuntime(
                     override fun send(message: MatchServiceToClientMessage) =
                         MatchReceiveProbe.inPhase(MatchReceivePhase.OutputDelivery) { launch.onFrame(message.toByteArray()) }
 
-                    override fun close() = launch.onClosed()
+                    override fun close() = MatchReceiveProbe.inPhase(MatchReceivePhase.OutputDelivery) { launch.onClosed() }
                 },
             )
 

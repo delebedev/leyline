@@ -152,7 +152,7 @@ class MatchSession(
             val bridge = gameBridge
             log.info("MatchSession: waiting for engine to reach priority after keep")
 
-            bridge.awaitPriority()
+            MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
             drainCoordinatorFeed()
 
             runtimeContinuation.awaitClientVisibleHorizon()
@@ -193,7 +193,7 @@ class MatchSession(
 
     /** Commit and deliver the replacement puzzle's initial state and action horizon. */
     private fun publishPuzzleReplacement(deletedInstanceIds: List<Int>): PuzzleReplacementResult {
-        gameBridge.awaitPriority()
+        MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { gameBridge.awaitPriority() }
         val pending = checkNotNull(gameBridge.seat(seatId).action.getPending()) { "Puzzle replacement has no pending priority window" }
         val published = gameBridge.cutCoordinator.lifecycle.publishPuzzleReplacement(seatId, deletedInstanceIds, pending.actionId)
         drainCoordinatorBarrier(this, gameBridge, seatId)
@@ -409,7 +409,7 @@ class MatchSession(
         revealForSeat: Int?,
     ) {
         if (bridge.seat(seatId).action.getPending() == null && !bridge.hasPendingNonActionInteraction()) {
-            bridge.awaitActionPriority(seatId)
+            MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitActionPriority(seatId) }
         }
         if (bridge.seat(seatId).action.getPending() != null) {
             drainCoordinatorFeed()

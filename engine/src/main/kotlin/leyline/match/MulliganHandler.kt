@@ -87,7 +87,7 @@ class MulliganHandler(
         when (decision) {
             MulliganOption.AcceptHand -> {
                 if (!bridge.submitKeep(seatId)) return
-                bridge.awaitPriority()
+                MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
                 s.onMulliganKeep()
             }
             MulliganOption.Mulligan,
@@ -118,7 +118,7 @@ class MulliganHandler(
                 handCards.firstOrNull { it.id == forgeId }
             }
         bridge.submitTuck(seatId, tuckCards)
-        bridge.awaitPriority()
+        MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
         s.onMulliganKeep()
     }
 
