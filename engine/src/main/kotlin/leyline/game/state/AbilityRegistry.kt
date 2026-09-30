@@ -1,5 +1,7 @@
 package leyline.game.state
 
+import forge.game.ability.AbilityFactory
+import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardTraitChanges
@@ -69,8 +71,20 @@ class AbilityRegistry private constructor(
 
     /** Resolve an ability added by a continuous `AddAbility` effect. */
     fun grantedAbilityGrpId(ability: SpellAbility): Int? {
-        if (ability.grantorStatic == null || hiddenAbilityIds.size != 1) return null
-        return hiddenAbilityIds.single().first
+        val grantor = ability.grantorStatic ?: return null
+        if (hiddenAbilityIds.size == 1) return hiddenAbilityIds.single().first
+        val variables =
+            grantor.hostCard.staticAbilities
+                .orEmpty()
+                .flatMap { it.getParam("AddAbility")?.split(" & ").orEmpty() }
+                .distinct()
+        if (variables.size != hiddenAbilityIds.size) return null
+        val matching =
+            variables.withIndex().filter { (_, variable) ->
+                val script = AbilityUtils.getSVar(grantor, variable)
+                script.isNotEmpty() && AbilityFactory.getMapParams(script) == ability.originalMapParams
+            }
+        return matching.singleOrNull()?.let { hiddenAbilityIds[it.index].first }
     }
 
     companion object {
@@ -78,13 +92,19 @@ class AbilityRegistry private constructor(
         fun grantedAbilityUniqueIndex(
             card: Card,
             ability: SpellAbility,
-        ): Int? =
-            card.changedCardTraits
-                .cellSet()
-                .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
-                .filter { it.isActivatedAbility && it.grantorStatic != null }
-                .indexOfFirst { it.definitionId == ability.definitionId }
-                .takeIf { it >= 0 }
+        ): Int? {
+            val grants =
+                card.changedCardTraits
+                    .cellSet()
+                    .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                    .filter { it.isActivatedAbility && it.grantorStatic != null }
+            grants.indexOfFirst { it.id == ability.id }.takeIf { it >= 0 }?.let { return it }
+            return grants
+                .withIndex()
+                .singleOrNull {
+                    it.value.definitionId == ability.definitionId && it.value.grantorStatic == ability.grantorStatic
+                }?.index
+        }
 
         /** Empty registry — no mappings. */
         val EMPTY =
