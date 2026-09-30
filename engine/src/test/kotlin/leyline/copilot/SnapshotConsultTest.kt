@@ -105,6 +105,45 @@ class SnapshotConsultTest :
                 .numberValue shouldBe sourceId
         }
 
+        session("consult pays a return-permanent additional cost", puzzle = RETURN_COST_CONSULT_PUZZLE) {
+            val sourceBridge = bridge
+            val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
+            val gsm = StateMapper.buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1).gsm
+            val sourceGrpId = TestCardRegistry.repo.findGrpIdByName("Fear of Isolation").shouldNotBeNull()
+            val source = gsm.gameObjectsList.single { it.grpId == sourceGrpId }
+            val battlefieldZone = gsm.zonesList.single { it.type == ZoneType.Battlefield }
+            val candidates =
+                gsm.gameObjectsList
+                    .filter {
+                        it.zoneId == battlefieldZone.zoneId && it.controllerSeatId == 1
+                    }.map { it.instanceId }
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setType(GREMessageType.PayCostsReq_695e)
+                    .setGameStateId(gsm.gameStateId)
+                    .setMsgId(42)
+                    .setPrompt(leyline.game.bundle.promptWithCardId(promptId = 1499, cardId = source.instanceId))
+                    .setPayCostsReq(
+                        PayCostsReq.newBuilder().setEffectCostReq(
+                            EffectCostReq
+                                .newBuilder()
+                                .setEffectCostType(EffectCostType.Select_a59c)
+                                .setCostSelection(
+                                    SelectNReq
+                                        .newBuilder()
+                                        .setMinSel(1)
+                                        .setMaxSel(1)
+                                        .addAllIds(candidates),
+                                ),
+                        ),
+                    ).build()
+            val result = SnapshotConsult.consult(gsm, prompt, 1, TestCardRegistry.repo)
+            result.proposal.intent shouldBe "pay_cost"
+            result.proposal.responseIds.shouldHaveSize(1)
+            (result.proposal.responseIds.single() in candidates) shouldBe true
+        }
+
         session(
             "consult proposes the lethal bolt in source-game ids with eval",
             puzzle = CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE,
@@ -911,5 +950,23 @@ private val MODAL_CONSULT_RETAINS_PROMPT_PUZZLE =
 
     humanbattlefield=Mountain
     humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val RETURN_COST_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Return Cost Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    humanhand=Fear of Isolation
+    humanbattlefield=Island;Island
+    humanlibrary=Island
     ailibrary=Mountain
     """.trimIndent()
