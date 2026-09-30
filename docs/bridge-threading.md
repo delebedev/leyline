@@ -213,3 +213,14 @@ already present. Such prompts use explicit projection supplements: materialize t
 intended state, commit it with the request, then reconcile it after Forge
 resumes. The supplement is a value owned by the prompt runtime; it is not a
 reason to mutate projection state outside compilation.
+
+## Receive diagnostics
+
+An in-process handle exposes a read-only diagnostic for its latest receive
+entrant. The receive scope records decoding, runtime lock entry, action handling,
+seat-horizon waits, coordinator waits, output delivery and companion handling.
+Each marker carries the elapsed monotonic time in that scope. Nested scopes
+restore their containing phase even on failure; the record becomes idle after
+receive returns. These observations never acquire engine locks, emit logs,
+release waits or alter admission. An older concurrent entrant cannot overwrite
+the latest entrant's record. Embedding hosts decide when to inspect or export it.

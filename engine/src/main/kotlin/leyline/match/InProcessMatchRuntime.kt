@@ -34,6 +34,8 @@ interface MatchRuntimeHandle {
     val response: RuntimeMatchLaunchResponse
     val result: CompletionStage<MatchResultObservation>
 
+    val receiveDiagnostic: MatchReceiveDiagnostic? get() = null
+
     fun receive(payload: ByteArray)
 
     /** Read-only advice for this handle's current human-seat prompt. */
@@ -83,6 +85,8 @@ class InProcessMatchRuntime(
         private val owner: Any,
     ) : MatchRuntimeHandle {
         private val lock = Any()
+        private val receiveProbe = MatchReceiveProbe()
+        override val receiveDiagnostic get() = receiveProbe.snapshot()
         private val registry = MatchRegistry()
         private var closed = false
 
@@ -101,9 +105,10 @@ class InProcessMatchRuntime(
         private val connection =
             openConnection(
                 object : MatchOutput {
-                    override fun send(message: MatchServiceToClientMessage) = launch.onFrame(message.toByteArray())
+                    override fun send(message: MatchServiceToClientMessage) =
+                        MatchReceiveProbe.inPhase(MatchReceivePhase.OutputDelivery) { launch.onFrame(message.toByteArray()) }
 
-                    override fun close() = launch.onClosed()
+                    override fun close() = MatchReceiveProbe.inPhase(MatchReceivePhase.OutputDelivery) { launch.onClosed() }
                 },
             )
 
@@ -113,28 +118,32 @@ class InProcessMatchRuntime(
             connection.opened()
         }
 
-        override fun receive(payload: ByteArray) {
-            val inbound =
-                try {
-                    ClientToMatchServiceMessage.parseFrom(payload)
-                } catch (_: InvalidProtocolBufferException) {
-                    return
+        override fun receive(payload: ByteArray) =
+            receiveProbe.observe {
+                val inbound =
+                    try {
+                        ClientToMatchServiceMessage.parseFrom(payload)
+                    } catch (_: InvalidProtocolBufferException) {
+                        return@observe
+                    }
+                MatchReceiveProbe.inPhase(MatchReceivePhase.LockWait) {
+                    synchronized(lock) {
+                        if (closed) return@inPhase
+                        runCatching {
+                            MatchReceiveProbe.inPhase(MatchReceivePhase.ActionProcessing) { connection.receive(inbound) }
+                            MatchReceiveProbe.inPhase(MatchReceivePhase.Companion) { companionSeat.follow(inbound) }
+                        }.onFailure { error ->
+                            runtimeLog.error("GRE engine error while handling client message", error)
+                            closed = true
+                            result.completeExceptionally(error)
+                            connection.failed(error)
+                            companionSeat.close()
+                            removeConfig()
+                        }
+                    }
                 }
-            synchronized(lock) {
-                if (closed) return
-                runCatching {
-                    connection.receive(inbound)
-                    companionSeat.follow(inbound)
-                }.onFailure { error ->
-                    runtimeLog.error("GRE engine error while handling client message", error)
-                    closed = true
-                    result.completeExceptionally(error)
-                    connection.failed(error)
-                    companionSeat.close()
-                    removeConfig()
-                }
+                Unit
             }
-        }
 
         override fun copilotProposal(): CopilotProposal =
             synchronized(lock) {
