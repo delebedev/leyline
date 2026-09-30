@@ -564,7 +564,11 @@ class ForgeAiPolicy(
                 costPart.accept(AiCostDecision(seatPlayer, sa, false))
             } ?: return null
         val chosenIds = decision.cards.map { instanceIdForCard(it) }
-        return effectCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+        return effectCostSelectionIds(
+            chosenIds,
+            msg.payCostsReq.effectCostReq.costSelection,
+            totalPower = costPart is CostTapType && costPart.type.contains("+withTotalPowerGE"),
+        )
     }
 
     private fun effectCostContexts(msg: GREToClientMessage): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> =
@@ -987,11 +991,12 @@ internal fun chooseCastActionByVariant(
 /**
  * Validate AI-chosen sacrifice ids against the cost selection contract:
  * every id must be an offered candidate, chosen exactly once, and the count
- * must satisfy the selection's min/max. Null means "no usable AI decision".
+ * or total power must satisfy the selection's min/max. Null means "no usable AI decision".
  */
 internal fun effectCostSelectionIds(
     chosenIds: List<Int>,
     selection: SelectNReq,
+    totalPower: Boolean = false,
 ): List<Int>? {
     if (chosenIds.isEmpty()) return null
     val allowed = selection.idsList.toSet()
@@ -999,7 +1004,15 @@ internal fun effectCostSelectionIds(
     if (chosenIds.distinct().size != chosenIds.size) return null
     val min = selection.minSel.coerceAtLeast(0)
     val max = if (selection.maxSel > 0) selection.maxSel else min
-    if (chosenIds.size !in min..max) return null
+    val amount =
+        if (totalPower) {
+            if (selection.weightsCount != selection.idsCount) return null
+            val weights = selection.idsList.zip(selection.weightsList).toMap()
+            chosenIds.sumOf { weights.getValue(it).toLong() }
+        } else {
+            chosenIds.size.toLong()
+        }
+    if (amount !in min.toLong()..max.toLong()) return null
     return chosenIds
 }
 

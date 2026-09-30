@@ -376,6 +376,21 @@ class SimClientDriverPolicyTest :
             effectCostSelectionIds(listOf(302), selection) shouldBe listOf(302)
         }
 
+        test("effect-cost selection validates total power rather than creature count") {
+            val selection =
+                payCostsPrompt(ids = listOf(301, 302, 303))
+                    .payCostsReq.effectCostReq.costSelection
+                    .toBuilder()
+                    .setMinSel(4)
+                    .setMaxSel(Int.MAX_VALUE)
+                    .addAllWeights(listOf(2, 2, 2))
+                    .build()
+            effectCostSelectionIds(listOf(301, 302), selection, totalPower = true) shouldBe listOf(301, 302)
+            effectCostSelectionIds(listOf(301), selection, totalPower = true) shouldBe null
+            effectCostSelectionIds(listOf(301, 302), selection) shouldBe null
+            effectCostSelectionIds(listOf(301, 302), selection.toBuilder().clearWeights().build(), totalPower = true) shouldBe null
+        }
+
         test("effect-cost selection refuses Station when Forge finds no payable creature") {
             val selection = payCostsPrompt(ids = listOf(301, 302)).payCostsReq.effectCostReq.costSelection
 
