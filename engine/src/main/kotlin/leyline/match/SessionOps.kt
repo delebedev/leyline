@@ -58,7 +58,7 @@ internal fun drainCoordinatorBarrier(
                         ?.actionId,
                 drainCommitted = { bridge.cutCoordinator.drain(seatId) },
                 completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
-                awaitNext = bridge::awaitPriority,
+                awaitNext = { MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() } },
                 failDelivery = bridge.cutCoordinator::failDelivery,
                 betweenBatches = betweenBatches,
                 beforeDrain = beforeDrain,

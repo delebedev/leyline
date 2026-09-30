@@ -48,7 +48,9 @@ internal class MatchRuntimeContinuation(
     ): Boolean {
         val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
         if (System.nanoTime() >= deadline ||
-            !bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId = completedActionId)
+            !MatchReceiveProbe.inPhase(MatchReceivePhase.HorizonWait) {
+                bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId = completedActionId)
+            }
         ) {
             sendGameOverIfTerminal()
             return false
@@ -64,7 +66,10 @@ internal class MatchRuntimeContinuation(
         val deadline = System.nanoTime() + timeoutMs * 1_000_000
         if (!bridge.cutCoordinator.hasCommittedBatches(seatId)) {
             val remainingMs = ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
-            val awaited = bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId)
+            val awaited =
+                MatchReceiveProbe.inPhase(MatchReceivePhase.HorizonWait) {
+                    bridge.awaitSeatHorizonWithTimeout(seatId, remainingMs, ignoredActionId)
+                }
             if (System.nanoTime() >= deadline || !awaited) {
                 sendGameOverIfTerminal()
                 return

@@ -27,6 +27,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class InProcessMatchRuntimeTest :
@@ -34,6 +36,33 @@ class InProcessMatchRuntimeTest :
         tags(IntegrationTag)
 
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
+
+        test("receive diagnostics remain readable while output delivery holds the runtime lock") {
+            val entered = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val firstOutput = AtomicBoolean(true)
+            val handle =
+                runtime().launch(
+                    MatchRuntimeLaunch(RuntimeMatchConfig("diagnostics"), {
+                        if (firstOutput.compareAndSet(true, false)) {
+                            entered.countDown()
+                            check(release.await(5, TimeUnit.SECONDS))
+                        }
+                    }),
+                )
+            val sending = Thread { handle.receive(auth("player")) }
+            sending.start()
+            try {
+                check(entered.await(5, TimeUnit.SECONDS))
+                handle.receiveDiagnostic?.phase shouldBe MatchReceivePhase.OutputDelivery
+                check(requireNotNull(handle.receiveDiagnostic).elapsedMs >= 0)
+            } finally {
+                release.countDown()
+                sending.join(5_000)
+                handle.close()
+            }
+            handle.receiveDiagnostic?.phase shouldBe MatchReceivePhase.Idle
+        }
 
         test("launches, processes serialized GRE, publishes frames and observes one result") {
             val frames = CopyOnWriteArrayList<ByteArray>()
