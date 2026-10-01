@@ -8,7 +8,7 @@
 [metadata]
 Name:cobbled-lancer-exile-cost
 Goal:Play the Specified Permanent
-Targets:Cobbled Lancer
+Targets:Card.namedCobbled Lancer
 Turns:1
 Difficulty:Easy
 Description:Exile a creature to cast Cobbled Lancer.

@@ -239,6 +239,7 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
             - zone_contains: { side: ours, zone: battlefield, card: Cobbled Lancer }
+      - expect: { winner: ours, loser: opponent }
   - id: final-flourish-kicker-cost
     puzzle: final-flourish-kicker-cost
     run: kick Final Flourish by sacrificing Ornithopter and attack past the removed blocker
