@@ -227,3 +227,37 @@ scenarios:
           winner: ours
           loser: opponent
           max_passes: 8
+  - id: cobbled-lancer-exile-cost
+    puzzle: cobbled-lancer-exile-cost
+    run: cast Cobbled Lancer by exiling Grizzly Bears
+    expect: the creature payment is exiled and Cobbled Lancer resolves
+    steps:
+      - cast: Cobbled Lancer
+      - select_cost: { zone: graveyard, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: battlefield, card: Cobbled Lancer }
+  - id: final-flourish-kicker-cost
+    puzzle: final-flourish-kicker-cost
+    run: kick Final Flourish by sacrificing Ornithopter and attack past the removed blocker
+    expect: the sacrifice payment resolves the kicked spell and enables lethal
+    steps:
+      - cast: Final Flourish
+      - choose: { optional_cost: kicker }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - select_cost: { zone: battlefield, cards: [Ornithopter] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Ornithopter }
+            - zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 8
+      - attack: { cards: [Grizzly Bears] }
+      - pass_until:
+          winner: ours
+          loser: opponent
+          max_passes: 8

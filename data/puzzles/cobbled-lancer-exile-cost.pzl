@@ -1,0 +1,24 @@
+# Design Narrative
+# Mechanic: Required non-mana cast payment.
+# Forcing: Lancer cannot be cast without the graveyard payment.
+# AI behavior: No opponent hand or additional choices.
+# Failure modes: WIN proves the intended line; timeout means payment or progression failed.
+# Card roles: The spell exercises payment; the remaining creatures provide payment or a blocker.
+# Protocol path: CastingTimeOptionsReq, PayCostsReq, and priority responses.
+[metadata]
+Name:cobbled-lancer-exile-cost
+Goal:Play the Specified Permanent
+Targets:Cobbled Lancer
+Turns:1
+Difficulty:Easy
+Description:Exile a creature to cast Cobbled Lancer.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+humanhand=Cobbled Lancer
+humanbattlefield=Island
+humangraveyard=Grizzly Bears
+humanlibrary=Island
+ailibrary=Mountain

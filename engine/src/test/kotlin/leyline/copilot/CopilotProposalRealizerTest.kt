@@ -6,6 +6,8 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.EffectCostType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -175,6 +177,16 @@ class CopilotProposalRealizerTest :
                 )
             p.intent shouldBe "pay_cost"
             p.responseIds shouldBe listOf(41, 42)
+            val response =
+                ClientToGREMessage.parseFrom(
+                    p.responses
+                        .single()
+                        .chunked(2)
+                        .map { it.toInt(16).toByte() }
+                        .toByteArray(),
+                )
+            response.effectCostResp.effectCostType shouldBe EffectCostType.Select_a59c
+            response.effectCostResp.costSelection.idsList shouldBe listOf(41, 42)
         }
 
         test("modal-choice → modal intent with grpIds") {

@@ -15,6 +15,7 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
+import forge.game.cost.CostExile
 import forge.game.cost.CostPart
 import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
@@ -74,20 +75,28 @@ private fun effectCostContexts(
     val forgeId = bridge.getForgeCardId(InstanceId(sourceId)) ?: return emptyList()
     val source = bridge.findCard(forgeId) ?: return emptyList()
     val abilities = getAllCastableAbilities(source, seatPlayer) + getNonManaActivatedAbilities(source, seatPlayer)
-    return abilities.distinctBy { it.id }.flatMap { sa ->
-        sa.activatingPlayer = seatPlayer
-        listOf(
-            CostSacrifice::class.java,
-            CostTapType::class.java,
-            CostReturn::class.java,
-        ).flatMap { type ->
-            sa.payCosts
-                ?.costParts
-                .orEmpty()
-                .filter { type.isInstance(it) }
-                .map { sa to it }
+    return abilities
+        .distinctBy { it.id }
+        .flatMap { sa ->
+            sa.activatingPlayer = seatPlayer
+            listOf(sa) +
+                GameActionUtil.getOptionalCostValues(sa).map { optional ->
+                    GameActionUtil.addOptionalCosts(sa, listOf(optional))
+                }
+        }.flatMap { sa ->
+            listOf(
+                CostSacrifice::class.java,
+                CostTapType::class.java,
+                CostReturn::class.java,
+                CostExile::class.java,
+            ).flatMap { type ->
+                sa.payCosts
+                    ?.costParts
+                    .orEmpty()
+                    .filter { type.isInstance(it) }
+                    .map { sa to it }
+            }
         }
-    }
 }
 
 private fun costPartsForRoute(
@@ -99,7 +108,7 @@ private fun costPartsForRoute(
             PayCostsRouteKind.Sacrifice -> CostSacrifice::class.java
             PayCostsRouteKind.StationTapCost -> CostTapType::class.java
             PayCostsRouteKind.SelectCostReturnAttacker -> CostReturn::class.java
-            PayCostsRouteKind.SelectCostExileFromGrave,
+            PayCostsRouteKind.SelectCostExileFromGrave -> CostExile::class.java
             PayCostsRouteKind.CollectEvidence,
             PayCostsRouteKind.EnlistCost,
             PayCostsRouteKind.TapPayment,
