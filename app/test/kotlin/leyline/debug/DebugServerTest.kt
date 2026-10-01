@@ -22,6 +22,8 @@ class DebugServerTest :
                     request(port, "GET", "/api/puzzle") shouldBe 200
                     request(port, "GET", "/api/best-play") shouldBe 200
                     request(port, "GET", "/api/copilot-proposal") shouldBe 200
+                    request(port, "GET", "/api/response-acceptance") shouldBe 200
+                    request(port, "POST", "/api/response-acceptance") shouldBe 405
                     request(port, "GET", "/api/inject-full") shouldBe 405
                     request(port, "GET", "/api/copilot-consult") shouldBe 405
                     // POST without a configured card repository → 503, not 404.

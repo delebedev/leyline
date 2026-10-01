@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 import java.net.InetSocketAddress
+import java.util.Properties
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Endpoints:
  * - `GET /api/best-play`   → engine simulation recommendation for current board state
  * - `GET /api/copilot-proposal` → local decision view for the pending prompt
+ * - `GET /api/response-acceptance` → offered prompt and accepted response identities
  * - `POST /api/copilot-consult` → stateless decision view for supplied state
  * - `POST /api/inject-full` → rebuild and deliver a full state update
  * - `GET /api/puzzle`       → current puzzle state
@@ -53,6 +55,10 @@ class DebugServer(
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
+    private val buildIdentity =
+        Properties().apply {
+            DebugServer::class.java.getResourceAsStream("/build-identity.properties")?.use { load(it) }
+        }
 
     private val json =
         productionJson {
@@ -67,6 +73,7 @@ class DebugServer(
         mapOf(
             "/api/best-play" to ::serveBestPlay,
             "/api/copilot-proposal" to ::serveCopilotProposal,
+            "/api/response-acceptance" to ::serveResponseAcceptance,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
@@ -161,6 +168,61 @@ class DebugServer(
     }
 
     // --- Engine recommendation ---
+
+    @Serializable
+    private data class AcceptedResponse(
+        val ordinal: Int,
+        val respId: Int,
+    )
+
+    @Serializable
+    private data class OfferedPrompt(
+        val msgId: Int,
+        val gameStateId: Int,
+        val type: String,
+    )
+
+    @Serializable
+    private data class ResponseAcceptance(
+        val matchId: String?,
+        val seatId: Int?,
+        val prompt: OfferedPrompt?,
+        val responses: List<AcceptedResponse>,
+        val server: ServerBuild,
+    )
+
+    @Serializable
+    private data class ServerBuild(
+        val checkoutRoot: String,
+        val revision: String?,
+        val forgeRevision: String?,
+        val sourceSha256: String?,
+    )
+
+    private fun serveResponseAcceptance(ex: HttpExchange) {
+        if (ex.requestMethod != "GET") {
+            ex.sendResponseHeaders(405, -1)
+            ex.close()
+            return
+        }
+        val session = sessionProvider?.invoke()
+        val tracker = session?.gameBridge?.responseAcceptance
+        val prompt = session?.lastPromptMessage()?.takeIf { tracker?.hasOutstandingPrompt(it.msgId) == true }
+        val snapshot =
+            ResponseAcceptance(
+                session?.matchId,
+                session?.seatId?.value,
+                prompt?.let { OfferedPrompt(it.msgId, it.gameStateId, it.type.name) },
+                tracker?.acceptedSnapshot()?.map { AcceptedResponse(it.ordinal, it.respId) } ?: emptyList(),
+                ServerBuild(
+                    System.getProperty("user.dir"),
+                    buildIdentity.getProperty("revision"),
+                    buildIdentity.getProperty("forgeRevision"),
+                    buildIdentity.getProperty("sourceSha256")?.takeUnless { it == "unknown" },
+                ),
+            )
+        respondJson(ex, json.encodeToString(snapshot))
+    }
 
     /**
      * `GET /api/best-play` — asks the engine simulation what the best play is

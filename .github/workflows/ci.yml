@@ -133,7 +133,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-gate
+          name: test-results-gate-attempt-${{ github.run_attempt }}
           path: '**/build/test-results/**/TEST-*.xml'
           if-no-files-found: ignore
           retention-days: 7
@@ -142,7 +142,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-gate
+          name: coverage-gate-attempt-${{ github.run_attempt }}
           path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
@@ -222,7 +222,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-extended
+          name: test-results-extended-attempt-${{ github.run_attempt }}
           path: '**/build/test-results/**/TEST-*.xml'
           if-no-files-found: ignore
           retention-days: 7
@@ -231,7 +231,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-extended
+          name: coverage-extended-attempt-${{ github.run_attempt }}
           path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
@@ -254,10 +254,11 @@ jobs:
         with:
           sparse-checkout: gradle/scripts
 
-      - name: Download all artifacts
+      - name: Download current attempt artifacts
         uses: actions/download-artifact@v4
         with:
           path: ci-artifacts
+          pattern: '*-attempt-${{ github.run_attempt }}'
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2

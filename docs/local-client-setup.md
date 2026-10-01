@@ -38,6 +38,12 @@ Needed for end-to-end local playtesting only.
 
 ## Notes
 
+Scripted local acceptance can inspect `GET :8090/api/response-acceptance`.
+The read-only diagnostic returns the offered prompt identity, recent accepted
+response identities, and the server's build revisions. Handled defaults do not
+count as accepted responses. Check the expected state transition separately.
+Build source digests are unavailable when the build has untracked files.
+
 - Local-only.
 - No client binaries are distributed by this repo.
 - Restore the client's stock config when finished.

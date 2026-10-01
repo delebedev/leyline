@@ -10,6 +10,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -127,6 +128,48 @@ sourceSets {
         resources.setSrcDirs(listOf("app/test/resources"))
     }
 }
+
+val buildIdentityDir = layout.buildDirectory.dir("generated/build-identity")
+val buildRevision = providers.exec { commandLine("git", "rev-parse", "HEAD") }.standardOutput.asText
+val buildForgeRevision = providers.exec { commandLine("git", "-C", "forge", "rev-parse", "HEAD") }.standardOutput.asText
+val buildDiff =
+    providers
+        .exec {
+            commandLine("git", "diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD")
+        }.standardOutput.asText
+val buildUntracked = providers.exec { commandLine("git", "ls-files", "--others", "--exclude-standard") }.standardOutput.asText
+val writeBuildIdentity =
+    tasks.register("writeBuildIdentity") {
+        val identityRevision = buildRevision
+        val identityForgeRevision = buildForgeRevision
+        val identityDiff = buildDiff
+        val identityUntracked = buildUntracked
+        val identityDir = buildIdentityDir
+        inputs.property("revision", buildRevision)
+        inputs.property("forgeRevision", buildForgeRevision)
+        inputs.property("diff", buildDiff)
+        inputs.property("untracked", buildUntracked)
+        outputs.dir(buildIdentityDir)
+        doLast {
+            val sourceSha256 =
+                if (identityUntracked.get().isBlank()) {
+                    MessageDigest
+                        .getInstance("SHA-256")
+                        .digest(identityDiff.get().toByteArray())
+                        .joinToString("") { "%02x".format(it) }
+                } else {
+                    "unknown"
+                }
+            identityDir.get().file("build-identity.properties").asFile.apply {
+                parentFile.mkdirs()
+                writeText(
+                    "revision=${identityRevision.get().trim()}\nforgeRevision=${identityForgeRevision.get().trim()}\nsourceSha256=$sourceSha256\n",
+                )
+            }
+        }
+    }
+sourceSets.main { resources.srcDir(buildIdentityDir) }
+tasks.processResources { dependsOn(writeBuildIdentity) }
 
 configurations.all {
     // Dead deps from Forge POMs — unused in headless server mode
