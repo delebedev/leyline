@@ -74,6 +74,12 @@ stable generated keyword-definition identity. The offer, chosen-cast marker,
 and sacrifice trigger use that same identity even after the hand-only grant
 stops applying.
 
+Continuous keyword grants use known keyword identities first, then the Forge
+catalog's generated definition identity. The source card's
+`grantedKeywordAbilityIds` supplies names and reminder text to embedding clients.
+Catalog-defined grants keep a separate persistent row for each recipient so
+recipient and source removal retire the corresponding grant.
+
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
 Spells that can target both stack objects and permanents use Forge’s list-choice

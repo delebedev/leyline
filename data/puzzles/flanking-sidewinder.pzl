@@ -1,0 +1,22 @@
+# Mechanic: A continuous keyword grant projects its identity and reminder text.
+# Forcing: Metallic Sliver attacks into Those Who Serve at one life.
+# AI behavior: The defender must block to survive the attack.
+# Failure modes: Missing grant or unchanged blocker stats identify the failed seam.
+# Card roles: Sidewinder grants flanking; Metallic attacks; Those Who Serve blocks.
+# Protocol path: AddAbility, DeclareAttackersReq, trigger resolution, stat updates.
+[metadata]
+Name:Sidewinder grants flanking
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Attack with Metallic Sliver to see granted flanking reduce its blocker.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+humanbattlefield=Sidewinder Sliver;Metallic Sliver
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Those Who Serve
+ailibrary=Plains;Plains;Plains;Plains;Plains

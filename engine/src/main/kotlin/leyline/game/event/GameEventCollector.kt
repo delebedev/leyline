@@ -516,7 +516,7 @@ class GameEventCollector(
             sa.isKeyword(Keyword.STATION) -> KeywordAbilityIds.STATION
             (sa.isKeyword(Keyword.TRAINING) || sa.hasParam("Training")) && sa.api == ApiType.PutCounter ->
                 KeywordAbilityIds.TRAINING
-            else -> null
+            else -> bridge.cardRepository.grantedKeywordAbilityGrpId(sa)
         }
 
     private fun isParadigmCopyCast(sa: SpellAbility?): Boolean {

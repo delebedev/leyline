@@ -1,6 +1,28 @@
 name: combat-reports
 description: Player-visible combat trigger, restriction, and delayed-effect regressions.
 scenarios:
+  - id: sidewinder-granted-flanking
+    puzzle: flanking-sidewinder
+    native: { skip: Sidewinder Sliver is unavailable in the native card catalog. }
+    headless: { full_control: true }
+    run: attack with Metallic Sliver into Those Who Serve
+    expect: flanking reduces the blocker from 2/4 to 1/3 and the blocker survives combat
+    steps:
+      - pass_until:
+          prompt: DeclareAttackersReq
+          max_passes: 12
+      - attack: { cards: [Metallic Sliver] }
+      - pass_until:
+          battlefield_stats: { side: opponent, card: Those Who Serve, power: 1, toughness: 3 }
+          max_passes: 12
+      - pass_until:
+          zone_contains: { side: ours, zone: graveyard, card: Metallic Sliver }
+          max_passes: 12
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: battlefield, card: Those Who Serve }
+            - stack_empty: true
+
   - id: ouroboroid-begin-combat-counters
     puzzle: combat-report-ouroboroid
     run: advance to combat and resolve Ouroboroid's beginning-of-combat trigger

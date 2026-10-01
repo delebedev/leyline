@@ -2113,7 +2113,11 @@ class GameBridge(
                                     staticId = cell.columnKey,
                                     keyword = keyword.title,
                                     affectorForgeCardId = keywordAffectorByStaticId[cell.columnKey],
-                                    abilityGrpId = KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString()),
+                                    abilityGrpId =
+                                        KeywordGrpIds.forKeyword(keyword.title, keyword.keyword.toString())
+                                            ?: keyword.static?.hostCard?.let { source ->
+                                                cardRepository.findGrantedKeywordAbilityGrpId(resolveGrpId(source), keyword.original)
+                                            },
                                 )
                         }
                     }
