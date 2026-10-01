@@ -9,7 +9,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
+import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
+import leyline.testkit.detailUint
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -97,6 +99,16 @@ class FlankingLifecycleTest :
             declareBlockers(mapOf(blockerIid to sourceIid))
             passUntil { blocker.netPower == 1 }.shouldBeTrue()
             blocker.netToughness shouldBe 3
+            val resolution = allMessages.annotationsOfType(AnnotationType.ResolutionStart).last()
+            val trigger =
+                allMessages
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .last { it.instanceId == resolution.affectorId }
+            assertSoftly {
+                trigger.parentId shouldBe sourceIid
+                trigger.grpId shouldBe grantGrpId
+                resolution.detailUint("grpid") shouldBe grantGrpId
+            }
             val projected =
                 allMessages
                     .flatMap { it.gameStateMessage.gameObjectsList }
