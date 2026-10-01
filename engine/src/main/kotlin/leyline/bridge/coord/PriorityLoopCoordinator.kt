@@ -30,11 +30,10 @@ import kotlin.collections.iterator
 /**
  * Owns the engine-thread priority loop and the combat callbacks.
  *
- * The four overrides routed here (`chooseSpellAbilityToPlay`,
- * `declareAttackers`, `declareBlockers`, `assignCombatDamage`) share a
- * distinctive timing model: they block the engine thread on [GameActionBridge],
- * not [leyline.bridge.handoff.InteractivePromptBridge], and they drive the
- * main game-loop decision points rather than ad-hoc choices.
+ * Priority, combat declarations, and damage assignment block the engine thread
+ * on [GameActionBridge], not [leyline.bridge.handoff.InteractivePromptBridge].
+ * Optional attack-cost callbacks consume the alternatives retained by the
+ * declaration without publishing another interaction.
  *
  * See `PlayerController`'s KDoc for the coordinator pattern.
  */
@@ -213,11 +212,18 @@ class PriorityLoopCoordinator(
         }
     }
 
-    fun enlistAttackers(attackers: List<Card>): List<Card> {
+    fun enlistAttackers(attackers: List<Card>): List<Card> = consumeAttackAlternative(attackers, KeywordAbilityIds.ENLIST)
+
+    fun exertAttackers(attackers: List<Card>): List<Card> = consumeAttackAlternative(attackers, KeywordAbilityIds.EXERT)
+
+    private fun consumeAttackAlternative(
+        attackers: List<Card>,
+        alternative: Int,
+    ): List<Card> {
         val selected = pendingAttackAlternativeByAttacker
-        if (selected.isEmpty()) return emptyList()
-        pendingAttackAlternativeByAttacker = emptyMap()
-        return attackers.filter { card -> selected[ForgeCardId(card.id)] == KeywordAbilityIds.ENLIST }
+        // Forge queries Exert before Enlist; each callback retires only its own choices.
+        pendingAttackAlternativeByAttacker = selected.filterValues { it != alternative }
+        return attackers.filter { card -> selected[ForgeCardId(card.id)] == alternative }
     }
 
     fun declareBlockers(

@@ -1681,6 +1681,15 @@ class PlayerController(
         coord.declareAttackers(attacker, combat)
     }
 
+    /**
+     * PCHuman opens a GUI ordering choice. On the engine thread, use the Exert
+     * alternative already committed by the attack declaration instead.
+     */
+    override fun exertAttackers(attackers: MutableList<Card>): MutableList<Card> {
+        val coord = priorityLoopCoordinator ?: return super.exertAttackers(attackers)
+        return CardCollection(coord.exertAttackers(attackers))
+    }
+
     override fun enlistAttackers(attackers: MutableList<Card>): MutableList<Card> {
         val coord = priorityLoopCoordinator ?: return super.enlistAttackers(attackers)
         val selected = coord.enlistAttackers(attackers)
