@@ -6,6 +6,7 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
@@ -948,27 +949,17 @@ object AnnotationPipeline {
                     },
             )
         val storeEffectDiff = effectDiff.withDestroyedEarthbendLayers(earthbend.destroyedLayerIds)
-        val grantedDestroyedEffects =
-            grantedAbilityDiff.destroyed.map { granted ->
-                EffectTracker.TrackedEffect(
-                    syntheticId = granted.syntheticId,
-                    fingerprint =
-                        EffectTracker.EffectFingerprint(
-                            cardInstanceId = granted.cardInstanceId,
-                            timestamp = granted.fingerprint.timestamp,
-                            staticId = granted.fingerprint.staticId,
-                        ),
-                    powerDelta = 0,
-                    toughnessDelta = 0,
-                )
-            }
+        // Catalog-defined keyword rows each own one recipient effect lifetime.
         val batch =
             PersistentAnnotationStore.computeBatch(
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,
                 effectPersistent = effectPersistent + earthbend.effectPersistent,
-                effectDiff = storeEffectDiff.copy(destroyed = storeEffectDiff.destroyed + grantedDestroyedEffects),
+                effectDiff = storeEffectDiff,
+                destroyedEffectIds =
+                    keywordDiff.destroyed.filter { KeywordGrpIds.forKeyword(it.keyword) == null }.map { it.syntheticId } +
+                        grantedAbilityDiff.destroyed.map { it.syntheticId },
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,

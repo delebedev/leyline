@@ -3,6 +3,7 @@ package leyline.game.data
 import forge.StaticData
 import forge.card.CardRules
 import forge.card.ICardFace
+import forge.game.keyword.Keyword
 import forge.localinstance.properties.ForgeConstants
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ManaColorMapping
@@ -395,6 +396,7 @@ class ForgeCardRepository private constructor(
                 typeNames = typeNames,
                 subtypeNames = subtypeNames,
                 keywordNames = faceRows.flatMap { it.keywordNames }.distinct(),
+                grantedKeywordAbilityIds = faceRows.flatMap { it.grantedKeywordAbilityIds.entries }.associate { it.toPair() },
             ),
             rules.name,
         )
@@ -411,6 +413,7 @@ class ForgeCardRepository private constructor(
         val hiddenAbilities = mutableListOf<Pair<Int, Int>>()
         val kinds = mutableListOf<SlotKind>()
         val categories = mutableListOf<Int>()
+        val grantedKeywords = mutableMapOf<String, Int>()
         val variables = face.variables.associate { it.key to it.value }
 
         var semanticSlot = 0
@@ -474,6 +477,9 @@ class ForgeCardRepository private constructor(
                 ?.split(" & ")
                 ?.mapNotNull { registerGrantedAbility(identityPrefix, it, variables) }
                 ?.let(hiddenAbilities::addAll)
+            parseParams(raw)["AddKeyword"]?.split(" & ")?.forEach { keyword ->
+                findGrantedKeywordAbilityGrpId(cardId, keyword)?.let { grantedKeywords[keyword] = it }
+            }
         }
         face.replacements.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
         if (face.type.isBasicLand) {
@@ -521,6 +527,7 @@ class ForgeCardRepository private constructor(
                 typeNames = typeNames,
                 subtypeNames = subtypeNames,
                 keywordNames = face.keywords.map { it.substringBefore(':').replace('_', ' ') },
+                grantedKeywordAbilityIds = grantedKeywords,
             ),
             face.name,
         )
@@ -607,10 +614,12 @@ class ForgeCardRepository private constructor(
     ): Int? {
         val id = catalogIdentityIds["granted-keyword:$keyword"] ?: return null
         val parts = keyword.split(":")
-        val base = keywordBases[normalize(parts.first())] ?: return null
+        val base = keywordBases[normalize(parts.first())] ?: 0
         val mana = parts.getOrElse(1) { "" }.split(Regex("\\s+")).mapNotNull(::manaTokenToPair)
-        rows.registerAbilityInfo(id, AbilityInfo(base, mana, 8, 0))
-        rows.registerAbilityLocalization(id, AbilityLocalization(parts.first(), mana))
+        val definition = Keyword.getInstance(keyword)
+        if (definition.keyword == Keyword.UNDEFINED) return null
+        rows.registerAbilityInfo(id, AbilityInfo(base, mana, if (base == 0) 0 else 8, 0))
+        rows.registerAbilityLocalization(id, AbilityLocalization(definition.reminderText, mana, definition.title))
         return id
     }
 

@@ -5,6 +5,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.codes.KeywordQualifications
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -577,7 +578,8 @@ object MechanicAnnotations {
                 effect to keywordExtraAbilityGrpIds?.invoke(InstanceId(effect.cardInstanceId), keyword).orEmpty()
             }
 
-        if (effectsWithExtras.all { (_, extraGrpIds) -> extraGrpIds.isEmpty() }) {
+        // Catalog-defined grants retain the tracked effect lifetime of each recipient.
+        if (effectsWithExtras.all { (_, extraGrpIds) -> extraGrpIds.isEmpty() } && KeywordGrpIds.forKeyword(keyword) != null) {
             addSharedKeywordEffectAnnotations(
                 transient,
                 persistent,

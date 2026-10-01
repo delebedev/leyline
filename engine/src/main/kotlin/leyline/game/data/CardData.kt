@@ -48,6 +48,8 @@ data class CardData(
     val typeNames: List<String> = emptyList(),
     val subtypeNames: List<String> = emptyList(),
     val keywordNames: List<String> = emptyList(),
+    /** Definitions supplied by this card's continuous keyword grants. */
+    val grantedKeywordAbilityIds: Map<String, Int> = emptyMap(),
 ) {
     val isMultiFace: Boolean get() = linkedFaceGrpIds.isNotEmpty()
 }

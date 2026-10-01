@@ -202,6 +202,7 @@ data class AbilityInfo(
 data class AbilityLocalization(
     val text: String,
     val manaCost: List<Pair<ManaColor, Int>> = emptyList(),
+    val keyword: String? = null,
 )
 
 /**

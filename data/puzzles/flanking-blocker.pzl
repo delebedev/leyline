@@ -1,0 +1,22 @@
+# Mechanic: Flanking reduces a blocker without flanking until end of turn.
+# Forcing: Block Benalish Cavalry with Those Who Serve.
+# AI behavior: The headless scenario scripts the Cavalry attack.
+# Failure modes: Wrong stats identify a trigger or projection failure.
+# Card roles: Cavalry supplies flanking; Those Who Serve survives combat.
+# Protocol path: DeclareBlockersReq, trigger resolution, stat updates.
+[metadata]
+Name:Flanking blocker
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Block Benalish Cavalry and inspect the temporary reduction.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Those Who Serve
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Benalish Cavalry
+ailibrary=Plains;Plains;Plains;Plains;Plains
