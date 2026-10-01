@@ -39,8 +39,8 @@ The engine thread blocks in these calls. Never block on session-owned state from
 Named `Choices` votes block in `PlayerController.vote` and retain the exact
 option handles through the modal choice lifecycle. The compatibility request
 carries `Prompt.parameters[choiceKind] = "vote"`, a `NonLocalizedString`, so
-embedding clients can label the decision as a vote. Required votes do not offer
-cast cancellation or undo, and selecting a vote does not mark a casting mode.
+embedding clients can label the decision as a vote. Votes do not offer cast
+cancellation or undo, and selecting a vote does not mark a casting mode. Optional votes abstain when the interaction times out.
 Forge retains vote order, counting, and effect resolution. Entity votes retain
 the existing entity-selection path.
 

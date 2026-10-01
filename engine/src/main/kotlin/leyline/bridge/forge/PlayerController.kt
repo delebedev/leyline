@@ -170,16 +170,16 @@ import java.util.function.Predicate
  * method we previously inherited:
  *
  * 1. **Trivial body (≤ 5 lines, direct `bridge.requestChoice` or `super` call)?**
- *    Keep it here. Update [PlayerControllerStructureTest]'s pinned override
- *    count in the same commit.
+ *    Keep it here. Update [PlayerControllerStructureTest]'s expected override
+ *    set in the same commit.
  * 2. **Fits an existing coordinator's concern?** Add a method there, delegate.
  * 3. **Shares a lifecycle pattern with other overrides** (e.g. a blocking interaction)?
  *    Route it through the match-scoped interaction runtime.
  * 4. **New concern that does not fit any existing coordinator?** Propose a new
  *    coordinator; justify it against the anti-patterns above.
  *
- * The structure test is the guardrail: it fails when the override count drifts
- * from its pinned value, forcing this class and the test to stay in sync.
+ * The structure test is the guardrail: it fails when the override surface differs
+ * from the expected set, forcing this class and the test to stay in sync.
  *
  * ## Threading
  *
@@ -1559,6 +1559,10 @@ class PlayerController(
     override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
         usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)
 
+    /**
+     * Inherited named votes use generic GUI choices that default without publishing options.
+     * The modal bridge retains exact vote handles and blocks the engine thread for a response.
+     */
     override fun vote(
         sa: SpellAbility,
         prompt: String,

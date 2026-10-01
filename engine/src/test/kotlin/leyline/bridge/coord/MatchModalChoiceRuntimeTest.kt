@@ -165,9 +165,38 @@ class MatchModalChoiceRuntimeTest :
                     .castingTimeOptionsReq
                     .getCastingTimeOptionReq(0)
                     .modalReq.minSel shouldBe 0
+                coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.castingTimeOptionsResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 selected.get().shouldBeNull()
+            }
+        }
+
+        test("optional vote timeout abstains and retires the vote window") {
+            val board = startPuzzleAtMain1FromResource("data/puzzles/selvala-vote.pzl")
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val card = board.human.hand.card("Selvala's Stampede")
+            val sa = card.firstSpellAbility.also { it.activatingPlayer = board.human }
+            val options = sa.getAdditionalAbilityList("Choices")
+            val vote = request(options, min = 0).copy(route = PromptRouteResolver.resolve(PromptSemantic.VoteChoice))
+            val result = AtomicReference<ModalChoiceInteractionResult>()
+            val finished = CountDownLatch(1)
+            Thread {
+                try {
+                    result.set(coordinator.modalChoices.awaitSelection(vote, options, card, sa, 25))
+                } finally {
+                    finished.countDown()
+                }
+            }.start()
+            awaitPublished(coordinator)
+            finished.await(3, TimeUnit.SECONDS) shouldBe true
+            assertSoftly {
+                result.get().timedOut shouldBe true
+                result.get().handles shouldBe emptyList()
+                result.get().optionIndices shouldBe emptyList()
+                coordinator.modalChoices.current().shouldBeNull()
+                board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 123 } shouldBe 123
             }
         }
 

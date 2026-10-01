@@ -10,7 +10,7 @@ import leyline.bridge.forge.PlayerController
  *
  * Forge dispatches through single inheritance — the class must keep hosting every
  * override. Any addition or removal is a spec change that must update the expected
- * set and count below in the same commit.
+ * set below in the same commit.
  *
  * See [leyline.bridge.forge.PlayerController]'s KDoc for the pattern this guardrail supports.
  */
@@ -19,7 +19,7 @@ class PlayerControllerStructureTest :
 
         tags(UnitTag)
 
-        // The current set of 63 PCHuman overrides. Alphabetical for review stability.
+        // The expected PCHuman override surface. Alphabetical for review stability.
         val expectedOverrides =
             setOf(
                 "announceRequirements",
@@ -83,13 +83,9 @@ class PlayerControllerStructureTest :
                 "reveal",
                 "selectTargetsInteractively",
                 "tuckCardsViaMulligan",
-                "willPutCardOnTop",
                 "vote",
+                "willPutCardOnTop",
             )
-
-        test("override count is pinned at 63") {
-            expectedOverrides.size shouldBe 63
-        }
 
         test("PlayerController declares exactly the expected overrides") {
             val clazz = PlayerController::class.java
