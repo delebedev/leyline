@@ -70,6 +70,7 @@ class PlayerControllerStructureTest :
                 "declareAttackers",
                 "declareBlockers",
                 "enlistAttackers",
+                "exertAttackers",
                 "getCostDecisionMaker",
                 "helpPayForAssistSpell",
                 "isAI",

@@ -3,6 +3,7 @@ package leyline.game.bundle
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.combat.CombatUtil
+import forge.game.cost.CostExert
 import forge.game.player.Player
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
@@ -127,29 +128,26 @@ object RequestBuilder {
             if (!CombatUtil.canAttack(card)) continue
 
             val instanceId = bridge.instanceId(card)
-            val hasEnlist = card.hasKeyword("Enlist")
+            val alternatives =
+                buildList {
+                    add(0)
+                    if (card.staticAbilities.any { it.hasAttackCost(card, CostExert::class.java) }) add(KeywordAbilityIds.EXERT)
+                    if (card.hasKeyword("Enlist")) add(KeywordAbilityIds.ENLIST)
+                }
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
             val legalRecipients = legalAttackDamageRecipients(player, card, seatId, bridge)
             if (legalRecipients.isEmpty()) continue
 
-            val attacker = buildAttackerOption(instanceId, legalRecipients)
-            if (isCommitted && selectedAlternativeGrpId == 0) {
-                attacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
-            }
-            builder.addAttackers(attacker)
-
-            if (hasEnlist) {
-                val enlistAttacker = buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST)
-                if (isCommitted && selectedAlternativeGrpId == KeywordAbilityIds.ENLIST) {
-                    enlistAttacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
+            for (alternative in alternatives) {
+                val attacker = buildAttackerOption(instanceId, legalRecipients, alternative)
+                if (isCommitted && selectedAlternativeGrpId == alternative) {
+                    attacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
                 }
-                builder.addAttackers(enlistAttacker)
+                builder.addAttackers(attacker)
+                // Qualified options describe legality without echoing the selection.
+                builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, alternative))
             }
-
-            // qualifiedAttackers never has selectedDamageRecipient
-            builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients))
-            if (hasEnlist) builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, KeywordAbilityIds.ENLIST))
         }
         builder.setCanSubmitAttackers(true)
         // Conformance: client expects an empty manaCost entry entry.

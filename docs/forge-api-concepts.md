@@ -44,6 +44,11 @@ cancellation or undo, and selecting a vote does not mark a casting mode. Optiona
 Forge retains vote order, counting, and effect resolution. Entity votes retain
 the existing entity-selection path.
 
+Attacker alternatives are committed with the combat declaration. Exert and
+Enlist callbacks consume their own selections on the engine thread before
+Forge pays optional attack costs. Selecting a normal attack declines those
+costs without opening another choice.
+
 ## 3. SpellAbility Is A Chain
 
 A spell or ability is often an SA chain, not one `SpellAbility`. Wrapper APIs such as `Charm`, `Effect`, `Repeat`, and `RepeatEach` can put meaningful work in sub-abilities that run after choices are made.

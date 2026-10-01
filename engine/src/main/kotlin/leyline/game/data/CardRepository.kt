@@ -229,6 +229,7 @@ object KeywordAbilityIds {
     const val PROWESS = 137
     const val IMPROVISE = 157
     const val TRAINING = 220
+    const val EXERT = 162
     const val ENLIST = 261
     const val STATION = 373
     const val FIREBENDING = 379

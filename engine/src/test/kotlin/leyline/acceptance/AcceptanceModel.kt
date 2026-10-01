@@ -444,6 +444,7 @@ enum class AcceptanceAltCost(
     Warp("warp", KeywordAbilityIds.WARP),
     Sneak("sneak", KeywordAbilityIds.SNEAK),
     Enlist("enlist", KeywordAbilityIds.ENLIST),
+    Exert("exert", KeywordAbilityIds.EXERT),
     Airbend("airbend", KeywordAbilityIds.AIRBEND),
     ;
 
