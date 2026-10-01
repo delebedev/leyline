@@ -1,8 +1,10 @@
 package leyline.mechanics.flanking
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.testkit.ScriptedAction
@@ -26,25 +28,25 @@ class FlankingLifecycleTest :
             val blockerIid = human.battlefield.iid("Those Who Serve")
             declareBlockers(mapOf(blockerIid to ai.battlefield.iid("Benalish Cavalry")))
             passUntil { blocker.netPower == 1 }.shouldBeTrue()
-            blocker.netPower shouldBe 1
-            blocker.netToughness shouldBe 3
+            assertSoftly {
+                blocker.netPower shouldBe 1
+                blocker.netToughness shouldBe 3
+            }
             val projected =
                 allMessages
                     .flatMap { it.gameStateMessage.gameObjectsList }
                     .last { it.instanceId == blockerIid }
             projected.power.value shouldBe 1
             projected.toughness.value shouldBe 3
-            println(
-                "FLANKING eligible: Forge=${blocker.netPower}/${blocker.netToughness}, GRE=${projected.power.value}/${projected.toughness.value}",
-            )
             val combatTurn = turn()
             passThroughCombat()
-            (turn() > combatTurn).shouldBeTrue()
-            blocker.netPower shouldBe 2
-            blocker.netToughness shouldBe 4
-            human.battlefield.card("Those Who Serve") shouldBe blocker
-            human.life shouldBe 20
-            println("FLANKING cleanup: Forge=${blocker.netPower}/${blocker.netToughness}, turn=${turn()}, life=${human.life}")
+            assertSoftly {
+                turn() shouldBeGreaterThan combatTurn
+                blocker.netPower shouldBe 2
+                blocker.netToughness shouldBe 4
+                human.battlefield.card("Those Who Serve") shouldBe blocker
+                human.life shouldBe 20
+            }
         }
 
         session(
@@ -83,13 +85,15 @@ class FlankingLifecycleTest :
                 allMessages
                     .persistentAnnotationsOfType(AnnotationType.AddAbility_af5a)
                     .last { recipientIid in it.affectedIdsList && it.detailInt("grpid") == grantGrpId }
-            grant.affectorId shouldBe sourceIid
-            grant.typeList shouldContain AnnotationType.LayeredEffect
-            allMessages
-                .flatMap { it.gameStateMessage.gameObjectsList }
-                .last { it.instanceId == recipientIid }
-                .uniqueAbilitiesList
-                .map { it.grpId } shouldContain grantGrpId
+            assertSoftly {
+                grant.affectorId shouldBe sourceIid
+                grant.typeList shouldContain AnnotationType.LayeredEffect
+                allMessages
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .last { it.instanceId == recipientIid }
+                    .uniqueAbilitiesList
+                    .map { it.grpId } shouldContain grantGrpId
+            }
             declareBlockers(mapOf(blockerIid to sourceIid))
             passUntil { blocker.netPower == 1 }.shouldBeTrue()
             blocker.netToughness shouldBe 3
@@ -99,9 +103,6 @@ class FlankingLifecycleTest :
                     .last { it.instanceId == blockerIid }
             projected.power.value shouldBe 1
             projected.toughness.value shouldBe 3
-            println(
-                "FLANKING Sidewinder grant: Forge=${blocker.netPower}/${blocker.netToughness}, GRE=${projected.power.value}/${projected.toughness.value}",
-            )
             passThroughCombat()
             recipient.hasKeyword("Flanking").shouldBeFalse()
             val liveRows = mutableMapOf<Int, AnnotationInfo>()
@@ -142,7 +143,6 @@ class FlankingLifecycleTest :
             passUntilResolved()
             blocker.netPower shouldBe 2
             blocker.netToughness shouldBe 2
-            println("FLANKING excluded: Forge=${blocker.netPower}/${blocker.netToughness}")
             passThroughCombat()
             human.graveyard.card("Benalish Cavalry").name shouldBe "Benalish Cavalry"
             ai.graveyard.card("Benalish Cavalry").name shouldBe "Benalish Cavalry"
