@@ -1,5 +1,6 @@
 package leyline.copilot
 
+import forge.StaticData
 import forge.game.Game
 import forge.game.keyword.Keyword
 import forge.gamemodes.puzzle.Puzzle
@@ -332,6 +333,17 @@ object SnapshotHydration {
             obj: GameObjectInfo,
             name: String,
         ): String {
+            if (obj.type == GameObjectType.Token && !obj.isCopy) {
+                val script =
+                    StaticData
+                        .instance()
+                        .allTokens.rules.entries
+                        .singleOrNull { (_, rules) ->
+                            rules.name.removeSuffix(" Token") == name.removeSuffix(" Token") &&
+                                visibleTypeOf(obj)?.matches(rules.type) == true
+                        }?.key
+                if (script != null) return "T:$script"
+            }
             val types =
                 (obj.superTypesList + obj.cardTypesList + obj.subtypesList)
                     .map { it.name.substringBefore('_') }

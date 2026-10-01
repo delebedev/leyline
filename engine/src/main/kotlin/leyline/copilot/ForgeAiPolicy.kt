@@ -15,7 +15,9 @@ import forge.game.ability.effects.CharmEffect
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.combat.Combat
+import forge.game.cost.CostExile
 import forge.game.cost.CostPart
+import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
 import forge.game.cost.CostTapType
 import forge.game.phase.PhaseType
@@ -50,7 +52,7 @@ private fun effectCostContexts(
     bridge: GameBridge,
     seatPlayer: Player,
     msg: GREToClientMessage,
-): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> {
+): List<Pair<SpellAbility, CostPart>> {
     if (!msg.hasPayCostsReq() || !msg.payCostsReq.hasEffectCostReq()) return emptyList()
     if (msg.payCostsReq.effectCostReq.costSelection.idsCount == 0) return emptyList()
 
@@ -73,31 +75,40 @@ private fun effectCostContexts(
     val forgeId = bridge.getForgeCardId(InstanceId(sourceId)) ?: return emptyList()
     val source = bridge.findCard(forgeId) ?: return emptyList()
     val abilities = getAllCastableAbilities(source, seatPlayer) + getNonManaActivatedAbilities(source, seatPlayer)
-    return abilities.distinctBy { it.id }.flatMap { sa ->
-        sa.activatingPlayer = seatPlayer
-        listOf(
-            PayCostsRouteKind.Sacrifice to CostSacrifice::class.java,
-            PayCostsRouteKind.StationTapCost to CostTapType::class.java,
-        ).flatMap { (kind, type) ->
-            sa.payCosts
-                ?.costParts
-                .orEmpty()
-                .filter { type.isInstance(it) }
-                .map { Triple(sa, it, kind) }
+    return abilities
+        .distinctBy { it.id }
+        .flatMap { sa ->
+            sa.activatingPlayer = seatPlayer
+            listOf(sa) +
+                GameActionUtil.getOptionalCostValues(sa).map { optional ->
+                    GameActionUtil.addOptionalCosts(sa, listOf(optional))
+                }
+        }.flatMap { sa ->
+            listOf(
+                CostSacrifice::class.java,
+                CostTapType::class.java,
+                CostReturn::class.java,
+                CostExile::class.java,
+            ).flatMap { type ->
+                sa.payCosts
+                    ?.costParts
+                    .orEmpty()
+                    .filter { type.isInstance(it) }
+                    .map { sa to it }
+            }
         }
-    }
 }
 
 private fun costPartsForRoute(
     sa: SpellAbility,
     kind: PayCostsRouteKind,
-): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> {
+): List<Pair<SpellAbility, CostPart>> {
     val type =
         when (kind) {
             PayCostsRouteKind.Sacrifice -> CostSacrifice::class.java
             PayCostsRouteKind.StationTapCost -> CostTapType::class.java
-            PayCostsRouteKind.SelectCostExileFromGrave,
-            PayCostsRouteKind.SelectCostReturnAttacker,
+            PayCostsRouteKind.SelectCostReturnAttacker -> CostReturn::class.java
+            PayCostsRouteKind.SelectCostExileFromGrave -> CostExile::class.java
             PayCostsRouteKind.CollectEvidence,
             PayCostsRouteKind.EnlistCost,
             PayCostsRouteKind.TapPayment,
@@ -110,7 +121,7 @@ private fun costPartsForRoute(
         ?.costParts
         .orEmpty()
         .filter { type.isInstance(it) }
-        .map { Triple(sa, it, kind) }
+        .map { sa to it }
 }
 
 private fun choosePayableX(
@@ -522,8 +533,7 @@ class ForgeAiPolicy(
         return selected.takeIf { it.isNotEmpty() }
     }
 
-    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean =
-        effectCostContexts(msg).any { it.third == PayCostsRouteKind.Sacrifice }
+    fun canChooseSacrificeCostPayment(msg: GREToClientMessage): Boolean = effectCostContexts(msg).any { it.second is CostSacrifice }
 
     fun canChooseEffectCostPayment(msg: GREToClientMessage): Boolean = effectCostContexts(msg).isNotEmpty()
 
@@ -543,7 +553,7 @@ class ForgeAiPolicy(
     fun chooseSacrificeCostPayment(msg: GREToClientMessage): List<Int>? =
         effectCostContexts(msg)
             .asSequence()
-            .filter { it.third == PayCostsRouteKind.Sacrifice }
+            .filter { it.second is CostSacrifice }
             .mapNotNull { chooseEffectCostPayment(msg, it) }
             .firstOrNull()
 
@@ -556,18 +566,22 @@ class ForgeAiPolicy(
 
     private fun chooseEffectCostPayment(
         msg: GREToClientMessage,
-        context: Triple<SpellAbility, CostPart, PayCostsRouteKind>,
+        context: Pair<SpellAbility, CostPart>,
     ): List<Int>? {
-        val (sa, costPart, _) = context
+        val (sa, costPart) = context
         val decision =
             askAi("effectCostDecision") {
                 costPart.accept(AiCostDecision(seatPlayer, sa, false))
             } ?: return null
         val chosenIds = decision.cards.map { instanceIdForCard(it) }
-        return effectCostSelectionIds(chosenIds, msg.payCostsReq.effectCostReq.costSelection)
+        return effectCostSelectionIds(
+            chosenIds,
+            msg.payCostsReq.effectCostReq.costSelection,
+            totalPower = costPart is CostTapType && costPart.type.contains("+withTotalPowerGE"),
+        )
     }
 
-    private fun effectCostContexts(msg: GREToClientMessage): List<Triple<SpellAbility, CostPart, PayCostsRouteKind>> =
+    private fun effectCostContexts(msg: GREToClientMessage): List<Pair<SpellAbility, CostPart>> =
         runCatching { effectCostContexts(bridge, seatPlayer, msg) }.getOrElse { emptyList() }
 
     fun canChooseSelectTargets(msg: GREToClientMessage): Boolean {
@@ -987,11 +1001,12 @@ internal fun chooseCastActionByVariant(
 /**
  * Validate AI-chosen sacrifice ids against the cost selection contract:
  * every id must be an offered candidate, chosen exactly once, and the count
- * must satisfy the selection's min/max. Null means "no usable AI decision".
+ * or total power must satisfy the selection's min/max. Null means "no usable AI decision".
  */
 internal fun effectCostSelectionIds(
     chosenIds: List<Int>,
     selection: SelectNReq,
+    totalPower: Boolean = false,
 ): List<Int>? {
     if (chosenIds.isEmpty()) return null
     val allowed = selection.idsList.toSet()
@@ -999,7 +1014,15 @@ internal fun effectCostSelectionIds(
     if (chosenIds.distinct().size != chosenIds.size) return null
     val min = selection.minSel.coerceAtLeast(0)
     val max = if (selection.maxSel > 0) selection.maxSel else min
-    if (chosenIds.size !in min..max) return null
+    val amount =
+        if (totalPower) {
+            if (selection.weightsCount != selection.idsCount) return null
+            val weights = selection.idsList.zip(selection.weightsList).toMap()
+            chosenIds.sumOf { weights.getValue(it).toLong() }
+        } else {
+            chosenIds.size.toLong()
+        }
+    if (amount !in min.toLong()..max.toLong()) return null
     return chosenIds
 }
 

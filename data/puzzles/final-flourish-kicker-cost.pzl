@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Required non-mana cast payment.
+# Forcing: The Courser survives the unkicked spell and blocks lethal.
+# AI behavior: No opponent hand or additional choices.
+# Failure modes: WIN proves the intended line; timeout means payment or progression failed.
+# Card roles: The spell exercises payment; the remaining creatures provide payment or a blocker.
+# Protocol path: CastingTimeOptionsReq, PayCostsReq, and priority responses.
+[metadata]
+Name:final-flourish-kicker-cost
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Sacrifice a creature to kick Final Flourish and remove the blocker.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+humanhand=Final Flourish
+humanbattlefield=Swamp;Swamp;Swamp;Grizzly Bears;Ornithopter
+humanlibrary=Swamp
+aibattlefield=Centaur Courser
+ailibrary=Forest

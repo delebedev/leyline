@@ -1,5 +1,6 @@
 package leyline.copilot
 
+import forge.game.ability.ApiType
 import forge.game.card.CounterEnumType
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.maps.shouldContainKey
@@ -9,6 +10,7 @@ import leyline.bridge.types.InstanceId
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.tooling.headless.cardIn
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
@@ -56,6 +58,36 @@ class SnapshotHydrationTest :
             val hydrated = SnapshotHydration.hydrate(gsm, 2, TestCardRegistry.repo)
             try {
                 hydrated.getGame().shouldNotBeNull()
+            } finally {
+                hydrated.teardownResources()
+            }
+        }
+
+        test("Blood token retains token identity and its draw ability through state copies") {
+            val tokenGrpId = 990_003
+            TestCardRegistry.repo.register(tokenGrpId, "Blood")
+            val gsm =
+                battlefieldGsm()
+                    .addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(201)
+                            .setGrpId(tokenGrpId)
+                            .setType(GameObjectType.Token)
+                            .setZoneId(7)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2)
+                            .addCardTypes(CardType.Artifact_a80b)
+                            .addSubtypes(SubType.Blood_a8d0),
+                    ).build()
+            val hydrated = SnapshotHydration.hydrate(gsm, 1, TestCardRegistry.repo)
+            try {
+                val game = hydrated.getGame().shouldNotBeNull()
+                val token = cardIn(game.players[1], ForgeZoneType.Battlefield, "Blood Token")
+                token.isToken shouldBe true
+                token.isSplitCard shouldBe false
+                token.spellAbilities.any { it.api == ApiType.Draw } shouldBe true
+                game.copyLastState()
             } finally {
                 hydrated.teardownResources()
             }

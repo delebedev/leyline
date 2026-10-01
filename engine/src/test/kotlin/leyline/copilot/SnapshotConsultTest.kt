@@ -105,6 +105,61 @@ class SnapshotConsultTest :
                 .numberValue shouldBe sourceId
         }
 
+        val costCases =
+            listOf(
+                Triple("Fear of Isolation", ZoneType.Battlefield, RETURN_COST_CONSULT_PUZZLE),
+                Triple("Cobbled Lancer", ZoneType.Graveyard, EXILE_COST_CONSULT_PUZZLE),
+                Triple("Final Flourish", ZoneType.Battlefield, KICKER_COST_CONSULT_PUZZLE),
+            )
+        for ((sourceName, candidateZone, puzzle) in costCases) {
+            session("consult pays the non-mana cost of $sourceName", puzzle = puzzle) {
+                val sourceBridge = bridge
+                val snap = GsmSnapshot.capture(sourceBridge.getGame()!!, sourceBridge, "consult", 0)
+                val gsm = StateMapper.buildFromSnapshot(snap, 0, "consult", sourceBridge, viewingSeatId = 1).gsm
+                val sourceGrpId = TestCardRegistry.repo.findGrpIdByName(sourceName).shouldNotBeNull()
+                val source = gsm.gameObjectsList.single { it.grpId == sourceGrpId }
+                val zone =
+                    gsm.zonesList.single {
+                        it.type == candidateZone && (it.ownerSeatId == 1 || candidateZone == ZoneType.Battlefield)
+                    }
+                val candidates =
+                    gsm.gameObjectsList
+                        .filter {
+                            it.zoneId == zone.zoneId &&
+                                it.ownerSeatId == 1 &&
+                                (
+                                    sourceName != "Final Flourish" ||
+                                        wotc.mtgo.gre.external.messaging.Messages.CardType.Creature in it.cardTypesList
+                                )
+                        }.map { it.instanceId }
+                val prompt =
+                    GREToClientMessage
+                        .newBuilder()
+                        .setType(GREMessageType.PayCostsReq_695e)
+                        .setGameStateId(gsm.gameStateId)
+                        .setMsgId(42)
+                        .setPrompt(leyline.game.bundle.promptWithCardId(promptId = 1499, cardId = source.instanceId))
+                        .setPayCostsReq(
+                            PayCostsReq.newBuilder().setEffectCostReq(
+                                EffectCostReq
+                                    .newBuilder()
+                                    .setEffectCostType(EffectCostType.Select_a59c)
+                                    .setCostSelection(
+                                        SelectNReq
+                                            .newBuilder()
+                                            .setMinSel(1)
+                                            .setMaxSel(1)
+                                            .addAllIds(candidates),
+                                    ),
+                            ),
+                        ).build()
+                val result = SnapshotConsult.consult(gsm, prompt, 1, TestCardRegistry.repo)
+                result.proposal.intent shouldBe "pay_cost"
+                result.proposal.responseIds.shouldHaveSize(1)
+                (result.proposal.responseIds.single() in candidates) shouldBe true
+            }
+        }
+
         session(
             "consult proposes the lethal bolt in source-game ids with eval",
             puzzle = CONSULT_PROPOSES_LETHAL_BOLT_PUZZLE,
@@ -911,5 +966,61 @@ private val MODAL_CONSULT_RETAINS_PROMPT_PUZZLE =
 
     humanbattlefield=Mountain
     humanlibrary=Mountain
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val RETURN_COST_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Return Cost Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    humanhand=Fear of Isolation
+    humanbattlefield=Island;Island
+    humanlibrary=Island
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val EXILE_COST_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Graveyard Exile Cost Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    humanhand=Cobbled Lancer
+    humanbattlefield=Island
+    humangraveyard=Grizzly Bears;Walking Corpse
+    humanlibrary=Island
+    ailibrary=Mountain
+    """.trimIndent()
+
+private val KICKER_COST_CONSULT_PUZZLE =
+    """
+    [metadata]
+    Name:Kicker Sacrifice Cost Consult
+    Goal:Win
+    Turns:5
+    Difficulty:Easy
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    humanhand=Final Flourish
+    humanbattlefield=Swamp;Swamp;Swamp;Grizzly Bears;Walking Corpse
+    humanlibrary=Swamp
+    aibattlefield=Centaur Courser
     ailibrary=Mountain
     """.trimIndent()
