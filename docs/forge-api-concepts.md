@@ -148,6 +148,8 @@ Forge cost payment uses visitor-style cost parts. `CostDecision` is the bridge p
 Use the existing cost-decision path when the engine is paying a cost and asks for cards or permanents. Do not invent a parallel resolver from protocol input to game mutation. The bridge should collect a choice, return Forge objects to the cost visitor, and let Forge perform the payment.
 
 Optional additional costs should be selected before `PlaySpellAbility.playAbility(...)` runs, then fed back into Forge through `GameActionUtil.addOptionalCosts(...)`.
+When no casting-time choice is stored, decline optional additional costs. This
+also applies to free casts offered while another ability resolves.
 
 ## 8. Events Versus Snapshots
 

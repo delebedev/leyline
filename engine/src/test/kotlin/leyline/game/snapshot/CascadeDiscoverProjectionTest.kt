@@ -10,8 +10,10 @@ import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
+import leyline.testkit.battlefield
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
+import leyline.testkit.hand
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -85,6 +87,36 @@ class CascadeDiscoverProjectionTest :
     SessionTest({
 
         tags(BoardTag)
+
+        session(
+            "Discover free cast declines unchosen kicker despite available mana",
+            forgeCatalog = true,
+            fullControl = true,
+            puzzle =
+                DISCOVER_PUZZLE
+                    .replace("Llanowar Elves", "Into the Roil")
+                    .replace(
+                        "humanbattlefield=Mountain;Mountain;Mountain;Mountain",
+                        "humanbattlefield=Mountain;Mountain;Mountain;Mountain;Island;Island",
+                    ),
+        ) {
+            val handSize = human.getZone(forge.game.zone.ZoneType.Hand).size()
+            holdNextOptionalAction()
+            castSpellByName("Geological Appraiser") shouldBe true
+            passUntil(maxPasses = 8) {
+                allMessages.any { it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL }
+            } shouldBe true
+            val beforeCast = messageSnapshot()
+            respondToOptionalAction(accept = true)
+            messagesSince(beforeCast).none { it.hasCastingTimeOptionsReq() } shouldBe true
+            selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
+            passUntil(maxPasses = 12) { runCatching { ai.hand.card("Grizzly Bears") }.isSuccess } shouldBe true
+
+            assertSoftly {
+                ai.hand.card("Grizzly Bears").name shouldBe "Grizzly Bears"
+                human.getZone(forge.game.zone.ZoneType.Hand).size() shouldBe handSize - 1
+            }
+        }
 
         session(
             "Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently",

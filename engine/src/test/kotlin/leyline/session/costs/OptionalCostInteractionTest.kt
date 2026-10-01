@@ -9,7 +9,9 @@ import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.after
+import leyline.testkit.battlefield
 import leyline.testkit.detailInt
+import leyline.testkit.hand
 import leyline.testkit.persistentAnnotationsOfType
 import leyline.tooling.headless.optionalCostResp
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -56,6 +58,25 @@ class OptionalCostInteractionTest :
                     it.castingTimeOptionType == CastingTimeOptionType.Done
                 }
             respondToOptionalCost(doneOption.ctoId)
+        }
+
+        session(
+            "explicitly kicked Into the Roil bounces and draws",
+            puzzle =
+                burstState
+                    .replace("Burst Lightning", "Into the Roil")
+                    .replace("Mountain", "Island"),
+        ) {
+            val handSize = human.getZone(forge.game.zone.ZoneType.Hand).size()
+            castSpellByName("Into the Roil").shouldBeTrue()
+            acceptKicker()
+            selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
+            passUntilResolved()
+
+            assertSoftly {
+                ai.hand.card("Centaur Courser").name shouldBe "Centaur Courser"
+                human.getZone(forge.game.zone.ZoneType.Hand).size() shouldBe handSize
+            }
         }
 
         session("CastingTimeOptionsReq — kicker prompt shape", puzzle = burstState) {
