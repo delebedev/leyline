@@ -1,0 +1,50 @@
+name: voting
+description: Human named votes and optional permanent placement during resolution.
+scenarios:
+  - id: selvala-free
+    puzzle: selvala-vote
+    native: { skip: Named vote compatibility is intended for embedding clients. }
+    run: cast Selvala's Stampede, vote Free, and put Darksteel Ingot onto the battlefield
+    expect: the human vote is offered, the selected hand permanent enters, and the stack empties
+    steps:
+      - cast: Selvala's Stampede
+      - pass_until: { prompt: CastingTimeOptionsReq, max_passes: 8 }
+      - modal_choice: { index: 1 }
+      - pass_until: { prompt: SelectNReq, max_passes: 4 }
+      - select_card: { side: ours, zone: hand, card: Darksteel Ingot }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Darksteel Ingot }
+            - stack_empty: true
+  - id: selvala-decline-free
+    puzzle: selvala-vote
+    native: { skip: Named vote compatibility is intended for embedding clients. }
+    run: vote Free and decline optional permanent placement
+    expect: Darksteel Ingot remains in hand and resolution completes
+    steps:
+      - cast: Selvala's Stampede
+      - pass_until: { prompt: CastingTimeOptionsReq, max_passes: 8 }
+      - modal_choice: { index: 1 }
+      - pass_until: { prompt: SelectNReq, max_passes: 4 }
+      - select_cards: { zone: hand, cards: [] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Darksteel Ingot }
+            - zone_not_contains: { side: ours, zone: battlefield, card: Darksteel Ingot }
+            - stack_empty: true
+  - id: selvala-wild
+    puzzle: selvala-vote
+    native: { skip: Named vote compatibility is intended for embedding clients. }
+    run: vote Wild and reveal a creature from the library
+    expect: a library creature enters and resolution completes
+    steps:
+      - cast: Selvala's Stampede
+      - pass_until: { prompt: CastingTimeOptionsReq, max_passes: 8 }
+      - modal_choice: { index: 0 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true

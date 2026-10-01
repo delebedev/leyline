@@ -1,5 +1,6 @@
 package leyline.bridge.forge
 
+import com.google.common.collect.ListMultimap
 import forge.LobbyPlayer
 import forge.ai.LobbyPlayerAi
 import forge.card.ColorSet
@@ -1557,6 +1558,30 @@ class PlayerController(
 
     override fun chooseSaToActivateFromOpeningHand(usableFromOpeningHand: List<SpellAbility>): List<SpellAbility> =
         usableFromOpeningHand.filter(SpellAbility::isOpeningHandBattlefieldPut)
+
+    override fun vote(
+        sa: SpellAbility,
+        prompt: String,
+        options: List<Any>,
+        votes: ListMultimap<Any, Player>,
+        forPlayer: Player,
+        optional: Boolean,
+    ): Any? {
+        if (!sa.hasParam("Choices")) return super.vote(sa, prompt, options, votes, forPlayer, optional)
+        if (options.isEmpty()) return null
+        val choices = options.map { it as AbilitySub }
+        val request =
+            PromptRequest(
+                promptType = "choose_one",
+                message = prompt,
+                options = choices.map { it.description ?: it.toString() },
+                min = if (optional) 0 else 1,
+                max = 1,
+                route = PromptRouteResolver.resolve(PromptSemantic.VoteChoice),
+                sourceEntityId = sa.hostCard.id,
+            )
+        return bridge.requestModalChoice(request, choices, sa.hostCard, sa).firstOrNull()
+    }
 
     override fun chooseModeForAbility(
         sa: SpellAbility,

@@ -36,6 +36,14 @@ Use this decision rule:
 
 The engine thread blocks in these calls. Never block on session-owned state from an override; post a pending request and let the session complete the future.
 
+Named `Choices` votes block in `PlayerController.vote` and retain the exact
+option handles through the modal choice lifecycle. The compatibility request
+carries `Prompt.parameters[choiceKind] = "vote"`, a `NonLocalizedString`, so
+embedding clients can label the decision as a vote. Required votes do not offer
+cast cancellation or undo, and selecting a vote does not mark a casting mode.
+Forge retains vote order, counting, and effect resolution. Entity votes retain
+the existing entity-selection path.
+
 ## 3. SpellAbility Is A Chain
 
 A spell or ability is often an SA chain, not one `SpellAbility`. Wrapper APIs such as `Charm`, `Effect`, `Repeat`, and `RepeatEach` can put meaningful work in sub-abilities that run after choices are made.

@@ -28,6 +28,7 @@ data class ModalChoiceWindowValue(
     val possible: List<ModalChoiceOptionValue>,
     val excluded: List<ModalChoiceOptionValue>,
     val triggered: Boolean,
+    val isVote: Boolean = false,
 ) {
     init {
         require(min in 0..max)
