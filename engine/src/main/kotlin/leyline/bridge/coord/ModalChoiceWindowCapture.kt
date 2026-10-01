@@ -7,6 +7,7 @@ import leyline.bridge.handoff.ModalChoiceAiContext
 import leyline.bridge.handoff.ModalChoiceOptionValue
 import leyline.bridge.handoff.ModalChoiceWindowValue
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.manaTokenToPair
@@ -87,6 +88,7 @@ internal class ModalChoiceWindowCapture(
                 possible = possibleOptions,
                 excluded = excludedOptions,
                 triggered = sourceAbility.isTrigger,
+                isVote = request.route.semantic == PromptSemantic.VoteChoice,
             ),
             handlesByOptionIndex = possible.indices.associateWith(possible::get),
             aiContext = ModalChoiceAiContext(sourceAbility, possible.toList(), possibleOptions.map { it.fullIndex }),

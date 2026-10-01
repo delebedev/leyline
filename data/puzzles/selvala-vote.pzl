@@ -1,0 +1,22 @@
+# Mechanic: Human named votes during spell resolution.
+# Card roles: Stampede supplies the vote, Bears/Courser are Wild results,
+# Darksteel Ingot is the optional Free result, Forests supply six mana.
+# AI behavior: Empty hand and battlefield isolate the voting effect.
+# Failure: Missing vote, wrong option identity, or a nonempty stack after selection.
+# Compatibility path: Resolution votes use the modal choice envelope.
+[metadata]
+Name:selvala-vote
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Selvala's Stampede, vote Wild or Free, and finish its effects.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest
+humanhand=Selvala's Stampede;Darksteel Ingot
+humanlibrary=Grizzly Bears;Centaur Courser;Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

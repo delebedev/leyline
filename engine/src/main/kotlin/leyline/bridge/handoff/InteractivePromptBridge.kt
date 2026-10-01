@@ -737,6 +737,9 @@ enum class PromptSemantic {
     GroupingSurveil,
     GroupingScry,
     ModalChoice,
+
+    /** Named vote options presented through the modal compatibility envelope. */
+    VoteChoice,
     SelectNLegendRule,
     SelectNDiscard,
     Search,

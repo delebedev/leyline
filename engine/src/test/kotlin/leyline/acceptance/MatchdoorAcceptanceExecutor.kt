@@ -627,7 +627,8 @@ private class ScenarioRun(
 
     private fun passUntil(step: PassUntilStep) {
         harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(step) }
-        val reached = runCatching { step.conditions.all { matchesPassUntilCondition(it) } }.getOrDefault(false)
+        // Game-over detection can precede final result publication.
+        val reached = passUntilConditionReached(step)
         require(reached) {
             "$context did not reach: ${step.conditions.joinToString { it.label }}; " +
                 "latest prompt=${latestPromptNameWithId() ?: "none"}; " +
