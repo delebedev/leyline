@@ -13,6 +13,11 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class CardProtoBuilder(
     private val cards: CardRepository,
 ) {
+    companion object {
+        // Avoid the large generated switch in browser JVM card projection.
+        private val subtypesByNumber = SubType.values().filter { it != SubType.UNRECOGNIZED }.associateBy { it.number }
+    }
+
     /**
      * Door-state ability grpIds prefixed on every Room enchantment's
      * `uniqueAbilities` list (left door, right door). Constant across all rooms;
@@ -76,10 +81,26 @@ class CardProtoBuilder(
                 .setOverlayGrpId(grpId)
         val card = cards.findByGrpId(grpId) ?: return builder
         builder.setName(card.titleId)
-        card.types.forEach { builder.addCardTypes(CardType.forNumber(it) ?: return@forEach) }
-        card.subtypes.forEach { builder.addSubtypes(SubType.forNumber(it) ?: return@forEach) }
-        card.supertypes.forEach { builder.addSuperTypes(SuperType.forNumber(it) ?: return@forEach) }
-        card.colors.forEach { builder.addColor(CardColor.forNumber(it) ?: return@forEach) }
+        card.types.forEach { value ->
+            projectCardValue(grpId, "types", value) {
+                builder.addCardTypes(CardType.forNumber(value) ?: return@projectCardValue)
+            }
+        }
+        card.subtypes.forEach { value ->
+            projectCardValue(grpId, "subtypes", value) {
+                builder.addSubtypes(subtypesByNumber[value] ?: return@projectCardValue)
+            }
+        }
+        card.supertypes.forEach { value ->
+            projectCardValue(grpId, "supertypes", value) {
+                builder.addSuperTypes(SuperType.forNumber(value) ?: return@projectCardValue)
+            }
+        }
+        card.colors.forEach { value ->
+            projectCardValue(grpId, "colors", value) {
+                builder.addColor(CardColor.forNumber(value) ?: return@projectCardValue)
+            }
+        }
         if (card.power.isNotEmpty()) builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
         var abilitySeqId = 50
@@ -127,16 +148,32 @@ class CardProtoBuilder(
                 .setName(card.titleId)
 
         builder.clearCardTypes()
-        card.types.forEach { builder.addCardTypes(CardType.forNumber(it) ?: return@forEach) }
+        card.types.forEach { value ->
+            projectCardValue(grpId, "types", value) {
+                builder.addCardTypes(CardType.forNumber(value) ?: return@projectCardValue)
+            }
+        }
 
         builder.clearSubtypes()
-        card.subtypes.forEach { builder.addSubtypes(SubType.forNumber(it) ?: return@forEach) }
+        card.subtypes.forEach { value ->
+            projectCardValue(grpId, "subtypes", value) {
+                builder.addSubtypes(subtypesByNumber[value] ?: return@projectCardValue)
+            }
+        }
 
         builder.clearSuperTypes()
-        card.supertypes.forEach { builder.addSuperTypes(SuperType.forNumber(it) ?: return@forEach) }
+        card.supertypes.forEach { value ->
+            projectCardValue(grpId, "supertypes", value) {
+                builder.addSuperTypes(SuperType.forNumber(value) ?: return@projectCardValue)
+            }
+        }
 
         builder.clearColor()
-        card.colors.forEach { builder.addColor(CardColor.forNumber(it) ?: return@forEach) }
+        card.colors.forEach { value ->
+            projectCardValue(grpId, "colors", value) {
+                builder.addColor(CardColor.forNumber(value) ?: return@projectCardValue)
+            }
+        }
 
         if (card.power.isNotEmpty()) {
             builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
@@ -176,3 +213,16 @@ class CardProtoBuilder(
         return builder.build()
     }
 }
+
+/** Numeric context is added only when a card value fails projection; the cause remains intact. */
+internal inline fun <T> projectCardValue(
+    grpId: Int,
+    field: String,
+    value: Int,
+    block: () -> T,
+): T =
+    try {
+        block()
+    } catch (failure: RuntimeException) {
+        throw IllegalStateException("Card projection failed: grpId=$grpId field=$field value=$value", failure)
+    }
