@@ -5,12 +5,36 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.SuperType
 
 class CardProtoBuilderTest :
     FunSpec({
         tags(UnitTag)
+
+        test("both object projections preserve every subtype number and omit unknown values") {
+            val repo = InMemoryCardRepository()
+            val subtypes = SubType.values().filter { it != SubType.UNRECOGNIZED }.map { it.number }
+            repo.registerData(
+                CardData(
+                    grpId = 1,
+                    titleId = 1,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = emptyList(),
+                    subtypes = listOf(Int.MIN_VALUE) + subtypes + listOf(-1, Int.MAX_VALUE),
+                    supertypes = emptyList(),
+                    abilityIds = emptyList(),
+                    manaCost = emptyList(),
+                ),
+                "Subtype projection",
+            )
+            val builder = CardProtoBuilder(repo)
+            builder.buildObjectInfo(1).build().subtypesValueList shouldBe subtypes
+            builder.buildObjectInfo(1, GameObjectInfo.getDefaultInstance()).subtypesValueList shouldBe subtypes
+        }
 
         test("basic lands receive implicit mana abilities") {
             val repo = InMemoryCardRepository()
