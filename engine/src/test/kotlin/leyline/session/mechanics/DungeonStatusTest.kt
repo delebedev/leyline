@@ -44,11 +44,7 @@ class DungeonStatusTest :
             assertSoftly {
                 second.detailInt("CurrentRoom") shouldNotBe first.detailInt("CurrentRoom")
                 second.id shouldBe first.id
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .any { it.name == "Goblin Token" }
-                    .shouldBeTrue()
+                human.battlefield.card("Goblin Token").name shouldBe "Goblin Token"
             }
             castSpellUntilSelectNReq("Acererak the Archlich")
             chooseCatalog("Dark Pool")
@@ -130,11 +126,7 @@ class DungeonStatusTest :
             castSpellByName("Grizzly Bears").shouldBeTrue()
             passUntilResolved()
             allMessages.persistentAnnotationsOfType(AnnotationType.DungeonStatus).shouldBeEmpty()
-            human
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .any { it.name == "Grizzly Bears" }
-                .shouldBeTrue()
+            human.battlefield.card("Grizzly Bears").name shouldBe "Grizzly Bears"
         }
     })
 

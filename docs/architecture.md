@@ -209,6 +209,10 @@ baselines, annotation lifecycles, prompt facts, and logical output advance only
 when that transition installs. The projection core receives immutable inputs;
 it does not query the live Forge graph.
 
+Each seat's `DungeonSnapshot` freezes the current dungeon, room identity, and
+completion history; the persistent player feed retains one `DungeonStatus` row
+across room changes, completion, and reentry. Forge owns room resolution.
+
 A viewer cut installs one transition and output ordinal across its feeds. A
 stale or failed pre-install attempt publishes nothing and consumes no logical
 identifier.
