@@ -48,6 +48,7 @@ internal class ModalChoiceWindowMaterializer(
                 excludedOptions = window.excluded.map { option -> CastingTimeOptionsBuilder.ModalOptionSpec(option.grpId, option.cost) },
                 minSel = window.min,
                 maxSel = window.max,
+                allowRepeat = window.allowRepeat,
                 sourceInstanceId = sourceInstanceId,
                 grpId = window.ctoGrpId,
                 ctoId = window.ctoId,

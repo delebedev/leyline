@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.bootstrap.GameBootstrap
@@ -14,6 +15,7 @@ import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -58,6 +60,27 @@ private val PRINCE_FLICKER_PUZZLE =
 @FixturePinned
 class ModalETBFlowTest :
     SessionTest({
+
+        session(
+            "repeated modal selections resolve once per selected occurrence",
+            puzzleFile = "data/puzzles/eldrazi-confluence-repeat.pzl",
+            forgeCatalog = true,
+        ) {
+            val modal = castSpellUntilCastingTimeOptionsReq("Eldrazi Confluence").getCastingTimeOptionReq(0).modalReq
+            assertSoftly {
+                modal.repeatedSelectAllowed shouldBe true
+                modal.minSel shouldBe 3
+                modal.maxSel shouldBe 3
+            }
+            val tokenMode = modal.modalOptionsList.single().grpId
+            respondModalChoice(listOf(tokenMode, tokenMode, tokenMode))
+            passUntilResolved()
+            assertSoftly {
+                "Eldrazi Scion Token" should beOnBattlefieldOf(human, count = 3)
+                playLand("Forest").shouldBeTrue()
+                "Forest" should beOnBattlefieldOf(human)
+            }
+        }
 
         // Trufflesnout modal ability ids — match `trufflesnout.yaml` fixture.
         val parentAbilityGrpId = 137979
@@ -104,6 +127,7 @@ class ModalETBFlowTest :
                 modalReq.abilityGrpId shouldBe parentAbilityGrpId
                 modalReq.minSel shouldBe 1
                 modalReq.maxSel shouldBe 1
+                modalReq.repeatedSelectAllowed shouldBe false
                 modalReq.modalOptionsCount shouldBe 2
                 modalReq.getModalOptions(0).grpId shouldBe counterModeGrpId
                 modalReq.getModalOptions(1).grpId shouldBe lifeModeGrpId

@@ -1,6 +1,22 @@
 name: modal-warmup
 description: Modal, optional-cost, optional-action, and static-choice prompt smoke.
 scenarios:
+  - id: eldrazi-confluence-repeat
+    puzzle: eldrazi-confluence-repeat
+    run: choose Eldrazi Confluence's Scion mode three times, then play Forest
+    expect: three Scions enter and priority returns for the land play
+    steps:
+      - cast: Eldrazi Confluence
+      - modal_choice: { indices: [0, 0, 0] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Eldrazi Scion Token }
+            - zone_count_at_least: { side: ours, zone: battlefield, count: 7 }
+            - stack_empty: true
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
   - id: goblin-cratermaker-cancel
     puzzle: goblin-cratermaker-cancel
     run: start Goblin Cratermaker's damage ability, then cancel its target prompt

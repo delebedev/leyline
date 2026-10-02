@@ -36,6 +36,7 @@ object CastingTimeOptionsBuilder {
         ctoId: Int = 2,
         playerIdToPrompt: Int? = null,
         excludedOptions: List<ModalOptionSpec> = emptyList(),
+        allowRepeat: Boolean = false,
     ): CastingTimeOptionsReq {
         val modalReq =
             ModalReq
@@ -43,6 +44,7 @@ object CastingTimeOptionsBuilder {
                 .setAbilityGrpId(parentGrpId)
                 .setMinSel(minSel)
                 .setMaxSel(maxSel)
+                .setRepeatedSelectAllowed(allowRepeat)
         var modeCostId = 1
         for (option in modalOptions) {
             val opt = ModalOption.newBuilder().setGrpId(option.grpId)
