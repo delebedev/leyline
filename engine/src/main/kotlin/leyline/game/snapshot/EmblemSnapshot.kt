@@ -15,20 +15,6 @@ data class EmblemSnapshot(
     companion object {
         const val GRP_ID = 2
 
-        private fun previous(
-            card: Card,
-            bridge: GameBridge,
-        ): EmblemSnapshot? =
-            bridge
-                .projectionStateSnapshot()
-                .viewerCursors.values
-                .firstNotNullOfOrNull {
-                    it.previousSnapshot
-                        ?.objects
-                        ?.get(ForgeCardId(card.id))
-                        ?.emblem
-                }
-
         /** Hidden source rows define emblem abilities, independently of its universal object identity. */
         fun abilityData(
             card: Card,
@@ -36,7 +22,7 @@ data class EmblemSnapshot(
         ): CardData? {
             if (!card.isEmblem) return null
             val sourceGrpId =
-                previous(card, bridge)?.sourceGrpId
+                bridge.emblemLineage(ForgeCardId(card.id))?.sourceGrpId
                     ?: card.effectSource?.let(bridge::resolveGrpId) ?: return null
             val source = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
             val rows = source.hiddenAbilityIds
@@ -62,7 +48,7 @@ data class EmblemSnapshot(
             bridge: GameBridge,
         ): EmblemSnapshot? {
             if (!card.isEmblem) return null
-            previous(card, bridge)?.let { return it }
+            bridge.emblemLineage(ForgeCardId(card.id))?.let { return it }
             val source = card.effectSource ?: return null
             val data = abilityData(card, bridge) ?: return null
             val registry = bridge.abilityRegistryFor(card, data) ?: return null

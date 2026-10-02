@@ -6,7 +6,9 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.game.bundle.SearchWindowMaterializer
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.EmblemSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
@@ -208,6 +210,11 @@ class AbilityIdentityLifecycleTest :
             selectTargets(listOf(2))
             passUntil(10) { ai.life == 1 }.shouldBeTrue()
             human.graveyard.card("Sephiroth, Fabled SOLDIER")
+            bridge.projectionStateSnapshot().viewerCursors.keys.forEach { seat ->
+                bridge.commitProjection(SearchWindowMaterializer(seat).resetBaseline(bridge.projectionStateSnapshot()))
+            }
+            EmblemSnapshot.capture(human.getZone(ZoneType.Command).cards.single { it.isEmblem }, bridge) shouldBe
+                EmblemSnapshot(emblem.objectSourceGrpId, creatorIid, listOf(hiddenId))
             val laterStart = messageSnapshot()
             castSpellByName("Shock").shouldBeTrue()
             selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))

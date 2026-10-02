@@ -58,6 +58,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.EmblemSnapshot
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
@@ -673,6 +674,9 @@ class GameBridge(
     fun activeDecayedCleanupSources(): Set<ForgeCardId> = projectionStateSnapshot().annotations.decayedCleanupSources
 
     internal fun annotationProjectionStateSnapshot(): AnnotationProjectionState = projectionStateSnapshot().annotations
+
+    internal fun emblemLineage(cardId: ForgeCardId): EmblemSnapshot? =
+        activeProjectionEditor.get()?.emblemLineage?.get(cardId) ?: projectionStateSnapshot().emblemLineage[cardId]
 
     /** Records callback data; synthetic ids and lifecycle changes belong to projection compilation. */
     fun recordEarthbendResolution(
