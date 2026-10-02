@@ -58,6 +58,7 @@ class PlayerControllerStructureTest :
                 "chooseSingleStaticAbility",
                 "chooseSomeType",
                 "chooseSpellAbilityToPlay",
+                "chooseSpellAbilitiesForEffect",
                 "chooseSingleReplacementEffect",
                 "chooseSaToActivateFromOpeningHand",
                 "chooseStartingPlayer",
