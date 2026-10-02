@@ -176,6 +176,15 @@ private class ScenarioRun(
             is BlockStep -> block(step)
             is AttackStep -> attack(step)
             is TurnFaceUpStep -> turnFaceUp(step)
+            is CompanionToHandStep -> {
+                val action =
+                    harness.accumulator.actions?.actionsList.orEmpty().singleOrNull {
+                        it.actionType == ActionType.Special_add3 &&
+                            it.abilityGrpId == leyline.bridge.CompanionAction.ABILITY_GRP_ID &&
+                            actionCardName(it).equals(step.card, ignoreCase = true)
+                    } ?: error("$context no companion-to-hand action for ${step.card}")
+                submitAction(action)
+            }
             is PlayLandStep -> playLand(step)
             is PlayMdfcStep -> submitNamedAction(ActionType.PlayMdfc, step.card)
             is CastStep -> cast(step)

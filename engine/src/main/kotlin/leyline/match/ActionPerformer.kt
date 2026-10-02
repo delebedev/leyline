@@ -196,7 +196,7 @@ internal class ActionPerformer(
                     acceptedClaim = null
                     Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, submitted)
                 }
-                ActionType.SpecialTurnFaceUp_add3 -> {
+                ActionType.SpecialTurnFaceUp_add3, ActionType.Special_add3 -> {
                     Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 else -> {

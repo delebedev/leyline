@@ -316,27 +316,22 @@ object TransferAnnotations {
      * Player-activated Ability gameObjects use the same per-payment mana
      * bracket, then emit an Activate UserActionTaken keyed on the stack ability.
      */
-    internal fun castSpellEventAnnotations(
-        ev: GameEvent.SpellCast,
+    private fun manaPaymentAnnotations(
+        payments: List<GameEvent.ManaPayment>,
+        seatId: SeatId,
+        spellIid: InstanceId,
         idResolver: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
-        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
-        convokePayments: List<ConvokePaymentRecord> = emptyList(),
     ): List<AnnotationInfo> {
-        if (ev.isAbility && !ev.isTrigger) {
-            return activatedAbilityEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver, stackInstanceResolver)
-        }
-        if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
-        val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
-        for ((i, mp) in ev.manaPayments.withIndex()) {
+        for ((i, mp) in payments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
             emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
             annotations.add(
                 AnnotationBuilder.userActionTaken(
                     instanceId = manaAbilityIid,
-                    seatId = ev.seatId,
+                    seatId = seatId,
                     actionType = ActionType.ActivateMana,
                     abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver),
                 ),
@@ -351,6 +346,30 @@ object TransferAnnotations {
             )
             annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
         }
+        return annotations
+    }
+
+    internal fun companionPaymentAnnotations(
+        event: GameEvent.CompanionToHand,
+        idResolver: (ForgeCardId) -> InstanceId,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+    ): List<AnnotationInfo> =
+        manaPaymentAnnotations(event.manaPayments, event.seatId, InstanceId(event.originalInstanceId), idResolver, manaAbilityGrpIdResolver)
+
+    internal fun castSpellEventAnnotations(
+        ev: GameEvent.SpellCast,
+        idResolver: (ForgeCardId) -> InstanceId,
+        manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
+        stackInstanceResolver: (GameEvent.SpellCast) -> InstanceId? = { null },
+        convokePayments: List<ConvokePaymentRecord> = emptyList(),
+    ): List<AnnotationInfo> {
+        if (ev.isAbility && !ev.isTrigger) {
+            return activatedAbilityEventAnnotations(ev, idResolver, manaAbilityGrpIdResolver, stackInstanceResolver)
+        }
+        if (ev.isAbility) return emptyList()
+        val annotations = mutableListOf<AnnotationInfo>()
+        val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
+        annotations.addAll(manaPaymentAnnotations(ev.manaPayments, ev.seatId, spellIid, idResolver, manaAbilityGrpIdResolver))
         for (payment in convokePayments) {
             emitConvokePayment(
                 annotations = annotations,

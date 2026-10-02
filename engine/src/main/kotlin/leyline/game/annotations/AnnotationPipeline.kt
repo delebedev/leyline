@@ -228,6 +228,20 @@ object AnnotationPipeline {
             }
 
         fun emitTransfer(transfer: AppliedTransfer) {
+            if (ctx != null) {
+                events
+                    .filterIsInstance<GameEvent.CompanionToHand>()
+                    .firstOrNull { it.cardId == transfer.forgeCardId && it.originalInstanceId == transfer.origId }
+                    ?.let { companion ->
+                        annotations.addAll(
+                            TransferAnnotations.companionPaymentAnnotations(
+                                companion,
+                                ctx.frameIds::cardIid,
+                                { fid -> MechanicSourceProjection.manaAbilityGrpId(ctx.snap, fid) },
+                            ),
+                        )
+                    }
+            }
             val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
@@ -807,7 +821,12 @@ object AnnotationPipeline {
                 .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
                 .map { it.cardId }
                 .toSet()
-        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds + convokePaymentForgeIds
+        val companionManaForgeIds =
+            events
+                .filterIsInstance<GameEvent.CompanionToHand>()
+                .flatMap { it.manaPayments.map { payment -> payment.sourceCardId } }
+                .toSet()
+        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds + convokePaymentForgeIds + companionManaForgeIds
         val castStackIidsByCard =
             transferResult.transfers
                 .asSequence()

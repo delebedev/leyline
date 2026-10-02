@@ -5,6 +5,7 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
+import leyline.game.event.Zone
 import leyline.game.event.ZoneMove
 import leyline.game.mapping.StateZoneProjection
 import leyline.game.snapshot.GsmSnapshot
@@ -16,6 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 
 /** Zone-transfer identity planning and journal consumption within one private projection edit. */
 object ZoneTransferAdapter {
+    private fun companionZone(zone: Zone): Zone = if (zone == Zone.Command) Zone.Sideboard else zone
+
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
@@ -102,7 +105,14 @@ object ZoneTransferAdapter {
                             )
                         },
                         sourceZoneLookup = mechanicSourceFacts::recordedSourceZone,
-                        zoneMoves = zoneMoves,
+                        zoneMoves =
+                            zoneMoves.map { move ->
+                                if (snapshot.seats.any { it.companion?.card?.forgeCardId == move.cardId }) {
+                                    move.copy(from = companionZone(move.from), to = companionZone(move.to))
+                                } else {
+                                    move
+                                }
+                            },
                     ),
             )
         result.transfers

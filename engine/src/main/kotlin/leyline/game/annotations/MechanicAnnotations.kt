@@ -1,5 +1,6 @@
 package leyline.game.annotations
 
+import leyline.bridge.CompanionAction
 import leyline.bridge.types.EffectId
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
@@ -13,6 +14,7 @@ import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.QualificationKind
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import kotlin.collections.iterator
 
@@ -187,6 +189,15 @@ object MechanicAnnotations {
                     annotations.add(AnnotationBuilder.tokenDeleted(instanceId))
                     log.debug("mechanic: tokenDeleted iid={}", instanceId.value)
                 }
+                is GameEvent.CompanionToHand ->
+                    annotations.add(
+                        AnnotationBuilder.userActionTaken(
+                            idResolver(ev.cardId),
+                            ev.seatId,
+                            ActionType.Special_add3,
+                            GrpId(CompanionAction.ABILITY_GRP_ID),
+                        ),
+                    )
                 is GameEvent.SpellCast -> {
                     annotations.addAll(
                         TransferAnnotations.castSpellEventAnnotations(
