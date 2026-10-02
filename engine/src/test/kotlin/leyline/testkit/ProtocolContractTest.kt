@@ -41,6 +41,25 @@ class ProtocolContractTest :
             shouldThrow<AssertionError> { ProtocolContract.parse(contractText).verify(listOf(frame(start, wrong, damage))) }
         }
 
+        test("explicit selection skips other interactions but keeps the first selected event strict") {
+            val contract =
+                ProtocolContract.parse(
+                    contractText.replace(
+                        "fields: {details.damage: [3]}",
+                        "where: {equals: {affectorId: start.affectorId}}\n        fields: {details.damage: [3]}",
+                    ),
+                )
+            val unrelated = damage.toBuilder().setAffectorId(1).build()
+            contract.verify(listOf(frame(start, unrelated, damage)))
+            val wrong = damage.toBuilder().setDetails(0, damage.getDetails(0).toBuilder().setValueInt32(0, 4)).build()
+            shouldThrow<AssertionError> { contract.verify(listOf(frame(start, unrelated, wrong, damage))) }
+            shouldThrow<IllegalArgumentException> {
+                ProtocolContract.parse(
+                    contractText.replace("fields:", "where: {equals: {affectorId: missing.affectorId}}\n        fields:"),
+                )
+            }
+        }
+
         test("typed values and exact counts reject superficially similar output") {
             val text = contractText + "\ncounts:\n  - match: {type: DamageDealt}\n    exactly: 1\n"
             val contract = ProtocolContract.parse(text)

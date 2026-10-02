@@ -37,6 +37,10 @@ class ProtocolContract private constructor(
                     (cursor until events.size).firstOrNull { index ->
                         (messageIndex == null || events[index].messageIndex == messageIndex) &&
                             kindMatches(events[index], pattern) &&
+                            (
+                                pattern["where"] == null ||
+                                    matches(events[index], pattern["where"].map() + ("type" to pattern["type"]), bound)
+                            ) &&
                             (bound.isNotEmpty() || matches(events[index], pattern, bound)) &&
                             (
                                 pattern["sameRow"] == null ||
@@ -45,7 +49,9 @@ class ProtocolContract private constructor(
                     }
                 withClue("$name: required event $id after ${bound.keys.lastOrNull()}") { index shouldNotBe null }
                 val event = events[index!!]
-                withClue("$name: $id has contradictory fields or identity") { matches(event, pattern, bound) shouldBe true }
+                withClue("$name: $id has contradictory fields or identity; expected=$pattern actual=${event.values}") {
+                    matches(event, pattern, bound) shouldBe true
+                }
                 bound[id] = event
                 messageIndex = event.messageIndex
                 cursor = index + 1
@@ -85,7 +91,7 @@ class ProtocolContract private constructor(
                             .list()
                             .map { rawEvent ->
                                 val event = rawEvent.map()
-                                event.keysOnly("id", "type", "lane", "op", "keys", "fields", "equals", "sameRow")
+                                event.keysOnly("id", "type", "lane", "op", "keys", "fields", "equals", "sameRow", "where")
                                 validatePattern(event, ids)
                                 require(ids.add(event.string("id"))) { "duplicate event id" }
                                 event
@@ -275,6 +281,11 @@ private fun validatePattern(
     pattern["op"]?.let { require(it in operations) { "unsupported operation for $type" } }
     pattern["keys"]?.list()?.forEach { require(it is String) { "invalid detail key" } }
     pattern["sameRow"]?.let { require(it in ids) { "unknown row reference $it" } }
+    pattern["where"]?.map()?.let { selection ->
+        selection.keysOnly("fields", "equals")
+        require(selection.isNotEmpty()) { "empty event selection" }
+        validatePattern(selection + ("type" to type), ids)
+    }
     for ((selector, value) in pattern["fields"]?.map().orEmpty()) {
         validateSelector(selector)
         require(

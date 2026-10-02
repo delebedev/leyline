@@ -26,7 +26,10 @@ frames:
           "raw.selectTargetsReq.targets[0].targetIdx": 1
           "raw.selectTargetsReq.targets[0].minTargets": 1
           "raw.selectTargetsReq.targets[0].maxTargets": 1
-        equals: {raw.selectTargetsReq.sourceId: "created.affectedIds[0]"}
+          "raw.selectTargetsReq.targets[0].prompt.parameters.length": 1
+        equals:
+          raw.selectTargetsReq.sourceId: "created.affectedIds[0]"
+          "raw.selectTargetsReq.targets[0].prompt.parameters[0].numberValue": "created.affectedIds[0]"
   - id: submitted
     events:
       - id: submitted
@@ -57,5 +60,13 @@ frames:
         op: delete
         sameRow: target
 counts:
+  - match: {type: AbilityInstanceCreated, lane: transient, equals: {affectedIds: created.affectedIds}}
+    exactly: 1
+  - match: {type: PlayerSelectingTargets, lane: transient}
+    exactly: 1
+  - match: {type: PlayerSubmittedTargets, lane: transient}
+    exactly: 1
+  - match: {type: TargetSpec, lane: persistent, op: create}
+    exactly: 1
   - match: {type: TargetSpec, lane: persistent, op: delete, sameRow: target}
     exactly: 1
