@@ -32,11 +32,17 @@ class ForgeCatalogIndexTest :
             }
         }
 
-        test("an index from another resource archive or identity scheme is rejected") {
+        test("an index from another resource archive or the previous identity scheme is rejected") {
             val path = Files.createTempFile("catalog-index-", ".json")
             ForgeCatalogIndex.write(path, archiveHash, descriptor)
             shouldThrow<IllegalArgumentException> { ForgeCardRepository.open(path, "b".repeat(64)) }
-            Files.writeString(path, Files.readString(path).replace(ForgeCatalogIndex.IDENTITY_SCHEME, "unknown-scheme"))
+            Files.writeString(
+                path,
+                Files.readString(path).replace(
+                    ForgeCatalogIndex.IDENTITY_SCHEME,
+                    "forge-card-catalog-v8-emblem-abilities",
+                ),
+            )
             shouldThrow<IllegalArgumentException> { ForgeCardRepository.open(path, archiveHash) }
         }
     })
