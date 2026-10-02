@@ -193,7 +193,6 @@ class DebugServer(
 
     @Serializable
     private data class ServerBuild(
-        val checkoutRoot: String,
         val revision: String?,
         val forgeRevision: String?,
         val sourceSha256: String?,
@@ -215,7 +214,6 @@ class DebugServer(
                 prompt?.let { OfferedPrompt(it.msgId, it.gameStateId, it.type.name) },
                 tracker?.acceptedSnapshot()?.map { AcceptedResponse(it.ordinal, it.respId) } ?: emptyList(),
                 ServerBuild(
-                    System.getProperty("user.dir"),
                     buildIdentity.getProperty("revision"),
                     buildIdentity.getProperty("forgeRevision"),
                     buildIdentity.getProperty("sourceSha256")?.takeUnless { it == "unknown" },

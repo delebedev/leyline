@@ -254,17 +254,39 @@ jobs:
         with:
           sparse-checkout: gradle/scripts
 
-      - name: Download current attempt artifacts
+      - name: Download attempt artifacts
         uses: actions/download-artifact@v4
         with:
           path: ci-artifacts
-          pattern: '*-attempt-${{ github.run_attempt }}'
+          pattern: '*-attempt-*'
+
+      - name: Select latest artifact from each producer
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import shutil
+
+          artifacts = Path('ci-artifacts')
+          selected = Path('ci-selected')
+          latest = {}
+          for artifact in artifacts.iterdir():
+              match = re.fullmatch(r'(test-results|coverage)-(gate|extended)-attempt-(\d+)', artifact.name)
+              if match:
+                  key = match.group(1, 2)
+                  attempt = int(match.group(3))
+                  if key not in latest or attempt > latest[key][0]:
+                      latest[key] = (attempt, artifact)
+          selected.mkdir()
+          for _, artifact in latest.values():
+              shutil.move(str(artifact), selected / artifact.name)
+          PY
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: 'ci-artifacts/**/TEST-*.xml'
+          files: 'ci-selected/**/TEST-*.xml'
           check_name: 'Test Results'
           comment_title: 'Test Results'
           deduplicate_classes_by_file_name: true
@@ -273,11 +295,11 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           jacoco_args=""
-          for f in $(find ci-artifacts -name 'jacocoTestReport.xml' 2>/dev/null); do
+          for f in $(find ci-selected -name 'jacocoTestReport.xml' 2>/dev/null); do
             jacoco_args="$jacoco_args --jacoco-xml $f"
           done
           test_dir_args=""
-          for d in $(find ci-artifacts -type d -name 'test-results-*' 2>/dev/null); do
+          for d in $(find ci-selected -type d -name 'test-results-*' 2>/dev/null); do
             test_dir_args="$test_dir_args --test-xml-dir $d"
           done
           python3 gradle/scripts/ci-report.py $jacoco_args $test_dir_args > ci-comment.md
