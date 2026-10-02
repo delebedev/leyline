@@ -13,6 +13,7 @@ import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWordActiveKind
+import leyline.game.state.CitysBlessingDesignationKind
 import leyline.game.state.ColorProductionKind
 import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.DayNightDesignationKind
@@ -268,6 +269,10 @@ internal object PersistentFeedBuilder {
                 PreparedDesignationKind to prepared,
                 CommanderDesignationKind to commander,
                 PlayerSpeedDesignationKind to playerSpeed,
+                CitysBlessingDesignationKind to
+                    snap.seats
+                        .filter { it.hasBlessing }
+                        .map { AnnotationBuilder.citysBlessingDesignation(it.seatId) },
             )
     }
 

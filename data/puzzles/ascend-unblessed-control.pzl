@@ -1,0 +1,22 @@
+# Design Narrative
+# Mechanic: Permanent Ascend grants a lasting blessing at ten permanents.
+# Forcing: Two Saprolings raise seven permanents to nine, below the threshold.
+# AI behavior: Empty hand and battlefield eliminate opposing decisions.
+# Failure modes: 3/3 Saprolings expose an incorrectly granted blessing or bonus.
+# Card roles: Dryad owns Ascend and the conditional bonus. Migration creates two tokens. Ornithopter and Forests set the count. Forests pay Migration.
+# Protocol path: Ascend count badge, player designation gain and persistence, refreshed creature stats.
+[metadata]
+Name:Ascend unblessed control
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Create two Saprolings below the threshold and retain their printed stats.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Tendershoot Dryad;Ornithopter;Forest;Forest;Forest;Forest;Forest
+humanhand=Saproling Migration
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest

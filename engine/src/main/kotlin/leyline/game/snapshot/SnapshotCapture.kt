@@ -48,6 +48,7 @@ object SnapshotCapture {
                     maxHandSize = player.maxHandSize,
                     speed = player.speed,
                     dungeon = DungeonSnapshot.capture(player, bridge),
+                    hasBlessing = player.hasBlessing(),
                     manaPool = ManaSnapshotCapture.capturePool(player, bridge),
                 )
             }

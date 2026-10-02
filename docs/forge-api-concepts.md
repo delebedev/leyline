@@ -236,3 +236,13 @@ For board setup, pick the Forge API that matches the test intent:
 - `player.playLand(land, true, null)` for testing land play itself.
 - `game.action.moveToPlay(...)` for a raw move that should not fire land-play events.
 - Harness setup helpers for pre-existing board state where no event should fire.
+
+## Ascend state
+
+Forge owns Ascend acquisition and the lasting `Player.hasBlessing()` flag.
+Seat snapshots project that flag as a player designation, independent of the
+source permanent. The Ascend badge groups battlefield sources by controller,
+reports the current permanent count, and retains its identity across blessing
+acquisition. Source references resolve after zone identity changes. The
+`ascend` acceptance suite covers threshold acquisition, retention below ten,
+and conditional Saproling stats.

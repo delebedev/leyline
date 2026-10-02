@@ -860,6 +860,7 @@ object AnnotationBuilder {
         threshold: Int? = null,
         abilityGrpId: GrpId? = null,
         colors: List<Int>? = null,
+        hasBlessing: Boolean = false,
         affectorId: InstanceId = instanceId,
         affectedIds: List<InstanceId> = listOf(instanceId),
     ): AnnotationInfo =
@@ -874,6 +875,7 @@ object AnnotationBuilder {
                 if (threshold != null) addDetails(int32Detail(DetailKeys.THRESHOLD, threshold))
                 if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId.value))
                 if (colors != null) addDetails(int32ListDetail(DetailKeys.COLORS, colors))
+                if (hasBlessing) addDetails(int32Detail("City's Blessing", 1))
             }.build()
 
     /**
@@ -1052,6 +1054,13 @@ object AnnotationBuilder {
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    fun citysBlessingDesignation(seatId: SeatId): AnnotationInfo =
+        designation(seatId, AnnotationConstants.DESIGNATION_TYPE_CITYS_BLESSING)
+            .toBuilder()
+            .setAffectorId(seatId.value)
+            .addDetails(int32Detail(DetailKeys.PROMPT_MESSAGE, 126))
             .build()
 
     /** Persistent player speed designation (DesignationType=21). */
