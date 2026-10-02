@@ -1,9 +1,12 @@
 package leyline.behavior.annotations.addability
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import leyline.game.bundle.BundleBuilder
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
@@ -63,6 +66,71 @@ class StaticKeywordGrantTest :
                 refreshedLions.uniqueAbilitiesList.map { it.grpId } shouldContainAll listOf(8, 15)
                 keywordGrants shouldHaveSize 2
                 keywordGrants.map { it.affectorId }.toSet() shouldBe setOf(hallowedIid)
+            }
+        }
+        session(
+            "recipient removal preserves the same source's grants on surviving creatures",
+            puzzleFile = "data/puzzles/keyword-grant-source-removal.pzl",
+        ) {
+            val sentinelIid = human.battlefield.iid("Sentinel Sliver")
+            val cloudshredderIid = human.battlefield.iid("Cloudshredder Sliver")
+            castSpellByName("Lightning Bolt") shouldBe true
+            selectTargets(listOf(sentinelIid))
+            passUntilResolved()
+            val grants =
+                bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations.values
+                    .filter { AnnotationType.AddAbility_af5a in it.typeList }
+            assertSoftly {
+                grants.filter { sentinelIid in it.affectedIdsList }.shouldBeEmpty()
+                grants.filter { it.affectorId == cloudshredderIid && cloudshredderIid in it.affectedIdsList } shouldHaveSize 2
+                accumulator.objects
+                    .getValue(cloudshredderIid)
+                    .uniqueAbilitiesList
+                    .map { it.grpId } shouldContainAll listOf(7, 8)
+            }
+        }
+
+        session(
+            "source removal retires keyword rows while independent and printed flying survive",
+            puzzleFile = "data/puzzles/keyword-grant-source-removal.pzl",
+        ) {
+            val cloudshredderIid = human.battlefield.iid("Cloudshredder Sliver")
+            val fervorIid = human.battlefield.iid("Fervor")
+            val sentinelIid = human.battlefield.iid("Sentinel Sliver")
+            val hawk = human.battlefield.card("Healer's Hawk")
+            for ((sourceIid, spell) in listOf(cloudshredderIid to "Lightning Bolt", fervorIid to "Naturalize")) {
+                castSpellByName(spell) shouldBe true
+                selectTargets(listOf(sourceIid))
+                passUntilResolved()
+                bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations.values
+                    .filter { AnnotationType.AddAbility_af5a in it.typeList && it.affectorId == sourceIid }
+                    .shouldBeEmpty()
+                val fullState =
+                    BundleBuilder(bridge, "keyword-grants", 1)
+                        .prepareFullState(checkNotNull(bridge.getGame()), 1000)
+                        .result.gsm
+                fullState.persistentAnnotationsList
+                    .filter { AnnotationType.AddAbility_af5a in it.typeList && it.affectorId == sourceIid }
+                    .shouldBeEmpty()
+                if (sourceIid == cloudshredderIid) {
+                    accumulator.objects
+                        .getValue(sentinelIid)
+                        .uniqueAbilitiesList
+                        .map { it.grpId }
+                        .filter { it in listOf(7, 8) } shouldBe listOf(7)
+                }
+            }
+            assertSoftly {
+                accumulator.objects
+                    .getValue(sentinelIid)
+                    .uniqueAbilitiesList
+                    .filter { it.grpId in listOf(7, 8) }
+                    .shouldBeEmpty()
+                hawk.hasKeyword("Flying").shouldBeTrue()
             }
         }
     })

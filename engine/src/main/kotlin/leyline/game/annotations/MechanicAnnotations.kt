@@ -5,7 +5,6 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.codes.CounterTypes
-import leyline.game.codes.KeywordGrpIds
 import leyline.game.codes.KeywordQualifications
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -578,20 +577,6 @@ object MechanicAnnotations {
                 effect to keywordExtraAbilityGrpIds?.invoke(InstanceId(effect.cardInstanceId), keyword).orEmpty()
             }
 
-        // Catalog-defined grants retain the tracked effect lifetime of each recipient.
-        if (effectsWithExtras.all { (_, extraGrpIds) -> extraGrpIds.isEmpty() } && KeywordGrpIds.forKeyword(keyword) != null) {
-            addSharedKeywordEffectAnnotations(
-                transient,
-                persistent,
-                keyword,
-                effects,
-                grpId,
-                affectorId,
-                uniqueAbilityIdAllocator,
-            )
-            return
-        }
-
         for ((effect, extraGrpIds) in effectsWithExtras) {
             val effectId = EffectId(effect.syntheticId)
             val creatureIid = InstanceId(effect.cardInstanceId)
@@ -620,43 +605,5 @@ object MechanicAnnotations {
                 creatureIid.value,
             )
         }
-    }
-
-    private fun addSharedKeywordEffectAnnotations(
-        transient: MutableList<AnnotationInfo>,
-        persistent: MutableList<AnnotationInfo>,
-        keyword: String,
-        effects: List<EffectTracker.TrackedKeywordEffect>,
-        grpId: GrpId,
-        affectorId: InstanceId,
-        uniqueAbilityIdAllocator: () -> Int,
-    ) {
-        val effectId = EffectId(effects.first().syntheticId)
-        transient.add(
-            AnnotationBuilder.layeredEffectCreated(
-                effectId,
-                if (affectorId.value != 0) affectorId else null,
-            ),
-        )
-
-        val creatureIids = effects.map { InstanceId(it.cardInstanceId) }
-        persistent.add(
-            AnnotationBuilder.addAbilityMulti(
-                affectedIds = creatureIids,
-                grpId = grpId,
-                effectId = effectId,
-                uniqueAbilityIds = creatureIids.map { uniqueAbilityIdAllocator() },
-                originalAbilityObjectZcid = affectorId.value,
-                affectorId = affectorId,
-            ),
-        )
-
-        log.debug(
-            "effectAnnotations: keyword grant {} grpId={} effectId={} creatures={}",
-            keyword,
-            grpId.value,
-            effectId.value,
-            creatureIids.size,
-        )
     }
 }
