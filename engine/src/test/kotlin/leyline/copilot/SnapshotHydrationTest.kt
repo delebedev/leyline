@@ -13,6 +13,7 @@ import leyline.testkit.TestCardRegistry
 import leyline.tooling.headless.cardIn
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AttackInfo
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
 import wotc.mtgo.gre.external.messaging.Messages.BlockInfo
 import wotc.mtgo.gre.external.messaging.Messages.BlockState
@@ -738,8 +739,11 @@ class SnapshotHydrationTest :
             }
         }
 
-        test("committed attacker phase is carried exactly") {
+        test("committed attackers survive mana-sensitive card placement") {
             val attackerGrpId = TestCardRegistry.ensureCardRegistered("Raging Goblin")
+            val manaCreatureGrpId = TestCardRegistry.ensureCardRegistered("Llanowar Elves")
+            val replacementLandGrpId = TestCardRegistry.ensureCardRegistered("Temple Garden")
+            val defenderGrpId = TestCardRegistry.ensureCardRegistered("Chandra, Torch of Defiance")
             val battlefieldZoneId = 7
             val attackerId = 201
             val gsm =
@@ -752,8 +756,8 @@ class SnapshotHydrationTest :
                             .setStep(Step.DeclareAttack_a2cb)
                             .setTurnNumber(4)
                             .setActivePlayer(1)
-                            .setPriorityPlayer(1)
-                            .setDecisionPlayer(1),
+                            .setPriorityPlayer(2)
+                            .setDecisionPlayer(2),
                     ).addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(1).setLifeTotal(20))
                     .addPlayers(PlayerInfo.newBuilder().setSystemSeatNumber(2).setLifeTotal(20))
                     .addZones(
@@ -772,16 +776,68 @@ class SnapshotHydrationTest :
                             .setZoneId(battlefieldZoneId)
                             .setOwnerSeatId(1)
                             .setControllerSeatId(1)
-                            .setAttackState(AttackState.Attacking),
+                            .setAttackState(AttackState.Attacking)
+                            .setAttackInfo(AttackInfo.newBuilder().setTargetId(204)),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(202)
+                            .setGrpId(manaCreatureGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(203)
+                            .setGrpId(replacementLandGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(1)
+                            .setControllerSeatId(1),
+                    ).addGameObjects(
+                        GameObjectInfo
+                            .newBuilder()
+                            .setInstanceId(204)
+                            .setGrpId(defenderGrpId)
+                            .setType(GameObjectType.Card)
+                            .setZoneId(battlefieldZoneId)
+                            .setOwnerSeatId(2)
+                            .setControllerSeatId(2),
+                    ).addPersistentAnnotations(
+                        AnnotationInfo
+                            .newBuilder()
+                            .setId(301)
+                            .addType(AnnotationType.Counter_803b)
+                            .addAffectedIds(204)
+                            .addDetails(
+                                KeyValuePairInfo
+                                    .newBuilder()
+                                    .setKey("count")
+                                    .setType(KeyValuePairValueType.Int32)
+                                    .addValueInt32(4),
+                            ).addDetails(
+                                KeyValuePairInfo
+                                    .newBuilder()
+                                    .setKey("counter_type")
+                                    .setType(KeyValuePairValueType.Int32)
+                                    .addValueInt32(7),
+                            ),
                     ).build()
 
-            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 1, TestCardRegistry.repo)
+            val hydrated = SnapshotHydration.hydrateWithReport(gsm, 2, TestCardRegistry.repo)
             try {
-                hydrated.bridge
-                    .getGame()
-                    .shouldNotBeNull()
-                    .phaseHandler.phase
-                    .toString() shouldBe "COMBAT_DECLARE_ATTACKERS"
+                val game = hydrated.bridge.getGame().shouldNotBeNull()
+                game.phaseHandler.phase.toString() shouldBe "COMBAT_DECLARE_ATTACKERS"
+                game.phaseHandler.turn shouldBe 4
+                game.phaseHandler.priorityPlayer shouldBe game.players[1]
+                val combat = game.combat.shouldNotBeNull()
+                val attacker = combat.getAttackers().single()
+                attacker.name shouldBe "Raging Goblin"
+                combat.getDefenderByAttacker(attacker).name shouldBe "Chandra, Torch of Defiance"
+                cardIn(game.players[0], ForgeZoneType.Battlefield, "Llanowar Elves").isTapped shouldBe false
+                cardIn(game.players[0], ForgeZoneType.Battlefield, "Temple Garden").isTapped shouldBe false
                 val phase = hydrated.fidelity.features.single { it.feature == "phase" }
                 phase.status shouldBe "carried"
                 phase.detail shouldBe null

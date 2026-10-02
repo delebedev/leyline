@@ -2,7 +2,9 @@ package leyline.copilot
 
 import forge.StaticData
 import forge.game.Game
+import forge.game.combat.Combat
 import forge.game.keyword.Keyword
+import forge.game.phase.PhaseType
 import forge.gamemodes.puzzle.Puzzle
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
@@ -422,7 +424,8 @@ object SnapshotHydration {
                 ?: playerSeats.first()
         lines += "ActivePlayer=P${activeSeat - 1}"
         val projectedPhase = mainPhaseOf(gsm)
-        lines += "ActivePhase=$projectedPhase"
+        // Card placement can invoke mana decisions before Forge initializes combat.
+        lines += "ActivePhase=${if (projectedPhase.startsWith("COMBAT_")) "MAIN1" else projectedPhase}"
         lines += "Turn=${gsm.turnInfo.turnNumber.coerceAtLeast(1)}"
         for (player in gsm.playersList) {
             lines += "${prefix(player.systemSeatNumber).replaceFirstChar { it.uppercase() }}Life=${player.lifeTotal}"
@@ -699,28 +702,34 @@ object SnapshotHydration {
         log.debug("Rebound {} instanceIds to source ids", idToCard.size)
     }
 
-    /** Restore committed blocks and the acting priority seat for combat consultation. */
+    /** Restore combat only after all cards exist, before the imported position settles. */
     private fun restoreCombatState(
         gsm: GameStateMessage,
         puzzle: Puzzle,
         bridge: GameBridge,
         consultSeat: Int,
     ) {
-        val assignments =
-            gsm.gameObjectsList.flatMap { blocker ->
-                blocker.blockInfo.attackerIdsList.map { attackerId -> blocker.instanceId to attackerId }
-            }
-        if (assignments.isEmpty()) return
-
+        val phase = mainPhaseOf(gsm)
+        if (!phase.startsWith("COMBAT_")) return
         val seat = SeatId(consultSeat)
         val game = bridge.getGame() ?: return
         val player = bridge.getPlayer(seat) ?: return
-        val combat = game.combat ?: return
+        val attackingPlayer = game.phaseHandler.playerTurn
+        val combat = Combat(attackingPlayer)
+        game.phaseHandler.combat = combat
+        game.phaseHandler.devModeSet(PhaseType.smartValueOf(phase), attackingPlayer, false, game.phaseHandler.turn)
         val cards = idToCardOf(puzzle)
-        for ((blockerId, attackerId) in assignments) {
-            val blocker = cards[blockerId] ?: continue
-            val attacker = cards[attackerId] ?: continue
-            if (attacker !in combat.getAttackersBlockedBy(blocker)) combat.addBlocker(attacker, blocker)
+        for (source in gsm.gameObjectsList.filter { it.attackState == AttackState.Attacking }) {
+            val attacker = cards[source.instanceId] ?: continue
+            val defender = cards[source.attackInfo.targetId] ?: attackingPlayer.singleOpponent
+            combat.addAttacker(attacker, defender)
+        }
+        for (source in gsm.gameObjectsList) {
+            val blocker = cards[source.instanceId] ?: continue
+            for (attackerId in source.blockInfo.attackerIdsList) {
+                val attacker = cards[attackerId] ?: continue
+                combat.addBlocker(attacker, blocker)
+            }
         }
         game.phaseHandler.setPriority(player)
         game.players.forEach { it.setHasPriority(it === player) }
