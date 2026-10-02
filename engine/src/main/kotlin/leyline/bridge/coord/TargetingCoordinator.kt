@@ -1193,6 +1193,7 @@ class TargetingCoordinator(
             ZoneType.AttractionDeck,
             ZoneType.Junkyard,
             ZoneType.ContraptionDeck,
+            ZoneType.StickerSheets,
             ZoneType.Subgame,
             ZoneType.ExtraHand,
             ZoneType.None,
