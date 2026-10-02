@@ -1,0 +1,25 @@
+name: keyword-grants
+description: Continuous grants retire without removing independent or printed keywords.
+scenarios:
+  - id: source-removal
+    puzzle: keyword-grant-source-removal
+    run: remove Cloudshredder and Fervor, then cast lethal Lightning Bolt
+    expect: both grant sources leave play and the remaining creatures survive to the winning response
+    steps:
+      - cast: Lightning Bolt
+      - target: { side: ours, zone: battlefield, card: Cloudshredder Sliver }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: Cloudshredder Sliver }
+      - cast: Naturalize
+      - target: { side: ours, zone: battlefield, card: Fervor }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Fervor }
+            - zone_contains: { side: ours, zone: battlefield, card: Sentinel Sliver }
+            - zone_contains: { side: ours, zone: battlefield, card: Healer's Hawk }
+      - cast: Lightning Bolt
+      - target: opponent
+      - resolve_stack: {}
+      - expect: { winner: ours, loser: opponent }
