@@ -5,6 +5,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCost
@@ -46,7 +47,7 @@ internal fun resolveAttackDefender(
     when (defender) {
         is Target.Card -> {
             val card = findCard(game, defender.cardId)
-            if (card != null && card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
+            card?.takeIf { it in CombatUtil.getAllPossibleDefenders(attackingPlayer) }
         }
         is Target.Player -> {
             val playerDefender = game.getPlayer(defender.playerId.value)

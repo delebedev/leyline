@@ -13,6 +13,7 @@ import leyline.game.event.GameEvent
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.PreparedRole
 import leyline.game.state.AbilityWordActiveKind
+import leyline.game.state.BattleProtectorDesignationKind
 import leyline.game.state.CitysBlessingDesignationKind
 import leyline.game.state.ColorProductionKind
 import leyline.game.state.CommanderDesignationKind
@@ -272,11 +273,21 @@ internal object PersistentFeedBuilder {
                     AnnotationBuilder.companionDesignation(id, GrpId(companion.card.snapshot.grpId))
                 }
             }
+        val battleProtectors =
+            snap.objects.values.mapNotNull { card ->
+                val protector = card.battleProtectorSeatId ?: return@mapNotNull null
+                AnnotationBuilder
+                    .designation(protector, AnnotationConstants.DESIGNATION_TYPE_BATTLE_PROTECTOR)
+                    .toBuilder()
+                    .setAffectorId(frameIds.cardIid(card.forgeCardId).value)
+                    .build()
+            }
         return simpleRows +
             mapOf(
                 PreparedDesignationKind to prepared,
                 CommanderDesignationKind to commander,
                 CompanionDesignationKind to companions,
+                BattleProtectorDesignationKind to battleProtectors,
                 PlayerSpeedDesignationKind to playerSpeed,
                 CitysBlessingDesignationKind to
                     snap.seats
