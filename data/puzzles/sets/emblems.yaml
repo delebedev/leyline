@@ -1,0 +1,30 @@
+name: emblems
+description: Persistent Command objects and their abilities after creator departure.
+scenarios:
+  - id: sephiroth-persistent
+    puzzle: emblem-sephiroth-persistent
+    run: transform Sephiroth with four deaths, destroy him, then kill the remaining creature
+    expect: the emblem survives its creator and its later targeted drain wins
+    steps:
+      - cast: End the Festivities
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 2
+            - our_life: 24
+            - zone_contains: { side: ours, zone: battlefield, card: "Sephiroth, One-Winged Angel" }
+      - cast: Murder
+      - target: { side: ours, zone: battlefield, card: "Sephiroth, One-Winged Angel" }
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 1
+            - our_life: 25
+            - zone_contains: { side: ours, zone: graveyard, card: "Sephiroth, Fabled SOLDIER" }
+      - cast: Shock
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
+      - pass_until: { winner: ours, max_passes: 8 }

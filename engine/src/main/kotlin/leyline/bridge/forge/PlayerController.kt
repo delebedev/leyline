@@ -990,7 +990,19 @@ class PlayerController(
         activeDividedAllocationAbility = currentAbility
         val chosen =
             try {
-                super.chooseTargetsFor(currentAbility)
+                // Forge selects a sole player candidate without interaction. Emblem
+                // abilities need that target group published before stack placement.
+                val emblemPlayerTarget =
+                    currentAbility.hostCard.isEmblem &&
+                        currentAbility.targets.isEmpty() &&
+                        currentAbility.targetRestrictions?.getAllCandidates(currentAbility, true)?.singleOrNull() is Player &&
+                        currentAbility.minTargets == 1 &&
+                        currentAbility.maxTargets == 1
+                if (emblemPlayerTarget && !targetingCoordinator.selectTargets(emptyList(), currentAbility, true, null).isChosen) {
+                    false
+                } else {
+                    super.chooseTargetsFor(currentAbility)
+                }
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
                 activeDividedAllocationAbility = previousDividedAllocationAbility

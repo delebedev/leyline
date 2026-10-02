@@ -1,8 +1,11 @@
 package leyline.game.snapshot
 
+import forge.card.CardStateName
 import forge.card.GamePieceType
+import forge.game.ability.SpellAbilityEffect
 import forge.game.card.Card
 import forge.game.card.CardFactory
+import forge.game.trigger.TriggerHandler
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
@@ -11,12 +14,57 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
+import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.BoardTest
+import leyline.testkit.FixturePinned
 import leyline.testkit.humanPlayer
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
+@FixturePinned
 class SnapshotCaptureTest :
     BoardTest({
+
+        test("named emblem projects its hidden ability without source card characteristics") {
+            lateinit var emblem: Card
+            lateinit var source: Card
+            val board =
+                startWithBoard { game, human, _ ->
+                    source = addCard("Sephiroth, Fabled SOLDIER", human, ZoneType.Battlefield)
+                    source.setState(CardStateName.Backside, false)
+                    emblem = SpellAbilityEffect.createEffect(null, source, human, "Emblem — Test", null, game.nextTimestamp)
+                    emblem.setSVar("Drain", "DB$ LoseLife | ValidTgts$ Opponent | LifeAmount$ 1")
+                    emblem.addTrigger(
+                        TriggerHandler.parseTrigger(
+                            "Mode$ ChangesZone | ValidCard$ Creature | Origin$ Battlefield | " +
+                                "Destination$ Graveyard | Execute$ Drain | TriggerZones$ Command",
+                            emblem,
+                            true,
+                        ),
+                    )
+                    human.getZone(ZoneType.Command).add(emblem)
+                }
+            val snapshot = SnapshotCapture.run(board.game, board.bridge, "test", 1)
+            val card = snapshot.objects.getValue(ForgeCardId(emblem.id))
+            val objectInfo = ObjectMapper.buildFromSnapshot(card, board.instanceId(emblem.id), ZoneIds.COMMAND, 1, board.bridge.cardProto)
+            assertSoftly {
+                snapshot.zones.getValue(ZoneIds.COMMAND).contents shouldContain ForgeCardId(emblem.id)
+                card.isProjectable shouldBe true
+                card.grpId shouldBe 2
+                objectInfo.type shouldBe GameObjectType.Emblem
+                objectInfo.visibility shouldBe Visibility.Public
+                objectInfo.objectSourceGrpId shouldBe 95976
+                objectInfo.parentId shouldBe board.instanceId(source.id)
+                objectInfo.overlayGrpId shouldBe 2
+                objectInfo.name shouldBe 1
+                objectInfo.uniqueAbilitiesList.map { it.grpId } shouldBe listOf(189224)
+                objectInfo.cardTypesList shouldBe emptyList()
+                objectInfo.colorList shouldBe emptyList()
+                objectInfo.hasPower() shouldBe false
+                objectInfo.hasToughness() shouldBe false
+            }
+        }
 
         test("Puzzle-Goal-style EFFECT in Command zone: snapshot captures with grpId=0, no throw") {
             val (b, game, _) =

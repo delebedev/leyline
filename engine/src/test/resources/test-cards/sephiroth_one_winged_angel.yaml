@@ -1,0 +1,20 @@
+name: "Sephiroth, One-Winged Angel"
+grpId: 95976
+titleId: 928056
+abilities:
+  - id: 8
+    textId: 46
+    category: 3
+  - id: 189225
+    textId: 928060
+    category: 3
+  - id: 189226
+    textId: 928062
+    category: 2
+expansionCode: "FIN"
+linkedFaces:
+  - 95975
+hiddenAbilities:
+  - id: 189224
+    textId: 928058
+isPrimaryCard: false

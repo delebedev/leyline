@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
@@ -14,6 +15,7 @@ import leyline.testkit.detailInt
 import leyline.testkit.detailUint
 import leyline.testkit.gameStateMessages
 import leyline.testkit.graveyard
+import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -123,7 +125,8 @@ class AbilityIdentityLifecycleTest :
         }
 
         session(
-            "effect-backed trigger retains its spawning ability identity",
+            "opponent emblem trigger uses its own ability identity",
+            turns = 3,
             puzzle =
                 """
                 ActivePlayer=Human
@@ -149,18 +152,113 @@ class AbilityIdentityLifecycleTest :
             passUntil(maxPasses = 30) { ai.life == 19 }.shouldBeTrue()
 
             val messages = messagesSince(start)
-            val resolution =
-                messages
-                    .annotationsOfType(AnnotationType.ResolutionStart)
-                    .single { it.detailUint("grpid") == emblemAbility.abilityGrpId }
+            val emblem = messages.allGameObjects().first { it.type == GameObjectType.Emblem }
+            val trigger = messages.allGameObjects().first { it.type == GameObjectType.Ability && it.parentId == emblem.instanceId }
+            val resolution = messages.annotationsOfType(AnnotationType.ResolutionStart).single { it.affectorId == trigger.instanceId }
             val creation =
                 messages
                     .annotationsOfType(AnnotationType.AbilityInstanceCreated)
                     .single { resolution.affectorId in it.affectedIdsList }
             assertSoftly {
                 emblemAbility.abilityGrpId shouldBeGreaterThan 0
-                creation.affectorId shouldBeGreaterThan 0
-                resolution.detailUint("grpid") shouldBe emblemAbility.abilityGrpId
+                emblem.ownerSeatId shouldBe 2
+                emblem.controllerSeatId shouldBe 2
+                creation.affectorId shouldBe emblem.instanceId
+                creation.detailInt("source_zone") shouldBe ZoneIds.COMMAND
+                trigger.objectSourceGrpId shouldBe 2
+                trigger.grpId shouldBe emblem.uniqueAbilitiesList.single().grpId
+                resolution.detailUint("grpid") shouldBe trigger.grpId
+            }
+        }
+
+        session(
+            "emblem preserves lineage and later targets after its creator leaves",
+            puzzleFile = "data/puzzles/emblem-sephiroth-persistent.pzl",
+        ) {
+            val creatorIid = human.battlefield.iid("Sephiroth, Fabled SOLDIER")
+            castSpellByName("End the Festivities").shouldBeTrue()
+            passUntil(20) { ai.life == 2 }.shouldBeTrue()
+            val emblem = allMessages.allGameObjects().first { it.type == GameObjectType.Emblem }
+            val hiddenId =
+                bridge.cardRepository
+                    .findByGrpId(emblem.objectSourceGrpId)!!
+                    .hiddenAbilityIds
+                    .single()
+                    .first
+            assertSoftly {
+                emblem.parentId shouldBe creatorIid
+                emblem.uniqueAbilitiesList.single().grpId shouldBe hiddenId
+                allMessages
+                    .gameStateMessages()
+                    .any { gsm ->
+                        gsm.zonesList.any {
+                            it.zoneId == ZoneIds.COMMAND &&
+                                emblem.instanceId in it.objectInstanceIdsList
+                        }
+                    }.shouldBeTrue()
+                allMessages
+                    .annotationsOfType(
+                        AnnotationType.ZoneTransfer_af5a,
+                    ).none { emblem.instanceId in it.affectedIdsList }
+                    .shouldBeTrue()
+            }
+            castSpellByName("Murder").shouldBeTrue()
+            selectTargets(listOf(creatorIid))
+            passUntil(10) { human.getZone(ZoneType.Graveyard).cards.any { it.name == "Sephiroth, Fabled SOLDIER" } }.shouldBeTrue()
+            selectTargets(listOf(2))
+            passUntil(10) { ai.life == 1 }.shouldBeTrue()
+            human.graveyard.card("Sephiroth, Fabled SOLDIER")
+            val laterStart = messageSnapshot()
+            castSpellByName("Shock").shouldBeTrue()
+            selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
+            passUntil(10) { messagesSince(laterStart).any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            val ability =
+                messagesSince(laterStart).allGameObjects().first {
+                    it.type == GameObjectType.Ability &&
+                        it.parentId == emblem.instanceId
+                }
+            selectTargets(listOf(2))
+            passUntil(10) { isGameOver() }.shouldBeTrue()
+            val later = messagesSince(laterStart)
+            assertSoftly {
+                ability.grpId shouldBe hiddenId
+                ability.objectSourceGrpId shouldBe 2
+                later
+                    .annotationsOfType(
+                        AnnotationType.AbilityInstanceCreated,
+                    ).filter { ability.instanceId in it.affectedIdsList }
+                    .map { it.affectorId }
+                    .distinct()
+                    .single() shouldBe
+                    emblem.instanceId
+                later
+                    .persistentAnnotationsOfType(
+                        AnnotationType.TargetSpec,
+                    ).single { it.affectorId == ability.instanceId }
+                    .affectedIdsList shouldContain
+                    2
+                later
+                    .annotationsOfType(
+                        AnnotationType.ResolutionStart,
+                    ).single { it.affectorId == ability.instanceId }
+                    .detailUint("grpid") shouldBe
+                    hiddenId
+                later.annotationsOfType(AnnotationType.ResolutionComplete).any { it.affectorId == ability.instanceId }.shouldBeTrue()
+                later
+                    .annotationsOfType(
+                        AnnotationType.AbilityInstanceDeleted,
+                    ).single { ability.instanceId in it.affectedIdsList }
+                    .affectorId shouldBe
+                    emblem.instanceId
+                allMessages.gameStateMessages().none { emblem.instanceId in it.diffDeletedInstanceIdsList }.shouldBeTrue()
+                allMessages
+                    .allGameObjects()
+                    .filter { it.instanceId == emblem.instanceId }
+                    .all {
+                        it.parentId == creatorIid &&
+                            it.objectSourceGrpId == emblem.objectSourceGrpId
+                    }.shouldBeTrue()
+                ai.life shouldBe 0
             }
         }
     })

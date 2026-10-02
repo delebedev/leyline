@@ -1310,8 +1310,7 @@ class GameBridge(
         val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        val grpId = resolveGrpId(card)
-        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         if (ability.trigger != null) {
             registry.resolve(definition)?.let { return it }
@@ -1354,8 +1353,7 @@ class GameBridge(
         card: Card,
         definition: AbilityDefinitionRef,
     ): ResolvedAbilityIdentity? {
-        val grpId = resolveGrpId(card)
-        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
             ?: AbilityRegistry.build(card, cardData).let { refreshed ->
@@ -1363,6 +1361,14 @@ class GameBridge(
                 refreshed.resolve(definition)
             }
     }
+
+    private fun abilityCardData(card: Card): CardData? =
+        if (card.isEmblem) {
+            leyline.game.snapshot.EmblemSnapshot
+                .abilityData(card, this)
+        } else {
+            cardRepository.findByGrpId(resolveGrpId(card))
+        }
 
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
     fun evictAbilityRegistry(forgeCardId: Int) {

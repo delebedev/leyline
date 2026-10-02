@@ -191,6 +191,24 @@ class ForgeCardRepository private constructor(
                 }
             }
             addRows(face.replacements)
+            emblemAbilityDefinitions(face).forEach { (variable, _) ->
+                add("$prefix:emblem-ability:$variable")
+            }
+        }
+
+        private fun emblemAbilityDefinitions(face: ICardFace): List<Pair<String, Int>> {
+            val variables = face.variables.associate { it.key to it.value }
+            return (variables.values + face.abilities)
+                .flatMap { raw ->
+                    val params = parseParams(raw)
+                    if ((params["DB"] ?: params["AB"]) != "Effect" || params["Name"]?.startsWith("Emblem") != true) {
+                        emptyList()
+                    } else {
+                        listOf("Abilities" to 1, "Triggers" to 2, "StaticAbilities" to 3, "ReplacementEffects" to 3)
+                            .flatMap { (field, category) -> params[field]?.split(',')?.map { it.trim() to category }.orEmpty() }
+                            .filter { it.first in variables }
+                    }
+                }.distinct()
         }
 
         /** Reflexive triggers can reach their modes through several Execute references. */
@@ -482,6 +500,7 @@ class ForgeCardRepository private constructor(
             }
         }
         face.replacements.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
+        hiddenAbilities += registerEmblemAbilities(face, identityPrefix, variables)
         if (face.type.isBasicLand) {
             BasicLandAbilities.byForgeSubtypeNames(face.type.subtypes)?.let { id ->
                 abilities += id to id
@@ -532,6 +551,20 @@ class ForgeCardRepository private constructor(
             face.name,
         )
     }
+
+    private fun registerEmblemAbilities(
+        face: ICardFace,
+        identityPrefix: String,
+        variables: Map<String, String>,
+    ): List<Pair<Int, Int>> =
+        emblemAbilityDefinitions(face).map { (variable, category) ->
+            val id = identityId("$identityPrefix:emblem-ability:$variable")
+            val parsed = parseParams(variables.getValue(variable))
+            val text = parsed["SpellDescription"] ?: parsed["TriggerDescription"] ?: parsed["Description"] ?: variable
+            rows.registerAbilityInfo(id, AbilityInfo(0, emptyList(), category))
+            rows.registerAbilityLocalization(id, AbilityLocalization(text))
+            id to id
+        }
 
     private fun registerGrantedAbility(
         identityPrefix: String,
