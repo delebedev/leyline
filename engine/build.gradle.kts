@@ -149,6 +149,7 @@ registerEngineTest("testConformance") {
     systemProperty("kotest.tags", "ConformanceTag")
     maxParallelForks = 1
     inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+    inputs.dir(rootProject.layout.projectDirectory.dir("conformance/contracts"))
 }
 
 registerEngineTest("testSimClient") {
