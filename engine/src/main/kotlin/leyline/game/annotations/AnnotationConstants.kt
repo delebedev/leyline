@@ -18,6 +18,8 @@ object AnnotationConstants {
     /** `DesignationType` enum value for the `Commander` player/card state designation. */
     const val DESIGNATION_TYPE_COMMANDER: Int = 1
 
+    const val DESIGNATION_TYPE_CITYS_BLESSING: Int = 6
+
     /** `DesignationType` enum value for the `Day` game-scope state designation.
      *  Carried on `GainDesignation` / persistent `Designation` / `LoseDesignation`.
      *  The persistent shape additionally carries the `ActivePlayerSpellCount`

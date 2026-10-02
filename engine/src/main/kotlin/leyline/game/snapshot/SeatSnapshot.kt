@@ -24,6 +24,7 @@ data class SeatSnapshot(
     val maxHandSize: Int,
     val speed: Int = 0,
     val dungeon: DungeonSnapshot? = null,
+    val hasBlessing: Boolean = false,
     val manaPool: List<ManaPoolEntry> = emptyList(),
     val companion: CompanionSnapshot? = null,
 )

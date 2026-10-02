@@ -61,6 +61,7 @@ object DetailKeys {
     const val CHOICE_SENTIMENT = "Choice_Sentiment"
     const val COLORS = "colors"
     const val INDEX = "index"
+    const val PROMPT_MESSAGE = "PromptMessage"
     const val PROMPT_ID = "promptId"
     const val CHOSEN_COST_PROMPT_ID = "chosenCostPromptId"
     const val PROMPT_PARAMETERS = "promptParameters"

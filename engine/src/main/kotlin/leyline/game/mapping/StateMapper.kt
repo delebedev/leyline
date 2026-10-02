@@ -527,6 +527,7 @@ object StateMapper {
                 },
             )
             insertDayNightDesignationTransients(annotations, prev.dayTime, snap.dayTime)
+            insertCitysBlessingDesignationTransients(annotations, prev.seats, snap.seats)
         }
 
         // Stages 4-5 + persistent computation
