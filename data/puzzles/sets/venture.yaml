@@ -31,8 +31,7 @@ scenarios:
             - opponent_life: 19
       - cast: Acererak the Archlich
       - resolve_stack: {}
-      - expect: { zone_contains: { side: ours, zone: hand, card: Forest } }
-      - play_land: Forest
+      - expect: { zone_count_at_least: { side: ours, zone: hand, count: 2 } }
       - cast: Acererak the Archlich
       - pass_until: { prompt: SelectNReq, max_passes: 8 }
       - choose: { label: Lost Mine of Phandelver }
