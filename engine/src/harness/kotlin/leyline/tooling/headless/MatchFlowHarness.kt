@@ -1631,6 +1631,7 @@ class MatchFlowHarness(
     fun isGameOver(): Boolean {
         val game = bridge.getGame()
         if (game != null) return game.isGameOver
+        if (::gameRef.isInitialized && gameRef.isGameOver) return true
 
         if (
             allMessages.any {
