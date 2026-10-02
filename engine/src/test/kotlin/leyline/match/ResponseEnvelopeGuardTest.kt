@@ -1,5 +1,6 @@
 package leyline.match
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -15,7 +16,13 @@ class ResponseEnvelopeGuardTest :
             val sequence = LogicalSequenceState(lastPromptMsgId = 17)
             val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.mismatchReason(response(respId = 17), sequence, responses) shouldBe null
+            assertSoftly {
+                ResponseEnvelopeGuard.mismatchReason(response(respId = 17), sequence, responses) shouldBe null
+                responses.responsesAccepted() shouldBe 1
+                responses.acceptedSnapshot().single().respId shouldBe 17
+            }
+            responses.markPromptHandled(18)
+            responses.acceptedSnapshot().single().respId shouldBe 17
             responses.responsesAccepted() shouldBe 1
         }
 
@@ -23,9 +30,11 @@ class ResponseEnvelopeGuardTest :
             val sequence = LogicalSequenceState(currentMsgId = 20, lastPromptMsgId = 17)
             val responses = ResponseAcceptanceTracker()
 
-            ResponseEnvelopeGuard.mismatchReason(response(respId = 16), sequence, responses) shouldBe FailureReason.ReqRespMismatch
-
-            responses.responsesAccepted() shouldBe 0
+            assertSoftly {
+                ResponseEnvelopeGuard.mismatchReason(response(respId = 16), sequence, responses) shouldBe FailureReason.ReqRespMismatch
+                responses.responsesAccepted() shouldBe 0
+                responses.acceptedSnapshot() shouldBe emptyList()
+            }
         }
 
         test("rejects a response when no prompt has been emitted") {
