@@ -3,9 +3,11 @@ package leyline.board.annotations
 import forge.game.card.Card
 import forge.game.card.CounterEnumType
 import forge.game.event.GameEventCardCounters
+import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
@@ -15,9 +17,75 @@ import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 class PhasingAnnotationTest :
     BoardTest({
+        fun GameStateMessage.shouldPhaseOutWithinResolution(
+            affectedIid: Int,
+            resolutionIid: Int,
+        ) {
+            val out = annotationsList.single { AnnotationType.PhasedOut_af5a in it.typeList }
+            val start = annotationsList.single { AnnotationType.ResolutionStart in it.typeList }
+            val complete = annotationsList.single { AnnotationType.ResolutionComplete in it.typeList }
+            assertSoftly {
+                out.affectedIdsList shouldBe listOf(affectedIid)
+                out.affectorId shouldBe resolutionIid
+                start.affectorId shouldBe resolutionIid
+                complete.affectorId shouldBe resolutionIid
+                out.detailsCount shouldBe 0
+                annotationsList.indexOf(out).shouldBeGreaterThan(annotationsList.indexOf(start))
+                annotationsList.indexOf(complete).shouldBeGreaterThan(annotationsList.indexOf(out))
+            }
+        }
+
+        test("spell phase out uses the resolving spell instance inside its bracket") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Slip Out the Back", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                }
+            val creature = board.human.battlefield.card("Grizzly Bears")
+            val creatureIid = board.instanceId(creature.id)
+            val spell = board.human.hand.card("Slip Out the Back")
+            val ability =
+                spell.firstSpellAbility.also {
+                    it.activatingPlayer = board.human
+                    it.targets.add(creature)
+                }
+            board.game.action.moveToStack(spell, ability)
+            board.game.stack.addAndUnfreeze(ability)
+            board.stateOnlyDiff()
+            val spellIid = board.instanceId(spell.id)
+
+            val resolved = board.snapshotDiff { board.game.stack.resolveStack() }
+
+            creature.isPhasedOut shouldBe true
+            resolved.shouldPhaseOutWithinResolution(creatureIid, spellIid)
+        }
+
+        test("trigger phase out uses the wrapped stack instance inside its bracket") {
+            val board = startWithBoard { _, human, _ -> addCard("Kaito Shizuki", human, ZoneType.Battlefield) }
+            val kaito = board.human.battlefield.card("Kaito Shizuki")
+            val kaitoIid = board.instanceId(kaito.id)
+            val trigger = kaito.triggers.single { it.overridingAbility != null }
+            val wrapped = WrappedAbility(trigger, trigger.overridingAbility, board.human)
+            board.game.stack.addAndUnfreeze(wrapped)
+            val stacked = board.stateOnlyDiff()
+            val triggerIid =
+                stacked.zonesList
+                    .single { it.zoneId == ZoneIds.STACK }
+                    .objectInstanceIdsList
+                    .single()
+            triggerIid shouldNotBe kaitoIid
+            wrapped.id shouldNotBe trigger.overridingAbility.id
+
+            val resolved = board.snapshotDiff { board.game.stack.resolveStack() }
+
+            kaito.isPhasedOut shouldBe true
+            resolved.shouldPhaseOutWithinResolution(kaitoIid, triggerIid)
+        }
+
         test("phasing preserves battlefield membership identity and counters without transfers") {
             lateinit var creature: Card
             val board =
