@@ -1,0 +1,22 @@
+# Mechanic: choose the same Eldrazi Confluence mode three times.
+# Forcing: three Scions require selecting the token mode three times.
+# AI behavior: no hand or battlefield actions interrupt resolution.
+# Failure modes: fewer than three Scions indicates lost modal multiplicity.
+# Card roles: four Wastes pay the spell; Forest tests play after resolution.
+# Protocol path: CastingTimeOptionsReq, CastingTimeOptionsResp, token creation.
+[metadata]
+Name:Eldrazi Confluence repeated mode
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Choose the Scion mode three times, then play Forest.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Wastes;Wastes;Wastes;Wastes
+humanhand=Eldrazi Confluence;Forest
+humanlibrary=Wastes;Wastes;Wastes
+ailibrary=Forest;Forest;Forest

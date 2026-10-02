@@ -268,7 +268,7 @@ class MatchModalChoiceRuntimeTest :
             val finished = CountDownLatch(1)
             Thread {
                 try {
-                    result.set(coordinator.modalChoices.awaitSelection(request(options), options, card, sa, 25))
+                    result.set(coordinator.modalChoices.awaitSelection(request(options, max = 2), options, card, sa, 25))
                 } finally {
                     finished.countDown()
                 }

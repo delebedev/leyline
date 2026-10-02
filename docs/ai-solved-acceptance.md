@@ -72,6 +72,7 @@ a card available in that client's catalog.
 Modal responses accept
 `modal_choice: { index: 0 }` for one mode or `modal_choice: { indices: [0, 1] }`
 for multiple modes in one response.
+Repeatable modes use duplicate indices, for example `modal_choice: { indices: [0, 0, 0] }`.
 
 ## One-Turn Win Fixtures
 
