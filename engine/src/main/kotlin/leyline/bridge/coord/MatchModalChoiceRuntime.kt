@@ -85,7 +85,7 @@ internal class MatchModalChoiceRuntime(
         pending: Window,
         message: ClientToGREMessage,
     ): SettledPromptOwner.SlotAdmission<ModalChoiceInteractionResult>? {
-        if (pending.value.isVote && message.type == ClientMessageType.CancelActionReq_097b) return null
+        if (!pending.value.allowCancel && message.type == ClientMessageType.CancelActionReq_097b) return null
         val selectedGrpIds =
             if (message.type == ClientMessageType.CancelActionReq_097b) {
                 emptyList()

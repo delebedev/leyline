@@ -98,8 +98,8 @@ internal class ModalChoiceWindowMaterializer(
                                     )
                                 }
                             }.build()
-                    it.allowCancel = if (window.isVote) AllowCancel.No_a526 else AllowCancel.Abort
-                    it.allowUndo = !window.isVote
+                    it.allowCancel = if (window.allowCancel) AllowCancel.Abort else AllowCancel.No_a526
+                    it.allowUndo = window.allowCancel
                 },
             )
         return Prepared(context.prepared(messages, awaitedRequest = messages.last()), sourceInstanceId)

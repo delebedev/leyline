@@ -46,7 +46,8 @@ the existing entity-selection path.
 
 Generic and villainous effect choices use `chooseSpellAbilitiesForEffect` to
 retain their named `Choices` subabilities through the same modal bridge.
-The selected handles return to Forge for effect resolution.
+The selected handles return to Forge for effect resolution. These resolution
+choices reject cancellation and do not offer undo.
 
 Attacker alternatives are committed with the combat declaration. Exert and
 Enlist callbacks consume their own selections on the engine thread before

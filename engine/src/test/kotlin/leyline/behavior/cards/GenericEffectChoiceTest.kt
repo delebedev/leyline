@@ -4,8 +4,11 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.acceptSettled
 import leyline.testkit.SessionTest
 import leyline.testkit.beOnBattlefieldOf
+import leyline.testkit.cancelActionReq
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 
 class GenericEffectChoiceTest :
     SessionTest({
@@ -29,13 +32,16 @@ class GenericEffectChoiceTest :
                 passUntil(maxPasses = 3) {
                     allMessages.any { it.hasCastingTimeOptionsReq() }
                 }.shouldBeTrue()
+                val choiceMessage = allMessages.last { it.hasCastingTimeOptionsReq() }
                 val modal =
-                    allMessages
-                        .last { it.hasCastingTimeOptionsReq() }
-                        .castingTimeOptionsReq
+                    choiceMessage.castingTimeOptionsReq
                         .getCastingTimeOptionReq(0)
                         .modalReq
                 assertSoftly {
+                    choiceMessage.allowCancel shouldBe AllowCancel.No_a526
+                    choiceMessage.allowUndo shouldBe false
+                    bridge.cutCoordinator.acceptSettled(cancelActionReq(), choiceMessage.gameStateId) shouldBe false
+                    bridge.hasPendingNonActionInteraction().shouldBeTrue()
                     modal.minSel shouldBe 1
                     modal.maxSel shouldBe 1
                     modal.modalOptionsList.map { bridge.cardRepository.findAbilityLocalization(it.grpId)?.text } shouldBe
