@@ -213,6 +213,12 @@ A viewer cut installs one transition and output ordinal across its feeds. A
 stale or failed pre-install attempt publishes nothing and consumes no logical
 identifier.
 
+Phasing preserves a permanent's instance identity and battlefield membership.
+Its object uses `zoneId=12` while phased out and returns to battlefield zone 28
+on phase-in. No zone-12 container or zone-transfer event is emitted. Embedding
+heads must exclude that object from active battlefield views while this status
+is present. The `phasing` acceptance suite exercises the full return cycle.
+
 ## Output and delivery
 
 Projection commit and transport delivery are different boundaries. A committed

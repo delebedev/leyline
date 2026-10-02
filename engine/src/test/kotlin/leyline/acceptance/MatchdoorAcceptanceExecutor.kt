@@ -14,7 +14,6 @@ import leyline.testkit.MatchFlowHarness
 import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
@@ -806,7 +805,7 @@ private class ScenarioRun(
     }
 
     private fun annotationSeen(condition: AnnotationSeenCondition): Boolean {
-        val expected = AnnotationType.valueOf(condition.type)
+        val expected = condition.type.toAnnotationType()
         return harness.allMessages
             .filter { it.hasGameStateMessage() }
             .flatMap { it.gameStateMessage.annotationsList + it.gameStateMessage.persistentAnnotationsList }
@@ -835,7 +834,7 @@ private class ScenarioRun(
         type: String,
         phase: String,
     ): Boolean {
-        val expected = AnnotationType.valueOf(type)
+        val expected = type.toAnnotationType()
         val expectedPhase = phase.toForgePhaseName()
         return harness.allMessages
             .filter { it.hasGameStateMessage() && it.gameStateMessage.hasTurnInfo() }

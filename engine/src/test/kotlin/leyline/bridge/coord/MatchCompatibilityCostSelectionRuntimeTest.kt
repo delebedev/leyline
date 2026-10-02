@@ -16,6 +16,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -110,7 +111,7 @@ class MatchCompatibilityCostSelectionRuntimeTest :
                         latest.interactionId,
                         latest.gameStateId,
                     ).shouldNotBeNull()
-            coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
+            coordinator.drain(SeatId(1)).flatten().single { it.type == GREMessageType.SubmitTargetsResp_695e }
             assertSoftly {
                 coordinator.compatibilityCostSelection.acknowledgeDelivery(
                     done.interactionId,

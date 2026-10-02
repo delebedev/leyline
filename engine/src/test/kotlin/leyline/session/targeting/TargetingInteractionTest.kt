@@ -485,11 +485,11 @@ class TargetingInteractionTest :
             assertSoftly {
                 // No damage landed yet — spell hasn't resolved
                 ai.life shouldBe preBoltAiLife
-                phase1Messages.any { it.hasSubmitTargetsResp() }.shouldBeFalse()
+                phase1Messages.any { it.type == GREMessageType.SubmitTargetsResp_695e }.shouldBeFalse()
                 phase1Messages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
             }
 
-            after { submitTargets() }.messages.any { it.hasSubmitTargetsResp() }.shouldBeTrue()
+            after { submitTargets() }.messages.any { it.type == GREMessageType.SubmitTargetsResp_695e }.shouldBeTrue()
 
             passUntilResolved()
             // Damage landed only after submit
@@ -528,7 +528,7 @@ class TargetingInteractionTest :
                 // Single-target triggers are not special on the wire: the tap
                 // echoes as an iterative re-prompt, no auto-submit.
                 phase1Messages.count { it.hasSelectTargetsReq() } shouldBe 1
-                phase1Messages.count { it.hasSubmitTargetsResp() } shouldBe 0
+                phase1Messages.count { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe 0
             }
             val rePrompt =
                 phase1Messages
@@ -542,7 +542,7 @@ class TargetingInteractionTest :
             }
             // Completion still lands on the client's SubmitTargetsReq.
             val submitMessages = after { submitTargets() }.messages
-            submitMessages.count { it.hasSubmitTargetsResp() } shouldBe 1
+            submitMessages.count { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe 1
             val submitted =
                 submitMessages
                     .gameStateMessages()

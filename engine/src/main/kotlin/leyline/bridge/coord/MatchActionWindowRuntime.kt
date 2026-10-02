@@ -16,9 +16,6 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.ResultCode
-import wotc.mtgo.gre.external.messaging.Messages.SubmitAttackersResp
-import wotc.mtgo.gre.external.messaging.Messages.SubmitBlockersResp
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 
@@ -467,11 +464,9 @@ internal class MatchActionWindowRuntime(
             PendingActionKind.DECLARE_ATTACKERS ->
                 builder
                     .setType(GREMessageType.SubmitAttackersResp_695e)
-                    .setSubmitAttackersResp(SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500))
             PendingActionKind.DECLARE_BLOCKERS ->
                 builder
                     .setType(GREMessageType.SubmitBlockersResp_695e)
-                    .setSubmitBlockersResp(SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500))
             PendingActionKind.PRIORITY,
             PendingActionKind.SYNC_ONLY,
             -> error("Unsupported declaration kind $kind")

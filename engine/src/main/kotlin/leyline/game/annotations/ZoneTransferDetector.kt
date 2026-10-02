@@ -169,6 +169,8 @@ internal data class StackAbilitySourceFacts(
 object ZoneTransferDetector {
     private val log = LoggerFactory.getLogger(ZoneTransferDetector::class.java)
 
+    private fun logicalZone(zoneId: Int): Int = if (zoneId == ZoneIds.PHASED_OUT) ZoneIds.BATTLEFIELD else zoneId
+
     /**
      * Detect zone transfers — pure overload.
      * Takes [ZoneTransferContext] instead of a bridge for independent testability.
@@ -213,8 +215,8 @@ object ZoneTransferDetector {
 
         for (i in patchedObjects.indices) {
             val obj = patchedObjects[i]
-            val prevZone = previousZones[obj.instanceId]
-            if (prevZone != null && prevZone != obj.zoneId) {
+            val prevZone = previousZones[obj.instanceId]?.let(::logicalZone)
+            if (prevZone != null && prevZone != logicalZone(obj.zoneId)) {
                 if (prevZone == ZoneIds.STACK && obj.zoneId == ZoneIds.SUPPRESSED) {
                     zoneRecordings.add(obj.instanceId to obj.zoneId)
                     continue

@@ -327,6 +327,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.MANA_SPEC_TYPE_DOES_NOT_EMPTY, MANA_SPEC_DOES_NOT_EMPTY_VALUE))
             .build()
 
+    fun phasedPermanent(
+        instanceId: InstanceId,
+        phasedOut: Boolean,
+        affectorId: InstanceId? = null,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(if (phasedOut) AnnotationType.PhasedOut_af5a else AnnotationType.PhasedIn)
+            .addAffectedIds(instanceId.value)
+            .apply { affectorId?.let { setAffectorId(it.value) } }
+            .build()
+
     /**
      * Permanent tapped or untapped (e.g. tapping land for mana).
      * [permanentId] = the permanent being tapped (affectedIds).

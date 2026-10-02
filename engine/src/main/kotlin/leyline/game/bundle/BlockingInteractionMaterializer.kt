@@ -455,9 +455,7 @@ internal class BlockingInteractionMaterializer(
     fun damageConfirmation(counter: LogicalSequencePlanner): BundleBuilder.BundleResult =
         BundleBuilder.BundleResult(
             listOf(
-                makeGRE(GREMessageType.AssignDamageConfirmation_695e, counter.currentGsId(), counter.nextMsgId()) {
-                    it.assignDamageConfirmation = AssignDamageConfirmation.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
+                makeGRE(GREMessageType.AssignDamageConfirmation_695e, counter.currentGsId(), counter.nextMsgId()) {},
             ),
         )
 

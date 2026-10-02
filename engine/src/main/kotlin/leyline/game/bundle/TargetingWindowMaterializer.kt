@@ -19,10 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.HighlightType
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
-import wotc.mtgo.gre.external.messaging.Messages.ResultCode
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
-import wotc.mtgo.gre.external.messaging.Messages.SubmitTargetsResp
 import wotc.mtgo.gre.external.messaging.Messages.Target
 import wotc.mtgo.gre.external.messaging.Messages.TargetSelection
 
@@ -115,9 +113,7 @@ internal class TargetingWindowMaterializer(
                 ProjectionTransition(prior.revision, editor.freeze())
             }
         val message =
-            makeGRE(GREMessageType.SubmitTargetsResp_695e, counter.currentGsId(), counter.nextMsgId()) {
-                it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
-            }
+            makeGRE(GREMessageType.SubmitTargetsResp_695e, counter.currentGsId(), counter.nextMsgId()) {}
         return Prepared(BundleBuilder.BundleResult(listOf(message)), transition)
     }
 

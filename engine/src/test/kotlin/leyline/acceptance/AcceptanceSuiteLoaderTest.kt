@@ -6,10 +6,19 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AcceptanceSuiteLoaderTest :
     FunSpec({
         tags(UnitTag)
+
+        test("annotation conditions accept semantic and exact protocol names") {
+            assertSoftly {
+                "PhasedOut".toAnnotationType() shouldBe AnnotationType.PhasedOut_af5a
+                "PhasedOut_af5a".toAnnotationType() shouldBe AnnotationType.PhasedOut_af5a
+                shouldThrow<NoSuchElementException> { "UnknownAnnotation".toAnnotationType() }
+            }
+        }
 
         test("parses multiple modal choices") {
             val scenario = AcceptanceSuiteLoader.load("reflexive-modal").scenarios.first()
