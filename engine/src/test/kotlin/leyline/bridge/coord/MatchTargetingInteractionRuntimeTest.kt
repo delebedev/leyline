@@ -19,6 +19,8 @@ import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.SelectAction
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -145,7 +147,11 @@ class MatchTargetingInteractionRuntimeTest :
                 coordinator.targeting
                     .submitTargets(latest.interactionId, latest.gameStateId)
                     .shouldNotBeNull()
-            coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
+            coordinator
+                .drain(SeatId(1))
+                .flatten()
+                .single { it.type == GREMessageType.SubmitTargetsResp_695e }
+                .messageCase shouldBe GREToClientMessage.MessageCase.MESSAGE_NOT_SET
             val acknowledged = AtomicReference<Boolean>()
             val acknowledgementReturned = CountDownLatch(1)
             Thread {
@@ -258,7 +264,7 @@ class MatchTargetingInteractionRuntimeTest :
                 coordinator.targeting
                     .submitTargets(finishWindow.interactionId, finishWindow.gameStateId)
                     .shouldNotBeNull()
-            coordinator.drain(SeatId(1)).flatten().single { it.hasSubmitTargetsResp() }
+            coordinator.drain(SeatId(1)).flatten().single { it.type == GREMessageType.SubmitTargetsResp_695e }
             assertSoftly {
                 coordinator.targeting.acknowledgeDelivery(finish.interactionId, checkNotNull(finish.deliveryToken)) shouldBe true
                 finishFinished.await(3, TimeUnit.SECONDS) shouldBe true
@@ -393,7 +399,7 @@ class MatchTargetingInteractionRuntimeTest :
                     .targetsList
                     .single()
                     .legalAction shouldBe SelectAction.Unselect
-                echo.none { it.hasSubmitTargetsResp() } shouldBe true
+                echo.none { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe true
                 coordinator.targeting.current().shouldNotBeNull()
                 finished.count shouldBe 1
             }
@@ -407,7 +413,7 @@ class MatchTargetingInteractionRuntimeTest :
                     .shouldNotBeNull()
             val completion = coordinator.drain(SeatId(1)).flatten()
             assertSoftly {
-                completion.count { it.hasSubmitTargetsResp() } shouldBe 1
+                completion.count { it.type == GREMessageType.SubmitTargetsResp_695e } shouldBe 1
                 coordinator.targeting.acknowledgeDelivery(done.interactionId, checkNotNull(done.deliveryToken)) shouldBe
                     true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
