@@ -18,6 +18,7 @@ import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -730,6 +731,19 @@ object SnapshotHydration {
                 val attacker = cards[attackerId] ?: continue
                 combat.addBlocker(attacker, blocker)
             }
+        }
+        for (source in gsm.gameObjectsList.filter { it.attackState == AttackState.Attacking }) {
+            val attacker = cards[source.instanceId] ?: continue
+            if (phase == "COMBAT_DECLARE_BLOCKERS" ||
+                source.blockState == BlockState.Blocked ||
+                source.blockState == BlockState.Unblocked
+            ) {
+                combat.setBlocked(attacker, source.blockState == BlockState.Blocked || combat.getBlockers(attacker).isNotEmpty())
+            }
+        }
+        if (phase == "COMBAT_DECLARE_BLOCKERS") {
+            combat.orderBlockersForDamageAssignment()
+            combat.orderAttackersForDamageAssignment()
         }
         game.phaseHandler.setPriority(player)
         game.players.forEach { it.setHasPriority(it === player) }

@@ -1,5 +1,6 @@
 package leyline.copilot
 
+import forge.ai.simulation.GameStateEvaluator
 import forge.game.ability.ApiType
 import forge.game.card.CounterEnumType
 import io.kotest.matchers.collections.shouldContain
@@ -728,6 +729,8 @@ class SnapshotHydrationTest :
                 combat.isAttacking(attacker) shouldBe true
                 combat.isBlocking(blocker) shouldBe true
                 combat.getAttackersBlockedBy(blocker).single() shouldBe attacker
+                GameStateEvaluator().getScoreForGameState(game, game.players[0]).shouldNotBeNull()
+                combat.getBandOfAttacker(attacker).isBlocked shouldBe true
                 game.phaseHandler.priorityPlayer shouldBe game.players[0]
                 aura.entityAttachedTo shouldBe blocker
                 equipment.entityAttachedTo shouldBe blocker
@@ -736,6 +739,29 @@ class SnapshotHydrationTest :
                     .status shouldBe "carried"
             } finally {
                 hydrated.bridge.teardownResources()
+            }
+
+            val unblockedGsm =
+                gsm
+                    .toBuilder()
+                    .clearGameObjects()
+                    .addAllGameObjects(
+                        gsm.gameObjectsList.map {
+                            it
+                                .toBuilder()
+                                .clearBlockInfo()
+                                .clearBlockState()
+                                .build()
+                        },
+                    ).build()
+            val unblocked = SnapshotHydration.hydrateWithReport(unblockedGsm, 1, TestCardRegistry.repo)
+            try {
+                val game = unblocked.bridge.getGame().shouldNotBeNull()
+                val combat = game.combat.shouldNotBeNull()
+                combat.getBandOfAttacker(combat.getAttackers().single()).isBlocked shouldBe false
+                GameStateEvaluator().getScoreForGameState(game, game.players[0]).shouldNotBeNull()
+            } finally {
+                unblocked.bridge.teardownResources()
             }
         }
 
@@ -835,7 +861,9 @@ class SnapshotHydrationTest :
                 val combat = game.combat.shouldNotBeNull()
                 val attacker = combat.getAttackers().single()
                 attacker.name shouldBe "Raging Goblin"
+                combat.getBandOfAttacker(attacker).isBlocked shouldBe null
                 combat.getDefenderByAttacker(attacker).name shouldBe "Chandra, Torch of Defiance"
+                GameStateEvaluator().getScoreForGameState(game, game.players[1]).shouldNotBeNull()
                 cardIn(game.players[0], ForgeZoneType.Battlefield, "Llanowar Elves").isTapped shouldBe false
                 cardIn(game.players[0], ForgeZoneType.Battlefield, "Temple Garden").isTapped shouldBe false
                 val phase = hydrated.fidelity.features.single { it.feature == "phase" }
