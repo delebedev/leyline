@@ -58,6 +58,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.StateProjectionEnvironmentCapture
 import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.EmblemSnapshot
 import leyline.game.snapshot.GrpIdResolver
 import leyline.game.snapshot.GsmSnapshot
 import org.jetbrains.annotations.VisibleForTesting
@@ -673,6 +674,9 @@ class GameBridge(
     fun activeDecayedCleanupSources(): Set<ForgeCardId> = projectionStateSnapshot().annotations.decayedCleanupSources
 
     internal fun annotationProjectionStateSnapshot(): AnnotationProjectionState = projectionStateSnapshot().annotations
+
+    internal fun emblemLineage(cardId: ForgeCardId): EmblemSnapshot? =
+        activeProjectionEditor.get()?.emblemLineage?.get(cardId) ?: projectionStateSnapshot().emblemLineage[cardId]
 
     /** Records callback data; synthetic ids and lifecycle changes belong to projection compilation. */
     fun recordEarthbendResolution(
@@ -1310,8 +1314,7 @@ class GameBridge(
         val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        val grpId = resolveGrpId(card)
-        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         if (ability.trigger != null) {
             registry.resolve(definition)?.let { return it }
@@ -1354,8 +1357,7 @@ class GameBridge(
         card: Card,
         definition: AbilityDefinitionRef,
     ): ResolvedAbilityIdentity? {
-        val grpId = resolveGrpId(card)
-        val cardData = cardRepository.findByGrpId(grpId) ?: return null
+        val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
             ?: AbilityRegistry.build(card, cardData).let { refreshed ->
@@ -1363,6 +1365,14 @@ class GameBridge(
                 refreshed.resolve(definition)
             }
     }
+
+    private fun abilityCardData(card: Card): CardData? =
+        if (card.isEmblem) {
+            leyline.game.snapshot.EmblemSnapshot
+                .abilityData(card, this)
+        } else {
+            cardRepository.findByGrpId(resolveGrpId(card))
+        }
 
     /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
     fun evictAbilityRegistry(forgeCardId: Int) {

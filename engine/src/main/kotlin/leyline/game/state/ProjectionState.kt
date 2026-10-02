@@ -5,6 +5,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.LogicalSequenceState
+import leyline.game.snapshot.EmblemSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
@@ -28,6 +29,7 @@ data class ProjectionState(
     val delayedTriggerHolders: Map<Int, HolderRecord> = emptyMap(),
     val transientLinkedFaceFamilyIds: Set<InstanceId> = emptySet(),
     val tokenGrpIds: Map<Int, Int> = emptyMap(),
+    val emblemLineage: Map<ForgeCardId, EmblemSnapshot> = emptyMap(),
     val viewerCursors: Map<SeatId, ViewerProjectionCursor> = emptyMap(),
     val sequence: LogicalSequenceState = LogicalSequenceState(),
 ) {
@@ -48,6 +50,7 @@ data class ProjectionState(
         val delayedTriggerHolders = prior.delayedTriggerHolders.toMutableMap()
         var transientLinkedFaceFamilyIds = prior.transientLinkedFaceFamilyIds
         val tokenGrpIds = prior.tokenGrpIds.toMutableMap()
+        val emblemLineage = prior.emblemLineage.toMutableMap()
         val viewerCursors = prior.viewerCursors.toMutableMap()
         private val sequence = LogicalSequencePlanner(prior.sequence)
 
@@ -70,6 +73,7 @@ data class ProjectionState(
                 delayedTriggerHolders = delayedTriggerHolders.toMap(),
                 transientLinkedFaceFamilyIds = transientLinkedFaceFamilyIds.toSet(),
                 tokenGrpIds = tokenGrpIds.toMap(),
+                emblemLineage = emblemLineage.toMap(),
                 viewerCursors = viewerCursors.toMap(),
                 sequence = sequence.snapshot(),
             )

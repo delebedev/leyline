@@ -15,7 +15,8 @@ import org.slf4j.LoggerFactory
  * One chain, four cases — handled exhaustively here so callers don't reimplement
  * the branches:
  *
- * 1. [GamePieceType.EFFECT] — engine-bookkeeping surrogates (Puzzle Goal, Monarch,
+ * 1. Named emblems resolve to the universal identity 2. Other [GamePieceType.EFFECT]
+ *    engine-bookkeeping surrogates (Puzzle Goal, Monarch,
  *    The Ring, Radiation, City's Blessing, DetachedCardEffect, keywordEffect) have
  *    no client-DB row. Return 0; the projection layer drops them via
  *    `(gamePieceType==EFFECT && grpId==0)`.
@@ -119,6 +120,7 @@ object GrpIdResolver {
         instanceId: Int = 0,
         tokenRegistry: TokenIdentityRegistry = TokenIdentityRegistry(),
     ): Int {
+        if (card.isEmblem) return EmblemSnapshot.GRP_ID
         if (card.gamePieceType == GamePieceType.EFFECT) return 0
 
         if (card.isToken) {

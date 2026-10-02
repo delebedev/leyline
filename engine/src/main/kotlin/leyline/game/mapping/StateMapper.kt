@@ -180,6 +180,9 @@ object StateMapper {
             )
         }
         val snap = rawSnap
+        snap.objects.forEach { (cardId, card) ->
+            card.emblem?.let { editor.emblemLineage.putIfAbsent(cardId, it) }
+        }
         val earthbendProjection: (ForgeCardId) -> EarthbendProjection? = { forgeCardId ->
             effectPlanner.earthbend.projectionFor(
                 forgeCardId,

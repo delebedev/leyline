@@ -66,9 +66,7 @@ internal object MutateSnapshotSupport {
                 player.getZone(ForgeZoneType.Merged)?.cards?.let(::addAll)
             }
         }.distinctBy { it.id }
-            .filter(::isSnapshotVisibleCard)
-
-    private fun isSnapshotVisibleCard(card: Card): Boolean = !card.isImmutable() || card.getEffectSource() == null
+            .filter(SnapshotCapture::isSnapshotVisibleCard)
 
     private data class ComponentAbilitySource(
         val abilityGrpId: Int,

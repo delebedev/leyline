@@ -5,6 +5,7 @@ import leyline.game.data.CardProtoBuilder
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.EarthbendProjection
+import leyline.game.snapshot.EmblemSnapshot
 import leyline.game.snapshot.LinkedFaceDescriptor
 import leyline.game.snapshot.ParentLinkage
 import leyline.game.snapshot.PreparedRole
@@ -187,6 +188,30 @@ object ObjectMapper {
         earthbend: EarthbendProjection? = null,
         grantedAbilitySnapshot: Map<Int, List<EffectTracker.TrackedGrantedAbility>> = emptyMap(),
     ): GameObjectInfo {
+        cardSnap.emblem?.let { emblem ->
+            return GameObjectInfo
+                .newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(EmblemSnapshot.GRP_ID)
+                .setOverlayGrpId(EmblemSnapshot.GRP_ID)
+                .setType(GameObjectType.Emblem)
+                .setZoneId(zoneId)
+                .setVisibility(Visibility.Public)
+                .setOwnerSeatId(cardSnap.owner.value)
+                .setControllerSeatId(cardSnap.controller.value)
+                .setObjectSourceGrpId(emblem.sourceGrpId)
+                .setParentId(emblem.parentInstanceId)
+                .setName(1)
+                .addAllUniqueAbilities(
+                    emblem.abilityGrpIds.mapIndexed { index, grpId ->
+                        UniqueAbilityInfo
+                            .newBuilder()
+                            .setId(50 + index)
+                            .setGrpId(grpId)
+                            .build()
+                    },
+                ).build()
+        }
         // Supported face-down creatures get a synthetic stencil envelope —
         // the per-card identity (name, subtypes, color, abilities) is
         // suppressed in favor of the universal face-down stencil (overlay

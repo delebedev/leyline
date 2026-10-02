@@ -1,0 +1,13 @@
+name: "Sephiroth, Fabled SOLDIER"
+grpId: 95975
+titleId: 928052
+abilities:
+  - id: 189222
+    textId: 928054
+    category: 2
+  - id: 189223
+    textId: 928055
+    category: 2
+expansionCode: "FIN"
+linkedFaces:
+  - 95976

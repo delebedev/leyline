@@ -609,23 +609,26 @@ object AnnotationPipeline {
                 MechanicSourceProjection.triggeringObjectZoneId(cast, sourceZone, ctx.mechanicSourceFacts)
 
             if (abilityIid in snapshotAppearanceIids || sourceCardIid in snapshotSourceIids) continue
-            annotationJournal.recordAbility(
-                AbilityWireIdentity(
-                    abilityIid = abilityIid,
-                    sourceIidAtCreate = sourceCardIid,
-                    sourceZoneAtCreate = sourceZone,
-                    abilityGrpId =
-                        cast.abilityGrpId.takeIf { it != 0 }
-                            ?: ctx.abilityGrpIdForSource(cast.cardId),
-                ),
-            )
-            annotations.add(
-                AnnotationBuilder.abilityInstanceCreated(
-                    InstanceId(abilityIid),
-                    InstanceId(sourceCardIid),
-                    sourceZone,
-                ),
-            )
+            // Target selection may already have published this pending trigger.
+            if (annotationJournal.ability(abilityIid) == null) {
+                annotationJournal.recordAbility(
+                    AbilityWireIdentity(
+                        abilityIid = abilityIid,
+                        sourceIidAtCreate = sourceCardIid,
+                        sourceZoneAtCreate = sourceZone,
+                        abilityGrpId =
+                            cast.abilityGrpId.takeIf { it != 0 }
+                                ?: ctx.abilityGrpIdForSource(cast.cardId),
+                    ),
+                )
+                annotations.add(
+                    AnnotationBuilder.abilityInstanceCreated(
+                        InstanceId(abilityIid),
+                        InstanceId(sourceCardIid),
+                        sourceZone,
+                    ),
+                )
+            }
             if (TriggeringObjectProjection.shouldEmit(
                     cast.abilityGrpId,
                     isActivatedAbility = false,

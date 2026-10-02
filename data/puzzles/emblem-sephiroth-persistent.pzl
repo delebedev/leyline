@@ -1,0 +1,23 @@
+# Mechanic: Create an emblem, remove its creator, and resolve a later targeted emblem trigger.
+# Forcing: Four creature deaths transform Sephiroth. Only the emblem can drain after Sephiroth dies.
+# AI behavior: No hand or available mana. All actions occur during the human main phase.
+# Failure modes: Win proves the final drain. Missing transform or targeting prevents lethal. A stalled prompt times out.
+# Card roles: Four Rats supply the threshold. Courser survives the first damage. Murder removes the creator. Shock kills Courser.
+# Protocol path: Command emblem, targeted Ability object, resolution, and transient ability retirement.
+[metadata]
+Name:Sephiroth emblem after source departure
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Create the emblem with four deaths, destroy Sephiroth, then kill the remaining creature for lethal emblem drain.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=7
+humanbattlefield=Sephiroth, Fabled SOLDIER|NoETBTrigs;Mountain;Mountain;Swamp;Swamp;Swamp
+humanhand=End the Festivities;Murder;Shock
+humanlibrary=Swamp;Swamp
+aibattlefield=Typhoid Rats;Typhoid Rats;Typhoid Rats;Typhoid Rats;Centaur Courser
+ailibrary=Forest;Forest

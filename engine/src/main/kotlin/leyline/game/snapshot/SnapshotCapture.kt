@@ -314,7 +314,7 @@ object SnapshotCapture {
     }
 
     /** Forge effect helpers model delayed/resolution machinery, not client-visible cards. */
-    private fun isSnapshotVisibleCard(card: Card): Boolean = !card.isImmutable() || card.getEffectSource() == null
+    internal fun isSnapshotVisibleCard(card: Card): Boolean = card.isEmblem || !card.isImmutable() || card.getEffectSource() == null
 
     // --- Object Capture ---
 
@@ -500,6 +500,7 @@ object SnapshotCapture {
                 sa.isActivatedAbility && !sa.isManaAbility()
             }
 
+        val emblem = EmblemSnapshot.capture(card, bridge)
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
             name = resolvedName,
@@ -508,9 +509,11 @@ object SnapshotCapture {
             controller = controllerSeat,
             mayLookSeatIds = mayLookSeatIds,
             isProjectable =
-                card.gamePieceType == forge.card.GamePieceType.CARD ||
+                emblem != null ||
+                    card.gamePieceType == forge.card.GamePieceType.CARD ||
                     card.gamePieceType == forge.card.GamePieceType.COPIED_SPELL ||
                     card.isToken,
+            emblem = emblem,
             basicLandManaAbilityGrpId = BasicLandAbilities.byForgeSubtypeNames(type.subtypes) ?: 0,
             effectSourceForgeCardId = card.effectSource?.let { ForgeCardId(it.id) },
             hasParadigmKeyword = card.hasKeyword("Paradigm"),

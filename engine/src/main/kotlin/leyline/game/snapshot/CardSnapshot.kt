@@ -17,8 +17,10 @@ data class CardSnapshot(
     val controller: SeatId,
     /** Seats that Forge currently allows to inspect this card in a hidden zone. */
     val mayLookSeatIds: Set<SeatId> = emptySet(),
-    /** True when this engine object is a client-visible card or token. */
+    /** True when this engine object is a client-visible card, token, or emblem. */
     val isProjectable: Boolean = true,
+    /** Public Command-zone emblem identity, separate from internal effect helpers. */
+    val emblem: EmblemSnapshot? = null,
     /** Implicit client mana-ability grpId for a basic land; 0 otherwise. */
     val basicLandManaAbilityGrpId: Int = 0,
     /** Forge identity of the effect source observed at snapshot capture. */
