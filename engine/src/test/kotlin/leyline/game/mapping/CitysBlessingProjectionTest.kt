@@ -95,6 +95,37 @@ class CitysBlessingProjectionTest :
             }
         }
 
+        test("phased-out permanents do not count toward Ascend and phased-out sources lose their badge") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Tendershoot Dryad", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", ai, ZoneType.Battlefield)
+                }
+            board.stateOnlyDiff()
+            val reduced =
+                board.snapshotDiff {
+                    board.human.battlefield
+                        .card("Forest")
+                        .phase(false)
+                }
+            reduced.persistentAnnotationsList
+                .single {
+                    AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Ascend"
+                }.detailInt("value") shouldBe 1
+            board.snapshotDiff {
+                board.human.battlefield
+                    .card("Tendershoot Dryad")
+                    .phase(false)
+            }
+            board.bridge
+                .projectionStateSnapshot()
+                .persistentAnnotations.activeAnnotations.values
+                .filter {
+                    AnnotationType.AbilityWordActive in it.typeList && it.detailString("AbilityWordName") == "Ascend"
+                }.shouldBeEmpty()
+        }
+
         test("ten permanents without Ascend do not project a blessing or Ascend badge") {
             val board = startWithBoard { _, human, _ -> repeat(10) { addCard("Forest", human, ZoneType.Battlefield) } }
             val gsm = board.stateOnlyDiff()

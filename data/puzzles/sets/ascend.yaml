@@ -10,10 +10,7 @@ scenarios:
       - choose: { optional_cost: done }
       - resolve_stack: {}
       - expect:
-          all:
-            - battlefield_stats: { side: ours, card: Saproling Token, power: 3, toughness: 3 }
-            - annotation_seen: { type: GainDesignation, details: { DesignationType: '6' } }
-            - annotation_seen: { type: Designation, details: { DesignationType: '6', PromptMessage: '126' } }
+          battlefield_stats: { side: ours, card: Saproling Token, power: 3, toughness: 3 }
       - cast: Naturalize
       - target: { side: ours, zone: battlefield, card: Ornithopter }
       - resolve_stack: {}

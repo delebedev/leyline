@@ -105,6 +105,7 @@ object AcceptanceSuiteLoader {
             "block" -> parseBlock(value, "$context.block")
             "attack" -> parseAttack(value, "$context.attack")
             "turn_face_up" -> TurnFaceUpStep(value.asString("$context.turn_face_up"))
+            "companion_to_hand" -> CompanionToHandStep(value.asString("$context.companion_to_hand"))
             "play_land" -> PlayLandStep(value.asString("$context.play_land"))
             "play_mdfc" -> PlayMdfcStep(value.asString("$context.play_mdfc"))
             "cast" -> parseCast(value, "$context.cast")

@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import forge.game.phase.PhaseType
+import leyline.bridge.CompanionAction
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
@@ -346,6 +347,17 @@ data object CommanderDesignationKind : PersistentAnnotationKind {
             "object" to affected
         }
     }
+}
+
+data object CompanionDesignationKind : PersistentAnnotationKind {
+    override val name = "CompanionDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList && designationTypeOf(ann) == CompanionAction.DESIGNATION_TYPE
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
 data object SaddledDesignationKind : PersistentAnnotationKind {
@@ -795,6 +807,7 @@ object PersistentAnnotationKinds {
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,
+            CompanionDesignationKind,
             SaddledDesignationKind,
             SuspectedDesignationKind,
             SolvedDesignationKind,

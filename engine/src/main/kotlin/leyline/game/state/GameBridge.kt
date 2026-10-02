@@ -8,6 +8,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
 import forge.game.card.CardTraitChanges
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
@@ -17,6 +18,7 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
+import leyline.bridge.CompanionAction
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopController
@@ -1043,6 +1045,7 @@ class GameBridge(
                 priorityPolicy = priorityPolicy,
                 runtimeHorizonMode = runtimeHorizonMode,
                 interactionRuntime = cutCoordinator,
+                onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
             )
         humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
@@ -1740,6 +1743,7 @@ class GameBridge(
                     priorityPolicy = priorityPolicy,
                     runtimeHorizonMode = runtimeHorizonMode,
                     interactionRuntime = cutCoordinator,
+                    onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
                 )
             humanController = controller
             human.addController(Long.MAX_VALUE - 1, human, controller, false)
@@ -1886,6 +1890,15 @@ class GameBridge(
         runWithTempControllers(game.players.filter { it.controller is PlayerControllerHuman }) {
             try {
                 method.invoke(puzzle, game)
+                for (player in game.players) {
+                    for (card in player.getCardsIn(ZoneType.Command).filter {
+                        it.hasKeyword(Keyword.COMPANION) &&
+                            !it.isCommander
+                    }) {
+                        player.getZone(ZoneType.Command).add(Player.createCompanionEffect(card))
+                    }
+                }
+                game.action.checkStaticAbilities(false)
             } catch (e: InvocationTargetException) {
                 throw IllegalStateException("Puzzle application failed", e.targetException)
             }
@@ -1961,7 +1974,17 @@ class GameBridge(
                     // initial state (cycling discard, unearth return, …).
                     // Without this seed, ZoneTransferDetector reads
                     // previousZones[iid]==null and silently skips emission.
-                    recordZone(iid, protocolZoneId)
+                    val projectedZoneId =
+                        if (zone == ZoneType.Command &&
+                            CompanionAction
+                                .chosenCard(player)
+                                ?.id == card.id
+                        ) {
+                            ZoneIds.sideboardOf(seatId)
+                        } else {
+                            protocolZoneId
+                        }
+                    recordZone(iid, projectedZoneId)
                     registered++
                 }
             }

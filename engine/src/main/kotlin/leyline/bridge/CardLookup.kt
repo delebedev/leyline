@@ -239,7 +239,7 @@ fun getNonManaActivatedAbilities(
     val sourceIds = sourceAbilities.map { it.id }.toMutableSet()
     for (ability in card.allSpellAbilities.orEmpty()) {
         val isNonManaActivatedAbility = ability.isActivatedAbility && !ability.isManaAbility()
-        if (ability.id !in sourceIds && (isNonManaActivatedAbility || isReconfigureUnattach(ability))) {
+        if (ability.id !in sourceIds && (isNonManaActivatedAbility || isReconfigureUnattach(ability) || CompanionAction.matches(ability))) {
             sourceAbilities.add(ability)
             sourceIds.add(ability.id)
         }
@@ -254,7 +254,7 @@ fun getNonManaActivatedAbilities(
         ability.setActivatingPlayer(player)
         val isSpecialTurnFaceUp =
             ability.isTurnFaceUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
-        if (!ability.isActivatedAbility && !isSpecialTurnFaceUp) continue
+        if (!ability.isActivatedAbility && !isSpecialTurnFaceUp && !CompanionAction.matches(ability)) continue
         if (ability.isManaAbility()) continue
         if (isReconfigureAttach(ability) && card.isAttachedToEntity) continue
         if (isReconfigureUnattach(ability) && !card.isAttachedToEntity) continue

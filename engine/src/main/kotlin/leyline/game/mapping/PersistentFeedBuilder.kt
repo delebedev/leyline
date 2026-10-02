@@ -16,6 +16,7 @@ import leyline.game.state.AbilityWordActiveKind
 import leyline.game.state.CitysBlessingDesignationKind
 import leyline.game.state.ColorProductionKind
 import leyline.game.state.CommanderDesignationKind
+import leyline.game.state.CompanionDesignationKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.DungeonStatusKind
@@ -264,10 +265,18 @@ internal object PersistentFeedBuilder {
                         triggerHolderIid = FrameIdResolver.speedTriggerHolderIid(seat.seatId),
                     )
                 }
+        val companions =
+            snap.seats.flatMap { seat ->
+                val companion = seat.companion ?: return@flatMap emptyList()
+                listOf(seat.seatId.value, companion.originalInstanceId).map { id ->
+                    AnnotationBuilder.companionDesignation(id, GrpId(companion.card.snapshot.grpId))
+                }
+            }
         return simpleRows +
             mapOf(
                 PreparedDesignationKind to prepared,
                 CommanderDesignationKind to commander,
+                CompanionDesignationKind to companions,
                 PlayerSpeedDesignationKind to playerSpeed,
                 CitysBlessingDesignationKind to
                     snap.seats

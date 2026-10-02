@@ -280,7 +280,7 @@ object AbilityWordScanner {
         )
 
         battlefieldCards
-            .filter { it.hasKeyword(Keyword.ASCEND) }
+            .filter { !it.isPhasedOut && it.hasKeyword(Keyword.ASCEND) }
             .groupBy { it.controller }
             .forEach { (controller, sources) ->
                 val seat = controller.game.registeredPlayers.indexOf(controller) + 1
@@ -288,7 +288,7 @@ object AbilityWordScanner {
                     AbilityWordEntry(
                         instanceId = seat,
                         abilityWordName = "Ascend",
-                        value = controller.getZone(ZoneType.Battlefield).size(),
+                        value = battlefieldCards.count { it.controller == controller && !it.isPhasedOut },
                         threshold = 10,
                         affectorId = seat,
                         affectedForgeCardIds = sources.map { ForgeCardId(it.id) },

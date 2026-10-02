@@ -8,6 +8,7 @@ import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.ActionAvailability
 import leyline.bridge.ActionManaCosts
+import leyline.bridge.CompanionAction
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
 import leyline.bridge.getAllCastableAbilities
@@ -654,6 +655,48 @@ object ActionMapper {
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
         addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, ::bindOffer)
 
+        val companion = snap.seats.firstOrNull { it.seatId.value == seatId }?.companion
+        if (player != null && companion?.available == true) {
+            val fid = companion.card.forgeCardId
+            val card = bridge.findCard(fid)
+            if (card != null) {
+                for ((index, ability) in candidates
+                    ?.forCard(card)
+                    ?.activations
+                    .orEmpty()
+                    .withIndex()) {
+                    if (!CompanionAction.matches(ability) || !ability.canPlay()) continue
+                    val action =
+                        Action
+                            .newBuilder()
+                            .setActionType(ActionType.Special_add3)
+                            .setInstanceId(bridge.getOrAllocInstanceId(fid).value)
+                            .setFacetId(bridge.getOrAllocInstanceId(fid).value)
+                            .setGrpId(companion.card.snapshot.grpId)
+                            .setAbilityGrpId(CompanionAction.ABILITY_GRP_ID)
+                            .addManaCost(
+                                ManaRequirement
+                                    .newBuilder()
+                                    .addColor(ManaColor.Generic)
+                                    .setCount(3)
+                                    .setAbilityGrpId(CompanionAction.ABILITY_GRP_ID),
+                            ).setShouldStop(true)
+                    if (canExecute(ability, player)) {
+                        CastDisplayCost.of(ability, player)?.let { cost ->
+                            autoTapForCost(player, cost)?.let(action::setAutoTapSolution)
+                        }
+                        addOffer(
+                            action.build(),
+                            PlayerAction.ActivateAbility(fid, index, ability = ability),
+                            CompanionAction.ABILITY_GRP_ID,
+                            ability.id,
+                        )
+                    } else {
+                        builder.addInactiveActions(action)
+                    }
+                }
+            }
+        }
         // Pass + FloatMana always available
         addOffer(Action.newBuilder().setActionType(ActionType.Pass).build(), PlayerAction.PassPriority)
         addOffer(Action.newBuilder().setActionType(ActionType.FloatMana).build(), PlayerAction.PassPriority)
@@ -1580,7 +1623,7 @@ object ActionMapper {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
             if (action.actionType == ActionType.Activate_add3) b.addAllManaCost(action.manaCostList)
-        } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3) {
+        } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3 || action.actionType == ActionType.Special_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
             if (action.alternativeGrpId != 0) b.setAlternativeGrpId(action.alternativeGrpId)

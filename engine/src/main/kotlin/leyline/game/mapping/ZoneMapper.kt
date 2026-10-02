@@ -133,7 +133,8 @@ object ZoneMapper {
                     .addViewers(seatId.value)
             for (fid in snap.zones[sbZoneId]?.contents ?: emptyList()) {
                 val instanceId = instanceIdLookup(fid).value
-                if (canSeeSideboard) {
+                val isCompanion = snap.seats.any { it.companion?.card?.forgeCardId == fid && it.companion.available }
+                if (canSeeSideboard || isCompanion) {
                     sbBuilder.addObjectInstanceIds(instanceId)
                     addPlayerCardObjects(
                         snap,
@@ -143,10 +144,10 @@ object ZoneMapper {
                         seatId,
                         environment,
                         instanceIdLookup,
-                        Visibility.Private,
+                        if (isCompanion) Visibility.Public else Visibility.Private,
                         "sideboard",
                         gameObjects,
-                        viewers = setOf(seatId.value),
+                        viewers = if (isCompanion) emptySet() else setOf(seatId.value),
                     )
                 }
             }

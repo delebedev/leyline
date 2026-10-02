@@ -81,6 +81,13 @@ enum class DestructionCause { Effect, LethalDamage, Deathtouch }
 enum class DamageSourceKind { Combat, SpellOrAbility, Fight }
 
 sealed interface GameEvent {
+    data class CompanionToHand(
+        val cardId: ForgeCardId,
+        val seatId: SeatId,
+        val originalInstanceId: Int,
+        val manaPayments: List<ManaPayment>,
+    ) : GameEvent
+
     data class OpeningHandAction(
         val cardId: ForgeCardId,
         val seatId: SeatId,
