@@ -1,0 +1,34 @@
+name: phasing
+description: A permanent phases out and returns with its abilities and loyalty intact.
+scenarios:
+  - id: kaito-cycle
+    puzzle: phasing-kaito-cycle
+    run: cast Kaito, wait for his end-step phase-out and next-turn return, then create a Ninja
+    expect: Kaito is unavailable while phased out and can activate after returning
+    steps:
+      - expect:
+          action: { type: cast, card: Kaito Shizuki }
+      - cast: Kaito Shizuki
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Kaito Shizuki }
+            - action: { type: activate, card: Kaito Shizuki }
+      - pass_until:
+          annotation_seen: PhasedOut
+          max_passes: 30
+      - expect:
+          action_not_available: { type: activate, card: Kaito Shizuki }
+      - pass_until:
+          annotation_seen: PhasedIn
+          max_passes: 40
+      - pass_until:
+          action: { type: activate, card: Kaito Shizuki }
+          max_passes: 12
+      - activate: { card: Kaito Shizuki, ability_index: 1 }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Kaito Shizuki }
+            - zone_contains: { side: ours, zone: battlefield, card: Ninja Token }
+            - stack_empty: true

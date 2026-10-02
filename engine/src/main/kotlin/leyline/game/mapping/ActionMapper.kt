@@ -90,7 +90,11 @@ object ActionMapper {
         val builder = ActionsAvailableReq.newBuilder()
         val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
         val hand = snap.zones[ZoneIds.handOf(seatId)]?.contents.orEmpty()
-        val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
+        val battlefield =
+            snap.zones[ZoneIds.BATTLEFIELD]
+                ?.contents
+                .orEmpty()
+                .filter { snap.objects[it]?.isPhasedOut != true }
 
         // Battlefield permanents: ActivateMana for untapped sources (own only).
         for (fid in battlefield) {
@@ -232,7 +236,11 @@ object ActionMapper {
 
         val handZoneId = ZoneIds.handOf(seatId)
         val hand = snap.zones[handZoneId]?.contents.orEmpty()
-        val battlefield = snap.zones[ZoneIds.BATTLEFIELD]?.contents.orEmpty()
+        val battlefield =
+            snap.zones[ZoneIds.BATTLEFIELD]
+                ?.contents
+                .orEmpty()
+                .filter { snap.objects[it]?.isPhasedOut != true }
 
         fun autoTapForCost(
             player: Player,

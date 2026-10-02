@@ -50,6 +50,8 @@ data class CardSnapshot(
     // --- ObjectMapper live state ---
     /** True when the card is in the Battlefield zone. */
     val isOnBattlefield: Boolean = false,
+    /** Phasing status preserves battlefield membership and object identity. */
+    val isPhasedOut: Boolean = false,
     /** Live net power from Forge (continuous effects/counters). Non-null only for creatures. */
     val netPower: Int? = null,
     /** Live net toughness from Forge (continuous effects/counters). Non-null only for creatures. */

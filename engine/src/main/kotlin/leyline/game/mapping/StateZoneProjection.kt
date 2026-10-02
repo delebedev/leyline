@@ -104,7 +104,7 @@ object StateZoneProjection {
                 ObjectMapper.buildFromSnapshot(
                     card,
                     instanceId,
-                    arenaZoneId,
+                    if (card.isPhasedOut) ZoneIds.PHASED_OUT else arenaZoneId,
                     card.owner.value,
                     environment.cardProto,
                     Visibility.Public,

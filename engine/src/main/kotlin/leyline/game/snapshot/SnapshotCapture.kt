@@ -309,7 +309,7 @@ object SnapshotCapture {
                 type = arenaType,
                 owner = null,
                 visibility = Visibility.Public,
-                contents = game.getCardsIn(fz).filter(::isSnapshotVisibleCard).map { ForgeCardId(it.id) },
+                contents = game.getCardsIncludePhasingIn(fz).filter(::isSnapshotVisibleCard).map { ForgeCardId(it.id) },
             )
     }
 
@@ -374,7 +374,7 @@ object SnapshotCapture {
             )
         for (zoneType in sharedZoneTypes) {
             val zoneId = sharedZoneId(zoneType) ?: continue
-            game.getCardsIn(zoneType).forEach { cards[zoneId to ForgeCardId(it.id)] = it }
+            game.getCardsIncludePhasingIn(zoneType).forEach { cards[zoneId to ForgeCardId(it.id)] = it }
         }
         return cards
     }
@@ -524,6 +524,7 @@ object SnapshotCapture {
             chosenColorIds = chosenColorIds,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
+            isPhasedOut = card.isPhasedOut,
             // P/T captured for all creatures so off-battlefield object shape stays stable.
             netPower = if (type.isCreature) card.netPower else null,
             netToughness = if (type.isCreature) card.netToughness else null,
