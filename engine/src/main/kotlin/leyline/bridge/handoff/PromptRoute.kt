@@ -175,6 +175,8 @@ data class SelectNShape(
 )
 
 enum class StaticChoiceKind {
+    Dungeon,
+    DungeonRoom,
     Color,
     Subtype,
     Parity,
@@ -307,6 +309,8 @@ object PromptRouteResolver {
                 cardSelect(semantic, CardSelectKind.SacrificeEffect, choiceResultSentiment = 1)
             PromptSemantic.MutateTopBottom -> cardSelect(semantic, CardSelectKind.MutateTopBottom)
             PromptSemantic.LearnLesson -> cardSelect(semantic, CardSelectKind.Learn)
+            PromptSemantic.DungeonChoice -> staticChoice(semantic, StaticChoiceKind.Dungeon)
+            PromptSemantic.DungeonRoomChoice -> staticChoice(semantic, StaticChoiceKind.DungeonRoom)
             PromptSemantic.StaticColorChoice ->
                 staticChoice(semantic, StaticChoiceKind.Color)
             PromptSemantic.StaticSubtypeChoice ->

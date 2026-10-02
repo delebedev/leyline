@@ -5,6 +5,7 @@ import forge.LobbyPlayer
 import forge.ai.LobbyPlayerAi
 import forge.card.ColorSet
 import forge.card.GamePieceType
+import forge.card.ICardFace
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.Game
@@ -1610,6 +1611,29 @@ class PlayerController(
         num: Int,
         params: MutableMap<String, Any>?,
     ): List<SpellAbility> = chooseModeForAbility(sa, spells.map { it as AbilitySub }.toMutableList(), num, num, false)
+
+    /** Inherited card-face choices default through the GUI; the engine thread awaits an exact dungeon ID. */
+    override fun chooseSingleCardFace(
+        sa: SpellAbility,
+        faces: List<ICardFace>,
+        message: String,
+    ): ICardFace =
+        if (sa.api == ApiType.Venture) staticChoiceCoordinator.chooseDungeon(faces, sa) else super.chooseSingleCardFace(sa, faces, message)
+
+    /** Inherited single-effect choices default through the GUI; room handles return from the value-choice runtime. */
+    override fun chooseSingleSpellForEffect(
+        spells: List<SpellAbility>,
+        sa: SpellAbility,
+        title: String,
+        params: MutableMap<String, Any>?,
+    ): SpellAbility =
+        if (sa.api ==
+            ApiType.Venture
+        ) {
+            staticChoiceCoordinator.chooseRoom(spells, sa)
+        } else {
+            super.chooseSingleSpellForEffect(spells, sa, title, params)
+        }
 
     override fun chooseModeForAbility(
         sa: SpellAbility,

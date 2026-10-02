@@ -129,7 +129,14 @@ class AbilityRegistry private constructor(
             val triggerMap = mutableMapOf<Int, Int>()
             val keywordFamilies = mutableMapOf<AbilityDefinitionRef, AbilityKeywordFamily>()
 
-            val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap, keywordFamilies)
+            val keywordCount =
+                if (card.type.isDungeon) {
+                    check(card.triggers.size == abilityIds.size) { "Dungeon room definitions must match catalog rows" }
+                    card.triggers.zip(abilityIds).forEach { (trigger, row) -> triggerMap[trigger.definitionId] = row.first }
+                    0
+                } else {
+                    mapKeywords(card, abilityIds, saMap, staticMap, triggerMap, keywordFamilies)
+                }
             val slotKinds =
                 abilityIds.mapIndexed { i, _ ->
                     when {

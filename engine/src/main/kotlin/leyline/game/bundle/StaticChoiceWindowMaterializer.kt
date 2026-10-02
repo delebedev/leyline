@@ -2,9 +2,11 @@ package leyline.game.bundle
 
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.StaticChoiceWindowValue
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
@@ -39,8 +41,12 @@ internal class StaticChoiceWindowMaterializer {
                         Prompt
                             .newBuilder()
                             .setPromptId(outerPromptId(window.kind))
-                            .addParameters(cardIdPromptParameter(request.sourceId))
-                            .build()
+                            .addParameters(
+                                cardIdPromptParameter(
+                                    window.sourceForgeCardId?.let { context.requiredInstanceId(it, "Value choice card") }
+                                        ?: request.sourceId,
+                                ),
+                            ).build()
                     it.allowCancel = AllowCancel.No_a526
                 },
             )
@@ -52,7 +58,9 @@ internal class StaticChoiceWindowMaterializer {
         context: SettledPromptMaterializationContext,
     ): SelectNReq {
         val listType =
-            if (window.staticList == StaticList.Colors || window.staticList == StaticList.Parities) {
+            if (window.staticList == null) {
+                SelectionListType.Dynamic
+            } else if (window.staticList == StaticList.Colors || window.staticList == StaticList.Parities) {
                 SelectionListType.Static
             } else {
                 SelectionListType.StaticSubset
@@ -67,17 +75,29 @@ internal class StaticChoiceWindowMaterializer {
             .setMaxWeight(Int.MAX_VALUE)
             .setMinSel(window.min)
             .setMaxSel(window.max)
-            .setStaticList(window.staticList)
             .setPrompt(Prompt.newBuilder())
             .apply {
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "StaticChoice source") }
-                if (listType == SelectionListType.StaticSubset) addAllIds(window.options.map { it.protocolValue })
+                window.staticList?.let { staticList = it }
+                if (window.sourceForgeAbilityId != 0) {
+                    sourceId =
+                        context.requiredInstanceId(
+                            FrameIdResolver.triggerStackAbilityForgeId(window.sourceForgeAbilityId),
+                            "Dungeon venture ability",
+                        )
+                }
+                if (listType == SelectionListType.Dynamic) {
+                    idType = if (window.kind == StaticChoiceKind.Dungeon) IdType.CardGrpId else IdType.AbilityGrpId
+                }
+                if (listType != SelectionListType.Static) addAllIds(window.options.map { it.protocolValue })
             }.build()
     }
 
     private fun outerPromptId(kind: StaticChoiceKind): Int =
         when (kind) {
             StaticChoiceKind.Color -> PromptIds.CHOOSE_COLOR
+            StaticChoiceKind.Dungeon,
+            StaticChoiceKind.DungeonRoom,
             StaticChoiceKind.Subtype,
             StaticChoiceKind.Parity,
             -> PromptIds.CHOOSE_TYPE

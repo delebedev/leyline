@@ -120,6 +120,7 @@ object GrpIdResolver {
         instanceId: Int = 0,
         tokenRegistry: TokenIdentityRegistry = TokenIdentityRegistry(),
     ): Int {
+        if (card.type.isDungeon) return DungeonSnapshot.grpId(card.name, cards)
         if (card.isEmblem) return EmblemSnapshot.GRP_ID
         if (card.gamePieceType == GamePieceType.EFFECT) return 0
 

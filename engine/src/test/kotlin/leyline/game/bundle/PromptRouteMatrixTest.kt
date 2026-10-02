@@ -119,6 +119,8 @@ class PromptRouteMatrixTest :
                         cardSelect(PromptSemantic.MutateTopBottom, CardSelectKind.MutateTopBottom),
                     PromptSemantic.LearnLesson to
                         cardSelect(PromptSemantic.LearnLesson, CardSelectKind.Learn),
+                    PromptSemantic.DungeonChoice to staticChoice(PromptSemantic.DungeonChoice, StaticChoiceKind.Dungeon),
+                    PromptSemantic.DungeonRoomChoice to staticChoice(PromptSemantic.DungeonRoomChoice, StaticChoiceKind.DungeonRoom),
                     PromptSemantic.StaticColorChoice to staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color),
                     PromptSemantic.StaticSubtypeChoice to staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype),
                     PromptSemantic.StaticParityChoice to

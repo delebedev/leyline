@@ -424,6 +424,10 @@ class GameBridge(
                 it.instanceIdReservoir = ::reserveInstanceId
                 it.abilityIdentityResolver = { sa -> sa.hostCard?.let { card -> resolvePromptAbilityIdentity(card, sa) } }
                 it.cardGrpIdResolver = ::resolveGrpId
+                it.cardNameGrpIdResolver = { name ->
+                    leyline.game.snapshot.DungeonSnapshot
+                        .grpId(name, cardRepository)
+                }
                 it.triggerStackAbilityInstanceIdResolver = { abilityId ->
                     peekInstanceId(FrameIdResolver.triggerStackAbilityForgeId(abilityId))?.value
                 }

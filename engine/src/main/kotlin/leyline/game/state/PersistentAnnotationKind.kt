@@ -152,6 +152,18 @@ private fun stringDetail(
         .firstOrNull { it.key == key && it.valueStringCount > 0 }
         ?.getValueString(0)
 
+data object DungeonStatusKind : PersistentAnnotationKind {
+    override val name = "DungeonStatus"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.DungeonStatus in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+
+    override fun preserveIdOnChange(ann: AnnotationInfo): Boolean = true
+}
+
 data object CounterKind : PersistentAnnotationKind {
     override val name = "Counter"
     override val pruneStale = false
@@ -751,6 +763,7 @@ object PersistentAnnotationKinds {
     val upsertable: List<PersistentAnnotationKind> =
         listOf(
             CounterKind,
+            DungeonStatusKind,
             AbilityWordActiveKind,
             QualificationKind,
             CrewedThisTurnKind,

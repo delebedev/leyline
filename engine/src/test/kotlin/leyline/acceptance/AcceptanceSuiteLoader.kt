@@ -82,6 +82,7 @@ object AcceptanceSuiteLoader {
             "choose" -> parseChoose(value, "$context.choose")
             "mana_type_choices" -> parseManaTypeChoices(value, "$context.mana_type_choices")
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
+            "group_keep" -> GroupKeepStep
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "cancel_action" -> CancelActionStep
@@ -244,6 +245,7 @@ object AcceptanceSuiteLoader {
         return ChooseStep(
             optionalCost = map.optionalString("optional_cost", context)?.let(AcceptanceCastingTimeOption::parse),
             ctoId = map.optionalInt("cto_id", context),
+            optionLabel = map.optionalString("label", context),
         )
     }
 

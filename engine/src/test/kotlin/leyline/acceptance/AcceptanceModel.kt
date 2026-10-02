@@ -63,8 +63,9 @@ data class ActivateManaStep(
 data class ChooseStep(
     val optionalCost: AcceptanceCastingTimeOption?,
     val ctoId: Int?,
+    val optionLabel: String? = null,
 ) : AcceptanceStep {
-    override val label: String = optionalCost?.let { "choose ${it.yamlName}" } ?: "choose cto $ctoId"
+    override val label: String = optionLabel?.let { "choose $it" } ?: optionalCost?.let { "choose ${it.yamlName}" } ?: "choose cto $ctoId"
 }
 
 data class ManaTypeChoicesStep(
@@ -89,6 +90,10 @@ data class OptionalActionStep(
     val accept: Boolean,
 ) : AcceptanceStep {
     override val label: String = if (accept) "optional_action accept" else "optional_action decline"
+}
+
+data object GroupKeepStep : AcceptanceStep {
+    override val label: String = "group_keep"
 }
 
 data object CancelActionStep : AcceptanceStep {

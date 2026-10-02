@@ -178,7 +178,7 @@ class ForgeCardRepository private constructor(
                     }
                 }
             }
-            addRows(face.keywords)
+            addRows(definitionKeywords(face))
             addRows(face.abilities)
             addRows(face.triggers)
             addRows(face.staticAbilities)
@@ -195,6 +195,28 @@ class ForgeCardRepository private constructor(
                 add("$prefix:emblem-ability:$variable")
             }
         }
+
+        private fun abilityText(
+            params: Map<String, String>,
+            raw: String,
+        ): String {
+            val description = params["SpellDescription"] ?: params["TriggerDescription"] ?: params["Description"] ?: raw
+            return params["RoomName"]?.let { "$it — $description" } ?: description
+        }
+
+        private fun definitionKeywords(face: ICardFace): List<String> =
+            if (face.type.isDungeon) {
+                val variables = face.variables.associate { it.key to it.value }
+                face.keywords
+                    .filter {
+                        it.startsWith(
+                            "Dungeon:",
+                        )
+                    }.flatMap { it.substringAfter(':').split(',') }
+                    .map { variables.getValue(it) }
+            } else {
+                face.keywords.toList()
+            }
 
         private fun emblemAbilityDefinitions(face: ICardFace): List<Pair<String, Int>> {
             val variables = face.variables.associate { it.key to it.value }
@@ -451,8 +473,7 @@ class ForgeCardRepository private constructor(
             categories += category
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
-            val text = parsed["SpellDescription"] ?: parsed["TriggerDescription"] ?: parsed["Description"] ?: raw
-            rows.registerAbilityLocalization(id, AbilityLocalization(text, mana))
+            rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana))
             val effect = modalEffect(parsed, variables)
             effect["Choices"]
                 ?.split(",")
@@ -465,7 +486,11 @@ class ForgeCardRepository private constructor(
             return id
         }
 
-        face.keywords.forEach { keyword ->
+        definitionKeywords(face).forEach { keyword ->
+            if (face.type.isDungeon) {
+                addRow(keyword, 2, SlotKind.Intrinsic)
+                return@forEach
+            }
             val parts = keyword.split(":")
             addRow(keyword, 8, SlotKind.Keyword, keywordBases[normalize(parts.first())] ?: 0, parts.getOrElse(1) { "" })
         }
