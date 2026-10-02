@@ -14,6 +14,7 @@ internal object StaticChoiceWindowCapture {
         val route = request.route as? ResolvedPromptRoute.StaticChoice ?: error("StaticChoice route required")
         val allowedLists =
             when (route.descriptor.kind) {
+                StaticChoiceKind.Dungeon, StaticChoiceKind.DungeonRoom -> setOf(null)
                 StaticChoiceKind.Color -> setOf(StaticList.Colors, StaticList.CardColors)
                 StaticChoiceKind.Subtype -> setOf(StaticList.SubTypes)
                 StaticChoiceKind.Parity -> setOf(StaticList.Parities)
@@ -25,7 +26,8 @@ internal object StaticChoiceWindowCapture {
         check(request.defaultIndex in request.options.indices) { "Invalid StaticChoice default option" }
         return StaticChoiceWindowValue(
             kind = route.descriptor.kind,
-            staticList = checkNotNull(request.staticList),
+            staticList = request.staticList,
+            sourceForgeAbilityId = request.forgeAbilityId,
             options =
                 request.staticOptionIds.mapIndexed { index, value ->
                     StaticChoiceOptionValue(index, value)

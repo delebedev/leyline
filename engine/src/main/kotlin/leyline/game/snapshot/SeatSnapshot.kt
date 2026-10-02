@@ -23,5 +23,6 @@ data class SeatSnapshot(
     val startingLife: Int,
     val maxHandSize: Int,
     val speed: Int = 0,
+    val dungeon: DungeonSnapshot? = null,
     val manaPool: List<ManaPoolEntry> = emptyList(),
 )

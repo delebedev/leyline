@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.card.ColorSet
+import forge.card.ICardFace
 import forge.card.MagicColor
 import forge.game.card.Card
 import forge.game.player.PlayerController.BinaryChoiceType
@@ -18,6 +19,47 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 class StaticChoiceCoordinator(
     private val bridge: InteractivePromptBridge,
 ) {
+    fun chooseDungeon(
+        faces: List<ICardFace>,
+        sa: SpellAbility,
+    ): ICardFace {
+        val ids = faces.map { bridge.resolveCardNameGrpId(it.name) }
+        return faces[catalogChoice(faces.map { it.name }, ids, sa, PromptSemantic.DungeonChoice)]
+    }
+
+    fun chooseRoom(
+        spells: List<SpellAbility>,
+        sa: SpellAbility,
+    ): SpellAbility {
+        val ids = spells.map { checkNotNull(bridge.resolveAbilityIdentity(it)) { "Dungeon room has no identity" }.abilityGrpId }
+        return spells[catalogChoice(spells.map { it.getParam("RoomName") }, ids, sa, PromptSemantic.DungeonRoomChoice)]
+    }
+
+    private fun catalogChoice(
+        labels: List<String>,
+        ids: List<Int>,
+        sa: SpellAbility,
+        semantic: PromptSemantic,
+    ): Int {
+        val stack =
+            sa.hostCard.game.stack
+                .firstOrNull()
+        return checkNotNull(
+            bridge
+                .requestStaticChoice(
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "Choose dungeon or room",
+                        options = labels,
+                        route = PromptRouteResolver.resolve(semantic),
+                        staticOptionIds = ids,
+                        sourceEntityId = stack?.sourceCard?.id ?: sa.hostCard.id,
+                        forgeAbilityId = stack?.takeUnless { it.isSpell }?.spellAbility?.id ?: 0,
+                    ),
+                ).singleOrNull(),
+        ) { "Dungeon choice requires one answer" }
+    }
+
     fun confirmAction(
         message: String,
         options: List<String>,

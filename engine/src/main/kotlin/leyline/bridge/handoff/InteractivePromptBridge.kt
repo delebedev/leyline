@@ -62,6 +62,9 @@ class InteractivePromptBridge(
     var cardGrpIdResolver: ((Card) -> Int)? = null
 
     @Volatile
+    var cardNameGrpIdResolver: ((String) -> Int)? = null
+
+    @Volatile
     var triggerStackAbilityInstanceIdResolver: ((Int) -> Int?)? = null
 
     @Volatile
@@ -721,6 +724,8 @@ class InteractivePromptBridge(
 
     fun resolveCardGrpId(card: Card): Int = cardGrpIdResolver?.invoke(card) ?: 0
 
+    fun resolveCardNameGrpId(name: String): Int = checkNotNull(cardNameGrpIdResolver) { "Catalog name resolver unavailable" }.invoke(name)
+
     fun resolveTriggerStackAbilityInstanceId(abilityId: Int): Int? = triggerStackAbilityInstanceIdResolver?.invoke(abilityId)
 
     fun resolveTriggerStackAbilitySourceInstanceId(abilityId: Int): Int? = triggerStackAbilitySourceInstanceIdResolver?.invoke(abilityId)
@@ -848,6 +853,9 @@ enum class PromptSemantic {
 
     /** Static enum choice: choose odd or even via `StaticList_Parities`. */
     StaticParityChoice,
+
+    DungeonChoice,
+    DungeonRoomChoice,
 }
 
 /**
@@ -895,10 +903,10 @@ data class PromptRequest(
     /** True when modal originates from a triggered ability (ETB), not spell-time. */
     val isTriggeredAbility: Boolean = false,
     /**
-     * Forge `SpellAbility.id` for triggered modal prompts. Drives SA-id-keyed
+     * Forge `SpellAbility.id` for modal and catalog ability prompts. Drives SA-id-keyed
      * surrogate iid resolution for the modal CTO request's `sourceInstanceId`,
      * matching the iid the StateMapper emits on the matching
-     * AbilityInstanceCreated. Zero when the prompt isn't a triggered modal.
+     * AbilityInstanceCreated. Zero for spell prompts or prompts without an exact ability source.
      */
     val forgeAbilityId: Int = 0,
     /**

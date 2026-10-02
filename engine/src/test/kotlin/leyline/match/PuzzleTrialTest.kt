@@ -1,6 +1,7 @@
 package leyline.match
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.seconds
 
 class PuzzleTrialTest :
     FunSpec({
@@ -164,6 +166,10 @@ class PuzzleTrialTest :
             }
             closed.await(1, TimeUnit.SECONDS) shouldBe true
             closeThread.get() shouldBe adviceThread.get()
+            // The close callback precedes the worker's ownership handoff.
+            eventually(1.seconds) {
+                PuzzleTrial(fakeRuntime()).run(PuzzleDefinition("after-cleanup", boltPuzzle)).status shouldBe PuzzleTrialStatus.Unsupported
+            }
         }
 
         test("a close failure remains a structured engine result") {

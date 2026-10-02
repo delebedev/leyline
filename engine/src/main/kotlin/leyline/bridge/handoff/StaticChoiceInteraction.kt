@@ -11,7 +11,8 @@ data class StaticChoiceOptionValue(
 /** Immutable materialization input for one static enum SelectN window. */
 data class StaticChoiceWindowValue(
     val kind: StaticChoiceKind,
-    val staticList: StaticList,
+    val staticList: StaticList?,
+    val sourceForgeAbilityId: Int = 0,
     val options: List<StaticChoiceOptionValue>,
     val sourceForgeCardId: ForgeCardId?,
     val min: Int,

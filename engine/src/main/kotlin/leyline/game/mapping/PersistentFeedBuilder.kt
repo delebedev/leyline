@@ -17,6 +17,7 @@ import leyline.game.state.ColorProductionKind
 import leyline.game.state.CommanderDesignationKind
 import leyline.game.state.DayNightDesignationKind
 import leyline.game.state.DelayedTriggerAffecteesKind
+import leyline.game.state.DungeonStatusKind
 import leyline.game.state.FaceDownCloakKind
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FaceDownForetellKind
@@ -92,6 +93,18 @@ internal object PersistentFeedBuilder {
                 PersistentFeedSet(
                     perKind =
                         mapOf(
+                            DungeonStatusKind to
+                                snap.seats.mapNotNull { seat ->
+                                    seat.dungeon?.let { dungeon ->
+                                        AnnotationBuilder.dungeonStatus(
+                                            seat.seatId.value,
+                                            dungeon.currentGrpId,
+                                            dungeon.currentForgeCardId?.let { frameIds.cardIid(it).value },
+                                            dungeon.currentRoomGrpId,
+                                            dungeon.completedGrpIds,
+                                        )
+                                    }
+                                },
                             QualificationKind to qualification,
                             TemporaryPermanentKind to temporaryPermanent.temporaryPermanent,
                             DelayedTriggerAffecteesKind to temporaryPermanent.delayedTriggerAffectees,

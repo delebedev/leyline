@@ -6,6 +6,7 @@ import forge.game.ability.AbilityKey
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardView
+import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.event.GameEventManaAbilityActivated
 import forge.game.event.GameEventSpellMovedToStack
@@ -1186,6 +1187,14 @@ class GameEventCollector(
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {
+        // Dungeon level events are room-entry cues; DungeonStatus projects the marker.
+        if (ev
+                .card()
+                .currentState.type.isDungeon &&
+            ev.type().`is`(CounterEnumType.LEVEL)
+        ) {
+            return
+        }
         val cardId = ForgeCardId(ev.card().id)
         val affectorAbilityForgeId = resolvingCounterTriggerAbilityIdFor(cardId) ?: 0
         frame.add(

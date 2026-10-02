@@ -1,6 +1,7 @@
 package leyline.testkit
 
 import forge.ai.LobbyPlayerAi
+import forge.game.GameEndReason
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
@@ -53,6 +54,34 @@ class MatchFlowHarnessTest :
             missing.shouldBeEmpty()
 
             h.phase() shouldBe "MAIN1"
+        }
+
+        test("game-over query survives teardown before terminal output is drained") {
+            val h = MatchFlowHarness(seed = 42L)
+            harness = h
+            h.connectAndKeep()
+            h.isGameOver().shouldBeFalse()
+
+            h.human.intentionalDraw()
+            h.ai.intentionalDraw()
+            h.game().setGameOver(GameEndReason.Draw)
+            h.game().isGameOver.shouldBeTrue()
+            h.bridge.shutdown()
+            h.bridge.getGame() shouldBe null
+            // Model the gap between bridge teardown and terminal output delivery.
+            h.allMessages.clear()
+            h.allRawMessages.clear()
+
+            h.isGameOver().shouldBeTrue()
+        }
+
+        test("game-over query recognizes concession") {
+            val h = MatchFlowHarness(seed = 42L)
+            harness = h
+            h.connectAndKeep()
+            h.concede()
+
+            h.isGameOver() shouldBe true
         }
 
         test("play land, pass turn, survive AI turn, reach next Main1 with valid state") {

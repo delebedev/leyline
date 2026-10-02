@@ -47,6 +47,7 @@ object SnapshotCapture {
                     startingLife = player.startingLife,
                     maxHandSize = player.maxHandSize,
                     speed = player.speed,
+                    dungeon = DungeonSnapshot.capture(player, bridge),
                     manaPool = ManaSnapshotCapture.capturePool(player, bridge),
                 )
             }
@@ -510,6 +511,7 @@ object SnapshotCapture {
             mayLookSeatIds = mayLookSeatIds,
             isProjectable =
                 emblem != null ||
+                    card.gamePieceType == forge.card.GamePieceType.DUNGEON ||
                     card.gamePieceType == forge.card.GamePieceType.CARD ||
                     card.gamePieceType == forge.card.GamePieceType.COPIED_SPELL ||
                     card.isToken,

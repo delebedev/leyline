@@ -157,6 +157,11 @@ private class ScenarioRun(
             is ChooseStep -> choose(step)
             is ManaTypeChoicesStep -> manaTypeChoices(step)
             is ModalChoiceStep -> modalChoice(step)
+            GroupKeepStep -> {
+                val req = checkNotNull(latestPromptMessage()?.takeIf { it.hasGroupReq() }?.groupReq)
+                require(req.context == wotc.mtgo.gre.external.messaging.Messages.GroupingContext.Scry_a0f6)
+                harness.respondToScry(emptyList(), req.instanceIdsList)
+            }
             is StaticChoiceStep -> staticChoice(step)
             is OptionalActionStep -> respondToOptionalAction(step)
             CancelActionStep -> harness.cancelAction()
@@ -407,6 +412,23 @@ private class ScenarioRun(
     }
 
     private fun choose(step: ChooseStep) {
+        if (step.optionLabel != null && step.optionalCost == null && step.ctoId == null) {
+            val req = checkNotNull(latestPromptMessage()?.takeIf { it.hasSelectNReq() }?.selectNReq)
+            require(req.listType == SelectionListType.Dynamic) { "$context expected catalog choice" }
+            val cards = harness.bridge.cardRepository
+            val selected =
+                req.idsList.single { id ->
+                    val text =
+                        when (req.idType) {
+                            wotc.mtgo.gre.external.messaging.Messages.IdType.CardGrpId -> cards.findNameByGrpId(id)
+                            wotc.mtgo.gre.external.messaging.Messages.IdType.AbilityGrpId -> cards.findAbilityLocalization(id)?.text
+                            else -> error("$context expected catalog identity, got ${req.idType}")
+                        }
+                    text == step.optionLabel || text?.startsWith("${step.optionLabel} —") == true
+                }
+            harness.respondToSelectN(listOf(selected))
+            return
+        }
         if (step.ctoId != null) {
             harness.respondToOptionalCost(step.ctoId)
             return

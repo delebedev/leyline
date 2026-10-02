@@ -1,0 +1,44 @@
+name: venture
+description: Dungeon selection, branching, completion, and reentry.
+scenarios:
+  - id: lost-mine-cycle
+    puzzle: venture-lost-mine
+    run: cast Acererak five times, take Goblin Lair and Dark Pool, complete Lost Mine and enter again
+    expect: rooms resolve, completion retains history, and a new dungeon starts
+    steps:
+      - cast: Acererak the Archlich
+      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - choose: { label: Lost Mine of Phandelver }
+      - pass_until: { prompt: GroupReq, max_passes: 8 }
+      - group_keep: {}
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: DungeonStatus
+            - zone_contains: { side: ours, zone: hand, card: Acererak the Archlich }
+      - cast: Acererak the Archlich
+      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - choose: { label: Goblin Lair }
+      - resolve_stack: {}
+      - expect: { zone_contains: { side: ours, zone: battlefield, card: Goblin Token } }
+      - cast: Acererak the Archlich
+      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - choose: { label: Dark Pool }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - our_life: 21
+            - opponent_life: 19
+      - cast: Acererak the Archlich
+      - resolve_stack: {}
+      - expect: { zone_count_at_least: { side: ours, zone: hand, count: 2 } }
+      - cast: Acererak the Archlich
+      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - choose: { label: Lost Mine of Phandelver }
+      - pass_until: { prompt: GroupReq, max_passes: 8 }
+      - group_keep: {}
+      - resolve_stack: {}
+      - expect:
+          all:
+            - annotation_seen: DungeonStatus
+            - zone_contains: { side: ours, zone: hand, card: Acererak the Archlich }

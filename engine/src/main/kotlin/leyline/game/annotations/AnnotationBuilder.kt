@@ -1840,6 +1840,33 @@ object AnnotationBuilder {
                 reason.wireInt ?: error("AnnotationLossReason ${reason.name} has no wire value"),
             )
 
+    fun dungeonStatus(
+        seatId: Int,
+        dungeon: Int?,
+        instanceId: Int?,
+        room: Int?,
+        completed: List<Int>,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .setAffectorId(seatId)
+            .addAffectedIds(seatId)
+            .addType(AnnotationType.DungeonStatus)
+            .addDetails(dungeon?.let { int32Detail("CurrentDungeon", it) } ?: typedStringDetail("CurrentDungeon", "nil"))
+            .addDetails(instanceId?.let { int32Detail("CurrentDungeonZCID", it) } ?: typedStringDetail("CurrentDungeonZCID", "nil"))
+            .addDetails(room?.let { int32Detail("CurrentRoom", it) } ?: typedStringDetail("CurrentRoom", "nil"))
+            .addDetails(
+                if (completed.isEmpty()) {
+                    KeyValuePairInfo
+                        .newBuilder()
+                        .setKey(
+                            "AllDungeonsCompleted",
+                        ).build()
+                } else {
+                    int32ListDetail("AllDungeonsCompleted", completed)
+                },
+            ).build()
+
     private fun int32Detail(
         key: String,
         value: Int,

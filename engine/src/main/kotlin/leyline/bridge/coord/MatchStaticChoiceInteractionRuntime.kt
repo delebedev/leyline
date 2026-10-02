@@ -116,6 +116,7 @@ internal class MatchStaticChoiceInteractionRuntime(
         pending: Window,
         selectedValues: List<Int>,
     ) {
+        val domain = pending.value.staticList ?: return
         val source = pending.value.sourceForgeCardId ?: return
         selectedValues.forEach { value ->
             owner.bridge
@@ -126,7 +127,7 @@ internal class MatchStaticChoiceInteractionRuntime(
                         sourceForgeCardId = source,
                         chooserSeatId = owner.humanSeat,
                         choiceValue = value,
-                        choiceDomain = pending.value.staticList.number,
+                        choiceDomain = domain.number,
                         sentiment = 2,
                     ),
                 )

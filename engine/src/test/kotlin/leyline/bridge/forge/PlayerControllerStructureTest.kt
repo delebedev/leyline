@@ -55,6 +55,8 @@ class PlayerControllerStructureTest :
                 "choosePermanentsToSacrifice",
                 "choosePlayerToAssistPayment",
                 "chooseSingleEntityForEffect",
+                "chooseSingleCardFace",
+                "chooseSingleSpellForEffect",
                 "chooseSingleStaticAbility",
                 "chooseSomeType",
                 "chooseSpellAbilityToPlay",
