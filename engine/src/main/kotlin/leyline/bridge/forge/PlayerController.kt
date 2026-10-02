@@ -1587,6 +1587,18 @@ class PlayerController(
         return bridge.requestModalChoice(request, choices, sa.hostCard, sa).firstOrNull()
     }
 
+    /**
+     * Inherited effect choices discard ability context through GUI views and silently default.
+     * Reuse the exact-handle modal bridge while the engine thread waits for the selected effects.
+     */
+    override fun chooseSpellAbilitiesForEffect(
+        spells: MutableList<SpellAbility>,
+        sa: SpellAbility,
+        title: String,
+        num: Int,
+        params: MutableMap<String, Any>?,
+    ): List<SpellAbility> = chooseModeForAbility(sa, spells.map { it as AbilitySub }.toMutableList(), num, num, false)
+
     override fun chooseModeForAbility(
         sa: SpellAbility,
         possible: MutableList<AbilitySub>,
