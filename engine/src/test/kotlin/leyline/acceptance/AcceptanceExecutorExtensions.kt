@@ -1,6 +1,7 @@
 package leyline.acceptance
 
 import forge.game.zone.ZoneType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
@@ -64,3 +65,6 @@ internal fun String.toForgePhaseName(): String =
         "COMBATDAMAGE" -> "COMBAT_DAMAGE"
         else -> uppercase()
     }
+
+internal fun String.toAnnotationType(): AnnotationType =
+    AnnotationType.entries.single { it.name == this || it.name.substringBefore('_') == this }

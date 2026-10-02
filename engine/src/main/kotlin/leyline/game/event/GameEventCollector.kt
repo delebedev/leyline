@@ -925,6 +925,19 @@ class GameEventCollector(
         }
     }
 
+    override fun visit(ev: GameEventCardPhased) {
+        val stack = bridge.getGame()?.stack
+        val cause = stack?.takeIf { ev.phaseState() && it.isResolving }?.peek()?.spellAbility
+        frame.add(
+            GameEvent.CardPhased(
+                ForgeCardId(ev.card().id),
+                ev.phaseState(),
+                affectorAbilityForgeId = cause?.takeUnless { it.isSpell }?.id ?: 0,
+                affectorSpellCardId = cause?.takeIf { it.isSpell }?.hostCard?.let { ForgeCardId(it.id) },
+            ),
+        )
+    }
+
     override fun visit(ev: GameEventCardTapped) {
         val cardId = ForgeCardId(ev.card().id)
         val enlistAttacker = consumeEnlistTapAffector(cardId) ?: pendingEnlistAffectors.remove(cardId)

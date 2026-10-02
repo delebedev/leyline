@@ -237,6 +237,14 @@ sealed interface GameEvent {
         val to: Zone,
     ) : GameEvent
 
+    /** A permanent changed phasing status without changing zones. */
+    data class CardPhased(
+        val cardId: ForgeCardId,
+        val phasedOut: Boolean,
+        val affectorAbilityForgeId: Int = 0,
+        val affectorSpellCardId: ForgeCardId? = null,
+    ) : GameEvent
+
     /** A permanent was tapped or untapped. */
     data class CardTapped(
         val cardId: ForgeCardId,

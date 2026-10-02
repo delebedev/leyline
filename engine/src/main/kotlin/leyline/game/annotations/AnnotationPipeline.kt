@@ -334,6 +334,11 @@ object AnnotationPipeline {
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
         }
+        if (ctx != null) {
+            events.filterIsInstance<GameEvent.CardPhased>().filterNot { it.phasedOut }.forEach { event ->
+                annotations.add(AnnotationBuilder.phasedPermanent(ctx.frameIds.cardIid(event.cardId), false))
+            }
+        }
         if (!resolutionOwnedDamageInserted) annotations.addAll(combatResult.annotations)
         annotations.addAll(damageResidualLifeAnnotations)
         for (transfer in deferredTransfers) emitTransfer(transfer)
@@ -407,6 +412,18 @@ object AnnotationPipeline {
             when (event) {
                 is GameEvent.DamageDealtToPlayer if event.changesLife ->
                     unclaimedDamageBySeat.merge(event.targetSeatId.value, event.amount, Int::plus)
+                is GameEvent.CardPhased -> {
+                    if (!event.phasedOut) return@forEachIndexed
+                    val affector = phasingAffectorId(ctx, event)
+                    addPayload(
+                        affector,
+                        AnnotationBuilder.phasedPermanent(
+                            ctx.frameIds.cardIid(event.cardId),
+                            event.phasedOut,
+                            InstanceId(affector).takeIf { affector != 0 },
+                        ),
+                    )
+                }
                 is GameEvent.CoinFlipped -> {
                     val affector = ctx.stackAbilityIid(event.abilityForgeId, event.sourceCardId)
                     addPayload(
@@ -468,6 +485,19 @@ object AnnotationPipeline {
         annotations.addAll(ordered)
         return damageResiduals
     }
+
+    private fun phasingAffectorId(
+        ctx: AnnotationContext,
+        event: GameEvent.CardPhased,
+    ): Int =
+        event.affectorAbilityForgeId.takeIf { it != 0 }?.let { ctx.frameIds.triggerStackAbilityIid(it).value }
+            ?: event.affectorSpellCardId?.let { sourceId ->
+                ctx.transferResult
+                    ?.transfers
+                    ?.firstOrNull {
+                        it.category == TransferCategory.Resolve && it.forgeCardId == sourceId
+                    }?.origId
+            } ?: 0
 
     private fun etbLifePaymentReplacement(ctx: AnnotationContext): Pair<AnnotationInfo, AppliedTransfer>? {
         val transfer = ctx.transferResult?.transfers?.singleOrNull { it.category == TransferCategory.PlayLand } ?: return null
