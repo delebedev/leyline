@@ -64,7 +64,7 @@ dependencies {
 }
 
 tasks.named<Test>("test") {
-    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag & !ForgeCatalogTag")
+    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
     systemProperty("leyline.content.root", rootProject.projectDir.absolutePath)
 }
 
@@ -113,14 +113,14 @@ val testGate =
 
 val testIntegration =
     registerEngineTest("testIntegration") {
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
     }
 
 val testIntegrationStrict =
     registerEngineTest("testIntegrationStrict") {
         (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
         outputs.cacheIf { false }
         outputs.upToDateWhen { false }
@@ -141,6 +141,12 @@ registerEngineTest("testAcceptance") {
     (project.findProperty("acceptanceSuites") as String?)?.let { systemProperty("acceptance.suites", it) }
     (project.findProperty("acceptanceScenarios") as String?)?.let { systemProperty("acceptance.scenarios", it) }
     (project.findProperty("acceptanceScry") as String?)?.let { systemProperty("acceptance.scry", it) }
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+}
+
+registerEngineTest("testConformance") {
+    systemProperty("kotest.tags", "ConformanceTag")
     maxParallelForks = 1
     inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
 }
