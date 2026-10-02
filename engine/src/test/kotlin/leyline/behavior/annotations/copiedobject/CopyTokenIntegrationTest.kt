@@ -1,10 +1,13 @@
 package leyline.behavior.annotations.copiedobject
 
+import forge.card.MagicColor
+import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -16,6 +19,7 @@ import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import leyline.testkit.StateMapperShell as StateMapper
 
@@ -29,6 +33,7 @@ import leyline.testkit.StateMapperShell as StateMapper
  * Board A: Electroduplicate (copy + haste + EOT sacrifice).
  * Board B: Homunculus Horde (permanent copy via draw trigger).
  */
+@Suppress("MissingAssertSoftly") // Later lifecycle steps require successful activation and resolution.
 class CopyTokenIntegrationTest :
     SessionTest({
 
@@ -41,6 +46,74 @@ class CopyTokenIntegrationTest :
             TestCardRegistry.ensureCardRegistered("Homunculus Horde")
             TestCardRegistry.ensureCardRegistered("Quick Study")
             TestCardRegistry.ensureCardRegistered("Island")
+        }
+
+        session(
+            "Eternalize pays and exiles its source before creating a functional modified copy",
+            fullControl = true,
+            puzzle =
+                """
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humangraveyard=Fanatic of Rhonas
+                humanbattlefield=Forest;Forest;Forest;Forest
+                humanlibrary=Forest;Forest;Forest;Forest;Forest
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 5,
+        ) {
+            val source = human.graveyard.card("Fanatic of Rhonas")
+            val sourceIid = human.graveyard.iid(source)
+            val offer =
+                allMessages
+                    .asReversed()
+                    .first { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .single {
+                        it.actionType == ActionType.Activate_add3 &&
+                            it.instanceId == sourceIid
+                    }
+            offer.abilityGrpId shouldBeGreaterThan 0
+            activateAbilityFromGraveyard("Fanatic of Rhonas").shouldBeTrue()
+            assertSoftly {
+                human.exile.card("Fanatic of Rhonas").id shouldBe source.id
+                human.getZone(ZoneType.Graveyard).cards.size shouldBe 0
+                human.getZone(ZoneType.Battlefield).cards.count { it.isToken } shouldBe 0
+                human.getZone(ZoneType.Battlefield).cards.count { it.isLand && it.isTapped } shouldBe 4
+                game().stack.size() shouldBe 1
+            }
+            passUntil(maxPasses = 10) { human.getZone(ZoneType.Battlefield).cards.any { it.isToken } }.shouldBeTrue()
+            val token = human.battlefield.card("Fanatic of Rhonas")
+            assertSoftly {
+                token.isToken shouldBe true
+                token.copiedPermanent.shouldNotBeNull()
+                token.basePower shouldBe 4
+                token.baseToughness shouldBe 4
+                token.color.color shouldBe MagicColor.BLACK
+                token.type.hasSubtype("Zombie") shouldBe true
+                token.type.hasSubtype("Snake") shouldBe true
+                token.type.hasSubtype("Druid") shouldBe true
+                token.manaCost.isNoCost shouldBe true
+                token.manaAbilities.size shouldBe 2
+                token.hasSickness() shouldBe true
+            }
+            val creationTurn = turn()
+            passUntil(maxPasses = 60) {
+                turn() > creationTurn &&
+                    game().phaseHandler.playerTurn == human &&
+                    game().phaseHandler.phase == PhaseType.MAIN1
+            }.shouldBeTrue()
+            val manaBefore = human.manaPool.totalMana()
+            val greenBefore = human.manaPool.getAmountOfColor(MagicColor.GREEN)
+            activateMana("Fanatic of Rhonas", abilityIndex = 1).shouldBeTrue()
+            assertSoftly {
+                token.isTapped shouldBe true
+                human.manaPool.totalMana() shouldBe manaBefore + 4
+                human.manaPool.getAmountOfColor(MagicColor.GREEN) shouldBe greenBefore + 4
+            }
         }
 
         // Board A: Electroduplicate targeting Grizzly Bears
