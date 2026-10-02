@@ -1,0 +1,17 @@
+# Pay for the chosen companion before casting it. Six Plains cover both costs.
+[metadata]
+Name:Companion to hand
+Goal:Survive
+Turns:5
+Difficulty:Tutorial
+Description:Put Lurrus into hand for three mana, then cast it normally.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humancommand=Lurrus of the Dream-Den
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Forest;Forest;Forest;Forest

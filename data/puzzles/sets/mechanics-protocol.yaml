@@ -1,6 +1,23 @@
 name: mechanics-protocol
 description: Focused protocol-mechanic acceptance scenarios promoted from manual puzzles.
 scenarios:
+  - id: companion-hand
+    puzzle: companion-hand
+    run: pay three mana to put the designated companion into hand, then cast it
+    expect: Lurrus enters hand without a stack ability, then resolves as an ordinary spell
+    steps:
+      - companion_to_hand: Lurrus of the Dream-Den
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Lurrus of the Dream-Den }
+            - stack_empty: true
+      - cast: Lurrus of the Dream-Den
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Lurrus of the Dream-Den }
+            - zone_not_contains: { side: ours, zone: hand, card: Lurrus of the Dream-Den }
+            - stack_empty: true
   - id: opening-hand-battlefield-put
     deck: [30 Leyline Axe, 30 Forest]
     opponent_deck: [60 Plains]

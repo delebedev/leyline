@@ -1,5 +1,6 @@
 package leyline.game.annotations
 
+import leyline.bridge.CompanionAction
 import leyline.bridge.types.EffectId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -1052,6 +1053,20 @@ object AnnotationBuilder {
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId.value)
             .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
+            .build()
+
+    /** Companion designates both the player and the original public card identity. */
+    fun companionDesignation(
+        affectedId: Int,
+        grpId: GrpId,
+    ): AnnotationInfo =
+        AnnotationInfo
+            .newBuilder()
+            .addType(AnnotationType.Designation)
+            .setAffectorId(affectedId)
+            .addAffectedIds(affectedId)
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, CompanionAction.DESIGNATION_TYPE))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId.value))
             .build()
 
     /** Persistent player speed designation (DesignationType=21). */

@@ -72,6 +72,10 @@ Puzzle startup already seeds a few stable facts that plain setup does not emit a
 - Instance and zone baselines for first-diff zone-transfer detection.
 - Persistent attachment annotations for cards that start attached.
 - Persistent counter annotations for players and permanents.
+- A non-commander card with Companion in `humancommand` or `aicommand`
+  represents an already designated companion and receives Forge's paid hand
+  action. Starting-deck eligibility is exercised separately through ordinary
+  deck startup. `companion-hand.pzl` covers payment followed by casting.
 
 Add more seeders only for stable facts that can be read from current engine state without guessing history.
 

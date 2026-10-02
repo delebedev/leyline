@@ -317,7 +317,7 @@ object ZoneTransferDetector {
                 // — see [FrameIdResolver.triggerStackAbilityForgeId]. Falls back to
                 // source-card-keyed when no in-window SpellCast carries the SA id.
                 val affectorId =
-                    if (category == TransferCategory.Warp) {
+                    if (category == TransferCategory.Warp || events.any { it is GameEvent.CompanionToHand && it.cardId == forgeCardId }) {
                         origId
                     } else if (ledgerIntent?.sourceCardId != null) {
                         val sourceCardId = ledgerIntent.sourceCardId

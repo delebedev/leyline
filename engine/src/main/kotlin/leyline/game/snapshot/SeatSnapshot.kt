@@ -25,4 +25,12 @@ data class SeatSnapshot(
     val speed: Int = 0,
     val dungeon: DungeonSnapshot? = null,
     val manaPool: List<ManaPoolEntry> = emptyList(),
+    val companion: CompanionSnapshot? = null,
+)
+
+/** Original designation identity remains stable when the playable card changes zones. */
+data class CompanionSnapshot(
+    val card: BoundCard,
+    val originalInstanceId: Int,
+    val available: Boolean,
 )
