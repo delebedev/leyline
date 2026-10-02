@@ -1,5 +1,7 @@
 name: phasing
 description: A permanent phases out and returns with its abilities and loyalty intact.
+web:
+  skip: Desktop Kaito phasing cycle verifies hidden permanents and their return.
 scenarios:
   - id: kaito-cycle
     puzzle: phasing-kaito-cycle
