@@ -10,6 +10,12 @@ Run `just test-conformance` for authored protocol obligations over the emitted
 GRE stream. The extended CI job runs the same task and propagates failures.
 JUnit output lives under `engine/build/test-results/testConformance/`.
 
+Conformance runs immediately after Build in Extended, before the longer
+integration, simclient, and acceptance suites. It shares Forge setup with those
+suites and executes its own scenarios, without depending on another task's
+output. A failure fails the required Extended check. Its check name stays stable
+for branch rules.
+
 [`ProtocolConformanceTest`](../engine/src/test/kotlin/leyline/behavior/conformance/ProtocolConformanceTest.kt)
 reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 

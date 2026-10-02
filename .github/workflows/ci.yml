@@ -203,6 +203,11 @@ jobs:
       - name: Build
         run: just build
 
+      - name: Test (conformance)
+        id: conformance
+        run: just test-conformance
+        continue-on-error: true
+
       - name: Test (integration)
         id: integration
         run: just test-integration
@@ -216,11 +221,6 @@ jobs:
       - name: Test (acceptance)
         id: acceptance
         run: just test-acceptance
-        continue-on-error: true
-
-      - name: Test (conformance)
-        id: conformance
-        run: just test-conformance
         continue-on-error: true
 
       - name: Upload test results
