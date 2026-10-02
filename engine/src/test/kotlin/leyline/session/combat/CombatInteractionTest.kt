@@ -315,6 +315,7 @@ class CombatInteractionTest :
             assertSoftly {
                 completed.shouldBeTrue()
                 installed.single().type shouldBe GREMessageType.SubmitAttackersResp_695e
+                installed.single().messageCase shouldBe GREToClientMessage.MessageCase.MESSAGE_NOT_SET
                 engineAlreadyResumed.shouldBeFalse()
             }
         }
@@ -1120,8 +1121,9 @@ class CombatInteractionTest :
             val confirmation =
                 after { assignDamage(listOf(assigner.instanceId to responseAssignments)) }
                     .messages
-                    .firstOrNull { it.hasAssignDamageConfirmation() }
+                    .firstOrNull { it.type == GREMessageType.AssignDamageConfirmation_695e }
             confirmation.shouldNotBeNull()
+            confirmation.messageCase shouldBe GREToClientMessage.MessageCase.MESSAGE_NOT_SET
 
             // 1 trample overflow to AI at 1 life → game should end
             if (!isGameOver()) passThroughCombat()
