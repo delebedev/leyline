@@ -13,6 +13,9 @@ object ForgeCatalogTag : Tag()
 /** Puzzle-backed scripted acceptance suites. Run via `just test-acceptance`. */
 object AcceptanceTag : Tag()
 
+/** Authored protocol obligations over deterministic scenario output. */
+object ConformanceTag : Tag()
+
 /**
  * Sim-client E2E tests — synthetic GRE log generation. Slow (drives full
  * games), so they sit outside the regular gate and run via `just test-simclient`.

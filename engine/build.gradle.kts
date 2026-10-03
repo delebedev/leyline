@@ -64,7 +64,7 @@ dependencies {
 }
 
 tasks.named<Test>("test") {
-    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag & !ForgeCatalogTag")
+    systemProperty("kotest.tags", "!SimClientTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
     systemProperty("leyline.content.root", rootProject.projectDir.absolutePath)
 }
 
@@ -113,18 +113,26 @@ val testGate =
 
 val testIntegration =
     registerEngineTest("testIntegration") {
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
     }
 
 val testIntegrationStrict =
     registerEngineTest("testIntegrationStrict") {
         (project.findProperty("jfrFile") as String?)?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
-        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ForgeCatalogTag")
+        systemProperty("kotest.tags", "IntegrationTag & !AcceptanceTag & !ConformanceTag & !ForgeCatalogTag")
         maxParallelForks = integrationForks
         outputs.cacheIf { false }
         outputs.upToDateWhen { false }
     }
+
+// Mutation regressions consume contract and scenario files outside the test classpath.
+listOf(tasks.named<Test>("test"), testIntegration, testIntegrationStrict).forEach { task ->
+    task.configure {
+        inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+        inputs.dir(rootProject.layout.projectDirectory.dir("conformance/contracts"))
+    }
+}
 
 registerEngineTest("testForgeCatalog") {
     systemProperty("kotest.tags", "ForgeCatalogTag")
@@ -143,6 +151,13 @@ registerEngineTest("testAcceptance") {
     (project.findProperty("acceptanceScry") as String?)?.let { systemProperty("acceptance.scry", it) }
     maxParallelForks = 1
     inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+}
+
+registerEngineTest("testConformance") {
+    systemProperty("kotest.tags", "ConformanceTag")
+    maxParallelForks = 1
+    inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+    inputs.dir(rootProject.layout.projectDirectory.dir("conformance/contracts"))
 }
 
 registerEngineTest("testSimClient") {

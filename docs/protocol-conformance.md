@@ -1,0 +1,88 @@
+---
+summary: "Bounded protocol contracts over deterministic acceptance scenarios, a CI lane, and separate checker regressions."
+read_when:
+  - "running or extending protocol conformance checks"
+  - "deciding which lifecycle assertions can replace duplicate session tests"
+---
+# Protocol conformance
+
+Run `just test-conformance` for authored YAML protocol obligations over the emitted
+GRE stream. Every file under [`conformance/contracts/`](../conformance/contracts/)
+is discovered and executed. The extended CI job runs the same task and propagates failures.
+JUnit output lives under `engine/build/test-results/testConformance/`.
+
+Conformance runs immediately after Build in Extended, before the longer
+integration, simclient, and acceptance suites. It shares Forge setup with those
+suites and executes its own scenarios, without depending on another task's
+output. A failure fails the required Extended check. Its check name stays stable
+for branch rules.
+
+[`ProtocolConformanceTest`](../engine/src/test/kotlin/leyline/behavior/conformance/ProtocolConformanceTest.kt)
+reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
+
+| Scenario | Protocol obligations |
+|---|---|
+| `warmup/land-spell-face` | Cast and resolution framing, source and target identity, exact damage count and typed detail values, object reallocation, target-row retirement. |
+| `mechanics-warmup/reconfigure-attach-unattach` | Ability and targeting order, target-group cardinality and bounds, prompt flags, source binding, submitted target identity, target-row retirement. |
+| `mechanics-protocol/llanowar-elves-mana` | Creature-source binding, activation and tap order, payment detail types and source identity, exact payment and retirement counts. |
+| `mechanics-protocol/investigate-novice-inspector` | Trigger-source row introduction and retirement, token parent and source identity, resolution framing. |
+| `mechanics-protocol/boast-usher-of-the-fallen` | Activation identity, exhaustion keys and remaining uses, token parent and source identity, resolution and ability retirement. |
+| `modal-warmup/shock-land-temple-garden` | Optional prompt source and incoming identity, life payment, land-entry identity and replacement-row retirement. |
+| `graveyard/disturb-lunarch` | Graveyard cast, back-face resolution, and object identity across death and casting. |
+| `mechanics-warmup/omen-lifecycle` | Token creation, library destination after resolution, and object reallocation. |
+
+Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
+Kotlin interprets the contracts. Changing an emitted field requires checking its protocol meaning
+before changing the expectation. A green gameplay scenario alone does not justify
+loosening a protocol assertion.
+
+Runtime card and ability identifiers use the Forge catalog. Contracts relate
+those identifiers within one interaction rather than pinning catalog-dependent
+numbers. Stable protocol values, detail keys, counts, and ordering are explicit.
+This suite proves the listed interactions, not catalog-wide identity parity or
+live-client presentation.
+
+Checker regression coverage is separate from the conformance driver.
+[`ProtocolContractTest`](../engine/src/test/kotlin/leyline/testkit/ProtocolContractTest.kt)
+runs pure parsing and matching regressions in the unit lane.
+[`ProtocolContractMutationTest`](../engine/src/test/kotlin/leyline/testkit/ProtocolContractMutationTest.kt)
+runs selected scenarios in the integration lane, verifies each baseline, then
+requires its contract to reject altered project-generated output:
+duplicate or wrong damage, premature retirement, empty target groups, incorrect
+source, prompt parameters or undo flags, untapped mana sources, incorrect payment
+sources, incorrect token parents or sources, remaining Boast uses, and missing
+retirement, reintroduced retired rows, contradictory row updates,
+incorrect optional-decision identities or life payments, incorrect
+Disturb source zones, and incorrect Omen destinations. Each regression scenario
+runs once; mutations reuse its messages. The conformance lane only discovers,
+executes, and verifies authored contracts.
+
+Keep mechanism, concurrency, cancellation, transport, and head presentation
+tests. Remove a duplicate lifecycle test only after a contract proves every
+distinct obligation that test protects.
+
+A contract names its acceptance `scenario` (`suite` and `id`), ordered `frames`,
+and optional exact `counts`. Each frame contains ordered `events` that coexist in
+one emitted message. A later frame may continue in that same message.
+An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
+`fields`, and `equals` references to earlier events. `sameRow` relates persistent
+row introduction and deletion. Field selectors support protobuf `raw` fields,
+normalized `details`, `detailTypes`, identities, array indices, and `length`.
+Enum fields use their protobuf names. Unknown schema fields, invalid references,
+and explicit null entries fail loading. A missing event, contradictory value, or
+incorrect count fails CI.
+Counts cover the scenario's entire emitted stream. Matching selects one start;
+subsequent events cannot skip a contradictory occurrence to accept a later valid copy.
+An optional `where` selects an event using `fields` or `equals` when other
+interactions emit the same type, such as multiple mana sources during payment.
+The first selected event must satisfy its assertions. A later valid selected
+event cannot hide an earlier contradictory one.
+
+Persistent rows become inactive at deletion. A later emission of that row is a
+new `create`, while repeated deletions retain their last-known identity for
+counting. The target, trigger-source, and replacement contracts require one
+creation, no updates, and one deletion for their selected row.
+
+Start with [`lightning-bolt.yaml`](../conformance/contracts/lightning-bolt.yaml)
+or [`rabbit-battery-target-selection.yaml`](../conformance/contracts/rabbit-battery-target-selection.yaml).
+Add one bounded interaction at a time and bind it to an existing scripted scenario.
