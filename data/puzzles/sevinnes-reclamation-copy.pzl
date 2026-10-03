@@ -1,0 +1,31 @@
+# Design Narrative
+# Mechanic: Flash back Sevinne's Reclamation, accept its optional spell copy, and retarget the copy.
+# Forcing: Basilisk Collar and Sol Ring are the only legal graveyard targets and exactly five mana pays flashback.
+# AI behavior: The opponent has no decisions before both spells resolve.
+# Failure modes:
+#   WIN = Both artifacts return and the spell card is exiled.
+#   LOSE = Either target remains in the graveyard or an extra permanent appears.
+#   TIMEOUT = The optional copy or retargeting prompt does not advance.
+# Card roles:
+#   Sevinne's Reclamation — flashback source and spell-copy effect.
+#   Basilisk Collar — original spell target.
+#   Sol Ring — copied spell target.
+# Protocol path: Graveyard cast action, target selection, optional choice, retargeting, stack resolution, and zone state.
+
+[metadata]
+Name:Sevinne's Reclamation Copy
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Flash back Sevinne's Reclamation and return two different permanents with the original and its copy.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanmanapool=4 W
+
+humangraveyard=Sevinne's Reclamation;Basilisk Collar;Sol Ring
+humanlibrary=Plains
+ailibrary=Mountain

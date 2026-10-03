@@ -495,6 +495,15 @@ class PlayerController(
             )
         }
 
+        if (sa?.api == ApiType.CopySpellAbility && sa.hasParam("Optional")) {
+            return optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "confirmAction:Optional",
+            )
+        }
+
         val displayMessage = message ?: "Confirm action?"
         val displayOptions =
             if (options.isNullOrEmpty()) {
