@@ -617,7 +617,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.CounterAdded
                 ann.affectedIdsList shouldContain 100
-                ann.detailString("counter_type") shouldBe "P1P1"
+                ann.detailInt("counter_type") shouldBe 1
                 ann.detailInt("transaction_amount") shouldBe 2
             }
         }
@@ -629,7 +629,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.CounterRemoved
                 ann.affectedIdsList shouldContain 200
-                ann.detailString("counter_type") shouldBe "LOYALTY"
+                ann.detailInt("counter_type") shouldBe 7
                 ann.detailInt("transaction_amount") shouldBe 3
             }
         }
@@ -784,6 +784,7 @@ class AnnotationBuilderTest :
                 CounterTypes.counterTypeId("AGE") shouldBe 9
                 CounterTypes.counterTypeId("BLOOD") shouldBe 15
                 CounterTypes.counterTypeId("STUN") shouldBe 172
+                CounterTypes.counterTypeId("DEFENSE") shouldBe 174
                 CounterTypes.counterTypeId("POISON") shouldBe 3
                 CounterTypes.counterTypeId("LORE") shouldBe 108
                 // Unknown falls back to 0

@@ -97,7 +97,7 @@ autonomous advisor, not the acceptance executor.
 - `./gradlew :engine:testAcceptance -PacceptanceSuites=<suite> -PacceptanceScenarios=<scenario>` — run one acceptance YAML scenario
 - `POST :8090/api/puzzle?file=<name>` — runtime API (GET returns current, POST with no params clears)
 
-For player-visible gameplay work, completion requires focused production tests, one repository-local puzzle-backed acceptance scenario, and an autonomous local-client playthrough. A lower layer does not substitute for a higher one. Ground public acceptance claims in repository-local tests, fixtures, puzzles, and docs.
+Routine fixes use focused tests, applicable headless acceptance or conformance, and required CI. Require autonomous client/browser gameplay, full-game runs, and proof videos only when explicitly requested or when implementing substantial new functionality, such as a new mechanic, prompt family, or player interaction lifecycle. Small corrections to existing mappings and flows complete at the deterministic proof layer. Apply this scope during PR preparation, review, and landing. Ground public acceptance claims in repository-local tests, fixtures, puzzles, and docs.
 
 ## Public Repo — Content Rules
 

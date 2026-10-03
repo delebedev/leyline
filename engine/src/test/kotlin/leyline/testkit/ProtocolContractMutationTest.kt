@@ -10,9 +10,11 @@ import leyline.acceptance.AcceptanceSuiteLoader
 import leyline.acceptance.MatchdoorAcceptanceExecutor
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 /**
  * Regression checks that selected authored contracts reject altered message streams.
@@ -121,7 +123,70 @@ class ProtocolContractMutationTest :
             withClue("wrong Omen destination") { shouldThrow<AssertionError> { contract.verify(wrongZone) } }
             withClue("wrong Omen identity") { shouldThrow<AssertionError> { contract.verify(wrongIdentity) } }
         }
+        regression("siege-defense-counters.yaml", ::checkCounterMutations)
     })
+
+private fun checkCounterMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    for (type in listOf(AnnotationType.CounterAdded, AnnotationType.CounterRemoved)) {
+        val stringType =
+            messages.mutatingAnnotation(type) {
+                it
+                    .toBuilder()
+                    .setDetails(
+                        it.detailsList.indexOfFirst { detail -> detail.key == "counter_type" },
+                        it
+                            .detail("counter_type")!!
+                            .toBuilder()
+                            .setType(KeyValuePairValueType.String)
+                            .clearValueInt32()
+                            .addValueString("Defense"),
+                    ).build()
+            }
+        val wrongType = messages.mutatingAnnotation(type) { it.withIntDetail("counter_type", CounterType.P1P1.number) }
+        val wrongAmount = messages.mutatingAnnotation(type) { it.withIntDetail("transaction_amount", 2) }
+        val wrongCard = messages.mutatingAnnotation(type) { it.toBuilder().setAffectedIds(0, 0).build() }
+        val duplicate =
+            GREToClientMessage
+                .newBuilder()
+                .setGameStateMessage(
+                    GameStateMessage.newBuilder().addAnnotations(messages.annotationsOfType(type).single()),
+                ).build()
+        for ((name, mutant) in listOf(
+            "string type" to stringType,
+            "wrong type" to wrongType,
+            "wrong amount" to wrongAmount,
+            "wrong card" to wrongCard,
+            "duplicate delta" to messages + duplicate,
+        )) {
+            withClue("$type $name") { shouldThrow<AssertionError> { contract.verify(mutant) } }
+        }
+    }
+    for (count in listOf(3, 0)) {
+        val wrongCount =
+            messages.mutatingAnnotation(AnnotationType.Counter_803b, persistent = true) {
+                if (it.detailInt("count") == count) it.withIntDetail("count", count + 1) else it
+            }
+        withClue("wrong persistent count $count") { shouldThrow<AssertionError> { contract.verify(wrongCount) } }
+    }
+    val wrongPersistentType =
+        messages.mutatingAnnotation(AnnotationType.Counter_803b, persistent = true) {
+            it.withIntDetail("counter_type", CounterType.P1P1.number)
+        }
+    val extraPersistentCard =
+        messages.mutatingAnnotation(AnnotationType.Counter_803b, persistent = true) { it.toBuilder().addAffectedIds(0).build() }
+    withClue("wrong persistent counter type") { shouldThrow<AssertionError> { contract.verify(wrongPersistentType) } }
+    withClue("extra persistent counter target") { shouldThrow<AssertionError> { contract.verify(extraPersistentCard) } }
+    val initialRow =
+        messages.allPersistentAnnotations().first {
+            AnnotationType.Counter_803b in it.typeList && it.detailInt("counter_type") == CounterType.Defense.number
+        }
+    withClue("missing initial counter retirement") {
+        shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(initialRow.id)) }
+    }
+}
 
 private fun checkDamageMutations(
     contract: ProtocolContract,

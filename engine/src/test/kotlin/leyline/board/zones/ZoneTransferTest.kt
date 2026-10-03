@@ -17,12 +17,12 @@ import leyline.testkit.BoardTest
 import leyline.testkit.annotation
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
-import leyline.testkit.detailString
 import leyline.testkit.findZoneTransfer
 import leyline.testkit.gsm
 import leyline.testkit.hasEnteredZoneThisTurn
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CounterType
 
 /**
  * Zone transfer subsystem tests — every zone pair the Arena client expects.
@@ -386,7 +386,7 @@ class ZoneTransferTest :
                 }
 
             val ann = gsm.annotation(AnnotationType.CounterAdded)
-            ann.detailString("counter_type") shouldBe "+1/+1"
+            ann.detailInt("counter_type") shouldBe CounterType.P1P1.number
             ann.detailInt("transaction_amount") shouldBe 2
         }
 

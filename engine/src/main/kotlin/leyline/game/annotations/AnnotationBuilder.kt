@@ -824,12 +824,10 @@ object AnnotationBuilder {
     private fun isPowerToughnessCounter(counterType: Int): Boolean =
         counterType == CounterType.P1P1.number || counterType == CounterType.M1M1.number
 
-    private fun counterTypeDetail(counterType: String): KeyValuePairInfo =
-        if (counterType == "-1/-1") {
-            int32Detail(DetailKeys.COUNTER_TYPE, CounterTypes.counterTypeId(counterType))
-        } else {
-            typedStringDetail(DetailKeys.COUNTER_TYPE, counterType)
-        }
+    private fun counterTypeDetail(counterType: String): KeyValuePairInfo {
+        val id = CounterTypes.counterTypeId(counterType)
+        return if (id != 0) int32Detail(DetailKeys.COUNTER_TYPE, id) else typedStringDetail(DetailKeys.COUNTER_TYPE, counterType)
+    }
 
     /** Counter state on a player. */
     fun playerCounter(
