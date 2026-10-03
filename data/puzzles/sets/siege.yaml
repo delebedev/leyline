@@ -1,0 +1,26 @@
+name: siege
+description: Cast, defeat, and cast the back face of a Siege.
+scenarios:
+  - id: zendikar-defeat-cast
+    puzzle: siege-zendikar
+    run: cast Invasion of Zendikar, attack it with Centaur Courser, and accept the transformed cast
+    expect: Awakened Skyclave resolves as a 4/4 permanent with an empty stack
+    steps:
+      - cast: Invasion of Zendikar
+      - pass_until: { prompt: SearchReq, max_passes: 12 }
+      - search_cards: { side: ours, cards: [Forest, Island] }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Invasion of Zendikar }
+      - pass_until: { prompt: DeclareAttackersReq, max_passes: 12 }
+      - attack:
+          cards: [Centaur Courser]
+          target: { side: ours, zone: battlefield, card: Invasion of Zendikar }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Awakened Skyclave }
+            - battlefield_stats: { side: ours, card: Awakened Skyclave, power: 4, toughness: 4 }
+            - opponent_life: 20
+            - stack_empty: true

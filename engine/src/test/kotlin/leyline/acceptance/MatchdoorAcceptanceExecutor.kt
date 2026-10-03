@@ -564,19 +564,18 @@ private class ScenarioRun(
                     .build()
 
             is CardTargetSpec -> {
-                require(target.side == AcceptanceSide.Opponent && target.zone == AcceptanceZone.Battlefield) {
-                    "$context attack target must be an opponent battlefield planeswalker, got ${target.label}"
+                require(target.zone == AcceptanceZone.Battlefield) {
+                    "$context attack target must be a battlefield permanent, got ${target.label}"
                 }
                 val card =
                     cardsInZone(target.side, target.zone)
                         .firstOrNull { it.name.equals(target.card, ignoreCase = true) }
                         ?: error("$context could not find attack target ${target.label}")
-                require(card.isPlaneswalker) { "$context attack target ${target.card} is not a planeswalker" }
-                DamageRecipient
-                    .newBuilder()
-                    .setType(DamageRecType.PlanesWalker)
-                    .setPlaneswalkerInstanceId(harness.bridge.instanceId(card))
-                    .build()
+                latestPromptMessage()!!
+                    .declareAttackersReq.attackersList
+                    .flatMap { it.legalDamageRecipientsList }
+                    .firstOrNull { it.type == DamageRecType.PlanesWalker && it.planeswalkerInstanceId == harness.bridge.instanceId(card) }
+                    ?: error("$context attack target ${target.card} is not offered")
             }
         }
 

@@ -537,6 +537,7 @@ object SnapshotCapture {
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
+            battleProtectorSeatId = if (onBf && card.isBattle) card.protectingPlayer?.let(bridge::seatOf) else null,
             mayLookSeatIds = mayLookSeatIds,
             isProjectable =
                 emblem != null ||

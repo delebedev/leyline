@@ -128,6 +128,12 @@ Example:
 
 If the YAML needs a concept the loader cannot express, add the smallest backend-neutral verb or condition to `engine/src/test/kotlin/leyline/acceptance/` rather than inventing ad-hoc keys.
 
+`attack.target` selects a battlefield permanent from the offered damage
+recipients, including a controlled Siege protected by the opponent. Use
+`{ side: ours, zone: battlefield, card: Invasion of Zendikar }` for that target.
+The [Siege suite](../data/puzzles/sets/siege.yaml) exercises its defeat and
+optional transformed cast through the normal combat and spell flows.
+
 ## Failure Classification
 
 When direct AI passes but acceptance fails, classify the gap before fixing:
