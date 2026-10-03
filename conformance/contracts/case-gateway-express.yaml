@@ -1,0 +1,79 @@
+name: Case solve progress and resolution
+scenario: {suite: mechanics-protocol, id: case-gateway-express-lifecycle}
+frames:
+  - id: tracker
+    events:
+      - id: tracker
+        type: AbilityWordActive
+        lane: persistent
+        op: create
+        keys: [AbilityGrpId, AbilityWordName, threshold, value]
+        fields: {details.AbilityWordName: [ToSolveCondition], details.value: [0], details.threshold: [3]}
+  - id: threshold
+    events:
+      - id: threshold
+        type: AbilityWordActive
+        lane: persistent
+        op: update
+        sameRow: tracker
+        where: {fields: {details.value: [3]}}
+        keys: [AbilityGrpId, AbilityWordName, threshold, value]
+        fields: {details.AbilityWordName: [ToSolveCondition], details.value: [3], details.threshold: [3]}
+        equals: {affectorId: tracker.affectorId, details.AbilityGrpId: tracker.details.AbilityGrpId}
+  - id: trigger
+    events:
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        keys: [source_zone]
+        fields: {details.source_zone: [28], affectedIds.length: 1}
+        equals: {affectorId: tracker.affectorId}
+  - id: resolution
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: "created.affectedIds[0]", details.grpid: tracker.details.AbilityGrpId}
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: "created.affectedIds[0]", details.grpid: tracker.details.AbilityGrpId}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: tracker.affectorId, affectedIds: created.affectedIds}
+      - id: power
+        type: ModifiedPower
+        lane: persistent
+        op: create
+        keys: [effect_id]
+        equals: {affectorId: tracker.affectorId}
+      - id: solved
+        type: Designation
+        lane: persistent
+        op: create
+        keys: [DesignationType]
+        fields: {details.DesignationType: [15]}
+        equals: {affectorId: tracker.affectorId}
+  - id: reset
+    events:
+      - id: reset
+        type: AbilityWordActive
+        lane: persistent
+        op: update
+        sameRow: tracker
+        keys: [AbilityGrpId, AbilityWordName, threshold, value]
+        fields: {details.AbilityWordName: [ToSolveCondition], details.value: [0], details.threshold: [3]}
+        equals: {affectorId: tracker.affectorId, details.AbilityGrpId: tracker.details.AbilityGrpId}
+counts:
+  - match: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+    exactly: 1
+windows:
+  - id: one-solve-trigger
+    after: threshold
+    before: resolved
+    count: {type: AbilityInstanceCreated, equals: {affectorId: tracker.affectorId}}
+    exactly: 1

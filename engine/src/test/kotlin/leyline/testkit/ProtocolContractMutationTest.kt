@@ -124,6 +124,118 @@ class ProtocolContractMutationTest :
             withClue("wrong Omen identity") { shouldThrow<AssertionError> { contract.verify(wrongIdentity) } }
         }
         regression("siege-defense-counters.yaml", ::checkCounterMutations)
+        regression("case-gateway-express.yaml") { contract, messages ->
+            val threshold =
+                messages.mutatingAnnotation(
+                    AnnotationType.AbilityWordActive,
+                    persistent = true,
+                ) { it.withIntDetail("threshold", 4) }
+            val designation =
+                messages.mutatingAnnotation(
+                    AnnotationType.Designation,
+                    persistent = true,
+                ) { it.withIntDetail("DesignationType", 0) }
+            val source = messages.mutatingAnnotation(AnnotationType.AbilityInstanceCreated) { it.toBuilder().setAffectorId(0).build() }
+            val progress =
+                messages.mutatingAnnotation(AnnotationType.AbilityWordActive, persistent = true) {
+                    if (it.detailInt("value") == 3) it.withIntDetail("value", 2) else it
+                }
+            val tracker = messages.allPersistentAnnotations().first { AnnotationType.AbilityWordActive in it.typeList }
+            val index =
+                messages.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.annotationsList.any { a ->
+                            AnnotationType.AbilityInstanceCreated in a.typeList &&
+                                a.affectorId == tracker.affectorId
+                        }
+                }
+            val frame = messages[index]
+            val createdIndex =
+                frame.gameStateMessage.annotationsList.indexOfFirst {
+                    AnnotationType.AbilityInstanceCreated in it.typeList &&
+                        it.affectorId == tracker.affectorId
+                }
+            val duplicate =
+                frame
+                    .toBuilder()
+                    .setGameStateMessage(
+                        frame.gameStateMessage.toBuilder().addAnnotations(
+                            createdIndex + 1,
+                            frame.gameStateMessage.getAnnotations(createdIndex),
+                        ),
+                    ).build()
+            for ((name, mutant) in listOf(
+                "threshold" to threshold,
+                "designation" to designation,
+                "source" to source,
+                "progress" to progress,
+                "duplicate trigger" to messages.replacing(index, duplicate),
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+        regression("quantum-riddler-delayed-exile.yaml") { contract, messages ->
+            val index =
+                messages.indexOfFirst {
+                    it.hasGameStateMessage() &&
+                        it.gameStateMessage.gameObjectsList.any { obj -> obj.type == GameObjectType.TriggerHolder }
+                }
+            val message = messages[index]
+            val objectIndex = message.gameStateMessage.gameObjectsList.indexOfFirst { it.type == GameObjectType.TriggerHolder }
+            val holder = message.gameStateMessage.getGameObjects(objectIndex)
+            val badParent =
+                message
+                    .toBuilder()
+                    .setGameStateMessage(
+                        message.gameStateMessage.toBuilder().setGameObjects(objectIndex, holder.toBuilder().setParentId(0)),
+                    ).build()
+            val badSource =
+                message
+                    .toBuilder()
+                    .setGameStateMessage(
+                        message.gameStateMessage.toBuilder().setGameObjects(objectIndex, holder.toBuilder().setObjectSourceGrpId(0)),
+                    ).build()
+            val wrongDestination =
+                messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                    if (it.detailString("category") == "Warp") it.withIntDetail("zone_dest", 33) else it
+                }
+            val row = messages.allPersistentAnnotations().first { AnnotationType.DelayedTriggerAffectees in it.typeList }
+            for ((name, mutant) in listOf(
+                "holder parent" to messages.replacing(index, badParent),
+                "holder source" to messages.replacing(index, badSource),
+                "exile destination" to wrongDestination,
+                "pending retirement" to messages.withoutRowDeletion(row.id),
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+        regression("vren-ward.yaml") { contract, messages ->
+            val rows = messages.allPersistentAnnotations().filter { AnnotationType.TriggeringObject in it.typeList }.distinctBy { it.id }
+            val permanent =
+                messages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.gameObjectsList }.first {
+                    it.type ==
+                        GameObjectType.Card &&
+                        it.zoneId == 28 &&
+                        it.controllerSeatId == 2
+                }
+            val created = messages.annotationsOfType(AnnotationType.AbilityInstanceCreated).first { it.affectorId == permanent.instanceId }
+            val row = rows.single { it.affectorId == created.affectedIdsList.single() }
+            val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+            val retired = messages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).single { row.affectorId in it.affectedIdsList }
+            val early = GREToClientMessage.newBuilder().setGameStateMessage(GameStateMessage.newBuilder().addAnnotations(retired)).build()
+            val premature = messages.toMutableList().also { it.add(birth + 1, early) }
+            val wrongSource =
+                messages.mutatingAnnotation(AnnotationType.TriggeringObject, persistent = true) {
+                    it.toBuilder().setAffectorId(0).build()
+                }
+            for ((name, mutant) in listOf(
+                "premature ability retirement" to premature,
+                "wrong trigger source" to wrongSource,
+                "missing trigger-source retirement" to messages.withoutRowDeletion(row.id),
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
     })
 
 private fun checkCounterMutations(

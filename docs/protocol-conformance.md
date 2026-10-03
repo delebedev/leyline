@@ -31,6 +31,9 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `graveyard/disturb-lunarch` | Graveyard cast, back-face resolution, and object identity across death and casting. |
 | `mechanics-warmup/omen-lifecycle` | Token creation, library destination after resolution, and object reallocation. |
 | `siege/zendikar-defeat-cast` | Battle identity, Defense counter type and detail types, exact add/remove deltas, persistent counts, and retirement of the replaced count row. |
+| `mechanics-protocol/case-gateway-express-lifecycle` | Solve progress and reset on one row, trigger identity, solved effects, and exactly one solve trigger within the threshold-to-resolution window. |
+| `mechanics-protocol/warp-quantum-riddler` | Delayed holder source and parent identity, pending-row update, exile reallocation, and ability and row retirement. |
+| `mechanics-protocol/ward-tax` | Ward trigger identity, source-row lifetime, and no premature ability retirement. |
 
 Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
 Kotlin interprets the contracts. Changing an emitted field requires checking its protocol meaning
@@ -56,7 +59,9 @@ retirement, reintroduced retired rows, contradictory row updates,
 incorrect optional-decision identities or life payments, incorrect
 Disturb source zones, incorrect Omen destinations, string or incorrect Defense
 counter types, incorrect counter deltas and counts, and missing counter-row
-retirement. Each regression scenario
+retirement, incorrect solve progress and designation, duplicate solve triggers,
+incorrect delayed holder identities or exile destination, and premature Ward
+ability retirement. Each regression scenario
 runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
 
@@ -80,6 +85,29 @@ An optional `where` selects an event using `fields` or `equals` when other
 interactions emit the same type, such as multiple mana sources during payment.
 The first selected event must satisfy its assertions. A later valid selected
 event cannot hide an earlier contradictory one.
+
+Optional `windows` constrain the stream strictly between two bound events.
+`absent` forbids a matching event; `count` requires an exact nonnegative count.
+Patterns use the same typed fields and identity relations as stream counts.
+`holds` requires a persistent row introduced or updated by its first anchor to
+survive until the endpoint. Retirement at the endpoint is allowed. Boundaries
+use event order, so these obligations also distinguish events within one message.
+Unknown, equal, or backwards anchors and malformed clauses fail loading.
+
+```yaml
+windows:
+  - id: no-early-retirement
+    after: created
+    before: retired
+    absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+  - id: source-holds
+    holds: source
+    until: source-retired
+```
+
+The prompt lane supports `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
+`OrderReq`, and `ActionsAvailableReq`. Their full protobuf payload remains
+available through `raw` selectors.
 
 Persistent rows become inactive at deletion. A later emission of that row is a
 new `create`, while repeated deletions retain their last-known identity for
