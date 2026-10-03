@@ -1,0 +1,93 @@
+name: Warp delayed exile lifecycle
+scenario: {suite: mechanics-protocol, id: warp-quantum-riddler}
+frames:
+  - id: source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}
+  - id: armed
+    events:
+      - id: holder
+        type: TriggerHolder
+        lane: object
+        op: create
+        fields: {raw.zoneId: 30, raw.grpId: 5, raw.uniqueAbilities.length: 1}
+        equals: {raw.parentId: source.affectorId, raw.objectSourceGrpId: source.raw.grpId}
+      - id: pending
+        type: DelayedTriggerAffectees
+        lane: persistent
+        op: create
+        keys: [removesFromZone, abilityGrpId]
+        fields: {details.removesFromZone: [1], affectedIds.length: 1}
+        equals: {"affectedIds[0]": holder.raw.parentId, "details.abilityGrpId[0]": "holder.raw.uniqueAbilities[0].grpId"}
+  - id: end-step-armed
+    events:
+      - id: ability
+        type: Ability
+        lane: object
+        op: create
+        where: {equals: {raw.grpId: "pending.details.abilityGrpId[0]"}}
+        fields: {raw.zoneId: 27}
+        equals: {raw.grpId: "pending.details.abilityGrpId[0]", raw.objectSourceGrpId: holder.raw.objectSourceGrpId}
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        keys: [source_zone]
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: "pending.affectedIds[0]", "affectedIds[0]": ability.affectorId}
+      - id: updated
+        type: DelayedTriggerAffectees
+        lane: persistent
+        op: update
+        sameRow: pending
+        keys: [removesFromZone, abilityGrpId]
+        fields: {details.removesFromZone: [1]}
+        equals: {affectorId: ability.affectorId, affectedIds: pending.affectedIds, details.abilityGrpId: pending.details.abilityGrpId}
+  - id: exile
+    events:
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {affectedIds: pending.affectedIds, details.orig_id: pending.affectedIds}
+      - id: transfer
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Warp], details.zone_src: [28], details.zone_dest: [29]}
+        equals: {affectorId: "pending.affectedIds[0]", affectedIds: reallocated.details.new_id}
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: ability.affectorId, details.grpid: pending.details.abilityGrpId}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: created.affectorId, affectedIds: created.affectedIds}
+      - id: pending-retired
+        type: DelayedTriggerAffectees
+        lane: persistent
+        op: delete
+        sameRow: pending
+        equals: {affectedIds: pending.affectedIds}
+counts:
+  - match: {type: Ability, lane: object, equals: {raw.grpId: "pending.details.abilityGrpId[0]"}}
+    exactly: 1
+  - match: {type: AbilityInstanceCreated, lane: transient, equals: {affectedIds: created.affectedIds}}
+    exactly: 1
+  - match: {type: AbilityInstanceDeleted, lane: transient, equals: {affectedIds: created.affectedIds}}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Warp]}, equals: {affectorId: created.affectorId}}
+    exactly: 1
+  - match: {type: ResolutionStart, lane: transient, keys: [grpid], equals: {affectorId: ability.affectorId, details.grpid: pending.details.abilityGrpId}}
+    exactly: 1
+  - match: {type: DelayedTriggerAffectees, lane: persistent, op: create, sameRow: pending}
+    exactly: 1
+  - match: {type: DelayedTriggerAffectees, lane: persistent, op: update, sameRow: pending}
+    exactly: 1
+  - match: {type: DelayedTriggerAffectees, lane: persistent, op: delete, sameRow: pending}
+    exactly: 1

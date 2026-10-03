@@ -19,6 +19,7 @@ import java.nio.file.Path
 /**
  * Interprets authored protocol obligations over one scripted interaction's emitted messages.
  * Frames require ordered events in one message; counts cover the complete scenario stream.
+ * Windows constrain events strictly between bound witnesses, including within one message.
  * Runtime identities bind between events instead of depending on catalog-specific numbers.
  * Scenario execution is owned by the acceptance executor, not this checker.
  */
@@ -28,6 +29,7 @@ class ProtocolContract private constructor(
     val scenario: String,
     private val frames: List<List<Map<String, Any?>>>,
     private val counts: List<Map<String, Any?>>,
+    private val windows: List<Map<String, Any?>>,
 ) {
     /**
      * Selects one matching start, then checks the first eligible event at each step.
@@ -36,7 +38,7 @@ class ProtocolContract private constructor(
      */
     fun verify(messages: List<GREToClientMessage>) {
         val events = project(messages)
-        val bound = mutableMapOf<String, Event>()
+        val bound = mutableMapOf<String, IndexedValue<Event>>()
         var cursor = 0
         // ponytail: one matching start per scripted interaction; add occurrence selection when a scenario repeats indistinguishable starts.
         for (frame in frames) {
@@ -54,7 +56,7 @@ class ProtocolContract private constructor(
                             (pattern["where"] != null || bound.isNotEmpty() || matches(events[index], pattern, bound)) &&
                             (
                                 pattern["sameRow"] == null ||
-                                    events[index].values["annotationId"] == bound[pattern["sameRow"]]?.values?.get("annotationId")
+                                    events[index].values["annotationId"] == bound[pattern["sameRow"]]?.value?.values?.get("annotationId")
                             )
                     }
                 withClue("$name: required event $id after ${bound.keys.lastOrNull()}") { index shouldNotBe null }
@@ -62,7 +64,7 @@ class ProtocolContract private constructor(
                 withClue("$name: $id has contradictory fields or identity; expected=$pattern actual=${event.values}") {
                     matches(event, pattern, bound) shouldBe true
                 }
-                bound[id] = event
+                bound[id] = IndexedValue(index, event)
                 messageIndex = event.messageIndex
                 cursor = index + 1
             }
@@ -71,6 +73,21 @@ class ProtocolContract private constructor(
             val pattern = count["match"].map()
             withClue("$name: exact count for $pattern") {
                 events.count { matches(it, pattern, bound) } shouldBe count["exactly"]
+            }
+        }
+        for (window in windows) {
+            val start = bound.getValue((window["after"] ?: window["holds"]) as String)
+            val end = bound.getValue((window["before"] ?: window["until"]) as String)
+            val between = events.subList(start.index + 1, end.index)
+            withClue("$name: window ${window["id"]} between events ${start.index} and ${end.index}") {
+                if (window["holds"] != null) {
+                    val rowId = start.value.values["annotationId"]
+                    between.none { it.lane == "persistent" && it.op == "delete" && it.values["annotationId"] == rowId } shouldBe true
+                } else {
+                    val pattern = (window["absent"] ?: window["count"]).map()
+                    val found = between.filter { matches(it, pattern, bound) }
+                    withClue("matching events: $found") { found.size shouldBe (window["exactly"] ?: 0) }
+                }
             }
         }
     }
@@ -86,7 +103,7 @@ class ProtocolContract private constructor(
         fun parse(text: String): ProtocolContract {
             val options = LoaderOptions().apply { isAllowDuplicateKeys = false }
             val root = Yaml(SafeConstructor(options)).load<Any?>(text).map()
-            root.keysOnly("name", "scenario", "frames", "counts")
+            root.keysOnly("name", "scenario", "frames", "counts", "windows")
             val scenario = root["scenario"].map()
             scenario.keysOnly("suite", "id")
             val ids = mutableSetOf<String>()
@@ -117,7 +134,9 @@ class ProtocolContract private constructor(
                     require(count["exactly"] is Int && (count["exactly"] as Int) >= 0) { "invalid exact count" }
                     count
                 } ?: emptyList()
-            return ProtocolContract(root.string("name"), scenario.string("suite"), scenario.string("id"), frames, counts)
+            val windows = root["windows"]?.list()?.map { it.map() } ?: emptyList()
+            validateWindows(windows, frames.flatten())
+            return ProtocolContract(root.string("name"), scenario.string("suite"), scenario.string("id"), frames, counts, windows)
         }
     }
 }
@@ -165,6 +184,9 @@ private fun project(messages: List<GREToClientMessage>): List<Event> {
                 when {
                     message.hasSelectTargetsReq() -> "SelectTargetsReq"
                     message.hasOptionalActionMessage() -> "OptionalActionMessage"
+                    message.hasSelectNReq() -> "SelectNReq"
+                    message.hasOrderReq() -> "OrderReq"
+                    message.hasActionsAvailableReq() -> "ActionsAvailableReq"
                     else -> null
                 }
             if (prompt != null) {
@@ -199,7 +221,7 @@ private fun AnnotationInfo.events(
 private fun matches(
     event: Event,
     pattern: Map<String, Any?>,
-    bound: Map<String, Event>,
+    bound: Map<String, IndexedValue<Event>>,
 ): Boolean {
     if (!kindMatches(event, pattern)) return false
     if (pattern["keys"] != null &&
@@ -208,7 +230,7 @@ private fun matches(
         return false
     }
     pattern["sameRow"]?.let {
-        val row = bound[it]?.values?.get("annotationId") ?: return false
+        val row = bound[it]?.value?.values?.get("annotationId") ?: return false
         if (event.values["annotationId"] != row) return false
     }
     for ((selector, expected) in pattern["fields"]?.map().orEmpty()) {
@@ -216,7 +238,7 @@ private fun matches(
     }
     for ((selector, reference) in pattern["equals"]?.map().orEmpty()) {
         val value = reference as String
-        val other = bound[value.substringBefore('.')]
+        val other = bound[value.substringBefore('.')]?.value
         val expected = other?.let { select(it.values, value.substringAfter('.')) } ?: return false
         if (select(event.values, selector) != expected) return false
     }
@@ -232,7 +254,7 @@ private fun kindMatches(
         (pattern["op"] == null || event.op == pattern["op"])
 
 private val segment = Regex("([A-Za-z][A-Za-z0-9_]*)(?:\\[(\\d+)])?")
-private val promptTypes = setOf("SelectTargetsReq", "OptionalActionMessage")
+private val promptTypes = setOf("SelectTargetsReq", "OptionalActionMessage", "SelectNReq", "OrderReq", "ActionsAvailableReq")
 private val enumSuffix = Regex("_[0-9a-f]{4}$")
 
 /** Protobuf name-collision suffixes are build identifiers, not protocol names. */
@@ -326,6 +348,39 @@ private fun validatePattern(
         validateSelector(selector)
         require(reference is String && '.' in reference && reference.substringBefore('.') in ids) { "unknown event reference $reference" }
         validateSelector(reference.substringAfter('.'))
+    }
+}
+
+/** Windows use strict event boundaries; the endpoint itself may retire a held row. */
+private fun validateWindows(
+    windows: List<Map<String, Any?>>,
+    events: List<Map<String, Any?>>,
+) {
+    val ids = events.map { it.string("id") }
+    val windowIds = mutableSetOf<String>()
+    for (window in windows) {
+        require(windowIds.add(window.string("id"))) { "duplicate window id" }
+        if (window["holds"] != null) {
+            window.keysOnly("id", "holds", "until")
+            val held = events.singleOrNull { it["id"] == window.string("holds") }
+            require(held != null && held["lane"] == "persistent" && held["op"] in setOf("create", "update")) {
+                "holds requires an active persistent row"
+            }
+        } else {
+            require((window["absent"] != null) != (window["count"] != null)) { "window requires absent or count" }
+            if (window["absent"] != null) {
+                window.keysOnly("id", "after", "before", "absent")
+            } else {
+                window.keysOnly("id", "after", "before", "count", "exactly")
+                require(window["exactly"] is Int && (window["exactly"] as Int) >= 0) { "invalid window count" }
+            }
+            val pattern = (window["absent"] ?: window["count"]).map()
+            pattern.keysOnly("type", "lane", "op", "keys", "fields", "equals", "sameRow")
+            validatePattern(pattern, ids.toSet())
+        }
+        val start = window.string(if (window["holds"] != null) "holds" else "after")
+        val end = window.string(if (window["holds"] != null) "until" else "before")
+        require(start in ids && end in ids && ids.indexOf(start) < ids.indexOf(end)) { "invalid window anchors" }
     }
 }
 

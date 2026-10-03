@@ -1,0 +1,57 @@
+name: Ward trigger and source-row lifecycle
+scenario: {suite: mechanics-protocol, id: ward-tax}
+frames:
+  - id: permanent
+    events:
+      - id: permanent
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 2, "raw.cardTypes[0]": Creature}
+  - id: trigger
+    events:
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        where: {equals: {affectorId: permanent.affectorId}}
+        keys: [source_zone]
+        fields: {details.source_zone: [28], affectedIds.length: 1}
+        equals: {affectorId: permanent.affectorId}
+      - id: source
+        type: TriggeringObject
+        lane: persistent
+        op: create
+        keys: [source_zone]
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: "created.affectedIds[0]"}
+  - id: resolution
+    events:
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        where: {equals: {affectorId: "created.affectedIds[0]"}}
+        equals: {affectorId: "created.affectedIds[0]"}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: created.affectorId, affectedIds: created.affectedIds}
+      - id: source-retired
+        type: TriggeringObject
+        lane: persistent
+        op: delete
+        sameRow: source
+        equals: {affectorId: source.affectorId}
+windows:
+  - id: no-early-retirement
+    after: created
+    before: retired
+    absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+  - id: source-holds
+    holds: source
+    until: source-retired
+counts:
+  - match: {type: TriggeringObject, lane: persistent, op: create, sameRow: source}
+    exactly: 1
+  - match: {type: TriggeringObject, lane: persistent, op: delete, sameRow: source}
+    exactly: 1
