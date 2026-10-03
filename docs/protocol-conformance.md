@@ -30,6 +30,7 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `modal-warmup/shock-land-temple-garden` | Optional prompt source and incoming identity, life payment, land-entry identity and replacement-row retirement. |
 | `graveyard/disturb-lunarch` | Graveyard cast, back-face resolution, and object identity across death and casting. |
 | `mechanics-warmup/omen-lifecycle` | Token creation, library destination after resolution, and object reallocation. |
+| `siege/zendikar-defeat-cast` | Battle identity, Defense counter type and detail types, exact add/remove deltas, persistent counts, and retirement of the replaced count row. |
 
 Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
 Kotlin interprets the contracts. Changing an emitted field requires checking its protocol meaning
@@ -53,7 +54,9 @@ source, prompt parameters or undo flags, untapped mana sources, incorrect paymen
 sources, incorrect token parents or sources, remaining Boast uses, and missing
 retirement, reintroduced retired rows, contradictory row updates,
 incorrect optional-decision identities or life payments, incorrect
-Disturb source zones, and incorrect Omen destinations. Each regression scenario
+Disturb source zones, incorrect Omen destinations, string or incorrect Defense
+counter types, incorrect counter deltas and counts, and missing counter-row
+retirement. Each regression scenario
 runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
 

@@ -1,0 +1,61 @@
+name: Siege Defense counter addition and removal
+scenario: {suite: siege, id: zendikar-defeat-cast}
+frames:
+  - id: entry
+    events:
+      - id: battle
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 28, "raw.cardTypes[0]": Battle, raw.controllerSeatId: 1}
+      - id: added
+        type: CounterAdded
+        lane: transient
+        where: {equals: {"affectedIds[0]": battle.affectorId}}
+        keys: [counter_type, transaction_amount]
+        fields:
+          details.counter_type: [174]
+          details.transaction_amount: [3]
+          detailTypes.counter_type: Int32
+          detailTypes.transaction_amount: Int32
+          affectedIds.length: 1
+      - id: initial-count
+        type: Counter
+        lane: persistent
+        op: create
+        where: {equals: {"affectedIds[0]": battle.affectorId}}
+        keys: [counter_type, count]
+        fields: {details.counter_type: [174], details.count: [3], detailTypes.counter_type: Int32, detailTypes.count: Int32}
+        equals: {affectedIds: added.affectedIds}
+  - id: damage
+    events:
+      - id: removed
+        type: CounterRemoved
+        lane: transient
+        where: {equals: {"affectedIds[0]": battle.affectorId}}
+        keys: [counter_type, transaction_amount]
+        fields:
+          details.counter_type: [174]
+          details.transaction_amount: [3]
+          detailTypes.counter_type: Int32
+          detailTypes.transaction_amount: Int32
+          affectedIds.length: 1
+      - id: final-count
+        type: Counter
+        lane: persistent
+        op: create
+        where: {equals: {"affectedIds[0]": battle.affectorId}}
+        keys: [counter_type, count]
+        fields: {details.counter_type: [174], details.count: [0], detailTypes.counter_type: Int32, detailTypes.count: Int32}
+        equals: {affectedIds: initial-count.affectedIds}
+      - id: initial-count-retired
+        type: Counter
+        lane: persistent
+        op: delete
+        sameRow: initial-count
+counts:
+  - match: {type: CounterAdded, lane: transient, equals: {affectedIds: added.affectedIds}}
+    exactly: 1
+  - match: {type: CounterRemoved, lane: transient, equals: {affectedIds: added.affectedIds}}
+    exactly: 1
+  - match: {type: Counter, lane: persistent, op: delete, sameRow: initial-count}
+    exactly: 1
