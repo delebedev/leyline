@@ -5,6 +5,7 @@ import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.core.spec.style.FunSpec
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -339,6 +340,30 @@ class ProtocolContractTest :
             )) {
                 shouldThrowAny { ProtocolContract.parse(windowContractText + "\n" + invalid) }
             }
+        }
+        test("raw enum names omit protobuf collision suffixes without accepting another value") {
+            val contract =
+                ProtocolContract.parse(
+                    """
+                    name: cancellation enum
+                    scenario: {suite: warmup, id: land-spell-face}
+                    frames:
+                      - id: prompt
+                        events:
+                          - id: prompt
+                            type: ActionsAvailableReq
+                            lane: prompt
+                            fields: {raw.allowCancel: "No"}
+                    """.trimIndent(),
+                )
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setActionsAvailableReq(ActionsAvailableReq.getDefaultInstance())
+                    .setAllowCancel(AllowCancel.No_a526)
+                    .build()
+            contract.verify(listOf(prompt))
+            shouldThrow<AssertionError> { contract.verify(listOf(prompt.toBuilder().setAllowCancel(AllowCancel.Abort).build())) }
         }
         test("selection ordering and action prompts preserve typed prompt IDs") {
             for ((type, message) in listOf(

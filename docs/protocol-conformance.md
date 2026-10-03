@@ -33,6 +33,8 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `siege/zendikar-defeat-cast` | Battle identity, Defense counter type and detail types, exact add/remove deltas, persistent counts, and retirement of the replaced count row. |
 | `mechanics-protocol/case-gateway-express-lifecycle` | Solve progress and reset on one row, trigger identity, solved effects, and exactly one solve trigger within the threshold-to-resolution window. |
 | `mechanics-protocol/warp-quantum-riddler` | Delayed holder source and parent identity, pending-row update, exile reallocation, and ability and row retirement. |
+| `mechanics-protocol/daynight-roundtrip-cathar` | Battlefield identity and reciprocal runtime face identities across the night transformation. |
+| `mechanics-protocol/discover-hidden-courtyard` | Exile offer and stack reallocation identity, Discover ability binding, absence of casting options before acceptance, and option-row lifetime through resolution. |
 | `mechanics-protocol/ward-tax` | Ward trigger identity, source-row lifetime, and no premature ability retirement. |
 
 Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
@@ -61,8 +63,9 @@ Disturb source zones, incorrect Omen destinations, string or incorrect Defense
 counter types, incorrect counter deltas and counts, and missing counter-row
 retirement, incorrect solve progress and designation, duplicate solve triggers,
 incorrect delayed holder identities or exile destination, and premature Ward
-ability retirement. Each regression scenario
-runs once; mutations reuse its messages. The conformance lane only discovers,
+ability retirement, incorrect transformation faces or identity, mismatched Discover
+cast offers, broken stack reallocation, and early casting-option creation or retirement.
+Each regression scenario runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
 
 Keep mechanism, concurrency, cancellation, transport, and head presentation
@@ -76,8 +79,9 @@ An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
 `fields`, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
 normalized `details`, `detailTypes`, identities, array indices, and `length`.
-Enum fields use their protobuf names. Unknown schema fields, invalid references,
-and explicit null entries fail loading. A missing event, contradictory value, or
+Enum fields use their protocol names with protobuf collision suffixes removed.
+Quote enum names such as `"No"` that YAML otherwise reads as booleans.
+Unknown schema fields, invalid references, and explicit null entries fail loading. A missing event, contradictory value, or
 incorrect count fails CI.
 Counts cover the scenario's entire emitted stream. Matching selects one start;
 subsequent events cannot skip a contradictory occurrence to accept a later valid copy.

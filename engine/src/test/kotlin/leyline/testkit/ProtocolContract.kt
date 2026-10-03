@@ -297,7 +297,7 @@ private fun select(
             }
         if (match.groupValues[2].isNotEmpty()) value = (value as? List<*>)?.getOrNull(match.groupValues[2].toInt()) ?: return null
     }
-    return if (value is EnumValueDescriptor) value.name else value
+    return if (value is EnumValueDescriptor) value.name.replace(enumSuffix, "") else value
 }
 
 private fun validatePattern(
