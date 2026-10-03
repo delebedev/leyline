@@ -209,6 +209,8 @@ class ProtocolContractMutationTest :
                 withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
             }
         }
+        regression("brutal-cathar-night-transform.yaml", ::checkTransformMutations)
+        regression("hidden-courtyard-discovered-spell-cast.yaml", ::checkDiscoverMutations)
         regression("vren-ward.yaml") { contract, messages ->
             val rows = messages.allPersistentAnnotations().filter { AnnotationType.TriggeringObject in it.typeList }.distinctBy { it.id }
             val permanent =
@@ -237,6 +239,79 @@ class ProtocolContractMutationTest :
             }
         }
     })
+
+private fun checkTransformMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val front =
+        messages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.gameObjectsList }.first {
+            it.type == GameObjectType.Card && it.zoneId == 28 && it.controllerSeatId == 1 && it.othersideGrpId != 0
+        }
+    val index =
+        messages.indexOfFirst {
+            it.hasGameStateMessage() &&
+                it.gameStateMessage.gameObjectsList.any { obj ->
+                    obj.instanceId == front.instanceId && obj.grpId == front.othersideGrpId
+                }
+        }
+    val frame = messages[index]
+    val objectIndex = frame.gameStateMessage.gameObjectsList.indexOfFirst { it.instanceId == front.instanceId }
+    val transformed = frame.gameStateMessage.getGameObjects(objectIndex)
+    for ((name, mutant) in listOf(
+        "wrong back face" to transformed.toBuilder().setGrpId(front.grpId).build(),
+        "wrong reciprocal face" to transformed.toBuilder().setOthersideGrpId(0).build(),
+        "reallocated transform" to transformed.toBuilder().setInstanceId(0).build(),
+        "wrong transform zone" to transformed.toBuilder().setZoneId(29).build(),
+    )) {
+        val changed = frame.toBuilder().setGameStateMessage(frame.gameStateMessage.toBuilder().setGameObjects(objectIndex, mutant)).build()
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(messages.replacing(index, changed)) } }
+    }
+}
+
+private fun checkDiscoverMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val promptIndex = messages.indexOfFirst { it.hasActionsAvailableReq() && it.prompt.promptId == 1134 }
+    val prompt = messages[promptIndex]
+    val cast = prompt.actionsAvailableReq.getActions(0)
+    for ((name, action) in listOf(
+        "wrong offered exile identity" to cast.toBuilder().setInstanceId(0).build(),
+        "wrong offered ability" to cast.toBuilder().setAbilityGrpId(0).build(),
+    )) {
+        val changed = prompt.toBuilder().setActionsAvailableReq(prompt.actionsAvailableReq.toBuilder().setActions(0, action)).build()
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(messages.replacing(promptIndex, changed)) } }
+    }
+    val wrongIdentity =
+        messages.mutatingAnnotation(AnnotationType.ObjectIdChanged) {
+            if (it.detailInt("orig_id") == cast.instanceId) it.withIntDetail("new_id", 0) else it
+        }
+    withClue("wrong stack reallocation") { shouldThrow<AssertionError> { contract.verify(wrongIdentity) } }
+    val row = messages.allPersistentAnnotations().first { AnnotationType.CastingTimeOption in it.typeList }
+    val prematureOption =
+        GREToClientMessage
+            .newBuilder()
+            .setGameStateMessage(
+                GameStateMessage.newBuilder().addPersistentAnnotations(
+                    row.toBuilder().setId(
+                        row.id + 1_000_000,
+                    ),
+                ),
+            ).build()
+    val beforeCast = messages.toMutableList().also { it.add(promptIndex + 1, prematureOption) }
+    withClue("option before accepted cast") { shouldThrow<AssertionError> { contract.verify(beforeCast) } }
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val earlyDelete =
+        GREToClientMessage
+            .newBuilder()
+            .setGameStateMessage(
+                GameStateMessage.newBuilder().addDiffDeletedPersistentAnnotationIds(row.id),
+            ).build()
+    val retiredEarly = messages.toMutableList().also { it.add(birth + 1, earlyDelete) }
+    withClue("premature option retirement") { shouldThrow<AssertionError> { contract.verify(retiredEarly) } }
+    withClue("missing option retirement") { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
+}
 
 private fun checkCounterMutations(
     contract: ProtocolContract,

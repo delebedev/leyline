@@ -1,0 +1,85 @@
+name: Discover accepted cast and casting-option lifetime
+scenario: {suite: mechanics-protocol, id: discover-hidden-courtyard}
+frames:
+  - id: exile
+    events:
+      - id: discovered
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 29, raw.controllerSeatId: 1}
+      - id: discovered-to-exile
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Exile], details.zone_src: [32], details.zone_dest: [29]}
+        equals: {"affectedIds[0]": discovered.affectorId}
+  - id: free-cast-prompt
+    events:
+      - id: prompt
+        type: ActionsAvailableReq
+        lane: prompt
+        where: {fields: {raw.prompt.promptId: 1134}}
+        fields:
+          raw.prompt.promptId: 1134
+          raw.allowCancel: "No"
+          "raw.actionsAvailableReq.actions[0].actionType": Cast
+          "raw.actionsAvailableReq.actions[0].alternativeGrpId": 149
+          "raw.actionsAvailableReq.actions[1].actionType": Pass
+        equals:
+          "raw.actionsAvailableReq.actions[0].instanceId": discovered.affectorId
+          "raw.actionsAvailableReq.actions[0].grpId": discovered.raw.grpId
+  - id: cast
+    events:
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"affectedIds[0]": discovered.affectorId, "details.orig_id[0]": discovered.affectorId}
+      - id: cast-transfer
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [CastSpell], details.zone_src: [29], details.zone_dest: [27]}
+        equals: {affectedIds: reallocated.details.new_id}
+      - id: option
+        type: CastingTimeOption
+        lane: persistent
+        op: create
+        keys: [alternateCostGrpId, castAbilityGrpId, type]
+        fields: {details.alternateCostGrpId: [149], details.type: [13]}
+        equals:
+          affectorId: "cast-transfer.affectedIds[0]"
+          affectedIds: cast-transfer.affectedIds
+          "details.castAbilityGrpId[0]": "prompt.raw.actionsAvailableReq.actions[0].abilityGrpId"
+  - id: resolve
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        where: {equals: {affectorId: "cast-transfer.affectedIds[0]"}}
+        keys: [grpid]
+        equals: {affectorId: "cast-transfer.affectedIds[0]", "details.grpid[0]": discovered.raw.grpId}
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: started.affectorId, details.grpid: started.details.grpid}
+      - id: option-retired
+        type: CastingTimeOption
+        lane: persistent
+        op: delete
+        sameRow: option
+        equals: {affectorId: option.affectorId, affectedIds: option.affectedIds}
+windows:
+  - id: no-option-before-cast
+    after: discovered-to-exile
+    before: cast-transfer
+    absent: {type: CastingTimeOption}
+  - id: option-holds
+    holds: option
+    until: option-retired
+counts:
+  - match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: option}
+    exactly: 1
+  - match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: option}
+    exactly: 1

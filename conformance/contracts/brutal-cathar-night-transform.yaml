@@ -1,0 +1,21 @@
+name: Cathar night transformation preserves battlefield identity
+scenario: {suite: mechanics-protocol, id: daynight-roundtrip-cathar}
+frames:
+  - id: front
+    events:
+      - id: front
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}
+  - id: night-transform
+    events:
+      - id: transformed
+        type: Card
+        lane: object
+        op: update
+        where: {equals: {affectorId: front.affectorId}}
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 1}
+        equals:
+          affectorId: front.affectorId
+          raw.grpId: front.raw.othersideGrpId
+          raw.othersideGrpId: front.raw.grpId
