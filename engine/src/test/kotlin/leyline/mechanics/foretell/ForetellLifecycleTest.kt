@@ -49,7 +49,10 @@ class ForetellLifecycleTest :
                     it.detailInt(DetailKeys.REASON_UPPER) == AnnotationConstants.FACEDOWN_REASON_FORETELL
                 } ?: error("No persistent Foretell FaceDown row: $faceDownRows")
 
+            val suppressed = messagesSince(lifecycleStart).persistentAnnotationsOfType(AnnotationType.SuppressedPowerAndToughness).single()
             assertSoftly {
+                suppressed.affectorId shouldBe foretoldIid
+                suppressed.affectedIdsList shouldBe listOf(foretoldIid)
                 faceDown.affectorId shouldBe foretoldIid
                 faceDown.affectedIdsList shouldBe listOf(foretoldIid)
                 faceDown.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe KeywordAbilityIds.FORETELL
@@ -59,13 +62,17 @@ class ForetellLifecycleTest :
             val castAction = foretellCastOffer(foretellAbilityGrpId)
             check(castAction != null) { "Foretell cast offer did not appear before game end" }
             val preCastMessages = messagesSince(lifecycleStart)
-            preCastMessages.deletedPersistentAnnotationIds() shouldNotContain faceDown.id
+            assertSoftly {
+                preCastMessages.deletedPersistentAnnotationIds() shouldNotContain faceDown.id
+                preCastMessages.deletedPersistentAnnotationIds() shouldNotContain suppressed.id
+            }
 
             val castStart = messageSnapshot()
             submitAction(castAction)
 
             assertSoftly {
                 messagesSince(castStart).deletedPersistentAnnotationIds() shouldContain faceDown.id
+                messagesSince(castStart).deletedPersistentAnnotationIds() shouldContain suppressed.id
                 human
                     .getZone(ZoneType.Exile)
                     .cards

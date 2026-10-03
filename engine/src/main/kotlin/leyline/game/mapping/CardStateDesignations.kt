@@ -1,10 +1,12 @@
 package leyline.game.mapping
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.LeftUnlockedDesignationKind
@@ -14,6 +16,7 @@ import leyline.game.state.RightUnlockedDesignationKind
 import leyline.game.state.SaddledDesignationKind
 import leyline.game.state.SolvedDesignationKind
 import leyline.game.state.SuspectedDesignationKind
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -55,14 +58,13 @@ enum class DesignationKind {
  *    lose appends.
  *  - [GAIN_APPEND] — Plotted. Gain and lose both append at end of list. The
  *    plot activation moves the card Hand→Exile (no Resolve ZT to anchor on).
- *  - [FACE_DOWN_PAIR] — Foretold. Gain emits FaceDown +
- *    SuppressedPowerAndToughness; no lose pair (face-down state comes off
+ *  - [FORETELL_ACTION] — Foretold. Gain emits the accepted special action; no lose pair (face-down state comes off
  *    via the cast-acceptance ZT alone).
  */
 enum class TransientMode {
     GAIN_INSERT_BEFORE_RESOLVE_ZT,
     GAIN_APPEND,
-    FACE_DOWN_PAIR,
+    FORETELL_ACTION,
     PERSISTENT_ONLY,
 }
 
@@ -128,7 +130,7 @@ object CardStateDesignations {
         CardStateDesignationSpec(
             kind = DesignationKind.FORETOLD,
             designationType = null,
-            mode = TransientMode.FACE_DOWN_PAIR,
+            mode = TransientMode.FORETELL_ACTION,
             readRole = { it.designations.isForetold },
         )
     val LeftUnlocked =
@@ -195,11 +197,11 @@ internal fun insertStateDesignationTransients(
         val prevIds = forgeIdsByRole(prev, spec.readRole)
         for (fid in curIds - prevIds) {
             val iid = resolveInstanceId(fid)
-            emitGain(annotations, spec, iid, resolveAffectorId(spec, iid) ?: iid)
+            emitGain(annotations, spec, iid, resolveAffectorId(spec, iid) ?: iid, cur.boundCards.getValue(fid))
         }
-        // FACE_DOWN_PAIR has no lose path — skip the prev-set scan entirely
+        // FORETELL_ACTION has no lose path — skip the prev-set scan entirely
         // rather than iterate just to call a no-op emitter.
-        if (spec.mode == TransientMode.FACE_DOWN_PAIR) continue
+        if (spec.mode == TransientMode.FORETELL_ACTION) continue
         for (fid in prevIds - curIds) {
             val iid = resolveInstanceId(fid)
             emitLose(annotations, spec, iid, resolveAffectorId(spec, iid) ?: iid)
@@ -221,6 +223,7 @@ private fun emitGain(
     spec: CardStateDesignationSpec,
     iid: InstanceId,
     affectorId: InstanceId,
+    bound: BoundCard,
 ) {
     when (spec.mode) {
         TransientMode.GAIN_INSERT_BEFORE_RESOLVE_ZT -> {
@@ -241,9 +244,17 @@ private fun emitGain(
                 ),
             )
         }
-        TransientMode.FACE_DOWN_PAIR -> {
-            annotations.add(AnnotationBuilder.faceDown(iid))
-            annotations.add(AnnotationBuilder.suppressedPowerAndToughness(iid))
+        TransientMode.FORETELL_ACTION -> {
+            val prepared =
+                annotations.any {
+                    AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                        iid.value in it.affectedIdsList &&
+                        it.detailsList.any { detail -> detail.key == DetailKeys.CATEGORY && "Foretell" in detail.valueStringList }
+                }
+            if (prepared) {
+                val ability = bound.altCost(KeywordAbilityIds.FORETELL)?.abilityGrpId ?: 0
+                annotations.add(AnnotationBuilder.userActionTaken(iid, bound.snapshot.controller, ActionType.Special_add3, GrpId(ability)))
+            }
         }
         TransientMode.PERSISTENT_ONLY -> Unit
     }
@@ -267,7 +278,7 @@ private fun emitLose(
                 ),
             )
         }
-        TransientMode.FACE_DOWN_PAIR -> {
+        TransientMode.FORETELL_ACTION -> {
             // No lose pair — face-down state comes off via the cast-acceptance ZT alone.
         }
         TransientMode.PERSISTENT_ONLY -> Unit

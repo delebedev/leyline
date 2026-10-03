@@ -60,6 +60,11 @@ class PrivateCardPromptProjection private constructor(
 
 /** Ordered annotations and identity reservations that supplement the mapped frame. */
 sealed interface ProjectionSupplement {
+    /** A resolution selection needs its stack source bracket before the prompt. */
+    data class ResolutionSelection(
+        val sourceForgeId: ForgeCardId,
+    ) : ProjectionSupplement
+
     data object NewTurnStarted : ProjectionSupplement
 
     data object PhaseTransition : ProjectionSupplement

@@ -38,6 +38,7 @@ object OrderRules {
             TokenCreatedFirstRule,
             PhaseOrStepFirstRule,
             ResolutionLifecycleRule,
+            AbilityCreationFirstRule,
             ResolveTransferOrderingRule,
             SubmittedTargetsLeadsFrameRule,
         )
@@ -214,12 +215,44 @@ data object ResolutionLifecycleRule : OrderRule {
                 deletions[abilityId]?.forEach { add(completion to it) }
             }
             for ((index, annotation) in annotations.withIndex()) {
-                if (AnnotationType.LayeredEffectCreated !in annotation.typeList) continue
+                val isEffect =
+                    AnnotationType.LayeredEffectCreated in annotation.typeList ||
+                        (
+                            AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                                annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK
+                        )
+                if (!isEffect) continue
+                if (AnnotationType.ZoneTransfer_af5a in annotation.typeList) {
+                    val movedId = annotation.affectedIdsList.firstOrNull()
+                    val reallocation =
+                        annotations.indexOfFirst {
+                            AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
+                        }
+                    if (reallocation >= 0) starts[annotation.affectorId]?.let { add(it to reallocation) }
+                }
                 starts[annotation.affectorId]?.let { add(it to index) }
                 completions[annotation.affectorId]?.let { add(index to it) }
             }
         }
     }
+}
+
+/** Ability creation precedes costs and accepted actions owned by that ability. */
+data object AbilityCreationFirstRule : OrderRule {
+    override val name = "ability_creation_first"
+
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> =
+        buildList {
+            for ((index, created) in annotations.withIndex()) {
+                if (AnnotationType.AbilityInstanceCreated !in created.typeList) continue
+                val abilityId = created.affectedIdsList.firstOrNull() ?: continue
+                for ((otherIndex, other) in annotations.withIndex()) {
+                    if (otherIndex != index && (other.affectorId == abilityId || abilityId in other.affectedIdsList)) {
+                        add(index to otherIndex)
+                    }
+                }
+            }
+        }
 }
 
 /**

@@ -111,7 +111,7 @@ object StateProjectionCompiler {
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
         val finalized =
             AnnotationFrameFinalizer.finalize(
-                plannedOrder.gsm.annotationsList + supplementAnnotations,
+                retainResolutionMarkers(plannedOrder.gsm.annotationsList + supplementAnnotations, editor.annotations),
                 planned.firstAnnotationId,
             )
         val shared =
@@ -339,6 +339,22 @@ object StateProjectionCompiler {
             targetSpecs = targetSpecs + next.targetSpecs,
         )
 
+    /** A prompt may start resolution in an earlier frame than its effects and completion. */
+    private fun retainResolutionMarkers(
+        annotations: List<AnnotationInfo>,
+        journal: leyline.game.state.AnnotationProjectionState.Planner,
+    ): List<AnnotationInfo> =
+        annotations.filter { annotation ->
+            when {
+                AnnotationType.ResolutionStart in annotation.typeList -> journal.startResolution(annotation.affectorId)
+                AnnotationType.ResolutionComplete in annotation.typeList -> {
+                    journal.completeResolution(annotation.affectorId)
+                    true
+                }
+                else -> true
+            }
+        }
+
     private data class SupplementAnnotations(
         val annotations: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>,
         val consumedSubmittedTargets: Boolean,
@@ -356,6 +372,13 @@ object StateProjectionCompiler {
         val frameIds = draft.idResolver
         for (supplement in supplements) {
             when (supplement) {
+                is ProjectionSupplement.ResolutionSelection -> {
+                    val sourceId = frameIds.cardIid(supplement.sourceForgeId)
+                    if (editor.protoZones[sourceId.value] == ZoneIds.STACK) {
+                        val card = input.snapshot.boundCards.getValue(supplement.sourceForgeId)
+                        annotations += AnnotationBuilder.resolutionStart(sourceId, leyline.bridge.types.GrpId(card.snapshot.grpId))
+                    }
+                }
                 ProjectionSupplement.NewTurnStarted ->
                     annotations += AnnotationBuilder.newTurnStarted(input.snapshot.phase.activePlayer)
 

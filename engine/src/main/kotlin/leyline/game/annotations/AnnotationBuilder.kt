@@ -1321,7 +1321,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId.value))
             .build()
 
-    /** SuppressedPowerAndToughness transient annotation. Pairs with FaceDown
+    /** SuppressedPowerAndToughness persistent annotation. Pairs with FaceDown
      *  for face-down exile objects that lose their P/T projection. */
     fun suppressedPowerAndToughness(instanceId: InstanceId): AnnotationInfo =
         AnnotationInfo

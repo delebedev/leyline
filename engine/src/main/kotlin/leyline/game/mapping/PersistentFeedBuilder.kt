@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
+import leyline.bridge.types.InstanceId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
@@ -25,6 +26,7 @@ import leyline.game.state.FaceDownCloakKind
 import leyline.game.state.FaceDownDisguiseKind
 import leyline.game.state.FaceDownForetellKind
 import leyline.game.state.FaceDownManifestDreadKind
+import leyline.game.state.ForetellSuppressedKind
 import leyline.game.state.HolderRecord
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.PersistentAnnotationKind
@@ -114,6 +116,8 @@ internal object PersistentFeedBuilder {
                             AbilityWordActiveKind to abilityWord,
                             DayNightDesignationKind to dayNightDesignation,
                             FaceDownForetellKind to faceDownForetell,
+                            ForetellSuppressedKind to
+                                faceDownForetell.map { AnnotationBuilder.suppressedPowerAndToughness(InstanceId(it.affectorId)) },
                             FaceDownDisguiseKind to faceDownDisguise,
                             FaceDownCloakKind to faceDownCloak,
                             FaceDownManifestDreadKind to faceDownManifestDread,

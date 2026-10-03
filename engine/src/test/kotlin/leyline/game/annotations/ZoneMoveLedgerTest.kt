@@ -139,6 +139,8 @@ class ZoneMoveLedgerTest :
                     api = "ChangeZone",
                     events = listOf(GameEvent.ZoneChanged(cardId, Zone.Library, Zone.Battlefield)),
                 ),
+                Case("dig pick", Zone.Library, Zone.Hand, TransferCategory.Put, api = "Dig"),
+                Case("dig until pick", Zone.Library, Zone.Hand, TransferCategory.Put, api = "DigUntil"),
                 Case(
                     "draw",
                     Zone.Library,

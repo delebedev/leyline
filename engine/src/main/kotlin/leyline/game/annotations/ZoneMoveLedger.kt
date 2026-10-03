@@ -110,7 +110,14 @@ object ZoneMoveLedger {
             move.cause?.api == "Surveil" -> TransferCategory.Surveil
             move.cause?.api == "Draw" -> TransferCategory.Draw
             move.cause?.api == "Counter" -> TransferCategory.Countered
-            move.cause?.api == "ChangeZone" && move.from == Zone.Library && move.to == Zone.Hand -> TransferCategory.Put
+            move.cause?.api in
+                setOf(
+                    "ChangeZone",
+                    "Dig",
+                    "DigUntil",
+                ) &&
+                move.from == Zone.Library &&
+                move.to == Zone.Hand -> TransferCategory.Put
             else -> TransferCategoryResolver.categoryFromZonePair(move.from, move.to)
         }
     }

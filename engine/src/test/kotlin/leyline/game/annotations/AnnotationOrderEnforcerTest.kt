@@ -22,6 +22,24 @@ class AnnotationOrderEnforcerTest :
 
         tags(UnitTag)
 
+        test("ability creation leads its discard cost without moving unrelated transfers") {
+            val created = AnnotationBuilder.abilityInstanceCreated(501.iid, 500.iid, 31)
+            val discard = AnnotationBuilder.zoneTransfer(600.iid, 31, 33, "Discard", affectorId = 501.iid)
+            val unrelated = AnnotationBuilder.zoneTransfer(601.iid, 31, 33, "Discard", affectorId = 502.iid)
+            val result = AnnotationOrderEnforcer.enforce(listOf(unrelated, discard, created))
+            result shouldBe listOf(unrelated, created, discard)
+        }
+
+        test("draw and reallocation stay inside their owner's resolution bracket") {
+            val changed = AnnotationBuilder.objectIdChanged(100.iid, 200.iid, 501.iid)
+            val draw = AnnotationBuilder.zoneTransfer(200.iid, 32, 31, "Draw", affectorId = 501.iid)
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val unrelated = AnnotationBuilder.zoneTransfer(201.iid, 32, 31, "Draw", affectorId = 502.iid)
+            val result = AnnotationOrderEnforcer.enforce(listOf(unrelated, changed, draw, start, complete))
+            result shouldBe listOf(unrelated, start, changed, draw, complete)
+        }
+
         test("no-op when already ordered: ObjectIdChanged before ZoneTransfer") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt =

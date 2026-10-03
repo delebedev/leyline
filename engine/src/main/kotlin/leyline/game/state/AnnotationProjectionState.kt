@@ -19,6 +19,7 @@ data class AbilityWireIdentity(
  * Prompt journals and live Forge reads remain outside this boundary.
  */
 data class AnnotationProjectionState(
+    val openResolutions: Set<Int> = emptySet(),
     val abilityLineage: AbilityLineageRegistry = AbilityLineageRegistry(),
     val pendingSpellCasts: PendingSpellEventRegistry<GameEvent.SpellCast> = PendingSpellEventRegistry(),
     val pendingSpellResolutions: PendingSpellEventRegistry<GameEvent.SpellResolved> = PendingSpellEventRegistry(),
@@ -29,12 +30,19 @@ data class AnnotationProjectionState(
     class Planner(
         initial: AnnotationProjectionState,
     ) {
+        private val openResolutions = initial.openResolutions.toMutableSet()
         private var abilityLineage = initial.abilityLineage
         private var pendingSpellCasts = initial.pendingSpellCasts
         private var pendingSpellResolutions = initial.pendingSpellResolutions
         private val paradigmSourceStackIids = initial.paradigmSourceStackIids.toMutableMap()
         private val decayedCleanupSources = initial.decayedCleanupSources.toMutableSet()
         private var activeStealForgeCardIds = initial.activeStealForgeCardIds
+
+        fun startResolution(instanceId: Int): Boolean = openResolutions.add(instanceId)
+
+        fun completeResolution(instanceId: Int) {
+            openResolutions.remove(instanceId)
+        }
 
         fun recordAbility(identity: AbilityWireIdentity) {
             abilityLineage = abilityLineage.record(identity)
@@ -114,6 +122,7 @@ data class AnnotationProjectionState(
 
         fun freeze(): AnnotationProjectionState =
             AnnotationProjectionState(
+                openResolutions = openResolutions.toSet(),
                 abilityLineage = abilityLineage,
                 pendingSpellCasts = pendingSpellCasts,
                 pendingSpellResolutions = pendingSpellResolutions,
