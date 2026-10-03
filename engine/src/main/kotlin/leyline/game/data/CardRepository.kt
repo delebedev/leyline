@@ -235,6 +235,7 @@ object KeywordAbilityIds {
     const val FIREBENDING = 379
     const val TEAMWORK = 412
     const val WATERBEND = 8100003
+    const val RECONFIGURE_ATTACH = 243
     const val RECONFIGURE_UNATTACH = 244
 
     // Payment-action row used by Convoke's mana-substitution MakePayment actions.

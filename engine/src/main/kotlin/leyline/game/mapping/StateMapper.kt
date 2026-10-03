@@ -1728,6 +1728,15 @@ object StateMapper {
                         )
                     }
                 }
+                events.filterIsInstance<GameEvent.CardBounced>().forEach { returned ->
+                    val card = snap.boundCards[returned.cardId]?.snapshot ?: return@forEach
+                    val handZone = ZoneIds.handOf(card.owner)
+                    if (returned.cardId in
+                        snap.zones[handZone]?.contents.orEmpty()
+                    ) {
+                        add(Triple(returned.cardId, card.owner.value, handZone))
+                    }
+                }
                 activeReveal?.allHandCardIds?.forEach { cardId ->
                     add(Triple(cardId, activeReveal.ownerSeatId.value, ZoneIds.handOf(activeReveal.ownerSeatId)))
                 }

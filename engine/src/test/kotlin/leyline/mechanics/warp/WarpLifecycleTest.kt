@@ -3,6 +3,7 @@ package leyline.mechanics.warp
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -136,7 +137,7 @@ class WarpLifecycleTest :
                 it shouldNotBe null
                 it!!.detailInt("type") shouldBe 13
                 it.detailInt("alternateCostGrpId") shouldBe warpAbilityGrpId
-                it.detailInt("castAbilityGrpId") shouldBe warpAbilityGrpId
+                it.detailsList.map { detail -> detail.key } shouldNotContain "castAbilityGrpId"
             }
         }
 

@@ -42,6 +42,7 @@ object TransferAnnotations {
     fun annotationsForTransfer(
         transfer: AppliedTransfer,
         actingSeat: SeatId,
+        returnRevealInstanceId: InstanceId? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         val origId = InstanceId(transfer.origId)
         val newId = InstanceId(transfer.newId)
@@ -123,6 +124,14 @@ object TransferAnnotations {
                     if (origId != newId) {
                         annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
                     }
+                    if (category == TransferCategory.Return &&
+                        srcZone == ZoneIds.BATTLEFIELD &&
+                        destZone in setOf(ZoneIds.P1_HAND, ZoneIds.P2_HAND)
+                    ) {
+                        returnRevealInstanceId?.let { revealId ->
+                            annotations.add(returnedCardReveal(revealId))
+                        }
+                    }
                     annotations.add(
                         AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
                     )
@@ -149,6 +158,13 @@ object TransferAnnotations {
 
         return annotations to persistent
     }
+
+    private fun returnedCardReveal(revealId: InstanceId): AnnotationInfo =
+        AnnotationBuilder
+            .revealedCardCreated(revealId)
+            .toBuilder()
+            .setAffectorId(revealId.value)
+            .build()
 
     /**
      * Emit the full mana-ability annotation bracket for a sacrifice-for-mana transfer.
@@ -180,7 +196,7 @@ object TransferAnnotations {
         castAbilityGrpId: GrpId,
     ) {
         if (category != TransferCategory.CastSpell) return
-        if (altCostGrpId.value != 0) {
+        if (altCostGrpId.value != 0 || castAbilityGrpId.value != 0) {
             persistent.add(
                 AnnotationBuilder.castingTimeOption(
                     stackInstanceId = newId,
@@ -437,7 +453,7 @@ object TransferAnnotations {
                 instanceId = abilityIid,
                 seatId = ev.seatId,
                 actionType = ActionType.Activate_add3,
-                abilityGrpId = GrpId(ev.abilityGrpId),
+                abilityGrpId = GrpId(ev.activationActionGrpId.takeIf { it != 0 } ?: ev.abilityGrpId),
             ),
         )
         return annotations
@@ -489,7 +505,7 @@ object TransferAnnotations {
         if (ev.isAbility) return emptyList()
         val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
         val annotations = mutableListOf<AnnotationInfo>()
-        if (ev.altCostAbilityGrpId != 0) {
+        if (ev.altCostAbilityGrpId != 0 || ev.castAbilityGrpId != 0) {
             val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
             annotations.add(
                 AnnotationBuilder.castingTimeOption(

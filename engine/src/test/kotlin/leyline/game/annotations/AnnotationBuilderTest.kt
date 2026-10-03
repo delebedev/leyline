@@ -291,8 +291,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
                 ann.detailInt("alternateCostGrpId") shouldBe 5658
-                // castAbilityGrpId defaults to alternateCostGrpId for CastThroughAbility
-                ann.detailInt("castAbilityGrpId") shouldBe 5658
+                ann.detailsList.map { it.key } shouldBe listOf("type", "alternateCostGrpId")
             }
         }
 
@@ -306,6 +305,18 @@ class AnnotationBuilderTest :
                 )
             ann.detailInt("alternateCostGrpId") shouldBe 5658
             ann.detailInt("castAbilityGrpId") shouldBe 9999
+        }
+
+        test("casting permission omits an absent alternative cost") {
+            val ann =
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = 100.iid,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = 0.grp,
+                    castAbilityGrpId = 371.grp,
+                )
+            ann.detailsList.map { it.key } shouldBe listOf("type", "castAbilityGrpId")
+            ann.detailInt("castAbilityGrpId") shouldBe 371
         }
 
         // --- ResolutionStart ---

@@ -241,7 +241,14 @@ object AnnotationPipeline {
                         )
                     }
             }
-            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
+            val (transient, persistent) =
+                TransferAnnotations.annotationsForTransfer(
+                    transfer,
+                    SeatId(actingSeat),
+                    transfer.forgeCardId?.let {
+                        ctx?.editor?.revealProxies?.lookup(it)
+                    },
+                )
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
         }

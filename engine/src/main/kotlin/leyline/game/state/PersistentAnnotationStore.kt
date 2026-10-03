@@ -86,6 +86,13 @@ object PersistentAnnotationStore {
     /** Persistent annotation IDs start at 1. */
     const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
 
+    private fun isExistingCastingOption(
+        ann: AnnotationInfo,
+        active: Collection<AnnotationInfo>,
+    ): Boolean =
+        AnnotationType.CastingTimeOption in ann.typeList &&
+            active.any { it.toBuilder().clearId().build() == ann.toBuilder().clearId().build() }
+
     /**
      * Pure batch computation — operates on an immutable snapshot and
      * returns the result. Caller applies via [applyBatchResult].
@@ -176,6 +183,9 @@ object PersistentAnnotationStore {
 
         // 2. Transfer-originated (EZTT, ColorProduction, CastingTimeOption)
         for (ann in transferPersistent) {
+            if (isExistingCastingOption(ann, active.values)) {
+                continue
+            }
             val numbered = ann.toBuilder().setId(nextId++).build()
             active[numbered.id] = numbered
         }
@@ -199,6 +209,9 @@ object PersistentAnnotationStore {
         //     handling; non-Counter rows pure-append since their lifecycle
         //     is cleanup-driven (steps 4-6).
         for (ann in mechanicResult.persistent) {
+            if (isExistingCastingOption(ann, active.values)) {
+                continue
+            }
             if (CounterKind.matches(ann)) {
                 val key = CounterKind.identityKey(ann)
                 if (key != null) {

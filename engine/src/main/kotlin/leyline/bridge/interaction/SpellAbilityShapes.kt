@@ -4,6 +4,8 @@ import forge.game.ability.ApiType
 import forge.game.spellability.SpellAbility
 
 object SpellAbilityShapes {
+    fun isReconfigureAttach(sa: SpellAbility?): Boolean = sa?.api == ApiType.Attach && sa.getParam("PrecostDesc") == "Reconfigure"
+
     fun isSuspectChoice(sa: SpellAbility?): Boolean =
         sa?.api == ApiType.ChooseCard &&
             sa.paramTokens("DefinedCards").any(::isTriggeredCardsToken) &&

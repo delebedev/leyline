@@ -200,8 +200,9 @@ object AnnotationBuilder {
      * Most common shape (and the one used by the alt-cost mechanic family):
      * **CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] usually both carry the alt-cost ability's grpId. Free casts use the
-     * no-mana-cost identity in [alternateCostGrpId] and the granting ability in [castAbilityGrpId].
+     * [castAbilityGrpId] may identify the same route; that redundant permission field is omitted.
+     * A permission-only cast omits [alternateCostGrpId]. Free casts use the no-mana-cost identity
+     * in [alternateCostGrpId] and the distinct granting ability in [castAbilityGrpId].
      *
      * Persistent while the spell is on the stack; deleted via
      * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
@@ -225,9 +226,14 @@ object AnnotationBuilder {
             .setAffectorId(stackInstanceId.value)
             .addAffectedIds(stackInstanceId.value)
             .addDetails(int32Detail(DetailKeys.TYPE, type.number))
-            .addDetails(int32Detail(DetailKeys.ALTERNATE_COST_GRP_ID, alternateCostGrpId.value))
-            .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
-            .build()
+            .apply {
+                if (alternateCostGrpId.value != 0) addDetails(int32Detail(DetailKeys.ALTERNATE_COST_GRP_ID, alternateCostGrpId.value))
+                if (castAbilityGrpId.value != 0 &&
+                    castAbilityGrpId != alternateCostGrpId
+                ) {
+                    addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
+                }
+            }.build()
 
     /** CastingTimeOption type=3 (Kicker) — spell cast with kicker paid.
      *  kickerAbilityGrpId carries the per-card Kicker ability grpId. */

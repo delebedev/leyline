@@ -65,6 +65,12 @@ sealed interface ProjectionSupplement {
         val sourceForgeId: ForgeCardId,
     ) : ProjectionSupplement
 
+    /** Selected alternative cost visible on the announced stack spell before target submission. */
+    data class SelectedCastOption(
+        val sourceForgeId: ForgeCardId,
+        val alternateCostGrpId: Int,
+    ) : ProjectionSupplement
+
     data object NewTurnStarted : ProjectionSupplement
 
     data object PhaseTransition : ProjectionSupplement
