@@ -126,6 +126,14 @@ val testIntegrationStrict =
         outputs.upToDateWhen { false }
     }
 
+// Mutation regressions consume contract and scenario files outside the test classpath.
+listOf(tasks.named<Test>("test"), testIntegration, testIntegrationStrict).forEach { task ->
+    task.configure {
+        inputs.dir(rootProject.layout.projectDirectory.dir("data/puzzles"))
+        inputs.dir(rootProject.layout.projectDirectory.dir("conformance/contracts"))
+    }
+}
+
 registerEngineTest("testForgeCatalog") {
     systemProperty("kotest.tags", "ForgeCatalogTag")
     environment("LEYLINE_CARD_DB", rootProject.projectDir.absolutePath)

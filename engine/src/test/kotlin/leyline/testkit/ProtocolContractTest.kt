@@ -10,7 +10,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
+import wotc.mtgo.gre.external.messaging.Messages.OptionalActionMessage
+import wotc.mtgo.gre.external.messaging.Messages.Prompt
 
+/** Pure checker regressions over synthetic messages, independent of gameplay execution. */
 class ProtocolContractTest :
     FunSpec({
         tags(UnitTag)
@@ -77,6 +80,90 @@ class ProtocolContractTest :
                             .addValueString("3"),
                     ).build()
             shouldThrow<AssertionError> { contract.verify(listOf(frame(start, stringDamage))) }
+        }
+
+        test("optional decisions preserve prompt fields and reject incorrect sources") {
+            val contract =
+                ProtocolContract.parse(
+                    """
+                    name: optional decision
+                    scenario: {suite: modal-warmup, id: shock-land-temple-garden}
+                    frames:
+                      - id: decision
+                        events:
+                          - id: decision
+                            type: OptionalActionMessage
+                            lane: prompt
+                            fields: {raw.prompt.promptId: 2233, raw.optionalActionMessage.sourceId: 99}
+                    """.trimIndent(),
+                )
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setPrompt(Prompt.newBuilder().setPromptId(2233))
+                    .setOptionalActionMessage(OptionalActionMessage.newBuilder().setSourceId(99))
+                    .build()
+            contract.verify(listOf(prompt))
+            shouldThrow<AssertionError> {
+                contract.verify(
+                    listOf(prompt.toBuilder().setOptionalActionMessage(prompt.optionalActionMessage.toBuilder().setSourceId(0)).build()),
+                )
+            }
+            shouldThrow<AssertionError> { contract.verify(listOf(prompt.toBuilder().clearOptionalActionMessage().build())) }
+        }
+        test("persistent rows preserve their protocol name and identity through retirement") {
+            val contract =
+                ProtocolContract.parse(
+                    """
+                    name: replacement lifecycle
+                    scenario: {suite: modal-warmup, id: shock-land-temple-garden}
+                    frames:
+                      - id: introduction
+                        events:
+                          - id: row
+                            type: ReplacementEffect
+                            lane: persistent
+                            op: create
+                      - id: retirement
+                        events:
+                          - id: retired
+                            type: ReplacementEffect
+                            lane: persistent
+                            op: delete
+                            sameRow: row
+                    """.trimIndent(),
+                )
+            val row =
+                AnnotationInfo
+                    .newBuilder()
+                    .addType(AnnotationType.ReplacementEffect_803b)
+                    .setId(7)
+                    .build()
+            val introduced =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateMessage(
+                        GameStateMessage.newBuilder().addPersistentAnnotations(row),
+                    ).build()
+            val retired =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateMessage(
+                        GameStateMessage.newBuilder().addDiffDeletedPersistentAnnotationIds(row.id),
+                    ).build()
+            contract.verify(listOf(introduced, retired))
+            shouldThrow<AssertionError> {
+                contract.verify(
+                    listOf(
+                        introduced,
+                        retired
+                            .toBuilder()
+                            .setGameStateMessage(
+                                retired.gameStateMessage.toBuilder().setDiffDeletedPersistentAnnotationIds(0, 8),
+                            ).build(),
+                    ),
+                )
+            }
         }
     })
 

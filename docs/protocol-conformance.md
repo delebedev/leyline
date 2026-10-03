@@ -1,5 +1,5 @@
 ---
-summary: "Bounded protocol contracts over deterministic acceptance scenarios, with mutation checks and a CI lane."
+summary: "Bounded protocol contracts over deterministic acceptance scenarios, a CI lane, and separate checker regressions."
 read_when:
   - "running or extending protocol conformance checks"
   - "deciding which lifecycle assertions can replace duplicate session tests"
@@ -27,9 +27,12 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `mechanics-protocol/llanowar-elves-mana` | Creature-source binding, activation and tap order, payment detail types and source identity, exact payment and retirement counts. |
 | `mechanics-protocol/investigate-novice-inspector` | Trigger-source row introduction and retirement, token parent and source identity, resolution framing. |
 | `mechanics-protocol/boast-usher-of-the-fallen` | Activation identity, exhaustion keys and remaining uses, token parent and source identity, resolution and ability retirement. |
+| `modal-warmup/shock-land-temple-garden` | Optional prompt source and incoming identity, life payment, land-entry identity and replacement-row retirement. |
+| `graveyard/disturb-lunarch` | Graveyard cast, back-face resolution, and object identity across death and casting. |
+| `mechanics-warmup/omen-lifecycle` | Token creation, library destination after resolution, and object reallocation. |
 
 Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
-Kotlin interprets the contracts and exercises mutations. Changing an emitted field requires checking its protocol meaning
+Kotlin interprets the contracts. Changing an emitted field requires checking its protocol meaning
 before changing the expectation. A green gameplay scenario alone does not justify
 loosening a protocol assertion.
 
@@ -39,11 +42,19 @@ numbers. Stable protocol values, detail keys, counts, and ordering are explicit.
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 
-The contracts also reject mutations of the same project-generated output:
+Checker regression coverage is separate from the conformance driver.
+[`ProtocolContractTest`](../engine/src/test/kotlin/leyline/testkit/ProtocolContractTest.kt)
+runs pure parsing and matching regressions in the unit lane.
+[`ProtocolContractMutationTest`](../engine/src/test/kotlin/leyline/testkit/ProtocolContractMutationTest.kt)
+runs selected scenarios in the integration lane, verifies each baseline, then
+requires its contract to reject altered project-generated output:
 duplicate or wrong damage, premature retirement, empty target groups, incorrect
 source, prompt parameters or undo flags, untapped mana sources, incorrect payment
 sources, incorrect token parents or sources, remaining Boast uses, and missing
-retirement. Mutation checks add no extra games.
+retirement, incorrect optional-decision identities or life payments, incorrect
+Disturb source zones, and incorrect Omen destinations. Each regression scenario
+runs once; mutations reuse its messages. The conformance lane only discovers,
+executes, and verifies authored contracts.
 
 Keep mechanism, concurrency, cancellation, transport, and head presentation
 tests. Remove a duplicate lifecycle test only after a contract proves every

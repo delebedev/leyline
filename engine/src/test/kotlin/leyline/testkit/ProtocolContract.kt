@@ -16,7 +16,12 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** Authored obligations over one scripted interaction's emitted messages. */
+/**
+ * Interprets authored protocol obligations over one scripted interaction's emitted messages.
+ * Frames require ordered events in one message; counts cover the complete scenario stream.
+ * Runtime identities bind between events instead of depending on catalog-specific numbers.
+ * Scenario execution is owned by the acceptance executor, not this checker.
+ */
 class ProtocolContract private constructor(
     val name: String,
     val suite: String,
@@ -24,6 +29,11 @@ class ProtocolContract private constructor(
     private val frames: List<List<Map<String, Any?>>>,
     private val counts: List<Map<String, Any?>>,
 ) {
+    /**
+     * Selects one matching start, then checks the first eligible event at each step.
+     * An explicit `where` skips unrelated interactions without skipping contradictory
+     * fields on the selected interaction. Later frames may continue in the same message.
+     */
     fun verify(messages: List<GREToClientMessage>) {
         val events = project(messages)
         val bound = mutableMapOf<String, Event>()
@@ -147,8 +157,14 @@ private fun project(messages: List<GREToClientMessage>): List<Event> {
                     rows[id]?.let { addAll(it.events(index, "persistent", "delete")) }
                 }
             }
-            if (message.hasSelectTargetsReq()) {
-                add(Event(index, "SelectTargetsReq", "prompt", "emit", mapOf("raw" to message)))
+            val prompt =
+                when {
+                    message.hasSelectTargetsReq() -> "SelectTargetsReq"
+                    message.hasOptionalActionMessage() -> "OptionalActionMessage"
+                    else -> null
+                }
+            if (prompt != null) {
+                add(Event(index, prompt, "prompt", "emit", mapOf("raw" to message)))
             }
         }
     }
@@ -173,7 +189,7 @@ private fun AnnotationInfo.events(
             "keys" to detailsList.map { it.key },
             "raw" to this,
         )
-    return typeList.map { Event(index, it.name.removeSuffix("_af5a"), lane, op, values) }
+    return typeList.map { Event(index, it.protocolName(), lane, op, values) }
 }
 
 private fun matches(
@@ -212,6 +228,11 @@ private fun kindMatches(
         (pattern["op"] == null || event.op == pattern["op"])
 
 private val segment = Regex("([A-Za-z][A-Za-z0-9_]*)(?:\\[(\\d+)])?")
+private val promptTypes = setOf("SelectTargetsReq", "OptionalActionMessage")
+private val enumSuffix = Regex("_[0-9a-f]{4}$")
+
+/** Protobuf name-collision suffixes are build identifiers, not protocol names. */
+private fun AnnotationType.protocolName(): String = name.replace(enumSuffix, "")
 
 private fun validateSelector(selector: String) {
     require(
@@ -259,15 +280,15 @@ private fun validatePattern(
 ) {
     val type = pattern.string("type")
     require(
-        type == "SelectTargetsReq" ||
-            AnnotationType.entries.any { it.name.removeSuffix("_af5a") == type } ||
+        type in promptTypes ||
+            AnnotationType.entries.any { it.protocolName() == type } ||
             GameObjectType.entries.any { it.name == type },
     ) {
         "unsupported event type $type"
     }
     val lanes =
         when {
-            type == "SelectTargetsReq" -> setOf("prompt")
+            type in promptTypes -> setOf("prompt")
             GameObjectType.entries.any { it.name == type } -> setOf("object")
             else -> setOf("transient", "persistent")
         }
