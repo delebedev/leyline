@@ -35,6 +35,9 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `mechanics-protocol/warp-quantum-riddler` | Delayed holder source and parent identity, pending-row update, exile reallocation, and ability and row retirement. |
 | `mechanics-protocol/daynight-roundtrip-cathar` | Battlefield identity and reciprocal runtime face identities across the night transformation. |
 | `mechanics-protocol/discover-hidden-courtyard` | Exile offer and stack reallocation identity, Discover ability binding, absence of casting options before acceptance, and option-row lifetime through resolution. |
+| `mechanics-protocol/foretell-depart-the-realm-lifecycle` | Accepted special action, runtime ability binding, face-down reason, and persistent suppression identity. |
+| `mechanics-warmup/cycling-activate` | Hand-source activation, discard cost, runtime ability identity, draw inside resolution, and no premature retirement. |
+| `mechanics-protocol/stock-up-bottom-order` | Resolution begins before selection, exact selection bounds, Put transfers, bottom-order domain and source, and no repeated selection. |
 | `mechanics-protocol/ward-tax` | Ward trigger identity, source-row lifetime, and no premature ability retirement. |
 
 Scenario YAML owns gameplay intent. Contract YAML owns protocol expectations;
@@ -64,7 +67,7 @@ counter types, incorrect counter deltas and counts, and missing counter-row
 retirement, incorrect solve progress and designation, duplicate solve triggers,
 incorrect delayed holder identities or exile destination, and premature Ward
 ability retirement, incorrect transformation faces or identity, mismatched Discover
-cast offers, broken stack reallocation, and early casting-option creation or retirement.
+cast offers, broken stack reallocation, and early casting-option creation or retirement, wrong foretell state or action, broken cycling identities or retirement, and incorrect selection bounds, source, ordering domain or repeated selection.
 Each regression scenario runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
 

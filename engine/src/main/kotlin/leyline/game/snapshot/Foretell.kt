@@ -17,8 +17,7 @@ import forge.game.zone.ZoneType
  *    Designation (DesignationType=18 is reserved for Plotted; foretold has no
  *    designation type allocated). Face-down exile is the wire signal.
  * 2. **Face-down exile.** `visibility=Private` on the exile object, a keyed
- *    `FaceDown` row while it remains foretold, and the transient `FaceDown` +
- *    `SuppressedPowerAndToughness` pair on the foretell action GSM.
+ *    `FaceDown` and `SuppressedPowerAndToughness` rows while it remains foretold.
  * 3. **Cast-leg uses type=13 CastingTimeOption rail** (like Flashback), not
  *    the universal-149 no-mana rail (like Plot). Foretell still pays a mana
  *    cost — just at the foretell discount.

@@ -13,6 +13,16 @@ class AnnotationProjectionStateTest :
     FunSpec({
         tags(UnitTag)
 
+        test("resolution start survives a committed frame and completion permits a later lifecycle") {
+            val first = AnnotationProjectionState.Planner(AnnotationProjectionState())
+            first.startResolution(100) shouldBe true
+            val next = AnnotationProjectionState.Planner(first.freeze())
+            next.startResolution(100) shouldBe false
+            next.startResolution(101) shouldBe true
+            next.completeResolution(100)
+            next.startResolution(100) shouldBe true
+        }
+
         test("discarded journal reduction leaves every lifecycle family unchanged") {
             val before = AnnotationProjectionState()
 

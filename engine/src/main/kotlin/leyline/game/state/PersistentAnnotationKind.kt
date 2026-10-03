@@ -516,6 +516,17 @@ data object FaceDownForetellKind : PersistentAnnotationKind {
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
 }
 
+/** Persistent suppression while a foretold card remains face down in exile. */
+data object ForetellSuppressedKind : PersistentAnnotationKind {
+    override val name = "ForetellSuppressed"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean = AnnotationType.SuppressedPowerAndToughness in ann.typeList
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
 data object FaceDownCloakKind : PersistentAnnotationKind {
     override val name = "FaceDownCloak"
     override val pruneStale = true
@@ -831,6 +842,7 @@ object PersistentAnnotationKinds {
             CitysBlessingDesignationKind,
             DayNightDesignationKind,
             FaceDownForetellKind,
+            ForetellSuppressedKind,
             FaceDownDisguiseKind,
             FaceDownCloakKind,
             FaceDownManifestDreadKind,

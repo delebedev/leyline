@@ -1,0 +1,70 @@
+name: Stock Up selection and bottom ordering
+scenario: {suite: mechanics-protocol, id: stock-up-bottom-order}
+frames:
+  - id: spell
+    events:
+      - id: spell
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1, "raw.cardTypes[0]": Sorcery}
+  - id: resolution
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        where: {equals: {affectorId: spell.affectorId}}
+        keys: [grpid]
+        equals: {affectorId: spell.affectorId, "details.grpid[0]": spell.raw.grpId}
+  - id: choose
+    events:
+      - id: choose
+        type: SelectNReq
+        lane: prompt
+        fields:
+          raw.prompt.promptId: 2490
+          raw.selectNReq.minSel: 2
+          raw.selectNReq.maxSel: 2
+          raw.selectNReq.ids.length: 5
+          raw.selectNReq.context: Resolution
+          raw.selectNReq.optionContext: Resolution
+          raw.selectNReq.idType: InstanceId
+          raw.allowCancel: "No"
+        equals: {raw.selectNReq.sourceId: started.affectorId}
+  - id: chosen
+    events:
+      - id: first
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Put], details.zone_src: [32], details.zone_dest: [31]}
+        equals: {affectorId: started.affectorId}
+      - id: second
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Put], details.zone_src: [32], details.zone_dest: [31]}
+        equals: {affectorId: started.affectorId}
+  - id: order
+    events:
+      - id: order
+        type: OrderReq
+        lane: prompt
+        fields: {raw.prompt.promptId: 42, raw.orderReq.ids.length: 3, raw.orderReq.orderingContext: OrderingForBottom, raw.allowCancel: "No"}
+        equals: {"raw.prompt.parameters[0].numberValue": started.affectorId}
+  - id: complete
+    events:
+      - id: completed
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: started.affectorId, details.grpid: started.details.grpid}
+windows:
+  - id: no-repeated-selection
+    after: choose
+    before: order
+    absent: {type: SelectNReq, fields: {raw.prompt.promptId: 2490}}
+counts:
+  - match: {type: ResolutionStart, lane: transient, equals: {affectorId: started.affectorId}}
+    exactly: 1
+  - match: {type: ResolutionComplete, lane: transient, equals: {affectorId: started.affectorId}}
+    exactly: 1

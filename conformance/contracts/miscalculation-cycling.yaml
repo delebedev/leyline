@@ -1,0 +1,57 @@
+name: Miscalculation cycling activation
+scenario: {suite: mechanics-warmup, id: cycling-activate}
+frames:
+  - id: ability
+    events:
+      - id: ability
+        type: Ability
+        lane: object
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        where: {equals: {"affectedIds[0]": ability.affectorId}}
+        keys: [source_zone]
+        fields: {details.source_zone: [31]}
+        equals: {affectorId: ability.raw.parentId, "affectedIds[0]": ability.affectorId}
+      - id: discarded
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Discard], details.zone_src: [31], details.zone_dest: [33]}
+        equals: {affectorId: ability.affectorId}
+      - id: activated
+        type: UserActionTaken
+        lane: transient
+        where: {equals: {"affectedIds[0]": ability.affectorId}}
+        keys: [actionType, abilityGrpId]
+        fields: {details.actionType: [2]}
+        equals: {"affectedIds[0]": ability.affectorId, "details.abilityGrpId[0]": ability.raw.grpId}
+  - id: resolution
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: ability.affectorId, "details.grpid[0]": ability.raw.grpId}
+      - id: drawn
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Draw], details.zone_src: [32], details.zone_dest: [31]}
+        equals: {affectorId: ability.affectorId}
+      - id: completed
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: ability.affectorId, details.grpid: started.details.grpid}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectedIds: created.affectedIds, affectorId: created.affectorId}
+windows:
+  - id: no-early-retirement
+    after: created
+    before: retired
+    absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}

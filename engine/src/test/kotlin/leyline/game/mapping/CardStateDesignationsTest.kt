@@ -191,17 +191,22 @@ class CardStateDesignationsTest :
             }
         }
 
-        test("Foretold gain emits FaceDown + SuppressedPowerAndToughness pair, no lose") {
+        test("Foretold gain emits a special action, no lose") {
             val foretoldFid = 17
-            val gainAnnotations = mutableListOf<AnnotationInfo>()
+            val transfer = AnnotationBuilder.zoneTransfer(resolveIid(ForgeCardId(foretoldFid)), 31, 29, "Foretell")
+            val gainAnnotations = mutableListOf(transfer)
             val prev = snap(listOf(bound(foretoldFid, DesignationSet())))
             val cur = snap(listOf(bound(foretoldFid, DesignationSet(foretold = true))))
 
             insertStateDesignationTransients(gainAnnotations, prev, cur, resolveIid)
             gainAnnotations.map { it.typeList.first() } shouldContainExactly
-                listOf(AnnotationType.FaceDown, AnnotationType.SuppressedPowerAndToughness)
+                listOf(AnnotationType.ZoneTransfer_af5a, AnnotationType.UserActionTaken)
 
-            // Reverse direction: foretold flag clears. Foretold has FACE_DOWN_PAIR mode
+            val noPreparation = mutableListOf<AnnotationInfo>()
+            insertStateDesignationTransients(noPreparation, prev, cur, resolveIid)
+            noPreparation.shouldBeEmpty()
+
+            // Reverse direction: foretold flag clears. Foretold has FORETELL_ACTION mode
             // which has no lose path.
             val loseAnnotations = mutableListOf<AnnotationInfo>()
             insertStateDesignationTransients(loseAnnotations, cur, prev, resolveIid)

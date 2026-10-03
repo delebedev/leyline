@@ -1,0 +1,43 @@
+name: Depart the Realm foretell action
+scenario: {suite: mechanics-protocol, id: foretell-depart-the-realm-lifecycle}
+frames:
+  - id: hand
+    events:
+      - id: source
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 31, raw.controllerSeatId: 1}
+  - id: foretell
+    events:
+      - id: changed
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": source.affectorId, "affectedIds[0]": source.affectorId}
+      - id: transfer
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Foretell], details.zone_src: [31], details.zone_dest: [29]}
+        equals: {affectedIds: changed.details.new_id}
+      - id: action
+        type: UserActionTaken
+        lane: transient
+        keys: [actionType, abilityGrpId]
+        fields: {details.actionType: [7]}
+        equals:
+          affectedIds: transfer.affectedIds
+          "details.abilityGrpId[0]": "source.raw.uniqueAbilities[0].grpId"
+      - id: face-down
+        type: FaceDown
+        lane: persistent
+        op: create
+        keys: [REASON, abilityGrpId]
+        fields: {details.REASON: [5], details.abilityGrpId: [208]}
+        equals: {affectorId: "transfer.affectedIds[0]", affectedIds: transfer.affectedIds}
+      - id: suppressed
+        type: SuppressedPowerAndToughness
+        lane: persistent
+        op: create
+        keys: []
+        equals: {affectorId: face-down.affectorId, affectedIds: face-down.affectedIds}

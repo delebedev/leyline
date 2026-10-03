@@ -42,6 +42,97 @@ class ProtocolContractMutationTest :
             }
         }
 
+        regression("depart-the-realm-foretell.yaml") { contract, messages ->
+            for ((name, mutant) in listOf(
+                "wrong foretell destination" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Foretell") it.withIntDetail("zone_dest", 33) else it
+                    },
+                "wrong special action" to
+                    messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
+                        if (it.detailInt("actionType") == 7) it.withIntDetail("abilityGrpId", 0) else it
+                    },
+                "wrong face-down reason" to
+                    messages.mutatingAnnotation(AnnotationType.FaceDown, persistent = true) {
+                        it.withIntDetail("REASON", 6)
+                    },
+                "wrong suppressed identity" to
+                    messages.mutatingAnnotation(AnnotationType.SuppressedPowerAndToughness, persistent = true) {
+                        it.toBuilder().setAffectorId(0).build()
+                    },
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+        regression("miscalculation-cycling.yaml") { contract, messages ->
+            for ((name, mutant) in listOf(
+                "wrong activation source" to
+                    messages.mutatingAnnotation(AnnotationType.AbilityInstanceCreated) {
+                        if (it.detailInt("source_zone") == 31) it.withIntDetail("source_zone", 28) else it
+                    },
+                "wrong draw owner" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Draw") it.toBuilder().setAffectorId(0).build() else it
+                    },
+                "wrong resolution ability" to
+                    messages.mutatingAnnotation(
+                        AnnotationType.ResolutionStart,
+                    ) { it.withIntDetail("grpid", 0) },
+                "missing retirement" to
+                    messages.mutatingAnnotation(AnnotationType.AbilityInstanceDeleted) {
+                        it.toBuilder().clearAffectedIds().build()
+                    },
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+            val index =
+                messages.indexOfFirst {
+                    it.gameStateMessage.annotationsList.any { a ->
+                        AnnotationType.AbilityInstanceCreated in a.typeList && a.detailInt("source_zone") == 31
+                    }
+                }
+            val created =
+                messages[index].gameStateMessage.annotationsList.single {
+                    AnnotationType.AbilityInstanceCreated in it.typeList && it.detailInt("source_zone") == 31
+                }
+            val early =
+                created
+                    .toBuilder()
+                    .setId(99999)
+                    .clearType()
+                    .addType(AnnotationType.AbilityInstanceDeleted)
+                    .clearDetails()
+                    .build()
+            val message =
+                messages[index]
+                    .toBuilder()
+                    .setGameStateMessage(
+                        messages[index].gameStateMessage.toBuilder().addAnnotations(early),
+                    ).build()
+            withClue("premature retirement") { shouldThrow<AssertionError> { contract.verify(messages.replacing(index, message)) } }
+        }
+        regression("stock-up-bottom-order.yaml") { contract, messages ->
+            val selection = messages.indexOfFirst { it.hasSelectNReq() }
+            val ordering = messages.indexOfFirst { it.hasOrderReq() }
+            val prompt = messages[selection]
+            val order = messages[ordering]
+            for ((name, mutant) in listOf(
+                "wrong selection bounds" to
+                    messages.replacing(selection, prompt.toBuilder().setSelectNReq(prompt.selectNReq.toBuilder().setMaxSel(1)).build()),
+                "wrong selection source" to
+                    messages.replacing(selection, prompt.toBuilder().setSelectNReq(prompt.selectNReq.toBuilder().setSourceId(0)).build()),
+                "wrong ordering domain" to
+                    messages.replacing(ordering, order.toBuilder().setOrderReq(order.orderReq.toBuilder().clearIds()).build()),
+                "wrong selected transfer" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Put") it.withIntDetail("zone_dest", 33) else it
+                    },
+                "repeated selection" to (messages.take(ordering) + prompt + messages.drop(ordering)),
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+
         regression("lightning-bolt.yaml", ::checkDamageMutations)
         regression("rabbit-battery-target-selection.yaml", ::checkTargetMutations)
         regression("llanowar-elves.yaml", ::checkManaMutations)

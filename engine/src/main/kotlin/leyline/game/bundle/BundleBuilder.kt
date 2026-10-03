@@ -1690,7 +1690,14 @@ class BundleBuilder(
                 game,
                 counter,
                 routes,
-                ViewerProjectionIntent.of(privateCardPrompt = privatePrompt),
+                ViewerProjectionIntent.of(
+                    privateCardPrompt = privatePrompt,
+                    supplements =
+                        window.sourceForgeCardId
+                            ?.takeIf { window.kind == CardSelectKind.Resolution }
+                            ?.let { listOf(ProjectionSupplement.ResolutionSelection(it)) }
+                            .orEmpty(),
+                ),
             )
         return finishSettledPrompt(
             frame,
