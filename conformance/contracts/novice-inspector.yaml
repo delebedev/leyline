@@ -60,3 +60,7 @@ counts:
     exactly: 1
   - match: {type: TriggeringObject, lane: persistent, op: delete, sameRow: source}
     exactly: 1
+  - match: {type: TriggeringObject, lane: persistent, op: create, sameRow: source}
+    exactly: 1
+  - match: {type: TriggeringObject, lane: persistent, op: update, sameRow: source}
+    exactly: 0

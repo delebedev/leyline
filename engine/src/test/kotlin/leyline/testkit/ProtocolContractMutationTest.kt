@@ -12,6 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Regression checks that selected authored contracts reject altered message streams.
@@ -46,6 +47,7 @@ class ProtocolContractMutationTest :
             checkTokenMutations(contract, messages)
             val row = messages.allPersistentAnnotations().single { AnnotationType.TriggeringObject in it.typeList }
             shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
+            checkRowLifetimeMutations(contract, messages, row)
         }
         regression("usher-of-the-fallen.yaml") { contract, messages ->
             checkTokenMutations(contract, messages)
@@ -89,6 +91,7 @@ class ProtocolContractMutationTest :
             withClue(
                 "missing replacement retirement",
             ) { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
+            checkRowLifetimeMutations(contract, messages, row)
         }
         regression("lunarch-veteran.yaml") { contract, messages ->
             val wrongZone =
@@ -174,6 +177,7 @@ private fun checkDamageMutations(
             }
         }
     withClue("premature target retirement") { shouldThrow<AssertionError> { contract.verify(premature) } }
+    checkRowLifetimeMutations(contract, messages, row)
 }
 
 private fun checkTargetMutations(
@@ -211,6 +215,30 @@ private fun checkTargetMutations(
     }
     val row = messages.allPersistentAnnotations().single { AnnotationType.TargetSpec in it.typeList }
     withClue("missing target retirement") { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
+    checkRowLifetimeMutations(contract, messages, row)
+}
+
+private fun checkRowLifetimeMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    row: AnnotationInfo,
+) {
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val frame = messages[birth]
+
+    fun rowMessage(value: AnnotationInfo): GREToClientMessage =
+        frame.toBuilder().setGameStateMessage(GameStateMessage.newBuilder().addPersistentAnnotations(value)).build()
+    val update =
+        rowMessage(
+            row
+                .toBuilder()
+                .clearAffectedIds()
+                .addAffectedIds(0)
+                .build(),
+        )
+    val changed = messages.toMutableList().also { it.add(birth + 1, update) }
+    withClue("contradictory row update") { shouldThrow<AssertionError> { contract.verify(changed) } }
+    withClue("retired row reintroduced") { shouldThrow<AssertionError> { contract.verify(messages + rowMessage(row)) } }
 }
 
 private fun checkManaMutations(

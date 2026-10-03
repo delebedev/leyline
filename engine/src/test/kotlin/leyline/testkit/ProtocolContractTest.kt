@@ -27,6 +27,10 @@ class ProtocolContractTest :
                 contractText.replace("type: DamageDealt", "type: DamageDealt\n            lane: object"),
                 contractText.replace("type: DamageDealt", "type: DamageDealt\n            op: delete"),
                 contractText.replace("name: damage", "name: damage\nname: duplicate"),
+                contractText.replace("fields: {details.damage: [3]}", "fields: null"),
+                contractText.replace("fields:", "where: null\n        fields:"),
+                contractText.replace("fields:", "where: {fields: null}\n        fields:"),
+                contractText + "\ncounts: null",
             )) {
                 shouldThrowAny { ProtocolContract.parse(invalid) }
             }
@@ -61,6 +65,27 @@ class ProtocolContractTest :
                     contractText.replace("fields:", "where: {equals: {affectorId: missing.affectorId}}\n        fields:"),
                 )
             }
+        }
+
+        test("the first selected start cannot skip contradictory fields") {
+            val contract =
+                ProtocolContract.parse(
+                    """
+                    name: selected start
+                    scenario: {suite: warmup, id: land-spell-face}
+                    frames:
+                      - id: damage
+                        events:
+                          - id: damage
+                            type: DamageDealt
+                            where: {fields: {affectorId: 0}}
+                            fields: {details.damage: [3]}
+                    """.trimIndent(),
+                )
+            val unrelated = damage.toBuilder().setAffectorId(1).build()
+            val wrong = damage.toBuilder().setDetails(0, damage.getDetails(0).toBuilder().setValueInt32(0, 4)).build()
+            contract.verify(listOf(frame(unrelated, damage)))
+            shouldThrow<AssertionError> { contract.verify(listOf(frame(unrelated, wrong, damage))) }
         }
 
         test("typed values and exact counts reject superficially similar output") {
@@ -131,6 +156,11 @@ class ProtocolContractTest :
                             lane: persistent
                             op: delete
                             sameRow: row
+                    counts:
+                      - match: {type: ReplacementEffect, lane: persistent, op: create, sameRow: row}
+                        exactly: 1
+                      - match: {type: ReplacementEffect, lane: persistent, op: delete, sameRow: row}
+                        exactly: 1
                     """.trimIndent(),
                 )
             val row =
@@ -152,17 +182,19 @@ class ProtocolContractTest :
                         GameStateMessage.newBuilder().addDiffDeletedPersistentAnnotationIds(row.id),
                     ).build()
             contract.verify(listOf(introduced, retired))
-            shouldThrow<AssertionError> {
-                contract.verify(
-                    listOf(
-                        introduced,
-                        retired
-                            .toBuilder()
-                            .setGameStateMessage(
-                                retired.gameStateMessage.toBuilder().setDiffDeletedPersistentAnnotationIds(0, 8),
-                            ).build(),
-                    ),
-                )
+            contract.verify(listOf(introduced, introduced, retired))
+            val wrongRetirement =
+                retired
+                    .toBuilder()
+                    .setGameStateMessage(
+                        retired.gameStateMessage.toBuilder().setDiffDeletedPersistentAnnotationIds(0, 8),
+                    ).build()
+            for (messages in listOf(
+                listOf(introduced, retired, introduced),
+                listOf(introduced, retired, retired),
+                listOf(introduced, wrongRetirement),
+            )) {
+                shouldThrow<AssertionError> { contract.verify(messages) }
             }
         }
     })

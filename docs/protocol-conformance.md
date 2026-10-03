@@ -51,7 +51,8 @@ requires its contract to reject altered project-generated output:
 duplicate or wrong damage, premature retirement, empty target groups, incorrect
 source, prompt parameters or undo flags, untapped mana sources, incorrect payment
 sources, incorrect token parents or sources, remaining Boast uses, and missing
-retirement, incorrect optional-decision identities or life payments, incorrect
+retirement, reintroduced retired rows, contradictory row updates,
+incorrect optional-decision identities or life payments, incorrect
 Disturb source zones, and incorrect Omen destinations. Each regression scenario
 runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
@@ -67,14 +68,20 @@ An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
 `fields`, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
 normalized `details`, `detailTypes`, identities, array indices, and `length`.
-Enum fields use their protobuf names. Unknown schema fields and invalid references
-fail loading. A missing event, contradictory value, or incorrect count fails CI.
+Enum fields use their protobuf names. Unknown schema fields, invalid references,
+and explicit null entries fail loading. A missing event, contradictory value, or
+incorrect count fails CI.
 Counts cover the scenario's entire emitted stream. Matching selects one start;
 subsequent events cannot skip a contradictory occurrence to accept a later valid copy.
 An optional `where` selects an event using `fields` or `equals` when other
 interactions emit the same type, such as multiple mana sources during payment.
 The first selected event must satisfy its assertions. A later valid selected
 event cannot hide an earlier contradictory one.
+
+Persistent rows become inactive at deletion. A later emission of that row is a
+new `create`, while repeated deletions retain their last-known identity for
+counting. The target, trigger-source, and replacement contracts require one
+creation, no updates, and one deletion for their selected row.
 
 Start with [`lightning-bolt.yaml`](../conformance/contracts/lightning-bolt.yaml)
 or [`rabbit-battery-target-selection.yaml`](../conformance/contracts/rabbit-battery-target-selection.yaml).

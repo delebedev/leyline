@@ -51,7 +51,7 @@ class ProtocolContract private constructor(
                                 pattern["where"] == null ||
                                     matches(events[index], pattern["where"].map() + ("type" to pattern["type"]), bound)
                             ) &&
-                            (bound.isNotEmpty() || matches(events[index], pattern, bound)) &&
+                            (pattern["where"] != null || bound.isNotEmpty() || matches(events[index], pattern, bound)) &&
                             (
                                 pattern["sameRow"] == null ||
                                     events[index].values["annotationId"] == bound[pattern["sameRow"]]?.values?.get("annotationId")
@@ -132,6 +132,7 @@ private data class Event(
 
 private fun project(messages: List<GREToClientMessage>): List<Event> {
     val rows = mutableMapOf<Int, AnnotationInfo>()
+    val activeRows = mutableSetOf<Int>()
     val objects = mutableSetOf<Int>()
     return buildList {
         messages.forEachIndexed { index, message ->
@@ -150,10 +151,13 @@ private fun project(messages: List<GREToClientMessage>): List<Event> {
                 }
                 for (annotation in gsm.annotationsList) addAll(annotation.events(index, "transient", "emit"))
                 for (annotation in gsm.persistentAnnotationsList) {
-                    val op = if (rows.put(annotation.id, annotation) == null) "create" else "update"
+                    val op = if (activeRows.add(annotation.id)) "create" else "update"
+                    rows[annotation.id] = annotation
                     addAll(annotation.events(index, "persistent", op))
                 }
                 for (id in gsm.diffDeletedPersistentAnnotationIdsList) {
+                    activeRows.remove(id)
+                    // Retain the last row to expose repeated deletions to exact-count obligations.
                     rows[id]?.let { addAll(it.events(index, "persistent", "delete")) }
                 }
             }
@@ -337,4 +341,5 @@ private fun Map<String, Any?>.string(key: String): String = this[key] as? String
 
 private fun Map<String, Any?>.keysOnly(vararg allowed: String) {
     require(keys.all { it in allowed }) { "unknown fields: ${keys - allowed.toSet()}" }
+    require(values.none { it == null }) { "explicit null fields are not allowed" }
 }

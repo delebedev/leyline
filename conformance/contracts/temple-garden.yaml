@@ -74,3 +74,7 @@ counts:
     exactly: 1
   - match: {type: ReplacementEffect, lane: persistent, op: delete, sameRow: replacement}
     exactly: 1
+  - match: {type: ReplacementEffect, lane: persistent, op: create, sameRow: replacement}
+    exactly: 1
+  - match: {type: ReplacementEffect, lane: persistent, op: update, sameRow: replacement}
+    exactly: 0

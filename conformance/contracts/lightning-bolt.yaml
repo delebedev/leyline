@@ -92,3 +92,7 @@ counts:
     exactly: 1
   - match: {type: TargetSpec, lane: persistent, op: delete, sameRow: target}
     exactly: 1
+  - match: {type: TargetSpec, lane: persistent, op: create, sameRow: target}
+    exactly: 1
+  - match: {type: TargetSpec, lane: persistent, op: update, sameRow: target}
+    exactly: 0
