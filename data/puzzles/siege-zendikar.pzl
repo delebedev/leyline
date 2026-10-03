@@ -1,0 +1,24 @@
+# Design Narrative
+# Mechanic: Cast a Siege, attack it, then cast its transformed back face.
+# Forcing: Awakened Skyclave can enter only after the Siege loses its defense.
+# AI behavior: No blockers, spells, or combat choices.
+# Failure modes: Missing back face identifies a blocked defeat or free-cast flow.
+# Card roles: Invasion of Zendikar is the Siege; Centaur Courser deals exactly
+# three combat damage; four Forests pay the spell; library basics feed its search.
+# Protocol path: Cast, search, attacker declaration, counters, and optional cast.
+[metadata]
+Name:Siege Zendikar
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Invasion of Zendikar, defeat it with Centaur Courser, and cast Awakened Skyclave.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Invasion of Zendikar
+humanbattlefield=Forest;Forest;Forest;Forest;Centaur Courser
+humanlibrary=Forest;Island;Forest;Forest;Forest
+ailibrary=Island;Island;Island;Island;Island

@@ -5,6 +5,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCost
@@ -46,7 +47,7 @@ internal fun resolveAttackDefender(
     when (defender) {
         is Target.Card -> {
             val card = findCard(game, defender.cardId)
-            if (card != null && card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
+            card?.takeIf { it in CombatUtil.getAllPossibleDefenders(attackingPlayer) }
         }
         is Target.Player -> {
             val playerDefender = game.getPlayer(defender.playerId.value)
@@ -239,7 +240,7 @@ fun getNonManaActivatedAbilities(
     val sourceIds = sourceAbilities.map { it.id }.toMutableSet()
     for (ability in card.allSpellAbilities.orEmpty()) {
         val isNonManaActivatedAbility = ability.isActivatedAbility && !ability.isManaAbility()
-        if (ability.id !in sourceIds && (isNonManaActivatedAbility || isReconfigureUnattach(ability))) {
+        if (ability.id !in sourceIds && (isNonManaActivatedAbility || isReconfigureUnattach(ability) || CompanionAction.matches(ability))) {
             sourceAbilities.add(ability)
             sourceIds.add(ability.id)
         }
@@ -254,7 +255,7 @@ fun getNonManaActivatedAbilities(
         ability.setActivatingPlayer(player)
         val isSpecialTurnFaceUp =
             ability.isTurnFaceUp && card.isFaceDown && card.isInZone(ZoneType.Battlefield)
-        if (!ability.isActivatedAbility && !isSpecialTurnFaceUp) continue
+        if (!ability.isActivatedAbility && !isSpecialTurnFaceUp && !CompanionAction.matches(ability)) continue
         if (ability.isManaAbility()) continue
         if (isReconfigureAttach(ability) && card.isAttachedToEntity) continue
         if (isReconfigureUnattach(ability) && !card.isAttachedToEntity) continue

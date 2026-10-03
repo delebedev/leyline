@@ -145,6 +145,12 @@ data class TurnFaceUpStep(
     override val label: String = "turn_face_up $card"
 }
 
+data class CompanionToHandStep(
+    val card: String,
+) : AcceptanceStep {
+    override val label: String = "companion_to_hand $card"
+}
+
 data class PlayLandStep(
     val card: String,
 ) : AcceptanceStep {

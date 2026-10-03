@@ -3,6 +3,7 @@ package leyline.game.snapshot
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
+import leyline.bridge.CompanionAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -48,7 +49,27 @@ object SnapshotCapture {
                     maxHandSize = player.maxHandSize,
                     speed = player.speed,
                     dungeon = DungeonSnapshot.capture(player, bridge),
+                    hasBlessing = player.hasBlessing(),
                     manaPool = ManaSnapshotCapture.capturePool(player, bridge),
+                    companion =
+                        CompanionAction.chosenCard(player)?.let { source ->
+                            val fid = ForgeCardId(source.id)
+                            bridge.getOrAllocInstanceId(fid)
+                            CompanionSnapshot(
+                                card = captureBoundCard(source, game, bridge),
+                                originalInstanceId =
+                                    bridge
+                                        .getInstanceIdMap()
+                                        .filterValues { it == fid }
+                                        .keys
+                                        .minOf { it.value },
+                                available =
+                                    player
+                                        .getCardsIn(
+                                            ForgeZoneType.Command,
+                                        ).any { it.id == source.id && isSnapshotVisibleCard(it) },
+                            )
+                        },
                 )
             }
         val zones = captureZones(game, bridge)
@@ -274,6 +295,14 @@ object SnapshotCapture {
         result[ZoneIds.SUPPRESSED] = MutateSnapshotSupport.captureMergedZone(game, bridge)
         captureSharedZone(game, ForgeZoneType.Exile, result)
         captureSharedZone(game, ForgeZoneType.Command, result)
+        for (player in game.players) {
+            val companion = CompanionAction.chosenCard(player) ?: continue
+            val fid = ForgeCardId(companion.id)
+            if (fid !in result[ZoneIds.COMMAND]?.contents.orEmpty()) continue
+            val sideboard = ZoneIds.sideboardOf(bridge.seatOf(player)!!.value)
+            result[sideboard] = result.getValue(sideboard).let { it.copy(contents = it.contents + fid) }
+            result[ZoneIds.COMMAND] = result.getValue(ZoneIds.COMMAND).let { it.copy(contents = it.contents - fid) }
+        }
         return result
     }
 
@@ -508,6 +537,7 @@ object SnapshotCapture {
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,
+            battleProtectorSeatId = if (onBf && card.isBattle) card.protectingPlayer?.let(bridge::seatOf) else null,
             mayLookSeatIds = mayLookSeatIds,
             isProjectable =
                 emblem != null ||

@@ -6,7 +6,6 @@ import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.DetailKeys
-import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.mapping.FrameIdResolver
@@ -228,6 +227,20 @@ object AnnotationPipeline {
             }
 
         fun emitTransfer(transfer: AppliedTransfer) {
+            if (ctx != null) {
+                events
+                    .filterIsInstance<GameEvent.CompanionToHand>()
+                    .firstOrNull { it.cardId == transfer.forgeCardId && it.originalInstanceId == transfer.origId }
+                    ?.let { companion ->
+                        annotations.addAll(
+                            TransferAnnotations.companionPaymentAnnotations(
+                                companion,
+                                ctx.frameIds::cardIid,
+                                { fid -> MechanicSourceProjection.manaAbilityGrpId(ctx.snap, fid) },
+                            ),
+                        )
+                    }
+            }
             val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
@@ -807,7 +820,12 @@ object AnnotationPipeline {
                 .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
                 .map { it.cardId }
                 .toSet()
-        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds + convokePaymentForgeIds
+        val companionManaForgeIds =
+            events
+                .filterIsInstance<GameEvent.CompanionToHand>()
+                .flatMap { it.manaPayments.map { payment -> payment.sourceCardId } }
+                .toSet()
+        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds + convokePaymentForgeIds + companionManaForgeIds
         val castStackIidsByCard =
             transferResult.transfers
                 .asSequence()
@@ -982,7 +1000,7 @@ object AnnotationPipeline {
                     },
             )
         val storeEffectDiff = effectDiff.withDestroyedEarthbendLayers(earthbend.destroyedLayerIds)
-        // Catalog-defined keyword rows each own one recipient effect lifetime.
+        // Keyword rows each own one recipient effect lifetime.
         val batch =
             PersistentAnnotationStore.computeBatch(
                 currentActive = persistSnapshot,
@@ -991,7 +1009,7 @@ object AnnotationPipeline {
                 effectPersistent = effectPersistent + earthbend.effectPersistent,
                 effectDiff = storeEffectDiff,
                 destroyedEffectIds =
-                    keywordDiff.destroyed.filter { KeywordGrpIds.forKeyword(it.keyword) == null }.map { it.syntheticId } +
+                    keywordDiff.destroyed.map { it.syntheticId } +
                         grantedAbilityDiff.destroyed.map { it.syntheticId },
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,

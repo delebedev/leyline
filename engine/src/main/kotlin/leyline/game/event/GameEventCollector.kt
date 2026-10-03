@@ -181,6 +181,35 @@ class GameEventCollector(
         openingHandActionWindow = false
     }
 
+    /** The paid static action resolves without a stack event from Forge. */
+    fun recordCompanionToHand(ability: SpellAbility) {
+        val card = ability.hostCard
+        val fid = ForgeCardId(card.id)
+        val seat = seatOf(ability.activatingPlayer) ?: return
+        val originalIid =
+            bridge
+                .getInstanceIdMap()
+                .filterValues { it == fid }
+                .keys
+                .minOf { it.value }
+        frame.add(
+            GameEvent.CompanionToHand(
+                fid,
+                seat,
+                originalIid,
+                ability.payingMana.map { mana ->
+                    val source = mana.sourceCard
+                    val definition = mana.manaAbility?.sourceSA?.definitionId
+                    val abilityGrpId =
+                        definition?.let {
+                            bridge.resolveAbilityIdentity(source, AbilityDefinitionRef.SpellAbility(it))?.abilityGrpId
+                        } ?: 0
+                    GameEvent.ManaPayment(ForgeCardId(source.id), mana.color.toInt() and 0xff, abilityGrpId)
+                },
+            ),
+        )
+    }
+
     // -- EventBus entry point --
 
     @Subscribe
@@ -605,7 +634,7 @@ class GameEventCollector(
      * Returns 0 when nothing pins down the zone.
      */
     private fun resolveActivationZoneId(
-        topSa: forge.game.spellability.SpellAbility?,
+        topSa: SpellAbility?,
         cardId: Int,
         seat: SeatId,
         evSaId: Int,
@@ -664,7 +693,7 @@ class GameEventCollector(
     private fun findLiveSaOnCard(
         cardId: Int,
         evSaId: Int,
-    ): forge.game.spellability.SpellAbility? {
+    ): SpellAbility? {
         if (evSaId == 0) return null
         val card = bridge.findCard(ForgeCardId(cardId)) ?: return null
         return card.spellAbilities.firstOrNull { it.id == evSaId }
@@ -698,7 +727,7 @@ class GameEventCollector(
 
     /** CastingTimeOption state read from the live SA on top of the stack. */
     private fun readCastingTimeOptionState(
-        topSa: forge.game.spellability.SpellAbility?,
+        topSa: SpellAbility?,
         stackOptionalCosts: String?,
         selectedAdditionalCostGrpId: Int?,
         selectedChosenCostPromptId: Int?,

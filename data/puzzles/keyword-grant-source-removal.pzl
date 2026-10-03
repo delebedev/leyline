@@ -1,0 +1,23 @@
+# Mechanic: Continuous keyword grants retire with their source.
+# Forcing: Remove both keyword sources before the final lethal spell.
+# AI behavior: No hand or battlefield actions interrupt the removal sequence.
+# Failure modes: Stale grants disagree with current creature abilities; timeout indicates a stalled response.
+# Card roles: Cloudshredder grants flying and haste; Fervor independently grants haste;
+# Sentinel Sliver receives both grants; Healer's Hawk keeps printed flying; Naturalize and two Bolts remove sources and win.
+# Protocol path: AddAbility, LayeredEffectDestroyed, persistent deletion, and full-state projection.
+[metadata]
+Name:Keyword Grant Source Removal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Remove Cloudshredder and Fervor, preserving independent haste and printed flying, then cast lethal Lightning Bolt.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanbattlefield=Cloudshredder Sliver;Fervor;Sentinel Sliver;Healer's Hawk;Mountain;Mountain;Forest;Forest
+humanhand=Lightning Bolt;Naturalize;Lightning Bolt
+humanlibrary=Mountain
+ailibrary=Forest

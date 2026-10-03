@@ -72,6 +72,7 @@ a card available in that client's catalog.
 Modal responses accept
 `modal_choice: { index: 0 }` for one mode or `modal_choice: { indices: [0, 1] }`
 for multiple modes in one response.
+Repeatable modes use duplicate indices, for example `modal_choice: { indices: [0, 0, 0] }`.
 
 ## One-Turn Win Fixtures
 
@@ -126,6 +127,12 @@ Example:
 ```
 
 If the YAML needs a concept the loader cannot express, add the smallest backend-neutral verb or condition to `engine/src/test/kotlin/leyline/acceptance/` rather than inventing ad-hoc keys.
+
+`attack.target` selects a battlefield permanent from the offered damage
+recipients, including a controlled Siege protected by the opponent. Use
+`{ side: ours, zone: battlefield, card: Invasion of Zendikar }` for that target.
+The [Siege suite](../data/puzzles/sets/siege.yaml) exercises its defeat and
+optional transformed cast through the normal combat and spell flows.
 
 ## Failure Classification
 

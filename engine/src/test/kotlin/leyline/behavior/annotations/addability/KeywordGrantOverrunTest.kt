@@ -37,8 +37,8 @@ class KeywordGrantOverrunTest :
                 addAbility.shouldNotBeNull()
                 // grpId 14 = Trample
                 addAbility.detailUint("grpid") shouldBe 14
-                // Both Grizzly Bears affected
-                addAbility.affectedIdsList.size shouldBe 2
+                addAbility.affectedIdsList.size shouldBe 1
+                accumulator.objects.values.count { obj -> obj.uniqueAbilitiesList.any { it.grpId == 14 } } shouldBe 2
             }
         }
 

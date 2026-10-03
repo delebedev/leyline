@@ -1,6 +1,7 @@
 package leyline.game.state
 
 import forge.game.phase.PhaseType
+import leyline.bridge.CompanionAction
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.codes.DetailKeys
@@ -187,7 +188,7 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
 
     override fun identityKey(ann: AnnotationInfo): Any {
         val name = stringDetail(ann, DetailKeys.ABILITY_WORD_NAME).orEmpty()
-        return if (name == "Opus" || name == "Void") {
+        return if (name == "Opus" || name == "Void" || name == "Ascend") {
             listOf(ann.affectorId, name)
         } else {
             listOf(
@@ -200,7 +201,7 @@ data object AbilityWordActiveKind : PersistentAnnotationKind {
     }
 
     override fun preserveIdOnChange(ann: AnnotationInfo): Boolean =
-        stringDetail(ann, DetailKeys.ABILITY_WORD_NAME) in setOf("Opus", "Void", "ToSolveCondition")
+        stringDetail(ann, DetailKeys.ABILITY_WORD_NAME) in setOf("Opus", "Void", "ToSolveCondition", "Ascend")
 }
 
 data object QualificationKind : PersistentAnnotationKind {
@@ -348,6 +349,29 @@ data object CommanderDesignationKind : PersistentAnnotationKind {
     }
 }
 
+data object CompanionDesignationKind : PersistentAnnotationKind {
+    override val name = "CompanionDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList && designationTypeOf(ann) == CompanionAction.DESIGNATION_TYPE
+
+    override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+data object BattleProtectorDesignationKind : PersistentAnnotationKind {
+    override val name = "BattleProtectorDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_BATTLE_PROTECTOR
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
+}
+
 data object SaddledDesignationKind : PersistentAnnotationKind {
     override val name = "SaddledDesignation"
     override val pruneStale = true
@@ -418,6 +442,19 @@ data object ManaCreatureDesignationKind : PersistentAnnotationKind {
             designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_MANA_CREATURE
 
     override fun identityKey(ann: AnnotationInfo): Any = firstAffectedId(ann)
+}
+
+/** Persistent player blessing, independent of its source permanent. */
+data object CitysBlessingDesignationKind : PersistentAnnotationKind {
+    override val name = "CitysBlessingDesignation"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.REPLACE_IF_CHANGED
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        AnnotationType.Designation in ann.typeList &&
+            designationTypeOf(ann) == AnnotationConstants.DESIGNATION_TYPE_CITYS_BLESSING
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId
 }
 
 /** Persistent player-owned speed state. */
@@ -782,6 +819,8 @@ object PersistentAnnotationKinds {
             PreparedDesignationKind,
             PlottedDesignationKind,
             CommanderDesignationKind,
+            CompanionDesignationKind,
+            BattleProtectorDesignationKind,
             SaddledDesignationKind,
             SuspectedDesignationKind,
             SolvedDesignationKind,
@@ -789,6 +828,7 @@ object PersistentAnnotationKinds {
             RightUnlockedDesignationKind,
             ManaCreatureDesignationKind,
             PlayerSpeedDesignationKind,
+            CitysBlessingDesignationKind,
             DayNightDesignationKind,
             FaceDownForetellKind,
             FaceDownDisguiseKind,

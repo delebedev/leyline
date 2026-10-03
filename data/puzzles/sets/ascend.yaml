@@ -1,0 +1,33 @@
+name: ascend
+description: Permanent Ascend grants a persistent player blessing and conditional Saproling stats.
+scenarios:
+  - id: blessing-retention
+    puzzle: ascend-blessing-retention
+    run: create two Saprolings to reach ten permanents, then destroy Ornithopter
+    expect: the blessing persists at nine permanents and Saprolings remain 3/3
+    steps:
+      - cast: Saproling Migration
+      - choose: { optional_cost: done }
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats: { side: ours, card: Saproling Token, power: 3, toughness: 3 }
+      - cast: Naturalize
+      - target: { side: ours, zone: battlefield, card: Ornithopter }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Ornithopter }
+            - battlefield_stats: { side: ours, card: Saproling Token, power: 3, toughness: 3 }
+            - stack_empty: true
+  - id: unblessed-control
+    puzzle: ascend-unblessed-control
+    run: create two Saprolings while remaining below ten permanents
+    expect: Saprolings remain 1/1 without the blessing
+    steps:
+      - cast: Saproling Migration
+      - choose: { optional_cost: done }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Saproling Token, power: 1, toughness: 1 }
+            - stack_empty: true

@@ -1,0 +1,22 @@
+# Design Narrative
+# Mechanic: Permanent Ascend grants a lasting blessing at ten permanents.
+# Forcing: Two Saprolings raise eight permanents to ten. Destroying an artifact lowers it to nine.
+# AI behavior: Empty hand and battlefield eliminate opposing decisions.
+# Failure modes: Missing blessing or 1/1 Saprolings after acquisition exposes a failed threshold or projection.
+# Card roles: Dryad owns Ascend and the conditional bonus. Migration creates two tokens. Ornithopter is the removable permanent. Naturalize removes it. Forests pay both spells.
+# Protocol path: Ascend count badge, player designation gain and persistence, refreshed creature stats.
+[metadata]
+Name:Ascend blessing retention
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Create two Saprolings to acquire the blessing, then destroy Ornithopter and retain their bonus.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Tendershoot Dryad;Ornithopter;Forest;Forest;Forest;Forest;Forest;Forest
+humanhand=Saproling Migration;Naturalize
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest

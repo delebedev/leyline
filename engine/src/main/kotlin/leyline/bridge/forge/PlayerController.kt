@@ -58,6 +58,7 @@ import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.CompanionAction
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
 import leyline.bridge.coord.PriorityLoopCoordinator
@@ -197,7 +198,7 @@ import java.util.function.Predicate
  *
  * See `docs/bridge-threading.md` for ownership, lock-order, and residual-path contracts.
  */
-@Suppress("LargeClass") // Forge dispatches via single inheritance; the override surface lives on this class.
+@Suppress("LargeClass", "LongParameterList") // Forge dispatches via single inheritance; bridge callbacks stay explicit.
 class PlayerController(
     game: Game,
     player: Player,
@@ -209,6 +210,7 @@ class PlayerController(
     priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
     private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     private val onStateChanged: (() -> Unit)? = null,
+    private val onCompanionToHand: ((SpellAbility) -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
     interactionRuntime: BlockingInteractionRuntime,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
@@ -422,6 +424,8 @@ class PlayerController(
         targetedPlayer: Player?,
         params: MutableMap<String, Any>?,
     ): T? {
+        // ponytail: one eligible companion; add a pregame choice when multiple candidates are supported.
+        if (sa?.api == ApiType.CompanionChoose) return optionList.firstOrNull()
         if (delayedReveal != null) reveal(delayedReveal)
         return targetingCoordinator.chooseSingleEntity(
             optionList,
@@ -488,6 +492,15 @@ class PlayerController(
                 defaultOnTimeout = true,
                 logContext = "confirmAction:Endure",
                 customPromptId = PromptIds.ENDURE_PUT_COUNTERS,
+            )
+        }
+
+        if (sa?.api == ApiType.CopySpellAbility && sa.hasParam("Optional")) {
+            return optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "confirmAction:Optional",
             )
         }
 
@@ -1542,7 +1555,10 @@ class PlayerController(
         return withActiveSpellSource(sa) {
             val req = PlaySpellAbility(this, sa)
             req.playAbility(needsTargeting, false, false)
-        }.also { priorityLoopCoordinator?.actionCompleted(it) }
+        }.also { success ->
+            if (success && CompanionAction.matches(chosenSa)) onCompanionToHand?.invoke(chosenSa)
+            priorityLoopCoordinator?.actionCompleted(success)
+        }
     }
 
     private fun <T> withActiveSpellSource(

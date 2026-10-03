@@ -81,6 +81,8 @@ data class CardSnapshot(
      * [ParentLinkage.AttachedTo]; `ObjectMapper` reads from there.
      */
     val attachedToInstanceId: Int? = null,
+    /** Protector of a battle currently on the battlefield. */
+    val battleProtectorSeatId: SeatId? = null,
     /**
      * For [PreparedRole.Copy], the pre-resolved client instanceId of the live
      * battlefield Source. Null when no source is linked (mid-cast or unprepared).

@@ -527,6 +527,7 @@ object StateMapper {
                 },
             )
             insertDayNightDesignationTransients(annotations, prev.dayTime, snap.dayTime)
+            insertCitysBlessingDesignationTransients(annotations, prev.seats, snap.seats)
         }
 
         // Stages 4-5 + persistent computation
@@ -581,6 +582,32 @@ object StateMapper {
             )
 
         transferResult = LinkedFaceCompanionProjector.append(transferResult, snap, editor, environment, frameIds)
+        for (seat in snap.seats) {
+            val companion = seat.companion ?: continue
+            if (companion.available) continue
+            val iid = companion.originalInstanceId
+            val ghost =
+                ObjectMapper.buildFromSnapshot(
+                    companion.card.snapshot,
+                    iid,
+                    ZoneIds.LIMBO,
+                    seat.seatId.value,
+                    environment.cardProto,
+                    Visibility.Public,
+                )
+            transferResult =
+                transferResult.copy(
+                    patchedObjects = transferResult.patchedObjects.filter { it.instanceId != iid } + ghost,
+                    patchedZones =
+                        transferResult.patchedZones.map { zone ->
+                            if (zone.zoneId == ZoneIds.LIMBO && iid !in zone.objectInstanceIdsList) {
+                                zone.toBuilder().addObjectInstanceIds(iid).build()
+                            } else {
+                                zone
+                            }
+                        },
+                )
+        }
 
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built =
@@ -1664,8 +1691,7 @@ object StateMapper {
         }
     }
 
-    /** Synthesize short-lived RevealedCard views for semantic reveal events and
-     * keep them alive while a reveal-choose prompt remains active. */
+    /** Keep known companion hand views and prompt-bound reveal views visible to the opponent. */
     // Nullable `activeReveal` is intentional: the function has two branches —
     // synthesize proxies when non-null, cleanup-and-clear when null.
     @Suppress("CanBeNonNullable")
@@ -1682,6 +1708,13 @@ object StateMapper {
             events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }
         val revealFacts =
             buildList {
+                snap.seats.forEach { seat ->
+                    val companion = seat.companion ?: return@forEach
+                    val handZone = ZoneIds.handOf(seat.seatId)
+                    if (companion.card.forgeCardId in snap.zones[handZone]?.contents.orEmpty()) {
+                        add(Triple(companion.card.forgeCardId, seat.seatId.value, handZone))
+                    }
+                }
                 eventReveals.forEach { reveal ->
                     reveal.cardIds.forEach {
                         add(
