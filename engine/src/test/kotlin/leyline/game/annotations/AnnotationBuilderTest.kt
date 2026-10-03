@@ -784,7 +784,7 @@ class AnnotationBuilderTest :
                 CounterTypes.counterTypeId("AGE") shouldBe 9
                 CounterTypes.counterTypeId("BLOOD") shouldBe 15
                 CounterTypes.counterTypeId("STUN") shouldBe 172
-                CounterTypes.counterTypeId("Defense") shouldBe 174
+                CounterTypes.counterTypeId("DEFENSE") shouldBe 174
                 CounterTypes.counterTypeId("POISON") shouldBe 3
                 CounterTypes.counterTypeId("LORE") shouldBe 108
                 // Unknown falls back to 0
