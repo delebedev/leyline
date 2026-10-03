@@ -42,6 +42,110 @@ class ProtocolContractMutationTest :
             }
         }
 
+        regression("rabbit-battery.yaml") { contract, messages ->
+            for ((name, mutant) in listOf(
+                "wrong attach action" to
+                    messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
+                        if (it.detailInt("actionType") == 2 &&
+                            it.detailInt("abilityGrpId") == 243
+                        ) {
+                            it.withIntDetail("abilityGrpId", 0)
+                        } else {
+                            it
+                        }
+                    },
+                "wrong attachment target" to
+                    messages.mutatingAnnotation(AnnotationType.AttachmentCreated) {
+                        it
+                            .toBuilder()
+                            .clearAffectedIds()
+                            .addAffectedIds(0)
+                            .build()
+                    },
+                "wrong attachment source" to
+                    messages.mutatingAnnotation(AnnotationType.AttachmentCreated) {
+                        it.toBuilder().setAffectorId(0).build()
+                    },
+                "wrong layer source" to
+                    messages.mutatingAnnotation(AnnotationType.LayeredEffectCreated) {
+                        it.toBuilder().setAffectorId(0).build()
+                    },
+                "wrong target wording" to
+                    messages.mutatingAnnotation(AnnotationType.TargetSpec, persistent = true) {
+                        it.withIntDetail("promptId", 10)
+                    },
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+        regression("depart-the-realm-foretold-cast.yaml") { contract, messages ->
+            for ((name, mutant) in listOf(
+                "wrong alternative cost" to
+                    messages.mutatingAnnotation(AnnotationType.CastingTimeOption, persistent = true) {
+                        it.withIntDetail("alternateCostGrpId", 0)
+                    },
+                "wrong target wording" to
+                    messages.mutatingAnnotation(AnnotationType.TargetSpec, persistent = true) {
+                        it.withIntDetail("promptId", 10)
+                    },
+                "wrong return destination" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Return") it.withIntDetail("zone_dest", 31) else it
+                    },
+                "wrong return source" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Return") it.toBuilder().setAffectorId(0).build() else it
+                    },
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+            val row = messages.allPersistentAnnotations().first { AnnotationType.CastingTimeOption in it.typeList }
+            shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
+            checkRowLifetimeMutations(contract, messages, row)
+            checkDuplicateCastingOption(contract, messages, row)
+        }
+        regression("quantum-riddler-exile-cast.yaml") { contract, messages ->
+            for ((name, mutant) in listOf(
+                "wrong cast permission" to
+                    messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
+                        if (it.detailInt("abilityGrpId") == 371) it.withIntDetail("abilityGrpId", 0) else it
+                    },
+                "wrong option permission" to
+                    messages.mutatingAnnotation(AnnotationType.CastingTimeOption, persistent = true) {
+                        if (it.detailsList.any { detail ->
+                                detail.key == "castAbilityGrpId" && 371 in detail.valueInt32List
+                            }
+                        ) {
+                            it.withIntDetail("castAbilityGrpId", 0)
+                        } else {
+                            it
+                        }
+                    },
+                "wrong draw owner" to
+                    messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                        if (it.detailString("category") == "Draw") it.toBuilder().setAffectorId(0).build() else it
+                    },
+                "wrong trigger source" to
+                    messages.mutatingAnnotation(AnnotationType.TriggeringObject, persistent = true) {
+                        it
+                            .toBuilder()
+                            .clearAffectedIds()
+                            .addAffectedIds(0)
+                            .build()
+                    },
+            )) {
+                withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+            val row =
+                messages.allPersistentAnnotations().first {
+                    AnnotationType.CastingTimeOption in it.typeList &&
+                        it.detailsList.any { detail -> detail.key == "castAbilityGrpId" && 371 in detail.valueInt32List }
+                }
+            shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
+            checkRowLifetimeMutations(contract, messages, row)
+            checkDuplicateCastingOption(contract, messages, row)
+        }
+
         regression("depart-the-realm-foretell.yaml") { contract, messages ->
             for ((name, mutant) in listOf(
                 "wrong foretell destination" to
@@ -559,6 +663,31 @@ private fun checkTargetMutations(
     val row = messages.allPersistentAnnotations().single { AnnotationType.TargetSpec in it.typeList }
     withClue("missing target retirement") { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
     checkRowLifetimeMutations(contract, messages, row)
+}
+
+private fun checkDuplicateCastingOption(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    row: AnnotationInfo,
+) {
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val duplicate =
+        row
+            .toBuilder()
+            .setId(9999)
+            .addDetails(
+                row
+                    .getDetails(0)
+                    .toBuilder()
+                    .setKey("castAbilityGrpId")
+                    .clearValueInt32()
+                    .addValueInt32(0),
+            ).build()
+    val extra = messages[birth].toBuilder().setGameStateMessage(GameStateMessage.newBuilder().addPersistentAnnotations(duplicate)).build()
+    val mutant = messages.toMutableList().also { it.add(birth + 1, extra) }
+    withClue("second casting-option row with a different identity and shape") {
+        shouldThrow<AssertionError> { contract.verify(mutant) }
+    }
 }
 
 private fun checkRowLifetimeMutations(

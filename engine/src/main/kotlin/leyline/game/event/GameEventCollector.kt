@@ -18,6 +18,7 @@ import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -315,11 +316,21 @@ class GameEventCollector(
             } else {
                 0
             }
+        val isWarpExileCast =
+            eventSa?.hostCard?.castFrom?.zoneType == ZoneType.Exile &&
+                eventSa.mayPlay
+                    ?.hostCard
+                    ?.name
+                    ?.startsWith("Warped ") == true
         val castAbilityGrpId =
             if (isParadigmCopyCast) {
                 KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER
             } else if (castingPermission != null) {
                 castingPermission.castAbilityGrpId
+            } else if (isWarpExileCast) {
+                KeywordAbilityIds.WARP
+            } else if (SpellAbilityShapes.usesCostOnlyCastingOption(eventSa)) {
+                0
             } else {
                 altCostAbilityGrpId
             }
@@ -460,6 +471,12 @@ class GameEventCollector(
                 isMdfc = isMdfc,
                 altCostAbilityGrpId = altCostAbilityGrpId,
                 castAbilityGrpId = castAbilityGrpId,
+                activationActionGrpId =
+                    if (SpellAbilityShapes.isReconfigureAttach(eventSa)) {
+                        KeywordAbilityIds.RECONFIGURE_ATTACH
+                    } else {
+                        0
+                    },
                 stackInstanceId = paradigmCopyStackIid,
                 sourceInstanceIdAtCast = if (isAbility) bridge.peekInstanceId(cardId) else null,
                 isAbility = isAbility,

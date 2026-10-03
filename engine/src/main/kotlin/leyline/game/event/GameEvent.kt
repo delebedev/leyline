@@ -140,6 +140,8 @@ sealed interface GameEvent {
         val altCostAbilityGrpId: Int = 0,
         /** Cast-through ability identity when it differs from [altCostAbilityGrpId]. */
         val castAbilityGrpId: Int = altCostAbilityGrpId,
+        /** Shared action identity when an activation has a distinct stack definition. */
+        val activationActionGrpId: Int = 0,
         /** Explicit stack iid for collapsed copy-cast flows that may resolve before the next snapshot. */
         val stackInstanceId: Int = 0,
         /** Source object identity before an activated ability's costs can move it to another zone. */

@@ -98,7 +98,7 @@ object ZoneMoveLedger {
                 move.to == Zone.Graveyard -> TransferCategory.Mill
             events.any { it is GameEvent.CardBounced && it.cardId == cardId } &&
                 move.from == Zone.Battlefield &&
-                move.to in setOf(Zone.Hand, Zone.Library) -> TransferCategory.Bounce
+                move.to in setOf(Zone.Hand, Zone.Library) -> if (move.to == Zone.Hand) TransferCategory.Return else TransferCategory.Bounce
             events.any { it is GameEvent.CardSacrificed && it.cardId == cardId } &&
                 move.from == Zone.Battlefield &&
                 move.to == Zone.Graveyard -> TransferCategory.Sacrifice

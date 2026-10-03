@@ -83,7 +83,7 @@ class ZoneTransferTest :
             checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Exile"
         }
 
-        test("Battlefield → Hand (Bounce)") {
+        test("Battlefield → Hand (Return)") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -92,7 +92,7 @@ class ZoneTransferTest :
                 board.transferCard("Grizzly Bears") { card, g ->
                     g.action.moveToHand(card, null)
                 }
-            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Bounce"
+            checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Return"
         }
 
         // ===================================================================

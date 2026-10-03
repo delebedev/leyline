@@ -5,6 +5,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
+import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.types.AbilityKeywordFamily
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
@@ -48,6 +49,13 @@ internal class TargetingWindowCapture(
                     ?.first
                 ?: 0
         val shape = targetShape(targetingAbility, abilityIdentity, sourceGrpId, defaultTargetingGrpId)
+        val castAlternateCostGrpId =
+            targetingAbility
+                ?.rootAbility
+                ?.alternativeCost
+                ?.name
+                ?.let(KeywordAbilityIds::fromForgeAltCostName)
+                ?.let { owner.bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, it) } ?: 0
         return TargetingWindowValue(
             sourceForgeCardId = sourceId,
             sourceGrpId = sourceGrpId,
@@ -81,6 +89,8 @@ internal class TargetingWindowCapture(
             forgeAbilityId = targetingAbility?.id ?: request.forgeAbilityId,
             isActivatedAbility = targetingAbility?.rootAbility?.isActivatedAbility == true,
             stackAbilityGrpId = abilityIdentity?.abilityGrpId ?: 0,
+            castAlternateCostGrpId = castAlternateCostGrpId,
+            castAbilityGrpId = if (SpellAbilityShapes.usesCostOnlyCastingOption(targetingAbility)) 0 else castAlternateCostGrpId,
         )
     }
 
@@ -190,7 +200,14 @@ internal class TargetingWindowCapture(
                         ZoneIds.BATTLEFIELD,
                     )
                 } else {
-                    TargetShape(sourceGrpId, defaultTargetingGrpId)
+                    TargetShape(
+                        sourceGrpId,
+                        if (SpellAbilityShapes.isReconfigureAttach(ability)) {
+                            KeywordAbilityIds.RECONFIGURE_ATTACH
+                        } else {
+                            defaultTargetingGrpId
+                        },
+                    )
                 }
         }
 

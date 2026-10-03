@@ -1,0 +1,152 @@
+name: Depart the Realm — cast foretold card
+scenario: {suite: mechanics-protocol, id: foretell-depart-the-realm-lifecycle}
+frames:
+- id: stack-object
+  events:
+  - id: spell
+    type: Card
+    lane: object
+    fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+- id: cast
+  events:
+  - id: cast-transfer
+    type: ZoneTransfer
+    lane: transient
+    keys: [zone_src, zone_dest, category]
+    fields:
+      details.category: [CastSpell]
+      details.zone_src: [29]
+      details.zone_dest: [27]
+    equals: {'affectedIds[0]': spell.affectorId}
+  - id: selecting-targets
+    type: PlayerSelectingTargets
+    lane: transient
+    keys: []
+    equals: {'affectedIds[0]': 'cast-transfer.affectedIds[0]'}
+  - id: casting-option
+    type: CastingTimeOption
+    lane: persistent
+    op: create
+    keys: [alternateCostGrpId, type]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'affectedIds[0]': 'cast-transfer.affectedIds[0]', 'details.alternateCostGrpId[0]': 'spell.raw.uniqueAbilities[0].grpId'}
+    fields:
+      details.type: [13]
+- id: target-prompt
+  events:
+  - id: target-prompt
+    type: SelectTargetsReq
+    lane: prompt
+    fields: {raw.prompt.promptId: 10, 'raw.selectTargetsReq.targets[0].prompt.promptId': 1061}
+- id: targets
+  events:
+  - id: targets-submitted
+    type: PlayerSubmittedTargets
+    lane: transient
+    keys: []
+    equals: {'affectedIds[0]': 'cast-transfer.affectedIds[0]'}
+  - id: cast-mana
+    type: ManaPaid
+    lane: transient
+    keys: [id, color]
+    equals: {'affectedIds[0]': 'cast-transfer.affectedIds[0]'}
+  - id: cast-action
+    type: UserActionTaken
+    lane: transient
+    keys: [alternativeGrpId, actionType, abilityGrpId]
+    equals: {'affectedIds[0]': 'cast-transfer.affectedIds[0]', 'details.alternativeGrpId[0]': 'casting-option.details.alternateCostGrpId[0]'}
+    fields:
+      details.actionType: [1]
+      details.abilityGrpId: [0]
+  - id: target
+    type: TargetSpec
+    lane: persistent
+    op: create
+    keys: [abilityGrpId, index, promptParameters, promptId]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'details.abilityGrpId[0]': 'target-prompt.raw.selectTargetsReq.targets[0].targetingAbilityGrpId'}
+    fields:
+      details.index: [1]
+      details.promptId: [1061]
+- id: resolution
+  events:
+  - id: return-view
+    type: RevealedCard
+    lane: object
+    fields: {raw.zoneId: 35, raw.visibility: Public}
+  - id: resolution-started
+    type: ResolutionStart
+    lane: transient
+    keys: [grpid]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
+  - id: target-reallocated
+    type: ObjectIdChanged
+    lane: transient
+    keys: [orig_id, new_id]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'affectedIds[0]': 'target.affectedIds[0]'}
+  - id: target-revealed
+    type: RevealedCardCreated
+    lane: transient
+    keys: []
+    equals: {affectorId: return-view.affectorId, 'affectedIds[0]': return-view.affectorId}
+  - id: target-returned
+    type: ZoneTransfer
+    lane: transient
+    keys: [zone_src, zone_dest, category]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'affectedIds[0]': 'target-reallocated.details.new_id[0]'}
+    fields:
+      details.category: [Return]
+      details.zone_src: [28]
+      details.zone_dest: [35]
+  - id: resolved
+    type: ResolutionComplete
+    lane: transient
+    keys: [grpid]
+    equals: {affectorId: 'cast-transfer.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
+  - id: graveyard-object-reallocated
+    type: ObjectIdChanged
+    lane: transient
+    keys: [orig_id, new_id]
+    equals: {'affectedIds[0]': 'cast-transfer.affectedIds[0]', 'details.orig_id[0]': 'cast-transfer.affectedIds[0]'}
+  - id: to-graveyard
+    type: ZoneTransfer
+    lane: transient
+    keys: [zone_src, zone_dest, category]
+    equals: {'affectedIds[0]': 'graveyard-object-reallocated.details.new_id[0]'}
+    fields:
+      details.category: [Resolve]
+      details.zone_src: [27]
+      details.zone_dest: [33]
+  - id: casting-option-retired
+    type: CastingTimeOption
+    lane: persistent
+    op: delete
+    keys: [alternateCostGrpId, type]
+    sameRow: casting-option
+    fields:
+      details.type: [13]
+    equals: {details.alternateCostGrpId: casting-option.details.alternateCostGrpId}
+  - id: target-retired
+    type: TargetSpec
+    lane: persistent
+    op: delete
+    keys: [abilityGrpId, index, promptParameters, promptId]
+    sameRow: target
+    fields:
+      details.index: [1]
+      details.promptId: [1061]
+    equals: {'details.abilityGrpId[0]': 'target-prompt.raw.selectTargetsReq.targets[0].targetingAbilityGrpId'}
+windows:
+- {id: casting-option-holds, holds: casting-option, until: casting-option-retired}
+- {id: target-holds, holds: target, until: target-retired}
+counts:
+- match: {type: CastingTimeOption, lane: persistent, op: create, equals: {affectorId: casting-option.affectorId}, fields: {details.type: [13]}}
+  exactly: 1
+- match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: casting-option}
+  exactly: 1
+- match: {type: CastingTimeOption, lane: persistent, op: update, sameRow: casting-option}
+  exactly: 0
+- match: {type: TargetSpec, lane: persistent, op: create, sameRow: target}
+  exactly: 1
+- match: {type: TargetSpec, lane: persistent, op: delete, sameRow: target}
+  exactly: 1
+- match: {type: TargetSpec, lane: persistent, op: update, sameRow: target}
+  exactly: 0

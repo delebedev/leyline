@@ -860,6 +860,7 @@ object PersistentAnnotationKinds {
             DisplayCardUnderCardKind,
         )
 
-    /** All kinds — iterated by the lifecycle expiry pass at the top of computeBatch. */
-    val all: List<PersistentAnnotationKind> = upsertable + lifecycleOnly
+    /** Casting options retire before target rows when their spell leaves the stack. */
+    val all: List<PersistentAnnotationKind> =
+        listOf(CastingTimeOptionKind) + (upsertable + lifecycleOnly).filterNot { it === CastingTimeOptionKind }
 }

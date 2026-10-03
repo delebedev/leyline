@@ -23,7 +23,7 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | Scenario | Protocol obligations |
 |---|---|
 | `warmup/land-spell-face` | Cast and resolution framing, source and target identity, exact damage count and typed detail values, object reallocation, target-row retirement. |
-| `mechanics-warmup/reconfigure-attach-unattach` | Ability and targeting order, target-group cardinality and bounds, prompt flags, source binding, submitted target identity, target-row retirement. |
+| `mechanics-warmup/reconfigure-attach-unattach` | Ability and targeting order, target-group cardinality and bounds, prompt flags, source binding, submitted target identity, target-row retirement, attach payment and action, and source-owned attachment/layer resolution. |
 | `mechanics-protocol/llanowar-elves-mana` | Creature-source binding, activation and tap order, payment detail types and source identity, exact payment and retirement counts. |
 | `mechanics-protocol/investigate-novice-inspector` | Trigger-source row introduction and retirement, token parent and source identity, resolution framing. |
 | `mechanics-protocol/boast-usher-of-the-fallen` | Activation identity, exhaustion keys and remaining uses, token parent and source identity, resolution and ability retirement. |
@@ -32,10 +32,10 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `mechanics-warmup/omen-lifecycle` | Token creation, library destination after resolution, and object reallocation. |
 | `siege/zendikar-defeat-cast` | Battle identity, Defense counter type and detail types, exact add/remove deltas, persistent counts, and retirement of the replaced count row. |
 | `mechanics-protocol/case-gateway-express-lifecycle` | Solve progress and reset on one row, trigger identity, solved effects, and exactly one solve trigger within the threshold-to-resolution window. |
-| `mechanics-protocol/warp-quantum-riddler` | Delayed holder source and parent identity, pending-row update, exile reallocation, and ability and row retirement. |
+| `mechanics-protocol/warp-quantum-riddler` | Delayed holder source and parent identity, pending-row update, exile reallocation, ability and row retirement, and later exile-cast permission, option lifetime and entry draw. |
 | `mechanics-protocol/daynight-roundtrip-cathar` | Battlefield identity and reciprocal runtime face identities across the night transformation. |
 | `mechanics-protocol/discover-hidden-courtyard` | Exile offer and stack reallocation identity, Discover ability binding, absence of casting options before acceptance, and option-row lifetime through resolution. |
-| `mechanics-protocol/foretell-depart-the-realm-lifecycle` | Accepted special action, runtime ability binding, face-down reason, and persistent suppression identity. |
+| `mechanics-protocol/foretell-depart-the-realm-lifecycle` | Accepted special action, runtime ability binding, face-down reason, persistent suppression identity, later cast option and targeting, return view and identity, and stack-row retirement. |
 | `mechanics-warmup/cycling-activate` | Hand-source activation, discard cost, runtime ability identity, draw inside resolution, and no premature retirement. |
 | `mechanics-protocol/stock-up-bottom-order` | Resolution begins before selection, exact selection bounds, Put transfers, bottom-order domain and source, and no repeated selection. |
 | `mechanics-protocol/ward-tax` | Ward trigger identity, source-row lifetime, and no premature ability retirement. |
@@ -47,7 +47,7 @@ loosening a protocol assertion.
 
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
-numbers. Stable protocol values, detail keys, counts, and ordering are explicit.
+numbers. Casting options omit an absent cost or permission field. Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 
@@ -67,7 +67,7 @@ counter types, incorrect counter deltas and counts, and missing counter-row
 retirement, incorrect solve progress and designation, duplicate solve triggers,
 incorrect delayed holder identities or exile destination, and premature Ward
 ability retirement, incorrect transformation faces or identity, mismatched Discover
-cast offers, broken stack reallocation, and early casting-option creation or retirement, wrong foretell state or action, broken cycling identities or retirement, and incorrect selection bounds, source, ordering domain or repeated selection.
+cast offers, broken stack reallocation, and early casting-option creation or retirement, wrong foretell state or action, broken cycling identities or retirement, and incorrect selection bounds, source, ordering domain or repeated selection, incorrect attachment/action/layer identities, cast permissions and alternative costs, return identities, and option-row updates or reintroduction.
 Each regression scenario runs once; mutations reuse its messages. The conformance lane only discovers,
 executes, and verifies authored contracts.
 
@@ -124,3 +124,5 @@ creation, no updates, and one deletion for their selected row.
 Start with [`lightning-bolt.yaml`](../conformance/contracts/lightning-bolt.yaml)
 or [`rabbit-battery-target-selection.yaml`](../conformance/contracts/rabbit-battery-target-selection.yaml).
 Add one bounded interaction at a time and bind it to an existing scripted scenario.
+
+The Quantum Riddler exile-cast definition checks cast permission, stable battlefield identity, the entry draw bracket, and row lifetimes across updates. It does not require entry-trigger creation to share the spell-resolution update.

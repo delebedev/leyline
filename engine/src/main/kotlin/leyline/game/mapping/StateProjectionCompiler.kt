@@ -108,6 +108,7 @@ object StateProjectionCompiler {
                 environment,
                 editor,
             )
+        val selectedOptions = projectSelectedCastOptions(canonical.intent.supplements, planned, editor)
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
         val finalized =
             AnnotationFrameFinalizer.finalize(
@@ -120,6 +121,7 @@ object StateProjectionCompiler {
                     planned.gsm
                         .toBuilder()
                         .clearAnnotations()
+                        .addAllPersistentAnnotations(selectedOptions)
                         .addAllAnnotations(finalized.annotations)
                         .build(),
                 output =
@@ -163,14 +165,7 @@ object StateProjectionCompiler {
                 )
             }
         val next = editor.freeze()
-        val acknowledgements =
-            projected.fold(ProjectionAcknowledgements()) { accumulated, (_, result) ->
-                ProjectionAcknowledgements(
-                    consumedEarthbendResolutionVersions =
-                        accumulated.consumedEarthbendResolutionVersions + result.output.consumedEarthbendResolutionVersions,
-                    promptFacts = accumulated.promptFacts.merge(result.output.promptFactConsumption),
-                )
-            }
+        val acknowledgements = mergeAcknowledgements(projected.map { it.second })
         val transition = ProjectionTransition(prior.revision, next, acknowledgements)
         return FoldResult(
             viewers =
@@ -181,6 +176,15 @@ object StateProjectionCompiler {
             phaseTransitionCommitAnnotation = phaseTransitionCommitFrame?.annotations?.single(),
         )
     }
+
+    private fun mergeAcknowledgements(results: List<Result>): ProjectionAcknowledgements =
+        results.fold(ProjectionAcknowledgements()) { accumulated, result ->
+            ProjectionAcknowledgements(
+                consumedEarthbendResolutionVersions =
+                    accumulated.consumedEarthbendResolutionVersions + result.output.consumedEarthbendResolutionVersions,
+                promptFacts = accumulated.promptFacts.merge(result.output.promptFactConsumption),
+            )
+        }
 
     @Suppress("LongParameterList")
     private fun renderViewer(
@@ -360,6 +364,35 @@ object StateProjectionCompiler {
         val consumedSubmittedTargets: Boolean,
     ) : List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> by annotations
 
+    private fun projectSelectedCastOptions(
+        supplements: List<ProjectionSupplement>,
+        draft: StateMapper.Draft,
+        editor: ProjectionState.Editor,
+    ): List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> {
+        val rows =
+            supplements.filterIsInstance<ProjectionSupplement.SelectedCastOption>().map { option ->
+                AnnotationBuilder.castingTimeOption(
+                    draft.idResolver.cardIid(option.sourceForgeId),
+                    wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType.CastThroughAbility,
+                    leyline.bridge.types.GrpId(option.alternateCostGrpId),
+                    leyline.bridge.types.GrpId(option.castAbilityGrpId),
+                )
+            }
+        val added = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
+        for (row in rows) {
+            val state = editor.persistentAnnotations
+            if (state.activeAnnotations.values.any { it.toBuilder().clearId().build() == row }) continue
+            val numbered = row.toBuilder().setId(state.nextPersistentId).build()
+            editor.persistentAnnotations =
+                state.copy(
+                    activeAnnotations = state.activeAnnotations + (numbered.id to numbered),
+                    nextPersistentId = state.nextPersistentId + 1,
+                )
+            added += numbered
+        }
+        return added
+    }
+
     private fun projectSupplements(
         input: StateFrameInput,
         prior: ProjectionState,
@@ -409,6 +442,7 @@ object StateProjectionCompiler {
                 is ProjectionSupplement.ReserveTriggeredAbility ->
                     editor.identities.getOrAlloc(FrameIdResolver.triggerStackAbilityForgeId(supplement.forgeAbilityId))
 
+                is ProjectionSupplement.SelectedCastOption,
                 is ProjectionSupplement.PreStackAbility,
                 is ProjectionSupplement.PreStackSpell,
                 -> Unit

@@ -1,0 +1,81 @@
+name: Rabbit Battery — attach
+scenario: {suite: mechanics-warmup, id: reconfigure-attach-unattach}
+frames:
+- id: ability-object
+  events:
+  - id: ability
+    type: Ability
+    lane: object
+    fields: {raw.zoneId: 27}
+- id: reconfigure
+  events:
+  - id: reconfigure-created
+    type: AbilityInstanceCreated
+    lane: transient
+    keys: [source_zone]
+    fields:
+      details.source_zone: [28]
+    equals: {'affectedIds[0]': ability.affectorId}
+  - id: selecting-targets
+    type: PlayerSelectingTargets
+    lane: transient
+    keys: []
+    equals: {'affectedIds[0]': 'reconfigure-created.affectedIds[0]'}
+- id: prompt
+  events:
+  - id: target-prompt
+    type: SelectTargetsReq
+    lane: prompt
+    fields: {raw.prompt.promptId: 10}
+- id: target
+  events:
+  - id: target-submitted
+    type: PlayerSubmittedTargets
+    lane: transient
+    keys: []
+    equals: {'affectedIds[0]': 'reconfigure-created.affectedIds[0]'}
+  - id: reconfigure-mana
+    type: ManaPaid
+    lane: transient
+    keys: [id, color]
+    equals: {'affectedIds[0]': 'reconfigure-created.affectedIds[0]'}
+  - id: reconfigure-action
+    type: UserActionTaken
+    lane: transient
+    keys: [actionType, abilityGrpId]
+    equals: {'affectedIds[0]': 'reconfigure-created.affectedIds[0]'}
+    fields:
+      details.actionType: [2]
+      details.abilityGrpId: [243]
+  - id: target
+    type: TargetSpec
+    lane: persistent
+    op: create
+    keys: [abilityGrpId, index, promptId, promptParameters]
+    equals: {affectorId: 'reconfigure-created.affectedIds[0]', 'details.abilityGrpId[0]': 'target-prompt.raw.selectTargetsReq.targets[0].targetingAbilityGrpId'}
+    fields:
+      details.index: [1]
+      details.promptId: [152]
+      details.abilityGrpId: [243]
+- id: resolution
+  events:
+  - id: resolution-started
+    type: ResolutionStart
+    lane: transient
+    keys: [grpid]
+    equals: {affectorId: 'reconfigure-created.affectedIds[0]', 'details.grpid[0]': ability.raw.grpId}
+  - id: attached
+    type: AttachmentCreated
+    lane: transient
+    keys: []
+    equals: {affectorId: reconfigure-created.affectorId, 'affectedIds[0]': 'target.affectedIds[0]'}
+  - id: layer-created
+    type: LayeredEffectCreated
+    lane: transient
+    keys: []
+    equals: {affectorId: reconfigure-created.affectorId}
+  - id: resolved
+    type: ResolutionComplete
+    lane: transient
+    keys: [grpid]
+    equals: {affectorId: 'reconfigure-created.affectedIds[0]', 'details.grpid[0]': ability.raw.grpId}

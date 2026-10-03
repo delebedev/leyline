@@ -52,6 +52,8 @@ data class TargetingWindowValue(
     val forgeAbilityId: Int,
     val isActivatedAbility: Boolean = false,
     val stackAbilityGrpId: Int = 0,
+    val castAlternateCostGrpId: Int = 0,
+    val castAbilityGrpId: Int = castAlternateCostGrpId,
 ) {
     init {
         require(targetIndex > 0)

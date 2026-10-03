@@ -338,6 +338,21 @@ class AnnotationOrderEnforcerTest :
             result shouldBe input
         }
 
+        test("source-owned attachment and layers finish before their ability completes") {
+            val rs = AnnotationBuilder.resolutionStart(501.iid, 900.grp)
+            val rc = AnnotationBuilder.resolutionComplete(501.iid, 900.grp)
+            val aid = AnnotationBuilder.abilityInstanceDeleted(501.iid, 500.iid)
+            val attached = AnnotationBuilder.attachmentCreated(500.iid, 502.iid)
+            val layer = AnnotationBuilder.layeredEffectCreated(7005.eid, 500.iid)
+            AnnotationOrderEnforcer.enforce(listOf(rs, rc, aid, layer, attached)) shouldBe listOf(rs, attached, layer, rc, aid)
+        }
+
+        test("attachment layers keep incremental ordering outside ability resolution") {
+            val attached = AnnotationBuilder.attachmentCreated(500.iid, 502.iid)
+            val layer = AnnotationBuilder.layeredEffectCreated(7005.eid, 500.iid)
+            AnnotationOrderEnforcer.enforce(listOf(attached, layer)) shouldBe listOf(layer, attached)
+        }
+
         test("LayeredEffectCreated stays inside its resolution bracket") {
             val abilityId = 501.iid
             val rs = AnnotationBuilder.resolutionStart(instanceId = abilityId, grpId = 76556.grp)

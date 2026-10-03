@@ -36,6 +36,7 @@ import leyline.bridge.interaction.ChooseSingleEntityContext
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.interaction.ChooseSingleEntityRoutePolicy
 import leyline.bridge.interaction.GroupedSearchClassifier
+import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.interaction.UnclassifiedEntityChoicePolicy
 import leyline.bridge.interaction.candidateRefs
 import leyline.bridge.interaction.shouldAutoResolve
@@ -889,7 +890,12 @@ class TargetingCoordinator(
                 affectees = affectees,
                 isStackAbility = isStackAbility,
                 promptId = effectiveTargetPromptId(sa, abilityIdentity),
-                abilityIdentity = abilityIdentity,
+                abilityIdentity =
+                    if (SpellAbilityShapes.isReconfigureAttach(sa)) {
+                        abilityIdentity?.copy(abilityGrpId = leyline.game.data.KeywordAbilityIds.RECONFIGURE_ATTACH)
+                    } else {
+                        abilityIdentity
+                    },
                 forgeAbilityId = sa.id,
             ),
         )
@@ -947,6 +953,7 @@ class TargetingCoordinator(
                 .orEmpty()
         if (valid.isEmpty()) return null
         val normalized = valid.map { it.lowercase() }
+        if (normalized == listOf("permanent.nonland")) return PromptIds.TARGET_NONLAND_PERMANENT
         if (normalized == listOf("any")) return PromptIds.CHOOSE_ANY_TARGET
         val allOpponentControlled = normalized.all { "youdontctrl" in it }
         val targetKinds =

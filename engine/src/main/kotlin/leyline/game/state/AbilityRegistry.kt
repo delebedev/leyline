@@ -441,7 +441,6 @@ class AbilityRegistry private constructor(
             kw: KeywordInterface,
             rulesText: String,
         ): Boolean {
-            if (rulesText.startsWith("Reconfigure", ignoreCase = true)) return false
             if (kw.original.equals(rulesText, ignoreCase = true)) return true
             val kwName = kw.keyword.toString()
             return rulesText.startsWith(kwName, ignoreCase = true)

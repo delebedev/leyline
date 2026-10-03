@@ -86,6 +86,7 @@ data object SameCardIncrementalRule : OrderRule {
     override val name: String = "same_card_incremental"
 
     override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+        val sourceOwners = sourceResolutionOwners(annotations)
         val cardToAnnotations = mutableMapOf<Int, MutableList<Int>>()
         for ((i, ann) in annotations.withIndex()) {
             val spec = annotationSpec(ann) ?: continue
@@ -105,6 +106,13 @@ data object SameCardIncrementalRule : OrderRule {
                     val idxB = indices[b]
                     val precA = annotationSpec(annotations[idxA])?.precedence ?: continue
                     val precB = annotationSpec(annotations[idxB])?.precedence ?: continue
+                    val types = annotations[idxA].typeList + annotations[idxB].typeList
+                    if (AnnotationType.AttachmentCreated in types &&
+                        AnnotationType.LayeredEffectCreated in types &&
+                        annotations[idxA].affectorId in sourceOwners
+                    ) {
+                        continue
+                    }
                     if (precA == precB) continue
                     if (precA < precB) {
                         edges.add(idxA to idxB)
@@ -202,12 +210,15 @@ data object ResolutionLifecycleRule : OrderRule {
         val starts = mutableMapOf<Int, Int>()
         val completions = mutableMapOf<Int, Int>()
         val deletions = mutableMapOf<Int, MutableList<Int>>()
+        val sourceAbilities = sourceResolutionOwners(annotations)
         for ((index, annotation) in annotations.withIndex()) {
             when {
                 AnnotationType.ResolutionStart in annotation.typeList -> starts.putIfAbsent(annotation.affectorId, index)
                 AnnotationType.ResolutionComplete in annotation.typeList -> completions[annotation.affectorId] = index
                 AnnotationType.AbilityInstanceDeleted in annotation.typeList ->
-                    annotation.affectedIdsList.forEach { deletions.getOrPut(it) { mutableListOf() }.add(index) }
+                    annotation.affectedIdsList.forEach {
+                        deletions.getOrPut(it) { mutableListOf() }.add(index)
+                    }
             }
         }
         return buildList {
@@ -217,11 +228,19 @@ data object ResolutionLifecycleRule : OrderRule {
             for ((index, annotation) in annotations.withIndex()) {
                 val isEffect =
                     AnnotationType.LayeredEffectCreated in annotation.typeList ||
+                        AnnotationType.AttachmentCreated in annotation.typeList ||
                         (
                             AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
                                 annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK
                         )
                 if (!isEffect) continue
+                if (AnnotationType.LayeredEffectCreated in annotation.typeList && annotation.affectorId in sourceAbilities) {
+                    annotations.indices
+                        .filter {
+                            AnnotationType.AttachmentCreated in annotations[it].typeList &&
+                                annotations[it].affectorId == annotation.affectorId
+                        }.forEach { add(it to index) }
+                }
                 if (AnnotationType.ZoneTransfer_af5a in annotation.typeList) {
                     val movedId = annotation.affectedIdsList.firstOrNull()
                     val reallocation =
@@ -230,8 +249,9 @@ data object ResolutionLifecycleRule : OrderRule {
                         }
                     if (reallocation >= 0) starts[annotation.affectorId]?.let { add(it to reallocation) }
                 }
-                starts[annotation.affectorId]?.let { add(it to index) }
-                completions[annotation.affectorId]?.let { add(index to it) }
+                val owner = if (annotation.affectorId in starts) annotation.affectorId else sourceAbilities[annotation.affectorId]
+                starts[owner]?.let { add(it to index) }
+                completions[owner]?.let { add(index to it) }
             }
         }
     }
@@ -277,6 +297,13 @@ data object ResolveTransferOrderingRule : OrderRule {
             if (ann.detailInt(DetailKeys.ZONE_SRC) == ZoneIds.STACK) {
                 edges.add(rs to rc)
                 edges.add(rc to i)
+                objectIdChangedIndexFor(annotations, ann)
+                    ?.takeIf {
+                        annotations[it].affectedIdsList.any { old ->
+                            old ==
+                                annotations[rc].affectorId
+                        }
+                    }?.let { edges.add(rc to it) }
             } else {
                 objectIdChangedIndexFor(annotations, ann)?.let { edges.add(rs to it) }
                 edges.add(rs to i)
@@ -410,3 +437,19 @@ internal fun AnnotationInfo.detailString(key: String): String =
         ?.let {
             if (it.valueStringCount > 0) it.getValueString(0) else null
         }.orEmpty()
+
+/** Source-owned effects can use a card affector while their ability owns the bracket. */
+private fun sourceResolutionOwners(annotations: List<AnnotationInfo>): Map<Int, Int> {
+    val starts = annotations.filter { AnnotationType.ResolutionStart in it.typeList }.map { it.affectorId }.toSet()
+    val completed = annotations.filter { AnnotationType.ResolutionComplete in it.typeList }.map { it.affectorId }.toSet()
+    return annotations
+        .filter { AnnotationType.AbilityInstanceDeleted in it.typeList }
+        .groupBy { it.affectorId }
+        .mapNotNull { (source, deletions) ->
+            deletions
+                .flatMap { it.affectedIdsList }
+                .distinct()
+                .singleOrNull { it in starts && it in completed }
+                ?.let { source to it }
+        }.toMap()
+}

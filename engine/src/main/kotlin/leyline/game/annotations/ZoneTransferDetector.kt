@@ -360,7 +360,16 @@ object ZoneTransferDetector {
                             } else {
                                 sourceCardId
                             }
-                        idLookup(sourceIdentity).value
+                        if (sourceIdentity == sourceCardId) {
+                            previousZones.entries
+                                .firstOrNull { (iid, zone) ->
+                                    zone == ZoneIds.STACK &&
+                                        forgeIdLookup(InstanceId(iid)) == sourceCardId
+                                }?.key
+                                ?: idLookup(sourceIdentity).value
+                        } else {
+                            idLookup(sourceIdentity).value
+                        }
                     } else if (forgeCardId != null && events.isNotEmpty()) {
                         val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                         if (sourceCardId != null) {

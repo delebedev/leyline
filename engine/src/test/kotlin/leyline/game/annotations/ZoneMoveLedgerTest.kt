@@ -120,7 +120,7 @@ class ZoneMoveLedgerTest :
                     "bounce",
                     Zone.Battlefield,
                     Zone.Hand,
-                    TransferCategory.Bounce,
+                    TransferCategory.Return,
                     events = listOf(GameEvent.CardBounced(cardId, seat)),
                 ),
                 Case(
