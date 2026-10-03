@@ -44,7 +44,7 @@ class MechanicAnnotationPipelineTest :
                 result.transient.size shouldBe 1
                 result.transient[0].typeList shouldContain AnnotationType.CounterAdded
                 result.transient[0].affectedIdsList shouldContain 1042
-                result.transient[0].detailString("counter_type") shouldBe "+1/+1"
+                result.transient[0].detailInt("counter_type") shouldBe 1
                 result.transient[0].detailInt("transaction_amount") shouldBe 2
             }
 
@@ -88,6 +88,7 @@ class MechanicAnnotationPipelineTest :
             assertSoftly {
                 annotations.size shouldBe 1
                 annotations[0].typeList shouldContain AnnotationType.CounterRemoved
+                annotations[0].detailInt("counter_type") shouldBe 7
                 annotations[0].detailInt("transaction_amount") shouldBe 3
             }
         }
@@ -104,6 +105,23 @@ class MechanicAnnotationPipelineTest :
                 result.transient[0].typeList shouldContain AnnotationType.CounterAdded
                 result.transient[0].detailString("counter_type") shouldBe "ODOR"
                 result.persistent.shouldBeEmpty()
+            }
+        }
+
+        test("defense counter deltas use numeric counter type") {
+            val events =
+                listOf(
+                    GameEvent.CountersChanged(ForgeCardId(42), "Defense", 0, 3),
+                    GameEvent.CountersChanged(ForgeCardId(42), "Defense", 3, 0),
+                )
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
+
+            assertSoftly {
+                result.transient.map { it.typeList.single() } shouldBe
+                    listOf(AnnotationType.CounterAdded, AnnotationType.CounterRemoved)
+                result.transient.map { it.detailInt("counter_type") } shouldBe listOf(174, 174)
+                result.transient.map { it.detailInt("transaction_amount") } shouldBe listOf(3, 3)
+                result.persistent.map { it.detailInt("counter_type") } shouldBe listOf(174, 174)
             }
         }
 
