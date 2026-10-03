@@ -202,7 +202,7 @@ object TransferAnnotations {
                     stackInstanceId = newId,
                     type = CastingTimeOptionType.CastThroughAbility,
                     alternateCostGrpId = altCostGrpId,
-                    castAbilityGrpId = castAbilityGrpId.takeIf { it.value != 0 } ?: altCostGrpId,
+                    castAbilityGrpId = castAbilityGrpId,
                 ),
             )
         }
@@ -403,7 +403,7 @@ object TransferAnnotations {
                 else -> ActionType.Cast
             }
         val altCostGrpId = GrpId(ev.altCostAbilityGrpId)
-        val castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId)
+        val castAbilityGrpId = GrpId(ev.castAbilityGrpId)
         val actionAbilityGrpId =
             castAbilityGrpId.takeUnless { altCostGrpId.value != 0 && it == altCostGrpId } ?: GrpId(0)
         annotations.add(
@@ -512,7 +512,7 @@ object TransferAnnotations {
                     stackInstanceId = spellIid,
                     type = CastingTimeOptionType.CastThroughAbility,
                     alternateCostGrpId = altCostGrpId,
-                    castAbilityGrpId = GrpId(ev.castAbilityGrpId.takeIf { it != 0 } ?: ev.altCostAbilityGrpId),
+                    castAbilityGrpId = GrpId(ev.castAbilityGrpId),
                 ),
             )
         }

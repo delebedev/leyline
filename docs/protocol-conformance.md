@@ -47,7 +47,7 @@ loosening a protocol assertion.
 
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
-numbers. Casting options omit an absent cost or permission field and omit a redundant permission identity when it equals the selected cost identity. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
+numbers. Casting options omit an absent cost or permission field. Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 

@@ -69,6 +69,7 @@ sealed interface ProjectionSupplement {
     data class SelectedCastOption(
         val sourceForgeId: ForgeCardId,
         val alternateCostGrpId: Int,
+        val castAbilityGrpId: Int = alternateCostGrpId,
     ) : ProjectionSupplement
 
     data object NewTurnStarted : ProjectionSupplement

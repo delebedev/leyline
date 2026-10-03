@@ -329,6 +329,8 @@ class GameEventCollector(
                 castingPermission.castAbilityGrpId
             } else if (isWarpExileCast) {
                 KeywordAbilityIds.WARP
+            } else if (SpellAbilityShapes.usesCostOnlyCastingOption(eventSa)) {
+                0
             } else {
                 altCostAbilityGrpId
             }

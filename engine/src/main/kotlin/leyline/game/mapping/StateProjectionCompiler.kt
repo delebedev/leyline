@@ -375,6 +375,7 @@ object StateProjectionCompiler {
                     draft.idResolver.cardIid(option.sourceForgeId),
                     wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType.CastThroughAbility,
                     leyline.bridge.types.GrpId(option.alternateCostGrpId),
+                    leyline.bridge.types.GrpId(option.castAbilityGrpId),
                 )
             }
         val added = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()

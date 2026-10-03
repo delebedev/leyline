@@ -102,6 +102,7 @@ class ProtocolContractMutationTest :
             val row = messages.allPersistentAnnotations().first { AnnotationType.CastingTimeOption in it.typeList }
             shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
             checkRowLifetimeMutations(contract, messages, row)
+            checkDuplicateCastingOption(contract, messages, row)
         }
         regression("quantum-riddler-exile-cast.yaml") { contract, messages ->
             for ((name, mutant) in listOf(
@@ -142,6 +143,7 @@ class ProtocolContractMutationTest :
                 }
             shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
             checkRowLifetimeMutations(contract, messages, row)
+            checkDuplicateCastingOption(contract, messages, row)
         }
 
         regression("depart-the-realm-foretell.yaml") { contract, messages ->
@@ -661,6 +663,31 @@ private fun checkTargetMutations(
     val row = messages.allPersistentAnnotations().single { AnnotationType.TargetSpec in it.typeList }
     withClue("missing target retirement") { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
     checkRowLifetimeMutations(contract, messages, row)
+}
+
+private fun checkDuplicateCastingOption(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    row: AnnotationInfo,
+) {
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val duplicate =
+        row
+            .toBuilder()
+            .setId(9999)
+            .addDetails(
+                row
+                    .getDetails(0)
+                    .toBuilder()
+                    .setKey("castAbilityGrpId")
+                    .clearValueInt32()
+                    .addValueInt32(0),
+            ).build()
+    val extra = messages[birth].toBuilder().setGameStateMessage(GameStateMessage.newBuilder().addPersistentAnnotations(duplicate)).build()
+    val mutant = messages.toMutableList().also { it.add(birth + 1, extra) }
+    withClue("second casting-option row with a different identity and shape") {
+        shouldThrow<AssertionError> { contract.verify(mutant) }
+    }
 }
 
 private fun checkRowLifetimeMutations(

@@ -1904,7 +1904,7 @@ class BundleBuilder(
         return buildList {
             transientSourceCard?.let { add(ProjectionSupplement.PreStackSpell(it)) }
             if (sourceId != null && abilityId == null && window.castAlternateCostGrpId != 0) {
-                add(ProjectionSupplement.SelectedCastOption(sourceId, window.castAlternateCostGrpId))
+                add(ProjectionSupplement.SelectedCastOption(sourceId, window.castAlternateCostGrpId, window.castAbilityGrpId))
             }
             if ((window.isTriggeredAbility || window.isActivatedAbility) &&
                 abilityId != null &&

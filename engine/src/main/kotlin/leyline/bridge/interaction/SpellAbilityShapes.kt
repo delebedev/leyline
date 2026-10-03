@@ -1,9 +1,13 @@
 package leyline.bridge.interaction
 
 import forge.game.ability.ApiType
+import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 
 object SpellAbilityShapes {
+    fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
+        (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in setOf(AlternativeCost.Warp, AlternativeCost.Foretold)
+
     fun isReconfigureAttach(sa: SpellAbility?): Boolean = sa?.api == ApiType.Attach && sa.getParam("PrecostDesc") == "Reconfigure"
 
     fun isSuspectChoice(sa: SpellAbility?): Boolean =

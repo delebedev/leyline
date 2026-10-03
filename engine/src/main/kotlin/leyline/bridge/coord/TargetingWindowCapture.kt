@@ -49,6 +49,13 @@ internal class TargetingWindowCapture(
                     ?.first
                 ?: 0
         val shape = targetShape(targetingAbility, abilityIdentity, sourceGrpId, defaultTargetingGrpId)
+        val castAlternateCostGrpId =
+            targetingAbility
+                ?.rootAbility
+                ?.alternativeCost
+                ?.name
+                ?.let(KeywordAbilityIds::fromForgeAltCostName)
+                ?.let { owner.bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, it) } ?: 0
         return TargetingWindowValue(
             sourceForgeCardId = sourceId,
             sourceGrpId = sourceGrpId,
@@ -82,13 +89,8 @@ internal class TargetingWindowCapture(
             forgeAbilityId = targetingAbility?.id ?: request.forgeAbilityId,
             isActivatedAbility = targetingAbility?.rootAbility?.isActivatedAbility == true,
             stackAbilityGrpId = abilityIdentity?.abilityGrpId ?: 0,
-            castAlternateCostGrpId =
-                targetingAbility
-                    ?.rootAbility
-                    ?.alternativeCost
-                    ?.name
-                    ?.let(KeywordAbilityIds::fromForgeAltCostName)
-                    ?.let { owner.bridge.cardRepository.findKeywordAbilityGrpId(sourceGrpId, it) } ?: 0,
+            castAlternateCostGrpId = castAlternateCostGrpId,
+            castAbilityGrpId = if (SpellAbilityShapes.usesCostOnlyCastingOption(targetingAbility)) 0 else castAlternateCostGrpId,
         )
     }
 

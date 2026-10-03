@@ -140,7 +140,7 @@ windows:
 - {id: exile-casting-option-holds, holds: exile-casting-option, until: exile-casting-option-retired}
 - {id: draw-trigger-source-holds, holds: draw-trigger-source, until: draw-trigger-source-retired}
 counts:
-- match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: exile-casting-option}
+- match: {type: CastingTimeOption, lane: persistent, op: create, equals: {affectorId: exile-casting-option.affectorId}, fields: {details.type: [13]}}
   exactly: 1
 - match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: exile-casting-option}
   exactly: 1

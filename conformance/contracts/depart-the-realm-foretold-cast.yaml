@@ -138,7 +138,7 @@ windows:
 - {id: casting-option-holds, holds: casting-option, until: casting-option-retired}
 - {id: target-holds, holds: target, until: target-retired}
 counts:
-- match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: casting-option}
+- match: {type: CastingTimeOption, lane: persistent, op: create, equals: {affectorId: casting-option.affectorId}, fields: {details.type: [13]}}
   exactly: 1
 - match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: casting-option}
   exactly: 1

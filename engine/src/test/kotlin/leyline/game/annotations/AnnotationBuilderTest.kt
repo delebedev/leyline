@@ -291,7 +291,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
                 ann.detailInt("alternateCostGrpId") shouldBe 5658
-                ann.detailsList.map { it.key } shouldBe listOf("type", "alternateCostGrpId")
+                ann.detailInt("castAbilityGrpId") shouldBe 5658
             }
         }
 
@@ -305,6 +305,11 @@ class AnnotationBuilderTest :
                 )
             ann.detailInt("alternateCostGrpId") shouldBe 5658
             ann.detailInt("castAbilityGrpId") shouldBe 9999
+        }
+
+        test("cost-only route omits a casting permission") {
+            val ann = AnnotationBuilder.castingTimeOption(100.iid, CastingTimeOptionType.CastThroughAbility, 371.grp, 0.grp)
+            ann.detailsList.map { it.key } shouldBe listOf("type", "alternateCostGrpId")
         }
 
         test("casting permission omits an absent alternative cost") {

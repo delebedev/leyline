@@ -200,7 +200,7 @@ object AnnotationBuilder {
      * Most common shape (and the one used by the alt-cost mechanic family):
      * **CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] may identify the same route; that redundant permission field is omitted.
+     * [castAbilityGrpId] can identify the same route. Cost-only routes pass zero for that field.
      * A permission-only cast omits [alternateCostGrpId]. Free casts use the no-mana-cost identity
      * in [alternateCostGrpId] and the distinct granting ability in [castAbilityGrpId].
      *
@@ -228,9 +228,7 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.TYPE, type.number))
             .apply {
                 if (alternateCostGrpId.value != 0) addDetails(int32Detail(DetailKeys.ALTERNATE_COST_GRP_ID, alternateCostGrpId.value))
-                if (castAbilityGrpId.value != 0 &&
-                    castAbilityGrpId != alternateCostGrpId
-                ) {
+                if (castAbilityGrpId.value != 0) {
                     addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId.value))
                 }
             }.build()
