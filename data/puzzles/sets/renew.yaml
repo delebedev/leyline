@@ -22,8 +22,8 @@ scenarios:
             - battlefield_stats: { side: ours, card: "Ironheart, Clever Champion", power: 4, toughness: 5 }
             - annotation_seen:
                 type: CounterAdded
-                details: { counter_type: "+1/+1", transaction_amount: "1" }
+                details: { counter_type: "1", transaction_amount: "1" }
             - annotation_seen:
                 type: CounterAdded
-                details: { counter_type: Trample, transaction_amount: "1" }
+                details: { counter_type: "142", transaction_amount: "1" }
             - stack_empty: true
