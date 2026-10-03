@@ -23,6 +23,8 @@ read_when:
   Forge-AI puzzle solutions into backend-neutral scripted suites
 - [`puzzle-harness.md`](puzzle-harness.md) — direct puzzle state, history-sensitive
   setup, and Full-state boundaries
+- [`protocol-conformance.md`](protocol-conformance.md) — bounded protocol
+  obligations over deterministic scenarios and their CI lane
 - [`simclient-iteration.md`](simclient-iteration.md) — fixed-seed failure
   classification and reproduction loop
 - [`local-client-setup.md`](local-client-setup.md) — local native-client setup

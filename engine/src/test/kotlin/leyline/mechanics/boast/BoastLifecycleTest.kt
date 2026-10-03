@@ -5,7 +5,6 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -16,13 +15,11 @@ import leyline.testkit.FixturePinned
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
-import leyline.testkit.annotationTypeSet
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 @FixturePinned
 class BoastLifecycleTest :
@@ -55,17 +52,10 @@ class BoastLifecycleTest :
             passUntilResolved(maxPasses = 8)
             val activationMessages = messagesSince(activationStart)
 
-            val types = activationMessages.annotationTypeSet()
             val tokenCreated =
                 activationMessages
                     .annotationsOfType(AnnotationType.TokenCreated)
                     .last()
-            val abilityIid = tokenCreated.affectorId
-            val abilityCreatedIids =
-                activationMessages
-                    .annotationsOfType(AnnotationType.AbilityInstanceCreated)
-                    .flatMap { it.affectedIdsList }
-                    .toSet()
             val exhausted =
                 activationMessages
                     .persistentAnnotationsOfType(AnnotationType.AbilityExhausted)
@@ -74,24 +64,13 @@ class BoastLifecycleTest :
             val tokenObject = activationMessages.allGameObjects().firstOrNull { it.instanceId == tokenIid }
 
             assertSoftly {
-                types shouldContain AnnotationType.UserActionTaken
-                types shouldContain AnnotationType.ManaPaid
-                types shouldContain AnnotationType.AbilityInstanceCreated
-                types shouldContain AnnotationType.ResolutionStart
-                types shouldContain AnnotationType.ResolutionComplete
-                types shouldContain AnnotationType.AbilityInstanceDeleted
-                types shouldContain AnnotationType.TokenCreated
-                abilityCreatedIids shouldContain abilityIid
+                activationMessages.annotationsOfType(AnnotationType.ManaPaid).shouldNotBeEmpty()
 
                 exhausted.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe USHER_BOAST_ABILITY_GRP_ID
-                exhausted.detailInt(DetailKeys.USES_REMAINING) shouldBe 0
                 exhausted.detailInt(DetailKeys.UNIQUE_ABILITY_ID) shouldBe BOAST_EXHAUSTED_UNIQUE_ABILITY_ID
-                exhausted.affectorId shouldBe usherIid
 
                 tokenObject shouldNotBe null
-                tokenObject!!.type shouldBe GameObjectType.Token
-                tokenObject.grpId shouldBe HUMAN_WARRIOR_TOKEN_GRP_ID
-                tokenObject.parentId shouldBe abilityIid
+                tokenObject!!.grpId shouldBe HUMAN_WARRIOR_TOKEN_GRP_ID
                 tokenObject.objectSourceGrpId shouldBe USHER_GRP_ID
                 human
                     .getZone(ZoneType.Battlefield)

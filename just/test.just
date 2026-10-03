@@ -74,6 +74,11 @@ test-integration forks='':
 test-acceptance:
     cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testAcceptance
 
+# authored protocol contracts over scripted scenarios
+[group('test')]
+test-conformance:
+    cd "{{project_dir}}" && ./gradlew -PforceTests :engine:testConformance
+
 # one scripted acceptance path with a local diagnostic trace
 [group('test')]
 acceptance-scry suite scenario:
