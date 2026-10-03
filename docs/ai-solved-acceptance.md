@@ -52,7 +52,7 @@ smoke-scoped config overrides, and active-server checkout preflight.
 4. Run `just test-acceptance`, or target one suite/scenario with the current
    `:engine:testAcceptance` Gradle properties.
 5. Fix bridge, prompt, action, or engine behavior until the scripted suite is green.
-6. Reuse the same YAML through native-client acceptance when available; classify failures by layer.
+6. When live proof is selected under [`AGENTS.md`](../AGENTS.md), reuse the same YAML through native-client acceptance and classify failures by layer.
 
 The YAML is the contract. It stays backend-neutral: game intent only, no coordinates, delays, or UI gestures.
 
