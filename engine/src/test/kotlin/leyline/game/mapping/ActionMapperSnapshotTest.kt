@@ -9,6 +9,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.coord.hasAmbiguousActionCatalog
+import leyline.bridge.coord.resolveActionOffer
+import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.game.snapshot.SnapshotCapture
@@ -193,6 +195,83 @@ class ActionMapperSnapshotTest :
             val objectAfterRemoval = handshakeFull(game, b, 1).gameObjectsList.single { it.instanceId == guardInstanceId }
             objectAfterRemoval.uniqueAbilitiesList.filter { it.grpId == 97312 }.map { it.id } shouldBe
                 listOf(remaining.action.uniqueAbilityId)
+        }
+
+        test("copied loyalty abilities retain their source definitions and exact execution") {
+            var bolasForgeId = 0
+            val (b, game, _) =
+                startWithBoard { game, human, _ ->
+                    addCard("Nicol Bolas, Dragon-God", human).also { bolasForgeId = it.id }
+                    addCard("Jace, Multiverse Architect", human)
+                    addCard("Nicol Bolas, God-Pharaoh", human)
+                    game.action.checkStaticAbilities(false)
+                }
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val iid = b.getOrAllocInstanceId(ForgeCardId(bolasForgeId)).value
+            val offers = projection.offers.filter { it.action.actionType == ActionType.Activate_add3 && it.action.instanceId == iid }
+            assertSoftly {
+                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+                offers.size shouldBe 4
+                offers.map { it.action.abilityGrpId }.toSet().size shouldBe 4
+            }
+            val catalog = offers.mapIndexed { index, offer -> index.toLong() to offer }.groupBy { ActionResponseKey.from(it.second.action) }
+            val objectAbilities = handshakeFull(game, b, 1).gameObjectsList.single { it.instanceId == iid }.uniqueAbilitiesList
+            for (offer in offers) {
+                val ability = checkNotNull(offer.command.shouldBeInstanceOf<PlayerAction.ActivateAbility>().ability)
+                val original = ability.originalAbility ?: ability
+                val sourceGrpId = checkNotNull(b.cardRepository.findGrpIdByName(original.hostCard.name))
+                val sourceData = checkNotNull(b.cardRepository.findByGrpId(sourceGrpId))
+                assertSoftly {
+                    offer.action.abilityGrpId shouldBe
+                        checkNotNull(b.abilityRegistryFor(original.hostCard, sourceData)).forSpellAbility(original)
+                    objectAbilities.single { it.id == offer.action.uniqueAbilityId }.grpId shouldBe offer.action.abilityGrpId
+                    resolveActionOffer(catalog, offer.action)?.second shouldBe offer
+                }
+            }
+        }
+
+        test("repeated copied loyalty abilities stay distinct and retire with their source") {
+            var bolasForgeId = 0
+            var donorForgeId = 0
+            val (b, game, _) =
+                startWithBoard { game, human, ai ->
+                    addCard("Nicol Bolas, Dragon-God", human).also { bolasForgeId = it.id }
+                    addCard("Nicol Bolas, God-Pharaoh", human).also { donorForgeId = it.id }
+                    addCard("Nicol Bolas, God-Pharaoh", ai)
+                    game.action.checkStaticAbilities(false)
+                }
+            val iid = b.getOrAllocInstanceId(ForgeCardId(bolasForgeId)).value
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
+            val copies =
+                projection.offers.filter {
+                    it.action.instanceId == iid && (it.command as? PlayerAction.ActivateAbility)?.ability?.originalAbility != null
+                }
+            assertSoftly {
+                copies.size shouldBe 4
+                copies.map { it.action.abilityGrpId }.toSet().size shouldBe 2
+                copies.map { it.action.uniqueAbilityId }.toSet().size shouldBe 4
+                hasAmbiguousActionCatalog(projection.offers) shouldBe false
+            }
+            val catalog = copies.mapIndexed { index, offer -> index.toLong() to offer }.groupBy { ActionResponseKey.from(it.second.action) }
+            for (offer in copies) resolveActionOffer(catalog, offer.action)?.second shouldBe offer
+
+            game.action.moveToGraveyard(checkNotNull(b.findCard(ForgeCardId(donorForgeId))), null)
+            game.action.checkStaticAbilities(false)
+            val after = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, b, "test", 1), b)
+            val remaining =
+                after.offers.filter {
+                    it.action.instanceId == iid && (it.command as? PlayerAction.ActivateAbility)?.ability?.originalAbility != null
+                }
+            remaining.size shouldBe 2
+            hasAmbiguousActionCatalog(after.offers) shouldBe false
+            val rows =
+                handshakeFull(game, b, 1)
+                    .gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList
+                    .filter { it.id >= 54 }
+            rows.size shouldBe 4
+            for (offer in remaining) rows.single { it.id == offer.action.uniqueAbilityId }.grpId shouldBe offer.action.abilityGrpId
         }
 
         test("dual basic land types retain each color identity") {

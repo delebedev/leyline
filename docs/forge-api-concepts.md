@@ -106,6 +106,13 @@ keyword is bound to its recipient during gameplay.
 
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
+Abilities copied by continuous effects retain `SpellAbility.originalAbility`.
+`AbilityRegistry.identitySource` selects that definition's card catalog, while
+`forSpellAbility` resolves its original definition identity. Actions and object
+ability rows use the same recipient-local unique identity for each live copy.
+The copying static remains the source of the grant, and the retained live
+ability remains the execution handle.
+
 Spells that can target both stack objects and permanents use Forge’s list-choice
 callback. The bridge keeps both candidate kinds explicit and excludes zone
 headings from selectable options; the generic choice default must not choose

@@ -2239,7 +2239,8 @@ class GameBridge(
             for (cell in card.changedCardTraits.cellSet()) {
                 for (ability in (cell.value as? CardTraitChanges)?.getAbilities().orEmpty()) {
                     if (!ability.isActivatedAbility) continue
-                    val source = ability.grantorStatic?.hostCard ?: continue
+                    val grantor = ability.grantorStatic?.hostCard ?: continue
+                    val source = AbilityRegistry.identitySource(ability)
                     val sourceData = cardRepository.findByGrpId(resolveGrpId(source)) ?: continue
                     val registry = abilityRegistryFor(source, sourceData) ?: continue
                     val abilityGrpId = registry.forSpellAbility(ability) ?: continue
@@ -2251,7 +2252,7 @@ class GameBridge(
                             staticId = cell.columnKey,
                             abilityGrpId = abilityGrpId,
                             uniqueAbilityId = 50 + cardData.abilityIds.size + grantedIndex,
-                            sourceForgeCardId = ForgeCardId(source.id),
+                            sourceForgeCardId = ForgeCardId(grantor.id),
                         ),
                     )
                 }
