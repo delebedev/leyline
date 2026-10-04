@@ -4,6 +4,7 @@ import forge.card.mana.ManaCost
 import leyline.bridge.ActionManaCosts
 import leyline.bridge.getPlayableManaAbilities
 import leyline.bridge.types.ManaColorMapping
+import leyline.game.state.AbilityRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AutoTapAction
 import wotc.mtgo.gre.external.messaging.Messages.AutoTapSolution
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -169,10 +170,10 @@ internal object ActionAutoTapSupport {
                 val colors = ActivatedActionEmitter.producedManaColors(sa)
                 if (colors.isEmpty()) continue
                 val instanceId = context.instanceId(card)
-                val grpId = context.grpId(card)
-                val cardData = context.cardData(grpId)
-                val registry = context.abilityRegistry(card, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa.definitionId) ?: ActivatedActionEmitter.basicLandAbilityGrpId(card, sa)
+                val identitySource = AbilityRegistry.identitySource(sa)
+                val cardData = context.cardData(context.grpId(identitySource))
+                val registry = context.abilityRegistry(identitySource, cardData)
+                val abilityGrpId = registry?.forSpellAbility(sa) ?: ActivatedActionEmitter.basicLandAbilityGrpId(card, sa)
                 for (color in colors) {
                     sources.add(ManaSource(instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
                 }

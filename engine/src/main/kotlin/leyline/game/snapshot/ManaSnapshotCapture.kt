@@ -5,6 +5,7 @@ import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.types.ManaColorMapping
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.ManaSpecType
@@ -29,12 +30,13 @@ internal object ManaSnapshotCapture {
             val source = mana.sourceCard ?: continue
             val srcInstanceId = bridge.instanceId(source)
             val sourceGrpId = bridge.resolveGrpId(source, srcInstanceId)
-            val cardData = bridge.cardRepository.findByGrpId(sourceGrpId)
             val manaAbility = mana.manaAbility
-            val abilityDefinitionId = manaAbility?.sourceSA?.definitionId ?: 0
+            val sourceAbility = manaAbility?.sourceSA
             val abilityGrpId =
-                if (abilityDefinitionId != 0) {
-                    bridge.abilityRegistryFor(source, cardData)?.forSpellAbility(abilityDefinitionId) ?: 0
+                if (sourceAbility != null) {
+                    val identitySource = AbilityRegistry.identitySource(sourceAbility)
+                    val cardData = bridge.cardRepository.findByGrpId(bridge.resolveGrpId(identitySource))
+                    bridge.abilityRegistryFor(identitySource, cardData)?.forSpellAbility(sourceAbility) ?: 0
                 } else {
                     0
                 }.takeIf { it != 0 }

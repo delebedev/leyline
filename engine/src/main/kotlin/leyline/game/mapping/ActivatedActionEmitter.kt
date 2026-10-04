@@ -84,7 +84,7 @@ internal object ActivatedActionEmitter {
             val actionInstanceId = instanceId()
             val actionGrpId = grpId(card)
             val actionCardData = cardData(actionGrpId)
-            val identityCard = ability.grantorStatic?.hostCard ?: card
+            val identityCard = AbilityRegistry.identitySource(ability)
             val identityCardData = cardData(grpId(identityCard))
             val registry = abilityRegistryLookup(identityCard, identityCardData)
             val abilityGrpId = registry?.forSpellAbility(ability) ?: 0
@@ -164,7 +164,7 @@ internal object ActivatedActionEmitter {
         val cardData = cardDataLookup(card)
         return distinctManaAbilities(card, abilities).mapNotNull { (abilityIndex, sa) ->
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val source = sa.grantorStatic?.hostCard ?: card
+            val source = AbilityRegistry.identitySource(sa)
             val registry = abilityRegistryLookup(source, cardDataLookup(source))
             val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
             val colors = producedManaColors(sa)
@@ -246,7 +246,7 @@ internal object ActivatedActionEmitter {
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val source = sa.grantorStatic?.hostCard ?: card
+            val source = AbilityRegistry.identitySource(sa)
             val registry = abilityRegistryLookup(source, cardDataLookup(source))
             val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
             val actionBuilder =
