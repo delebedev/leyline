@@ -1,6 +1,21 @@
 {
   "sets": [
     {
+      "code": "FRA",
+      "releaseTs": 1790640000,
+      "active": 1
+    },
+    {
+      "code": "FRC",
+      "releaseTs": 1790640000,
+      "active": 1
+    },
+    {
+      "code": "FDC",
+      "releaseTs": 1790640000,
+      "active": 1
+    },
+    {
       "code": "HOB",
       "releaseTs": 1786665600,
       "active": 1
@@ -1211,6 +1226,9 @@
     {
       "groupName": "AllFilters",
       "setCodes": [
+        "FRA",
+        "FRC",
+        "FDC",
         "HOB",
         "HOC",
         "SOS",

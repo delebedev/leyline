@@ -250,7 +250,10 @@
       "ECC",
       "SOS",
       "HOB",
-      "HOC"
+      "HOC",
+      "FRA",
+      "FRC",
+      "FDC"
     ]
   },
   "formats": [
