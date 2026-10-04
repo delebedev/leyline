@@ -1,6 +1,8 @@
 package leyline.game.bundle
 
+import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.ManaRequirementSpec
+import leyline.config.CostChoicePresentation
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -189,29 +191,49 @@ object CastingTimeOptionsBuilder {
             .setObjectId(objectId)
             .build()
 
-    fun buildChooseOrCostCastingTimeOptionsReq(
+    /** Resolve labels from frozen choices before the coordinator commits the request. */
+    internal fun buildChooseOrCostCastingTimeOptionsReq(
         instanceId: Int,
         grpId: Int,
         playerIdToPrompt: Int,
-        optionCount: Int,
-        optionPromptIds: List<Int> = emptyList(),
+        choices: List<DeferredCastCostPlan.AlternateCostChoice>,
+        presentation: CostChoicePresentation,
     ): Pair<CastingTimeOptionsReq, List<Int>> {
-        val ctoId = 2
-        val selectPrompt =
-            Prompt
-                .newBuilder()
-                .setPromptId(if (optionPromptIds.isNotEmpty()) PromptIds.CHOOSE_OR_COST else PromptIds.SELECT_N)
-                .apply {
-                    optionPromptIds.forEach { promptId ->
-                        addParameters(
+        val optionCount = choices.size
+        val labels =
+            when (presentation) {
+                CostChoicePresentation.Native -> {
+                    val ids = choices.map { nativeAdditionalCostPromptId(it.kind) }
+                    if (ids.all { it != null }) {
+                        ids.filterNotNull().map { id ->
                             PromptParameter
                                 .newBuilder()
                                 .setParameterName("Cost")
                                 .setType(ParameterType.PromptId)
-                                .setPromptId(promptId),
-                        )
+                                .setPromptId(id)
+                                .build()
+                        }
+                    } else {
+                        emptyList()
                     }
-                }.build()
+                }
+                CostChoicePresentation.ForgeText ->
+                    choices.map { choice ->
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("Cost")
+                            .setType(ParameterType.NonLocalizedString)
+                            .setStringValue(choice.description)
+                            .build()
+                    }
+            }
+        val ctoId = 2
+        val selectPrompt =
+            Prompt
+                .newBuilder()
+                .setPromptId(if (labels.isNotEmpty()) PromptIds.CHOOSE_OR_COST else PromptIds.SELECT_N)
+                .addAllParameters(labels)
+                .build()
         val selectNReq =
             SelectNReq
                 .newBuilder()
@@ -243,4 +265,13 @@ object CastingTimeOptionsBuilder {
                 ).build()
         return req to (1..optionCount).toList()
     }
+
+    private fun nativeAdditionalCostPromptId(kind: DeferredCastCostPlan.AdditionalCostKind): Int? =
+        when (kind) {
+            DeferredCastCostPlan.AdditionalCostKind.Mana -> PromptIds.CHOOSE_OR_COST_PAY_MANA
+            DeferredCastCostPlan.AdditionalCostKind.Blight -> PromptIds.CHOOSE_OR_COST_PAY_BLIGHT
+            DeferredCastCostPlan.AdditionalCostKind.Sacrifice -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
+            DeferredCastCostPlan.AdditionalCostKind.Exile -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
+            DeferredCastCostPlan.AdditionalCostKind.Unsupported -> null
+        }
 }

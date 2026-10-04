@@ -8,6 +8,8 @@ import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import leyline.config.CostChoicePresentation
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
@@ -18,65 +20,78 @@ import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 class BlightLifecycleTest :
     SessionTest({
-        session(
-            "selected Blight branch pays with a controlled creature and records its cast option",
-            puzzleFile = "data/puzzles/blight-bogslither-positive.pzl",
-        ) {
-            val snap = messageSnapshot()
-            val option =
-                after { castSpellByName("Bogslither's Embrace") }
-                    .expectOneCastingTimeOptionsReq()
-                    .castingTimeOptionReqList
+        for (presentation in CostChoicePresentation.entries) {
+            session(
+                "selected Blight branch records and retires its cast option with $presentation labels",
+                puzzleFile = "data/puzzles/blight-bogslither-positive.pzl",
+                costChoicePresentation = presentation,
+            ) {
+                val snap = messageSnapshot()
+                val option =
+                    after { castSpellByName("Bogslither's Embrace") }
+                        .expectOneCastingTimeOptionsReq()
+                        .castingTimeOptionReqList
+                        .single()
+
+                assertSoftly {
+                    option.castingTimeOptionType shouldBe CastingTimeOptionType.ChooseOrCost
+                    option.isRequired shouldBe true
+                    option.selectNReq.prompt.promptId shouldBe PromptIds.CHOOSE_OR_COST
+                    if (presentation == CostChoicePresentation.Native) {
+                        option.selectNReq.prompt.parametersList
+                            .map { it.promptId } shouldBe
+                            listOf(PromptIds.CHOOSE_OR_COST_PAY_BLIGHT, PromptIds.CHOOSE_OR_COST_PAY_MANA)
+                    } else {
+                        option.selectNReq.prompt.parametersList
+                            .map { it.type } shouldBe
+                            listOf(ParameterType.NonLocalizedString, ParameterType.NonLocalizedString)
+                        option.selectNReq.prompt.parametersList
+                            .first()
+                            .stringValue shouldContain "Blight 1"
+                    }
+                    option.selectNReq.idsList shouldBe listOf(1, 2)
+                }
+
+                after { respondToAlternateCost(option.ctoId, option.selectNReq.idsList.first()) }
+                    .expectOneSelectTargetsReq()
+                selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
+                val costPrompt = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq
+                costPrompt.targetsList
                     .single()
+                    .targetsList
+                    .map { it.targetInstanceId } shouldBe
+                    listOf(human.battlefield.iid("Grizzly Bears"))
+                selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
+                passUntilResolved(maxPasses = 8)
 
-            assertSoftly {
-                option.castingTimeOptionType shouldBe CastingTimeOptionType.ChooseOrCost
-                option.isRequired shouldBe true
-                option.selectNReq.prompt.promptId shouldBe PromptIds.CHOOSE_OR_COST
-                option.selectNReq.prompt.parametersList
-                    .map { it.promptId } shouldBe
-                    listOf(PromptIds.CHOOSE_OR_COST_PAY_BLIGHT, PromptIds.CHOOSE_OR_COST_PAY_MANA)
-                option.selectNReq.idsList shouldBe listOf(1, 2)
-            }
+                val messages = messagesSince(snap)
+                val chosenCost =
+                    messages
+                        .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
+                        .single { it.detailInt(DetailKeys.CHOSEN_COST_PROMPT_ID) == PromptIds.CHOOSE_OR_COST_PAY_BLIGHT }
+                val counterAdded =
+                    messages
+                        .allAnnotations()
+                        .single { AnnotationType.CounterAdded in it.typeList }
+                val counterState =
+                    messages
+                        .persistentAnnotationsOfType(AnnotationType.Counter_803b)
+                        .single { human.battlefield.iid("Grizzly Bears") in it.affectedIdsList }
 
-            after { respondToAlternateCost(option.ctoId, option.selectNReq.idsList.first()) }
-                .expectOneSelectTargetsReq()
-            selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
-            val costPrompt = allMessages.last { it.hasSelectTargetsReq() }.selectTargetsReq
-            costPrompt.targetsList
-                .single()
-                .targetsList
-                .map { it.targetInstanceId } shouldBe
-                listOf(human.battlefield.iid("Grizzly Bears"))
-            selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
-            passUntilResolved(maxPasses = 8)
-
-            val messages = messagesSince(snap)
-            val chosenCost =
-                messages
-                    .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
-                    .single { it.detailInt(DetailKeys.CHOSEN_COST_PROMPT_ID) == PromptIds.CHOOSE_OR_COST_PAY_BLIGHT }
-            val counterAdded =
-                messages
-                    .allAnnotations()
-                    .single { AnnotationType.CounterAdded in it.typeList }
-            val counterState =
-                messages
-                    .persistentAnnotationsOfType(AnnotationType.Counter_803b)
-                    .single { human.battlefield.iid("Grizzly Bears") in it.affectedIdsList }
-
-            assertSoftly {
-                chosenCost.detailInt(DetailKeys.TYPE) shouldBe CastingTimeOptionType.ChooseOrCost.number
-                chosenCost.id shouldBeIn messages.deletedPersistentAnnotationIds()
-                counterAdded.detailInt(DetailKeys.COUNTER_TYPE) shouldBe 2
-                counterAdded.detailInt(DetailKeys.TRANSACTION_AMOUNT) shouldBe 1
-                counterState.detailInt(DetailKeys.COUNTER_TYPE) shouldBe 2
-                counterState.detailInt(DetailKeys.COUNT) shouldBe 1
-                human.battlefield.card("Grizzly Bears").getCounters(CounterEnumType.M1M1) shouldBe 1
-                ai.getZone(ZoneType.Exile).cards.map { it.name } shouldBe listOf("Centaur Courser")
+                assertSoftly {
+                    chosenCost.detailInt(DetailKeys.TYPE) shouldBe CastingTimeOptionType.ChooseOrCost.number
+                    chosenCost.id shouldBeIn messages.deletedPersistentAnnotationIds()
+                    counterAdded.detailInt(DetailKeys.COUNTER_TYPE) shouldBe 2
+                    counterAdded.detailInt(DetailKeys.TRANSACTION_AMOUNT) shouldBe 1
+                    counterState.detailInt(DetailKeys.COUNTER_TYPE) shouldBe 2
+                    counterState.detailInt(DetailKeys.COUNT) shouldBe 1
+                    human.battlefield.card("Grizzly Bears").getCounters(CounterEnumType.M1M1) shouldBe 1
+                    ai.getZone(ZoneType.Exile).cards.map { it.name } shouldBe listOf("Centaur Courser")
+                }
             }
         }
 

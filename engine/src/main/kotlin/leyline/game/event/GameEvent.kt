@@ -7,6 +7,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.SelectedAdditionalCost
 
 /**
  * Lightweight zone enum for [GameEvent]. Decoupled from forge.game.zone.ZoneType
@@ -190,8 +191,8 @@ sealed interface GameEvent {
         val kickerAbilityGrpId: Int = 0,
         /** Non-zero when the cast paid a Waterbend additional cost. */
         val additionalCostGrpId: Int = 0,
-        /** Non-zero when the selected ChooseOrCost branch has a stable prompt identity. */
-        val chosenCostPromptId: Int = 0,
+        /** Selected additional-cost meaning, independent of protocol label identity. */
+        val selectedCost: SelectedAdditionalCost? = null,
         /** Non-zero when the cast chose an X value. Drives the persistent
          *  CastingTimeOption type=ChooseX_a7b4 annotation with this value. */
         val chosenX: Int = 0,

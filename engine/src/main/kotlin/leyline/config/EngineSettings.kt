@@ -46,6 +46,9 @@ data class EngineSettings(
     val draft: DraftSettings = DraftSettings(),
     /** Development-time diagnostics knobs. */
     val dev: DevSettings = DevSettings(),
+    /** Alternate additional-cost GRE labels. All connections to a match share this setting. */
+    @SerialName("cost_choice_presentation")
+    val costChoicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
 ) {
     /**
      * AI delay multiplier derived from [aiSpeed].

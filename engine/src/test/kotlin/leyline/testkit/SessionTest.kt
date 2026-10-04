@@ -3,6 +3,7 @@ package leyline.testkit
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.test.TestScope
 import leyline.IntegrationTag
+import leyline.config.CostChoicePresentation
 import leyline.game.bundle.InvariantSelection
 import leyline.game.data.ForgeCardRepository
 import leyline.tooling.headless.HeadlessResponseMode
@@ -111,6 +112,7 @@ abstract class SessionTest(
         responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
         forgeCatalog: Boolean = javaClass.getAnnotation(FixturePinned::class.java) == null,
         timeout: Duration? = null,
+        costChoicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
         block: suspend MatchFlowHarness.() -> Unit,
     ) {
         require(puzzle == null || puzzleFile == null) {
@@ -127,6 +129,7 @@ abstract class SessionTest(
             val harness =
                 MatchFlowHarness(
                     seed = seed,
+                    costChoicePresentation = costChoicePresentation,
                     deckList = deckList,
                     opponentDeckList = opponentDeckList,
                     validating = validating,

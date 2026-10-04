@@ -41,6 +41,7 @@ import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.bridge.types.SelectedAdditionalCost
 import leyline.bridge.types.opponent
 import leyline.config.EngineSettings
 import leyline.domain.deck.DeckSource
@@ -264,7 +265,7 @@ class GameBridge(
     /** Committed cross-frame annotation correlation. Projection writes only through a tentative planner. */
     private val selectedSpellGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
     private val selectedAdditionalCostGrpIds = ConcurrentHashMap<ForgeCardId, Int>()
-    private val selectedChosenCostPromptIds = ConcurrentHashMap<ForgeCardId, Int>()
+    private val selectedAdditionalCosts = ConcurrentHashMap<ForgeCardId, SelectedAdditionalCost>()
     private val stackAbilityIdentitiesByRuntimeId = ConcurrentHashMap<Int, ResolvedAbilityIdentity>()
 
     fun recordStackAbilityIdentity(
@@ -303,18 +304,18 @@ class GameBridge(
 
     fun consumeSelectedAdditionalCostGrpId(cardId: ForgeCardId): Int? = selectedAdditionalCostGrpIds.remove(cardId)
 
-    fun setSelectedChosenCostPromptId(
+    fun setSelectedAdditionalCost(
         cardId: ForgeCardId,
-        promptId: Int?,
+        cost: SelectedAdditionalCost?,
     ) {
-        if (promptId == null) {
-            selectedChosenCostPromptIds.remove(cardId)
+        if (cost == null) {
+            selectedAdditionalCosts.remove(cardId)
         } else {
-            selectedChosenCostPromptIds[cardId] = promptId
+            selectedAdditionalCosts[cardId] = cost
         }
     }
 
-    fun consumeSelectedChosenCostPromptId(cardId: ForgeCardId): Int? = selectedChosenCostPromptIds.remove(cardId)
+    fun consumeSelectedAdditionalCost(cardId: ForgeCardId): SelectedAdditionalCost? = selectedAdditionalCosts.remove(cardId)
 
     /** Read-only committed correlation for event collection and snapshot capture. */
     fun pendingSpellCast(cardId: ForgeCardId): GameEvent.SpellCast? =
@@ -1801,7 +1802,7 @@ class GameBridge(
         stackAbilityIdentitiesByRuntimeId.clear()
         selectedSpellGrpIds.clear()
         selectedAdditionalCostGrpIds.clear()
-        selectedChosenCostPromptIds.clear()
+        selectedAdditionalCosts.clear()
         tokenRegistry.clear()
         synchronized(projectionLock) {
             val prior = projectionState

@@ -153,6 +153,21 @@ Forge-confinement and value-boundary rationale.
 domains, mutable-state ownership, lock order, delivery limits, teardown, and the
 bounded initial-publication replay used by reconnect.
 
+Alternate additional-cost presentation is selected through
+`EngineSettings.costChoicePresentation`. `Native` is the default and retains the
+supported numeric prompt bindings. An embedding host may select `ForgeText` to
+receive one `NonLocalizedString` GRE parameter per offered branch. Both normal
+and puzzle matches retain the host setting for their lifetime.
+
+The bridge freezes Forge's full branch description while retaining the original
+ability behind an opaque token. The description includes printed additional
+cost text and may repeat the spell effect. It is not a current total-mana quote.
+GRE construction resolves labels before cut installation; delivery does not
+rewrite them. Shared selected-cost facts carry meaning rather than localization
+numbers, which annotation construction resolves separately. This seam currently
+covers alternate additional costs only. Native mapping gaps remain explicit,
+and text presentation does not establish native renderer compatibility.
+
 ## Interaction cuts
 
 A blocking interaction follows one generic lifecycle:

@@ -385,7 +385,7 @@ internal class MatchTargetingInteractionRuntime(
 
     private fun clearChosenCostCorrelation(pending: TargetingWindow) {
         pending.value.sourceForgeCardId?.let { cardId ->
-            owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+            owner.bridge.setSelectedAdditionalCost(cardId, null)
         }
     }
 
