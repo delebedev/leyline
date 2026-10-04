@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.SessionTest
+import leyline.testkit.after
 import leyline.testkit.battlefield
 import leyline.testkit.detailInt
 import leyline.testkit.effectCostResp
@@ -146,8 +147,9 @@ class CostPaymentCoordinatorTest :
         session("cancelling delve abandons even a fully affordable cast", puzzle = delvePuzzle(8)) {
             castSpellByName("Treasure Cruise").shouldBeTrue()
             val paymentCount = allMessages.count { it.hasPayCostsReq() }
-            cancelAction()
+            val cancel = after { cancelAction() }
             assertSoftly {
+                cancel.messages.any { it.hasActionsAvailableReq() }.shouldBeTrue()
                 human.hand.card("Treasure Cruise").name shouldBe "Treasure Cruise"
                 human.getZone(ZoneType.Exile).size() shouldBe 0
                 human.getZone(ZoneType.Graveyard).size() shouldBe 9
@@ -155,7 +157,32 @@ class CostPaymentCoordinatorTest :
                 game().stackZone.isEmpty.shouldBeTrue()
                 allMessages.count { it.hasPayCostsReq() } shouldBe paymentCount
             }
+            castSpellByName("Treasure Cruise").shouldBeTrue()
+            respondToEffectCost(emptyList())
+            passUntilResolved(maxPasses = 8)
+            human.getZone(ZoneType.Hand).size() shouldBe 3
         }
+        session(
+            "cancelling delve stops before convoke and restores priority",
+            puzzle =
+                delvePuzzle(0)
+                    .replace("humanbattlefield=", "humanbattlefield=" + List(7) { "Walking Corpse" }.joinToString(";"))
+                    .replace("humanhand=Treasure Cruise", "humanhand=Hogaak, Arisen Necropolis"),
+        ) {
+            castSpellByName("Hogaak, Arisen Necropolis").shouldBeTrue()
+            val paymentCount = allMessages.count { it.hasPayCostsReq() }
+            val cancel = after { cancelAction() }
+            assertSoftly {
+                cancel.messages.any { it.hasActionsAvailableReq() }.shouldBeTrue()
+                allMessages.count { it.hasPayCostsReq() } shouldBe paymentCount
+                human.hand.card("Hogaak, Arisen Necropolis").name shouldBe "Hogaak, Arisen Necropolis"
+                human.getZone(ZoneType.Exile).size() shouldBe 0
+                human.getZone(ZoneType.Graveyard).size() shouldBe 9
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                game().stackZone.isEmpty.shouldBeTrue()
+            }
+        }
+
         session("insufficient mana rolls back zero delve without exiling", puzzle = delvePuzzle()) {
             castSpellByName("Treasure Cruise").shouldBeTrue()
             respondToEffectCost(emptyList())

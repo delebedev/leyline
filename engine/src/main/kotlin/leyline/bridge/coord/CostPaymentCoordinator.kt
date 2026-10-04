@@ -109,6 +109,8 @@ class CostPaymentCoordinator(
         creatures: Boolean,
         maxReduction: Int?,
     ): Map<Card, ManaCostShard> {
+        // Leave the cost unpaid after abort so Forge performs its normal rollback.
+        if (cancelledManaPayment) return emptyMap()
         val options = untappedCards.map { it.name }
         if (options.isEmpty()) return emptyMap()
 
