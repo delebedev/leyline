@@ -3,7 +3,7 @@ description: Delve payment followed by a lethal draw.
 scenarios:
   - id: delve-cruise-bolt
     puzzle: delve-payment-demo
-    run: delve seven Forests for Treasure Cruise, then cast the drawn Lightning Bolt
+    run: delve seven graveyard cards for Treasure Cruise, then cast the drawn Lightning Bolt
     expect: seven cards are exiled, three cards are drawn, and the opponent loses
     steps:
       - cast: Treasure Cruise
