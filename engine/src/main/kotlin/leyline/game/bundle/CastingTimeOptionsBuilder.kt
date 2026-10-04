@@ -271,6 +271,8 @@ object CastingTimeOptionsBuilder {
             DeferredCastCostPlan.AdditionalCostKind.Mana -> PromptIds.CHOOSE_OR_COST_PAY_MANA
             DeferredCastCostPlan.AdditionalCostKind.Blight -> PromptIds.CHOOSE_OR_COST_PAY_BLIGHT
             DeferredCastCostPlan.AdditionalCostKind.Sacrifice -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
+            DeferredCastCostPlan.AdditionalCostKind.SacrificeArtifact -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE_ARTIFACT
+            DeferredCastCostPlan.AdditionalCostKind.DiscardCard -> PromptIds.CHOOSE_OR_COST_PAY_DISCARD
             DeferredCastCostPlan.AdditionalCostKind.Exile -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
             DeferredCastCostPlan.AdditionalCostKind.Unsupported -> null
         }

@@ -77,6 +77,8 @@ internal data class DeferredCastCostPlan private constructor(
         Mana,
         Blight,
         Sacrifice,
+        SacrificeArtifact,
+        DiscardCard,
         Exile,
         Unsupported,
     }
