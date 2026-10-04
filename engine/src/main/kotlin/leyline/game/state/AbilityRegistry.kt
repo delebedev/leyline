@@ -38,7 +38,7 @@ class AbilityRegistry private constructor(
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
     fun forSpellAbility(ability: SpellAbility): Int? =
         if (ability.originalAbility != null) {
-            forSpellAbility(ability.originalAbility.definitionId)
+            forSpellAbility(ability.originalAbility)
         } else if (ability.grantorStatic != null) {
             grantedAbilityGrpId(ability)
         } else {
@@ -92,7 +92,7 @@ class AbilityRegistry private constructor(
     companion object {
         /** Copied abilities use the original definition's catalog, rather than the copying effect's catalog. */
         fun identitySource(ability: SpellAbility): Card =
-            ability.originalAbility?.hostCard ?: ability.grantorStatic?.hostCard ?: ability.hostCard
+            ability.originalAbility?.let(::identitySource) ?: ability.grantorStatic?.hostCard ?: ability.hostCard
 
         /** Shared ordinal for activated grants, including mana abilities. */
         fun grantedAbilityUniqueIndex(

@@ -13,6 +13,7 @@ import leyline.bridge.coord.resolveActionOffer
 import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.game.snapshot.ManaSnapshotCapture
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
@@ -179,6 +180,12 @@ class ActionMapperSnapshotTest :
                 hasAmbiguousActionCatalog(projection.offers) shouldBe false
             }
 
+            for (offer in offers) {
+                val ability = checkNotNull(offer.command.shouldBeInstanceOf<PlayerAction.ActivateAbility>().ability)
+                val stackCopy = ability.copy().also { it.setOriginalAbility(ability) }
+                b.resolveAbilityIdentity(stackCopy.hostCard, stackCopy)?.abilityGrpId shouldBe offer.action.abilityGrpId
+            }
+
             val guard = checkNotNull(b.findCard(ForgeCardId(guardForgeId)))
             val aura =
                 game.players[0]
@@ -195,6 +202,39 @@ class ActionMapperSnapshotTest :
             val objectAfterRemoval = handshakeFull(game, b, 1).gameObjectsList.single { it.instanceId == guardInstanceId }
             objectAfterRemoval.uniqueAbilitiesList.filter { it.grpId == 97312 }.map { it.id } shouldBe
                 listOf(remaining.action.uniqueAbilityId)
+        }
+
+        test("copied mana identity matches activation auto-tap and pooled mana") {
+            var recipientId = 0
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    val recipient = addCard("Grizzly Bears", human).also { recipientId = it.id }
+                    val donor = addCard("Llanowar Elves", human)
+                    val original = donor.manaAbilities.single()
+                    val copied = original.copy(recipient, false).also { it.setOriginalAbility(original) }
+                    recipient.addSpellAbility(copied)
+                    donor.isTapped = true
+                    addCard("Elvish Mystic", human, ZoneType.Hand)
+                }
+            val iid = b.getOrAllocInstanceId(ForgeCardId(recipientId)).value
+            val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b).actionsList
+            val manaAction = actions.single { it.actionType == ActionType.ActivateMana && it.instanceId == iid }
+            val cast = actions.single { it.actionType == ActionType.Cast }
+            val autoTap =
+                cast.autoTapSolution.autoTapActionsList
+                    .flatMap { it.manaPaymentOption.manaList }
+                    .single()
+            val recipient = checkNotNull(b.findCard(ForgeCardId(recipientId)))
+            val copied = recipient.manaAbilities.single()
+            copied.manaPart.produceMana(copied)
+            val pooled = ManaSnapshotCapture.capturePool(game.humanPlayer, b).single()
+            assertSoftly {
+                manaAction.abilityGrpId shouldNotBe 0
+                autoTap.abilityGrpId shouldBe manaAction.abilityGrpId
+                autoTap.srcInstanceId shouldBe iid
+                pooled.abilityGrpId shouldBe manaAction.abilityGrpId
+                pooled.srcInstanceId shouldBe iid
+            }
         }
 
         test("copied loyalty abilities retain their source definitions and exact execution") {
