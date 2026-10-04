@@ -6,6 +6,7 @@ import forge.game.card.Card
 import forge.game.cost.CostBlight
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostPartMana
+import forge.game.cost.CostPayLife
 import forge.game.cost.CostSacrifice
 import forge.game.keyword.Keyword
 import forge.game.spellability.OptionalCost
@@ -157,6 +158,11 @@ internal object DeferredCastCostPlanMaterializer {
         val costs = ability.payCosts ?: return DeferredCastCostPlan.AdditionalCostKind.Unsupported
         if (costs.isOnlyManaCost) return DeferredCastCostPlan.AdditionalCostKind.Mana
         val nonManaPart = costs.costParts.filterNot { it is CostPartMana }.singleOrNull()
+        if (nonManaPart is CostPayLife) {
+            nonManaPart.amount.toIntOrNull()?.takeIf { it > 0 }?.let {
+                return DeferredCastCostPlan.AdditionalCostKind.PayLife(it)
+            }
+        }
         if (nonManaPart?.amount == "1") {
             when {
                 nonManaPart is CostSacrifice && nonManaPart.type == "Artifact" ->

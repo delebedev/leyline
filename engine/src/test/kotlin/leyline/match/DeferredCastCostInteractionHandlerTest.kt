@@ -32,6 +32,70 @@ class DeferredCastCostInteractionHandlerTest :
             ailibrary=Island;Island;Island
             """.trimIndent()
 
+        val lifeState =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanhand=Bitter Triumph;Grizzly Bears
+            humanbattlefield=Swamp;Swamp
+            humanlibrary=Island;Island;Island
+            aibattlefield=Centaur Courser;Ornithopter
+            ailibrary=Island;Island;Island
+            """.trimIndent()
+
+        for (presentation in CostChoicePresentation.entries) {
+            for (payLife in listOf(true, false)) {
+                session(
+                    "life or discard choice preserves labels and pays the selected resource ($presentation, life=$payLife)",
+                    puzzle = lifeState,
+                    costChoicePresentation = presentation,
+                ) {
+                    val target = ai.battlefield.iid("Centaur Courser")
+                    val option =
+                        after { castSpellByName("Bitter Triumph") }
+                            .expectOneCastingTimeOptionsReq()
+                            .castingTimeOptionReqList
+                            .single()
+                    val selection = option.selectNReq
+                    assertSoftly {
+                        selection.prompt.parametersList shouldHaveSize 2
+                        if (presentation == CostChoicePresentation.Native) {
+                            selection.prompt.promptId shouldBe PromptIds.CHOOSE_OR_COST
+                            selection.prompt.parametersList.map { it.promptId } shouldBe
+                                listOf(PromptIds.CHOOSE_OR_COST_PAY_THREE_LIFE, PromptIds.CHOOSE_OR_COST_PAY_DISCARD)
+                        } else {
+                            selection.prompt.parametersList.map { it.type } shouldBe
+                                listOf(ParameterType.NonLocalizedString, ParameterType.NonLocalizedString)
+                            selection.prompt.parametersList
+                                .first()
+                                .stringValue shouldContain "Pay 3 life"
+                            selection.prompt.parametersList
+                                .last()
+                                .stringValue shouldContain "Discard a card"
+                        }
+                    }
+                    respondToAlternateCost(option.ctoId, selection.idsList[if (payLife) 0 else 1])
+                    selectTargets(listOf(target))
+                    if (!payLife) {
+                        val discard = allMessages.last { it.hasSelectNReq() }.selectNReq
+                        respondToSelectN(listOf(findInstanceId(discard.idsList, "Grizzly Bears")))
+                    }
+                    passUntilResolved(maxPasses = 8)
+                    assertSoftly {
+                        human.life shouldBe if (payLife) 17 else 20
+                        "Bitter Triumph" should beInGraveyardOf(human)
+                        "Centaur Courser" should beInGraveyardOf(ai)
+                        human.getZone(ZoneType.Hand).cards.map { it.name } shouldBe
+                            if (payLife) listOf("Grizzly Bears") else emptyList()
+                        ai.getZone(ZoneType.Battlefield).cards.map { it.name } shouldBe listOf("Ornithopter")
+                    }
+                    if (!payLife) "Grizzly Bears" should beInGraveyardOf(human)
+                }
+            }
+        }
+
         for (presentation in CostChoicePresentation.entries) {
             session(
                 "mixed sacrifice and discard costs keep a label for each offered branch in $presentation",
