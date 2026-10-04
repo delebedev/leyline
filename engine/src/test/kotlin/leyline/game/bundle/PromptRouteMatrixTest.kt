@@ -77,6 +77,8 @@ class PromptRouteMatrixTest :
                             PayCostsRouteKind.SelectCostExileFromGrave,
                             "exile-from-grave",
                         ),
+                    PromptSemantic.DelveCost to
+                        payCosts(PromptSemantic.DelveCost, PayCostsRouteKind.SelectCostExileFromGrave, "delve"),
                     PromptSemantic.SelectNCostCollectEvidence to
                         payCosts(PromptSemantic.SelectNCostCollectEvidence, PayCostsRouteKind.CollectEvidence, "collect-evidence"),
                     PromptSemantic.EnlistCost to payCosts(PromptSemantic.EnlistCost, PayCostsRouteKind.EnlistCost, "enlist"),

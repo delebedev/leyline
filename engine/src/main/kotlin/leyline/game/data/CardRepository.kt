@@ -224,6 +224,7 @@ data class AbilityLocalization(
 object KeywordAbilityIds {
     // Direct ability ids — well-known shared row used verbatim per card.
     const val CONVOKE = 52
+    const val DELVE = 67
     const val HASTE = 9
     const val WARD_TWO = 141939
     const val PROWESS = 137

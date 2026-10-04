@@ -5,6 +5,7 @@ import forge.ai.PlayerControllerAi
 import forge.card.mana.ManaCost
 import forge.card.mana.ManaCostShard
 import forge.game.card.Card
+import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
 import forge.game.cost.Cost
 import forge.game.cost.CostPartMana
@@ -19,6 +20,7 @@ import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.OptionalActionGate
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
+import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlan
 import leyline.bridge.interaction.ConvokeOrImproviseCostPlanner
@@ -56,6 +58,44 @@ class CostPaymentCoordinator(
 ) {
     private val log = LoggerFactory.getLogger(CostPaymentCoordinator::class.java)
 
+    private var cancelledManaPayment = false
+
+    fun withManaPayment(block: () -> Boolean): Boolean {
+        val previous = cancelledManaPayment
+        cancelledManaPayment = false
+        return try {
+            block()
+        } finally {
+            cancelledManaPayment = previous
+        }
+    }
+
+    /** Return exact cards to Forge; successful mana payment owns their exile. */
+    fun chooseCardsToDelve(
+        sa: SpellAbility,
+        genericAmount: Int,
+        grave: CardCollection,
+    ): CardCollectionView {
+        val eligible = grave.filter { it.canExiledBy(sa, false) }
+        val maximum = minOf(genericAmount, eligible.size)
+        if (maximum <= 0) return CardCollection.EMPTY
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = "Choose cards to exile for delve",
+                options = eligible.map { it.name },
+                min = 0,
+                max = maximum,
+                defaultIndex = -1,
+                candidateRefs = eligible.toCandidateRefs(),
+                route = PromptRouteResolver.resolve(PromptSemantic.DelveCost),
+                sourceEntityId = sa.hostCard.id,
+            )
+        val result = bridge.requestOneShotPayCosts(request, eligible)
+        cancelledManaPayment = result.cancelled
+        return CardCollection(result.handles)
+    }
+
     /**
      * Convoke / improvise — prompt for a subset of untapped cards and map each
      * chosen card to a mana cost shard (colored first in WUBRG order, then
@@ -69,6 +109,8 @@ class CostPaymentCoordinator(
         creatures: Boolean,
         maxReduction: Int?,
     ): Map<Card, ManaCostShard> {
+        // Leave the cost unpaid after abort so Forge performs its normal rollback.
+        if (cancelledManaPayment) return emptyMap()
         val options = untappedCards.map { it.name }
         if (options.isEmpty()) return emptyMap()
 
@@ -154,6 +196,7 @@ class CostPaymentCoordinator(
         ability: SpellAbility,
         effect: Boolean,
     ): Boolean {
+        if (cancelledManaPayment) return false
         log.debug("applyManaToCost [AI]: {} for {}", toPay, ability.hostCard?.name)
         applyHybridManaChoices(toPay, ability)
         if (player.controller is PlayerControllerAi) {

@@ -75,4 +75,5 @@ interface OneShotPayCostsRuntime {
 data class OneShotPayCostsResult(
     val optionIndices: List<Int>,
     val handles: List<Card>,
+    val cancelled: Boolean = false,
 ) : List<Int> by optionIndices

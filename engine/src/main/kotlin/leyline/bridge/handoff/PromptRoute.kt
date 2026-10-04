@@ -320,6 +320,8 @@ object PromptRouteResolver {
             PromptSemantic.SelectNCostSacrifice -> payCosts(semantic, PayCostsRouteKind.Sacrifice, "sacrifice")
             PromptSemantic.SelectNCostExileFromGrave ->
                 payCosts(semantic, PayCostsRouteKind.SelectCostExileFromGrave, "exile-from-grave")
+            PromptSemantic.DelveCost ->
+                payCosts(semantic, PayCostsRouteKind.SelectCostExileFromGrave, "delve")
             PromptSemantic.SelectNCostCollectEvidence ->
                 payCosts(semantic, PayCostsRouteKind.CollectEvidence, "collect-evidence")
             PromptSemantic.EnlistCost -> payCosts(semantic, PayCostsRouteKind.EnlistCost, "enlist")

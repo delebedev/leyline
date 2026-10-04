@@ -1,0 +1,19 @@
+name: delve-payment-demo
+description: Delve payment followed by a lethal draw.
+scenarios:
+  - id: delve-cruise-bolt
+    puzzle: delve-payment-demo
+    run: delve seven graveyard cards for Treasure Cruise, then cast the drawn Lightning Bolt
+    expect: seven cards are exiled, three cards are drawn, and the opponent loses
+    steps:
+      - cast: Treasure Cruise
+      - select_cost: { zone: graveyard, cards: [Forest, Plains, Swamp, Mountain, Island, Wastes, Snow-Covered Forest] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: exile, count: 7 }
+            - zone_count_at_least: { side: ours, zone: hand, count: 3 }
+      - cast: Lightning Bolt
+      - target: opponent
+      - pass_until: { winner: ours, loser: opponent, max_passes: 8 }
+      - expect: { winner: ours, loser: opponent }

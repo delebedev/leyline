@@ -126,6 +126,8 @@ sealed interface GameEvent {
         /** Card-definition identity of the spell face while it is on the stack. */
         val spellGrpId: Int = 0,
         val manaPayments: List<ManaPayment> = emptyList(),
+        /** Graveyard identities consumed by delve before their exile identities are projected. */
+        val delvePaymentInstanceIds: List<InstanceId> = emptyList(),
         /** Distinct W/U/B/R/G ordinals retained from a Converge cast payment. */
         val colorsSpentToCast: List<Int> = emptyList(),
         /** True for every Opus trigger, including the below-five base branch. */

@@ -873,7 +873,14 @@ class PlayerController(
         NonInteractiveScope.active?.let { policy ->
             return NonInteractiveAnswers.cardsToDelve(policy, genericAmount, grave)
         }
-        return super.chooseCardsToDelve(genericAmount, grave)
+        val sa =
+            checkNotNull(
+                game.costPaymentStack
+                    .peek()
+                    ?.payment
+                    ?.ability,
+            ) { "Delve requires an active mana payment" }
+        return costPaymentCoordinator.chooseCardsToDelve(sa, genericAmount, grave)
     }
 
     override fun chooseNumberForCostReduction(
@@ -1126,32 +1133,34 @@ class PlayerController(
         prompt: String?,
         matrix: ManaConversionMatrix?,
         effect: Boolean,
-    ): Boolean {
-        if (costPartMana is CostWaterbend) {
-            val untapped =
-                CardCollection(
-                    player.getCardsIn(ZoneType.Battlefield).filter { card ->
-                        !card.isTapped && (card.isArtifact || card.isCreature)
-                    },
-                )
-            val tappedForWaterbend =
-                costPaymentCoordinator.chooseCardsForConvokeOrImprovise(
-                    sa = sa,
-                    manaCost = toPay,
-                    untappedCards = untapped,
-                    artifacts = true,
-                    creatures = true,
-                    maxReduction = toPay.genericCost,
-                )
-            val remaining = ManaCostBeingPaid(toPay)
-            for ((card, shard) in tappedForWaterbend) {
-                remaining.decreaseShard(shard, 1)
-                card.tap(true, sa, player)
+    ): Boolean =
+        costPaymentCoordinator.withManaPayment {
+            if (costPartMana is CostWaterbend) {
+                val untapped =
+                    CardCollection(
+                        player.getCardsIn(ZoneType.Battlefield).filter { card ->
+                            !card.isTapped && (card.isArtifact || card.isCreature)
+                        },
+                    )
+                val tappedForWaterbend =
+                    costPaymentCoordinator.chooseCardsForConvokeOrImprovise(
+                        sa = sa,
+                        manaCost = toPay,
+                        untappedCards = untapped,
+                        artifacts = true,
+                        creatures = true,
+                        maxReduction = toPay.genericCost,
+                    )
+                val remaining = ManaCostBeingPaid(toPay)
+                for ((card, shard) in tappedForWaterbend) {
+                    remaining.decreaseShard(shard, 1)
+                    card.tap(true, sa, player)
+                }
+                PlaySpellAbility.payManaCost(this, remaining.toManaCost(), costPartMana, sa, player, prompt, matrix, effect)
+            } else {
+                PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
             }
-            return PlaySpellAbility.payManaCost(this, remaining.toManaCost(), costPartMana, sa, player, prompt, matrix, effect)
         }
-        return PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
-    }
 
     override fun applyManaToCost(
         toPay: ManaCostBeingPaid,
