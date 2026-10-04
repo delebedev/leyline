@@ -39,7 +39,7 @@ class FdProtoBuilderTest :
                     .lengthDelimitedList
                     .flatMap { UnknownFieldSet.parseFrom(it).getField(3).lengthDelimitedList }
                     .map { it.toStringUtf8() }
-            setCodes shouldContainAll listOf("HOB", "HOC")
+            setCodes shouldContainAll listOf("HOB", "HOC", "FRA", "FRC", "FDC")
         }
 
         test("buildSetsProto produces valid Any-wrapped proto with sets and groups") {
@@ -73,13 +73,13 @@ class FdProtoBuilderTest :
                             .single()
                             .toStringUtf8()
                     }
-            setCodes shouldContainAll listOf("HOB", "HOC")
+            setCodes shouldContainAll listOf("HOB", "HOC", "FRA", "FRC", "FDC")
             val filterCodes =
                 UnknownFieldSet
                     .parseFrom(inner.getField(2).lengthDelimitedList.single())
                     .getField(2)
                     .lengthDelimitedList
                     .map { it.toStringUtf8() }
-            filterCodes shouldContainAll listOf("HOB", "HOC")
+            filterCodes shouldContainAll listOf("HOB", "HOC", "FRA", "FRC", "FDC")
         }
     })
