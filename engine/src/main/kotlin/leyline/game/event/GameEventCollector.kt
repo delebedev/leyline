@@ -201,10 +201,10 @@ class GameEventCollector(
                 originalIid,
                 ability.payingMana.map { mana ->
                     val source = mana.sourceCard
-                    val definition = mana.manaAbility?.sourceSA?.definitionId
+                    val sourceAbility = mana.manaAbility?.sourceSA
                     val abilityGrpId =
-                        definition?.let {
-                            bridge.resolveAbilityIdentity(source, AbilityDefinitionRef.SpellAbility(it))?.abilityGrpId
+                        sourceAbility?.let {
+                            bridge.resolveAbilityIdentity(source, it)?.abilityGrpId
                         } ?: 0
                     GameEvent.ManaPayment(ForgeCardId(source.id), mana.color.toInt() and 0xff, abilityGrpId)
                 },
@@ -251,10 +251,12 @@ class GameEventCollector(
                         bridge
                             .findCard(sourceCardId)
                             ?.let { source ->
-                                bridge.resolveAbilityIdentity(
-                                    source,
-                                    AbilityDefinitionRef.SpellAbility(abilityDefinitionId),
-                                )
+                                val sourceAbility = source.manaAbilities.firstOrNull { it.definitionId == abilityDefinitionId }
+                                if (sourceAbility != null) {
+                                    bridge.resolveAbilityIdentity(source, sourceAbility)
+                                } else {
+                                    bridge.resolveAbilityIdentity(source, AbilityDefinitionRef.SpellAbility(abilityDefinitionId))
+                                }
                             }?.abilityGrpId
                             ?: 0
                     } else {

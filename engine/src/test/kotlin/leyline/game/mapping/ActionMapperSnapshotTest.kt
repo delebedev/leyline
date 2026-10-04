@@ -1,5 +1,9 @@
 package leyline.game.mapping
 
+import forge.game.event.GameEventSpellAbilityCast
+import forge.game.mana.Mana
+import forge.game.mana.ManaCostBeingPaid
+import forge.game.spellability.SpellAbilityStackInstance
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -13,10 +17,15 @@ import leyline.bridge.coord.resolveActionOffer
 import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.GrpId
+import leyline.game.annotations.TransferAnnotations
+import leyline.game.codes.DetailKeys
+import leyline.game.event.GameEvent
 import leyline.game.snapshot.ManaSnapshotCapture
 import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import leyline.testkit.detailInt
 import leyline.testkit.haveManaCost
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -234,6 +243,45 @@ class ActionMapperSnapshotTest :
                 autoTap.srcInstanceId shouldBe iid
                 pooled.abilityGrpId shouldBe manaAction.abilityGrpId
                 pooled.srcInstanceId shouldBe iid
+            }
+            val human = game.humanPlayer
+            val spell =
+                human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+                    .firstSpellAbility
+            spell.activatingPlayer = human
+            val spent = mutableListOf<Mana>()
+            human.manaPool.payManaCostFromPool(ManaCostBeingPaid(spell.hostCard.manaCost), spell, false, spent).shouldBeTrue()
+            spell.payingMana.addAll(spent)
+            val collector = checkNotNull(b.eventCollector)
+            collector.closeFrame()
+            game.fireEvent(GameEventSpellAbilityCast(spell, SpellAbilityStackInstance(spell), 0))
+            val event =
+                collector
+                    .closeFrame()
+                    .events
+                    .filterIsInstance<GameEvent.SpellCast>()
+                    .single()
+            val annotations =
+                TransferAnnotations.castSpellEventAnnotations(
+                    event,
+                    idResolver = { b.getOrAllocInstanceId(it) },
+                    manaAbilityGrpIdResolver = { GrpId(0) },
+                    stackInstanceResolver = { null },
+                )
+            val paymentAction =
+                annotations.single {
+                    AnnotationType.UserActionTaken in it.typeList &&
+                        it.detailInt(DetailKeys.ACTION_TYPE) == ActionType.ActivateMana.number
+                }
+            assertSoftly {
+                event.manaPayments.single().sourceCardId shouldBe ForgeCardId(recipientId)
+                event.manaPayments.single().abilityGrpId shouldBe manaAction.abilityGrpId
+                paymentAction.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe manaAction.abilityGrpId
+                annotations.single { AnnotationType.ManaPaid in it.typeList }.affectorId shouldBe iid
+                human.manaPool.totalMana() shouldBe 0
             }
         }
 
