@@ -12,11 +12,13 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.DeferredCastCostPlan.OptionalCostEntry
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.config.CostChoicePresentation
 import leyline.game.GamePlayback
 import leyline.game.InMemoryCardRepository
 import leyline.game.PlaybackTerminalFailure
@@ -312,11 +314,39 @@ class BundleBuilderTest :
             }
         }
 
+        test("optional Forge descriptions change only row prompts and leave native requests unchanged") {
+            val costs =
+                listOf(
+                    OptionalCostEntry(Messages.CastingTimeOptionType.Kicker, 303, null, "Kicker - {4}"),
+                    OptionalCostEntry(Messages.CastingTimeOptionType.AdditionalCost, 404, "OFFSPRING"),
+                )
+
+            fun request(
+                presentation: CostChoicePresentation,
+                entries: List<OptionalCostEntry> = costs,
+            ) = CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(240, entries, 1, emptyList(), presentation).first
+            val native = request(CostChoicePresentation.Native)
+            val text = request(CostChoicePresentation.ForgeText)
+            assertSoftly {
+                native shouldBe request(CostChoicePresentation.Native, costs.map { it.copy(description = null) })
+                text
+                    .getCastingTimeOptionReq(0)
+                    .prompt.parametersList
+                    .single()
+                    .stringValue shouldBe "Kicker - {4}"
+                text.getCastingTimeOptionReq(1).hasPrompt() shouldBe false
+                text.getCastingTimeOptionReq(2).hasPrompt() shouldBe false
+                text.toBuilder().setCastingTimeOptionReq(0, text.getCastingTimeOptionReq(0).toBuilder().clearPrompt()).build() shouldBe
+                    native
+                request(CostChoicePresentation.ForgeText, costs.map { it.copy(description = " ") }) shouldBe native
+            }
+        }
+
         test("buildOptionalCostCastingTimeOptionsReq — Gift shape (single AdditionalCost + Done terminator)") {
             val (req, ids) =
                 CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 240,
-                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 173850),
+                    optionalCosts = listOf(OptionalCostEntry(Messages.CastingTimeOptionType.AdditionalCost, 173850, null)),
                     playerIdToPrompt = 1,
                     baseManaCost = listOf(Messages.ManaColor.Blue_afc9 to 1),
                 )
@@ -395,8 +425,8 @@ class BundleBuilderTest :
                     instanceId = 555,
                     optionalCosts =
                         listOf(
-                            Messages.CastingTimeOptionType.Bargain to 303,
-                            Messages.CastingTimeOptionType.AdditionalCost to 173931,
+                            OptionalCostEntry(Messages.CastingTimeOptionType.Bargain, 303, null),
+                            OptionalCostEntry(Messages.CastingTimeOptionType.AdditionalCost, 173931, null),
                         ),
                     playerIdToPrompt = 1,
                     baseManaCost = listOf(Messages.ManaColor.Generic to 1, Messages.ManaColor.Blue_afc9 to 1),
@@ -436,8 +466,8 @@ class BundleBuilderTest :
                     instanceId = 100,
                     optionalCosts =
                         listOf(
-                            Messages.CastingTimeOptionType.AdditionalCost to 303,
-                            Messages.CastingTimeOptionType.Kicker to 94999,
+                            OptionalCostEntry(Messages.CastingTimeOptionType.AdditionalCost, 303, null),
+                            OptionalCostEntry(Messages.CastingTimeOptionType.Kicker, 94999, null),
                         ),
                     playerIdToPrompt = 1,
                     baseManaCost =
@@ -485,7 +515,7 @@ class BundleBuilderTest :
             val (req, _) =
                 CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                     instanceId = 200,
-                    optionalCosts = listOf(Messages.CastingTimeOptionType.AdditionalCost to 303),
+                    optionalCosts = listOf(OptionalCostEntry(Messages.CastingTimeOptionType.AdditionalCost, 303, null)),
                     playerIdToPrompt = 2,
                     baseManaCost = emptyList(),
                 )
