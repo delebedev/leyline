@@ -119,6 +119,8 @@ object PromptIds {
 
     const val CHOOSE_OR_COST = 1103
     const val CHOOSE_OR_COST_PAY_SACRIFICE = 1029
+    const val CHOOSE_OR_COST_PAY_SACRIFICE_ARTIFACT = 1523
+    const val CHOOSE_OR_COST_PAY_DISCARD = 1024
     const val CHOOSE_OR_COST_PAY_MANA = 4160
     const val CHOOSE_OR_COST_PAY_BLIGHT = 15008
 

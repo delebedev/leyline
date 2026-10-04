@@ -1,5 +1,6 @@
 package leyline.bridge.coord
 
+import forge.game.cost.Cost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
@@ -10,6 +11,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.PriorityActionCandidates
+import leyline.bridge.handoff.DeferredCastCostPlan.AdditionalCostKind
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -165,6 +167,49 @@ class DeferredCastCostPlanMaterializerTest :
                 .single()
                 .selectNReq.prompt.parametersList[manaIndex]
                 .stringValue shouldBe description
+        }
+
+        test("one-card native labels do not erase quantity restrictions or other costs") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Demand Answers", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Ornithopter", human)
+                    repeat(2) { addCard("Mountain", human) }
+                }
+            val card = board.human.hand.card("Demand Answers")
+            val casts = PriorityActionCandidates.query(board.game, board.human).forCard(card).casts
+            casts shouldHaveSize 2
+            val cardId = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(cardId).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .build(),
+                    PlayerAction.CastSpell(cardId, 0, ability = casts.first()),
+                    castCandidates = casts,
+                )
+            val cases =
+                listOf(
+                    "Discard<2/Card>" to AdditionalCostKind.Unsupported,
+                    "Discard<1/Card.Black>" to AdditionalCostKind.Unsupported,
+                    "Sac<2/Artifact>" to AdditionalCostKind.Sacrifice,
+                    "Sac<1/Artifact.YouCtrl>" to AdditionalCostKind.Sacrifice,
+                    "Sac<1/Artifact> Discard<1/Card>" to AdditionalCostKind.Sacrifice,
+                )
+            var token = 1L
+            for ((cost, expected) in cases) {
+                casts.first().payCosts = Cost("1 R $cost", false)
+                val result = DeferredCastCostPlanMaterializer.materialize(offer, null, 0) { token++ }.shouldNotBeNull()
+                result.plan.alternate
+                    .shouldNotBeNull()
+                    .choices
+                    .first()
+                    .kind shouldBe expected
+            }
         }
 
         test("hybrid plan freezes nested values and preserves the exact offered ability") {

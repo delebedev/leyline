@@ -4,6 +4,9 @@ import forge.card.mana.ManaCost
 import forge.game.GameActionUtil
 import forge.game.card.Card
 import forge.game.cost.CostBlight
+import forge.game.cost.CostDiscard
+import forge.game.cost.CostPartMana
+import forge.game.cost.CostSacrifice
 import forge.game.keyword.Keyword
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
@@ -153,6 +156,15 @@ internal object DeferredCastCostPlanMaterializer {
     private fun additionalCostKind(ability: SpellAbility): DeferredCastCostPlan.AdditionalCostKind {
         val costs = ability.payCosts ?: return DeferredCastCostPlan.AdditionalCostKind.Unsupported
         if (costs.isOnlyManaCost) return DeferredCastCostPlan.AdditionalCostKind.Mana
+        val nonManaPart = costs.costParts.filterNot { it is CostPartMana }.singleOrNull()
+        if (nonManaPart?.amount == "1") {
+            when {
+                nonManaPart is CostSacrifice && nonManaPart.type == "Artifact" ->
+                    return DeferredCastCostPlan.AdditionalCostKind.SacrificeArtifact
+                nonManaPart is CostDiscard && nonManaPart.type == "Card" ->
+                    return DeferredCastCostPlan.AdditionalCostKind.DiscardCard
+            }
+        }
         val parts = costs.costParts.map { it.javaClass.simpleName }
         return when {
             costs.costParts.any { it is CostBlight } -> DeferredCastCostPlan.AdditionalCostKind.Blight

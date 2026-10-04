@@ -159,6 +159,10 @@ supported numeric prompt bindings. An embedding host may select `ForgeText` to
 receive one `NonLocalizedString` GRE parameter per offered branch. Both normal
 and puzzle matches retain the host setting for their lifetime.
 
+Native alternate-cost labels distinguish sacrificing one unrestricted artifact
+and discarding one unrestricted card. The bridge classifies these from Forge
+cost parts, including amount and selector, rather than parsing the description.
+
 The bridge freezes Forge's full branch description while retaining the original
 ability behind an opaque token. The description includes printed additional
 cost text and may repeat the spell effect. It is not a current total-mana quote.
