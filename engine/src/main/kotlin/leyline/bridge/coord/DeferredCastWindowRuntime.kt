@@ -172,7 +172,7 @@ internal class DeferredCastWindowRuntime(
     fun discard() =
         synchronized(owner.feedLock) {
             prompt?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
-                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+                owner.bridge.setSelectedAdditionalCost(cardId, null)
             }
             prompt = null
         }
@@ -181,7 +181,7 @@ internal class DeferredCastWindowRuntime(
         synchronized(owner.feedLock) {
             val pending = prompt?.takeIf { it.actionClaim.actionId == actionId }
             pending?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
-                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+                owner.bridge.setSelectedAdditionalCost(cardId, null)
             }
             if (pending != null) prompt = null
         }
@@ -233,7 +233,7 @@ internal class DeferredCastWindowRuntime(
             prompt = null
             claim.deferredCostPlan?.sourceCardId?.let { cardId ->
                 owner.bridge.setSelectedSpellGrpId(cardId, null)
-                owner.bridge.setSelectedChosenCostPromptId(cardId, null)
+                owner.bridge.setSelectedAdditionalCost(cardId, null)
             }
             owner.bridge
                 .seat(actions.seatFor(claim.actionId))
@@ -307,11 +307,11 @@ internal class DeferredCastWindowRuntime(
         pending.adopted = true
         val sourceCardId = pending.actionClaim.deferredCostPlan?.sourceCardId
         sourceCardId?.let { cardId ->
-            owner.bridge.setSelectedChosenCostPromptId(cardId, choice.chosenCostPromptId)
+            owner.bridge.setSelectedAdditionalCost(cardId, choice.selectedCost)
         }
         val completed = actions.completeDeferredClaim(pending.actionClaim, choice.runtimeToken)
         if (!completed) {
-            sourceCardId?.let { cardId -> owner.bridge.setSelectedChosenCostPromptId(cardId, null) }
+            sourceCardId?.let { cardId -> owner.bridge.setSelectedAdditionalCost(cardId, null) }
         }
         check(completed) { "Deferred alternate action claim did not complete" }
         prompt = null

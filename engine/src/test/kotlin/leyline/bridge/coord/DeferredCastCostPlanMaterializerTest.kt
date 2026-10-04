@@ -7,15 +7,20 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
+import leyline.config.CostChoicePresentation
+import leyline.game.bundle.CastingTimeOptionsBuilder
+import leyline.game.mapping.ActionMapper
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 class DeferredCastCostPlanMaterializerTest :
     BoardTest({
@@ -65,6 +70,35 @@ class DeferredCastCostPlanMaterializerTest :
                     .choices
 
             choices shouldHaveSize offer.castCandidates.size
+            val native =
+                CastingTimeOptionsBuilder
+                    .buildChooseOrCostCastingTimeOptionsReq(
+                        iid,
+                        grpId,
+                        1,
+                        choices,
+                        CostChoicePresentation.Native,
+                    ).first
+            val text =
+                CastingTimeOptionsBuilder
+                    .buildChooseOrCostCastingTimeOptionsReq(
+                        iid,
+                        grpId,
+                        1,
+                        choices,
+                        CostChoicePresentation.ForgeText,
+                    ).first
+            val nativeOption = native.castingTimeOptionReqList.single()
+            val textOption = text.castingTimeOptionReqList.single()
+            assertSoftly {
+                nativeOption.selectNReq.prompt.parametersList
+                    .map { it.type } shouldBe
+                    listOf(ParameterType.PromptId, ParameterType.PromptId)
+                textOption.selectNReq.prompt.parametersList
+                    .map { it.stringValue } shouldBe choices.map { it.description }
+                nativeOption.toBuilder().setSelectNReq(nativeOption.selectNReq.toBuilder().clearPrompt()).build() shouldBe
+                    textOption.toBuilder().setSelectNReq(textOption.selectNReq.toBuilder().clearPrompt()).build()
+            }
             choices.forEachIndexed { index, choice ->
                 val selected =
                     result.childSelections
@@ -72,6 +106,65 @@ class DeferredCastCostPlanMaterializerTest :
                         .offer.command as PlayerAction.CastSpell
                 selected.ability shouldBeSameInstanceAs offer.castCandidates[index]
             }
+        }
+
+        test("printed additional mana survives reductions and later ability changes") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Lightning Axe", human, ZoneType.Hand)
+                    addCard("Grizzly Bears", human, ZoneType.Hand)
+                    addCard("Goblin Electromancer", human)
+                    addCard("Grizzly Bears", ai)
+                    repeat(6) { addCard("Mountain", human) }
+                }
+            val card = board.human.hand.card("Lightning Axe")
+            val casts = PriorityActionCandidates.query(board.game, board.human).forCard(card).casts
+            val iid = board.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val grpId = board.bridge.resolveGrpId(card, iid)
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .setGrpId(grpId)
+                        .build(),
+                    PlayerAction.CastSpell(ForgeCardId(card.id), 0, ability = casts.first()),
+                    castCandidates = casts,
+                )
+            var token = 1L
+            val result =
+                DeferredCastCostPlanMaterializer
+                    .materialize(offer, board.bridge.cardRepository.findByGrpId(grpId), 0) {
+                        token++
+                    }.shouldNotBeNull()
+            val choices =
+                result.plan.alternate
+                    .shouldNotBeNull()
+                    .choices
+            val manaIndex = casts.indexOfFirst { it.payCosts.isOnlyManaCost }
+            manaIndex shouldBe 1
+            val ability = casts[manaIndex]
+            val description = choices[manaIndex].description
+            assertSoftly {
+                description shouldContain "Additional cost: {5}"
+                ability.payCosts.totalMana.cmc shouldBe 6
+                ActionMapper.computeEffectiveCost(ability, board.human).shouldNotBeNull().cmc shouldBe 5
+            }
+            ability.description = "Changed after freezing"
+            val text =
+                CastingTimeOptionsBuilder
+                    .buildChooseOrCostCastingTimeOptionsReq(
+                        iid,
+                        grpId,
+                        1,
+                        choices,
+                        CostChoicePresentation.ForgeText,
+                    ).first
+            text.castingTimeOptionReqList
+                .single()
+                .selectNReq.prompt.parametersList[manaIndex]
+                .stringValue shouldBe description
         }
 
         test("hybrid plan freezes nested values and preserves the exact offered ability") {

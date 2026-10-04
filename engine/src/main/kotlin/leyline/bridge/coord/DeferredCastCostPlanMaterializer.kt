@@ -14,7 +14,6 @@ import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ManaColorMapping
 import leyline.game.data.CardData
 import leyline.game.mapping.ActionMapper
-import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -117,8 +116,9 @@ internal object DeferredCastCostPlanMaterializer {
                             )
                         DeferredCastCostPlan.AlternateCostChoice(
                             runtimeToken = token,
-                            promptId = promptIdForAdditionalCostBranch(alternateAbility),
-                            chosenCostPromptId = chosenCostPromptId(alternateAbility),
+                            // Forge formats the additional cost before merging it into payCosts.
+                            description = alternateAbility.description,
+                            kind = additionalCostKind(alternateAbility),
                         )
                     }
             } else {
@@ -150,22 +150,17 @@ internal object DeferredCastCostPlanMaterializer {
             ?.firstOrNull { (index, text) -> index < slotBound && text.startsWith(keywordName) }
             ?.index
 
-    private fun promptIdForAdditionalCostBranch(ability: SpellAbility): Int? {
-        val costs = ability.payCosts ?: return null
-        if (costs.isOnlyManaCost) return PromptIds.CHOOSE_OR_COST_PAY_MANA
+    private fun additionalCostKind(ability: SpellAbility): DeferredCastCostPlan.AdditionalCostKind {
+        val costs = ability.payCosts ?: return DeferredCastCostPlan.AdditionalCostKind.Unsupported
+        if (costs.isOnlyManaCost) return DeferredCastCostPlan.AdditionalCostKind.Mana
         val parts = costs.costParts.map { it.javaClass.simpleName }
         return when {
-            costs.costParts.any { it is CostBlight } -> PromptIds.CHOOSE_OR_COST_PAY_BLIGHT
-            parts.any { it.contains("Sacrifice") } -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE
-            parts.any { it.contains("Exile") } -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
-            else -> null
+            costs.costParts.any { it is CostBlight } -> DeferredCastCostPlan.AdditionalCostKind.Blight
+            parts.any { it.contains("Sacrifice") } -> DeferredCastCostPlan.AdditionalCostKind.Sacrifice
+            parts.any { it.contains("Exile") } -> DeferredCastCostPlan.AdditionalCostKind.Exile
+            else -> DeferredCastCostPlan.AdditionalCostKind.Unsupported
         }
     }
-
-    private fun chosenCostPromptId(ability: SpellAbility): Int? =
-        PromptIds.CHOOSE_OR_COST_PAY_BLIGHT.takeIf {
-            ability.payCosts?.costParts?.any { it is CostBlight } == true
-        }
 
     private fun hasUsableAlternateCost(ability: SpellAbility): Boolean {
         val player = ability.activatingPlayer ?: return false

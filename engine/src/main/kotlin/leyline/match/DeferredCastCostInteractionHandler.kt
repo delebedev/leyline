@@ -176,14 +176,13 @@ internal class DeferredCastCostInteractionHandler(
     fun checkAlternateAdditionalCostChoice(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
         val alternate = plan.alternate ?: return false
-        val optionPromptIds = alternate.choices.map { it.promptId }
         val (ctoReq, ctoIds) =
             CastingTimeOptionsBuilder.buildChooseOrCostCastingTimeOptionsReq(
                 instanceId = plan.instanceId,
                 grpId = plan.grpId,
                 playerIdToPrompt = counters.seatId.value,
-                optionCount = alternate.choices.size,
-                optionPromptIds = if (optionPromptIds.all { it != null }) optionPromptIds.filterNotNull() else emptyList(),
+                choices = alternate.choices,
+                presentation = ctx.bridge.engineSettings.costChoicePresentation,
             )
         ctx.bridge.cutCoordinator.deferredCast.publishAlternate(
             claim = actionClaim,

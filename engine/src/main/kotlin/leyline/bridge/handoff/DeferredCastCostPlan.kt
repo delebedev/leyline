@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SelectedAdditionalCost
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.Collections
@@ -64,9 +65,21 @@ internal data class DeferredCastCostPlan private constructor(
 
     data class AlternateCostChoice(
         val runtimeToken: Long,
-        val promptId: Int?,
-        val chosenCostPromptId: Int? = null,
-    )
+        val description: String,
+        val kind: AdditionalCostKind,
+    ) {
+        val selectedCost: SelectedAdditionalCost?
+            get() = SelectedAdditionalCost.Blight.takeIf { kind == AdditionalCostKind.Blight }
+    }
+
+    /** Bounded classification for the supported alternate additional-cost label mappings. */
+    enum class AdditionalCostKind {
+        Mana,
+        Blight,
+        Sacrifice,
+        Exile,
+        Unsupported,
+    }
 
     companion object {
         fun frozen(

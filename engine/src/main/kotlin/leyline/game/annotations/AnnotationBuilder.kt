@@ -5,11 +5,13 @@ import leyline.bridge.types.EffectId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.SelectedAdditionalCost
 import leyline.bridge.types.WireId
 import leyline.game.codes.CounterTypes
 import leyline.game.codes.DetailKeys
 import leyline.game.codes.QualificationType
 import leyline.game.event.DamageSourceKind
+import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -264,7 +266,7 @@ object AnnotationBuilder {
 
     fun castingTimeOptionChosenCost(
         stackInstanceId: InstanceId,
-        chosenCostPromptId: Int,
+        selectedCost: SelectedAdditionalCost,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -272,8 +274,14 @@ object AnnotationBuilder {
             .setAffectorId(stackInstanceId.value)
             .addAffectedIds(stackInstanceId.value)
             .addDetails(int32Detail(DetailKeys.TYPE, CastingTimeOptionType.ChooseOrCost.number))
-            .addDetails(int32Detail(DetailKeys.CHOSEN_COST_PROMPT_ID, chosenCostPromptId))
-            .build()
+            .addDetails(
+                int32Detail(
+                    DetailKeys.CHOSEN_COST_PROMPT_ID,
+                    when (selectedCost) {
+                        SelectedAdditionalCost.Blight -> PromptIds.CHOOSE_OR_COST_PAY_BLIGHT
+                    },
+                ),
+            ).build()
 
     /** CastingTimeOption type=2 (ChooseX_a7b4) — spell cast with chosen X value. */
     fun castingTimeOptionChooseX(

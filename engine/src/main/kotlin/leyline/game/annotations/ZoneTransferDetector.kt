@@ -3,6 +3,7 @@ package leyline.game.annotations
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SelectedAdditionalCost
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -54,7 +55,7 @@ data class AppliedTransfer(
     /** Non-zero when the cast paid Kicker. Carries the per-card Kicker ability grpId. */
     val kickerAbilityGrpId: Int = 0,
     val additionalCostGrpId: Int = 0,
-    val chosenCostPromptId: Int = 0,
+    val selectedCost: SelectedAdditionalCost? = null,
     /** Non-zero when the cast chose an X value. Drives CastingTimeOption type=ChooseX. */
     val chosenX: Int = 0,
     val openingHandAbilityInstanceId: Int = 0,
@@ -447,7 +448,7 @@ object ZoneTransferDetector {
                 val castAbilityGrpId = spellCastEvent?.castAbilityGrpId ?: altCostAbilityGrpId
                 val kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0
                 val additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0
-                val chosenCostPromptId = spellCastEvent?.chosenCostPromptId ?: 0
+                val selectedCost = spellCastEvent?.selectedCost
                 val chosenX = spellCastEvent?.chosenX ?: 0
                 val transferAffectorId =
                     if (category == TransferCategory.CastSpell && spellCastEvent?.isParadigmCopyCastEvent() == true) {
@@ -484,7 +485,7 @@ object ZoneTransferDetector {
                         castAbilityGrpId = castAbilityGrpId,
                         kickerAbilityGrpId = kickerAbilityGrpId,
                         additionalCostGrpId = additionalCostGrpId,
-                        chosenCostPromptId = chosenCostPromptId,
+                        selectedCost = selectedCost,
                         chosenX = chosenX,
                         openingHandAbilityInstanceId = openingHandAbilityInstanceId,
                         openingHandAbilityGrpId = openingHandAction?.abilityGrpId ?: 0,
@@ -1131,7 +1132,7 @@ object ZoneTransferDetector {
                     altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0,
                     kickerAbilityGrpId = spellCastEvent?.kickerAbilityGrpId ?: 0,
                     additionalCostGrpId = spellCastEvent?.additionalCostGrpId ?: 0,
-                    chosenCostPromptId = spellCastEvent?.chosenCostPromptId ?: 0,
+                    selectedCost = spellCastEvent?.selectedCost,
                     chosenX = spellCastEvent?.chosenX ?: 0,
                 ),
             )

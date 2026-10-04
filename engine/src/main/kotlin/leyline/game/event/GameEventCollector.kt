@@ -25,6 +25,7 @@ import leyline.bridge.types.InstanceId
 import leyline.bridge.types.ManaColorMapping
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.bridge.types.SeatId
+import leyline.bridge.types.SelectedAdditionalCost
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.data.grantedKeywordAbilityGrpId
@@ -450,7 +451,7 @@ class GameEventCollector(
                 eventSa,
                 ev.si()?.optionalCostString,
                 bridge.consumeSelectedAdditionalCostGrpId(ForgeCardId(card.id)),
-                bridge.consumeSelectedChosenCostPromptId(ForgeCardId(card.id)),
+                bridge.consumeSelectedAdditionalCost(ForgeCardId(card.id)),
                 card,
             )
         if (!isTrigger && !isAbility) {
@@ -501,7 +502,7 @@ class GameEventCollector(
                 activationZoneId = activationZoneId,
                 kickerAbilityGrpId = castingTimeOptionState.kickerAbilityGrpId,
                 additionalCostGrpId = castingTimeOptionState.additionalCostGrpId,
-                chosenCostPromptId = castingTimeOptionState.chosenCostPromptId,
+                selectedCost = castingTimeOptionState.selectedCost,
                 chosenX = castingTimeOptionState.chosenX,
                 rootAbilityForgeId = rootAbilityForgeId,
                 stackAbilityForgeId = ev.cause()?.stackAbilityId() ?: 0,
@@ -748,7 +749,7 @@ class GameEventCollector(
     private data class CastingTimeOptionState(
         val kickerAbilityGrpId: Int = 0,
         val additionalCostGrpId: Int = 0,
-        val chosenCostPromptId: Int = 0,
+        val selectedCost: SelectedAdditionalCost? = null,
         val chosenX: Int = 0,
     )
 
@@ -757,7 +758,7 @@ class GameEventCollector(
         topSa: SpellAbility?,
         stackOptionalCosts: String?,
         selectedAdditionalCostGrpId: Int?,
-        selectedChosenCostPromptId: Int?,
+        selectedAdditionalCost: SelectedAdditionalCost?,
         card: forge.game.card.CardView,
     ): CastingTimeOptionState {
         val sourceSa = topSa?.takeIf { it.hostCard?.id == card.id }
@@ -791,7 +792,7 @@ class GameEventCollector(
         return CastingTimeOptionState(
             kickerAbilityGrpId = kicker,
             additionalCostGrpId = additionalCost,
-            chosenCostPromptId = selectedChosenCostPromptId ?: 0,
+            selectedCost = selectedAdditionalCost,
             chosenX = x,
         )
     }

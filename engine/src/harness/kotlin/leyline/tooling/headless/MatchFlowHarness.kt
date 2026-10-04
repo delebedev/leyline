@@ -11,6 +11,7 @@ import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
+import leyline.config.CostChoicePresentation
 import leyline.config.EngineSettings
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
@@ -72,6 +73,7 @@ class MatchFlowHarness(
     private val cardRepositoryOverride: CardRepository? = null,
     val responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
     private val fullControl: Boolean = false,
+    costChoicePresentation: CostChoicePresentation = engineSettings.costChoicePresentation,
 ) {
     companion object {
         private const val DEFAULT_DECK = """
@@ -416,7 +418,7 @@ class MatchFlowHarness(
             TestCardRegistry.repo
         }
 
-    private val effectiveMatchConfig: EngineSettings = engineSettings.copy(seed = seed)
+    private val effectiveMatchConfig: EngineSettings = engineSettings.copy(seed = seed, costChoicePresentation = costChoicePresentation)
 
     /**
      * Play an offered land. Returns true if successful.

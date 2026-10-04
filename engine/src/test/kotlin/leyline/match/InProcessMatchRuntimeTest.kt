@@ -8,6 +8,7 @@ import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.delay
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.config.CostChoicePresentation
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
@@ -16,6 +17,7 @@ import leyline.copilot.CombatDamageRecipient
 import leyline.domain.service.MatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.ForgeCardRepository
+import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -25,6 +27,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -36,6 +39,62 @@ class InProcessMatchRuntimeTest :
         tags(IntegrationTag)
 
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
+
+        test("host presentation remains match-local across puzzle reconnect and GRE serialization") {
+            for (presentation in CostChoicePresentation.entries) {
+                val frames = CopyOnWriteArrayList<ByteArray>()
+                val matchId = "cost-presentation-${presentation.name}"
+                val handle =
+                    catalogRuntime(presentation).launch(
+                        MatchRuntimeLaunch(
+                            RuntimeMatchConfig(matchId, puzzleDefinition = PuzzleDefinition(matchId, alternateCostPuzzle)),
+                            frames::add,
+                        ),
+                    )
+                try {
+                    handle.receive(auth("cost-player"))
+                    handle.receive(connect(matchId))
+                    val initialAction =
+                        frames
+                            .toList()
+                            .greMessages()
+                            .last { it.hasActionsAvailableReq() }
+                            .actionsAvailableReq
+                    handle.receive(auth("cost-player"))
+                    handle.receive(connect(matchId))
+                    val prompt = frames.toList().greMessages().last { it.hasActionsAvailableReq() }
+                    prompt.actionsAvailableReq shouldBe initialAction
+                    handle.receive(cast(prompt))
+                    val option =
+                        frames
+                            .toList()
+                            .greMessages()
+                            .last { it.hasCastingTimeOptionsReq() }
+                            .castingTimeOptionsReq.castingTimeOptionReqList
+                            .single()
+                    assertSoftly {
+                        option.selectNReq.idsList shouldBe listOf(1, 2)
+                        if (presentation == CostChoicePresentation.Native) {
+                            option.selectNReq.prompt.parametersList
+                                .map { it.promptId } shouldBe
+                                listOf(PromptIds.CHOOSE_OR_COST_PAY_BLIGHT, PromptIds.CHOOSE_OR_COST_PAY_MANA)
+                        } else {
+                            option.selectNReq.prompt.parametersList
+                                .map { it.type } shouldBe
+                                listOf(ParameterType.NonLocalizedString, ParameterType.NonLocalizedString)
+                            option.selectNReq.prompt.parametersList
+                                .first()
+                                .stringValue shouldContain "Blight 1"
+                            option.selectNReq.prompt.parametersList
+                                .last()
+                                .stringValue shouldContain "Additional cost: {3}"
+                        }
+                    }
+                } finally {
+                    handle.close()
+                }
+            }
+        }
 
         test("receive diagnostics remain readable while output delivery holds the runtime lock") {
             val entered = CountDownLatch(1)
@@ -321,9 +380,15 @@ private fun runtime() =
         java.io.File("data/puzzles"),
     )
 
-private fun catalogRuntime() =
+private fun catalogRuntime(presentation: CostChoicePresentation = CostChoicePresentation.Native) =
     InProcessMatchRuntime(
-        EngineSettings(seed = 42L, bridgeTimeoutMs = 2_000L, promptFailsafeMs = 2_000L, aiSpeed = 0.0),
+        EngineSettings(
+            seed = 42L,
+            bridgeTimeoutMs = 2_000L,
+            promptFailsafeMs = 2_000L,
+            aiSpeed = 0.0,
+            costChoicePresentation = presentation,
+        ),
         MatchCoordinator.NOOP,
         ForgeCardRepository.open(),
         java.io.File("data/puzzles"),
@@ -489,4 +554,23 @@ private val damageAssignmentPuzzle =
     humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
     aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
     ailibrary=Forest;Forest;Forest;Forest;Forest
+    """.trimIndent()
+
+private val alternateCostPuzzle =
+    """
+    [metadata]
+    Name:Alternate cost presentation
+    Goal:Win
+    Turns:1
+
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    humanhand=Bogslither's Embrace
+    humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Grizzly Bears
+    humanlibrary=Swamp;Swamp
+    aibattlefield=Centaur Courser
+    ailibrary=Forest;Forest
     """.trimIndent()
