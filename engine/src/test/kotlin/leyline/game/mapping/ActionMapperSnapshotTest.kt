@@ -226,6 +226,9 @@ class ActionMapperSnapshotTest :
                         checkNotNull(b.abilityRegistryFor(original.hostCard, sourceData)).forSpellAbility(original)
                     objectAbilities.single { it.id == offer.action.uniqueAbilityId }.grpId shouldBe offer.action.abilityGrpId
                     resolveActionOffer(catalog, offer.action)?.second shouldBe offer
+                    b.resolveAbilityIdentity(ability.hostCard, ability)?.abilityGrpId shouldBe offer.action.abilityGrpId
+                    val stackCopy = ability.copy().also { it.setOriginalAbility(ability) }
+                    b.resolveAbilityIdentity(stackCopy.hostCard, stackCopy)?.abilityGrpId shouldBe offer.action.abilityGrpId
                 }
             }
         }

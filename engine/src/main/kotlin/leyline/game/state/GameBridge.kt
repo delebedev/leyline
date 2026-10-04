@@ -1322,12 +1322,13 @@ class GameBridge(
         val definition =
             ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
                 ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        val cardData = abilityCardData(card) ?: return null
-        val registry = abilityRegistryFor(card, cardData) ?: return null
+        val identityCard = if (ability.trigger != null) card else AbilityRegistry.identitySource(ability)
+        val cardData = abilityCardData(identityCard) ?: return null
+        val registry = abilityRegistryFor(identityCard, cardData) ?: return null
         if (ability.trigger != null) {
             registry.resolve(definition)?.let { return it }
-            val refreshed = AbilityRegistry.build(card, cardData)
-            abilityRegistries[card.id] = refreshed
+            val refreshed = AbilityRegistry.build(identityCard, cardData)
+            abilityRegistries[identityCard.id] = refreshed
             return refreshed.resolve(definition)
                 ?: ability.trigger
                     ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
