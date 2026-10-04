@@ -3,7 +3,6 @@ package leyline.game.data
 import forge.StaticData
 import forge.card.CardRules
 import forge.card.ICardFace
-import forge.game.keyword.Keyword
 import forge.localinstance.properties.ForgeConstants
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ManaColorMapping
@@ -671,13 +670,10 @@ class ForgeCardRepository private constructor(
         keyword: String,
     ): Int? {
         val id = catalogIdentityIds["granted-keyword:$keyword"] ?: return null
-        val parts = keyword.split(":")
-        val base = keywordBases[normalize(parts.first())] ?: 0
-        val mana = parts.getOrElse(1) { "" }.split(Regex("\\s+")).mapNotNull(::manaTokenToPair)
-        val definition = Keyword.getInstance(keyword)
-        if (definition.keyword == Keyword.UNDEFINED) return null
-        rows.registerAbilityInfo(id, AbilityInfo(base, mana, if (base == 0) 0 else 8, 0))
-        rows.registerAbilityLocalization(id, AbilityLocalization(definition.reminderText, mana, definition.title))
+        val localization = localizeGrantedKeyword(keyword) ?: return null
+        val base = keywordBases[normalize(keyword.substringBefore(':'))] ?: 0
+        rows.registerAbilityInfo(id, AbilityInfo(base, localization.manaCost, if (base == 0) 0 else 8, 0))
+        rows.registerAbilityLocalization(id, localization)
         return id
     }
 

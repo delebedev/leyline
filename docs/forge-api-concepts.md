@@ -98,6 +98,12 @@ catalog's generated definition identity. The source card's
 Keyword grants keep a separate persistent row for each recipient so
 recipient and source removal retire the corresponding grant.
 
+Forge catalog localization reads unbound keyword definitions, not live recipient
+keywords. Recipient-dependent `ManaCost` grants keep a symbolic reminder and
+keyword name, including any miracle cost reduction. They do not advertise a
+concrete mana cost. Forge resolves and pays the effective cost only after the
+keyword is bound to its recipient during gameplay.
+
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
 Spells that can target both stack objects and permanents use Forge’s list-choice
