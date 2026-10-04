@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: Optional graveyard cards pay generic mana through delve.
+# Forcing: Treasure Cruise is the only card in hand and draws the winning spell.
+# AI behavior: No hand or creatures create alternative interactions.
+# Failure modes: Win proves the delve cast, draw and continued spell casting.
+# A stalled cast exposes missing payment selection or payment failure.
+# Card roles: Treasure Cruise draws Lightning Bolt; Bolt deals lethal damage.
+# Mana roles: Islands pay blue; Mountain pays for Bolt; Forests pay delve.
+# Life totals: The opponent has exactly three life for a single Bolt.
+# Protocol path: Cast, cost selection, graveyard exile, payment, draw, target.
+[metadata]
+Name:Delve before and after
+Goal:Win
+Turns:1
+Description:Cast Treasure Cruise. Exile seven graveyard cards, then cast Lightning Bolt at the opponent.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanbattlefield=Island;Island;Island;Island;Island;Mountain
+humanhand=Treasure Cruise
+humangraveyard=Forest;Plains;Swamp;Mountain;Island;Wastes;Snow-Covered Forest;Snow-Covered Island;Snow-Covered Mountain
+humanlibrary=Lightning Bolt;Lightning Bolt;Lightning Bolt;Mountain;Mountain
+ailibrary=Plains;Plains;Plains
