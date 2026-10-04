@@ -11,6 +11,7 @@ import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Stage 2 of the annotation pipeline: generate annotations for zone transfers.
@@ -385,6 +386,17 @@ object TransferAnnotations {
         if (ev.isAbility) return emptyList()
         val annotations = mutableListOf<AnnotationInfo>()
         val spellIid = stackInstanceResolver(ev) ?: ev.stackInstanceId.takeIf { it != 0 }?.let(::InstanceId) ?: idResolver(ev.cardId)
+        for (sourceIid in ev.delvePaymentInstanceIds) {
+            annotations.add(
+                AnnotationBuilder.manaPaid(
+                    spellInstanceId = spellIid,
+                    landInstanceId = sourceIid,
+                    manaId = null,
+                    color = ManaColor.Generic.number,
+                    substitutionGrpId = GrpId(KeywordAbilityIds.DELVE),
+                ),
+            )
+        }
         annotations.addAll(manaPaymentAnnotations(ev.manaPayments, ev.seatId, spellIid, idResolver, manaAbilityGrpIdResolver))
         for (payment in convokePayments) {
             emitConvokePayment(

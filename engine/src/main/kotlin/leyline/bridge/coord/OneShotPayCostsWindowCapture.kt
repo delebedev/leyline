@@ -111,6 +111,7 @@ internal class OneShotPayCostsWindowCapture(
     ): Pair<Int, Int> =
         when (kind) {
             PayCostsRouteKind.CollectEvidence,
+            PayCostsRouteKind.SelectCostExileFromGrave,
             -> request.min.coerceAtLeast(0) to request.max.coerceAtLeast(request.min)
             PayCostsRouteKind.TapPayment ->
                 routeTapPayment(request).let { tap ->
@@ -121,7 +122,6 @@ internal class OneShotPayCostsWindowCapture(
                     }
                 }
             PayCostsRouteKind.Sacrifice,
-            PayCostsRouteKind.SelectCostExileFromGrave,
             PayCostsRouteKind.SelectCostReturnAttacker,
             PayCostsRouteKind.StationTapCost,
             PayCostsRouteKind.EnlistCost,

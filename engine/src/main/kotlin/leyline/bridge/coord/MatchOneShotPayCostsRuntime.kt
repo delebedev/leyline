@@ -123,7 +123,7 @@ internal class MatchOneShotPayCostsRuntime(
         message: ClientToGREMessage,
     ): SettledPromptOwner.SlotAdmission<OneShotPayCostsResult>? {
         if (message.type == ClientMessageType.CancelActionReq_097b) {
-            return SettledPromptOwner.SlotAdmission(OneShotPayCostsResult(emptyList(), emptyList()))
+            return SettledPromptOwner.SlotAdmission(OneShotPayCostsResult(emptyList(), emptyList(), cancelled = true))
         }
         val selectedInstanceIds = message.effectCostResp.costSelection.idsList
         if (selectedInstanceIds.size != selectedInstanceIds.distinct().size) return null

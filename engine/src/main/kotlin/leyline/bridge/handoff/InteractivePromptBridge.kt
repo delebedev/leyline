@@ -808,6 +808,9 @@ enum class PromptSemantic {
      */
     SelectNCostExileFromGrave,
 
+    /** Optional graveyard cards paying generic mana during a spell cast. */
+    DelveCost,
+
     /**
      * Collect Evidence additional cost: choose any number of graveyard cards
      * whose total mana value meets the threshold. Routes to a weighted

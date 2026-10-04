@@ -462,6 +462,16 @@ class GameEventCollector(
                 seatId = seat,
                 spellGrpId = grpId,
                 manaPayments = payments,
+                delvePaymentInstanceIds =
+                    if (!isAbility) {
+                        realCard?.delved.orEmpty().mapNotNull {
+                            bridge.peekInstanceId(
+                                ForgeCardId(it.id),
+                            )
+                        }
+                    } else {
+                        emptyList()
+                    },
                 colorsSpentToCast = colorsSpentToCast,
                 opusTrigger = opusTrigger,
                 opusActive = opusActive,
