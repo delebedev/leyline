@@ -6,9 +6,8 @@
 # Protocol path: Cast, CastingTimeOptionsReq ManaType, selected payment, battlefield state.
 [metadata]
 Name:Phyrexian Mana Krrik
-Goal:Play the Specified Permanent
-Targets:Creature.YouCtrl
-Turns:1
+Goal:Survive
+Turns:5
 Difficulty:Easy
 Description:Cast K'rrik with two life payments and one black mana payment.
 [state]

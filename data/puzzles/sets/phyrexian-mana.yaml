@@ -10,10 +10,13 @@ scenarios:
       - expect:
           prompt: CastingTimeOptionsReq
       - mana_type_choices: [phyrexian, black, phyrexian]
-      - pass_until: { winner: ours, max_passes: 8 }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: "K'rrik, Son of Yawgmoth" }
+            - stack_empty: true
+          max_passes: 8
       - expect:
           all:
-            - winner: ours
             - our_life: 16
             - zone_contains: { side: ours, zone: battlefield, card: "K'rrik, Son of Yawgmoth" }
   - id: granted-black-mixed-payment
@@ -25,10 +28,13 @@ scenarios:
       - expect:
           prompt: CastingTimeOptionsReq
       - mana_type_choices: [phyrexian, black, phyrexian, black]
-      - pass_until: { winner: ours, max_passes: 8 }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: "Phyrexian Obliterator" }
+            - stack_empty: true
+          max_passes: 8
       - expect:
           all:
-            - winner: ours
             - our_life: 16
             - zone_contains: { side: ours, zone: battlefield, card: Phyrexian Obliterator }
   - id: black-kicker-life-payment
@@ -39,10 +45,13 @@ scenarios:
       - cast: Duskwalker
       - choose: { optional_cost: kicker }
       - mana_type_choices: [phyrexian, phyrexian]
-      - pass_until: { winner: ours, max_passes: 8 }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: "Duskwalker" }
+            - stack_empty: true
+          max_passes: 8
       - expect:
           all:
-            - winner: ours
             - our_life: 16
             - battlefield_stats: { side: ours, card: Duskwalker, power: 3, toughness: 3 }
   - id: declined-black-kicker-life-payment
@@ -53,9 +62,12 @@ scenarios:
       - cast: Duskwalker
       - choose: { cto_id: 0 }
       - mana_type_choices: [phyrexian]
-      - pass_until: { winner: ours, max_passes: 8 }
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: "Duskwalker" }
+            - stack_empty: true
+          max_passes: 8
       - expect:
           all:
-            - winner: ours
             - our_life: 18
             - battlefield_stats: { side: ours, card: Duskwalker, power: 1, toughness: 1 }

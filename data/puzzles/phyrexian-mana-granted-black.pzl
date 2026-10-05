@@ -6,9 +6,8 @@
 # Protocol path: Cast, CastingTimeOptionsReq ManaType, selected payment, battlefield state.
 [metadata]
 Name:Granted Black Life Payment
-Goal:Play the Specified Permanent
-Targets:Card.namedPhyrexian Obliterator
-Turns:1
+Goal:Survive
+Turns:5
 Difficulty:Easy
 Description:Cast Phyrexian Obliterator with two life payments and two black mana payments.
 [state]

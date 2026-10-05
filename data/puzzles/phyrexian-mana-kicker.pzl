@@ -6,9 +6,8 @@
 # Protocol path: Cast, optional-cost choice, complete mana choices, battlefield state.
 [metadata]
 Name:Phyrexian Mana Kicker
-Goal:Play the Specified Permanent
-Targets:Card.namedDuskwalker
-Turns:1
+Goal:Survive
+Turns:5
 Difficulty:Easy
 Description:Choose Duskwalker's kicker and pay its two black symbols with life.
 [state]
