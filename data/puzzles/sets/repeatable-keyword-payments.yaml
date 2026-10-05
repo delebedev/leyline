@@ -1,0 +1,102 @@
+name: repeatable-keyword-payments
+description: Explicit repeatable additional-cost counts.
+scenarios:
+  - id: multikicker-0
+    puzzle: repeatable-keyword-payments
+    run: choose 0 Multikicker payments and continue casting
+    expect: the selected count determines counters and the Elf bonus
+    steps:
+      - cast: Joraga Warcaller
+      - expect: { prompt: NumericInputReq }
+      - numeric_input: 0
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Joraga Warcaller }
+            - stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Joraga Warcaller, power: 1, toughness: 1 }
+            - battlefield_stats: { side: ours, card: Llanowar Elves, power: 1, toughness: 1 }
+            - our_life: 20
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+            - stack_empty: true
+          max_passes: 8
+  - id: multikicker-2
+    puzzle: repeatable-keyword-payments
+    run: choose 2 Multikicker payments and continue casting
+    expect: the selected count determines counters and the Elf bonus
+    steps:
+      - cast: Joraga Warcaller
+      - expect: { prompt: NumericInputReq }
+      - numeric_input: 2
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Joraga Warcaller }
+            - stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Joraga Warcaller, power: 3, toughness: 3 }
+            - battlefield_stats: { side: ours, card: Llanowar Elves, power: 3, toughness: 3 }
+            - our_life: 20
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+            - stack_empty: true
+          max_passes: 8
+  - id: replicate-0
+    puzzle: replicate-keyword-payments
+    headless: { full_control: true }
+    run: choose 0 Replicate payments and target the resulting spells
+    expect: each chosen target is destroyed and play continues
+    steps:
+      - cast: Shattering Spree
+      - numeric_input: 0
+      - target: { side: opponent, zone: battlefield, card: Ornithopter }
+      - pass_until:
+          stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Ornithopter }
+            - zone_contains: { side: opponent, zone: battlefield, card: Gingerbrute }
+            - zone_contains: { side: opponent, zone: battlefield, card: Goldvein Pick }
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+            - stack_empty: true
+          max_passes: 8
+  - id: replicate-2
+    puzzle: replicate-keyword-payments
+    headless: { full_control: true }
+    run: choose 2 Replicate payments and target the resulting spells
+    expect: each chosen target is destroyed and play continues
+    steps:
+      - cast: Shattering Spree
+      - numeric_input: 2
+      - target: { side: opponent, zone: battlefield, card: Ornithopter }
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: opponent, zone: battlefield, card: Gingerbrute }
+      - target: { side: opponent, zone: battlefield, card: Goldvein Pick }
+      - pass_until:
+          stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Ornithopter }
+            - zone_contains: { side: opponent, zone: graveyard, card: Gingerbrute }
+            - zone_contains: { side: opponent, zone: graveyard, card: Goldvein Pick }
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+            - stack_empty: true
+          max_passes: 8

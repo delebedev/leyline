@@ -83,6 +83,7 @@ object AcceptanceSuiteLoader {
             "mana_type_choices" -> parseManaTypeChoices(value, "$context.mana_type_choices")
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
             "group_keep" -> GroupKeepStep
+            "numeric_input" -> NumericInputStep(value.asInt("$context.numeric_input"))
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "cancel_action" -> CancelActionStep

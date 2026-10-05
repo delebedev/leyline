@@ -1,0 +1,16 @@
+# Multikicker count consumes only the complete chosen cast cost.
+[metadata]
+Name:Repeatable Keyword Payments
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Joraga Warcaller with zero or two Multikicker payments, then cast Ornithopter.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Joraga Warcaller;Ornithopter
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Llanowar Elves|Tapped
+humanlibrary=Forest;Mountain
+ailibrary=Mountain;Mountain

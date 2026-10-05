@@ -256,7 +256,7 @@ internal object ActionManaCosts {
         }
     }
 
-    private inline fun <T> preservingPaymentProbeState(
+    internal inline fun <T> preservingPaymentProbeState(
         sa: SpellAbility,
         player: Player,
         block: () -> T,

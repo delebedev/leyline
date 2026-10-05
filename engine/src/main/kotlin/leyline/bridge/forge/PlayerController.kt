@@ -1409,9 +1409,8 @@ class PlayerController(
         )
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
-    // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on
-    // web) and getGui().getInteger() for max>1 (bridged, works fine).
-    // Override only the max==1 path to route through the bridge confirm prompt.
+    // Binary costs retain deferred casting choices. Repeatable costs use the
+    // numeric gate and Forge's affordability checks for the complete cast cost.
 
     override fun chooseNumberForKeywordCost(
         sa: SpellAbility,
@@ -1423,8 +1422,21 @@ class PlayerController(
         when {
             max <= 0 -> 0
             max == 1 -> costPaymentCoordinator.chooseKeywordCostBinary(prompt, keyword.keyword?.toString())
-            // max > 1: getGui().getInteger() is bridged through ClientGuiGame, safe to inherit.
-            else -> super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
+            sa.hasOptionalKeywordAmount(keyword) -> sa.getOptionalKeywordAmount(keyword).coerceIn(0, max)
+            else -> {
+                val payableMax = costPaymentCoordinator.repeatableKeywordMaximum(sa, cost, max)
+                if (payableMax == 0) {
+                    0
+                } else {
+                    numericInputGate.await(
+                        sourceCard = sa.hostCard,
+                        min = 0,
+                        max = payableMax,
+                        defaultOnTimeout = 0,
+                        logContext = "chooseNumberForKeywordCost",
+                    )
+                }
+            }
         }
 
     override fun chooseOptionalCosts(

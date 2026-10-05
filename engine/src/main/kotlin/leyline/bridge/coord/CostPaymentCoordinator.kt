@@ -10,10 +10,13 @@ import forge.game.card.CardCollectionView
 import forge.game.cost.Cost
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostPayment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
+import leyline.bridge.ActionManaCosts
+import leyline.bridge.NonInteractiveScope
 import leyline.bridge.handoff.FinalManaSourcePaymentEntryValue
 import leyline.bridge.handoff.FinalManaSourcePaymentValue
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -299,16 +302,43 @@ class CostPaymentCoordinator(
         }
 
     /**
+     * Bounds ordinary finite payments using copied complete Forge costs. If the
+     * probe budget stays payable, retain Forge's maximum: free or heavily reduced
+     * repeats must not become a rules limit. Final payment remains authoritative.
+     */
+    internal fun repeatableKeywordMaximum(
+        sa: SpellAbility,
+        repeatedCost: Cost,
+        maximum: Int,
+    ): Int {
+        val accumulated = sa.payCosts.copy()
+        for (count in 1..maximum.coerceAtMost(99)) {
+            accumulated.add(repeatedCost)
+            val candidate = sa.copyWithDefinedCost(accumulated.copy())
+            val payable =
+                ActionManaCosts.preservingPaymentProbeState(candidate, player) {
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(candidate, player, 0, candidate.isTrigger) &&
+                            CostPayment.canPayAdditionalCosts(candidate.payCosts, candidate, candidate.isTrigger, player)
+                    }
+                }
+            if (!payable) {
+                return count - 1
+            }
+        }
+        return maximum
+    }
+
+    /**
      * Binary keyword-cost prompt (max == 1, e.g. Offspring's "pay the
      * additional cost?"). When [keywordName] is supplied and a CTO-side
      * decision is already stashed by the deferred cast-cost interaction handler
      * when the player picked from the cost modal, use it — that's the path
      * that lets the client render a proper CastingTimeOptionsReq instead of a bare
      * confirm prompt. Fall back to the confirm prompt only when no CTO was
-     * sent for this keyword (legacy / dev-harness paths). For max > 1 the
-     * caller keeps `super.chooseNumberForKeywordCost` which routes through
-     * `ClientGuiGame.getInteger`.
+     * sent for this keyword (legacy / dev-harness paths).
      */
+
     fun chooseKeywordCostBinary(
         prompt: String,
         keywordName: String? = null,
