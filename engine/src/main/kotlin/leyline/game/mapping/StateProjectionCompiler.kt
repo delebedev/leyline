@@ -348,7 +348,7 @@ object StateProjectionCompiler {
         val hiddenHandObjects =
             priorFullState.gameObjectsList
                 .filter {
-                    it.visibility == Visibility.Private &&
+                    it.visibility in setOf(Visibility.Private, Visibility.Public) &&
                         it.zoneId in handZones &&
                         it.instanceId in currentHandIds &&
                         it.instanceId !in currentIds
@@ -356,12 +356,19 @@ object StateProjectionCompiler {
         val retired =
             priorFullState.gameObjectsList
                 .filter {
-                    it.visibility == Visibility.Private &&
+                    (
                         (
-                            (it.zoneId in handZones && it.parentId != 0 && it.parentId in currentHandIds) ||
+                            it.visibility in setOf(Visibility.Private, Visibility.Public) &&
+                                it.zoneId in handZones &&
                                 it.parentId != 0 &&
-                                it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
-                        ) &&
+                                it.parentId in currentHandIds
+                        ) ||
+                            (
+                                it.visibility == Visibility.Private &&
+                                    it.parentId != 0 &&
+                                    it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
+                            )
+                    ) &&
                         it.instanceId !in currentIds
                 }.map { it.instanceId }
         return gsm
