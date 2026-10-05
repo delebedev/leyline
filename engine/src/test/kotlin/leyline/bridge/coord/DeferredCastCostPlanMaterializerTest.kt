@@ -2,11 +2,13 @@ package leyline.bridge.coord
 
 import forge.game.cost.Cost
 import forge.game.keyword.Keyword
+import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -336,6 +338,61 @@ class DeferredCastCostPlanMaterializerTest :
                     choices.first().kind shouldBe expected
                 }
             }
+        }
+
+        test("alternate mana plan uses selected flashback cost while a free cast has no payment choices") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Lingering Souls", human, ZoneType.Graveyard)
+                    addCard("K'rrik, Son of Yawgmoth", human)
+                    addCard("Mountain", human)
+                }
+            val card =
+                board.human
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .first()
+            val ability =
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(card)
+                    .casts
+                    .first { it.alternativeCost == AlternativeCost.Flashback }
+            ability.activatingPlayer = board.human
+            board.game.action.checkStaticAbilities(false)
+            board.human.hasKeyword("PayLifeInsteadOf:B") shouldBe true
+            val id = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(id).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .setAlternativeGrpId(1)
+                        .build(),
+                    PlayerAction.CastSpell(id, 0, ability = ability),
+                )
+            val result = DeferredCastCostPlanMaterializer.materialize(offer, null, 0) { error("no child token") }.shouldNotBeNull()
+            assertSoftly {
+                result.plan.hybrid
+                    .shouldNotBeNull()
+                    .paymentColors shouldBe listOf(ManaColor.Black_afc9)
+                ability.payCosts.totalMana.toString() shouldBe "{1}{B}"
+                board.human.life shouldBe 20
+                board.human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .count { it.isTapped } shouldBe 0
+            }
+            val free = ability.copyWithDefinedCost(Cost("0", false))
+            DeferredCastCostPlanMaterializer
+                .materialize(
+                    offer.copy(command = PlayerAction.CastSpell(id, 0, ability = free)),
+                    null,
+                    0,
+                ) { error("no child token") }
+                .shouldBeNull()
         }
 
         test("hybrid plan freezes nested values and preserves the exact offered ability") {

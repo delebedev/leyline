@@ -54,9 +54,10 @@ internal object DeferredCastCostPlanMaterializer {
         val card = ability.hostCard ?: return null
         val player = ability.activatingPlayer ?: return null
 
-        val hybrid = materializeManaPlan(offer, ability, player)
+        val hybrid = materializeManaPlan(ability, player)
 
-        val optionalCosts = GameActionUtil.getOptionalCostValues(ability)
+        val optionalCosts =
+            GameActionUtil.getOptionalCostValues(ability).filterNot { ability.isOptionalCostPaid(it.type) }
         val keywordCosts = card.binaryKeywordCosts()
         val optional =
             if (optionalCosts.isEmpty() && keywordCosts.isEmpty()) {
@@ -83,7 +84,7 @@ internal object DeferredCastCostPlanMaterializer {
                             abilityGrpId = abilityGrpId,
                             keywordName = null,
                             description = cost.toString(),
-                            manaPlan = materializeManaPlan(offer, GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
+                            manaPlan = materializeManaPlan(GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
                         )
                     } +
                         keywordCosts.map { keyword ->
@@ -137,36 +138,32 @@ internal object DeferredCastCostPlanMaterializer {
     }
 
     private fun materializeManaPlan(
-        offer: GameActionBridge.ActionOffer,
         ability: SpellAbility,
         player: forge.game.player.Player,
-    ): DeferredCastCostPlan.HybridManaPlan? =
-        if (offer.action.alternativeGrpId == 0) {
-            val effectiveCost = ActionMapper.computeEffectiveCost(ability, player)
-            val lifeForBlack = player.hasKeyword("PayLifeInsteadOf:B")
-            val paymentChoices = effectiveCost?.manaChoices(lifeForBlack).orEmpty()
-            val paymentColors = paymentChoices.map { it.first }
-            if (effectiveCost != null && paymentColors.isNotEmpty()) {
-                val baseCost = ability.payCosts?.totalMana
-                val promptCost =
-                    if (paymentChoices.any { it.second == ManaColor.Phyrexian_afc9 }) {
-                        effectiveCost
-                    } else {
-                        baseCost?.takeIf { it.manaChoices(lifeForBlack).size == paymentColors.size } ?: effectiveCost
-                    }
-                val promptChoices = promptCost.manaChoices(lifeForBlack)
-                DeferredCastCostPlan.hybrid(
-                    promptChoices.map { it.first },
-                    paymentColors,
-                    promptCost.toManaRequirementSpecs(lifeForBlack),
-                    promptChoices.map { it.second },
-                )
-            } else {
-                null
-            }
+    ): DeferredCastCostPlan.HybridManaPlan? {
+        val effectiveCost = ActionMapper.computeEffectiveCost(ability, player)
+        val lifeForBlack = player.hasKeyword("PayLifeInsteadOf:B")
+        val paymentChoices = effectiveCost?.manaChoices(lifeForBlack).orEmpty()
+        val paymentColors = paymentChoices.map { it.first }
+        return if (effectiveCost != null && paymentColors.isNotEmpty()) {
+            val baseCost = ability.payCosts?.totalMana
+            val promptCost =
+                if (paymentChoices.any { it.second == ManaColor.Phyrexian_afc9 }) {
+                    effectiveCost
+                } else {
+                    baseCost?.takeIf { it.manaChoices(lifeForBlack).size == paymentColors.size } ?: effectiveCost
+                }
+            val promptChoices = promptCost.manaChoices(lifeForBlack)
+            DeferredCastCostPlan.hybrid(
+                promptChoices.map { it.first },
+                paymentColors,
+                promptCost.toManaRequirementSpecs(lifeForBlack),
+                promptChoices.map { it.second },
+            )
         } else {
             null
         }
+    }
 
     private val binaryKeywordCostNames = setOf(Keyword.OFFSPRING, Keyword.CASUALTY, Keyword.CONSPIRE)
 
