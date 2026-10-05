@@ -1,6 +1,7 @@
 package leyline.match
 
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
@@ -51,7 +52,7 @@ class TwoPhaseCombatFidelityTest :
             repeat(2) {
                 submitBlockers()
                 val retry = allMessages.last { it.hasDeclareBlockersReq() }
-                (retry.msgId > selectedPrompt).shouldBeTrue()
+                retry.msgId shouldBeGreaterThan selectedPrompt
                 bridge
                     .getGame()!!
                     .combat.allBlockers.size shouldBe 0
