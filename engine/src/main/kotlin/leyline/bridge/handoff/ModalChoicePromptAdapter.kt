@@ -51,18 +51,20 @@ internal class ModalChoicePromptAdapter(
             return fallback.mapNotNull(possible::getOrNull)
         }
         val modalRuntime = checkNotNull(runtime()) { "ModalChoice runtime is not registered" }
-        return try {
-            val result = modalRuntime.awaitSelection(request, possible, sourceCard, sourceAbility, timeoutMs)
-            record(
-                request,
-                if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
-                result.optionIndices,
-            )
-            if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
-            result.handles
-        } catch (ex: Exception) {
-            record(request, PromptCallStatus.ERROR, emptyList())
-            throw ex
-        }
+        val result =
+            try {
+                modalRuntime.awaitSelection(request, possible, sourceCard, sourceAbility, timeoutMs)
+            } catch (ex: Exception) {
+                record(request, PromptCallStatus.ERROR, emptyList())
+                throw ex
+            }
+        record(
+            request,
+            if (result.timedOut) PromptCallStatus.TIMEOUT else PromptCallStatus.RESPONDED,
+            result.optionIndices,
+        )
+        if (result.timedOut) prioritySignal?.signal() else prioritySignal?.markPromptResolved()
+        if (result.cancelled && !sourceAbility.isTrigger) throw ModalCastCancelledException()
+        return result.handles
     }
 }

@@ -93,7 +93,8 @@ internal class ModalChoiceWindowCapture(
                 allowCancel =
                     request.route.semantic != PromptSemantic.VoteChoice &&
                         sourceAbility.api != ApiType.GenericChoice &&
-                        sourceAbility.api != ApiType.VillainousChoice,
+                        sourceAbility.api != ApiType.VillainousChoice &&
+                        (sourceAbility.isTrigger || sourceAbility.activatingPlayer == owner.bridge.getPlayer(owner.humanSeat)),
             ),
             handlesByOptionIndex = possible.indices.associateWith(possible::get),
             aiContext = ModalChoiceAiContext(sourceAbility, possible.toList(), possibleOptions.map { it.fullIndex }),

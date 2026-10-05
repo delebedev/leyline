@@ -104,6 +104,7 @@ internal class MatchModalChoiceRuntime(
                 optionIndices = optionIndices,
                 handles = optionIndices.map(pending.handlesByOptionIndex::getValue),
                 timedOut = false,
+                cancelled = message.type == ClientMessageType.CancelActionReq_097b,
             ),
             beforeComplete = { recordSelection(pending, selectedGrpIds) },
             afterEngineResume = {
