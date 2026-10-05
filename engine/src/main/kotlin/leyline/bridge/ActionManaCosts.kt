@@ -8,6 +8,7 @@ import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
+import forge.game.spellability.TargetChoices
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ManaColorMapping
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -35,12 +36,37 @@ internal object ActionManaCosts {
                 // Waterbend). Payability wants the best case the board allows,
                 // answered deterministically — never a prompt.
                 preservingPaymentProbeState(sa, player) {
-                    NonInteractiveScope.bestEffort { ComputerUtilMana.canPayManaCost(sa, player, 0, false) }
+                    NonInteractiveScope.bestEffort {
+                        ComputerUtilMana.canPayManaCost(sa, player, 0, false) ||
+                            canPayEquipForLegalTarget(sa, player)
+                    }
                 } ||
                     canPayOrTwoGenericManaCost(sa, player)
             },
             fallback = { canPayOrTwoGenericManaCost(sa, player) },
         )
+
+    private fun canPayEquipForLegalTarget(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean {
+        if (!sa.isEquip || sa.targets.size != 0) return false
+        val originalTargets = sa.targets
+        try {
+            // The offer needs one payable target; actual payment uses the player's selected target.
+            return player.game.getCardsIn(ForgeZoneType.Battlefield).any { candidate ->
+                sa.targets = TargetChoices()
+                if (!sa.canTarget(candidate)) {
+                    false
+                } else {
+                    sa.targets.add(candidate)
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                }
+            }
+        } finally {
+            sa.targets = originalTargets
+        }
+    }
 
     internal fun affordabilityProbe(
         probe: () -> Boolean,
