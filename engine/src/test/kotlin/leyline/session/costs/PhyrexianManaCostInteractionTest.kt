@@ -188,6 +188,22 @@ class PhyrexianManaCostInteractionTest :
             human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
         }
 
+        session(
+            "failed remaining mana does not commit selected life",
+            puzzle = puzzle(battlefield = "Swamp;Swamp;Swamp;Swamp"),
+        ) {
+            after { castSpellByName(krrik).shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            respondToManaTypeChoices(listOf(2 to ManaColor.Phyrexian_afc9, 3 to ManaColor.Black_afc9, 4 to ManaColor.Black_afc9))
+            assertSoftly {
+                human.life shouldBe 20
+                human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain krrik
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                human.getZone(ZoneType.Hand).cards.first { it.name == krrik }.spellAbilities.any {
+                    it.hasParam("AIPhyrexianPayment")
+                } shouldBe false
+            }
+        }
+
         session("unaffordable life answer leaves life and mana unchanged", puzzle = puzzle(life = 5)) {
             after { castSpellByName(krrik).shouldBeTrue() }.expectOneCastingTimeOptionsReq()
             respondToManaTypeChoices(listOf(2 to ManaColor.Phyrexian_afc9, 3 to ManaColor.Phyrexian_afc9, 4 to ManaColor.Phyrexian_afc9))

@@ -40,34 +40,34 @@ scenarios:
   - id: black-kicker-life-payment
     puzzle: phyrexian-mana-kicker
     run: accept kicker and pay both black symbols with life
-    expect: Duskwalker resolves as a three-three and the player has sixteen life
+    expect: Skyclave Shade resolves as a five-three and the player has sixteen life
     steps:
-      - cast: Duskwalker
+      - cast: Skyclave Shade
       - choose: { optional_cost: kicker }
       - mana_type_choices: [phyrexian, phyrexian]
       - pass_until:
           all:
-            - zone_contains: { side: ours, zone: battlefield, card: "Duskwalker" }
+            - zone_contains: { side: ours, zone: battlefield, card: "Skyclave Shade" }
             - stack_empty: true
           max_passes: 8
       - expect:
           all:
             - our_life: 16
-            - battlefield_stats: { side: ours, card: Duskwalker, power: 3, toughness: 3 }
+            - battlefield_stats: { side: ours, card: Skyclave Shade, power: 5, toughness: 3 }
   - id: declined-black-kicker-life-payment
     puzzle: phyrexian-mana-kicker
     run: decline kicker and pay the base black symbol with life
-    expect: Duskwalker resolves as a one-one and the player has eighteen life
+    expect: Skyclave Shade resolves as a three-one and the player has eighteen life
     steps:
-      - cast: Duskwalker
+      - cast: Skyclave Shade
       - choose: { cto_id: 0 }
       - mana_type_choices: [phyrexian]
       - pass_until:
           all:
-            - zone_contains: { side: ours, zone: battlefield, card: "Duskwalker" }
+            - zone_contains: { side: ours, zone: battlefield, card: "Skyclave Shade" }
             - stack_empty: true
           max_passes: 8
       - expect:
           all:
             - our_life: 18
-            - battlefield_stats: { side: ours, card: Duskwalker, power: 1, toughness: 1 }
+            - battlefield_stats: { side: ours, card: Skyclave Shade, power: 3, toughness: 1 }
