@@ -153,11 +153,16 @@ Forge-confinement and value-boundary rationale.
 domains, mutable-state ownership, lock order, delivery limits, teardown, and the
 bounded initial-publication replay used by reconnect.
 
-Alternate additional-cost presentation is selected through
+Cast-cost presentation is selected through
 `EngineSettings.costChoicePresentation`. `Native` is the default and retains the
 supported numeric prompt bindings. An embedding host may select `ForgeText` to
 receive one `NonLocalizedString` GRE parameter per offered branch. Both normal
 and puzzle matches retain the host setting for their lifetime.
+
+For optional costs, the bridge freezes Forge's formatted cost description.
+`ForgeText` adds a `Cost` / `NonLocalizedString` parameter to the optional CTO
+row prompt. Native rows and the Done terminator retain their existing shape.
+Costs without a formatted description retain catalog or option-type presentation.
 
 Native alternate-cost labels distinguish sacrificing one unrestricted artifact
 and discarding one unrestricted card. The bridge classifies these from Forge

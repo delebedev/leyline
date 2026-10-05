@@ -110,6 +110,49 @@ class DeferredCastCostPlanMaterializerTest :
             }
         }
 
+        test("optional cost description freezes Forge formatting independently of its ability catalog") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Shivan Fire", human, ZoneType.Hand)
+                    repeat(5) { addCard("Mountain", human) }
+                    addCard("Centaur Courser", ai)
+                }
+            val card = board.human.hand.card("Shivan Fire")
+            val ability =
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(card)
+                    .casts
+                    .first()
+            val id = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(id).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .build(),
+                    PlayerAction.CastSpell(id, 0, ability = ability),
+                )
+            val entry =
+                DeferredCastCostPlanMaterializer
+                    .materialize(offer, null, 0) { 1L }
+                    .shouldNotBeNull()
+                    .plan.optional
+                    .shouldNotBeNull()
+                    .entries
+                    .single()
+            val original = entry.description.shouldNotBeNull()
+            ability.payCosts = Cost("99", false)
+            assertSoftly {
+                original shouldContain "Kicker"
+                original shouldContain "4"
+                entry.description shouldBe original
+                entry.abilityGrpId shouldBe 0
+            }
+        }
+
         test("printed additional mana survives reductions and later ability changes") {
             val board =
                 startWithBoard { _, human, ai ->

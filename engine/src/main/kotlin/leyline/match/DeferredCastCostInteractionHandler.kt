@@ -157,9 +157,10 @@ internal class DeferredCastCostInteractionHandler(
         val (ctoReq, costCtoIds) =
             CastingTimeOptionsBuilder.buildOptionalCostCastingTimeOptionsReq(
                 instanceId = plan.instanceId,
-                optionalCosts = optional.entries.map { it.type to it.abilityGrpId },
+                optionalCosts = optional.entries,
                 playerIdToPrompt = counters.seatId.value,
                 baseManaCost = optional.baseManaCost,
+                presentation = ctx.bridge.engineSettings.costChoicePresentation,
             )
         return OptionalCostPrompt(ctoReq, costCtoIds)
     }

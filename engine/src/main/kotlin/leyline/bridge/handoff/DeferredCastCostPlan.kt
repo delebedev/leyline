@@ -52,6 +52,7 @@ internal data class DeferredCastCostPlan private constructor(
         val type: CastingTimeOptionType,
         val abilityGrpId: Int,
         val keywordName: String?,
+        val description: String? = null,
     )
 
     @ConsistentCopyVisibility

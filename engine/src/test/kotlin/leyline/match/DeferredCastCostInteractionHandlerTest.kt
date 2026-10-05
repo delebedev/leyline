@@ -20,6 +20,65 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 
 class DeferredCastCostInteractionHandlerTest :
     SessionTest({
+        for (presentation in CostChoicePresentation.entries) {
+            for (kick in listOf(true, false)) {
+                session(
+                    "optional kicker description preserves payment and base cast ($presentation, kick=$kick)",
+                    puzzle =
+                        """
+                            ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanhand=Shivan Fire;Island
+                            humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+                            humanlibrary=Island;Island;Island
+                            aibattlefield=Centaur Courser;Ornithopter
+                            ailibrary=Island;Island;Island
+                        """.trimIndent(),
+                    costChoicePresentation = presentation,
+                ) {
+                    val target = ai.battlefield.iid("Centaur Courser")
+                    val options =
+                        after { castSpellByName("Shivan Fire") }
+                            .expectOneCastingTimeOptionsReq()
+                            .castingTimeOptionReqList
+                    val kicker = options.single { it.castingTimeOptionType == CastingTimeOptionType.Kicker }
+                    val done = options.single { it.castingTimeOptionType == CastingTimeOptionType.Done }
+                    assertSoftly {
+                        if (presentation == CostChoicePresentation.ForgeText) {
+                            kicker.prompt.parametersList
+                                .single()
+                                .type shouldBe ParameterType.NonLocalizedString
+                            kicker.prompt.parametersList
+                                .single()
+                                .stringValue shouldContain "Kicker"
+                            kicker.prompt.parametersList
+                                .single()
+                                .stringValue shouldContain "4"
+                        } else {
+                            kicker.hasPrompt() shouldBe false
+                        }
+                        done.hasPrompt() shouldBe false
+                    }
+                    respondToOptionalCost(if (kick) kicker.ctoId else done.ctoId)
+                    selectTargets(listOf(target))
+                    passUntilResolved(maxPasses = 8)
+                    assertSoftly {
+                        "Shivan Fire" should beInGraveyardOf(human)
+                        human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe if (kick) 5 else 1
+                        ai.getZone(ZoneType.Battlefield).cards.map { it.name } shouldBe
+                            if (kick) listOf("Ornithopter") else listOf("Centaur Courser", "Ornithopter")
+                    }
+                    if (kick) {
+                        "Centaur Courser" should beInGraveyardOf(ai)
+                    } else {
+                        ai.battlefield.card("Centaur Courser").damage shouldBe 2
+                    }
+                }
+            }
+        }
+
         val state =
             """
             ActivePlayer=Human

@@ -92,7 +92,7 @@ internal object DeferredCastCostPlanMaterializer {
                             } else {
                                 cardData?.abilityIds?.getOrNull(keywordCount + index)?.first ?: 0
                             }
-                        DeferredCastCostPlan.OptionalCostEntry(type, abilityGrpId, null)
+                        DeferredCastCostPlan.OptionalCostEntry(type, abilityGrpId, null, cost.toString())
                     } +
                         keywordCosts.map { name ->
                             val slot = card.findKeywordSlot(name, keywordCount)
