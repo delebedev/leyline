@@ -1,6 +1,8 @@
 package leyline.game.generator
 
+import forge.deck.DeckSection
 import forge.gamemodes.limited.DraftPickStrategy
+import forge.gamemodes.limited.IBoosterDraft
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -22,6 +24,52 @@ class ForgeBoosterDraftDriverTest :
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
+        }
+
+        test("different sets draft concurrently without changing the global land edition") {
+            val driver = ForgeBoosterDraftDriver(SyntheticNameLookup()::findGrpIdByName)
+            val initialLandEdition = IBoosterDraft.LAND_SET_CODE[0]
+            val packs =
+                mutableMapOf(
+                    "tdm" to driver.start("tdm", "TDM"),
+                    "neo" to driver.start("neo", "NEO"),
+                )
+            repeat(200) {
+                for ((key, pack) in packs.toMap()) {
+                    if (pack.isNotEmpty()) packs[key] = driver.pick(key, pack.first()).nextPack
+                }
+                if (packs.values.all { it.isEmpty() }) return@repeat
+            }
+            assertSoftly {
+                packs.values.forEach { it shouldHaveSize 0 }
+                driver.complete("tdm").botDecks shouldHaveSize 7
+                driver.complete("neo").botDecks shouldHaveSize 7
+                IBoosterDraft.LAND_SET_CODE[0] shouldBe initialLandEdition
+            }
+        }
+
+        test("headless bot decks use their pod land edition after interleaved picks") {
+            val initialLandEdition = IBoosterDraft.LAND_SET_CODE[0]
+            val drafts = listOf("TDM", "NEO").associateWith { HeadlessBoosterDraft(it) }
+            repeat(200) {
+                for (draft in drafts.values) {
+                    val pack = draft.currentPackPaperCards()
+                    if (pack.isNotEmpty()) draft.chooseLocally(pack.first()) shouldBe true
+                }
+            }
+            assertSoftly {
+                for ((set, draft) in drafts) {
+                    draft.currentPackPaperCards() shouldHaveSize 0
+                    val decks = draft.computerDeckMains()
+                    decks shouldHaveSize 7
+                    for (deck in decks) {
+                        val basics = deck.getOrCreate(DeckSection.Main).toFlatList().filter { it.rules.type.isBasicLand }
+                        basics.shouldNotBeEmpty()
+                        basics.forEach { it.edition shouldBe set }
+                    }
+                }
+                IBoosterDraft.LAND_SET_CODE[0] shouldBe initialLandEdition
+            }
         }
 
         test("pack shrinks 1 card per pick within pack 0") {
