@@ -203,10 +203,73 @@ class StateProjectionCompilerTest :
                 owner.gameObjectsList.single { it.grpId == 202 }.visibility shouldBe Visibility.Public
                 snapshot.objects.getValue(foretoldId).grpId shouldBe 101
             }
+            val handSnapshot =
+                GsmSnapshot.forTest(
+                    matchId = snapshot.matchId,
+                    gameStateId = 1,
+                    seats = snapshot.seats,
+                    objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
+                    zones =
+                        snapshot.zones +
+                            mapOf(
+                                ZoneIds.EXILE to snapshot.zones.getValue(ZoneIds.EXILE).copy(contents = listOf(publicId)),
+                                ZoneIds.P1_HAND to snapshot.zones.getValue(ZoneIds.P1_HAND).copy(contents = listOf(foretoldId, handId)),
+                            ),
+                )
+            val hand =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    ProjectionState.initial(),
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(compilerInput(handSnapshot).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(compilerInput(handSnapshot).copy(viewingSeatId = 2)),
+                    ),
+                )
+            val preparedSnapshot = snapshot.withGameStateId(2)
+            val actions = ActionsAvailableReq.newBuilder().addActions(Action.newBuilder().setActionType(ActionType.Pass)).build()
+            val prepared =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    hand.transition.nextState,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(preparedSnapshot, handSnapshot).copy(viewingSeatId = 1),
+                            actions = actions,
+                        ),
+                        StateProjectionCompiler.ViewerInput(
+                            compilerInput(preparedSnapshot, handSnapshot).copy(viewingSeatId = 2),
+                            actions = actions,
+                        ),
+                    ),
+                )
+            val preparedIid =
+                prepared.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(foretoldId)
+                    .value
+            for (index in prepared.viewers.indices) {
+                val diff = prepared.viewers[index].result.gsm
+                val expected =
+                    projected.viewers[index]
+                        .result.gsm.gameObjectsList
+                        .single { it.instanceId == foretoldIid }
+                assertSoftly {
+                    diff.type shouldBe GameStateType.Diff
+                    diff.gameObjectsList
+                        .single { it.instanceId == preparedIid }
+                        .toBuilder()
+                        .clearInstanceId()
+                        .build() shouldBe
+                        expected.toBuilder().clearInstanceId().build()
+                    diff.actionsList
+                        .single()
+                        .action.actionType shouldBe ActionType.Pass
+                    diff.actionsList.single().seatId shouldBe index + 1
+                }
+            }
             val castSnapshot =
                 GsmSnapshot.forTest(
                     matchId = snapshot.matchId,
-                    gameStateId = 2,
+                    gameStateId = 3,
                     seats = snapshot.seats,
                     objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
                     zones =
@@ -219,10 +282,10 @@ class StateProjectionCompilerTest :
             val cast =
                 StateProjectionCompiler.compileViewers(
                     compilerEnvironment(),
-                    projected.transition.nextState,
+                    prepared.transition.nextState,
                     listOf(
-                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, snapshot).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, snapshot).copy(viewingSeatId = 2)),
+                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, preparedSnapshot).copy(viewingSeatId = 1)),
+                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, preparedSnapshot).copy(viewingSeatId = 2)),
                     ),
                 )
             val stackIid =

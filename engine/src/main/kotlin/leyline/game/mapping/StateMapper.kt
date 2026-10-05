@@ -1300,7 +1300,7 @@ object StateMapper {
                 idResolver = fullResult.idResolver,
                 objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
             )
-        return if (includePrivateObjects) draft else draft.forViewer(viewingSeatId, includePrivateObjects = false)
+        return draft.forViewer(viewingSeatId, includePrivateObjects, actions)
     }
 
     private fun Draft.forViewer(
