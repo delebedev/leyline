@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import forge.card.CardStateName
 import forge.game.event.GameEventSpellAbilityCast
 import forge.game.mana.Mana
 import forge.game.mana.ManaCostBeingPaid
@@ -14,6 +15,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import leyline.bridge.coord.hasAmbiguousActionCatalog
 import leyline.bridge.coord.resolveActionOffer
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
@@ -60,6 +62,31 @@ class ActionMapperSnapshotTest :
                             it.actionType == ActionType.ActivateMana
                     }.shouldBeTrue()
                 fromSnap.inactiveActionsCount shouldBe 0
+            }
+        }
+
+        test("transforming permanents offer only their current face activations") {
+            for (name in listOf("Arguel's Blood Fast", "Chalice of Life")) {
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard(name, human, ZoneType.Battlefield)
+                        addCard("Swamp", human, ZoneType.Battlefield)
+                        addCard("Swamp", human, ZoneType.Battlefield)
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                    }
+                val (bridge, game, _) = board
+                val card = board.human.battlefield.card(name)
+                for (state in listOf(CardStateName.Original, CardStateName.Backside)) {
+                    card.setState(state, true)
+                    val expected = card.spellAbilities.filter { it.isActivatedAbility && !it.isManaAbility() }
+                    val actual = getNonManaActivatedAbilities(card, card.controller)
+                    actual.map { it.id } shouldBe expected.map { it.id }
+                    val iid = bridge.instanceId(card)
+                    val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, bridge, "test", 0), bridge)
+                    (actions.actionsList + actions.inactiveActionsList).count {
+                        it.instanceId == iid && it.actionType == ActionType.Activate_add3
+                    } shouldBe 1
+                }
             }
         }
 

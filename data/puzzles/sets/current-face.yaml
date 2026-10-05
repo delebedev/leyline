@@ -1,0 +1,39 @@
+name: current-face
+description: Transforming permanents offer and execute their current face abilities.
+scenarios:
+  - id: arguel-transform-activation
+    puzzle: arguel-current-face
+    run: draw, transform at upkeep, and activate the back face
+    expect: the draw costs two life and the back face sacrifices a creature for life
+    steps:
+      - activate: "Arguel's Blood Fast"
+      - resolve_stack: {}
+      - expect: { our_life: 5 }
+      - pass_until: { prompt: OptionalActionMessage }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Temple of Aclazotz }
+      - activate: Temple of Aclazotz
+      - select_cost: { zone: battlefield, cards: [Walking Corpse] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - our_life: 7
+            - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
+  - id: chalice-transform-activation
+    puzzle: chalice-current-face
+    run: gain life, transform, and activate the back face on the next turn
+    expect: only the life-gain ability precedes transformation and life-loss follows it
+    steps:
+      - activate: Chalice of Life
+      - resolve_stack: {}
+      - expect:
+          all:
+            - our_life: 30
+            - zone_contains: { side: ours, zone: battlefield, card: Chalice of Death }
+      - pass_until: { action: { type: activate, card: Chalice of Death } }
+      - activate: Chalice of Death
+      - target: opponent
+      - resolve_stack: {}
+      - expect: { opponent_life: 15 }

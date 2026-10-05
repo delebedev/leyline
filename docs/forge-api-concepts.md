@@ -106,6 +106,10 @@ keyword is bound to its recipient during gameplay.
 
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
+Activated abilities come from the card's current state. An ability on another
+transforming face is neither active nor inactive on the current face. Explicit
+special actions such as turning a face-down card face up retain their own lookup.
+
 Abilities copied by continuous effects retain `SpellAbility.originalAbility`.
 `AbilityRegistry.identitySource` selects that definition's card catalog, while
 `forSpellAbility` resolves its original definition identity. Actions and object
