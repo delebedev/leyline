@@ -928,6 +928,8 @@ data class PromptRequest(
     val waterbendCostString: String? = null,
     /** Frozen source/shape facts for the migrated library-search route. */
     val searchSource: SearchSourceValue? = null,
+    /** Library owner supplied by the delayed-reveal callback, independent of the chooser. */
+    val searchedSeatId: SeatId? = null,
     /** Ordered, disjoint option-index partitions for SearchFromGroupsReq. */
     val searchGroupOptionIndices: List<List<Int>> = emptyList(),
     /** Frozen source identity for coordinator-owned Scry and Surveil grouping. */

@@ -1,0 +1,21 @@
+# Mechanic: Choose an opponent-owned creature from their library and put it under your control.
+# Forcing: Bribery is the only spell and Centaur Courser is the only eligible search result.
+# AI behavior: No hand or battlefield cards interrupt resolution.
+# Failure modes: Wrong search domain blocks selection; wrong transfer fails battlefield assertions.
+# Card roles: Bribery transfers Courser; Islands pay its cost; Forest proves play continues.
+# Protocol path: Opponent target, library search, zone transfer, then land play.
+[metadata]
+Name:Bribery search owner
+Goal:Win
+Turns:5
+Difficulty:Tutorial
+Description:Choose Centaur Courser from the opponent's library, then play Forest.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Island;Island;Island;Island;Island
+humanhand=Bribery;Forest
+humanlibrary=Island;Island;Island;Island;Island
+ailibrary=Centaur Courser;Forest;Forest;Forest;Forest

@@ -1553,8 +1553,17 @@ class BundleBuilder(
                 game,
                 counter,
                 routes,
-                intent = ViewerProjectionIntent.of(supplements),
-                revealPlayerCards = true,
+                intentForViewer = { viewer ->
+                    ViewerProjectionIntent.of(
+                        supplements,
+                        privateCardPrompt =
+                            if (viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player) {
+                                PrivateCardPromptProjection.of(window.libraryCardIds, null)
+                            } else {
+                                null
+                            },
+                    )
+                },
                 updateType = { snap, events -> resolveFrameUpdateType(snap, events) },
             )
         return finishSettledPrompt(

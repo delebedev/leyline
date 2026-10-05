@@ -1,0 +1,41 @@
+name: search-owner
+description: Library search domain belongs to the searched player independently of the chooser.
+scenarios:
+  - id: opponent-library
+    puzzle: bribery-search-owner
+    headless: { full_control: true }
+    steps:
+      - expect: { action: { type: cast, card: Bribery } }
+      - cast: Bribery
+      - pass_until: { prompt: { type: SearchReq } }
+      - search_cards: { side: opponent, cards: [Centaur Courser] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Centaur Courser }
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Centaur Courser }
+            - stack_empty: true
+      - play_land: Forest
+      - expect: { zone_contains: { side: ours, zone: battlefield, card: Forest } }
+  - id: own-library
+    puzzle: sacrifice-cost-confirm
+    headless: { full_control: true }
+    steps:
+      - activate: Evolving Wilds
+      - pass_until: { prompt: { type: SearchReq } }
+      - search_cards: { side: ours, cards: [Forest] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - zone_contains: { side: ours, zone: graveyard, card: Evolving Wilds }
+            - stack_empty: true
+  - id: no-matching-creature
+    puzzle: bribery-search-empty
+    headless: { full_control: true }
+    steps:
+      - cast: Bribery
+      - resolve_stack: {}
+      - expect: { stack_empty: true }
+      - play_land: Forest
+      - expect: { zone_contains: { side: ours, zone: battlefield, card: Forest } }

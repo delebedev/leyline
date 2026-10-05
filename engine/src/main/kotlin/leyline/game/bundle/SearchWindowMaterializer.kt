@@ -46,7 +46,7 @@ internal class SearchWindowMaterializer(
                         SearchFromGroupsReq
                             .newBuilder()
                             .setMaxFind(window.maxFind)
-                            .addZonesToSearch(ZoneIds.libraryOf(SeatId(context.seatId)))
+                            .addZonesToSearch(ZoneIds.libraryOf(window.searchedSeatId))
                             .addAllGroups(
                                 window.groups.map { group ->
                                     Group
@@ -76,7 +76,7 @@ internal class SearchWindowMaterializer(
                     it.searchReq =
                         RequestBuilder.buildSearchRequest(
                             sourceInstanceId = sourceId,
-                            libraryZoneId = ZoneIds.libraryOf(SeatId(context.seatId)),
+                            libraryZoneId = ZoneIds.libraryOf(window.searchedSeatId),
                             allLibraryIds = libraryIds,
                             validTargetIds = validIds,
                             maxFind = window.maxFind,
@@ -88,7 +88,7 @@ internal class SearchWindowMaterializer(
                             .newBuilder()
                             .setPromptId(promptId)
                             .addParameters(cardIdPromptParameter(hostId))
-                            .addParameters(cardIdPromptParameter(context.seatId))
+                            .addParameters(cardIdPromptParameter(window.searchedSeatId.value))
                             .build()
                 }
             }

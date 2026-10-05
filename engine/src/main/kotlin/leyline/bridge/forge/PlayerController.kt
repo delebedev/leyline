@@ -433,6 +433,12 @@ class PlayerController(
             title,
             isOptional,
             hasDelayedReveal = delayedReveal != null,
+            searchedSeatId =
+                delayedReveal
+                    ?.takeIf { it.zone == setOf(ZoneType.Library) }
+                    ?.owner
+                    ?.let { view -> game.players.firstOrNull { it.id == view.id } }
+                    ?.let { owner -> if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat },
         )
     }
 
