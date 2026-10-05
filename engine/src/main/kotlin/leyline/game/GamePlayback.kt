@@ -176,9 +176,12 @@ class GamePlayback(
     /** Forge main-loop completion entry point. Event visitors do no projection work. */
     fun onMainLoopStepCompleted() {
         val viewerSeat = SeatId(seatId)
-        if (bridge.getGame()?.isGameOver == true) {
+        val game = bridge.getGame()
+        if (game?.isGameOver == true) {
             bridge.cutCoordinator.publishGameOverFromEngine(viewerSeat)
-        } else {
+        } else if (game?.stack?.hasSimultaneousStackEntries() != true) {
+            // Pending triggers settle before priority. Their next prompt or priority
+            // publication includes the mutation that created them in the same frame.
             bridge.cutCoordinator.flushPlaybackCut(viewerSeat, PlaybackCutBoundary.MainLoopStep)
         }
     }

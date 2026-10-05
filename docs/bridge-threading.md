@@ -197,8 +197,11 @@ immutable facts and request a cut. They must not:
 - install, enqueue, deliver, sleep, or wait on external work.
 
 `PhaseHandler` invokes the ordinary completion hook after a successful
-`mainLoopStep` mutation burst. Narrow completion hooks own attacker declaration,
-blocker declaration, and combat teardown cuts. A combat journal may yield
+`mainLoopStep` mutation burst. Playback defers that cut while simultaneous
+trigger entries are pending, so the next prompt or priority publication includes
+the creating mutation and trigger together. Terminal publication takes precedence.
+Narrow completion hooks own attacker declaration, blocker declaration, and combat
+teardown cuts. A combat journal may yield
 several ordered frames, but the pending cut compiles them as one private fold
 and installs only the final combined transition.
 

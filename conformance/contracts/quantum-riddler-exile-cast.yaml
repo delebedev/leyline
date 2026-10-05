@@ -49,6 +49,11 @@ frames:
       details.type: [13]
 - id: exile-cast-resolve
   events:
+  - id: draw-ability
+    type: Ability
+    lane: object
+    fields: {raw.zoneId: 27}
+    equals: {raw.parentId: spell.affectorId, raw.objectSourceGrpId: spell.raw.grpId}
   - id: exile-cast-resolution-started
     type: ResolutionStart
     lane: transient
@@ -68,22 +73,6 @@ frames:
       details.category: [Resolve]
       details.zone_src: [27]
       details.zone_dest: [28]
-  - id: exile-casting-option-retired
-    type: CastingTimeOption
-    lane: persistent
-    op: delete
-    keys: [castAbilityGrpId, type]
-    sameRow: exile-casting-option
-    fields:
-      details.castAbilityGrpId: [371]
-      details.type: [13]
-- id: draw-trigger-created
-  events:
-  - id: draw-ability
-    type: Ability
-    lane: object
-    fields: {raw.zoneId: 27}
-    equals: {raw.parentId: spell.affectorId, raw.objectSourceGrpId: spell.raw.grpId}
   - id: draw-trigger-created
     type: AbilityInstanceCreated
     lane: transient
@@ -99,6 +88,15 @@ frames:
     equals: {affectorId: 'draw-trigger-created.affectedIds[0]', 'affectedIds[0]': draw-trigger-created.affectorId}
     fields:
       details.source_zone: [28]
+  - id: exile-casting-option-retired
+    type: CastingTimeOption
+    lane: persistent
+    op: delete
+    keys: [castAbilityGrpId, type]
+    sameRow: exile-casting-option
+    fields:
+      details.castAbilityGrpId: [371]
+      details.type: [13]
 - id: draw-trigger
   events:
   - id: draw-resolution-started
