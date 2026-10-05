@@ -151,6 +151,38 @@ class PhyrexianManaCostInteractionTest :
         }
 
         session(
+            "retrace life choices retain one required discard without a second optional modal",
+            puzzle =
+                puzzle(hand = "Forest;Ornithopter", battlefield = "$krrik;Mountain") +
+                    "\nhumangraveyard=Syphon Life",
+        ) {
+            val request = after { castFromGraveyard("Syphon Life").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val mana = request.castingTimeOptionReqList.filter { it.hasSelectManaTypeReq() }
+            mana.size shouldBe 2
+            after { respondToManaTypeChoices(mana.map { it.ctoId to ManaColor.Phyrexian_afc9 }) }
+                .expectNoCastingTimeOptionsReq()
+            selectTargets(listOf(2))
+            val discard = lastSelectNReq()
+            discard.minSel shouldBe 0
+            discard.maxSel shouldBe 1
+            respondToSelectN(discard.idsList)
+            passUntilResolved()
+            assertSoftly {
+                human.life shouldBe 18
+                ai.life shouldBe 18
+                human
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .map { it.name }
+                    .sorted() shouldBe listOf("Forest", "Syphon Life")
+                human.getZone(ZoneType.Hand).cards.map { it.name } shouldBe listOf("Ornithopter")
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 1
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        session(
             "accepted black kicker offers life choices for the complete cost",
             puzzle = puzzle(hand = "Duskwalker", battlefield = "$krrik;Mountain;Mountain;Mountain"),
         ) {

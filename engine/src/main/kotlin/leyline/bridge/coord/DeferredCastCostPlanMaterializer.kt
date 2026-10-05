@@ -56,7 +56,8 @@ internal object DeferredCastCostPlanMaterializer {
 
         val hybrid = materializeManaPlan(ability, player)
 
-        val optionalCosts = GameActionUtil.getOptionalCostValues(ability)
+        val optionalCosts =
+            GameActionUtil.getOptionalCostValues(ability).filterNot { ability.isOptionalCostPaid(it.type) }
         val keywordCosts = card.binaryKeywordCosts()
         val optional =
             if (optionalCosts.isEmpty() && keywordCosts.isEmpty()) {
