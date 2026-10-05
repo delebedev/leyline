@@ -7,22 +7,76 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.SimClientTag
 import leyline.game.generator.PuzzleSource
+import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.detailInt
 import leyline.testkit.gameStateMessages
 import leyline.tooling.artifact.SyntheticArtifactWriter
+import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.nio.file.Files
 
 /**
- * Keeps the simclient-specific ordering assertion that is not owned by a
- * mechanic or mapper test.
+ * Verifies simclient response routing and ordering through the shared runtime.
  */
 @Suppress("TierPlacementCheck") // SimClientDriver owns the game-loop interaction exercised here.
 class SimClientE2ETest :
     FunSpec({
         tags(SimClientTag)
+
+        for (discovered in listOf("Lightning Bolt", "Sage of the Skies")) {
+            test("discovered $discovered continues through its cast work") {
+                val harness = MatchFlowHarness(seed = 42L, responseMode = HeadlessResponseMode.PolicyVisible)
+                val tempLog = Files.createTempFile("simclient-discover-", ".log").toFile()
+                val writer = tempLog.bufferedWriter()
+                val playerLog = SyntheticArtifactWriter(out = writer, matchId = "simclient-discover")
+                try {
+                    val stats =
+                        SimClientDriver(
+                            harness = harness,
+                            log = playerLog,
+                            maxTurns = 2,
+                            connect = {
+                                harness.connectAndKeepPuzzleText(
+                                    PuzzleSource
+                                        .definitionFromResource("data/puzzles/discover-geological-appraiser.pzl")
+                                        .content
+                                        .replace("Llanowar Elves", discovered),
+                                )
+                            },
+                        ).runOneGame()
+
+                    stats.completionReason shouldBe "max-turns"
+                    harness.allMessages.any {
+                        it.hasActionsAvailableReq() && it.prompt.promptId == PromptIds.FREE_CAST_FROM_REVEAL
+                    } shouldBe true
+                    val states = harness.allMessages.gameStateMessages()
+                    if (discovered == "Lightning Bolt") {
+                        harness.allMessages.any { it.hasSelectTargetsReq() } shouldBe true
+                        states.flatMap { it.annotationsList }.count {
+                            AnnotationType.DamageDealt_af5a in it.typeList
+                        } shouldBe 1
+                    } else {
+                        val grpId = harness.bridge.cardRepository.findGrpIdByName(discovered)
+                        states
+                            .flatMap { it.gameObjectsList }
+                            .filter {
+                                it.type in setOf(GameObjectType.Card, GameObjectType.Token) &&
+                                    it.grpId == grpId &&
+                                    it.zoneId == ZoneIds.BATTLEFIELD
+                            }.map { it.instanceId }
+                            .distinct()
+                            .size shouldBe 2
+                    }
+                } finally {
+                    writer.close()
+                    runCatching { harness.shutdown() }
+                }
+            }
+        }
 
         test("grouped target decisions advance each target group before submit") {
             val harness = MatchFlowHarness(seed = 42L)

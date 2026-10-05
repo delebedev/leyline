@@ -8,6 +8,7 @@ import forge.game.zone.ZoneType
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.coord.GameLoopPoller
 import leyline.bridge.getNonManaActivatedAbilities
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -783,6 +784,7 @@ class MatchFlowHarness(
                     completed = true
                     return@withSessionLock
                 }
+                check(System.nanoTime() < deadline) { "Timed out waiting for $description" }
                 epoch = localOutput.snapshot()
                 messageStart = messageSnapshot()
                 response()?.let {
@@ -792,22 +794,13 @@ class MatchFlowHarness(
             }
             if (completed) return true
             if (submitted && !continueAfterSubmit) {
-                if (expected == null) {
-                    val remainingNanos = deadline - System.nanoTime()
-                    check(
-                        remainingNanos > 0 &&
-                            localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
-                    ) { "Timed out waiting for $description" }
-                    collectSinkMessages()
-                } else {
-                    awaitNamedOutput(epoch, messageStart, description, expected)
-                }
+                awaitNamedOutput(epoch, messageStart, description, expected ?: { true })
                 if (autoRespond && responseMode == HeadlessResponseMode.AutoForTests) drainAutomaticResponses()
                 return false
             }
             val remainingNanos = deadline - System.nanoTime()
             check(
-                remainingNanos > 0 && localOutput.awaitAfter(epoch, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1),
+                localOutput.awaitAfter(epoch, (TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1).coerceAtLeast(0)),
             ) { "Timed out waiting for $description" }
         }
     }
@@ -1750,16 +1743,13 @@ class MatchFlowHarness(
         candidateIds.firstOrNull { cardName(it) == name }
             ?: error("Card '$name' not found in candidates: $candidateIds")
 
-    /**
-     * True when the seat's [GameActionBridge] has a pending action awaiting
-     * the client's response. False means the engine isn't blocked on us — any
-     * submit we make will trigger
-     * `WARN ActionPerformer: PerformActionResp but no pending action` and a
-     * spurious state resync. Use as a guard before submitting an action
-     * in long-running drivers (simclient) where runtime horizons frequently
-     * advances past priority windows between observe and submit.
-     */
-    fun hasPendingAction(seat: SeatId = seatId): Boolean = bridge.actionBridge(seat).getPending() != null
+    /** Whether the seat has an action response window, including a blocking free-cast offer. */
+    fun hasPendingAction(seat: SeatId = seatId): Boolean =
+        bridge.actionBridge(seat).getPending() != null ||
+            (
+                seat == seatId &&
+                    (bridge.cutCoordinator.currentBlockingInteraction()?.interaction as? BlockingInteraction.Optional)?.freeCast != null
+            )
 
     fun shutdown() {
         if (::localConnection.isInitialized) localConnection.disconnected()
