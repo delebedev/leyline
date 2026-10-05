@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.card.mana.ManaCost
+import forge.card.mana.ManaCostShard
 import forge.game.GameActionUtil
 import forge.game.card.Card
 import forge.game.cost.CostBlight
@@ -53,24 +54,7 @@ internal object DeferredCastCostPlanMaterializer {
         val card = ability.hostCard ?: return null
         val player = ability.activatingPlayer ?: return null
 
-        val hybrid =
-            if (offer.action.alternativeGrpId == 0) {
-                val effectiveCost = ActionMapper.computeEffectiveCost(ability, player)
-                val paymentColors = effectiveCost?.hybridOrTwoGenericColors().orEmpty()
-                if (effectiveCost != null && paymentColors.isNotEmpty()) {
-                    val baseCost = ability.payCosts?.totalMana
-                    val promptCost = baseCost?.takeIf { it.hybridOrTwoGenericColors().size == paymentColors.size } ?: effectiveCost
-                    DeferredCastCostPlan.hybrid(
-                        promptCost.hybridOrTwoGenericColors(),
-                        paymentColors,
-                        promptCost.toManaRequirementSpecs(),
-                    )
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
+        val hybrid = materializeManaPlan(offer, ability, player)
 
         val optionalCosts = GameActionUtil.getOptionalCostValues(ability)
         val keywordCosts = card.binaryKeywordCosts()
@@ -94,17 +78,24 @@ internal object DeferredCastCostPlanMaterializer {
                             } else {
                                 cardData?.abilityIds?.getOrNull(keywordCount + index)?.first ?: 0
                             }
-                        DeferredCastCostPlan.OptionalCostEntry(type, abilityGrpId, null, cost.toString())
+                        DeferredCastCostPlan.OptionalCostEntry(
+                            type = type,
+                            abilityGrpId = abilityGrpId,
+                            keywordName = null,
+                            description = cost.toString(),
+                            manaPlan = materializeManaPlan(offer, GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
+                        )
                     } +
                         keywordCosts.map { keyword ->
                             val name = keyword.keyword.toString()
                             val slot = card.findKeywordSlot(name, keywordCount)
                             val abilityGrpId = slot?.let { cardData?.abilityIds?.getOrNull(it)?.first } ?: 0
                             DeferredCastCostPlan.OptionalCostEntry(
-                                CastingTimeOptionType.AdditionalCost,
-                                abilityGrpId,
-                                name,
-                                (keyword as? KeywordWithCostInterface)?.title,
+                                type = CastingTimeOptionType.AdditionalCost,
+                                abilityGrpId = abilityGrpId,
+                                keywordName = name,
+                                description = (keyword as? KeywordWithCostInterface)?.title,
+                                manaPlan = hybrid,
                             )
                         }
                 DeferredCastCostPlan.optional(entries, cardData?.manaCost.orEmpty())
@@ -144,6 +135,38 @@ internal object DeferredCastCostPlanMaterializer {
             childSelections.toMap(),
         )
     }
+
+    private fun materializeManaPlan(
+        offer: GameActionBridge.ActionOffer,
+        ability: SpellAbility,
+        player: forge.game.player.Player,
+    ): DeferredCastCostPlan.HybridManaPlan? =
+        if (offer.action.alternativeGrpId == 0) {
+            val effectiveCost = ActionMapper.computeEffectiveCost(ability, player)
+            val lifeForBlack = player.hasKeyword("PayLifeInsteadOf:B")
+            val paymentChoices = effectiveCost?.manaChoices(lifeForBlack).orEmpty()
+            val paymentColors = paymentChoices.map { it.first }
+            if (effectiveCost != null && paymentColors.isNotEmpty()) {
+                val baseCost = ability.payCosts?.totalMana
+                val promptCost =
+                    if (paymentChoices.any { it.second == ManaColor.Phyrexian_afc9 }) {
+                        effectiveCost
+                    } else {
+                        baseCost?.takeIf { it.manaChoices(lifeForBlack).size == paymentColors.size } ?: effectiveCost
+                    }
+                val promptChoices = promptCost.manaChoices(lifeForBlack)
+                DeferredCastCostPlan.hybrid(
+                    promptChoices.map { it.first },
+                    paymentColors,
+                    promptCost.toManaRequirementSpecs(lifeForBlack),
+                    promptChoices.map { it.second },
+                )
+            } else {
+                null
+            }
+        } else {
+            null
+        }
 
     private val binaryKeywordCostNames = setOf(Keyword.OFFSPRING, Keyword.CASUALTY, Keyword.CONSPIRE)
 
@@ -197,14 +220,34 @@ internal object DeferredCastCostPlanMaterializer {
             ?: true
     }
 
-    private fun ManaCost.hybridOrTwoGenericColors(): List<ManaColor> = mapNotNull(ManaColorMapping::fromOrTwoGenericShard)
+    private fun manaChoice(
+        shard: ManaCostShard,
+        lifeForBlack: Boolean,
+    ): Pair<ManaColor, ManaColor>? {
+        ManaColorMapping.fromOrTwoGenericShard(shard)?.let { return it to ManaColor.TwoGeneric }
+        if (shard.isPhyrexian && shard.isMonoColor || (shard == ManaCostShard.BLACK && lifeForBlack)) {
+            val color =
+                when {
+                    shard.isWhite -> ManaColor.White_afc9
+                    shard.isBlue -> ManaColor.Blue_afc9
+                    shard.isBlack -> ManaColor.Black_afc9
+                    shard.isRed -> ManaColor.Red_afc9
+                    shard.isGreen -> ManaColor.Green_afc9
+                    else -> return null
+                }
+            return color to ManaColor.Phyrexian_afc9
+        }
+        return null
+    }
 
-    private fun ManaCost.toManaRequirementSpecs(): List<ManaRequirementSpec> =
+    private fun ManaCost.manaChoices(lifeForBlack: Boolean): List<Pair<ManaColor, ManaColor>> = mapNotNull { manaChoice(it, lifeForBlack) }
+
+    private fun ManaCost.toManaRequirementSpecs(lifeForBlack: Boolean): List<ManaRequirementSpec> =
         buildList {
             for (shard in this@toManaRequirementSpecs) {
-                val hybrid = ManaColorMapping.fromOrTwoGenericShard(shard)
-                val color = hybrid ?: ManaColorMapping.fromShard(shard) ?: continue
-                add(ManaRequirementSpec.frozen(if (hybrid == null) listOf(color) else listOf(ManaColor.TwoGeneric, color)))
+                val choice = manaChoice(shard, lifeForBlack)
+                val color = choice?.first ?: ManaColorMapping.fromShard(shard) ?: continue
+                add(ManaRequirementSpec.frozen(if (choice == null) listOf(color) else listOf(choice.second, color)))
             }
             if (genericCost > 0) add(ManaRequirementSpec.frozen(listOf(ManaColor.Generic), genericCost))
         }

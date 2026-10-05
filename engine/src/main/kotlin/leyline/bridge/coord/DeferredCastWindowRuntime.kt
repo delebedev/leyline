@@ -40,8 +40,14 @@ internal sealed interface DeferredCastAdmission {
 
     data object Optional : DeferredCastAdmission
 
+    data class ManaAfterOptional(
+        val receipt: DeferredCastReceipt,
+        val plan: DeferredCastCostPlan.HybridManaPlan,
+    ) : DeferredCastAdmission
+
     data class Hybrid(
         val receipt: DeferredCastReceipt,
+        val optionalSelected: Boolean = false,
     ) : DeferredCastAdmission
 
     data object Alternate : DeferredCastAdmission
@@ -86,8 +92,8 @@ internal class DeferredCastWindowRuntime(
             override val actionClaim: MatchActionWindowRuntime.ActionClaim,
             override val promptGameStateId: Int,
             val ctoIds: List<Int>,
-            val promptColors: List<ManaColor>,
-            val paymentColors: List<ManaColor>,
+            val plan: DeferredCastCostPlan.HybridManaPlan,
+            val optionalSelected: Boolean,
             override var adopted: Boolean = false,
         ) : Prompt
 
@@ -107,8 +113,8 @@ internal class DeferredCastWindowRuntime(
             override val claim: MatchActionWindowRuntime.ActionClaim,
             override val request: CastingTimeOptionsReq,
             val ctoIds: List<Int>,
-            val promptColors: List<ManaColor>,
-            val paymentColors: List<ManaColor>,
+            val plan: DeferredCastCostPlan.HybridManaPlan,
+            val optionalSelected: Boolean,
         ) : Publication
 
         data class Optional(
@@ -131,9 +137,15 @@ internal class DeferredCastWindowRuntime(
         claim: MatchActionWindowRuntime.ActionClaim,
         request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
-        promptColors: List<ManaColor>,
-        paymentColors: List<ManaColor>,
-    ) = publishClaimed(Publication.Hybrid(claim, request, ctoIds, promptColors, paymentColors))
+        plan: DeferredCastCostPlan.HybridManaPlan,
+    ) = publishClaimed(Publication.Hybrid(claim, request, ctoIds, plan, optionalSelected = false))
+
+    fun publishHybrid(
+        receipt: DeferredCastReceipt,
+        request: CastingTimeOptionsReq,
+        ctoIds: List<Int>,
+        plan: DeferredCastCostPlan.HybridManaPlan,
+    ): Boolean = publishAdopted(receipt) { claim -> Publication.Hybrid(claim, request, ctoIds, plan, optionalSelected = true) }
 
     fun publishOptional(
         claim: MatchActionWindowRuntime.ActionClaim,
@@ -147,7 +159,7 @@ internal class DeferredCastWindowRuntime(
         request: CastingTimeOptionsReq,
         ctoIds: List<Int>,
         preserveHybridStash: Boolean,
-    ): Boolean = publishAdoptedOptional(receipt, request, ctoIds, clearHybridStash = !preserveHybridStash)
+    ): Boolean = publishAdopted(receipt) { claim -> Publication.Optional(claim, request, ctoIds, clearHybridStash = !preserveHybridStash) }
 
     fun publishAlternate(
         claim: MatchActionWindowRuntime.ActionClaim,
@@ -183,7 +195,10 @@ internal class DeferredCastWindowRuntime(
             pending?.actionClaim?.deferredCostPlan?.sourceCardId?.let { cardId ->
                 owner.bridge.setSelectedAdditionalCost(cardId, null)
             }
-            if (pending != null) prompt = null
+            if (pending != null) {
+                clearPaymentChoices(pending.actionClaim)
+                prompt = null
+            }
         }
     }
 
@@ -235,12 +250,20 @@ internal class DeferredCastWindowRuntime(
                 owner.bridge.setSelectedSpellGrpId(cardId, null)
                 owner.bridge.setSelectedAdditionalCost(cardId, null)
             }
+            clearPaymentChoices(claim)
+            actions.reopenDeferredClaim(claim)
+        }
+
+    private fun clearPaymentChoices(claim: MatchActionWindowRuntime.ActionClaim) {
+        claim.deferredCostPlan?.sourceCardId?.let { owner.bridge.consumeSelectedAdditionalCostGrpId(it) }
+        val journal =
             owner.bridge
                 .seat(actions.seatFor(claim.actionId))
                 .prompt.journal
-                .clearHybridManaStash()
-            actions.reopenDeferredClaim(claim)
-        }
+        journal.clearHybridManaStash()
+        journal.consumeOptionalCostStash()
+        journal.clearKeywordCostStash()
+    }
 
     private fun admitOptional(
         pending: Prompt.Optional,
@@ -265,6 +288,24 @@ internal class DeferredCastWindowRuntime(
                 ?.let { cardId -> owner.bridge.setSelectedAdditionalCostGrpId(cardId, grpId) }
         }
         if (decisions.isNotEmpty()) seatBridge.prompt.journal.record(PromptSideEffect.KeywordCostStash(decisions))
+        val plan = pending.actionClaim.deferredCostPlan
+        if (plan?.manaAfterOptional == true) {
+            val selectedMana =
+                if (accepted) {
+                    plan.optional
+                        ?.entries
+                        ?.getOrNull(chosen - 1)
+                        ?.manaPlan
+                } else {
+                    plan.hybrid
+                }
+            if (selectedMana != null) {
+                return DeferredCastAdmission.ManaAfterOptional(
+                    DeferredCastReceipt(pending.actionClaim.actionId, pending.actionClaim.token),
+                    selectedMana,
+                )
+            }
+        }
         check(actions.completeDeferredClaim(pending.actionClaim)) { "Deferred optional action claim did not complete" }
         prompt = null
         return DeferredCastAdmission.Optional
@@ -283,15 +324,24 @@ internal class DeferredCastWindowRuntime(
         val promptChoices =
             pending.ctoIds.mapIndexed { index, ctoId ->
                 byCtoId[ctoId]?.manaColor ?: response.options.getOrNull(index)?.manaColor
-                    ?: pending.promptColors.getOrNull(index) ?: ManaColor.TwoGeneric
+                    ?: pending.plan.promptColors.getOrNull(index) ?: ManaColor.TwoGeneric
             }
-        val choices = reorderHybridChoices(promptChoices, pending.promptColors, pending.paymentColors)
+        val alternatives = pending.plan.alternatives
+        if (promptChoices.withIndex().any { (index, choice) ->
+                choice != pending.plan.promptColors[index] && choice != (alternatives.getOrNull(index) ?: ManaColor.TwoGeneric)
+            } ||
+            alternatives.contains(ManaColor.Phyrexian_afc9) &&
+            pending.ctoIds.any { it !in byCtoId }
+        ) {
+            return DeferredCastAdmission.Rejected(DeferredCastRejection.WrongOption)
+        }
+        val choices = reorderHybridChoices(promptChoices, pending.plan.promptColors, pending.plan.paymentColors)
         pending.adopted = true
         owner.bridge
             .seat(actions.seatFor(pending.actionClaim.actionId))
             .prompt.journal
             .record(PromptSideEffect.HybridManaStash(choices))
-        return DeferredCastAdmission.Hybrid(receipt)
+        return DeferredCastAdmission.Hybrid(receipt, pending.optionalSelected)
     }
 
     private fun admitAlternate(
@@ -356,21 +406,19 @@ internal class DeferredCastWindowRuntime(
         }
     }
 
-    private fun publishAdoptedOptional(
+    private fun publishAdopted(
         receipt: DeferredCastReceipt,
-        request: CastingTimeOptionsReq,
-        ctoIds: List<Int>,
-        clearHybridStash: Boolean,
+        publicationFor: (MatchActionWindowRuntime.ActionClaim) -> Publication,
     ): Boolean {
         synchronized(owner.feedLock) {
-            if (adoptedHybrid(receipt) == null) return false
+            if (adoptedPrompt(receipt) == null) return false
         }
         owner.beforePublicationLock?.invoke()
         synchronized(owner.feedLock) {
             owner.ensureOpen()
-            val pending = adoptedHybrid(receipt) ?: return false
+            val pending = adoptedPrompt(receipt) ?: return false
             checkClaim(pending.actionClaim)
-            val publication = Publication.Optional(pending.actionClaim, request, ctoIds, clearHybridStash)
+            val publication = publicationFor(pending.actionClaim)
             validate(publication)
             val seatId = actions.seatFor(pending.actionClaim.actionId)
             owner.registerViewer(seatId)
@@ -382,17 +430,15 @@ internal class DeferredCastWindowRuntime(
         }
     }
 
-    private fun adoptedHybrid(receipt: DeferredCastReceipt): Prompt.HybridManaType? {
-        val pending = prompt as? Prompt.HybridManaType ?: return null
-        return pending.takeIf {
+    private fun adoptedPrompt(receipt: DeferredCastReceipt): Prompt? =
+        prompt?.takeIf {
             it.adopted && it.actionClaim.actionId == receipt.actionId && it.actionClaim.token == receipt.token
         }
-    }
 
     private fun validate(publication: Publication) {
         when (publication) {
             is Publication.Hybrid ->
-                check(publication.ctoIds.size == publication.promptColors.size) {
+                check(publication.ctoIds.size == publication.plan.promptColors.size) {
                     "Deferred hybrid catalog no longer matches the action plan"
                 }
             is Publication.Optional -> {
@@ -430,8 +476,8 @@ internal class DeferredCastWindowRuntime(
                         publication.claim,
                         gameStateId,
                         publication.ctoIds.toList(),
-                        publication.promptColors.toList(),
-                        publication.paymentColors.toList(),
+                        publication.plan,
+                        publication.optionalSelected,
                     )
                 is Publication.Optional -> optionalPrompt(publication.claim, gameStateId, publication.ctoIds)
                 is Publication.Alternate -> {

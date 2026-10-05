@@ -1,0 +1,21 @@
+# Mechanic: K'rrik permits life payment for black mana in an accepted kicker cost.
+# Forcing: Three Mountains cover generic mana but cannot pay either black symbol.
+# AI behavior: Empty hand and battlefield leave no intervening decision.
+# Failure modes: Missing final choices leave Skyclave Shade in hand. A retained optional choice changes a declined cast.
+# Card roles: Skyclave Shade supplies base and kicker black symbols. K'rrik grants their life alternatives.
+# Protocol path: Cast, optional-cost choice, complete mana choices, battlefield state.
+[metadata]
+Name:Phyrexian Mana Kicker
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Choose Skyclave Shade's kicker and pay its two black symbols with life.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=K'rrik, Son of Yawgmoth;Mountain;Mountain;Mountain
+humanhand=Skyclave Shade
+humanlibrary=Forest
+ailibrary=Forest

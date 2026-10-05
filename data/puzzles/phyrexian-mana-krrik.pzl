@@ -1,0 +1,21 @@
+# Mechanic: Select two life payments and one black mana payment for K'rrik.
+# Forcing: Available mana allows either method, so the player's choices determine life and tapped lands.
+# AI behavior: Empty hand and battlefield leave no intervening decision.
+# Failure modes: Missing choices or unchanged life indicate automatic payment rather than the selected method.
+# Card roles: K'rrik supplies three phyrexian symbols. Seven Swamps can pay the entire cost. Libraries prevent draw losses.
+# Protocol path: Cast, CastingTimeOptionsReq ManaType, selected payment, battlefield state.
+[metadata]
+Name:Phyrexian Mana Krrik
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast K'rrik with two life payments and one black mana payment.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humanhand=K'rrik, Son of Yawgmoth
+humanlibrary=Forest
+ailibrary=Forest

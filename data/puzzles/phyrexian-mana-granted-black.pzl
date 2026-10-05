@@ -1,0 +1,21 @@
+# Mechanic: K'rrik grants life payment for ordinary black mana symbols.
+# Forcing: Four Swamps offer full mana payment, while mixed choices should leave two untapped.
+# AI behavior: Empty hand and battlefield leave no intervening decision.
+# Failure modes: Missing choices or unchanged life indicate automatic payment rather than the selected method.
+# Card roles: K'rrik grants payment permission. Phyrexian Obliterator supplies four ordinary black symbols. Libraries prevent draw losses.
+# Protocol path: Cast, CastingTimeOptionsReq ManaType, selected payment, battlefield state.
+[metadata]
+Name:Granted Black Life Payment
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Phyrexian Obliterator with two life payments and two black mana payments.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=K'rrik, Son of Yawgmoth;Swamp;Swamp;Swamp;Swamp
+humanhand=Phyrexian Obliterator
+humanlibrary=Forest
+ailibrary=Forest

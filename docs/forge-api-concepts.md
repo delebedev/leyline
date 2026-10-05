@@ -159,6 +159,14 @@ For cast actions, use the effective Forge cost, not printed card data, whenever 
 
 For activated abilities, use `SpellAbility.payCosts.totalMana` unless the mechanic has a specific reason to use the cast-cost pipeline.
 
+Phyrexian symbols and `PayLifeInsteadOf:B` permit a player choice for each symbol.
+`ComputerUtilMana` normally prefers mana and uses life as a fallback. An explicit
+payment plan removes selected life shards before automatic mana payment and
+temporarily sets `AIPhyrexianPayment=Never` to preserve selected mana choices.
+Life is committed only after the remaining mana succeeds. The original policy
+is restored in `finally`; failed payment uses Forge's existing mana rollback.
+Commander tax remains generic mana in the effective cost.
+
 For mana color translation, use `ManaColorMapping`. Forge's color bitmasks and the client mana ordinals are not the same domain.
 
 For land color production:

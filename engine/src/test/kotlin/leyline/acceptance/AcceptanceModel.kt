@@ -424,6 +424,7 @@ enum class AcceptanceManaTypeChoice(
     val yamlName: String,
 ) {
     TwoGeneric("two_generic"),
+    Phyrexian("phyrexian"),
     White("white"),
     Blue("blue"),
     Black("black"),

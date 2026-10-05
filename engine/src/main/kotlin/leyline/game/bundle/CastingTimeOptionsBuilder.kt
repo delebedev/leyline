@@ -170,6 +170,7 @@ object CastingTimeOptionsBuilder {
         playerIdToPrompt: Int,
         hybridColors: List<ManaColor>,
         manaCost: List<ManaRequirementSpec>,
+        alternatives: List<ManaColor> = List(hybridColors.size) { ManaColor.TwoGeneric },
     ): Pair<CastingTimeOptionsReq, List<Int>> {
         val manaRequirements = manaCost.map { it.toProto(instanceId) }
         val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
@@ -190,7 +191,7 @@ object CastingTimeOptionsBuilder {
                     .setSelectManaTypeReq(
                         SelectManaTypeReq
                             .newBuilder()
-                            .addManaColors(ManaColor.TwoGeneric)
+                            .addManaColors(alternatives[index])
                             .addManaColors(color)
                             .setSourceId(instanceId),
                     ).addAllManaCost(manaRequirements),

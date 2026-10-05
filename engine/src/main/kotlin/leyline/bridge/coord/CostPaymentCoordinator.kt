@@ -198,7 +198,33 @@ class CostPaymentCoordinator(
     ): Boolean {
         if (cancelledManaPayment) return false
         log.debug("applyManaToCost [AI]: {} for {}", toPay, ability.hostCard?.name)
-        applyHybridManaChoices(toPay, ability)
+        val lifePayment = applyHybridManaChoices(toPay)
+        if (lifePayment.amount > 0 && !player.canPayLife(lifePayment.amount, false, ability)) return false
+        val previousPolicy = ability.getParam("AIPhyrexianPayment")
+        if (lifePayment.explicit) ability.putParam("AIPhyrexianPayment", "Never")
+        return try {
+            val paid = payAutomaticMana(toPay, ability, effect)
+            if (paid && lifePayment.amount > 0) {
+                if (!player.payLife(lifePayment.amount, ability, false)) return false
+                repeat(lifePayment.phyrexianCount) { ability.setSpendPhyrexianMana(true) }
+            }
+            paid
+        } finally {
+            if (lifePayment.explicit) {
+                if (previousPolicy == null) {
+                    ability.removeParam("AIPhyrexianPayment")
+                } else {
+                    ability.putParam("AIPhyrexianPayment", previousPolicy)
+                }
+            }
+        }
+    }
+
+    private fun payAutomaticMana(
+        toPay: ManaCostBeingPaid,
+        ability: SpellAbility,
+        effect: Boolean,
+    ): Boolean {
         if (player.controller is PlayerControllerAi) {
             return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
         }
@@ -219,32 +245,39 @@ class CostPaymentCoordinator(
         }
     }
 
-    private fun applyHybridManaChoices(
-        toPay: ManaCostBeingPaid,
-        ability: SpellAbility,
-    ) {
-        val choices = bridge.journal.consumeHybridManaStash() ?: return
-        val hybridShards = toPay.getUnpaidShards().filter { it.isOr2Generic }
-        if (hybridShards.isEmpty()) return
+    private data class LifePayment(
+        val amount: Int = 0,
+        val phyrexianCount: Int = 0,
+        val explicit: Boolean = false,
+    )
 
-        for ((index, shard) in hybridShards.withIndex()) {
-            val coloredChoice = colorForTwoGenericShard(shard) ?: continue
+    private fun applyHybridManaChoices(toPay: ManaCostBeingPaid): LifePayment {
+        val choices = bridge.journal.consumeHybridManaStash() ?: return LifePayment()
+        val lifeForBlack = player.hasKeyword("PayLifeInsteadOf:B")
+        val shards =
+            toPay.getUnpaidShards().filter {
+                it.isOr2Generic || it.isPhyrexian && it.isMonoColor || (it == ManaCostShard.BLACK && lifeForBlack)
+            }
+        var life = 0
+        var phyrexianCount = 0
+        for ((index, shard) in shards.withIndex()) {
+            val coloredChoice = colorForTwoGenericShard(shard) ?: ManaColorMapping.paymentWireColor(shard)
             val choice = choices.getOrNull(index) ?: coloredChoice
             toPay.decreaseShard(shard, 1)
-            if (choice == ManaColor.TwoGeneric) {
-                toPay.increaseGenericMana(2)
-                continue
-            }
-            val replacement = monoColorShard(choice.takeIf { it == coloredChoice } ?: coloredChoice)
-            if (replacement != null) {
-                toPay.increaseShard(replacement, 1)
+            when {
+                choice == ManaColor.Phyrexian_afc9 && (shard.isPhyrexian || lifeForBlack && shard == ManaCostShard.BLACK) -> {
+                    life += 2
+                    if (shard.isPhyrexian) phyrexianCount++
+                }
+                choice == ManaColor.TwoGeneric && shard.isOr2Generic -> toPay.increaseGenericMana(2)
+                else -> monoColorShard(choice)?.let { toPay.increaseShard(it, 1) }
             }
         }
-        log.info("applyManaToCost: applied hybrid mana choices {} for {}", choices, ability.hostCard?.name)
+        return LifePayment(life, phyrexianCount, shards.any { it.isPhyrexian || lifeForBlack && it == ManaCostShard.BLACK })
     }
 
     private fun colorForTwoGenericShard(shard: ManaCostShard): ManaColor? {
-        if (!shard.isOr2Generic || !shard.isMonoColor) return null
+        if (!shard.isMonoColor) return null
         return when {
             shard.isWhite -> ManaColor.White_afc9
             shard.isBlue -> ManaColor.Blue_afc9

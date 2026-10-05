@@ -16,21 +16,30 @@ internal data class DeferredCastCostPlan private constructor(
     val optional: OptionalCostPlan?,
     val alternate: AlternateCostPlan?,
 ) {
+    val manaAfterOptional: Boolean
+        get() =
+            optional?.entries.orEmpty().any { entry ->
+                entry.manaPlan?.alternatives?.contains(ManaColor.Phyrexian_afc9) == true && entry.manaPlan != hybrid
+            }
+
     @ConsistentCopyVisibility
     data class HybridManaPlan private constructor(
         val promptColors: List<ManaColor>,
         val paymentColors: List<ManaColor>,
         val manaCost: List<ManaRequirementSpec>,
+        val alternatives: List<ManaColor>,
     ) {
         companion object {
             fun frozen(
                 promptColors: List<ManaColor>,
                 paymentColors: List<ManaColor>,
                 manaCost: List<ManaRequirementSpec>,
+                alternatives: List<ManaColor> = List(promptColors.size) { ManaColor.TwoGeneric },
             ) = HybridManaPlan(
                 frozenList(promptColors),
                 frozenList(paymentColors),
                 frozenList(manaCost.map { ManaRequirementSpec.frozen(it.colors, it.count) }),
+                frozenList(alternatives),
             )
         }
     }
@@ -53,6 +62,7 @@ internal data class DeferredCastCostPlan private constructor(
         val abilityGrpId: Int,
         val keywordName: String?,
         val description: String? = null,
+        val manaPlan: HybridManaPlan? = null,
     )
 
     @ConsistentCopyVisibility
@@ -112,6 +122,7 @@ internal data class DeferredCastCostPlan private constructor(
                         frozenList(it.promptColors),
                         frozenList(it.paymentColors),
                         frozenList(it.manaCost.map { requirement -> ManaRequirementSpec.frozen(requirement.colors, requirement.count) }),
+                        it.alternatives,
                     )
                 },
                 optional?.let { OptionalCostPlan.frozen(it.entries, it.baseManaCost) },
@@ -122,7 +133,8 @@ internal data class DeferredCastCostPlan private constructor(
             promptColors: List<ManaColor>,
             paymentColors: List<ManaColor>,
             manaCost: List<ManaRequirementSpec>,
-        ): HybridManaPlan = HybridManaPlan.frozen(promptColors, paymentColors, manaCost)
+            alternatives: List<ManaColor> = List(promptColors.size) { ManaColor.TwoGeneric },
+        ): HybridManaPlan = HybridManaPlan.frozen(promptColors, paymentColors, manaCost, alternatives)
 
         fun optional(
             entries: List<OptionalCostEntry>,
