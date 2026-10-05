@@ -137,7 +137,9 @@ internal object DefaultDecisions {
             }
         if (options.isEmpty()) return null
         return options.map { option ->
-            val color = option.selectManaTypeReq.manaColorsList.firstOrNull { it != ManaColor.TwoGeneric } ?: ManaColor.TwoGeneric
+            val color =
+                option.selectManaTypeReq.manaColorsList.firstOrNull { it != ManaColor.TwoGeneric && it != ManaColor.Phyrexian_afc9 }
+                    ?: ManaColor.TwoGeneric
             option.ctoId to color
         }
     }

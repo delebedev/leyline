@@ -1,0 +1,33 @@
+name: phyrexian-mana
+description: Explicit mixed life and mana payments.
+scenarios:
+  - id: krrik-mixed-payment
+    puzzle: phyrexian-mana-krrik
+    run: cast K'rrik paying two phyrexian symbols with life and one with black mana
+    expect: K'rrik resolves and the player has sixteen life
+    steps:
+      - cast: K'rrik, Son of Yawgmoth
+      - expect:
+          prompt: CastingTimeOptionsReq
+      - mana_type_choices: [phyrexian, black, phyrexian]
+      - pass_until: { winner: ours, max_passes: 8 }
+      - expect:
+          all:
+            - winner: ours
+            - our_life: 16
+            - zone_contains: { side: ours, zone: battlefield, card: "K'rrik, Son of Yawgmoth" }
+  - id: granted-black-mixed-payment
+    puzzle: phyrexian-mana-granted-black
+    run: cast Phyrexian Obliterator paying two black symbols with life and two with mana
+    expect: Phyrexian Obliterator resolves and the player has sixteen life
+    steps:
+      - cast: Phyrexian Obliterator
+      - expect:
+          prompt: CastingTimeOptionsReq
+      - mana_type_choices: [phyrexian, black, phyrexian, black]
+      - pass_until: { winner: ours, max_passes: 8 }
+      - expect:
+          all:
+            - winner: ours
+            - our_life: 16
+            - zone_contains: { side: ours, zone: battlefield, card: Phyrexian Obliterator }

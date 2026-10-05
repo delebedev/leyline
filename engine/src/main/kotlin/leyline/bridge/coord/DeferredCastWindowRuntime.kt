@@ -285,6 +285,19 @@ internal class DeferredCastWindowRuntime(
                 byCtoId[ctoId]?.manaColor ?: response.options.getOrNull(index)?.manaColor
                     ?: pending.promptColors.getOrNull(index) ?: ManaColor.TwoGeneric
             }
+        val alternatives =
+            pending.actionClaim.deferredCostPlan
+                ?.hybrid
+                ?.alternatives
+                .orEmpty()
+        if (promptChoices.withIndex().any { (index, choice) ->
+                choice != pending.promptColors[index] && choice != (alternatives.getOrNull(index) ?: ManaColor.TwoGeneric)
+            } ||
+            alternatives.contains(ManaColor.Phyrexian_afc9) &&
+            pending.ctoIds.any { it !in byCtoId }
+        ) {
+            return DeferredCastAdmission.Rejected(DeferredCastRejection.WrongOption)
+        }
         val choices = reorderHybridChoices(promptChoices, pending.promptColors, pending.paymentColors)
         pending.adopted = true
         owner.bridge

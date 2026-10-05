@@ -104,6 +104,7 @@ internal class DeferredCastCostInteractionHandler(
                 playerIdToPrompt = counters.seatId.value,
                 hybridColors = hybrid.promptColors,
                 manaCost = hybrid.manaCost,
+                alternatives = hybrid.alternatives,
             )
         ctx.bridge.cutCoordinator.deferredCast.publishHybrid(
             claim = actionClaim,

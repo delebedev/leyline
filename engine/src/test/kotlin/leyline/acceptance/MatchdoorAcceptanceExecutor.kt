@@ -105,6 +105,7 @@ private fun phaseMatches(
 private fun AcceptanceManaTypeChoice.toManaColor(): ManaColor =
     when (this) {
         AcceptanceManaTypeChoice.TwoGeneric -> ManaColor.TwoGeneric
+        AcceptanceManaTypeChoice.Phyrexian -> ManaColor.Phyrexian_afc9
         AcceptanceManaTypeChoice.White -> ManaColor.White_afc9
         AcceptanceManaTypeChoice.Blue -> ManaColor.Blue_afc9
         AcceptanceManaTypeChoice.Black -> ManaColor.Black_afc9
