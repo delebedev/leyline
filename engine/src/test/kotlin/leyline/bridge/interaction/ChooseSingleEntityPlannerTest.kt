@@ -28,6 +28,19 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("delayed look does not make Dig a full-library search") {
+            val refs = listOf(0, 1).map { PromptCandidateRefDto(it, PromptCandidateKind.Card, it + 1, "Library") }
+            val plan =
+                ChooseSingleEntityPlanner.plan(
+                    ChooseSingleEntityContext(digSa(), false, true, refs.size, refs, false, false),
+                )
+            assertSoftly {
+                plan.semantic shouldBe PromptSemantic.SelectNResolution
+                plan.isSearch shouldBe false
+                plan.resolutionRouteInput?.isHiddenLibraryCardChoice shouldBe true
+            }
+        }
+
         test("mutate uses special route") {
             val plan = planFor(mutateSa())
 
@@ -66,7 +79,7 @@ class ChooseSingleEntityPlannerTest :
                 planFor(changeZoneSa(), optionCount = libraryRefs.size + 1, candidateRefs = libraryRefs).semantic shouldBe
                     PromptSemantic.SelectNResolution
                 planFor(changeZoneSa()).semantic shouldBe PromptSemantic.SelectNResolution
-                planFor(genericSa(), hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
+                planFor(genericSa(), hasDelayedReveal = true).semantic shouldBe PromptSemantic.SelectNResolution
                 planFor(learnSa()).semantic shouldBe PromptSemantic.LearnLesson
                 planFor(manifestDreadSa()).semantic shouldBe PromptSemantic.ManifestDread
                 planFor(genericSa()).semantic shouldBe PromptSemantic.SelectNResolution

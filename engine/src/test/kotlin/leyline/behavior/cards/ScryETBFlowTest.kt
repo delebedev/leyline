@@ -239,6 +239,43 @@ class ScryETBFlowTest :
             (triggering.id in deletedIds).shouldBeTrue()
         }
 
+        session(
+            "Scry keep-on-top retires private secondary faces after the prompt",
+            fullControl = true,
+            puzzle =
+                """
+                [metadata]
+                Name: linked scry
+                Goal:Survive
+                Turns:5
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Island
+                humanhand=Wall of Runes
+                humanlibrary=Brazen Borrower;Forest;Mountain;Forest;Mountain
+                ailibrary=Forest;Mountain;Forest;Mountain;Forest
+                """.trimIndent(),
+            turns = 5,
+        ) {
+            val request = castSpellUntilGroupReq("Wall of Runes")
+            val parentId = request.instanceIdsList.single()
+            val companions =
+                accumulator.objects.values
+                    .filter { it.parentId == parentId }
+                    .map { it.instanceId }
+            companions.size shouldBe 1
+            respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = request.instanceIdsList)
+            assertSoftly {
+                human.library should haveOnTop("Brazen Borrower")
+                accumulator.objects.values.none { it.instanceId in companions || it.parentId == parentId } shouldBe true
+                accumulator.assertConsistent("after keeping a linked-face card on top")
+                isGameOver().shouldBeFalse()
+            }
+        }
+
         session("full scry flow state validity", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList

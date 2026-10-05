@@ -325,6 +325,74 @@ class SearchWindowCaptureTest :
                 }.shouldHaveSize(1)
         }
 
+        test("multi-card delayed look selects only the looked-at opponent library subset") {
+            val board =
+                startPuzzleAtMain1(
+                    (puzzle + "\nhumanhand=Strategic Planning").replace("ailibrary=Forest", "ailibrary=Forest;Mountain;Island"),
+                )
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val lookedAt =
+                forge.game.card.CardCollection(
+                    board.ai
+                        .getZone(ZoneType.Library)
+                        .cards
+                        .take(2),
+                )
+            lookedAt.size shouldBe 2
+            val ability =
+                board.human.hand
+                    .card("Strategic Planning")
+                    .spellAbilities
+                    .single()
+            val finished = CountDownLatch(1)
+            Thread {
+                board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+                board.human.controller.chooseSingleEntityForEffect(
+                    lookedAt,
+                    DelayedReveal(lookedAt, ZoneType.Library, board.ai.view),
+                    ability,
+                    "Look",
+                    false,
+                    board.ai,
+                    null,
+                )
+                finished.countDown()
+            }.start()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (coordinator.search.current() == null && coordinator.cardSelect.current() == null && System.nanoTime() < deadline) {
+                Thread.onSpinWait()
+            }
+            val messages = coordinator.drain(SeatId(1)).flatten()
+            val prompt =
+                checkNotNull(messages.singleOrNull { it.hasSelectNReq() || it.hasSearchReq() }) {
+                    "No looked-at prompt: messages=${messages.map {
+                        it.type
+                    }}, search=${coordinator.search.current()}, cardSelect=${coordinator.cardSelect.current()}, finished=${finished.count}"
+                }
+            val ids = if (prompt.hasSelectNReq()) prompt.selectNReq.idsList else prompt.searchReq.itemsSoughtList
+            val response =
+                if (prompt.hasSelectNReq()) {
+                    leyline.testkit.selectNResp(
+                        listOf(ids.first()),
+                    )
+                } else {
+                    leyline.testkit.searchResp(listOf(ids.first()))
+                }
+            assertSoftly {
+                coordinator.acceptSettled(response, prompt.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                prompt.hasSelectNReq() shouldBe true
+                ids.toSet() shouldBe lookedAt.map { board.instanceId(it.id) }.toSet()
+                messages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .filter { it.zoneId == ZoneIds.libraryOf(SeatId(2)) && it.type == GameObjectType.Card }
+                    .map { it.instanceId }
+                    .toSet() shouldBe ids.toSet()
+            }
+        }
+
         test("delayed non-search library reveal retains its callback behavior") {
             val board = startPuzzleAtMain1(puzzle + "\nhumanhand=Strategic Planning")
             val cards = board.ai.getZone(ZoneType.Library).cards

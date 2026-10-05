@@ -55,8 +55,8 @@ object ChooseSingleEntityPlanner {
                 context.allCandidatesProjectable,
             )
         val isSearch =
-            (isLibrarySearchAbility(context.sa) && resolutionInput.isCompleteLibraryCardChoice) ||
-                context.hasDelayedReveal
+            isLibrarySearchAbility(context.sa) &&
+                (resolutionInput.isCompleteLibraryCardChoice || context.hasDelayedReveal)
         val semantic =
             when {
                 isLegendRule -> PromptSemantic.SelectNLegendRule
