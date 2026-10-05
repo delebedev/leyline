@@ -239,8 +239,7 @@ fun getNonManaActivatedAbilities(
     val sourceAbilities = card.spellAbilities.toMutableList()
     val sourceIds = sourceAbilities.map { it.id }.toMutableSet()
     for (ability in card.allSpellAbilities.orEmpty()) {
-        val isNonManaActivatedAbility = ability.isActivatedAbility && !ability.isManaAbility()
-        if (ability.id !in sourceIds && (isNonManaActivatedAbility || isReconfigureUnattach(ability) || CompanionAction.matches(ability))) {
+        if (ability.id !in sourceIds && (isReconfigureUnattach(ability) || CompanionAction.matches(ability))) {
             sourceAbilities.add(ability)
             sourceIds.add(ability.id)
         }

@@ -1,0 +1,21 @@
+# Mechanic: Activated abilities follow the current transformed face.
+# Forcing: One life-gain activation reaches the transformation threshold.
+# AI behavior: Empty hand and battlefield permit predictable turn progression.
+# Failure modes: A life-loss offer before transformation exposes the other face.
+# Card roles: Chalice provides the independent transform control.
+# Protocol path: ActionsAvailableReq, activation, transformation, player targeting.
+[metadata]
+Name:chalice-current-face
+Goal:Survive
+Turns:5
+Difficulty:Tutorial
+Description:Gain life to transform Chalice, then activate its back face next turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=29
+AILife=20
+humanbattlefield=Chalice of Life
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
