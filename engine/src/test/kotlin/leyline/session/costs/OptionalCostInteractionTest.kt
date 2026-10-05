@@ -13,6 +13,7 @@ import leyline.testkit.battlefield
 import leyline.testkit.detailInt
 import leyline.testkit.hand
 import leyline.testkit.persistentAnnotationsOfType
+import leyline.tooling.headless.clientMessage
 import leyline.tooling.headless.optionalCostResp
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -176,5 +177,92 @@ class OptionalCostInteractionTest :
                 .getZone(ForgeZoneType.Hand)
                 .cards
                 .map { it.name } shouldContain "Burst Lightning"
+        }
+        for (count in listOf(0, 2)) {
+            session(
+                "multikicker count $count pays exactly the selected repetitions",
+                puzzle =
+                    """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Joraga Warcaller
+                    humanbattlefield=Forest;Forest;Forest;Forest;Forest;Llanowar Elves|Tapped
+                    humanlibrary=Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+            ) {
+                holdNextNumericInput()
+                castSpellByName("Joraga Warcaller").shouldBeTrue()
+                val numeric = allMessages.lastOrNull { it.hasNumericInputReq() }
+                checkNotNull(numeric) { "Multikicker must publish a numeric choice" }
+                assertSoftly {
+                    numeric.numericInputReq.minValue shouldBe 0
+                    numeric.numericInputReq.maxValue shouldBe 2
+                    human.getZone(ForgeZoneType.Battlefield).cards.count { it.name == "Forest" && it.isTapped } shouldBe 0
+                }
+                if (count == 2) {
+                    for (invalid in listOf(-1, 3)) {
+                        val response =
+                            clientMessage(ClientMessageType.NumericInputResp_097b) {
+                                gameStateId = numeric.gameStateId
+                                respId = numeric.msgId
+                                setNumericInputResp(NumericInputResp.newBuilder().setNumericInputValue(invalid))
+                            }
+                        send(response)
+                        drainSink()
+                    }
+                    human.getZone(ForgeZoneType.Battlefield).cards.count { it.name == "Forest" && it.isTapped } shouldBe 0
+                }
+                respondToNumericInput(count)
+                passUntilResolved()
+                assertSoftly {
+                    human.battlefield.card("Joraga Warcaller").netPower shouldBe 1 + count
+                    human.battlefield.card("Llanowar Elves").netPower shouldBe 1 + count
+                    human.getZone(ForgeZoneType.Battlefield).cards.count { it.name == "Forest" && it.isTapped } shouldBe 1 + 2 * count
+                }
+            }
+        }
+        session(
+            "replicate count two creates copies with independently selected targets",
+            fullControl = true,
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Shattering Spree;Memnite
+                humanbattlefield=Mountain;Mountain;Mountain
+                humanlibrary=Forest;Forest
+                aibattlefield=Ornithopter;Gingerbrute;Goldvein Pick
+                ailibrary=Mountain;Mountain
+                """.trimIndent(),
+        ) {
+            holdNextNumericInput()
+            castSpellByName("Shattering Spree").shouldBeTrue()
+            allMessages.last { it.hasNumericInputReq() }.numericInputReq.maxValue shouldBe 2
+            respondToNumericInput(2)
+            selectTargets(listOf(ai.battlefield.iid("Ornithopter")))
+            passPriority()
+            val first = allMessages.lastOrNull { it.hasSelectTargetsReq() }
+            checkNotNull(first) { "Replicate must offer targets for its first copy" }
+            selectTargets(listOf(ai.battlefield.iid("Gingerbrute")))
+            selectTargets(listOf(ai.battlefield.iid("Goldvein Pick")))
+            passUntilResolved()
+            assertSoftly {
+                ai
+                    .getZone(ForgeZoneType.Graveyard)
+                    .cards
+                    .map { it.name }
+                    .toSet() shouldBe
+                    setOf("Ornithopter", "Gingerbrute", "Goldvein Pick")
+                human.getZone(ForgeZoneType.Battlefield).cards.count { it.isTapped } shouldBe 3
+                human.life shouldBe 20
+            }
+            castSpellByName("Memnite").shouldBeTrue()
+            passUntilResolved()
+            human.battlefield.card("Memnite").name shouldBe "Memnite"
         }
     })

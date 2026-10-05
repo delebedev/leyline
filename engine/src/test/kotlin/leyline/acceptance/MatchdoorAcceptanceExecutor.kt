@@ -37,7 +37,7 @@ class MatchdoorAcceptanceExecutor(
                 opponentDeckList = scenario.opponentDeckList,
                 fullControl = scenario.fullControl,
                 responseMode =
-                    if (scenario.steps.any { it is OptionalActionStep }) {
+                    if (scenario.steps.any { it is OptionalActionStep || it is NumericInputStep }) {
                         HeadlessResponseMode.PolicyVisible
                     } else {
                         HeadlessResponseMode.AutoForTests
@@ -158,6 +158,10 @@ private class ScenarioRun(
             is ChooseStep -> choose(step)
             is ManaTypeChoicesStep -> manaTypeChoices(step)
             is ModalChoiceStep -> modalChoice(step)
+            is NumericInputStep -> {
+                check(latestPromptMessage()?.hasNumericInputReq() == true) { "$context requires a numeric prompt" }
+                harness.respondToNumericInput(step.value)
+            }
             GroupKeepStep -> {
                 val req = checkNotNull(latestPromptMessage()?.takeIf { it.hasGroupReq() }?.groupReq)
                 require(req.context == wotc.mtgo.gre.external.messaging.Messages.GroupingContext.Scry_a0f6)

@@ -220,7 +220,13 @@ internal class MatchBlockingInteractionRuntime(
         interactionId: String,
         gameStateId: Int,
         value: Int,
-    ): Boolean = complete(interactionId, gameStateId, Answer.Numeric(value))
+    ): Boolean =
+        synchronized(owner.feedLock) {
+            val pending = matching(interactionId, gameStateId) ?: return false
+            val numeric = pending.published.interaction as? BlockingInteraction.Numeric ?: return false
+            if (value !in numeric.min..numeric.max) return false
+            pending.future.complete(Answer.Numeric(value))
+        }
 
     fun submitDamageCommand(
         interactionId: String,
@@ -427,15 +433,6 @@ internal class MatchBlockingInteractionRuntime(
             if (window === pending) window = null
         }
     }
-
-    private fun complete(
-        interactionId: String,
-        gameStateId: Int,
-        answer: Answer,
-    ): Boolean =
-        synchronized(owner.feedLock) {
-            matching(interactionId, gameStateId)?.future?.complete(answer) ?: false
-        }
 
     private fun matching(
         interactionId: String,

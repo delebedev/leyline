@@ -12,6 +12,22 @@ class AcceptanceSuiteLoaderTest :
     FunSpec({
         tags(UnitTag)
 
+        test("numeric input keeps zero and explicit repeat counts") {
+            val suite =
+                AcceptanceSuiteLoader.loadFromText(
+                    """
+                    name: numeric
+                    scenarios:
+                      - id: repeats
+                        puzzle: numeric
+                        steps:
+                          - numeric_input: 0
+                          - numeric_input: 2
+                    """.trimIndent(),
+                )
+            suite.scenarios.single().steps shouldBe listOf(NumericInputStep(0), NumericInputStep(2))
+        }
+
         test("annotation conditions accept semantic and exact protocol names") {
             assertSoftly {
                 "PhasedOut".toAnnotationType() shouldBe AnnotationType.PhasedOut_af5a

@@ -69,6 +69,10 @@ Acceptance assertions describe semantic actions and gameplay outcomes; exact
 client identities belong to conformance checks. Native execution still requires
 a card available in that client's catalog.
 
+Numeric responses use `numeric_input: 2`, including `numeric_input: 0` for an
+optional payment of zero. Scenarios with explicit numeric steps retain the prompt
+until the corresponding step submits its correlated response.
+
 Modal responses accept
 `modal_choice: { index: 0 }` for one mode or `modal_choice: { indices: [0, 1] }`
 for multiple modes in one response.
