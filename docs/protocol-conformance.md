@@ -125,4 +125,4 @@ Start with [`lightning-bolt.yaml`](../conformance/contracts/lightning-bolt.yaml)
 or [`rabbit-battery-target-selection.yaml`](../conformance/contracts/rabbit-battery-target-selection.yaml).
 Add one bounded interaction at a time and bind it to an existing scripted scenario.
 
-The Quantum Riddler exile-cast definition checks cast permission, stable battlefield identity, the entry draw bracket, and row lifetimes across updates. It does not require entry-trigger creation to share the spell-resolution update.
+The Quantum Riddler exile-cast definition checks cast permission, stable battlefield identity, the entry draw bracket, and row lifetimes across updates. Entry-trigger creation shares the spell-resolution update before the trigger resolves.

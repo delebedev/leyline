@@ -197,6 +197,13 @@ class LocalStackMicrostepTest :
             val gsms = messages.gameStateMessages()
             val triggerEnter = gsms.firstOrNull { AnnotationType.TriggeringObject in it.persistentTypes() }
             triggerEnter.shouldNotBeNull()
+            val creatureResolved =
+                gsms
+                    .firstOrNull { it.hasZoneTransfer("Resolve", src = ZoneIds.STACK, dest = ZoneIds.BATTLEFIELD) }
+                    .shouldNotBeNull()
+            withClue("The creature and its pending entry trigger must share the resolution frame") {
+                creatureResolved.gameStateId shouldBe triggerEnter.gameStateId
+            }
             val triggeringObject = triggerEnter.persistentAnnotation(AnnotationType.TriggeringObject)
             val resolveGsm =
                 gsms.firstOrNull { gsm ->
@@ -206,11 +213,15 @@ class LocalStackMicrostepTest :
                 }
 
             resolveGsm.shouldNotBeNull()
+            val triggerAnnotationTypes =
+                triggerEnter.annotationsList
+                    .filter { it.affectorId == triggeringObject.affectorId || triggeringObject.affectorId in it.affectedIdsList }
+                    .flatMap { it.typeList }
             assertSoftly {
-                triggerEnter.annotationTypes() shouldContain AnnotationType.AbilityInstanceCreated
-                triggerEnter.annotationTypes() shouldNotContain AnnotationType.ResolutionStart
-                triggerEnter.annotationTypes() shouldNotContain AnnotationType.ResolutionComplete
-                triggerEnter.annotationTypes() shouldNotContain AnnotationType.AbilityInstanceDeleted
+                triggerAnnotationTypes shouldContain AnnotationType.AbilityInstanceCreated
+                triggerAnnotationTypes shouldNotContain AnnotationType.ResolutionStart
+                triggerAnnotationTypes shouldNotContain AnnotationType.ResolutionComplete
+                triggerAnnotationTypes shouldNotContain AnnotationType.AbilityInstanceDeleted
                 triggerEnter.gameStateId shouldBeLessThan resolveGsm.gameStateId
                 resolveGsm.annotationTypes() shouldContain AnnotationType.ResolutionStart
                 resolveGsm.annotationTypes() shouldContain AnnotationType.ResolutionComplete
