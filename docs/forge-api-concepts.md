@@ -104,6 +104,10 @@ keyword name, including any miracle cost reduction. They do not advertise a
 concrete mana cost. Forge resolves and pays the effective cost only after the
 keyword is bound to its recipient during gameplay.
 
+Calculated `N` keyword amounts retain their catalog identity and localize as
+symbolic `X` amounts. Forge applies `CalcKeywordN` to the live recipient before
+constructing its effective keyword.
+
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
 Abilities copied by continuous effects retain `SpellAbility.originalAbility`.
