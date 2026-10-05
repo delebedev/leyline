@@ -1,0 +1,24 @@
+# Mechanic: Menace requires two blockers when the declaration is completed.
+# Forcing: A large menace attacker safely attacks into two smaller blockers.
+# AI behavior: Fleshgorger attacks for lethal without risking its own survival.
+# Failure modes: A one-blocker completion must return to blocker selection.
+# Card roles: Fleshgorger attacks; two different creatures make each block explicit.
+# Shock verifies playable priority after legal combat damage.
+# Protocol path: DeclareBlockersReq deltas, SubmitBlockersReq, renewed selection.
+[metadata]
+Name:menace-block-declaration
+Goal:Survive
+Turns:5
+Difficulty:Tutorial
+Description:Reject one blocker, accept two blockers, and continue playing after combat.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=7
+AILife=20
+humanbattlefield=Walking Corpse;Grizzly Bears;Mountain
+humanhand=Shock
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=Phyrexian Fleshgorger
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp

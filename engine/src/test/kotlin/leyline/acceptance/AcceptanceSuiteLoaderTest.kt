@@ -28,6 +28,18 @@ class AcceptanceSuiteLoaderTest :
                 .indices shouldBe listOf(0, 1)
         }
 
+        test("parses multiple blockers in one declaration") {
+            val scenario = AcceptanceSuiteLoader.load("menace-block-declaration").scenarios.single()
+            scenario.steps
+                .filterIsInstance<BlockStep>()
+                .last()
+                .assignments shouldBe
+                listOf(
+                    BlockAssignment("Walking Corpse", "Phyrexian Fleshgorger"),
+                    BlockAssignment("Grizzly Bears", "Phyrexian Fleshgorger"),
+                )
+        }
+
         test("parses backend-neutral executable steps") {
             val suite =
                 AcceptanceSuiteLoader.loadFromText(

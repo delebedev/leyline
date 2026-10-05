@@ -1,11 +1,15 @@
 package leyline.match
 
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.copilot.CopilotProposalService
+import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
@@ -31,6 +35,88 @@ class TwoPhaseCombatFidelityTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
             TestCardRegistry.ensureCardRegistered("Grizzly Bears")
+            TestCardRegistry.ensureCardRegistered("Air Elemental")
+        }
+
+        session(
+            "invalid completed menace block retries without stale assignments",
+            puzzleFile = "data/puzzles/menace-block-declaration.pzl",
+        ) {
+            passUntil(maxPasses = 40) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+            val prompt = allMessages.last { it.hasDeclareBlockersReq() }
+            val corpse = humanBattlefieldCreatures().first { it.second == "Walking Corpse" }.first
+            val bear = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
+            val attacker =
+                prompt.declareBlockersReq.blockersList
+                    .first()
+                    .attackerInstanceIdsList
+                    .first()
+            toggleBlockers(mapOf(corpse to attacker))
+            val selectedPrompt = latestPromptMsgId()
+            repeat(2) {
+                submitBlockers()
+                val retry = allMessages.last { it.hasDeclareBlockersReq() }
+                retry.msgId shouldBeGreaterThan selectedPrompt
+                bridge
+                    .getGame()!!
+                    .combat.allBlockers.size shouldBe 0
+                human.life shouldBe 7
+                ai.life shouldBe 20
+                bridge.getGame()!!.stack.size() shouldBe 0
+                toggleBlockers(mapOf(corpse to attacker))
+            }
+            toggleBlockers(mapOf(bear to attacker))
+            submitBlockers()
+            bridge
+                .getGame()!!
+                .combat
+                .getBlockers(
+                    bridge
+                        .getGame()!!
+                        .combat.attackers
+                        .first(),
+                ).size shouldBe 2
+            passUntil(maxPasses = 40) { ai.life == 27 }.shouldBeTrue()
+            human.life shouldBe 7
+        }
+
+        session(
+            "illegal blocker pair rolls back legal prefix before fresh prompt",
+            puzzle =
+                """
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Walking Corpse;Grizzly Bears
+                humanlibrary=Forest;Forest;Forest;Forest;Forest
+                aibattlefield=Centaur Courser;Air Elemental
+                ailibrary=Island;Island;Island;Island;Island
+                """.trimIndent(),
+            aiScript = listOf(ScriptedAction.Attack(listOf("Centaur Courser", "Air Elemental")), ScriptedAction.PassPriority),
+        ) {
+            passUntil(maxPasses = 40) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+            val corpse = humanBattlefieldCreatures().first { it.second == "Walking Corpse" }.first
+            val bear = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
+            val combat = bridge.getGame()!!.combat
+            val courser = bridge.getOrAllocInstanceId(ForgeCardId(combat.attackers.first { it.name == "Centaur Courser" }.id)).value
+            val elemental = bridge.getOrAllocInstanceId(ForgeCardId(combat.attackers.first { it.name == "Air Elemental" }.id)).value
+            val offered = allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
+            offered.blockersList
+                .first { it.blockerInstanceId == bear }
+                .attackerInstanceIdsList shouldNotContain elemental
+            toggleBlockers(linkedMapOf(corpse to courser, bear to elemental))
+            val selectedPrompt = latestPromptMsgId()
+            submitBlockers()
+            val retry = allMessages.last { it.hasDeclareBlockersReq() }
+            retry.msgId shouldBeGreaterThan selectedPrompt
+            retry.declareBlockersReq.blockersList.sumOf { it.selectedAttackerInstanceIdsCount } shouldBe 0
+            combat.allBlockers.size shouldBe 0
+            bridge.getGame()!!.stack.size() shouldBe 0
+            human.life shouldBe 20
+            ai.life shouldBe 20
+            declareBlockers(mapOf(corpse to courser, bear to courser))
+            passUntil(maxPasses = 40) { human.life == 16 }.shouldBeTrue()
         }
 
         session(

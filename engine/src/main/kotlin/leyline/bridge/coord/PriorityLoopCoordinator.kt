@@ -241,18 +241,37 @@ class PriorityLoopCoordinator(
                 priorityPlayerId = defender.id,
                 kind = PendingActionKind.DECLARE_BLOCKERS,
             )
-        when (val action = actionBridge.awaitAction(state)) {
-            is PlayerAction.DeclareBlockers -> {
-                for ((blockerCardId, attackerCardId) in action.blockAssignments) {
-                    val blocker = findCard(game, blockerCardId) ?: continue
-                    val attackerCard = findCard(game, attackerCardId) ?: continue
-                    if (combat.isAttacking(attackerCard)) {
-                        combat.addBlocker(attackerCard, blocker)
-                    }
+        while (true) {
+            val assignments =
+                when (val action = actionBridge.awaitAction(state)) {
+                    is PlayerAction.DeclareBlockers -> action.blockAssignments
+                    is PlayerAction.PassPriority -> return
+                    else -> continue
                 }
+            val applied = mutableListOf<Pair<Card, Card>>()
+            var validPairs = true
+            for ((blockerId, attackerId) in assignments) {
+                val blocker = findCard(game, blockerId)
+                val attacker = findCard(game, attackerId)
+                if (blocker == null ||
+                    attacker == null ||
+                    blocker.controller != defender ||
+                    !combat.isAttacking(attacker) ||
+                    !CombatUtil.canBlock(attacker, blocker, combat)
+                ) {
+                    validPairs = false
+                    break
+                }
+                combat.addBlocker(attacker, blocker)
+                applied.add(attacker to blocker)
             }
-            is PlayerAction.PassPriority -> {}
-            else -> {}
+            if (validPairs && CombatUtil.validateBlocks(combat, defender) == null) return
+
+            // Declaration does not fire block triggers until this callback returns.
+            // Undo only this proposal before publishing the next declaration window.
+            for ((attacker, blocker) in applied) combat.removeBlockAssignment(attacker, blocker)
+            log.info("declareBlockers: rejected completed declaration for {}", defender.name)
+            owner.notifyStateChanged()
         }
     }
 
