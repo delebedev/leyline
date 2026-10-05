@@ -245,7 +245,7 @@ class PriorityLoopCoordinator(
             val assignments =
                 when (val action = actionBridge.awaitAction(state)) {
                     is PlayerAction.DeclareBlockers -> action.blockAssignments
-                    is PlayerAction.PassPriority -> emptyMap()
+                    is PlayerAction.PassPriority -> return
                     else -> continue
                 }
             val applied = mutableListOf<Pair<Card, Card>>()
