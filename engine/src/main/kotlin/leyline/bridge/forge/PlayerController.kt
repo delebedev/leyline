@@ -72,6 +72,7 @@ import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.InteractivePromptBridge
+import leyline.bridge.handoff.ModalCastCancelledException
 import leyline.bridge.handoff.MulliganBridge
 import leyline.bridge.handoff.NumericInputGate
 import leyline.bridge.handoff.OptionalActionGate
@@ -539,7 +540,9 @@ class PlayerController(
      *
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
-        if (isParadigmCopyCast(tgtSA)) return super.playSaFromPlayEffect(tgtSA)
+        if (isParadigmCopyCast(tgtSA)) {
+            return withModalCastCancellation(tgtSA) { super.playSaFromPlayEffect(tgtSA) }
+        }
 
         val hostCard = tgtSA.hostCard
         val castingPermission = castingPermission(hostCard)
@@ -573,7 +576,7 @@ class PlayerController(
             return false
         }
         return try {
-            super.playSaFromPlayEffect(tgtSA).also { played ->
+            withModalCastCancellation(tgtSA) { super.playSaFromPlayEffect(tgtSA) }.also { played ->
                 if (!played) castingPermission?.let(bridge.journal::clearCastingPermission)
             }
         } catch (error: Throwable) {
@@ -1563,12 +1566,25 @@ class PlayerController(
         val needsTargeting = sa.targets.isEmpty()
         return withActiveSpellSource(sa) {
             val req = PlaySpellAbility(this, sa)
-            req.playAbility(needsTargeting, false, false)
+            withModalCastCancellation(sa) { req.playAbility(needsTargeting, false, false) }
         }.also { success ->
             if (success && CompanionAction.matches(chosenSa)) onCompanionToHand?.invoke(chosenSa)
             priorityLoopCoordinator?.actionCompleted(success)
         }
     }
+
+    private fun withModalCastCancellation(
+        sa: SpellAbility,
+        cast: () -> Boolean,
+    ): Boolean =
+        try {
+            cast()
+        } catch (_: ModalCastCancelledException) {
+            // Cancellation precedes stack placement and cost payment. Forge retains
+            // the visibility cache when an enclosing ability is still paying costs.
+            player.game.clearTopLibsCast(sa)
+            false
+        }
 
     private fun <T> withActiveSpellSource(
         sa: SpellAbility,

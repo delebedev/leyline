@@ -194,6 +194,7 @@ class MatchModalChoiceRuntimeTest :
             assertSoftly {
                 result.get().timedOut shouldBe true
                 result.get().handles shouldBe emptyList()
+                result.get().cancelled shouldBe false
                 result.get().optionIndices shouldBe emptyList()
                 coordinator.modalChoices.current().shouldBeNull()
                 board.bridge.resolvePendingTriggerAbilityIdentity(1, ForgeCardId(card.id)) { 123 } shouldBe 123
@@ -426,6 +427,18 @@ class MatchModalChoiceRuntimeTest :
             }
         }
 
+        test("only the caster can cancel a nontrigger modal choice") {
+            val board = startPuzzleAtMain1FromResource("data/puzzles/eldrazi-confluence-repeat.pzl")
+            val card = board.human.hand.card("Eldrazi Confluence")
+            val sa = card.firstSpellAbility
+            val options = possible(sa)
+            val capture = ModalChoiceWindowCapture(board.bridge.cutCoordinator)
+            sa.activatingPlayer = board.human
+            capture.capture(request(options, min = 3, max = 3).copy(allowRepeat = true), options, card, sa).value.allowCancel shouldBe true
+            sa.activatingPlayer = board.ai
+            capture.capture(request(options, min = 3, max = 3).copy(allowRepeat = true), options, card, sa).value.allowCancel shouldBe false
+        }
+
         test("uncorrelated cancel completes empty without staging a modal selection") {
             val board = startPuzzleAtMain1FromResource("data/puzzles/modal-etb.pzl")
             val coordinator = board.bridge.cutCoordinator
@@ -453,6 +466,7 @@ class MatchModalChoiceRuntimeTest :
             assertSoftly {
                 coordinator.acceptSettled(leyline.testkit.cancelActionReq(), published.gameStateId + 1) shouldBe false
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get().cancelled shouldBe true
                 result.get().optionIndices shouldBe emptyList()
                 result.get().handles shouldBe emptyList()
                 coordinator.modalChoices

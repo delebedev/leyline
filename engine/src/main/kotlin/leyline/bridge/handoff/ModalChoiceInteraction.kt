@@ -57,7 +57,11 @@ data class ModalChoiceInteractionResult(
     val optionIndices: List<Int>,
     val handles: List<AbilitySub>,
     val timedOut: Boolean,
+    val cancelled: Boolean = false,
 )
+
+/** Unwinds a cancelled cast-time mode choice before Forge commits the cast. */
+internal class ModalCastCancelledException : RuntimeException(null, null, false, false)
 
 /** Exact Forge context retained for the harness policy while a modal window is active. */
 internal data class ModalChoiceAiContext(
