@@ -51,7 +51,6 @@ object ZoneMapper {
     ) {
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId.value || revealHand
         val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
-        val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val handBuilder =
             ZoneInfo
                 .newBuilder()
@@ -64,7 +63,13 @@ object ZoneMapper {
         for (fid in snap.zones[handZoneId]?.contents ?: emptyList()) {
             val instanceId = instanceIdLookup(fid).value
             handBuilder.addObjectInstanceIds(instanceId)
-            if (canSeeHand) {
+            val inspectionViewers =
+                snap.objects[fid]
+                    ?.mayLookSeatIds
+                    .orEmpty()
+                    .mapTo(linkedSetOf()) { it.value }
+            val permittedViewers = inspectionViewers + seatId.value
+            if (canSeeHand || viewingSeatId in inspectionViewers) {
                 addPlayerCardObjects(
                     snap,
                     fid,
@@ -73,10 +78,10 @@ object ZoneMapper {
                     seatId,
                     environment,
                     instanceIdLookup,
-                    cardVisibility,
+                    if (revealHand) Visibility.Public else Visibility.Private,
                     "hand",
                     gameObjects,
-                    viewers = setOf(seatId.value),
+                    viewers = permittedViewers,
                 )
             }
         }
@@ -198,7 +203,7 @@ object ZoneMapper {
                     inspectionViewers.isEmpty() &&
                     !revealLibrary
             if (inspectionWithdrawn) {
-                gameObjects.add(hiddenLibraryObject(instanceId, libraryZoneId, seatId))
+                gameObjects.add(hiddenCardObject(instanceId, libraryZoneId, seatId))
             } else if (revealLibrary || inspectionViewers.isNotEmpty()) {
                 addPlayerCardObjects(
                     snap,
@@ -218,7 +223,7 @@ object ZoneMapper {
         zones.add(library.build())
     }
 
-    private fun hiddenLibraryObject(
+    internal fun hiddenCardObject(
         instanceId: Int,
         zoneId: Int,
         owner: SeatId,

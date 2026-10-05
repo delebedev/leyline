@@ -1161,10 +1161,11 @@ object StateMapper {
             current.gameObjectsList.filter { obj ->
                 // Always include new objects absent from prev (e.g. RevealedCard proxies synthesized mid-diff).
                 if (obj.instanceId !in prevInstanceIds) {
-                    // Still apply opponent-hand filter unless reveal is active
+                    // Opponent hand objects require a current viewer permission or active public reveal.
                     if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
                         return@filter obj.type == GameObjectType.RevealedCard ||
-                            (hasActiveReveal && obj.visibility == Visibility.Public)
+                            (hasActiveReveal && obj.visibility == Visibility.Public) ||
+                            (obj.visibility == Visibility.Private && viewingSeatId in obj.viewersList)
                     }
                     if (opponentSideboardZoneId != 0 && obj.zoneId == opponentSideboardZoneId) return@filter false
                     return@filter true
@@ -1181,7 +1182,10 @@ object StateMapper {
                     return@filter false
                 }
                 if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
-                    if (obj.type == GameObjectType.RevealedCard || (hasActiveReveal && obj.visibility == Visibility.Public)) {
+                    if (obj.type == GameObjectType.RevealedCard ||
+                        (hasActiveReveal && obj.visibility == Visibility.Public) ||
+                        (obj.visibility == Visibility.Private && viewingSeatId in obj.viewersList)
+                    ) {
                         // fall through
                     } else {
                         return@filter false
