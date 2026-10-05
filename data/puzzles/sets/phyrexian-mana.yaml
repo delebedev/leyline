@@ -31,3 +31,31 @@ scenarios:
             - winner: ours
             - our_life: 16
             - zone_contains: { side: ours, zone: battlefield, card: Phyrexian Obliterator }
+  - id: black-kicker-life-payment
+    puzzle: phyrexian-mana-kicker
+    run: accept kicker and pay both black symbols with life
+    expect: Duskwalker resolves as a three-three and the player has sixteen life
+    steps:
+      - cast: Duskwalker
+      - choose: { optional_cost: kicker }
+      - mana_type_choices: [phyrexian, phyrexian]
+      - pass_until: { winner: ours, max_passes: 8 }
+      - expect:
+          all:
+            - winner: ours
+            - our_life: 16
+            - battlefield_stats: { side: ours, card: Duskwalker, power: 3, toughness: 3 }
+  - id: declined-black-kicker-life-payment
+    puzzle: phyrexian-mana-kicker
+    run: decline kicker and pay the base black symbol with life
+    expect: Duskwalker resolves as a one-one and the player has eighteen life
+    steps:
+      - cast: Duskwalker
+      - choose: { cto_id: 0 }
+      - mana_type_choices: [phyrexian]
+      - pass_until: { winner: ours, max_passes: 8 }
+      - expect:
+          all:
+            - winner: ours
+            - our_life: 18
+            - battlefield_stats: { side: ours, card: Duskwalker, power: 1, toughness: 1 }

@@ -16,6 +16,12 @@ internal data class DeferredCastCostPlan private constructor(
     val optional: OptionalCostPlan?,
     val alternate: AlternateCostPlan?,
 ) {
+    val manaAfterOptional: Boolean
+        get() =
+            optional?.entries.orEmpty().any { entry ->
+                entry.manaPlan?.alternatives?.contains(ManaColor.Phyrexian_afc9) == true && entry.manaPlan != hybrid
+            }
+
     @ConsistentCopyVisibility
     data class HybridManaPlan private constructor(
         val promptColors: List<ManaColor>,
@@ -55,6 +61,7 @@ internal data class DeferredCastCostPlan private constructor(
         val type: CastingTimeOptionType,
         val abilityGrpId: Int,
         val keywordName: String?,
+        val manaPlan: HybridManaPlan? = null,
     )
 
     @ConsistentCopyVisibility

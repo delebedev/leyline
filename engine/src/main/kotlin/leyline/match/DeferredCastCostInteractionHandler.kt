@@ -75,9 +75,22 @@ internal class DeferredCastCostInteractionHandler(
                 bridgeAfterDeferredResponse()
                 HandlerResult.Resume
             }
+            is DeferredCastAdmission.ManaAfterOptional -> {
+                val plan = deferredCast.deferredCostPlan(admission.receipt)
+                checkNotNull(plan) { "Deferred optional action plan unavailable" }
+                val (request, ctoIds) = manaPrompt(plan, admission.plan)
+                check(deferredCast.publishHybrid(admission.receipt, request, ctoIds, admission.plan)) {
+                    "Deferred optional action claim did not publish mana choices"
+                }
+                sink.sendPriorityState(ctx.bridge)
+                HandlerResult.Waiting
+            }
             is DeferredCastAdmission.Hybrid -> {
                 val plan = deferredCast.deferredCostPlan(admission.receipt)
-                if (plan != null && checkOptionalCosts(admission.receipt, plan, preserveHybridStash = true)) {
+                if (!admission.optionalSelected &&
+                    plan != null &&
+                    checkOptionalCosts(admission.receipt, plan, preserveHybridStash = true)
+                ) {
                     HandlerResult.Waiting
                 } else {
                     check(deferredCast.complete(admission.receipt)) { "Deferred hybrid action claim did not complete" }
@@ -96,22 +109,14 @@ internal class DeferredCastCostInteractionHandler(
 
     fun checkHybridManaTypeOptions(actionClaim: MatchActionWindowRuntime.ActionClaim): Boolean {
         val plan = actionClaim.deferredCostPlan ?: return false
+        if (plan.manaAfterOptional) return false
         val hybrid = plan.hybrid ?: return false
-        val (ctoReq, ctoIds) =
-            CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
-                instanceId = plan.instanceId,
-                grpId = plan.grpId,
-                playerIdToPrompt = counters.seatId.value,
-                hybridColors = hybrid.promptColors,
-                manaCost = hybrid.manaCost,
-                alternatives = hybrid.alternatives,
-            )
+        val (ctoReq, ctoIds) = manaPrompt(plan, hybrid)
         ctx.bridge.cutCoordinator.deferredCast.publishHybrid(
             claim = actionClaim,
             request = ctoReq,
             ctoIds = ctoIds,
-            promptColors = hybrid.promptColors,
-            paymentColors = hybrid.paymentColors,
+            plan = hybrid,
         )
 
         sink.sendPriorityState(ctx.bridge)
@@ -122,6 +127,19 @@ internal class DeferredCastCostInteractionHandler(
         )
         return true
     }
+
+    private fun manaPrompt(
+        plan: leyline.bridge.handoff.DeferredCastCostPlan,
+        hybrid: leyline.bridge.handoff.DeferredCastCostPlan.HybridManaPlan,
+    ): Pair<CastingTimeOptionsReq, List<Int>> =
+        CastingTimeOptionsBuilder.buildManaTypeCastingTimeOptionsReq(
+            instanceId = plan.instanceId,
+            grpId = plan.grpId,
+            playerIdToPrompt = counters.seatId.value,
+            hybridColors = hybrid.promptColors,
+            manaCost = hybrid.manaCost,
+            alternatives = hybrid.alternatives,
+        )
 
     fun checkOptionalCosts(
         actionClaim: MatchActionWindowRuntime.ActionClaim,

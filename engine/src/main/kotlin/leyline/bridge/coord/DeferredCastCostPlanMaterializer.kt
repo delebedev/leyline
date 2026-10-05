@@ -75,12 +75,17 @@ internal object DeferredCastCostPlanMaterializer {
                             } else {
                                 cardData?.abilityIds?.getOrNull(keywordCount + index)?.first ?: 0
                             }
-                        DeferredCastCostPlan.OptionalCostEntry(type, abilityGrpId, null)
+                        DeferredCastCostPlan.OptionalCostEntry(
+                            type,
+                            abilityGrpId,
+                            null,
+                            materializeManaPlan(offer, GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
+                        )
                     } +
                         keywordCosts.map { name ->
                             val slot = card.findKeywordSlot(name, keywordCount)
                             val abilityGrpId = slot?.let { cardData?.abilityIds?.getOrNull(it)?.first } ?: 0
-                            DeferredCastCostPlan.OptionalCostEntry(CastingTimeOptionType.AdditionalCost, abilityGrpId, name)
+                            DeferredCastCostPlan.OptionalCostEntry(CastingTimeOptionType.AdditionalCost, abilityGrpId, name, hybrid)
                         }
                 DeferredCastCostPlan.optional(entries, cardData?.manaCost.orEmpty())
             }
