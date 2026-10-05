@@ -162,6 +162,33 @@ class AdventureCompanionTest :
             }
         }
 
+        test("token resolution reuses the linked-face parent and does not retire it next frame") {
+            val board =
+                startWithBoard { game, human, _ ->
+                    val token = addCard("Ratcatcher Trainee", human, ZoneType.Hand)
+                    game.action.moveTo(ZoneType.Stack, token, null, AbilityKey.newMap())
+                }
+            val token =
+                board.game.stackZone.cards
+                    .single()
+            val parentIid = board.instanceId(token.id)
+            val diff =
+                board.snapshotDiff {
+                    moveToBattlefield(token, board.game)
+                    token.setGamePieceType(forge.card.GamePieceType.TOKEN)
+                }
+            val companion = diff.gameObjectsList.single { it.type == GameObjectType.Adventure_a4aa }
+            val next = board.stateOnlyDiff()
+            assertSoftly {
+                diff.gameObjectsList.count { it.instanceId == parentIid } shouldBe 1
+                diff.gameObjectsList.single { it.instanceId == parentIid }.type shouldBe GameObjectType.Token
+                companion.parentId shouldBe parentIid
+                companion.zoneId shouldBe ZoneIds.BATTLEFIELD
+                next.diffDeletedInstanceIdsList shouldNotContain parentIid
+                next.diffDeletedInstanceIdsList shouldNotContain companion.instanceId
+            }
+        }
+
         test("parent disappearance deletes Adventure companion") {
             val board =
                 startWithBoard { _, human, _ ->

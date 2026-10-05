@@ -22,11 +22,12 @@ object LinkedFaceCompanionProjector {
         val parents = transferResult.patchedObjects.toMutableList()
         val transientHiddenFamilyIds = mutableSetOf<Int>()
         val companions =
-            snap.boundCards.values.flatMap { bound ->
+            snap.boundCards.values.filter { it.linkedFaces.isNotEmpty() }.flatMap { bound ->
                 val parentIid = frameIds.cardIid(bound.forgeCardId)
                 val parent =
                     parents.firstOrNull { obj ->
-                        obj.instanceId == parentIid.value && obj.type == GameObjectType.Card
+                        obj.instanceId == parentIid.value &&
+                            (obj.type == GameObjectType.Card || obj.type == GameObjectType.Token)
                     } ?: buildTransferredParent(bound, parentIid.value, transferResult, environment)?.also { transferredParent ->
                         parents.add(transferredParent)
                         transientHiddenFamilyIds.add(transferredParent.instanceId)

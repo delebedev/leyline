@@ -46,6 +46,9 @@ class CopyTokenIntegrationTest :
             TestCardRegistry.ensureCardRegistered("Homunculus Horde")
             TestCardRegistry.ensureCardRegistered("Quick Study")
             TestCardRegistry.ensureCardRegistered("Island")
+            TestCardRegistry.ensureCardRegistered("Sage of the Skies")
+            TestCardRegistry.ensureCardRegistered("Ornithopter")
+            TestCardRegistry.ensureCardRegistered("Geological Appraiser")
         }
 
         session(
@@ -114,6 +117,81 @@ class CopyTokenIntegrationTest :
                 human.manaPool.totalMana() shouldBe manaBefore + 4
                 human.manaPool.getAmountOfColor(MagicColor.GREEN) shouldBe greenBefore + 4
             }
+        }
+
+        fun MatchFlowHarness.assertCopiedPermanentLifetime() {
+            human.getZone(ZoneType.Battlefield).cards.count { it.name == "Sage of the Skies" } shouldBe 2
+            val copy = human.getZone(ZoneType.Battlefield).cards.single { it.isToken }
+            val copyIid = human.battlefield.iid(copy)
+            playLand("Forest").shouldBeTrue()
+            val states = allMessages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            val entered =
+                states.indexOfFirst { state ->
+                    state.gameObjectsList.any { it.instanceId == copyIid && it.type.name == "Token" }
+                }
+            entered shouldBeGreaterThan -1
+            states.drop(entered).flatMap { it.diffDeletedInstanceIdsList }.filter { it == copyIid } shouldBe emptyList()
+            states.forEach { state ->
+                state.gameObjectsList
+                    .map { it.instanceId }
+                    .distinct()
+                    .size shouldBe state.gameObjectsCount
+            }
+            human.getZone(ZoneType.Battlefield).cards.count { it.name == "Sage of the Skies" } shouldBe 2
+        }
+
+        session(
+            "a copied permanent spell retains its battlefield identity after both spells resolve",
+            fullControl = true,
+            puzzle =
+                """
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Ornithopter;Sage of the Skies;Forest
+                humanbattlefield=Plains;Plains;Plains
+                humanlibrary=Plains;Plains;Plains;Plains;Plains
+                ailibrary=Forest;Forest;Forest;Forest;Forest
+                """.trimIndent(),
+        ) {
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+            castSpellByName("Sage of the Skies").shouldBeTrue()
+            passUntilResolved()
+            assertCopiedPermanentLifetime()
+        }
+
+        session(
+            "Discover preserves a copied permanent through later diffs",
+            fullControl = true,
+            puzzle =
+                """
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Geological Appraiser;Forest
+                humanbattlefield=Mountain;Mountain;Mountain;Mountain
+                humanlibrary=Sage of the Skies;Mountain;Mountain;Mountain;Mountain;Mountain
+                ailibrary=Forest;Forest;Forest;Forest;Forest
+                """.trimIndent(),
+        ) {
+            castSpellByName("Geological Appraiser").shouldBeTrue()
+            passUntil(maxPasses = 10) {
+                allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
+                    it.actionType == ActionType.Cast && it.grpId == bridge.cardRepository.findGrpIdByName("Sage of the Skies")
+                } == true
+            }.shouldBeTrue()
+            val offeredCast =
+                allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                    it.actionType == ActionType.Cast
+                }
+            submitAction(offeredCast)
+            passUntilResolved()
+            assertCopiedPermanentLifetime()
         }
 
         // Board A: Electroduplicate targeting Grizzly Bears
