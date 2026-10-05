@@ -307,10 +307,17 @@ object AcceptanceSuiteLoader {
         raw: Any?,
         context: String,
     ): BlockStep {
-        val map = raw.asMap(context)
+        val values = if (raw is List<*>) raw else listOf(raw)
+        require(values.isNotEmpty()) { "$context requires at least one assignment" }
         return BlockStep(
-            blocker = map.requiredString("blocker", context),
-            attacker = map.requiredString("attacker", context),
+            values.mapIndexed { index, value ->
+                val assignmentContext = "$context[$index]"
+                val map = value.asMap(assignmentContext)
+                BlockAssignment(
+                    blocker = map.requiredString("blocker", assignmentContext),
+                    attacker = map.requiredString("attacker", assignmentContext),
+                )
+            },
         )
     }
 

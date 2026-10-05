@@ -34,6 +34,48 @@ class TwoPhaseCombatFidelityTest :
         }
 
         session(
+            "invalid completed menace block retries without stale assignments",
+            puzzleFile = "data/puzzles/menace-block-declaration.pzl",
+        ) {
+            passUntil(maxPasses = 40) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+            val prompt = allMessages.last { it.hasDeclareBlockersReq() }
+            val corpse = humanBattlefieldCreatures().first { it.second == "Walking Corpse" }.first
+            val bear = humanBattlefieldCreatures().first { it.second == "Grizzly Bears" }.first
+            val attacker =
+                prompt.declareBlockersReq.blockersList
+                    .first()
+                    .attackerInstanceIdsList
+                    .first()
+            toggleBlockers(mapOf(corpse to attacker))
+            val selectedPrompt = latestPromptMsgId()
+            repeat(2) {
+                submitBlockers()
+                val retry = allMessages.last { it.hasDeclareBlockersReq() }
+                (retry.msgId > selectedPrompt).shouldBeTrue()
+                bridge
+                    .getGame()!!
+                    .combat.allBlockers.size shouldBe 0
+                human.life shouldBe 7
+                ai.life shouldBe 20
+                bridge.getGame()!!.stack.size() shouldBe 0
+                toggleBlockers(mapOf(corpse to attacker))
+            }
+            toggleBlockers(mapOf(bear to attacker))
+            submitBlockers()
+            bridge
+                .getGame()!!
+                .combat
+                .getBlockers(
+                    bridge
+                        .getGame()!!
+                        .combat.attackers
+                        .first(),
+                ).size shouldBe 2
+            passUntil(maxPasses = 40) { ai.life == 27 }.shouldBeTrue()
+            human.life shouldBe 7
+        }
+
+        session(
             "attack confirms under fidelity mode — opponent takes damage, no IllegalRequest",
             puzzle =
                 """

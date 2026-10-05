@@ -1,0 +1,18 @@
+name: menace-block-declaration
+scenarios:
+  - id: reject-one-accept-two-continue
+    puzzle: menace-block-declaration
+    steps:
+      - pass_until: { prompt: DeclareBlockersReq }
+      - block: { blocker: Walking Corpse, attacker: Phyrexian Fleshgorger }
+      - expect: { prompt: DeclareBlockersReq }
+      - expect: { our_life: 7 }
+      - block:
+          - { blocker: Walking Corpse, attacker: Phyrexian Fleshgorger }
+          - { blocker: Grizzly Bears, attacker: Phyrexian Fleshgorger }
+      - pass_until: { action: { type: cast, card: Shock } }
+      - cast: Shock
+      - target: opponent
+      - resolve_stack: {}
+      - expect: { our_life: 7 }
+      - expect: { opponent_life: 25 }

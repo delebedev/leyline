@@ -124,11 +124,17 @@ data class DistributeStep(
     override val label: String = "distribute ${assignments.joinToString { "${it.card}=${it.amount}" }}"
 }
 
-data class BlockStep(
+data class BlockAssignment(
     val blocker: String,
     val attacker: String,
+)
+
+data class BlockStep(
+    val assignments: List<BlockAssignment>,
 ) : AcceptanceStep {
-    override val label: String = "block $attacker with $blocker"
+    constructor(blocker: String, attacker: String) : this(listOf(BlockAssignment(blocker, attacker)))
+
+    override val label: String = "block ${assignments.joinToString { "${it.attacker} with ${it.blocker}" }}"
 }
 
 data class AttackStep(

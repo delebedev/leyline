@@ -535,9 +535,13 @@ private class ScenarioRun(
         require(latestPromptMatches("DeclareBlockersReq")) {
             "$context expected latest prompt DeclareBlockersReq"
         }
-        val blockerId = resolveBattlefieldCard(AcceptanceSide.Ours, step.blocker)
-        val attackerId = resolveBattlefieldCard(AcceptanceSide.Opponent, step.attacker)
-        harness.declareBlockers(mapOf(blockerId to attackerId))
+        val assignments =
+            step.assignments.associate { assignment ->
+                resolveBattlefieldCard(AcceptanceSide.Ours, assignment.blocker) to
+                    resolveBattlefieldCard(AcceptanceSide.Opponent, assignment.attacker)
+            }
+        require(assignments.size == step.assignments.size) { "$context repeats a blocker" }
+        harness.declareBlockers(assignments)
     }
 
     private fun attack(step: AttackStep) {
