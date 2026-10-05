@@ -82,6 +82,7 @@ import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
+import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
@@ -426,7 +427,14 @@ class PlayerController(
     ): T? {
         // ponytail: one eligible companion; add a pregame choice when multiple candidates are supported.
         if (sa?.api == ApiType.CompanionChoose) return optionList.firstOrNull()
-        if (delayedReveal != null) reveal(delayedReveal)
+        if (delayedReveal != null &&
+            !(
+                delayedReveal.zone == setOf(ZoneType.Library) &&
+                    ChooseSingleEntityPlanner.isLibrarySearchAbility(sa)
+            )
+        ) {
+            reveal(delayedReveal)
+        }
         return targetingCoordinator.chooseSingleEntity(
             optionList,
             sa,
@@ -458,7 +466,14 @@ class PlayerController(
         targetedPlayer: Player?,
         params: MutableMap<String, Any>?,
     ): List<T> {
-        if (delayedReveal != null) reveal(delayedReveal)
+        if (delayedReveal != null &&
+            !(
+                delayedReveal.zone == setOf(ZoneType.Library) &&
+                    ChooseSingleEntityPlanner.isLibrarySearchAbility(sa)
+            )
+        ) {
+            reveal(delayedReveal)
+        }
         return targetingCoordinator.chooseEntities(optionList, min, max, title, sa)
     }
 

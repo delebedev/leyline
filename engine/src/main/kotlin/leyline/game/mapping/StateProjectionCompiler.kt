@@ -819,13 +819,31 @@ object StateProjectionCompiler {
                 .associate { (index, obj) -> obj.instanceId to index }
                 .toMutableMap()
         for (forgeCardId in candidates) {
-            val card = snapshot.objects[forgeCardId] ?: continue
+            if (snapshot.objects[forgeCardId] == null) continue
             val zone = snapshot.zones.values.firstOrNull { forgeCardId in it.contents } ?: continue
             val id = editor.identities.getOrAlloc(forgeCardId)
-            val objectInfo = orderObject(card, id, zone.id, zone.owner?.value ?: viewingSeatId, environment, viewingSeatId)
-            existing[id.value]?.let { builder.setGameObjects(it, objectInfo) } ?: run {
-                existing[id.value] = builder.gameObjectsCount
-                builder.addGameObjects(objectInfo)
+            val family = mutableListOf<GameObjectInfo>()
+            ZoneMapper.addPlayerCardObjects(
+                snapshot,
+                forgeCardId,
+                id.value,
+                zone.id,
+                zone.owner ?: leyline.bridge.types.SeatId(viewingSeatId),
+                environment,
+                editor.identities::getOrAlloc,
+                Visibility.Private,
+                "private candidate",
+                family,
+                viewers = setOf(viewingSeatId),
+            )
+            snapshot.boundCards[forgeCardId]?.let { bound ->
+                family += LinkedFaceCompanionProjector.companions(bound.linkedFaces, family.first(), editor, environment)
+            }
+            for (objectInfo in family) {
+                existing[objectInfo.instanceId]?.let { builder.setGameObjects(it, objectInfo) } ?: run {
+                    existing[objectInfo.instanceId] = builder.gameObjectsCount
+                    builder.addGameObjects(objectInfo)
+                }
             }
         }
         return builder.build()

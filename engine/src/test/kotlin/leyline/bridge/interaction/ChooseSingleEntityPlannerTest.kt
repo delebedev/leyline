@@ -20,6 +20,14 @@ class ChooseSingleEntityPlannerTest :
         tags(UnitTag)
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
+        test("private search reveal contract excludes top-card dig effects") {
+            assertSoftly {
+                ChooseSingleEntityPlanner.isLibrarySearchAbility(changeZoneSa()) shouldBe true
+                ChooseSingleEntityPlanner.isLibrarySearchAbility(digSa()) shouldBe false
+                ChooseSingleEntityPlanner.isLibrarySearchAbility(genericSa()) shouldBe false
+            }
+        }
+
         test("mutate uses special route") {
             val plan = planFor(mutateSa())
 
