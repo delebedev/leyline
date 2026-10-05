@@ -216,8 +216,8 @@ Snapshots are best for "what is true now?" facts:
 Continuous hand inspection follows `Card.mayPlayerLook` through
 `CardSnapshot.mayLookSeatIds`. Hand zones retain their private owner-only default,
 while permitted card objects list their owner and current viewers. When permission
-ends, the viewer's committed full-state inventory retires the inaccessible hand
-objects and linked faces from Diff updates. Temporary public hand reveals retain
+ends, the viewer's committed full-state inventory conceals the hand identity
+while preserving its slot and retires inaccessible linked faces from Diff updates. Temporary public hand reveals retain
 their existing precedence.
 
 Do not infer a cause from snapshots when a Forge event can carry it. Do not store a parallel mutable truth when a snapshot can read the current Forge state.

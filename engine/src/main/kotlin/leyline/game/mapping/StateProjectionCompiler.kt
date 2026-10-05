@@ -332,7 +332,7 @@ object StateProjectionCompiler {
             )
     }
 
-    /** Retire inaccessible private hand objects and library companions against this viewer's committed object inventory. */
+    /** Conceal withdrawn hand identities and retire inaccessible private companions for this viewer. */
     private fun retirePrivateZoneObjects(
         gsm: GameStateMessage,
         fullState: GameStateMessage,
@@ -341,13 +341,24 @@ object StateProjectionCompiler {
         if (gsm.type != GameStateType.Diff || priorFullState == null) return gsm
         val currentIds = fullState.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
         val handZones = setOf(ZoneIds.P1_HAND, ZoneIds.P2_HAND)
-        val currentHandIds = fullState.zonesList.filter { it.zoneId in handZones }.flatMapTo(mutableSetOf()) { it.objectInstanceIdsList }
+        val currentHandIds =
+            fullState.zonesList
+                .filter { it.zoneId in handZones }
+                .flatMapTo(mutableSetOf()) { it.objectInstanceIdsList }
+        val hiddenHandObjects =
+            priorFullState.gameObjectsList
+                .filter {
+                    it.visibility == Visibility.Private &&
+                        it.zoneId in handZones &&
+                        it.instanceId in currentHandIds &&
+                        it.instanceId !in currentIds
+                }.map { ZoneMapper.hiddenCardObject(it.instanceId, it.zoneId, SeatId(it.ownerSeatId)) }
         val retired =
             priorFullState.gameObjectsList
                 .filter {
                     it.visibility == Visibility.Private &&
                         (
-                            (it.zoneId in handZones && (it.instanceId in currentHandIds || it.parentId in currentHandIds)) ||
+                            (it.zoneId in handZones && it.parentId != 0 && it.parentId in currentHandIds) ||
                                 it.parentId != 0 &&
                                 it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
                         ) &&
@@ -355,6 +366,7 @@ object StateProjectionCompiler {
                 }.map { it.instanceId }
         return gsm
             .toBuilder()
+            .addAllGameObjects(hiddenHandObjects)
             .clearDiffDeletedInstanceIds()
             .addAllDiffDeletedInstanceIds((gsm.diffDeletedInstanceIdsList + retired).distinct())
             .build()

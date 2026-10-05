@@ -203,7 +203,7 @@ object ZoneMapper {
                     inspectionViewers.isEmpty() &&
                     !revealLibrary
             if (inspectionWithdrawn) {
-                gameObjects.add(hiddenLibraryObject(instanceId, libraryZoneId, seatId))
+                gameObjects.add(hiddenCardObject(instanceId, libraryZoneId, seatId))
             } else if (revealLibrary || inspectionViewers.isNotEmpty()) {
                 addPlayerCardObjects(
                     snap,
@@ -223,7 +223,7 @@ object ZoneMapper {
         zones.add(library.build())
     }
 
-    private fun hiddenLibraryObject(
+    internal fun hiddenCardObject(
         instanceId: Int,
         zoneId: Int,
         owner: SeatId,

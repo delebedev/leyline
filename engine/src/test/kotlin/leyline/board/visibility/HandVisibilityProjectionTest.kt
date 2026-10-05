@@ -54,10 +54,16 @@ class HandVisibilityProjectionTest :
             assertSoftly {
                 withdrawn.gsm.gameObjectsList
                     .filter { it.instanceId in handIds }
-                    .shouldBeEmpty()
+                    .map { it.instanceId }
+                    .toSet() shouldBe handIds
+                withdrawn.gsm.gameObjectsList.filter { it.instanceId in handIds }.forEach {
+                    it.visibility shouldBe Visibility.Hidden
+                    it.grpId shouldBe 0
+                    it.viewersList.shouldBeEmpty()
+                }
                 withdrawn.gsm.diffDeletedInstanceIdsList
                     .filter { it in handIds }
-                    .toSet() shouldBe handIds
+                    .shouldBeEmpty()
                 projectHand(board, handSnapshot(board, 3), 1)
                     .gsm.gameObjectsList
                     .filter { it.instanceId in handIds }
@@ -107,9 +113,13 @@ class HandVisibilityProjectionTest :
             val withdrawn = projectHand(board, handSnapshot(board, 3), 1, initial, known.transition.nextState)
             assertSoftly {
                 withdrawn.gsm.gameObjectsList
-                    .filter { it.instanceId == parentId || it.parentId == parentId }
-                    .shouldBeEmpty()
-                withdrawn.gsm.diffDeletedInstanceIdsList.toSet() shouldBe family.map { it.instanceId }.toSet()
+                    .single { it.instanceId == parentId }
+                    .visibility shouldBe Visibility.Hidden
+                withdrawn.gsm.gameObjectsList
+                    .single { it.instanceId == parentId }
+                    .grpId shouldBe 0
+                withdrawn.gsm.diffDeletedInstanceIdsList.toSet() shouldBe
+                    family.filter { it.parentId == parentId }.map { it.instanceId }.toSet()
             }
         }
     })
