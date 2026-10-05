@@ -101,8 +101,9 @@ class DraftServiceTest :
         test("startDraft returns existing session if already started") {
             val (service, _) = createService()
             val first = service.startDraft(playerId, eventName)
+            val picked = service.pick(playerId, eventName, first.draftPack.first())
             val second = service.startDraft(playerId, eventName)
-            first.id shouldBe second.id
+            second shouldBe picked
         }
 
         test("pick removes card from pack and adds to pickedCards") {
