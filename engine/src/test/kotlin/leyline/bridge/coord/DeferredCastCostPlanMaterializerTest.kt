@@ -194,6 +194,10 @@ class DeferredCastCostPlanMaterializerTest :
                 )
             val cases =
                 listOf(
+                    "PayLife<3>" to AdditionalCostKind.PayLife(3),
+                    "PayLife<4>" to AdditionalCostKind.PayLife(4),
+                    "PayLife<X>" to AdditionalCostKind.Unsupported,
+                    "PayLife<3> Discard<1/Card>" to AdditionalCostKind.Unsupported,
                     "Discard<2/Card>" to AdditionalCostKind.Unsupported,
                     "Discard<1/Card.Black>" to AdditionalCostKind.Unsupported,
                     "Sac<2/Artifact>" to AdditionalCostKind.Sacrifice,
@@ -209,6 +213,26 @@ class DeferredCastCostPlanMaterializerTest :
                     .choices
                     .first()
                     .kind shouldBe expected
+                if (expected is AdditionalCostKind.PayLife) {
+                    val choices =
+                        result.plan.alternate
+                            .shouldNotBeNull()
+                            .choices
+                    val native =
+                        CastingTimeOptionsBuilder
+                            .buildChooseOrCostCastingTimeOptionsReq(
+                                iid,
+                                0,
+                                1,
+                                choices,
+                                CostChoicePresentation.Native,
+                            ).first.castingTimeOptionReqList
+                            .single()
+                            .selectNReq.prompt
+                    native.parametersCount shouldBe if (expected.amount == 3) 2 else 0
+                    casts.first().payCosts = Cost("1 R PayLife<5>", false)
+                    choices.first().kind shouldBe expected
+                }
             }
         }
 

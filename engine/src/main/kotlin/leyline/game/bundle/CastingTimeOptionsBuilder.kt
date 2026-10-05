@@ -274,6 +274,8 @@ object CastingTimeOptionsBuilder {
             DeferredCastCostPlan.AdditionalCostKind.SacrificeArtifact -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE_ARTIFACT
             DeferredCastCostPlan.AdditionalCostKind.DiscardCard -> PromptIds.CHOOSE_OR_COST_PAY_DISCARD
             DeferredCastCostPlan.AdditionalCostKind.Exile -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
+            is DeferredCastCostPlan.AdditionalCostKind.PayLife ->
+                PromptIds.CHOOSE_OR_COST_PAY_THREE_LIFE.takeIf { kind.amount == 3 }
             DeferredCastCostPlan.AdditionalCostKind.Unsupported -> null
         }
 }

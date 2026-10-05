@@ -73,14 +73,24 @@ internal data class DeferredCastCostPlan private constructor(
     }
 
     /** Bounded classification for the supported alternate additional-cost label mappings. */
-    enum class AdditionalCostKind {
-        Mana,
-        Blight,
-        Sacrifice,
-        SacrificeArtifact,
-        DiscardCard,
-        Exile,
-        Unsupported,
+    sealed interface AdditionalCostKind {
+        data object Mana : AdditionalCostKind
+
+        data object Blight : AdditionalCostKind
+
+        data object Sacrifice : AdditionalCostKind
+
+        data object SacrificeArtifact : AdditionalCostKind
+
+        data object DiscardCard : AdditionalCostKind
+
+        data object Exile : AdditionalCostKind
+
+        data object Unsupported : AdditionalCostKind
+
+        data class PayLife(
+            val amount: Int,
+        ) : AdditionalCostKind
     }
 
     companion object {
