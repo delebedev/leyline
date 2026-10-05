@@ -80,6 +80,8 @@ Card spells, alternative costs, and zone-cast options should flow through the sh
 
 Use `getAllCastableAbilities(card, player)` when you need Forge's castable SA list. It expands additional and alternative costs with `GameActionUtil`, handles special cast states, sets the activating player, and filters by Forge legality.
 
+Library candidates come from Forge's `PlayerZone.getCardsPlayerCanActivate(player)`. That query limits inspection to the current top card and preserves the permission's player identity. The ordinary priority catalog and zone-cast projection retain the supplied ability, including life payment, while Forge still owns land-play limits and cost affordability.
+
 Use `chooseCastAbility(card, player)` when you only need the best current cast candidate.
 
 Use `CastRails` when an action needs protocol fields for a named cast rail such as plot, foretell, disturb, escape, warp, or sneak. The rail table is the shared source for action emission and action submission.

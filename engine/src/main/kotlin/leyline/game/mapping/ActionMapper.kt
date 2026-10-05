@@ -421,8 +421,8 @@ object ActionMapper {
                 bindOffer(action, PlayerAction.PlayLand(fid))
             }
         }
-        // --- Graveyard, exile, command: lands with explicit play permission ---
-        for (zoneId in listOf(ZoneIds.P1_GRAVEYARD, ZoneIds.P2_GRAVEYARD, ZoneIds.EXILE, ZoneIds.COMMAND)) {
+        // Non-hand lands require Forge's explicit play permission.
+        for ((zoneId, _) in zoneRailBuckets) {
             for (fid in snap.zones[zoneId]?.contents.orEmpty()) {
                 val card = snap.objects[fid] ?: continue
                 if (!card.isLand) continue
@@ -875,6 +875,8 @@ object ActionMapper {
             ZoneIds.P1_GRAVEYARD to CastRails.fromGraveyard,
             ZoneIds.P2_GRAVEYARD to CastRails.fromGraveyard,
             ZoneIds.COMMAND to emptyList(),
+            ZoneIds.P1_LIBRARY to emptyList(),
+            ZoneIds.P2_LIBRARY to emptyList(),
         )
 
     /**
