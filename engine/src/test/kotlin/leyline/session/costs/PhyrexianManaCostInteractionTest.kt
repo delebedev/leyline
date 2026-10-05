@@ -32,6 +32,125 @@ class PhyrexianManaCostInteractionTest :
             """.trimIndent()
 
         session(
+            "flashback black mana offers life payment on the selected alternate cost",
+            puzzle =
+                puzzle(hand = "Ornithopter", battlefield = "$krrik;Mountain") +
+                    "\nhumangraveyard=Lingering Souls",
+        ) {
+            val request = after { castFromGraveyard("Lingering Souls").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val mana = request.castingTimeOptionReqList.filter { it.hasSelectManaTypeReq() }
+            mana.size shouldBe 1
+            respondToManaTypeChoices(mana.map { it.ctoId to ManaColor.Phyrexian_afc9 })
+            passUntilResolved()
+            assertSoftly {
+                human.life shouldBe 18
+                human.getZone(ZoneType.Exile).cards.map { it.name } shouldContain "Lingering Souls"
+                human.getZone(ZoneType.Battlefield).cards.count { it.isToken } shouldBe 2
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 1
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+            human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Ornithopter"
+        }
+
+        session(
+            "cancelled flashback mana choice preserves the graveyard and resources",
+            puzzle =
+                puzzle(hand = "Ornithopter", battlefield = "$krrik;Mountain") +
+                    "\nhumangraveyard=Lingering Souls",
+        ) {
+            after { castFromGraveyard("Lingering Souls").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            cancelAction()
+            assertSoftly {
+                human.life shouldBe 20
+                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Lingering Souls"
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                game().stack.isEmpty shouldBe true
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        session(
+            "failed flashback mana choice restores the graveyard without paying life",
+            puzzle =
+                puzzle(hand = "Ornithopter", battlefield = "$krrik;Mountain") +
+                    "\nhumangraveyard=Lingering Souls",
+        ) {
+            val request = after { castFromGraveyard("Lingering Souls").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            val mana = request.castingTimeOptionReqList.filter { it.hasSelectManaTypeReq() }
+            respondToManaTypeChoices(mana.map { it.ctoId to ManaColor.Black_afc9 })
+            assertSoftly {
+                human.life shouldBe 20
+                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Lingering Souls"
+                human.getZone(ZoneType.Exile).size() shouldBe 0
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                game().stack.isEmpty shouldBe true
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        listOf(ManaColor.Phyrexian_afc9, ManaColor.Black_afc9).forEach { color ->
+            session(
+                "escape $color selection commits only a fully payable cost",
+                puzzle =
+                    puzzle(hand = "Ornithopter", battlefield = "$krrik;Mountain;Mountain;Mountain") +
+                        "\nhumangraveyard=Cling to Dust;Forest;Forest;Forest;Forest;Forest\naigraveyard=Grizzly Bears",
+            ) {
+                val request = after { castFromGraveyard("Cling to Dust").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+                val mana = request.castingTimeOptionReqList.filter { it.hasSelectManaTypeReq() }
+                respondToManaTypeChoices(mana.map { it.ctoId to color })
+                selectTargets(listOf(bridge.instanceId(ai.getZone(ZoneType.Graveyard).cards.first())))
+                if (color == ManaColor.Phyrexian_afc9) {
+                    val cost = allMessages.last { it.hasPayCostsReq() }.payCostsReq
+                    respondToEffectCost(cost.effectCostReq.costSelection.idsList)
+                    passUntilResolved()
+                } else {
+                    allMessages.any { it.hasPayCostsReq() } shouldBe false
+                }
+                assertSoftly {
+                    if (color == ManaColor.Phyrexian_afc9) {
+                        human.life shouldBe 21
+                        human.getZone(ZoneType.Exile).cards.count { it.name == "Forest" } shouldBe 5
+                        human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Cling to Dust"
+                        ai.getZone(ZoneType.Exile).cards.map { it.name } shouldContain "Grizzly Bears"
+                        human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 3
+                    } else {
+                        human.life shouldBe 20
+                        human
+                            .getZone(ZoneType.Graveyard)
+                            .cards
+                            .map { it.name }
+                            .sorted() shouldBe
+                            listOf("Cling to Dust", "Forest", "Forest", "Forest", "Forest", "Forest")
+                        human.getZone(ZoneType.Exile).size() shouldBe 0
+                        ai.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContain "Grizzly Bears"
+                        human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                    }
+                    game().stack.isEmpty shouldBe true
+                }
+                castSpellByName("Ornithopter").shouldBeTrue()
+                passUntilResolved()
+            }
+        }
+
+        session(
+            "free black cast offers no life payment and spends no resources",
+            puzzle = puzzle(hand = "Phyrexian Obliterator;Ornithopter", battlefield = "$krrik;Omniscience"),
+        ) {
+            after { castSpellByName("Phyrexian Obliterator").shouldBeTrue() }.expectNoCastingTimeOptionsReq()
+            passUntilResolved()
+            assertSoftly {
+                human.life shouldBe 20
+                human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Phyrexian Obliterator"
+                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        session(
             "accepted black kicker offers life choices for the complete cost",
             puzzle = puzzle(hand = "Duskwalker", battlefield = "$krrik;Mountain;Mountain;Mountain"),
         ) {

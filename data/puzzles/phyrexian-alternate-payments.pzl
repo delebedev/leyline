@@ -1,0 +1,18 @@
+# Flashback uses its selected mana cost. K'rrik allows its black symbol to be paid with life.
+# The Mountain pays the remaining generic cost. Ornithopter proves continued play.
+[metadata]
+Name:Alternate Black Life Payment
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Lingering Souls from the graveyard using life for its black flashback symbol.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=K'rrik, Son of Yawgmoth;Mountain
+humangraveyard=Lingering Souls
+humanhand=Ornithopter
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain

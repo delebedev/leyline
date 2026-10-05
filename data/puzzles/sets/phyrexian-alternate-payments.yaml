@@ -1,0 +1,58 @@
+name: phyrexian-alternate-payments
+description: Life payment uses the selected graveyard cast cost.
+scenarios:
+  - id: flashback-life-payment
+    puzzle: phyrexian-alternate-payments
+    run: pay the black flashback symbol with life
+    expect: two Spirits resolve and Lingering Souls is exiled
+    steps:
+      - cast: {card: Lingering Souls, zone: graveyard}
+      - expect: {prompt: CastingTimeOptionsReq}
+      - mana_type_choices: [phyrexian]
+      - pass_until:
+          all:
+            - zone_contains: {side: ours, zone: exile, card: Lingering Souls}
+            - stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - our_life: 18
+            - zone_contains: {side: ours, zone: battlefield, card: Spirit Token}
+            - zone_count_at_least: {side: ours, zone: battlefield, count: 4}
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: {side: ours, zone: battlefield, card: Ornithopter}
+            - stack_empty: true
+          max_passes: 8
+  - id: cancelled-flashback-life-payment
+    puzzle: phyrexian-alternate-payments
+    run: cancel the flashback payment then cast it again
+    expect: cancellation preserves the graveyard and life before a successful retry
+    steps:
+      - cast: {card: Lingering Souls, zone: graveyard}
+      - expect: {prompt: CastingTimeOptionsReq}
+      - cancel_action: true
+      - expect:
+          all:
+            - our_life: 20
+            - zone_contains: {side: ours, zone: graveyard, card: Lingering Souls}
+            - stack_empty: true
+      - cast: {card: Lingering Souls, zone: graveyard}
+      - mana_type_choices: [phyrexian]
+      - pass_until:
+          all:
+            - zone_contains: {side: ours, zone: exile, card: Lingering Souls}
+            - stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - our_life: 18
+            - zone_contains: {side: ours, zone: battlefield, card: Spirit Token}
+            - zone_count_at_least: {side: ours, zone: battlefield, count: 4}
+      - cast: Ornithopter
+      - pass_until:
+          all:
+            - zone_contains: {side: ours, zone: battlefield, card: Ornithopter}
+            - stack_empty: true
+          max_passes: 8
