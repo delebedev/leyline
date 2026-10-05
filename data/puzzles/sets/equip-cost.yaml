@@ -1,0 +1,48 @@
+name: Target-dependent equip costs
+scenarios:
+  - id: enchanted-free
+    puzzle: strong-back-equip
+    run: equip Basilisk Collar onto the Strong Back enchanted creature without mana, then play Forest
+    expect: the enchanted creature is equipped and gameplay continues
+    steps:
+      - expect:
+          action: { type: activate, card: Basilisk Collar }
+      - activate: Basilisk Collar
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 6, toughness: 6 }
+            - stack_empty: true
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
+  - id: unenchanted-unpaid
+    puzzle: strong-back-equip-unpaid
+    run: choose the unenchanted creature without mana and continue after failed payment
+    expect: neither creature gains the Equipment and gameplay continues
+    steps:
+      - activate: Basilisk Collar
+      - target: { side: ours, zone: battlefield, card: Centaur Courser }
+      - expect:
+          all:
+            - stack_empty: true
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 4, toughness: 4 }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
+  - id: unenchanted-paid
+    puzzle: strong-back-equip-paid
+    run: equip the unenchanted creature by paying two mana, then play Forest
+    expect: two Mountains pay the unreduced equip cost and gameplay continues
+    steps:
+      - activate: Basilisk Collar
+      - target: { side: ours, zone: battlefield, card: Centaur Courser }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - stack_empty: true
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 4, toughness: 4 }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
