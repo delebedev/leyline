@@ -301,7 +301,7 @@ object StateProjectionCompiler {
         val priorCursor = editor.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
         val draft =
             rendered.copy(
-                gsm = retirePrivateZoneObjects(finalizedOrderOverlay.gsm, fullState, priorCursor.fullState),
+                gsm = retirePrivateZoneObjects(finalizedOrderOverlay.gsm, fullState, priorCursor.fullState, shared.gsm),
                 projectionSnapshot = finalizedOrderOverlay.snapshot,
                 output =
                     rendered.output.copy(
@@ -332,19 +332,30 @@ object StateProjectionCompiler {
             )
     }
 
-    /** Conceal withdrawn hand identities and retire inaccessible private companions for this viewer. */
+    /** Publish hand visibility changes and retire inaccessible companions for this viewer. */
     private fun retirePrivateZoneObjects(
         gsm: GameStateMessage,
         fullState: GameStateMessage,
         priorFullState: GameStateMessage?,
+        neutralState: GameStateMessage,
     ): GameStateMessage {
         if (gsm.type != GameStateType.Diff || priorFullState == null) return gsm
         val currentIds = fullState.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
         val handZones = setOf(ZoneIds.P1_HAND, ZoneIds.P2_HAND)
         val currentHandIds =
-            fullState.zonesList
+            neutralState.zonesList
                 .filter { it.zoneId in handZones }
                 .flatMapTo(mutableSetOf()) { it.objectInstanceIdsList }
+        val priorObjects = priorFullState.gameObjectsList.associateBy { it.instanceId }
+        val emittedIds = gsm.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
+        val changedHandVisibility =
+            fullState.gameObjectsList.filter { current ->
+                val previous = priorObjects[current.instanceId]
+                current.zoneId in handZones &&
+                    current.instanceId !in emittedIds &&
+                    previous != null &&
+                    (current.visibility != previous.visibility || current.viewersList != previous.viewersList)
+            }
         val hiddenHandObjects =
             priorFullState.gameObjectsList
                 .filter {
@@ -373,7 +384,7 @@ object StateProjectionCompiler {
                 }.map { it.instanceId }
         return gsm
             .toBuilder()
-            .addAllGameObjects(hiddenHandObjects)
+            .addAllGameObjects(changedHandVisibility + hiddenHandObjects)
             .clearDiffDeletedInstanceIds()
             .addAllDiffDeletedInstanceIds((gsm.diffDeletedInstanceIdsList + retired).distinct())
             .build()

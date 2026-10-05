@@ -8,17 +8,22 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.event.FrameEventLog
+import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
+import leyline.game.state.MechanicSourceFacts
+import leyline.game.state.PersistentFeedFacts
 import leyline.game.state.ProjectionState
+import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.PromptFactKey
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.RevealStarted
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
-import leyline.testkit.StateMapperShell
+import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class HandVisibilityProjectionTest :
@@ -82,8 +87,12 @@ class HandVisibilityProjectionTest :
             }
         }
 
-        for (withdrawPermission in listOf(true, false)) {
-            test("closing a public hand reveal respects remaining inspection permission ($withdrawPermission)") {
+        for ((withdrawPermission, role) in listOf(
+            true to ProjectionViewerRole.Player,
+            false to ProjectionViewerRole.Player,
+            true to ProjectionViewerRole.Observer,
+        )) {
+            test("closing a public hand reveal respects remaining inspection permission ($withdrawPermission, $role)") {
                 val board = startPuzzleAtMain1(HAND_INSPECTION_PUZZLE.replace("Grizzly Bears", "Brazen Borrower"))
                 val hand =
                     board.ai
@@ -103,7 +112,7 @@ class HandVisibilityProjectionTest :
                             ),
                     )
                 val initial = handSnapshot(board, 1)
-                val revealed = projectHand(board, initial, 1, promptFacts = revealFacts)
+                val revealed = projectHand(board, initial, 1, promptFacts = revealFacts, role = role)
                 val family = revealed.gsm.gameObjectsList.filter { it.instanceId == parentId || it.parentId == parentId }
                 family.size shouldBe 2
                 family.forEach { it.visibility shouldBe Visibility.Public }
@@ -117,20 +126,29 @@ class HandVisibilityProjectionTest :
                     board.game.action.checkStateEffects(true)
                 }
                 val overlapping = handSnapshot(board, 2)
-                val stillRevealed = projectHand(board, overlapping, 1, initial, revealed.transition.nextState, revealFacts)
+                val stillRevealed = projectHand(board, overlapping, 1, initial, revealed.transition.nextState, revealFacts, role)
                 stillRevealed.transition.nextState.viewerCursors
                     .getValue(SeatId(1))
                     .fullState!!
                     .gameObjectsList
                     .single { it.instanceId == parentId }
                     .visibility shouldBe Visibility.Public
-                val closed = projectHand(board, handSnapshot(board, 3), 1, overlapping, stillRevealed.transition.nextState)
+                val closed = projectHand(board, handSnapshot(board, 3), 1, overlapping, stillRevealed.transition.nextState, role = role)
                 if (withdrawPermission) {
                     val concealed = closed.gsm.gameObjectsList.single { it.instanceId == parentId }
                     assertSoftly {
                         concealed.visibility shouldBe Visibility.Hidden
                         concealed.grpId shouldBe 0
                         concealed.viewersList.shouldBeEmpty()
+                        if (role == ProjectionViewerRole.Observer) {
+                            closed.transition.nextState.viewerCursors
+                                .getValue(SeatId(1))
+                                .fullState!!
+                                .zonesList
+                                .filter { it.zoneId == ZoneIds.P2_HAND }
+                                .flatMap { it.objectInstanceIdsList }
+                                .shouldBeEmpty()
+                        }
                         closed.gsm.diffDeletedInstanceIdsList
                             .filter { it == parentId }
                             .shouldBeEmpty()
@@ -140,12 +158,11 @@ class HandVisibilityProjectionTest :
                     }
                 } else {
                     assertSoftly {
-                        closed.transition.nextState.viewerCursors
-                            .getValue(SeatId(1))
-                            .fullState!!
-                            .gameObjectsList
-                            .single { it.instanceId == parentId }
-                            .visibility shouldBe Visibility.Private
+                        family.forEach { previouslyPublic ->
+                            val restored = closed.gsm.gameObjectsList.single { it.instanceId == previouslyPublic.instanceId }
+                            restored.visibility shouldBe Visibility.Private
+                            restored.viewersList.toSet() shouldBe setOf(1, 2)
+                        }
                         closed.gsm.diffDeletedInstanceIdsList
                             .filter { id -> family.any { it.instanceId == id } }
                             .shouldBeEmpty()
@@ -213,19 +230,34 @@ private fun projectHand(
     previous: GsmSnapshot? = null,
     prior: ProjectionState = board.bridge.projectionStateSnapshot(),
     promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
+    role: ProjectionViewerRole = ProjectionViewerRole.Player,
 ): StateProjectionCompiler.Result =
-    StateMapperShell.buildFromSnapshot(
-        snap = snapshot,
-        gameStateId = snapshot.gameStateId,
-        matchId = "hand",
-        bridge = board.bridge,
-        viewingSeatId = viewer,
-        prev = previous,
-        projectionState = prior,
-        effectFacts = board.bridge.materializeEffectProjectionFacts(),
-        abilityExhaustionFacts = AbilityExhaustionFacts(),
-        promptFacts = promptFacts,
-    )
+    StateProjectionCompiler
+        .compileViewers(
+            board.bridge.stateProjectionEnvironment,
+            prior,
+            listOf(
+                StateProjectionCompiler.ViewerInput(
+                    StateFrameInput(
+                        snapshot = snapshot,
+                        gameStateId = snapshot.gameStateId,
+                        viewingSeatId = viewer,
+                        previousSnapshot = previous,
+                        events = FrameEventLog.EMPTY,
+                        updateType = GameStateUpdate.SendAndRecord,
+                        revealForSeat = null,
+                        effectFacts = board.bridge.materializeEffectProjectionFacts(),
+                        mechanicSourceFacts = MechanicSourceFacts(),
+                        persistentFeedFacts = PersistentFeedFacts(),
+                        abilityExhaustionFacts = AbilityExhaustionFacts(),
+                        promptFacts = promptFacts,
+                    ),
+                    role = role,
+                ),
+            ),
+        ).viewers
+        .single()
+        .result
 
 private val HAND_INSPECTION_PUZZLE =
     """
