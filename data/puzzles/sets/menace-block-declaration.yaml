@@ -10,7 +10,11 @@ scenarios:
       - block:
           - { blocker: Walking Corpse, attacker: Phyrexian Fleshgorger }
           - { blocker: Grizzly Bears, attacker: Phyrexian Fleshgorger }
-      - pass_until: { action: { type: cast, card: Shock } }
+      - pass_until:
+          all:
+            - action: { type: cast, card: Shock }
+            - zone_contains: { side: ours, zone: graveyard, card: Walking Corpse }
+            - zone_contains: { side: ours, zone: graveyard, card: Grizzly Bears }
       - cast: Shock
       - target: opponent
       - resolve_stack: {}
