@@ -55,6 +55,20 @@ class ZoneMoveLedgerTest :
                     events = listOf(GameEvent.LandPlayed(cardId, seat)),
                 ),
                 Case(
+                    "play library land",
+                    Zone.Library,
+                    Zone.Battlefield,
+                    TransferCategory.PlayLand,
+                    events = listOf(GameEvent.LandPlayed(cardId, seat)),
+                ),
+                Case(
+                    "play graveyard land",
+                    Zone.Graveyard,
+                    Zone.Battlefield,
+                    TransferCategory.PlayLand,
+                    events = listOf(GameEvent.LandPlayed(cardId, seat)),
+                ),
+                Case(
                     "destroy",
                     Zone.Battlefield,
                     Zone.Graveyard,

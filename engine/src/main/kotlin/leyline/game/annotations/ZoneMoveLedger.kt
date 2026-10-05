@@ -75,7 +75,6 @@ object ZoneMoveLedger {
                 move.from == Zone.Hand &&
                 move.to == Zone.Battlefield -> TransferCategory.Put
             events.any { it is GameEvent.LandPlayed && it.cardId == cardId } &&
-                move.from == Zone.Hand &&
                 move.to == Zone.Battlefield -> TransferCategory.PlayLand
             move.to == Zone.Stack && cast?.isAbility != true -> TransferCategory.CastSpell
             move.from == Zone.Stack && resolved?.hasFizzled == true -> TransferCategory.Countered
@@ -158,7 +157,7 @@ object ZoneMoveLedger {
         if (!matchingCard) return false
         return when (event) {
             is GameEvent.OpeningHandAction -> move.from == Zone.Hand && move.to == Zone.Battlefield
-            is GameEvent.LandPlayed -> move.from == Zone.Hand && move.to == Zone.Battlefield
+            is GameEvent.LandPlayed -> move.to == Zone.Battlefield
             is GameEvent.SpellCast -> move.to == Zone.Stack
             is GameEvent.SpellResolved -> move.from == Zone.Stack
             is GameEvent.LegendRuleDeath,

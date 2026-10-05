@@ -1,0 +1,21 @@
+# Mechanic: Only the current face supplies activated abilities.
+# Forcing: Draw at seven life, then transform at the next upkeep.
+# AI behavior: Empty hand and battlefield permit predictable turn progression.
+# Failure modes: A sacrifice offer before transformation exposes the other face.
+# Card roles: Arguel supplies both faces; Walking Corpse pays the later sacrifice.
+# Protocol path: ActionsAvailableReq, optional transform, sacrifice selection.
+[metadata]
+Name:arguel-current-face
+Goal:Survive
+Turns:5
+Difficulty:Tutorial
+Description:Draw a card, transform at upkeep, then sacrifice a creature for life.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=7
+AILife=20
+humanbattlefield=Arguel's Blood Fast;Walking Corpse;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains

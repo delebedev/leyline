@@ -7,8 +7,11 @@ import forge.game.card.Card
 import forge.game.cost.CostBlight
 import forge.game.cost.CostDiscard
 import forge.game.cost.CostPartMana
+import forge.game.cost.CostPayLife
 import forge.game.cost.CostSacrifice
 import forge.game.keyword.Keyword
+import forge.game.keyword.KeywordInterface
+import forge.game.keyword.KeywordWithCostInterface
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.DeferredCastCostPlan
@@ -76,16 +79,24 @@ internal object DeferredCastCostPlanMaterializer {
                                 cardData?.abilityIds?.getOrNull(keywordCount + index)?.first ?: 0
                             }
                         DeferredCastCostPlan.OptionalCostEntry(
-                            type,
-                            abilityGrpId,
-                            null,
-                            materializeManaPlan(offer, GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
+                            type = type,
+                            abilityGrpId = abilityGrpId,
+                            keywordName = null,
+                            description = cost.toString(),
+                            manaPlan = materializeManaPlan(offer, GameActionUtil.addOptionalCosts(ability, listOf(cost)), player),
                         )
                     } +
-                        keywordCosts.map { name ->
+                        keywordCosts.map { keyword ->
+                            val name = keyword.keyword.toString()
                             val slot = card.findKeywordSlot(name, keywordCount)
                             val abilityGrpId = slot?.let { cardData?.abilityIds?.getOrNull(it)?.first } ?: 0
-                            DeferredCastCostPlan.OptionalCostEntry(CastingTimeOptionType.AdditionalCost, abilityGrpId, name, hybrid)
+                            DeferredCastCostPlan.OptionalCostEntry(
+                                type = CastingTimeOptionType.AdditionalCost,
+                                abilityGrpId = abilityGrpId,
+                                keywordName = name,
+                                description = (keyword as? KeywordWithCostInterface)?.title,
+                                manaPlan = hybrid,
+                            )
                         }
                 DeferredCastCostPlan.optional(entries, cardData?.manaCost.orEmpty())
             }
@@ -159,8 +170,8 @@ internal object DeferredCastCostPlanMaterializer {
 
     private val binaryKeywordCostNames = setOf(Keyword.OFFSPRING, Keyword.CASUALTY, Keyword.CONSPIRE)
 
-    private fun Card.binaryKeywordCosts(): List<String> =
-        keywords.mapNotNull { keyword -> keyword.keyword?.takeIf { it in binaryKeywordCostNames }?.toString() }
+    private fun Card.binaryKeywordCosts(): List<KeywordInterface> =
+        keywords.mapNotNull { keyword -> keyword.takeIf { it.keyword in binaryKeywordCostNames } }
 
     private fun Card.findKeywordSlot(
         keywordName: String,
@@ -178,6 +189,11 @@ internal object DeferredCastCostPlanMaterializer {
         val costs = ability.payCosts ?: return DeferredCastCostPlan.AdditionalCostKind.Unsupported
         if (costs.isOnlyManaCost) return DeferredCastCostPlan.AdditionalCostKind.Mana
         val nonManaPart = costs.costParts.filterNot { it is CostPartMana }.singleOrNull()
+        if (nonManaPart is CostPayLife) {
+            nonManaPart.amount.toIntOrNull()?.takeIf { it > 0 }?.let {
+                return DeferredCastCostPlan.AdditionalCostKind.PayLife(it)
+            }
+        }
         if (nonManaPart?.amount == "1") {
             when {
                 nonManaPart is CostSacrifice && nonManaPart.type == "Artifact" ->

@@ -8,9 +8,8 @@ package leyline.game.generator
  * Sessions are held in-memory. Server restart drops them; see
  * [leyline.domain.service.DraftService.discardIncompleteSessions].
  *
- * Holds Forge process-global state (`IBoosterDraft.LAND_SET_CODE`) — concurrent
- * drafts on different sets would race. Single-player server today; revisit when
- * we ever support multiple concurrent drafts.
+ * Each session owns its pack state and basic-land edition, so sets may draft
+ * concurrently without changing another pod's deck construction.
  */
 interface BoosterDraftDriver {
     fun start(

@@ -104,11 +104,12 @@ object CastingTimeOptionsBuilder {
      * `playerIdToPrompt` and `baseManaCost` (with `objectId = instanceId`) are
      * populated on every entry including Done; some renderers require both.
      */
-    fun buildOptionalCostCastingTimeOptionsReq(
+    internal fun buildOptionalCostCastingTimeOptionsReq(
         instanceId: Int,
-        optionalCosts: List<Pair<CastingTimeOptionType, Int>>,
+        optionalCosts: List<DeferredCastCostPlan.OptionalCostEntry>,
         playerIdToPrompt: Int,
         baseManaCost: List<Pair<ManaColor, Int>>,
+        presentation: CostChoicePresentation = CostChoicePresentation.Native,
     ): Pair<CastingTimeOptionsReq, List<Int>> {
         val manaRequirements =
             baseManaCost.map { (color, count) ->
@@ -128,12 +129,27 @@ object CastingTimeOptionsBuilder {
                 CastingTimeOptionReq
                     .newBuilder()
                     .setCtoId(ctoId)
-                    .setCastingTimeOptionType(cost.first)
+                    .setCastingTimeOptionType(cost.type)
                     .setAffectedId(instanceId)
                     .setAffectorId(instanceId)
-                    .setGrpId(cost.second)
+                    .setGrpId(cost.abilityGrpId)
                     .setPlayerIdToPrompt(playerIdToPrompt)
-                    .addAllManaCost(manaRequirements),
+                    .addAllManaCost(manaRequirements)
+                    .apply {
+                        if (presentation == CostChoicePresentation.ForgeText) {
+                            cost.description?.takeIf { it.isNotBlank() }?.let { text ->
+                                setPrompt(
+                                    Prompt.newBuilder().addParameters(
+                                        PromptParameter
+                                            .newBuilder()
+                                            .setParameterName("Cost")
+                                            .setType(ParameterType.NonLocalizedString)
+                                            .setStringValue(text),
+                                    ),
+                                )
+                            }
+                        }
+                    },
             )
         }
         ctoReqBuilder.addCastingTimeOptionReq(
@@ -275,6 +291,8 @@ object CastingTimeOptionsBuilder {
             DeferredCastCostPlan.AdditionalCostKind.SacrificeArtifact -> PromptIds.CHOOSE_OR_COST_PAY_SACRIFICE_ARTIFACT
             DeferredCastCostPlan.AdditionalCostKind.DiscardCard -> PromptIds.CHOOSE_OR_COST_PAY_DISCARD
             DeferredCastCostPlan.AdditionalCostKind.Exile -> PromptIds.CHOOSE_OR_COST_PAY_EXILE_FROM_GRAVE
+            is DeferredCastCostPlan.AdditionalCostKind.PayLife ->
+                PromptIds.CHOOSE_OR_COST_PAY_THREE_LIFE.takeIf { kind.amount == 3 }
             DeferredCastCostPlan.AdditionalCostKind.Unsupported -> null
         }
 }

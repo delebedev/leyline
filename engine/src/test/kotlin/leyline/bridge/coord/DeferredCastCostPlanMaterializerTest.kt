@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.game.cost.Cost
+import forge.game.keyword.Keyword
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
@@ -110,6 +111,107 @@ class DeferredCastCostPlanMaterializerTest :
             }
         }
 
+        test("optional cost description freezes Forge formatting independently of its ability catalog") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Shivan Fire", human, ZoneType.Hand)
+                    repeat(5) { addCard("Mountain", human) }
+                    addCard("Centaur Courser", ai)
+                }
+            val card = board.human.hand.card("Shivan Fire")
+            val ability =
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(card)
+                    .casts
+                    .first()
+            val id = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(id).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .build(),
+                    PlayerAction.CastSpell(id, 0, ability = ability),
+                )
+            val entry =
+                DeferredCastCostPlanMaterializer
+                    .materialize(offer, null, 0) { 1L }
+                    .shouldNotBeNull()
+                    .plan.optional
+                    .shouldNotBeNull()
+                    .entries
+                    .single()
+            val original = entry.description.shouldNotBeNull()
+            ability.payCosts = Cost("99", false)
+            assertSoftly {
+                original shouldContain "Kicker"
+                original shouldContain "4"
+                entry.description shouldBe original
+                entry.abilityGrpId shouldBe 0
+            }
+        }
+
+        test("binary keyword titles freeze Forge cost formatting without ability metadata") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Coruscation Mage", human, ZoneType.Hand)
+                    repeat(4) { addCard("Mountain", human) }
+                }
+            val card = board.human.hand.card("Coruscation Mage")
+            val ability =
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(card)
+                    .casts
+                    .first()
+            val id = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(id).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .build(),
+                    PlayerAction.CastSpell(id, 0, ability = ability),
+                )
+            val optional =
+                DeferredCastCostPlanMaterializer
+                    .materialize(offer, null, 0) { 1L }
+                    .shouldNotBeNull()
+                    .plan.optional
+                    .shouldNotBeNull()
+            val entry = optional.entries.single()
+            card.removeIntrinsicKeyword(Keyword.OFFSPRING)
+            assertSoftly {
+                entry.keywordName shouldBe "Offspring"
+                entry.description shouldBe "Offspring {2}"
+                entry.abilityGrpId shouldBe 0
+                val native =
+                    CastingTimeOptionsBuilder
+                        .buildOptionalCostCastingTimeOptionsReq(
+                            iid,
+                            optional.entries,
+                            1,
+                            optional.baseManaCost,
+                        ).first
+                val withoutText =
+                    CastingTimeOptionsBuilder
+                        .buildOptionalCostCastingTimeOptionsReq(
+                            iid,
+                            optional.entries.map {
+                                it.copy(description = null)
+                            },
+                            1,
+                            optional.baseManaCost,
+                        ).first
+                native.toByteArray().toList() shouldBe withoutText.toByteArray().toList()
+            }
+        }
+
         test("printed additional mana survives reductions and later ability changes") {
             val board =
                 startWithBoard { _, human, ai ->
@@ -194,6 +296,10 @@ class DeferredCastCostPlanMaterializerTest :
                 )
             val cases =
                 listOf(
+                    "PayLife<3>" to AdditionalCostKind.PayLife(3),
+                    "PayLife<4>" to AdditionalCostKind.PayLife(4),
+                    "PayLife<X>" to AdditionalCostKind.Unsupported,
+                    "PayLife<3> Discard<1/Card>" to AdditionalCostKind.Unsupported,
                     "Discard<2/Card>" to AdditionalCostKind.Unsupported,
                     "Discard<1/Card.Black>" to AdditionalCostKind.Unsupported,
                     "Sac<2/Artifact>" to AdditionalCostKind.Sacrifice,
@@ -209,6 +315,26 @@ class DeferredCastCostPlanMaterializerTest :
                     .choices
                     .first()
                     .kind shouldBe expected
+                if (expected is AdditionalCostKind.PayLife) {
+                    val choices =
+                        result.plan.alternate
+                            .shouldNotBeNull()
+                            .choices
+                    val native =
+                        CastingTimeOptionsBuilder
+                            .buildChooseOrCostCastingTimeOptionsReq(
+                                iid,
+                                0,
+                                1,
+                                choices,
+                                CostChoicePresentation.Native,
+                            ).first.castingTimeOptionReqList
+                            .single()
+                            .selectNReq.prompt
+                    native.parametersCount shouldBe if (expected.amount == 3) 2 else 0
+                    casts.first().payCosts = Cost("1 R PayLife<5>", false)
+                    choices.first().kind shouldBe expected
+                }
             }
         }
 

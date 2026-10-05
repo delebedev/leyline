@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: Cast the library's top spell through Bolas's Citadel using life.
+# Forcing: No mana sources or cards in hand offer another way to cast Grizzly Bears.
+# AI behavior: Empty hand and battlefield leave no response decisions.
+# Failure modes: Missing action prevents casting; unchanged life disproves payment;
+#   stale rail identity after casting exposes the old library top.
+# Card roles: Citadel grants permission; Bears costs two life; Forest is the next top.
+# Protocol path: Legal actions, casting, life update, and library visibility.
+[metadata]
+Name:Citadel Top Library
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Cast Grizzly Bears from the library by paying two life.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Disenchant
+humanmanapool=W W
+humanbattlefield=Bolas's Citadel
+humanlibrary=Grizzly Bears;Forest;Island;Swamp;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

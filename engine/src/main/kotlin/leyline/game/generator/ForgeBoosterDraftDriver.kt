@@ -1,7 +1,6 @@
 package leyline.game.generator
 
 import forge.deck.DeckSection
-import forge.gamemodes.limited.IBoosterDraft
 import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
@@ -23,10 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
  * - Public methods are `@Synchronized` because Netty FD handlers run on event-loop
  *   threads — the same player's quick re-entry, or two separate accounts in
  *   simultaneous drafts, would otherwise race the session map.
- * - [HeadlessBoosterDraft.init] writes `IBoosterDraft.LAND_SET_CODE[0]` — a
- *   process-global static array. [start] guards the write with a single-flight
- *   check that errors if a different set is already in flight; same-set
- *   re-init (different player, same QuickDraft event) is allowed.
+ * - Each [HeadlessBoosterDraft] retains its basic-land edition independently.
  */
 class ForgeBoosterDraftDriver(
     private val findGrpIdByName: (String) -> Int?,
@@ -43,7 +39,6 @@ class ForgeBoosterDraftDriver(
 
     private data class Active(
         val draft: HeadlessBoosterDraft,
-        val setCode: String,
         var packIndex: Int,
         var pickIndex: Int,
     )
@@ -58,20 +53,13 @@ class ForgeBoosterDraftDriver(
         check(!sessions.containsKey(sessionKey)) { "Draft session $sessionKey already started" }
 
         val effectiveSet = resolveSet(setCode)
-        // LAND_SET_CODE[0] is shared global state — refuse to clobber if another
-        // active session is using a different set.
-        val mismatched = sessions.values.firstOrNull { it.setCode != effectiveSet }
-        check(mismatched == null) {
-            "Cannot start draft for $effectiveSet — concurrent session ${mismatched!!.setCode} in flight " +
-                "(LAND_SET_CODE[0] is process-global)"
-        }
         val strategy =
             when (draftSettings.picker) {
                 "model" -> DraftPickStrategies.modelBacked(effectiveSet, draftSettings.modelDir)
                 else -> DraftPickStrategies.default()
             }
         val draft = HeadlessBoosterDraft(effectiveSet, strategy)
-        sessions[sessionKey] = Active(draft, effectiveSet, packIndex = 0, pickIndex = 0)
+        sessions[sessionKey] = Active(draft, packIndex = 0, pickIndex = 0)
         return packToGrpIds(draft.currentPackPaperCards())
     }
 
@@ -82,10 +70,6 @@ class ForgeBoosterDraftDriver(
     ): PickResult {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
-        // Other concurrent sessions may have rewritten LAND_SET_CODE[0] since this
-        // session started. Restore ours before any pack-and-pass logic that hits it.
-        IBoosterDraft.LAND_SET_CODE[0] = FModel.getMagicDb().getEditions().get(active.setCode)
-
         val pack = draft.currentPackPaperCards()
         val card =
             pack.firstOrNull { findGrpIdByName(it.name) == grpId }
@@ -124,7 +108,6 @@ class ForgeBoosterDraftDriver(
     override fun complete(sessionKey: String): PodResult {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
-        IBoosterDraft.LAND_SET_CODE[0] = FModel.getMagicDb().getEditions().get(active.setCode)
         val playerPool = packToGrpIds(draft.localPlayerPool())
         val botDecks =
             draft.computerDeckMains().map { deck ->

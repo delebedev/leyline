@@ -5,7 +5,7 @@ import forge.deck.DeckSection
 import forge.gamemodes.limited.BoosterDraft
 import forge.gamemodes.limited.DefaultDraftPickStrategy
 import forge.gamemodes.limited.DraftPickStrategy
-import forge.gamemodes.limited.IBoosterDraft
+import forge.gamemodes.limited.LimitedPlayerAI
 import forge.gamemodes.limited.LimitedPoolType
 import forge.item.PaperCard
 import forge.item.generation.UnOpenedProduct
@@ -16,10 +16,10 @@ import forge.model.FModel
  * `createDraft(...)` factories (which call `SGuiChoose` for set/block selection).
  *
  * Builds three identical packs from the booster template registered for [setCode]
- * and seeds the land set so `BoosterDraftAI.buildDeck()` has lands to add.
+ * and retains that set's edition for bot basic-land selection.
  */
 class HeadlessBoosterDraft(
-    setCode: String,
+    private val setCode: String,
     draftPickStrategy: DraftPickStrategy = DefaultDraftPickStrategy(),
 ) : BoosterDraft(LimitedPoolType.Full, POD_SIZE, draftPickStrategy) {
     init {
@@ -28,12 +28,14 @@ class HeadlessBoosterDraft(
                 ?: error("No booster template for set: $setCode")
         val supplier = UnOpenedProduct(booster)
         repeat(PACK_COUNT) { product.add(supplier) }
-        IBoosterDraft.LAND_SET_CODE[0] = FModel.getMagicDb().getEditions().get(setCode)
         initializeBoosters()
     }
 
     /** Card list currently offered to the local (seat 0) player; empty when no pack to choose. */
     fun currentPackPaperCards(): List<PaperCard> = nextChoice()?.toFlatList() ?: emptyList()
+
+    // Every pod supplies its own basic-land edition to deck construction.
+    override fun getComputerDecks(): Array<Deck> = opposingPlayers.map { (it as LimitedPlayerAI).buildDeck(setCode) }.toTypedArray()
 
     /** Final 7 bot decks (seat 1..7). Computer-built once at draft completion. */
     fun computerDeckMains(): List<Deck> = getComputerDecks().toList()

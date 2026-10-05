@@ -81,4 +81,23 @@ class ForgeCardRepositoryTest :
                 localizeGrantedKeyword("Not a Forge keyword") shouldBe null
             }
         }
+
+        test("calculated granted amounts remain symbolic in cold catalog lookup") {
+            val repo = ForgeCardRepository.open()
+            val cardId = requireNotNull(repo.findDeckGrpIdByName("Kodama of the Center Tree"))
+            val card = requireNotNull(repo.findByGrpId(cardId))
+            val abilityId = card.grantedKeywordAbilityIds.getValue("Soulshift:N")
+            val expected = Keyword.getInstance("Soulshift:X")
+            val localization = requireNotNull(repo.findAbilityLocalization(abilityId))
+            assertSoftly {
+                localization.keyword shouldBe expected.title
+                localization.text shouldBe expected.reminderText
+                localization.manaCost shouldBe emptyList()
+                repo.findGrantedKeywordAbilityGrpId(cardId, "Soulshift:N") shouldBe abilityId
+                localizeGrantedKeyword("Soulshift:X")?.keyword shouldBe localization.keyword
+                localizeGrantedKeyword("Soulshift:X")?.text shouldBe localization.text
+                localizeGrantedKeyword("Soulshift:3")?.keyword shouldBe "Soulshift 3"
+                localizeGrantedKeyword("Soulshift:3")?.text shouldBe Keyword.getInstance("Soulshift:3").reminderText
+            }
+        }
     })

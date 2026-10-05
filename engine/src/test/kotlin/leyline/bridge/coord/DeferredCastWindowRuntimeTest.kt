@@ -120,8 +120,7 @@ class DeferredCastWindowRuntimeTest :
                     plan.instanceId,
                     plan.optional
                         .shouldNotBeNull()
-                        .entries
-                        .map { it.type to it.abilityGrpId },
+                        .entries,
                     board.bridge.seating.humanSeat.value,
                     plan.optional.baseManaCost,
                 )

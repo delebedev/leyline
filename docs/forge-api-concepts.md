@@ -80,6 +80,8 @@ Card spells, alternative costs, and zone-cast options should flow through the sh
 
 Use `getAllCastableAbilities(card, player)` when you need Forge's castable SA list. It expands additional and alternative costs with `GameActionUtil`, handles special cast states, sets the activating player, and filters by Forge legality.
 
+Library candidates come from Forge's `PlayerZone.getCardsPlayerCanActivate(player)`. That query limits inspection to the current top card and preserves the permission's player identity. The ordinary priority catalog and zone-cast projection retain the supplied ability, including life payment, while Forge still owns land-play limits and cost affordability.
+
 Use `chooseCastAbility(card, player)` when you only need the best current cast candidate.
 
 Use `CastRails` when an action needs protocol fields for a named cast rail such as plot, foretell, disturb, escape, warp, or sneak. The rail table is the shared source for action emission and action submission.
@@ -104,7 +106,15 @@ keyword name, including any miracle cost reduction. They do not advertise a
 concrete mana cost. Forge resolves and pays the effective cost only after the
 keyword is bound to its recipient during gameplay.
 
+Calculated `N` keyword amounts retain their catalog identity and localize as
+symbolic `X` amounts. Forge applies `CalcKeywordN` to the live recipient before
+constructing its effective keyword.
+
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
+
+Activated abilities come from the card's current state. An ability on another
+transforming face is neither active nor inactive on the current face. Explicit
+special actions such as turning a face-down card face up retain their own lookup.
 
 Abilities copied by continuous effects retain `SpellAbility.originalAbility`.
 `AbilityRegistry.identitySource` selects that definition's card catalog, while

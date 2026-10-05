@@ -78,7 +78,8 @@ class PriorityActionCandidates private constructor(
                             ZoneType.Exile,
                             ZoneType.Command,
                         ),
-                    )
+                    ) +
+                    game.players.flatMap { it.getZone(ZoneType.Library).getCardsPlayerCanActivate(player) }
             ).distinctBy { it.id }
 
         private fun buildCandidate(

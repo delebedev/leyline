@@ -25,3 +25,30 @@ scenarios:
             - zone_contains: { side: ours, zone: hand, card: "Glarb, Calamity's Augur" }
             - zone_not_contains: { side: ours, zone: battlefield, card: "Glarb, Calamity's Augur" }
             - stack_empty: true
+  - id: citadel-top-library
+    puzzle: citadel-top-library
+    run: cast the top creature using life, then remove the permission source
+    expect: the creature resolves, two life is paid, the top land is played, and the permission source is destroyed
+    steps:
+      - wait:
+          action: { type: cast, card: Grizzly Bears, zone: library }
+      - cast: { card: Grizzly Bears, zone: library }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - our_life: 18
+            - action: { type: play_land, card: Forest, zone: library }
+      - play_land: Forest
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Forest }
+            - annotation_seen: { type: UserActionTaken, details: { actionType: "3" } }
+      - cast: Disenchant
+      - target: { side: ours, zone: battlefield, card: "Bolas's Citadel" }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: "Bolas's Citadel" }
+            - zone_contains: { side: ours, zone: graveyard, card: "Bolas's Citadel" }
+            - stack_empty: true

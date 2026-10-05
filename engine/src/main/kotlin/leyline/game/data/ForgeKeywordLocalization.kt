@@ -5,9 +5,11 @@ import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordWithCost
 import leyline.bridge.types.manaTokenToPair
 
-/** Catalog definitions have no recipient; only live Forge keywords can resolve recipient costs. */
+/** Catalog definitions have no recipient; only live Forge keywords resolve recipient costs and amounts. */
 internal fun localizeGrantedKeyword(keyword: String): AbilityLocalization? {
-    val definition = Keyword.getInstance(keyword)
+    val symbolicKeyword =
+        keyword.split(':').mapIndexed { index, value -> if (index == 1 && value == "N") "X" else value }.joinToString(":")
+    val definition = Keyword.getInstance(symbolicKeyword)
     if (definition.keyword == Keyword.UNDEFINED) return null
     val mana =
         keyword
