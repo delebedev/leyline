@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.game.cost.Cost
+import forge.game.keyword.Keyword
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
@@ -150,6 +151,64 @@ class DeferredCastCostPlanMaterializerTest :
                 original shouldContain "4"
                 entry.description shouldBe original
                 entry.abilityGrpId shouldBe 0
+            }
+        }
+
+        test("binary keyword titles freeze Forge cost formatting without ability metadata") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Coruscation Mage", human, ZoneType.Hand)
+                    repeat(4) { addCard("Mountain", human) }
+                }
+            val card = board.human.hand.card("Coruscation Mage")
+            val ability =
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(card)
+                    .casts
+                    .first()
+            val id = ForgeCardId(card.id)
+            val iid = board.bridge.getOrAllocInstanceId(id).value
+            val offer =
+                GameActionBridge.ActionOffer(
+                    Action
+                        .newBuilder()
+                        .setActionType(ActionType.Cast)
+                        .setInstanceId(iid)
+                        .build(),
+                    PlayerAction.CastSpell(id, 0, ability = ability),
+                )
+            val optional =
+                DeferredCastCostPlanMaterializer
+                    .materialize(offer, null, 0) { 1L }
+                    .shouldNotBeNull()
+                    .plan.optional
+                    .shouldNotBeNull()
+            val entry = optional.entries.single()
+            card.removeIntrinsicKeyword(Keyword.OFFSPRING)
+            assertSoftly {
+                entry.keywordName shouldBe "Offspring"
+                entry.description shouldBe "Offspring {2}"
+                entry.abilityGrpId shouldBe 0
+                val native =
+                    CastingTimeOptionsBuilder
+                        .buildOptionalCostCastingTimeOptionsReq(
+                            iid,
+                            optional.entries,
+                            1,
+                            optional.baseManaCost,
+                        ).first
+                val withoutText =
+                    CastingTimeOptionsBuilder
+                        .buildOptionalCostCastingTimeOptionsReq(
+                            iid,
+                            optional.entries.map {
+                                it.copy(description = null)
+                            },
+                            1,
+                            optional.baseManaCost,
+                        ).first
+                native.toByteArray().toList() shouldBe withoutText.toByteArray().toList()
             }
         }
 

@@ -160,6 +160,9 @@ receive one `NonLocalizedString` GRE parameter per offered branch. Both normal
 and puzzle matches retain the host setting for their lifetime.
 
 For optional costs, the bridge freezes Forge's formatted cost description.
+Binary keyword costs also use Forge's keyword title when the keyword supplies
+a cost formatter, including offspring. Other keyword costs keep their catalog
+or generic fallback.
 `ForgeText` adds a `Cost` / `NonLocalizedString` parameter to the optional CTO
 row prompt. Native rows and the Done terminator retain their existing shape.
 Costs without a formatted description retain catalog or option-type presentation.
