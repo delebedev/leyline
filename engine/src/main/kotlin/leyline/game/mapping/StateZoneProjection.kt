@@ -100,7 +100,7 @@ object StateZoneProjection {
             if (!card.isProjectable) continue
             val instanceId = instanceIdLookup(forgeCardId).value
             zoneBuilder.addObjectInstanceIds(instanceId)
-            gameObjects +=
+            val obj =
                 ObjectMapper.buildFromSnapshot(
                     card,
                     instanceId,
@@ -113,6 +113,18 @@ object StateZoneProjection {
                     earthbend = earthbendProjection(forgeCardId),
                     grantedAbilitySnapshot = grantedAbilitySnapshot,
                 )
+            gameObjects +=
+                if (arenaZoneId == ZoneIds.EXILE && card.isForetold) {
+                    obj
+                        .toBuilder()
+                        .setVisibility(Visibility.Private)
+                        .addViewers(card.owner.value)
+                        .setIsFacedown(true)
+                        .setOverlayGrpId(3)
+                        .build()
+                } else {
+                    obj
+                }
         }
         return SharedZoneProjection(zoneBuilder.build(), gameObjects.toList())
     }

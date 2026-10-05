@@ -9,11 +9,17 @@ frames:
         fields: {raw.zoneId: 31, raw.controllerSeatId: 1}
   - id: foretell
     events:
+      - id: exile-card
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 29}}
+        fields: {raw.zoneId: 29, raw.visibility: Private, raw.isFacedown: true, raw.overlayGrpId: 3, raw.viewers: [1]}
+        equals: {raw.grpId: source.raw.grpId}
       - id: changed
         type: ObjectIdChanged
         lane: transient
         keys: [orig_id, new_id]
-        equals: {"details.orig_id[0]": source.affectorId, "affectedIds[0]": source.affectorId}
+        equals: {"details.orig_id[0]": source.affectorId, "affectedIds[0]": source.affectorId, "details.new_id[0]": exile-card.affectorId}
       - id: transfer
         type: ZoneTransfer
         lane: transient

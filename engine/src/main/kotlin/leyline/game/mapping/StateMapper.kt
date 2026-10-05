@@ -1314,9 +1314,29 @@ object StateMapper {
             } else {
                 val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
                 val visibleObjects =
-                    gsm.gameObjectsList.filter { obj ->
-                        obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
-                    }
+                    gsm.gameObjectsList
+                        .map { obj ->
+                            if (obj.visibility == Visibility.Private &&
+                                obj.zoneId == ZoneIds.EXILE &&
+                                obj.isFacedown &&
+                                (!includePrivateObjects || viewingSeatId !in obj.viewersList)
+                            ) {
+                                ZoneMapper
+                                    .hiddenCardObject(obj.instanceId, obj.zoneId, SeatId(obj.ownerSeatId))
+                                    .toBuilder()
+                                    .setControllerSeatId(obj.controllerSeatId)
+                                    .setVisibility(Visibility.Public)
+                                    .setGrpId(3)
+                                    .setOverlayGrpId(3)
+                                    .setIsFacedown(true)
+                                    .addAllViewers(obj.viewersList)
+                                    .build()
+                            } else {
+                                obj
+                            }
+                        }.filter { obj ->
+                            obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+                        }
                 gsm
                     .toBuilder()
                     .clearZones()
