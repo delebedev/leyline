@@ -106,6 +106,99 @@ class PriorityActionCandidatesTest :
                 }
             }
         }
+        for (life in listOf(1, 20)) {
+            test("library spell permission retains exact life-cost offer: $life") {
+                val board =
+                    startPuzzleAtMain1(
+                        """
+                        [metadata]
+                        Name:Library spell permission
+                        Goal:Win
+                        Turns:4
+                        Difficulty:Easy
+                        Description:Cast the top spell using life.
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=$life
+                        AILife=20
+                        humanbattlefield=Bolas's Citadel
+                        humanlibrary=Grizzly Bears;Llanowar Elves;Forest
+                        ailibrary=Ornithopter;Mountain
+                        """.trimIndent(),
+                    )
+                val candidates = PriorityActionCandidates.query(board.game, board.human)
+                val projection =
+                    ActionMapper.buildProjectionFromSnapshot(
+                        1,
+                        SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                        board.bridge,
+                        candidates,
+                    )
+                val top =
+                    board.human
+                        .getZone(ZoneType.Library)
+                        .cards
+                        .first()
+                val below =
+                    board.human
+                        .getZone(ZoneType.Library)
+                        .cards
+                        .get(1)
+                val opponentTop =
+                    board.ai
+                        .getZone(ZoneType.Library)
+                        .cards
+                        .first()
+                assertSoftly {
+                    candidates.forCard(below).casts.shouldHaveSize(0)
+                    candidates.forCard(opponentTop).casts.shouldHaveSize(0)
+                    candidates.hasLegalNonManaAction(board.human) shouldBe (life >= 2)
+                    projection.actions.ofType(ActionType.Cast).shouldHaveSize(if (life >= 2) 1 else 0)
+                    if (life >= 2) {
+                        val command =
+                            projection.offers
+                                .single { it.action.actionType == ActionType.Cast }
+                                .command
+                                .shouldBeInstanceOf<PlayerAction.CastSpell>()
+                        command.cardId shouldBe ForgeCardId(top.id)
+                        command.ability!!.payCosts.toSimpleString() shouldBe "{0}, Pay 2 life"
+                    }
+                }
+            }
+        }
+        test("library land permission obeys the normal land limit") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Library land permission
+                    Goal:Win
+                    Turns:4
+                    Difficulty:Easy
+                    Description:Play the top land.
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Bolas's Citadel
+                    humanlibrary=Forest;Island
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                )
+
+            fun projection() =
+                ActionMapper.buildProjectionFromSnapshot(
+                    1,
+                    SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                    board.bridge,
+                    PriorityActionCandidates.query(board.game, board.human),
+                )
+            projection().actions.ofType(ActionType.Play_add3).shouldHaveSize(1)
+            board.human.setLandsPlayedThisTurn(1)
+            projection().actions.ofType(ActionType.Play_add3).shouldHaveSize(0)
+        }
         test("zero-cost cast is meaningful with no mana sources") {
             val board = startWithBoard { _, human, _ -> addCard("Ornithopter", human, ZoneType.Hand) }
             val candidates = PriorityActionCandidates.query(board.game, board.human)
