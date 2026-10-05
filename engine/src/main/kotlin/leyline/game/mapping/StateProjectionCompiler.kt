@@ -301,7 +301,7 @@ object StateProjectionCompiler {
         val priorCursor = editor.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
         val draft =
             rendered.copy(
-                gsm = retirePrivateLibraryCompanions(finalizedOrderOverlay.gsm, fullState, priorCursor.fullState),
+                gsm = retirePrivateZoneObjects(finalizedOrderOverlay.gsm, fullState, priorCursor.fullState),
                 projectionSnapshot = finalizedOrderOverlay.snapshot,
                 output =
                     rendered.output.copy(
@@ -332,20 +332,25 @@ object StateProjectionCompiler {
             )
     }
 
-    /** Retire temporary library companions against this viewer's committed object inventory. */
-    private fun retirePrivateLibraryCompanions(
+    /** Retire inaccessible private hand objects and library companions against this viewer's committed object inventory. */
+    private fun retirePrivateZoneObjects(
         gsm: GameStateMessage,
         fullState: GameStateMessage,
         priorFullState: GameStateMessage?,
     ): GameStateMessage {
         if (gsm.type != GameStateType.Diff || priorFullState == null) return gsm
         val currentIds = fullState.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
+        val handZones = setOf(ZoneIds.P1_HAND, ZoneIds.P2_HAND)
+        val currentHandIds = fullState.zonesList.filter { it.zoneId in handZones }.flatMapTo(mutableSetOf()) { it.objectInstanceIdsList }
         val retired =
             priorFullState.gameObjectsList
                 .filter {
                     it.visibility == Visibility.Private &&
-                        it.parentId != 0 &&
-                        it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY) &&
+                        (
+                            (it.zoneId in handZones && (it.instanceId in currentHandIds || it.parentId in currentHandIds)) ||
+                                it.parentId != 0 &&
+                                it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
+                        ) &&
                         it.instanceId !in currentIds
                 }.map { it.instanceId }
         return gsm

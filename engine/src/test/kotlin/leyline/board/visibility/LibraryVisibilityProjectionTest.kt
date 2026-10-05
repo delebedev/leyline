@@ -99,7 +99,7 @@ class LibraryVisibilityProjectionTest :
             val shuffledTop = library.cards.first()
             assertSoftly {
                 shuffledTop.mayPlayerLook(board.human).shouldBeTrue()
-                project(board, capture(board), viewingSeatId = 1, previousSnapshot = afterDraw)
+                project(board, capture(board), viewingSeatId = 1)
                     .objectFor(board, shuffledTop.id)
                     .visibility shouldBe Visibility.Private
             }

@@ -213,6 +213,13 @@ Snapshots are best for "what is true now?" facts:
 - designations
 - persistent annotation baselines
 
+Continuous hand inspection follows `Card.mayPlayerLook` through
+`CardSnapshot.mayLookSeatIds`. Hand zones retain their private owner-only default,
+while permitted card objects list their owner and current viewers. When permission
+ends, the viewer's committed full-state inventory retires the inaccessible hand
+objects and linked faces from Diff updates. Temporary public hand reveals retain
+their existing precedence.
+
 Do not infer a cause from snapshots when a Forge event can carry it. Do not store a parallel mutable truth when a snapshot can read the current Forge state.
 
 When an upstream Forge event lacks the payload needed for protocol translation, prefer a small fork-local event enrichment over correlating unrelated events after the fact. The event should carry the Forge object IDs needed by the bridge, not protocol instance IDs.
