@@ -9,6 +9,8 @@ import forge.game.cost.CostPartMana
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostSacrifice
 import forge.game.keyword.Keyword
+import forge.game.keyword.KeywordInterface
+import forge.game.keyword.KeywordWithCostInterface
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.DeferredCastCostPlan
@@ -94,10 +96,16 @@ internal object DeferredCastCostPlanMaterializer {
                             }
                         DeferredCastCostPlan.OptionalCostEntry(type, abilityGrpId, null, cost.toString())
                     } +
-                        keywordCosts.map { name ->
+                        keywordCosts.map { keyword ->
+                            val name = keyword.keyword.toString()
                             val slot = card.findKeywordSlot(name, keywordCount)
                             val abilityGrpId = slot?.let { cardData?.abilityIds?.getOrNull(it)?.first } ?: 0
-                            DeferredCastCostPlan.OptionalCostEntry(CastingTimeOptionType.AdditionalCost, abilityGrpId, name)
+                            DeferredCastCostPlan.OptionalCostEntry(
+                                CastingTimeOptionType.AdditionalCost,
+                                abilityGrpId,
+                                name,
+                                (keyword as? KeywordWithCostInterface)?.title,
+                            )
                         }
                 DeferredCastCostPlan.optional(entries, cardData?.manaCost.orEmpty())
             }
@@ -139,8 +147,8 @@ internal object DeferredCastCostPlanMaterializer {
 
     private val binaryKeywordCostNames = setOf(Keyword.OFFSPRING, Keyword.CASUALTY, Keyword.CONSPIRE)
 
-    private fun Card.binaryKeywordCosts(): List<String> =
-        keywords.mapNotNull { keyword -> keyword.keyword?.takeIf { it in binaryKeywordCostNames }?.toString() }
+    private fun Card.binaryKeywordCosts(): List<KeywordInterface> =
+        keywords.mapNotNull { keyword -> keyword.takeIf { it.keyword in binaryKeywordCostNames } }
 
     private fun Card.findKeywordSlot(
         keywordName: String,

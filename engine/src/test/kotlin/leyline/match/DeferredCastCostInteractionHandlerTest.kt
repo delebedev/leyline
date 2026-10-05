@@ -79,6 +79,51 @@ class DeferredCastCostInteractionHandlerTest :
             }
         }
 
+        for (presentation in CostChoicePresentation.entries) {
+            for (pay in listOf(true, false)) {
+                session(
+                    "offspring title preserves keyword payment and token outcome ($presentation, pay=$pay)",
+                    puzzle =
+                        """
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanhand=Coruscation Mage;Island
+                        humanbattlefield=Mountain;Mountain;Mountain;Mountain
+                        humanlibrary=Island;Island;Island
+                        aibattlefield=Ornithopter
+                        ailibrary=Island;Island;Island
+                        """.trimIndent(),
+                    costChoicePresentation = presentation,
+                ) {
+                    val options =
+                        after { castSpellByName("Coruscation Mage") }
+                            .expectOneCastingTimeOptionsReq()
+                            .castingTimeOptionReqList
+                    val offspring = options.single { it.castingTimeOptionType == CastingTimeOptionType.AdditionalCost }
+                    val done = options.single { it.castingTimeOptionType == CastingTimeOptionType.Done }
+                    if (presentation == CostChoicePresentation.ForgeText) {
+                        offspring.prompt.parametersList
+                            .single()
+                            .stringValue shouldBe "Offspring {2}"
+                    } else {
+                        offspring.hasPrompt() shouldBe false
+                    }
+                    done.hasPrompt() shouldBe false
+                    respondToOptionalCost(if (pay) offspring.ctoId else done.ctoId)
+                    passUntilResolved(maxPasses = 12)
+                    assertSoftly {
+                        val mages = human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Coruscation Mage" }
+                        mages shouldHaveSize if (pay) 2 else 1
+                        mages.count { it.isToken && it.netPower == 1 && it.netToughness == 1 } shouldBe if (pay) 1 else 0
+                        human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe if (pay) 4 else 2
+                        ai.battlefield.card("Ornithopter").damage shouldBe 0
+                    }
+                }
+            }
+        }
+
         val state =
             """
             ActivePlayer=Human
