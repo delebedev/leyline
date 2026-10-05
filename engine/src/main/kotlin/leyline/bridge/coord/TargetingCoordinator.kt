@@ -104,6 +104,7 @@ class TargetingCoordinator(
         title: String?,
         isOptional: Boolean,
         hasDelayedReveal: Boolean,
+        searchedSeatId: SeatId? = null,
     ): T? {
         if (optionList.isEmpty()) return null
         val reveal = bridge.journal.activeRevealEntry()
@@ -155,6 +156,7 @@ class TargetingCoordinator(
                     ),
                 sourceEntityId = plan.sourceIdPolicy.sourceEntityId(sa),
                 searchSource = searchSource(semantic, sa),
+                searchedSeatId = searchedSeatId,
                 searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
         val residual =

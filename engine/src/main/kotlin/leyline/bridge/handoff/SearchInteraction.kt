@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 
 /** Engine-thread source facts for a library-search interaction. */
 data class SearchSourceValue(
@@ -25,6 +26,7 @@ data class SearchGroupValue(
 
 /** Immutable input for one coordinator-owned library-search window. */
 data class SearchWindowValue(
+    val searchedSeatId: SeatId,
     val libraryCardIds: List<ForgeCardId>,
     val candidateCardIdsByOption: Map<Int, ForgeCardId>,
     val optionCount: Int,

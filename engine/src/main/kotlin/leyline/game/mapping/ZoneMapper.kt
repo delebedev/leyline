@@ -266,7 +266,7 @@ object ZoneMapper {
     }
 
     @Suppress("detekt:LongParameterList")
-    private fun addPlayerCardObjects(
+    internal fun addPlayerCardObjects(
         snap: GsmSnapshot,
         fid: ForgeCardId,
         instanceId: Int,

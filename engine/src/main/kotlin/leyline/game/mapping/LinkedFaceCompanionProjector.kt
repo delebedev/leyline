@@ -32,23 +32,32 @@ object LinkedFaceCompanionProjector {
                         transientHiddenFamilyIds.add(transferredParent.instanceId)
                     }
                         ?: return@flatMap emptyList()
-                bound.linkedFaces.map { face ->
-                    val projectedFace = face.copy(grpId = selectedStackFaceGrpId(parentIid.value, face.role, transferResult) ?: face.grpId)
-                    val companionIid =
-                        editor.identities
-                            .getOrAlloc(FrameIdResolver.linkedFaceCompanionForgeId(parentIid, face.role))
-                            .value
-                    ObjectMapper.buildLinkedFaceObject(projectedFace, companionIid, parent, environment.cardProto).also { companion ->
-                        if (parent.instanceId in transientHiddenFamilyIds) {
-                            transientHiddenFamilyIds.add(companion.instanceId)
-                        }
+                val faces =
+                    bound.linkedFaces.map { face ->
+                        face.copy(grpId = selectedStackFaceGrpId(parentIid.value, face.role, transferResult) ?: face.grpId)
                     }
+                companions(faces, parent, editor, environment).onEach { companion ->
+                    if (parent.instanceId in transientHiddenFamilyIds) transientHiddenFamilyIds.add(companion.instanceId)
                 }
             }
         return transferResult.copy(
             patchedObjects = parents + companions,
             transientHiddenFamilyIds = transientHiddenFamilyIds,
         )
+    }
+
+    internal fun companions(
+        faces: List<leyline.game.snapshot.LinkedFaceDescriptor>,
+        parent: wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo,
+        editor: ProjectionState.Editor,
+        environment: StateProjectionEnvironment,
+    ) = faces.map { face ->
+        val companionIid =
+            editor.identities
+                .getOrAlloc(
+                    FrameIdResolver.linkedFaceCompanionForgeId(InstanceId(parent.instanceId), face.role),
+                ).value
+        ObjectMapper.buildLinkedFaceObject(face, companionIid, parent, environment.cardProto)
     }
 
     private fun selectedStackFaceGrpId(

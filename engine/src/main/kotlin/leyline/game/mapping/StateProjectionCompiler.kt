@@ -297,17 +297,17 @@ object StateProjectionCompiler {
                 .setPendingMessageCount(0)
                 .setUpdate(GameStateUpdate.SendAndRecord)
                 .build()
+        val viewerSeatId = SeatId(viewer.input.viewingSeatId)
+        val priorCursor = editor.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
         val draft =
             rendered.copy(
-                gsm = finalizedOrderOverlay.gsm,
+                gsm = retirePrivateLibraryCompanions(finalizedOrderOverlay.gsm, fullState, priorCursor.fullState),
                 projectionSnapshot = finalizedOrderOverlay.snapshot,
                 output =
                     rendered.output.copy(
                         idReallocations = rendered.output.idReallocations + finalizedOrderOverlay.idReallocations,
                     ),
             )
-        val viewerSeatId = SeatId(viewer.input.viewingSeatId)
-        val priorCursor = editor.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
         editor.viewerCursors[viewerSeatId] =
             priorCursor.copy(
                 previousSnapshot = draft.projectionSnapshot,
@@ -330,6 +330,29 @@ object StateProjectionCompiler {
                 transition = ProjectionTransition(prior.revision, prior),
                 objectRefreshInstanceIds = draft.objectRefreshInstanceIds,
             )
+    }
+
+    /** Retire temporary library companions against this viewer's committed object inventory. */
+    private fun retirePrivateLibraryCompanions(
+        gsm: GameStateMessage,
+        fullState: GameStateMessage,
+        priorFullState: GameStateMessage?,
+    ): GameStateMessage {
+        if (gsm.type != GameStateType.Diff || priorFullState == null) return gsm
+        val currentIds = fullState.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
+        val retired =
+            priorFullState.gameObjectsList
+                .filter {
+                    it.visibility == Visibility.Private &&
+                        it.parentId != 0 &&
+                        it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY) &&
+                        it.instanceId !in currentIds
+                }.map { it.instanceId }
+        return gsm
+            .toBuilder()
+            .clearDiffDeletedInstanceIds()
+            .addAllDiffDeletedInstanceIds((gsm.diffDeletedInstanceIdsList + retired).distinct())
+            .build()
     }
 
     private fun leyline.game.state.PromptFactConsumption.merge(
@@ -819,13 +842,31 @@ object StateProjectionCompiler {
                 .associate { (index, obj) -> obj.instanceId to index }
                 .toMutableMap()
         for (forgeCardId in candidates) {
-            val card = snapshot.objects[forgeCardId] ?: continue
+            if (snapshot.objects[forgeCardId] == null) continue
             val zone = snapshot.zones.values.firstOrNull { forgeCardId in it.contents } ?: continue
             val id = editor.identities.getOrAlloc(forgeCardId)
-            val objectInfo = orderObject(card, id, zone.id, zone.owner?.value ?: viewingSeatId, environment, viewingSeatId)
-            existing[id.value]?.let { builder.setGameObjects(it, objectInfo) } ?: run {
-                existing[id.value] = builder.gameObjectsCount
-                builder.addGameObjects(objectInfo)
+            val family = mutableListOf<GameObjectInfo>()
+            ZoneMapper.addPlayerCardObjects(
+                snapshot,
+                forgeCardId,
+                id.value,
+                zone.id,
+                zone.owner ?: leyline.bridge.types.SeatId(viewingSeatId),
+                environment,
+                editor.identities::getOrAlloc,
+                Visibility.Private,
+                "private candidate",
+                family,
+                viewers = setOf(viewingSeatId),
+            )
+            snapshot.boundCards[forgeCardId]?.let { bound ->
+                family += LinkedFaceCompanionProjector.companions(bound.linkedFaces, family.first(), editor, environment)
+            }
+            for (objectInfo in family) {
+                existing[objectInfo.instanceId]?.let { builder.setGameObjects(it, objectInfo) } ?: run {
+                    existing[objectInfo.instanceId] = builder.gameObjectsCount
+                    builder.addGameObjects(objectInfo)
+                }
             }
         }
         return builder.build()

@@ -39,6 +39,8 @@ data class ChooseSingleEntityPlan(
 )
 
 object ChooseSingleEntityPlanner {
+    fun isLibrarySearchAbility(sa: SpellAbility?): Boolean = sa?.api == ApiType.ChangeZone || sa?.hasParam("QuasiLibrarySearch") == true
+
     fun plan(context: ChooseSingleEntityContext): ChooseSingleEntityPlan {
         val isLegendRule = context.sa?.api == ApiType.InternalLegendaryRule
         val isLearn = context.sa?.api == ApiType.Learn
@@ -53,8 +55,8 @@ object ChooseSingleEntityPlanner {
                 context.allCandidatesProjectable,
             )
         val isSearch =
-            (context.sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice) ||
-                context.hasDelayedReveal
+            isLibrarySearchAbility(context.sa) &&
+                (resolutionInput.isCompleteLibraryCardChoice || context.hasDelayedReveal)
         val semantic =
             when {
                 isLegendRule -> PromptSemantic.SelectNLegendRule
