@@ -2,14 +2,18 @@ package leyline.mechanics.annihilator
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import leyline.acceptance.AcceptancePaths
 import leyline.bridge.types.InstanceId
+import leyline.testkit.ProtocolContract
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.tooling.headless.HeadlessResponseMode
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AnnihilatorLifecycleTest :
     SessionTest({
@@ -36,6 +40,10 @@ class AnnihilatorLifecycleTest :
             passUntil { allMessages.any { it.hasSelectNReq() } }.shouldBeTrue()
             val promptMessage = allMessages.last { it.hasSelectNReq() }
             val selection = promptMessage.selectNReq
+            val annotationsBeforeChoice = allMessages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }
+            val abilityIid = annotationsBeforeChoice.last { AnnotationType.AbilityInstanceCreated in it.typeList }.affectedIdsList.single()
+            annotationsBeforeChoice.count { AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityIid } shouldBe 1
+            annotationsBeforeChoice.count { AnnotationType.ResolutionComplete in it.typeList && it.affectorId == abilityIid } shouldBe 0
             val blocker = human.battlefield.card("Healer's Hawk")
             val blockerIid = human.battlefield.iid("Healer's Hawk")
             val before = human.getZone(ZoneType.Battlefield).cards.toList()
@@ -56,6 +64,36 @@ class AnnihilatorLifecycleTest :
 
             respondToSelectN(selectedIds)
             passUntil { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+            val contract = ProtocolContract.load(AcceptancePaths.resolve("conformance/contracts/emrakul-sacrifice-choice.yaml"))
+            contract.verify(allMessages)
+            val completed =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .single { AnnotationType.ResolutionComplete in it.typeList && it.affectorId == abilityIid }
+            val started = annotationsBeforeChoice.single { AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityIid }
+            val delayedStart =
+                allMessages.map { message ->
+                    if (!message.hasGameStateMessage()) {
+                        message
+                    } else {
+                        val gsm = message.gameStateMessage
+                        val rows = gsm.annotationsList.filter { it != started }.toMutableList()
+                        if (completed in rows) rows.add(0, started)
+                        message.toBuilder().setGameStateMessage(gsm.toBuilder().clearAnnotations().addAllAnnotations(rows)).build()
+                    }
+                }
+            val prematureCompletion =
+                allMessages.map { message ->
+                    if (!message.hasGameStateMessage() || started !in message.gameStateMessage.annotationsList) {
+                        message
+                    } else {
+                        val gsm = message.gameStateMessage
+                        message.toBuilder().setGameStateMessage(gsm.toBuilder().addAnnotations(completed)).build()
+                    }
+                }
+            shouldThrow<AssertionError> { contract.verify(delayedStart) }
+            shouldThrow<AssertionError> { contract.verify(prematureCompletion) }
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.toList() shouldContainExactlyInAnyOrder sacrificed
                 human.getZone(ZoneType.Battlefield).cards.toList() shouldContainExactlyInAnyOrder retained

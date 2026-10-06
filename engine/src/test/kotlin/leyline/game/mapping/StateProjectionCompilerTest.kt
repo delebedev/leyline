@@ -44,6 +44,66 @@ class StateProjectionCompilerTest :
     FunSpec({
         tags(UnitTag)
 
+        test("resolution choices retain exact ability identity across repeated prompts and completion") {
+            val source = ForgeCardId(10)
+            val older = stackAbility(source, 30)
+            val resolving = stackAbility(source, 31)
+            val snapshot = stackAbilitySnapshot(1, source, listOf(resolving, older))
+            val intent = ViewerProjectionIntent.of(listOf(ProjectionSupplement.ResolutionStarted(resolving)))
+            val opened =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot),
+                    ProjectionState.initial(),
+                    intent,
+                )
+            val abilityIid =
+                opened.transition.nextState.identities.forgeIdToInstanceId.getValue(
+                    FrameIdResolver.triggerStackAbilityForgeId(31),
+                )
+            val starts = opened.gsm.annotationsList.filter { AnnotationType.ResolutionStart in it.typeList }
+            starts.single().affectorId shouldBe abilityIid.value
+            starts
+                .single()
+                .detailsList
+                .single { it.key == "grpid" }
+                .valueInt32List shouldBe listOf(resolving.grpId)
+            val repeated =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot),
+                    opened.transition.nextState,
+                    intent,
+                )
+            repeated.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+            val completion = GameEvent.SpellResolved(source, false, isAbility = true, abilityForgeId = 31, abilityGrpId = resolving.grpId)
+            val finished =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot, FrameEventLog(listOf(completion))),
+                    repeated.transition.nextState,
+                    intent,
+                )
+            assertSoftly {
+                finished.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+                finished.gsm.annotationsList
+                    .single { AnnotationType.ResolutionComplete in it.typeList }
+                    .affectorId shouldBe
+                    abilityIid.value
+                finished.transition.nextState.annotations.openResolutions shouldBe emptySet()
+                finished.transition.nextState.annotations.abilityLineage
+                    .find(abilityIid.value) shouldBe null
+            }
+            val afterCompletion =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot),
+                    finished.transition.nextState,
+                    intent,
+                )
+            afterCompletion.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+        }
+
         for (pendingKind in listOf("spell", "ability", "reserved ability")) {
             test("pending $pendingKind is above the existing mixed stack") {
                 val pendingSpell = pendingKind == "spell"

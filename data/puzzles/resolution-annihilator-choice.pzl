@@ -1,0 +1,22 @@
+# Mechanic: Resolution pauses for a defender's Annihilator sacrifices.
+# Forcing: Eight permanents require choosing six rather than an automatic sacrifice.
+# AI behavior: Emrakul is the sole attacker against small creatures, with no spells available.
+# Failure modes: Missing choice or unretired ability blocks progression to blockers.
+# Card roles: Emrakul creates the trigger; six lands pay it; two creatures distinguish the retained cards.
+# Protocol path: AbilityInstanceCreated, ResolutionStart, SelectNReq, sacrifices, ResolutionComplete, AbilityInstanceDeleted.
+[metadata]
+Name:Annihilator resolution choice
+Goal:Survive
+Turns:4
+Difficulty:Tutorial
+Description:Choose six permanents for Emrakul's attack trigger and continue to blockers.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=40
+AILife=20
+humanbattlefield=Healer's Hawk;Plains;Island;Swamp;Mountain;Forest;Wastes;Grizzly Bears
+humanlibrary=Plains;Plains;Plains
+aibattlefield=Emrakul, the Aeons Torn
+ailibrary=Mountain;Mountain;Mountain

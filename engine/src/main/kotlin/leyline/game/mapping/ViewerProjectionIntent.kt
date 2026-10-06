@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.snapshot.BoundCard
+import leyline.game.snapshot.StackEntry
 import java.util.Collections
 
 /** Immutable, viewer-specific projection work appended to one state frame. */
@@ -60,9 +61,9 @@ class PrivateCardPromptProjection private constructor(
 
 /** Ordered annotations and identity reservations that supplement the mapped frame. */
 sealed interface ProjectionSupplement {
-    /** A resolution selection needs its stack source bracket before the prompt. */
-    data class ResolutionSelection(
-        val sourceForgeId: ForgeCardId,
+    /** The executing stack item starts resolution before its blocking effect choice. */
+    data class ResolutionStarted(
+        val entry: StackEntry,
     ) : ProjectionSupplement
 
     /** Selected alternative cost visible on the announced stack spell before target submission. */

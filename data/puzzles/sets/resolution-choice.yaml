@@ -1,0 +1,27 @@
+name: resolution-choice
+description: A resolving attack trigger pauses for sacrifices before combat continues.
+scenarios:
+  - id: annihilator-sacrifice
+    puzzle: resolution-annihilator-choice
+    headless: { full_control: true }
+    run: choose six lands for Annihilator and reach blocker declaration
+    expect: the selected lands are sacrificed while the creatures remain available
+    steps:
+      - pass_until:
+          prompt: SelectNReq
+          max_passes: 20
+      - select_cards: { zone: battlefield, cards: [Plains, Island, Swamp, Mountain, Forest, Wastes] }
+      - pass_until:
+          prompt: DeclareBlockersReq
+          max_passes: 12
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Plains }
+            - zone_contains: { side: ours, zone: graveyard, card: Island }
+            - zone_contains: { side: ours, zone: graveyard, card: Swamp }
+            - zone_contains: { side: ours, zone: graveyard, card: Mountain }
+            - zone_contains: { side: ours, zone: graveyard, card: Forest }
+            - zone_contains: { side: ours, zone: graveyard, card: Wastes }
+            - zone_contains: { side: ours, zone: battlefield, card: Healer's Hawk }
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - stack_empty: true

@@ -463,12 +463,20 @@ object StateProjectionCompiler {
         val frameIds = draft.idResolver
         for (supplement in supplements) {
             when (supplement) {
-                is ProjectionSupplement.ResolutionSelection -> {
-                    val sourceId = frameIds.cardIid(supplement.sourceForgeId)
-                    if (editor.protoZones[sourceId.value] == ZoneIds.STACK) {
-                        val card = input.snapshot.boundCards.getValue(supplement.sourceForgeId)
-                        annotations += AnnotationBuilder.resolutionStart(sourceId, leyline.bridge.types.GrpId(card.snapshot.grpId))
-                    }
+                is ProjectionSupplement.ResolutionStarted -> {
+                    val entry = supplement.entry
+                    val instanceId =
+                        if (entry.isSpell) frameIds.cardIid(entry.forgeCardId) else frameIds.triggerStackAbilityIid(entry.forgeAbilityId)
+                    val identity = editor.annotations.ability(instanceId.value)
+                    val unresolved =
+                        if (entry.isSpell) {
+                            editor.protoZones[instanceId.value] == ZoneIds.STACK &&
+                                editor.annotations.pendingSpellResolution(entry.forgeCardId, entry.sourceCardGrpId) == null
+                        } else {
+                            identity != null
+                        }
+                    val grpId = if (entry.isSpell) entry.sourceCardGrpId else identity?.abilityGrpId ?: entry.grpId
+                    if (unresolved) annotations += AnnotationBuilder.resolutionStart(instanceId, leyline.bridge.types.GrpId(grpId))
                 }
                 ProjectionSupplement.NewTurnStarted ->
                     annotations += AnnotationBuilder.newTurnStarted(input.snapshot.phase.activePlayer)
