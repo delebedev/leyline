@@ -4,6 +4,7 @@ import forge.game.card.CounterEnumType
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.game.mapping.ZoneIds
@@ -14,6 +15,7 @@ import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
+@Suppress("MissingAssertSoftly") // Each state check gates the next game action.
 class SagaFinalChapterTest :
     FunSpec({
         tags(IntegrationTag)
@@ -127,7 +129,7 @@ class SagaFinalChapterTest :
                         AnnotationType.ZoneTransfer_af5a in it.typeList &&
                             it.detail("category")?.valueStringList?.firstOrNull() == "Sacrifice"
                     }
-                (resolution >= 0).shouldBeTrue()
+                resolution shouldBeGreaterThanOrEqual 0
                 (resolution < retirement && retirement < changed && changed < transfer).shouldBeTrue()
                 game.humanPlayer
                     .getZone(ZoneType.Battlefield)
@@ -264,7 +266,10 @@ class SagaFinalChapterTest :
                 chapters.map { it.grpId }.toSet() shouldBe chapterGrpIds.drop(1).toSet()
                 chapters.map { it.instanceId }.distinct().size shouldBe 2
                 increment.annotationsList.count { AnnotationType.CounterAdded in it.typeList && sagaIid in it.affectedIdsList } shouldBe 1
-                val stackIds = harness.accumulator.zones[ZoneIds.STACK]!!.objectInstanceIdsList
+                val stackIds =
+                    harness.accumulator.zones
+                        .getValue(ZoneIds.STACK)
+                        .objectInstanceIdsList
                 chapters.all { it.instanceId in stackIds }.shouldBeTrue()
                 game.humanPlayer
                     .getZone(ZoneType.Battlefield)

@@ -224,6 +224,11 @@ first migration. Its stable topological sort expresses established constraints
 such as phase markers, submitted-target leadership, identity references, and
 same-card incremental ordering.
 
+Final Saga resolution waits for the next state-based check so chapter retirement
+and sacrifice share a frame. The ordering kernel places that chapter's deletion
+before the Saga's identity change and transfer; other sacrifices keep their
+existing order.
+
 This ADR changes when the kernel runs, not what its rules mean.
 
 Rules must remain narrow and mechanically testable. A new rule is not an

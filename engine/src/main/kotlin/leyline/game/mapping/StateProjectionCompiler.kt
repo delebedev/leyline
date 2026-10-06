@@ -80,6 +80,7 @@ object StateProjectionCompiler {
         actions: ActionsAvailableReq,
     ): Result = compileViewers(environment, prior, listOf(ViewerInput(input, intent, actions))).viewers.single().result
 
+    @Suppress("LongMethod") // Shared projection stages run in one transaction.
     fun compileViewers(
         environment: StateProjectionEnvironment,
         prior: ProjectionState,
@@ -114,15 +115,17 @@ object StateProjectionCompiler {
             )
         val selectedOptions = projectSelectedCastOptions(canonical.intent.supplements, planned, editor)
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
+        val sagaIds =
+            stagedCanonical.snapshot.objects
+                .filterValues { it.isSaga }
+                .keys
+                .map { planned.idResolver.cardIid(it).value }
+                .toSet()
         val finalized =
             finalizeAnnotations(
                 plannedOrder.gsm.annotationsList + supplementAnnotations,
                 supplementAnnotations.resolutionSourceOwners,
-                stagedCanonical.snapshot.objects
-                    .filterValues { it.isSaga }
-                    .keys
-                    .map { planned.idResolver.cardIid(it).value }
-                    .toSet(),
+                sagaIds,
                 planned.firstAnnotationId,
                 stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
                 editor.annotations,

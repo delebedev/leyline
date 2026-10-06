@@ -115,8 +115,8 @@ class SagaTransformPuzzleTest :
                         .single {
                             AnnotationType.AbilityInstanceCreated in it.typeList && it.affectedIdsList.contains(chapter.instanceId)
                         }.affectorId shouldBe sagaIid
-                    (sagaIid in beforeAccumulator.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList).shouldBeTrue()
-                    (chapter.instanceId in beforeAccumulator.zones[ZoneIds.STACK]!!.objectInstanceIdsList).shouldBeTrue()
+                    (sagaIid in beforeAccumulator.zones.getValue(ZoneIds.BATTLEFIELD).objectInstanceIdsList).shouldBeTrue()
+                    (chapter.instanceId in beforeAccumulator.zones.getValue(ZoneIds.STACK).objectInstanceIdsList).shouldBeTrue()
                 }
 
                 harness
@@ -186,10 +186,12 @@ class SagaTransformPuzzleTest :
                     bfZone.objectInstanceIdsList
                         .mapNotNull { harness.accumulator.objects[it] }
                         .first { it.grpId == echoBackGrpId }
-                echoObj.type shouldBe GameObjectType.Card
-                echoObj.instanceId shouldBe echoIid
-                echoObj.othersideGrpId shouldBe sagaFrontGrpId
-                (chapter.instanceId in harness.accumulator.objects) shouldBe false
+                assertSoftly {
+                    echoObj.type shouldBe GameObjectType.Card
+                    echoObj.instanceId shouldBe echoIid
+                    echoObj.othersideGrpId shouldBe sagaFrontGrpId
+                    (chapter.instanceId in harness.accumulator.objects) shouldBe false
+                }
                 harness.playLand("Swamp").shouldBeTrue()
             } finally {
                 harness.shutdown()
