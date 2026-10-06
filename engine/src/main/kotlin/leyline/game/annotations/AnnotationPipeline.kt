@@ -355,18 +355,13 @@ object AnnotationPipeline {
         // Natural untap changes belong between their phase boundaries.
         val naturalUntaps = naturalUntapEventIndices(events, ctx?.frameEntryStep)
         for ((index, event) in events.withIndex()) {
-            when (event) {
-                is GameEvent.PhaseChanged -> annotations.add(AnnotationBuilder.phaseOrStepModified(event.seatId, event.phase, event.step))
-                is GameEvent.CardPhased ->
-                    if (!event.phasedOut && ctx != null) {
-                        annotations.add(AnnotationBuilder.phasedPermanent(ctx.frameIds.cardIid(event.cardId), false))
-                    }
-                is GameEvent.CardTapped ->
-                    if (index in naturalUntaps && ctx != null) {
-                        val iid = ctx.frameIds.cardIid(event.cardId)
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(iid, iid, false))
-                    }
-                else -> Unit
+            if (event is GameEvent.PhaseChanged) {
+                annotations.add(AnnotationBuilder.phaseOrStepModified(event.seatId, event.phase, event.step))
+            } else if (event is GameEvent.CardPhased && !event.phasedOut && ctx != null) {
+                annotations.add(AnnotationBuilder.phasedPermanent(ctx.frameIds.cardIid(event.cardId), false))
+            } else if (event is GameEvent.CardTapped && index in naturalUntaps && ctx != null) {
+                val iid = ctx.frameIds.cardIid(event.cardId)
+                annotations.add(AnnotationBuilder.tappedUntappedPermanent(iid, iid, false))
             }
         }
         if (!resolutionOwnedDamageInserted) annotations.addAll(combatResult.annotations)
@@ -809,10 +804,10 @@ object AnnotationPipeline {
         var untapStep = frameEntryStep == Step.Untap
         return buildSet {
             for ((index, event) in events.withIndex()) {
-                when (event) {
-                    is GameEvent.PhaseChanged -> untapStep = event.step == Step.Untap.number
-                    is GameEvent.CardTapped -> if (untapStep && !event.tapped) add(index)
-                    else -> Unit
+                if (event is GameEvent.PhaseChanged) {
+                    untapStep = event.step == Step.Untap.number
+                } else if (event is GameEvent.CardTapped && untapStep && !event.tapped) {
+                    add(index)
                 }
             }
         }

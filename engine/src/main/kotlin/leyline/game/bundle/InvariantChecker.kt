@@ -273,14 +273,14 @@ class InvariantChecker(
         }
     }
 
+    private fun frameEntryStep(gsm: GameStateMessage): Step? =
+        if (gsm.type == GameStateType.Diff && gsm.update != GameStateUpdate.Undo) accumulator.turnInfo?.step else null
+
     /**
      * Verify annotation ordering invariants (Rules 1 and 2) by delegating
      * to [AnnotationOrderEnforcer]. If enforce() returns a different list,
      * the input had ordering violations.
      */
-    private fun frameEntryStep(gsm: GameStateMessage): Step? =
-        if (gsm.type == GameStateType.Diff && gsm.update != GameStateUpdate.Undo) accumulator.turnInfo?.step else null
-
     private fun checkAnnotationOrdering(gsm: GameStateMessage) {
         val annotations = gsm.annotationsList
         if (annotations.isEmpty()) return
