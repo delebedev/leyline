@@ -969,8 +969,6 @@ scenarios:
             - stack_empty: true
   - id: saga-tribute-transform
     puzzle: saga-tribute-cast
-    web:
-      skip: GRE saga scenario does not reach the transformed permanent state in browser smoke.
     run: cast Tribute to Horobi and advance through the final chapter transform
     expect: Echo of Death's Wail appears on battlefield
     steps:
@@ -984,6 +982,8 @@ scenarios:
           all:
             - zone_not_contains: { side: ours, zone: battlefield, card: Tribute to Horobi }
             - stack_empty: true
+            - action: { type: play_land, card: Swamp }
+      - play_land: Swamp
   - id: daynight-roundtrip-cathar
     puzzle: daynight-roundtrip-cathar
     run: cast Brutal Cathar and advance until Day turns to Night
