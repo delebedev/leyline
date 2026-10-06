@@ -806,14 +806,10 @@ object AnnotationPipeline {
             for ((index, event) in events.withIndex()) {
                 if (event is GameEvent.PhaseChanged) {
                     untapStep = event.step == Step.Untap.number
-                } else if (event is GameEvent.CardTapped &&
-                    untapStep &&
-                    !event.tapped &&
-                    event.affectorCardId == null &&
-                    event.affectorAbilityForgeId == 0 &&
-                    event.affectorSpellCardId == null
-                ) {
-                    add(index)
+                } else if (event is GameEvent.CardTapped && untapStep && !event.tapped) {
+                    val hasExplicitAffector =
+                        event.affectorCardId != null || event.affectorAbilityForgeId != 0 || event.affectorSpellCardId != null
+                    if (!hasExplicitAffector) add(index)
                 }
             }
         }
