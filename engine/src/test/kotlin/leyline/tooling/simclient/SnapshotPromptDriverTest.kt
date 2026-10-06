@@ -103,14 +103,16 @@ class SnapshotPromptDriverTest :
             val baseline = runPuzzle("partial-blocker-convergence.pzl", SimClientPolicyMode.ForgeAi)
             val snapshot = runPuzzle("partial-blocker-convergence.pzl", SimClientPolicyMode.Snapshot)
 
-            assertSoftly {
-                baseline.winnerSeat shouldBe 1
-                baseline.promptProgressSamples.single { it.decisionKind == "declare-blockers" }.targetIds shouldBe listOf(100)
+            withClue("baseline=$baseline; snapshot=$snapshot") {
+                assertSoftly {
+                    baseline.winnerSeat shouldBe 1
+                    baseline.promptProgressSamples.single { it.decisionKind == "declare-blockers" }.targetIds shouldBe listOf(100)
 
-                snapshot.winnerSeat shouldBe 1
-                snapshot.actionAttemptsByType["snapshot:declare-blockers"] shouldBe 1
-                snapshot.actionAttemptsByType["snapshot:unblock"] shouldBe null
-                snapshot.promptProgressSamples.single { it.decisionKind == "snapshot:declare-blockers" }.targetIds shouldBe listOf(100)
+                    snapshot.winnerSeat shouldBe 1
+                    snapshot.actionAttemptsByType["snapshot:declare-blockers"] shouldBe 1
+                    snapshot.actionAttemptsByType["snapshot:unblock"] shouldBe null
+                    snapshot.promptProgressSamples.single { it.decisionKind == "snapshot:declare-blockers" }.targetIds shouldBe listOf(100)
+                }
             }
         }
 
