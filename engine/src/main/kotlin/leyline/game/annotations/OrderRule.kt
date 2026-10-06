@@ -312,13 +312,13 @@ data object ResolutionLifecycleRule : OrderRule {
                     }
                 if (reallocation < 0) continue
                 val sourceId = annotations[reallocation].detailInt(DetailKeys.ORIG_ID)
-                val retirement =
-                    annotations.indexOfFirst {
-                        AnnotationType.AbilityInstanceDeleted in it.typeList &&
-                            it.affectorId == sourceId &&
-                            it.affectedIdsList.any { abilityId -> abilityId in completions }
-                    }
-                if (retirement >= 0) add(retirement to reallocation)
+                annotations.indices
+                    .filter {
+                        val annotation = annotations[it]
+                        AnnotationType.AbilityInstanceDeleted in annotation.typeList &&
+                            annotation.affectorId == sourceId &&
+                            annotation.affectedIdsList.any { abilityId -> abilityId in completions }
+                    }.forEach { add(it to reallocation) }
             }
         }
 }
