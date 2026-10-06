@@ -3,6 +3,7 @@ package leyline.match
 import leyline.bridge.types.SeatId
 import leyline.game.state.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.util.concurrent.TimeoutException
 
 /**
  * Outbound GRE wire surface — emitting messages, bundles, and game-over.
@@ -44,21 +45,41 @@ internal fun drainCoordinatorBarrier(
     seatId: SeatId,
     betweenBatches: () -> Unit = {},
     beforeDrain: () -> Unit = {},
+    drainTimeoutMs: Long = 180_000L,
 ): DrainOutcome {
+    val deadlineNanos = System.nanoTime() + drainTimeoutMs * 1_000_000
     var outcome = DrainOutcome(sent = false)
+
+    fun remainingMs(): Long {
+        val remaining = deadlineNanos - System.nanoTime()
+        if (remaining <= 0) {
+            bridge.cutCoordinator.failDrainUnlessVisibleOrGameOver(
+                seatId,
+                TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms limit"),
+            )
+        }
+        return (remaining / 1_000_000).coerceAtLeast(1)
+    }
     while (true) {
+        remainingMs()
         val step =
             drainOneCoordinatorBarrier(
                 sink = sink,
                 synchronizationActionId =
                     bridge
-                        .actionBridge(seatId)
-                        .getPending()
+                        .takeIf { it.cutCoordinator.committedGameOverOutcome() == null }
+                        ?.actionBridge(seatId)
+                        ?.getPending()
                         ?.takeIf { it.state.kind == leyline.bridge.handoff.PendingActionKind.SYNC_ONLY }
                         ?.actionId,
                 drainCommitted = { bridge.cutCoordinator.drain(seatId) },
                 completeSynchronization = { actionId -> bridge.actionBridge(seatId).completeSyncPass(actionId) },
-                awaitNext = { MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() } },
+                awaitNext = {
+                    MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) {
+                        bridge.awaitPriorityWithTimeout(minOf(remainingMs(), bridge.priorityWaitMs))
+                    }
+                    remainingMs()
+                },
                 failDelivery = bridge.cutCoordinator::failDelivery,
                 betweenBatches = betweenBatches,
                 beforeDrain = beforeDrain,
