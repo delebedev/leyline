@@ -1299,18 +1299,18 @@ class GameEventCollector(
         return ResolvedAbilityIdentity(definition, abilityGrpId)
     }
 
-    override fun visit(ev: GameEventPlayerPoisoned) {
+    override fun visit(ev: GameEventPlayerCounters) {
         val seat = seatOf(ev.receiver()) ?: return
-        val newValue = ev.oldValue() + ev.amount()
+        val type = ev.type() ?: return
         frame.add(
             GameEvent.PlayerCountersChanged(
                 seatId = seat,
-                counterType = "POISON",
+                counterType = type.name,
                 oldCount = ev.oldValue(),
-                newCount = newValue,
+                newCount = ev.amount(),
             ),
         )
-        log.debug("event: PlayerCountersChanged seat={} POISON {}→{}", seat, ev.oldValue(), newValue)
+        log.debug("event: PlayerCountersChanged seat={} {} {}→{}", seat, type.name, ev.oldValue(), ev.amount())
     }
 
     override fun visit(ev: GameEventShuffle) {

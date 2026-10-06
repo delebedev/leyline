@@ -1,0 +1,16 @@
+name: player-counters
+description: Player energy acquisition and payment.
+scenarios:
+  - id: energy-pummeler
+    puzzle: player-energy-pummeler
+    run: acquire three energy from Pummeler and spend all three on its pump
+    expect: Pummeler resolves, its activation is payable, and it becomes 2/2
+    steps:
+      - cast: Electrostatic Pummeler
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats: { side: ours, card: Electrostatic Pummeler, power: 1, toughness: 1 }
+      - activate: Electrostatic Pummeler
+      - resolve_stack: {}
+      - expect:
+          battlefield_stats: { side: ours, card: Electrostatic Pummeler, power: 2, toughness: 2 }
