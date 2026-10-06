@@ -29,6 +29,23 @@ class StaticChoiceIdsTest :
             }
         }
 
+        test("maps card type names independently of subtype names and generated suffixes") {
+            assertSoftly {
+                StaticChoiceIds.cardTypeIdFor("Artifact") shouldBe 1
+                StaticChoiceIds.cardTypeIdFor("Creature") shouldBe 2
+                StaticChoiceIds.cardTypeIdFor("Enchantment") shouldBe 3
+                StaticChoiceIds.cardTypeIdFor("Instant") shouldBe 4
+                StaticChoiceIds.cardTypeIdFor("Land") shouldBe 5
+                StaticChoiceIds.cardTypeIdFor("Planeswalker") shouldBe 8
+                StaticChoiceIds.cardTypeIdFor("Sorcery") shouldBe 10
+                StaticChoiceIds.cardTypeIdFor("Kindred") shouldBe 11
+                StaticChoiceIds.cardTypeIdFor("Battle") shouldBe 14
+                StaticChoiceIds.cardTypeIdFor("Stickers") shouldBe null
+                StaticChoiceIds.cardTypeIdFor("Goblin") shouldBe null
+                StaticChoiceIds.subtypeIdFor("Creature") shouldBe null
+            }
+        }
+
         test("maps parity labels to the zero-based static-list ids") {
             assertSoftly {
                 StaticChoiceIds.parityIdForName("Even") shouldBe 0

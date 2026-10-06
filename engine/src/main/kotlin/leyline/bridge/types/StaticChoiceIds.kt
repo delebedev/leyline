@@ -1,9 +1,16 @@
 package leyline.bridge.types
 
+import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.SubType
 
 /** Arena static-list ids used by enum-domain SelectN prompts. */
 object StaticChoiceIds {
+    private val cardTypeByKey: Map<String, Int> =
+        CardType
+            .values()
+            .filter { it.name != "UNRECOGNIZED" && it.number > 0 }
+            .associate { normalize(it.name.substringBefore('_')) to it.number }
+
     private val subtypeByKey: Map<String, Int> =
         SubType
             .values()
@@ -28,6 +35,8 @@ object StaticChoiceIds {
         }
 
     fun subtypeIdFor(typeName: String): Int? = subtypeByKey[normalize(typeName)]
+
+    fun cardTypeIdFor(typeName: String): Int? = cardTypeByKey[normalize(typeName)]
 
     private fun normalize(value: String): String = value.filter { it.isLetterOrDigit() }.lowercase()
 }

@@ -125,6 +125,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.DungeonRoomChoice to staticChoice(PromptSemantic.DungeonRoomChoice, StaticChoiceKind.DungeonRoom),
                     PromptSemantic.StaticColorChoice to staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color),
                     PromptSemantic.StaticSubtypeChoice to staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype),
+                    PromptSemantic.StaticCardTypeChoice to staticChoice(PromptSemantic.StaticCardTypeChoice, StaticChoiceKind.CardType),
                     PromptSemantic.StaticParityChoice to
                         staticChoice(PromptSemantic.StaticParityChoice, StaticChoiceKind.Parity),
                 )

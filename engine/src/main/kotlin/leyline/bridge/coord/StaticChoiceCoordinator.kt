@@ -257,10 +257,15 @@ class StaticChoiceCoordinator(
         validTypes: Collection<String>,
         isOptional: Boolean,
     ): String? {
+        val isCardType = kindOfType == "Card"
         val choices =
-            validTypes
-                .sorted()
-                .mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { id -> type to id } }
+            if (isCardType) {
+                validTypes.map { type ->
+                    type to (StaticChoiceIds.cardTypeIdFor(type) ?: return if (isOptional) null else validTypes.firstOrNull())
+                }
+            } else {
+                validTypes.sorted().mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { type to it } }
+            }
         if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
 
         val idx =
@@ -272,9 +277,12 @@ class StaticChoiceCoordinator(
                     min = if (isOptional) 0 else 1,
                     max = 1,
                     defaultIndex = 0,
-                    route = PromptRouteResolver.resolve(PromptSemantic.StaticSubtypeChoice),
+                    route =
+                        PromptRouteResolver.resolve(
+                            if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
+                        ),
                     sourceEntityId = sourceEntityId(sa),
-                    staticList = StaticList.SubTypes,
+                    staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
                     staticOptionIds = choices.map { it.second },
                 ),
             ).firstOrNull()

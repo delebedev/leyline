@@ -49,6 +49,12 @@ retain their named `Choices` subabilities through the same modal bridge.
 The selected handles return to Forge for effect resolution. These resolution
 choices reject cancellation and do not offer undo.
 
+`chooseSomeType` retains the offered card-type strings and order in an explicit
+CardTypes subset. If any offered card type has no enum mapping, the whole choice
+keeps its default policy instead of publishing a partial subset. Optional
+unsupported card-type choices return no value. Creature and land subtype
+choices retain the SubTypes domain.
+
 Attacker alternatives are committed with the combat declaration. Exert and
 Enlist callbacks consume their own selections on the engine thread before
 Forge pays optional attack costs. Selecting a normal attack declines those

@@ -179,6 +179,7 @@ enum class StaticChoiceKind {
     DungeonRoom,
     Color,
     Subtype,
+    CardType,
     Parity,
 }
 
@@ -315,6 +316,8 @@ object PromptRouteResolver {
                 staticChoice(semantic, StaticChoiceKind.Color)
             PromptSemantic.StaticSubtypeChoice ->
                 staticChoice(semantic, StaticChoiceKind.Subtype)
+            PromptSemantic.StaticCardTypeChoice ->
+                staticChoice(semantic, StaticChoiceKind.CardType)
             PromptSemantic.StaticParityChoice ->
                 staticChoice(semantic, StaticChoiceKind.Parity)
             PromptSemantic.SelectNCostSacrifice -> payCosts(semantic, PayCostsRouteKind.Sacrifice, "sacrifice")

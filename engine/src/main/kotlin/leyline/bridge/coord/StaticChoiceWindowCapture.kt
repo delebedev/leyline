@@ -17,6 +17,7 @@ internal object StaticChoiceWindowCapture {
                 StaticChoiceKind.Dungeon, StaticChoiceKind.DungeonRoom -> setOf(null)
                 StaticChoiceKind.Color -> setOf(StaticList.Colors, StaticList.CardColors)
                 StaticChoiceKind.Subtype -> setOf(StaticList.SubTypes)
+                StaticChoiceKind.CardType -> setOf(StaticList.CardTypes)
                 StaticChoiceKind.Parity -> setOf(StaticList.Parities)
             }
         check(request.staticList in allowedLists) { "StaticChoice domain does not match its route" }

@@ -99,6 +99,7 @@ internal class StaticChoiceWindowMaterializer {
             StaticChoiceKind.Dungeon,
             StaticChoiceKind.DungeonRoom,
             StaticChoiceKind.Subtype,
+            StaticChoiceKind.CardType,
             StaticChoiceKind.Parity,
             -> PromptIds.CHOOSE_TYPE
         }
