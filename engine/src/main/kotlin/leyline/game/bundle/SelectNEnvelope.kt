@@ -44,6 +44,18 @@ data class SelectNEnvelope(
                 gameStateAugmentation = GameStateAugmentation.LookAndPick,
             )
 
+        fun mappedResolution(req: SelectNReq): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt =
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(if (req.maxSel == 1) PromptIds.CHOOSE_CARD else PromptIds.CHOOSE_TYPE)
+                        .build(),
+                allowCancel = AllowCancel.No_a526,
+                gameStateAugmentation = GameStateAugmentation.LookAndPick,
+            )
+
         fun manifestDread(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

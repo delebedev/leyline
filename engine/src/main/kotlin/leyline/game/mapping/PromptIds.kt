@@ -81,6 +81,9 @@ object PromptIds {
      *  Loc text: "Put N +1/+1 counters on this creature?" — Yes = counters, No = Spirit token. */
     const val ENDURE_PUT_COUNTERS = 13976
 
+    /** Neutral single-card selection instruction. */
+    const val CHOOSE_CARD = 2428
+
     const val SELECT_N = 1243
 
     /** Mutate target group — "Target a non-Human creature you own." */

@@ -65,6 +65,14 @@ object ChooseCardsForEffectPlanner {
                     resolutionRouteInput = resolutionInput,
                 )
 
+            resolutionInput.isMappedCardChoice ->
+                ChooseCardsForEffectPlan(
+                    semantic = PromptSemantic.SelectNResolution,
+                    candidateRefsPolicy = CandidateRefsPolicy.SelectableAndUnfilteredForResolution,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
+                    resolutionRouteInput = resolutionInput,
+                )
+
             else -> ChooseCardsForEffectPlan(semantic = PromptSemantic.Generic)
         }
     }

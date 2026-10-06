@@ -250,7 +250,7 @@ class MatchCardSelectInteractionRuntimeTest :
                     OptionContext.Resolution_a9d7,
                     innerPromptId = 0,
                     innerParameterId = PromptIds.SELECT_N_INNER_PARAMETER,
-                    outerPromptId = PromptIds.SELECT_N_STOCK_UP,
+                    outerPromptId = PromptIds.CHOOSE_CARD,
                     allowCancel = AllowCancel.No_a526,
                     includeRequestSource = false,
                 ),
@@ -357,7 +357,7 @@ class MatchCardSelectInteractionRuntimeTest :
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
                     }
-                    if (case.kind == CardSelectKind.Resolution || case.kind == CardSelectKind.ResolutionMapped) {
+                    if (case.kind == CardSelectKind.Resolution) {
                         req.unfilteredIdsList shouldContainExactly req.idsList
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
@@ -377,6 +377,8 @@ class MatchCardSelectInteractionRuntimeTest :
                         exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
                     }
                     if (case.kind == CardSelectKind.ResolutionMapped) {
+                        req.unfilteredIdsList shouldContainExactly req.idsList
+                        message.prompt.parametersList.shouldBeEmpty()
                         batch
                             .first()
                             .gameStateMessage.gameObjectsList

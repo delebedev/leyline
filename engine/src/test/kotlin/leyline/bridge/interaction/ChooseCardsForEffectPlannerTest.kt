@@ -61,7 +61,7 @@ class ChooseCardsForEffectPlannerTest :
                 .semantic shouldBe PromptSemantic.SuspectChoice
         }
 
-        test("triggered ChooseCard without ChosenCard suspect subability stays generic") {
+        test("triggered ChooseCard without ChosenCard suspect subability uses ordinary visible choice") {
             val sa =
                 chooseCardSa(
                     subAbility = alterAttributeSa(mapOf("Defined" to "ChosenCard", "Attributes" to "Flying")),
@@ -70,21 +70,21 @@ class ChooseCardsForEffectPlannerTest :
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
 
             val plan = ChooseCardsForEffectPlanner.plan(context(sa))
-            plan.semantic shouldBe PromptSemantic.Generic
+            plan.semantic shouldBe PromptSemantic.SelectNResolution
             plan.mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
         }
 
-        test("non-ChooseCard suspect effect stays generic") {
+        test("non-ChooseCard suspect effect uses ordinary visible choice") {
             val sa = alterAttributeSa(mapOf("Defined" to "ChosenCard", "Attributes" to "Suspect"))
 
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
 
             val plan = ChooseCardsForEffectPlanner.plan(context(sa))
-            plan.semantic shouldBe PromptSemantic.Generic
+            plan.semantic shouldBe PromptSemantic.SelectNResolution
             plan.forcePrompt.shouldBeFalse()
         }
 
-        test("ChooseCard suspecting self instead of ChosenCard stays generic") {
+        test("ChooseCard suspecting self instead of ChosenCard uses ordinary visible choice") {
             val sa =
                 chooseCardSa(
                     subAbility = alterAttributeSa(mapOf("Defined" to "Self", "Attributes" to "Suspected")),
@@ -93,10 +93,10 @@ class ChooseCardsForEffectPlannerTest :
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
             ChooseCardsForEffectPlanner
                 .plan(context(sa))
-                .semantic shouldBe PromptSemantic.Generic
+                .semantic shouldBe PromptSemantic.SelectNResolution
         }
 
-        test("AlterAttribute deactivating Suspect on ChosenCard stays generic") {
+        test("AlterAttribute deactivating Suspect on ChosenCard uses ordinary visible choice") {
             val sa =
                 chooseCardSa(
                     subAbility =
@@ -108,19 +108,54 @@ class ChooseCardsForEffectPlannerTest :
             SpellAbilityShapes.isSuspectChoice(sa).shouldBeFalse()
             ChooseCardsForEffectPlanner
                 .plan(context(sa))
-                .semantic shouldBe PromptSemantic.Generic
+                .semantic shouldBe PromptSemantic.SelectNResolution
         }
 
-        test("generic chooseCardsForEffect plan preserves mandatory single-choice auto-resolve") {
+        test("visible singleton plan preserves mandatory-choice auto-resolve") {
             val plan = ChooseCardsForEffectPlanner.plan(context(sa = null))
 
             assertSoftly(plan) {
-                semantic shouldBe PromptSemantic.Generic
+                semantic shouldBe PromptSemantic.SelectNResolution
                 forcePrompt shouldBe false
-                candidateRefsPolicy shouldBe CandidateRefsPolicy.None
-                sourceIdPolicy shouldBe SourceIdPolicy.None
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
                 mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
             }
+        }
+
+        test("ordinary effects map complete visible multiple-card choices") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa = null, optionCount = refs.size, candidateRefs = refs))
+            assertSoftly(plan) {
+                semantic shouldBe PromptSemantic.SelectNResolution
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                resolutionRouteInput!!.isMappedCardChoice.shouldBeTrue()
+                mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
+            }
+        }
+
+        test("ordinary effects retain fallback for hidden incomplete and empty choices") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            assertSoftly {
+                ChooseCardsForEffectPlanner
+                    .plan(
+                        context(null, optionCount = refs.size, candidateRefs = refs.map { it.copy(zone = "Library") }),
+                    ).semantic shouldBe PromptSemantic.Generic
+                ChooseCardsForEffectPlanner
+                    .plan(context(null, optionCount = 3, candidateRefs = refs))
+                    .semantic shouldBe PromptSemantic.Generic
+                ChooseCardsForEffectPlanner
+                    .plan(context(null, optionCount = 0, candidateRefs = emptyList()))
+                    .semantic shouldBe PromptSemantic.Generic
+            }
+        }
+
+        test("active reveal takes precedence over ordinary visible choice") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            ChooseCardsForEffectPlanner
+                .plan(context(null, optionCount = refs.size, candidateRefs = refs, activeReveal = true))
+                .semantic shouldBe PromptSemantic.RevealChoose
         }
 
         test("ChangeZone cards-for-effect uses Search only for hidden library selections") {

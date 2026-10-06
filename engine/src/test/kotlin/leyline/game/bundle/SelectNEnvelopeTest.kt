@@ -53,6 +53,29 @@ class SelectNEnvelopeTest :
             }
         }
 
+        test("mapped resolution has neutral labels without changing its request or lifecycle") {
+            val single =
+                req
+                    .toBuilder()
+                    .setMinSel(0)
+                    .setMaxSel(1)
+                    .build()
+            val singleEnvelope = SelectNEnvelope.mappedResolution(single)
+            val multipleEnvelope = SelectNEnvelope.mappedResolution(req)
+            assertSoftly {
+                singleEnvelope.req shouldBe single
+                singleEnvelope.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
+                singleEnvelope.prompt.parametersCount shouldBe 0
+                multipleEnvelope.req shouldBe req
+                multipleEnvelope.prompt.promptId shouldBe PromptIds.CHOOSE_TYPE
+                multipleEnvelope.prompt.parametersCount shouldBe 0
+                singleEnvelope.allowCancel shouldBe AllowCancel.No_a526
+                multipleEnvelope.allowCancel shouldBe AllowCancel.No_a526
+                singleEnvelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.LookAndPick
+                multipleEnvelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.LookAndPick
+            }
+        }
+
         test("mutate top-bottom envelope disables cancel") {
             val envelope = SelectNEnvelope.mutateTopBottom(req)
 
