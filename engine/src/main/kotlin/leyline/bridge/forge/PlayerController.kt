@@ -260,6 +260,10 @@ class PlayerController(
             viewerSeatId = viewerSeatId,
         )
 
+    /**
+     * Forge's GUI singleton does not identify the runtime decision owner.
+     * Resolve the human interface from the retained viewer seat on the engine thread.
+     */
     override fun isGuiPlayer(): Boolean = viewerSeatId == seating.humanSeat
 
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
