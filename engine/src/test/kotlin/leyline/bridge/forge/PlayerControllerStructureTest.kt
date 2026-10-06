@@ -53,6 +53,7 @@ class PlayerControllerStructureTest :
                 "chooseOptionalCosts",
                 "choosePermanentsToDestroy",
                 "choosePermanentsToSacrifice",
+                "chooseProtectionType",
                 "choosePlayerToAssistPayment",
                 "chooseSingleEntityForEffect",
                 "chooseSingleCardFace",
