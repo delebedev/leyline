@@ -169,6 +169,11 @@ Commander tax remains generic mana in the effective cost.
 
 For mana color translation, use `ManaColorMapping`. Forge's color bitmasks and the client mana ordinals are not the same domain.
 
+Protection choices retain Forge's offered quality strings and order. Color-only
+choices use the static color-choice runtime with the exact allowed CardColors
+subset, including colorless value zero when offered. Other qualities retain the
+inherited callback until their choice domain is supported.
+
 For land color production:
 
 - Check `manaPart.isComboMana` first.

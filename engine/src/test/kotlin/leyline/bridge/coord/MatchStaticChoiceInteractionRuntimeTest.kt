@@ -311,6 +311,59 @@ class MatchStaticChoiceInteractionRuntimeTest :
             }
         }
 
+        for ((options, selected) in listOf(
+            listOf("white", "blue", "black", "red", "green") to "red",
+            listOf("red", "colorless", "blue") to "colorless",
+        )) {
+            test("protection callback preserves offered qualities $options and selected $selected") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val source = board.human.battlefield.card("Island")
+                val controller = board.human.controller as PlayerController
+                val result = AtomicReference<String>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    try {
+                        board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+                        result.set(controller.chooseProtectionType(source.spellAbilities.first(), options))
+                    } finally {
+                        finished.countDown()
+                    }
+                }.start()
+                val published = awaitPublished(coordinator)
+                val req =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+                        .selectNReq
+                val ids = options.map { if (it == "colorless") 0 else StaticChoiceIds.colorIdForName(it)!! }
+                assertSoftly {
+                    req.listType shouldBe SelectionListType.StaticSubset
+                    req.staticList shouldBe StaticList.CardColors
+                    req.idsList shouldContainExactly ids
+                    coordinator.acceptSettled(
+                        leyline.testkit.selectNResp(listOf(ids[options.indexOf(selected)])),
+                        published.gameStateId,
+                    ) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get() shouldBe selected
+                }
+            }
+        }
+
+        test("mixed protection qualities retain inherited fallback without a color prompt") {
+            val board = startPuzzleAtMain1(puzzle)
+            val source = board.human.battlefield.card("Island")
+            val controller = board.human.controller as PlayerController
+            board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+            controller.chooseProtectionType(source.spellAbilities.first(), listOf("red", "Artifact")) shouldBe "red"
+            board.bridge.cutCoordinator.staticChoices
+                .current()
+                .shouldBeNull()
+        }
+
         test("colorless-only callback resolves without publishing a prompt") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
