@@ -828,6 +828,15 @@ class PlayerController(
         colors: ColorSet,
     ): Byte = staticChoiceCoordinator.chooseColorAllowColorless(message, card, colors)
 
+    /**
+     * Inherited protection choices silently default through GUI input. The engine thread
+     * awaits a color choice while unsupported qualities retain the inherited path.
+     */
+    override fun chooseProtectionType(
+        sa: SpellAbility,
+        choices: List<String>,
+    ): String? = staticChoiceCoordinator.chooseProtectionType(sa, choices) ?: super.chooseProtectionType(sa, choices)
+
     override fun chooseColors(
         message: String,
         sa: SpellAbility?,
