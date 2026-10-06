@@ -2054,10 +2054,8 @@ class GameBridge(
     }
 
     /**
-     * Seed persistent [AnnotationType.Counter_803b] annotations for player poison
-     * counters and permanents that start with counters (loyalty on planeswalkers,
-     * +1/+1 on creatures, etc.). Forge's puzzle loader bypasses the event chain
-     * when applying counters, so no counter-change event fires.
+     * Seed persistent [AnnotationType.Counter_803b] annotations for supported player
+     * counters and permanents with initial counters.
      */
     private fun seedCounterAnnotations(game: Game) {
         for ((seatNum, player) in players) {
