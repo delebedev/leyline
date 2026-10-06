@@ -167,6 +167,47 @@ class PriorityActionCandidatesTest :
                 }
             }
         }
+        for (spell in listOf("Rumbling Baloth", "Forest")) {
+            test("Glarb offers a permitted top library card: $spell") {
+                val board =
+                    startPuzzleAtMain1(
+                        """
+                        [metadata]
+                        Name:Library mana value permission
+                        Goal:Win
+                        Turns:4
+                        Difficulty:Easy
+                        Description:Offer only the permitted top spell.
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanbattlefield=Glarb, Calamity's Augur;Forest;Forest;Island;Swamp
+                        humanlibrary=$spell;Rumbling Baloth;Island
+                        ailibrary=Mountain
+                        """.trimIndent(),
+                    )
+                val candidates = PriorityActionCandidates.query(board.game, board.human)
+                val projection =
+                    ActionMapper.buildProjectionFromSnapshot(
+                        1,
+                        SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                        board.bridge,
+                        candidates,
+                    )
+                val actionType = if (spell == "Forest") ActionType.Play_add3 else ActionType.Cast
+                projection.actions.ofType(actionType).shouldHaveSize(1)
+                candidates
+                    .forCard(
+                        board.human
+                            .getZone(ZoneType.Library)
+                            .cards
+                            .get(1),
+                    ).casts
+                    .shouldHaveSize(0)
+            }
+        }
         test("library land permission obeys the normal land limit") {
             val board =
                 startPuzzleAtMain1(

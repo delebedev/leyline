@@ -170,10 +170,9 @@ private fun choosePayableX(
  *    `forge.ai.AiCostDecision`, `forge.ai.ability.AttachAi`) cast
  *    `player.getController()` to `PlayerControllerAi`. Outside that scope
  *    you'll get `ClassCastException` because the registered controller is
- *    leyline's bridge. Forge's own `runWithController` is NOT enough: the
- *    bridge registers its controller at `Long.MAX_VALUE - 1`, above any
- *    `getNextTimestamp()` layer, so [askAi] layers the AI controller at
- *    `Long.MAX_VALUE` and removes it in `finally`.
+ *    leyline's bridge. [askAi] temporarily layers the AI controller at
+ *    `Long.MAX_VALUE` above any active player-control effect and removes
+ *    only that layer in `finally`.
  *
  * 3. **Skip AI consult on Pass-only AARs** (caller side — see
  *    `SimClientDriver.hasCastableActionsInAar`). Forge AI's search costs
@@ -926,9 +925,7 @@ class ForgeAiPolicy(
         label: String,
         block: () -> T,
     ): T? {
-        // The bridge registers leyline's PlayerController at Long.MAX_VALUE - 1,
-        // so Forge's Player.runWithController (which layers at getNextTimestamp())
-        // never out-ranks it. Layer the AI controller at Long.MAX_VALUE instead so
+        // Layer the AI controller above active player-control effects so
         // Forge-AI internals that cast player.getController() see PlayerControllerAi.
         // The fixed slot is shared, so nested consults only add/remove at depth 0.
         var result: T? = null

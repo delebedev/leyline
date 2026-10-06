@@ -89,7 +89,7 @@ class TargetingCoordinator(
         card: Card,
     ): TargetingCandidateValue.Card? {
         val zone = card.zone?.zoneType?.let(::revealZone) ?: return null
-        val ownerSeat = if (card.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = card.owner.ownerSeat()
         return TargetingCandidateValue.Card(optionIndex, ForgeCardId(card.id), ZoneIds.revealZone(zone, ownerSeat))
     }
 
@@ -236,7 +236,7 @@ class TargetingCoordinator(
     ) {
         if (!isLearn || chosen !is Card || !chosen.isInZone(ZoneType.Sideboard)) return
 
-        val ownerSeat = if (chosen.owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = chosen.owner.ownerSeat()
         bridge.recordReveal(
             listOf(ForgeCardId(chosen.id)),
             ownerSeat,
@@ -526,7 +526,7 @@ class TargetingCoordinator(
         if (visibleToChooser.isEmpty()) return null
         val visibleIds = visibleToChooser.map { ForgeCardId(it.id) }
         if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
-        val ownerSeat = if (discarder.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = discarder.ownerSeat()
         TargetingCoordinator.startReveal(bridge, visibleIds, ownerSeat)
         return bridge.journal.activeRevealEntry()
     }
@@ -589,7 +589,7 @@ class TargetingCoordinator(
     ) {
         if (cards.isEmpty()) return
         val cardIds = cards.map { ForgeCardId(it.id) }
-        val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = owner.ownerSeat()
         bridge.recordReveal(
             cardIds,
             ownerSeat,
@@ -609,9 +609,9 @@ class TargetingCoordinator(
         players: Iterable<Player>,
     ) {
         if (cards.isEmpty()) return
-        val ownerPlayer = players.firstOrNull { owner.isLobbyPlayer(it.lobbyPlayer) } ?: return
+        val ownerPlayer = players.firstOrNull { owner.id == it.id } ?: return
         val cardIds = cards.map { ForgeCardId(it.id) }
-        val ownerSeat = if (ownerPlayer.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = ownerPlayer.ownerSeat()
         bridge.recordReveal(
             cardIds,
             ownerSeat,
@@ -707,7 +707,7 @@ class TargetingCoordinator(
         if (semantic != PromptSemantic.OrderForTop || !zone.isDeck || cards.any { !it.isInZone(ZoneType.Hand) }) return null
         val owner = cards.firstOrNull()?.owner ?: return null
         if (cards.any { it.owner != owner }) return null
-        val ownerSeat = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+        val ownerSeat = owner.ownerSeat()
         return OrderMoveIntent(
             seatId = ownerSeat,
             forgeCardIds = cards.map { ForgeCardId(it.id) },
@@ -857,12 +857,7 @@ class TargetingCoordinator(
                             distribution = sa.getDividedValue(target),
                         )
                     is forge.game.player.Player -> {
-                        val seat =
-                            if (target.lobbyPlayer is forge.ai.LobbyPlayerAi) {
-                                seating.familiarSeat
-                            } else {
-                                seating.humanSeat
-                            }
+                        val seat = target.ownerSeat()
                         InteractivePromptBridge.PendingTarget.TargetAffectee(
                             targetSeatId = seat.value,
                             distribution = sa.getDividedValue(target),
@@ -1221,7 +1216,9 @@ class TargetingCoordinator(
             -> false
         }
 
-    private fun Card.ownerSeat(): SeatId = if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+    private fun Player.ownerSeat(): SeatId = if (originalLobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat
+
+    private fun Card.ownerSeat(): SeatId = owner.ownerSeat()
 
     private fun GameEntity.entityLabel(): String =
         when (this) {

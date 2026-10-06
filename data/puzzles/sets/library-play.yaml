@@ -1,0 +1,17 @@
+name: library-play
+description: Cast and play the current library top through Glarb's permission.
+scenarios:
+  - id: glarb-eligible-spell-and-land
+    puzzle: glarb-library-play
+    run: cast the eligible top spell and play the next top land
+    expect: Rumbling Baloth and Mountain enter the battlefield
+    steps:
+      - wait:
+          action: { type: cast, card: Rumbling Baloth, zone: library }
+      - cast: { card: Rumbling Baloth, zone: library }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Rumbling Baloth }
+      - play_land: Mountain
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Mountain }

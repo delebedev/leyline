@@ -1049,12 +1049,9 @@ class GameBridge(
                 onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
             )
         humanController = controller
-        human.addController(Long.MAX_VALUE - 1, human, controller, false)
-        aiPlayer.addController(
-            Long.MAX_VALUE - 1,
-            aiPlayer,
+        human.dangerouslySetController(controller)
+        aiPlayer.dangerouslySetController(
             RevealTrackingAiController(g, aiPlayer, promptBridge(seating.humanSeat), seating.familiarSeat),
-            false,
         )
     }
 
@@ -1217,11 +1214,8 @@ class GameBridge(
         populateSeatMap(g)
 
         g.players.forEachIndexed { index, player ->
-            player.addController(
-                Long.MAX_VALUE - 1,
-                player,
+            player.dangerouslySetController(
                 RevealTrackingAiController(g, player, promptBridge(SeatId(1)), SeatId(index + 1)),
-                false,
             )
         }
 
@@ -1754,9 +1748,9 @@ class GameBridge(
                     onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
                 )
             humanController = controller
-            human.addController(Long.MAX_VALUE - 1, human, controller, false)
+            human.dangerouslySetController(controller)
         } else {
-            human.addController(Long.MAX_VALUE - 1, human, aiControllerFactory(g, human), false)
+            human.dangerouslySetController(aiControllerFactory(g, human))
         }
 
         cutCoordinator.registerViewers(listOf(ProjectionViewer(controlledSeat, ProjectionViewerRole.Player)))

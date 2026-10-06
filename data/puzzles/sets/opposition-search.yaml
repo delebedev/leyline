@@ -1,0 +1,23 @@
+name: opposition-search
+description: Controlled searches retain the searched library and grant use of the exiled choice.
+scenarios:
+  - id: both-libraries-and-exiled-cast
+    puzzle: opposition-agent-search
+    run: search both libraries and cast the opponent's chosen creature
+    expect: the opponent's card is exiled and resolves under our control
+    steps:
+      - cast: Scheming Symmetry
+      - targets: [ours, opponent]
+      - pass_until: { prompt: { type: SearchReq } }
+      - search_cards: { side: ours, cards: [Forest] }
+      - pass_until: { prompt: { type: SearchReq } }
+      - search_cards: { side: opponent, cards: [Grizzly Bears] }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: opponent, zone: exile, card: Grizzly Bears }
+      - cast: { card: Grizzly Bears, zone: exile }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
+            - winner: ours
