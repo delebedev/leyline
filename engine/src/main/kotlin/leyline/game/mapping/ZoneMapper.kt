@@ -357,6 +357,7 @@ object ZoneMapper {
     /**
      * Add [GameObjectType.Ability] entries for stack items not already represented
      * as cards in the stack zone. Reads from [snap.stack] — no live Forge reference needed.
+     * Cards and abilities share the snapshot's top-first order.
      *
      * Mints iids via [FrameIdResolver.triggerStackAbilityForgeId] (SA-id-keyed
      * surrogate) so back-to-back triggers from one source card mint distinct
@@ -375,17 +376,17 @@ object ZoneMapper {
 
         val zoneBuilder = zones.find { it.zoneId == ZoneIds.STACK }?.toBuilder() ?: return
         zones.removeIf { it.zoneId == ZoneIds.STACK }
+        val cardInstanceIds = zoneBuilder.objectInstanceIdsList.toSet()
+        val orderedInstanceIds = mutableListOf<Int>()
 
         for (entry in snap.stack.entries) {
-            // Skip spell casts — those are projected as Cards in the stack zone via
-            // [addSharedZoneCardsFromSnapshot]. The Ability projection path is for
-            // triggered + activated SAs (Cascade trigger, Discover trigger, etc.).
-            // Without this, late-snapshot timing where Forge has already removed the
-            // spell from the stack zone but the entry lingers leaks an Ability with
-            // grpId == sourceCardGrpId, masking the real triggered-ability projection.
-            // Triggered abilities firing off a spell-on-stack (Cascade, source_zone=27)
-            // need to project even when their source spell is still in the stack zone.
-            if (entry.isSpell) continue
+            // Spell cards are already projected by addSharedZoneCardsFromSnapshot.
+            // A lingering stack entry must not revive a card that left the zone.
+            if (entry.isSpell) {
+                val cardInstanceId = instanceIdLookup(entry.forgeCardId).value
+                if (cardInstanceId in cardInstanceIds) orderedInstanceIds.add(cardInstanceId)
+                continue
+            }
 
             val abilitySurrogate =
                 if (entry.forgeAbilityId != 0) {
@@ -418,7 +419,7 @@ object ZoneMapper {
                     instanceIdLookup(entry.forgeCardId).value
                 }
 
-            zoneBuilder.addObjectInstanceIds(abilityInstanceId)
+            orderedInstanceIds.add(abilityInstanceId)
             gameObjects.add(
                 ObjectMapper.buildAbilityObject(
                     grpId = grpId,
@@ -430,6 +431,9 @@ object ZoneMapper {
                 ),
             )
         }
+        // Cards awaiting a stack entry remain above admitted entries.
+        zoneBuilder.clearObjectInstanceIds().addAllObjectInstanceIds(cardInstanceIds - orderedInstanceIds.toSet())
+        zoneBuilder.addAllObjectInstanceIds(orderedInstanceIds)
         zones.add(zoneBuilder.build())
     }
 

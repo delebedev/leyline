@@ -236,6 +236,11 @@ baselines, annotation lifecycles, prompt facts, and logical output advance only
 when that transition installs. The projection core receives immutable inputs;
 it does not query the live Forge graph.
 
+Stack membership interleaves spell cards and abilities in Forge's top-first
+order. Pending cast and targeting entries appear above admitted entries, while
+lingering spell entries cannot restore cards that left the Stack zone.
+Embedding heads retain this order so the first item is next to resolve.
+
 Each seat's `DungeonSnapshot` freezes the current dungeon, room identity, and
 completion history; the persistent player feed retains one `DungeonStatus` row
 across room changes, completion, and reentry. Forge owns room resolution.

@@ -571,7 +571,7 @@ object StateProjectionCompiler {
             if (stack.entries.none { it.forgeCardId == card.forgeCardId && it.isSpell }) {
                 stack =
                     StackSnapshot(
-                        stack.entries +
+                        listOf(
                             StackEntry(
                                 forgeCardId = card.forgeCardId,
                                 controller = card.controller,
@@ -581,6 +581,7 @@ object StateProjectionCompiler {
                                 isSpell = true,
                                 targets = emptyList(),
                             ),
+                        ) + stack.entries,
                     )
             }
             boundCards = boundCards + (card.forgeCardId to bound)
@@ -590,7 +591,7 @@ object StateProjectionCompiler {
                 }
             val stackZone = checkNotNull(zones[leyline.game.mapping.ZoneIds.STACK])
             if (card.forgeCardId !in stackZone.contents) {
-                zones = zones + (stackZone.id to stackZone.copy(contents = stackZone.contents + card.forgeCardId))
+                zones = zones + (stackZone.id to stackZone.copy(contents = listOf(card.forgeCardId) + stackZone.contents))
             }
         }
         for (ability in abilities) {
@@ -608,7 +609,7 @@ object StateProjectionCompiler {
             }
             stack =
                 StackSnapshot(
-                    stack.entries +
+                    listOf(
                         StackEntry(
                             forgeCardId = ability.sourceForgeCardId,
                             controller = ability.controllerSeatId,
@@ -620,6 +621,7 @@ object StateProjectionCompiler {
                             targets = ability.targetForgeCardIds,
                             forgeAbilityId = ability.forgeAbilityId,
                         ),
+                    ) + stack.entries,
                 )
         }
         for (reservation in reservations) {
@@ -628,7 +630,7 @@ object StateProjectionCompiler {
                 ?.stack
                 ?.entries
                 ?.singleOrNull { it.forgeAbilityId == reservation.forgeAbilityId }
-                ?.let { stack = StackSnapshot(stack.entries + it) }
+                ?.let { stack = StackSnapshot(listOf(it) + stack.entries) }
         }
         return input.copy(snapshot = copySnapshot(input.snapshot, zones = zones, boundCards = boundCards, stack = stack))
     }
