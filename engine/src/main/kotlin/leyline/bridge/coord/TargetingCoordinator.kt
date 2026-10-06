@@ -430,7 +430,15 @@ class TargetingCoordinator(
         min: Int,
         max: Int,
         valid: CardCollectionView,
-    ): CardCollectionView = chooseCardsViaBridge(valid, min, max.coerceAtMost(valid.size), "Choose cards to reveal")
+    ): CardCollectionView =
+        chooseCardsForEffect(
+            valid,
+            sa = null,
+            title = "Choose cards to reveal",
+            min = min,
+            max = max.coerceAtMost(valid.size),
+            isOptional = min == 0,
+        )
 
     // -- Discard / sacrifice ---------------------------------------------
 

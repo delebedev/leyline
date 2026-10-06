@@ -123,6 +123,41 @@ class ChooseCardsForEffectPlannerTest :
             }
         }
 
+        test("ordinary effects map complete visible multiple-card choices") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa = null, optionCount = refs.size, candidateRefs = refs))
+            assertSoftly(plan) {
+                semantic shouldBe PromptSemantic.SelectNResolution
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                resolutionRouteInput!!.isMappedCardChoice.shouldBeTrue()
+                mandatoryChoicePolicy shouldBe MandatoryChoicePolicy.AutoResolveWhenSatisfied
+            }
+        }
+
+        test("ordinary effects retain fallback for hidden incomplete and empty choices") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            assertSoftly {
+                ChooseCardsForEffectPlanner
+                    .plan(
+                        context(null, optionCount = refs.size, candidateRefs = refs.map { it.copy(zone = "Library") }),
+                    ).semantic shouldBe PromptSemantic.Generic
+                ChooseCardsForEffectPlanner
+                    .plan(context(null, optionCount = 3, candidateRefs = refs))
+                    .semantic shouldBe PromptSemantic.Generic
+                ChooseCardsForEffectPlanner
+                    .plan(context(null, optionCount = 0, candidateRefs = emptyList()))
+                    .semantic shouldBe PromptSemantic.Generic
+            }
+        }
+
+        test("active reveal takes precedence over ordinary visible choice") {
+            val refs = handRefs + handRefs.single().copy(index = 1, entityId = 11)
+            ChooseCardsForEffectPlanner
+                .plan(context(null, optionCount = refs.size, candidateRefs = refs, activeReveal = true))
+                .semantic shouldBe PromptSemantic.RevealChoose
+        }
+
         test("ChangeZone cards-for-effect uses Search only for hidden library selections") {
             assertSoftly {
                 ChooseCardsForEffectPlanner.plan(context(changeZoneSa(), candidateRefs = libraryRefs)).let { plan ->

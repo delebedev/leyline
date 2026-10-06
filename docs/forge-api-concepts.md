@@ -54,6 +54,8 @@ Enlist callbacks consume their own selections on the engine thread before
 Forge pays optional attack costs. Selecting a normal attack declines those
 costs without opening another choice.
 
+Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback.
+
 ## 3. SpellAbility Is A Chain
 
 A spell or ability is often an SA chain, not one `SpellAbility`. Wrapper APIs such as `Charm`, `Effect`, `Repeat`, and `RepeatEach` can put meaningful work in sub-abilities that run after choices are made.

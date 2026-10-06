@@ -155,6 +155,65 @@ class TargetingCoordinatorTest :
             }
         }
 
+        test("ordinary effect and reveal choices return the exact non-first card") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Mountain", human, ZoneType.Hand)
+                    addCard("Forest", human, ZoneType.Hand)
+                }
+            val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
+            for (reveal in listOf(false, true)) {
+                val bridge = testPromptBridge(cardSelectRuntime = selectingCard(1))
+                val coordinator = TargetingCoordinator(bridge, testSeating)
+                val chosen =
+                    if (reveal) {
+                        coordinator.chooseCardsToRevealFromHand(1, 1, cards)
+                    } else {
+                        coordinator.chooseCardsForEffect(cards, abilitySub(ApiType.ChooseCard), "Keep one", 1, 1, false)
+                    }
+                assertSoftly {
+                    chosen.single() shouldBeSameInstanceAs cards[1]
+                    val request = bridge.history.single()
+                    (request.route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe CardSelectKind.ResolutionMapped
+                    request.result shouldBe listOf(1)
+                }
+            }
+        }
+
+        test("effect and reveal empty and mandatory singleton choices return without a prompt") {
+            val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
+            val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
+            val bridge = testPromptBridge(cardSelectRuntime = failingCardSelect())
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+            assertSoftly {
+                coordinator.chooseCardsForEffect(CardCollection(), null, null, 1, 1, false).shouldBeEmpty()
+                coordinator.chooseCardsToRevealFromHand(1, 1, CardCollection()).shouldBeEmpty()
+                coordinator.chooseCardsForEffect(cards, null, null, 1, 1, false).single() shouldBeSameInstanceAs cards[0]
+                coordinator.chooseCardsToRevealFromHand(1, 1, cards).single() shouldBeSameInstanceAs cards[0]
+                bridge.history.shouldBeEmpty()
+            }
+        }
+
+        test("ordinary effects retain their fallback for opponent hand and hidden library cards") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Forest", human, ZoneType.Library)
+                    addCard("Mountain", human, ZoneType.Library)
+                    addCard("Forest", ai, ZoneType.Hand)
+                    addCard("Mountain", ai, ZoneType.Hand)
+                }
+            for (cards in listOf(
+                CardCollection(board.human.getZone(ZoneType.Library).cards),
+                CardCollection(board.ai.getZone(ZoneType.Hand).cards),
+            )) {
+                val bridge = testPromptBridge(cardSelectRuntime = failingCardSelect())
+                val coordinator = TargetingCoordinator(bridge, testSeating)
+                val chosen = coordinator.chooseCardsForEffect(cards, null, null, 1, 1, false)
+                chosen.single() shouldBeSameInstanceAs cards[0]
+                bridge.history.none { it.route is ResolvedPromptRoute.CardSelect } shouldBe true
+            }
+        }
+
         test("opponent-private card Resolution refuses projection and resolves optional empty") {
             val board =
                 startWithBoard { _, _, ai ->
