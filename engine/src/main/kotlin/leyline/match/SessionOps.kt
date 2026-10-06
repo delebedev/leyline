@@ -53,7 +53,10 @@ internal fun drainCoordinatorBarrier(
     fun remainingMs(): Long {
         val remaining = deadlineNanos - System.nanoTime()
         if (remaining <= 0) {
-            bridge.cutCoordinator.failDrainUnlessGameOver(TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms limit"))
+            bridge.cutCoordinator.failDrainUnlessVisibleOrGameOver(
+                seatId,
+                TimeoutException("Synchronization drain exceeded its $drainTimeoutMs ms limit"),
+            )
         }
         return (remaining / 1_000_000).coerceAtLeast(1)
     }

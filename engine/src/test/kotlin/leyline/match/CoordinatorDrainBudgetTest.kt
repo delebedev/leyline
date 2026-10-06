@@ -1,12 +1,15 @@
 package leyline.match
 
 import forge.game.GameStage
+import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PendingActionState
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.state.GameBridge
@@ -134,6 +137,100 @@ class CoordinatorDrainBudgetTest :
                 }
             } finally {
                 continueEngine.countDown()
+                runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
+                engine.join(1_000)
+            }
+        }
+
+        test("a published priority window keeps its lifetime at an expired drain limit") {
+            val board = startWithBoard { _, _, _ -> }
+            val bridge = board.bridge
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            val engine =
+                Thread {
+                    runCatching { bridge.actionBridge(SeatId(1)).awaitAction(syncState().copy(kind = PendingActionKind.PRIORITY)) }
+                }.also { it.start() }
+            try {
+                bridge.awaitPriorityWithTimeout(1_000) shouldBe true
+                val sink = DrainBudgetSink()
+                assertSoftly {
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                    bridge.cutCoordinator.failure() shouldBe null
+                    bridge
+                        .actionBridge(SeatId(1))
+                        .getPending()
+                        ?.state
+                        ?.kind shouldBe PendingActionKind.PRIORITY
+                }
+            } finally {
+                runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
+                engine.join(1_000)
+            }
+        }
+
+        test("a published numeric prompt keeps its lifetime at an expired drain limit") {
+            val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Battlefield) }
+            val bridge = board.bridge
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            val source =
+                ForgeCardId(
+                    board.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .first()
+                        .id,
+                )
+            val engine =
+                Thread {
+                    runCatching { bridge.cutCoordinator.awaitNumeric(BlockingInteraction.Numeric(source, 0, 2, 1), 2_000) }
+                }.also { it.start() }
+            try {
+                bridge.awaitPriorityWithTimeout(1_000) shouldBe true
+                val pending = checkNotNull(bridge.cutCoordinator.currentBlockingInteraction())
+                val sink = DrainBudgetSink()
+                assertSoftly {
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 0).sent shouldBe true
+                    bridge.cutCoordinator.failure() shouldBe null
+                    bridge.cutCoordinator.currentBlockingInteraction() shouldBe pending
+                    bridge.cutCoordinator.submitNumericAnswer(pending.interactionId, pending.gameStateId, 2) shouldBe true
+                }
+            } finally {
+                runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
+                engine.join(1_000)
+            }
+        }
+
+        test("a synchronization drain preserves priority published across its deadline") {
+            val board = startWithBoard { _, _, _ -> }
+            val bridge = board.bridge
+            bridge.cutCoordinator.registerViewer(SeatId(1))
+            val publishing = CountDownLatch(1)
+            val engine =
+                Thread {
+                    runCatching {
+                        bridge.actionBridge(SeatId(1)).awaitAction(syncState())
+                        bridge.actionBridge(SeatId(1)).awaitAction(syncState().copy(kind = PendingActionKind.PRIORITY))
+                    }
+                }.also { it.start() }
+            try {
+                bridge.awaitPriorityWithTimeout(1_000) shouldBe true
+                bridge.cutCoordinator.actions.beforePublished = {
+                    publishing.countDown()
+                    CountDownLatch(1).await(100, TimeUnit.MILLISECONDS)
+                }
+                val sink = DrainBudgetSink()
+                assertSoftly {
+                    drainCoordinatorBarrier(sink, bridge, SeatId(1), drainTimeoutMs = 50).sent shouldBe true
+                    publishing.count shouldBe 0L
+                    bridge.cutCoordinator.failure() shouldBe null
+                    bridge
+                        .actionBridge(SeatId(1))
+                        .getPending()
+                        ?.state
+                        ?.kind shouldBe PendingActionKind.PRIORITY
+                }
+            } finally {
+                bridge.cutCoordinator.actions.beforePublished = null
                 runCatching { bridge.cutCoordinator.failDelivery(IllegalStateException("Test teardown")) }
                 engine.join(1_000)
             }
