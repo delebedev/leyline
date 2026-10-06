@@ -1,5 +1,6 @@
 package leyline.mechanics.imprint
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.testkit.BoardTest
@@ -31,19 +32,23 @@ class ImprintProjectionTest :
             scepter.addImprintedCard(shock)
             val full = handshakeFull(board.game, board.bridge, 21)
             val display = full.persistentAnnotationsList.single { AnnotationType.DisplayCardUnderCard in it.typeList }
-            display.affectorId shouldBe board.bridge.instanceId(scepter)
-            display.affectedIdsList shouldBe listOf(board.bridge.instanceId(shock))
-            display.detailsList.map { it.key } shouldBe listOf("Disable")
-            handshakeFull(board.game, board.bridge, 22)
-                .persistentAnnotationsList
-                .single { AnnotationType.DisplayCardUnderCard in it.typeList }
-                .id shouldBe display.id
+            assertSoftly {
+                display.affectorId shouldBe board.bridge.instanceId(scepter)
+                display.affectedIdsList shouldBe listOf(board.bridge.instanceId(shock))
+                display.detailsList.map { it.key } shouldBe listOf("Disable")
+                handshakeFull(board.game, board.bridge, 22)
+                    .persistentAnnotationsList
+                    .single { AnnotationType.DisplayCardUnderCard in it.typeList }
+                    .id shouldBe display.id
+            }
 
             val diff = board.snapshotDiff { scepter.clearImprintedCards() }
-            diff.diffDeletedPersistentAnnotationIdsList shouldContain display.id
-            board.human.exile.card("Shock") shouldBe shock
-            handshakeFull(board.game, board.bridge, 24)
-                .persistentAnnotationsList
-                .filter { AnnotationType.DisplayCardUnderCard in it.typeList } shouldBe emptyList()
+            assertSoftly {
+                diff.diffDeletedPersistentAnnotationIdsList shouldContain display.id
+                board.human.exile.card("Shock") shouldBe shock
+                handshakeFull(board.game, board.bridge, 24)
+                    .persistentAnnotationsList
+                    .filter { AnnotationType.DisplayCardUnderCard in it.typeList } shouldBe emptyList()
+            }
         }
     })

@@ -42,9 +42,11 @@ class ImprintLifecycleTest :
             scepter.name shouldBe "Isochron Scepter"
             scepter.imprintedCards.toList() shouldBe listOf(shock)
             val display = allMessages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
-            display.affectorId shouldBe bridge.instanceId(scepter)
-            display.affectedIdsList shouldBe listOf(bridge.instanceId(shock))
-            display.detailsList.map { it.key } shouldBe listOf("Disable")
+            assertSoftly {
+                display.affectorId shouldBe bridge.instanceId(scepter)
+                display.affectedIdsList shouldBe listOf(bridge.instanceId(shock))
+                display.detailsList.map { it.key } shouldBe listOf("Disable")
+            }
             return scepter
         }
 
@@ -151,9 +153,11 @@ class ImprintLifecycleTest :
             respondToOptionalAction(accept = true)
             passUntil(8) { ai.hasCard("Centaur Courser", ZoneType.Exile) }.shouldBeTrue()
             val display = allMessages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single()
-            display.affectorId shouldBe human.battlefield.iid("Duplicant")
-            display.affectedIdsList shouldBe listOf(ai.exile.iid("Centaur Courser"))
-            display.detailsList.map { it.key } shouldBe listOf("Disable")
+            assertSoftly {
+                display.affectorId shouldBe human.battlefield.iid("Duplicant")
+                display.affectedIdsList shouldBe listOf(ai.exile.iid("Centaur Courser"))
+                display.detailsList.map { it.key } shouldBe listOf("Disable")
+            }
             passPriority()
             allMessages.persistentAnnotationsOfType(AnnotationType.DisplayCardUnderCard).single().id shouldBe display.id
         }
