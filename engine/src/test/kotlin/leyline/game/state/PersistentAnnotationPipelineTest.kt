@@ -17,7 +17,11 @@ import leyline.game.iid
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.EffectTracker
 import leyline.game.state.PersistentAnnotationStore
+import leyline.testkit.ValidatingMessageSink
+import leyline.testkit.greMessage
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 
 /**
  * Persistent-stage annotation pipeline tests — computeBatch lifecycle,
@@ -30,6 +34,60 @@ class PersistentAnnotationPipelineTest :
 
         /** Identity resolver for unit tests — forgeCardId maps to forgeCardId + 1000. */
         fun testResolver(forgeCardId: ForgeCardId): InstanceId = InstanceId(forgeCardId.value + 1000)
+
+        test("a same-batch attachment retirement remains valid without a viewer-visible create") {
+            val attachment = AnnotationBuilder.attachment(111.iid, 108.iid)
+            val batch =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = emptyMap(),
+                    startPersistentId = 42,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = listOf(attachment),
+                            detachedForgeCardIds = listOf(ForgeCardId(1)),
+                        ),
+                    resolveInstanceId = { 111.iid },
+                    resolveForgeCardId = { if (it.value == 111) ForgeCardId(1) else null },
+                )
+            assertSoftly {
+                batch.allAnnotations.shouldBeEmpty()
+                batch.deletedIds shouldBe listOf(42)
+            }
+            val sink = ValidatingMessageSink()
+            sink.send(
+                listOf(
+                    greMessage(
+                        msgId = 1,
+                        gsm =
+                            GameStateMessage
+                                .newBuilder()
+                                .setType(GameStateType.Full)
+                                .setGameStateId(1)
+                                .build(),
+                    ),
+                ),
+            )
+            sink.send(
+                listOf(
+                    greMessage(
+                        msgId = 2,
+                        gsm =
+                            GameStateMessage
+                                .newBuilder()
+                                .setType(GameStateType.Diff)
+                                .setGameStateId(2)
+                                .addAllPersistentAnnotations(batch.allAnnotations)
+                                .addAllDiffDeletedPersistentAnnotationIds(batch.deletedIds)
+                                .build(),
+                    ),
+                ),
+            )
+            sink.assertClean()
+        }
 
         // -- DisplayCardUnderCard --
 

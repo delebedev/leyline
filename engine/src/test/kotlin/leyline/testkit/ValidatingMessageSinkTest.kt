@@ -90,6 +90,25 @@ class ValidatingMessageSinkTest :
             vararg checks: InvariantCheck,
         ) = selectedSink(InvariantSelection.only(reason, *checks))
 
+        test("default strict sink rejects persistent packet conflicts") {
+            val row = annotation(42, AnnotationType.DamagedThisTurn)
+            val malformed =
+                listOf(
+                    gsm(1).toBuilder().addAllPersistentAnnotations(listOf(row, row)).build(),
+                    gsm(1).toBuilder().addAllDiffDeletedPersistentAnnotationIds(listOf(42, 42)).build(),
+                    gsm(1)
+                        .toBuilder()
+                        .addPersistentAnnotations(row)
+                        .addDiffDeletedPersistentAnnotationIds(42)
+                        .build(),
+                )
+            for (packet in malformed) {
+                shouldThrow<AssertionError> {
+                    strictSink().send(listOf(greMessage(msgId = 1, gsm = packet)))
+                }.message shouldContain "id=42"
+            }
+        }
+
         // --- Positive: clean stream ---
 
         test("Clean message stream produces no violations") {
