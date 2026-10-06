@@ -1,6 +1,7 @@
 package leyline.game
 
 import com.google.common.eventbus.Subscribe
+import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
@@ -56,6 +57,7 @@ class GamePlayback(
     private val pendingLocalTriggers = ConcurrentHashMap<LocalStackKey, Int>()
     private val pendingLocalAbilities = ConcurrentHashMap<LocalStackKey, Int>()
     private val pendingLocalCasts = ConcurrentHashMap<LocalStackKey, Int>()
+    private var resolvedFinalSagaThisStep = false
 
     override fun visit(ev: GameEventSpellAbilityCast) {
         val isTrigger = ev.si()?.isTrigger == true
@@ -94,6 +96,15 @@ class GamePlayback(
                         consumePending(pendingLocalCasts, key)
                 )
         if (!isRemoteActing() && !splitLocalStackObject) return
+        val source =
+            ev
+                .spell()
+                ?.hostCard
+                ?.id
+                ?.let { bridge.getGame()?.findById(it) }
+        if (source?.isSaga == true && source.getCounters(CounterEnumType.LORE) >= source.finalChapterNr) {
+            resolvedFinalSagaThisStep = true
+        }
         requestCut(PlaybackCutReason.StackObjectResolved, RESOLVE_DELAY)
     }
 
@@ -177,9 +188,11 @@ class GamePlayback(
     fun onMainLoopStepCompleted() {
         val viewerSeat = SeatId(seatId)
         val game = bridge.getGame()
+        val awaitStateEffects = resolvedFinalSagaThisStep && game?.stack?.isEmpty == true
+        resolvedFinalSagaThisStep = false
         if (game?.isGameOver == true) {
             bridge.cutCoordinator.publishGameOverFromEngine(viewerSeat)
-        } else if (game?.stack?.hasSimultaneousStackEntries() != true) {
+        } else if (!awaitStateEffects && game?.stack?.hasSimultaneousStackEntries() != true) {
             // Pending triggers settle before priority. Their next prompt or priority
             // publication includes the mutation that created them in the same frame.
             bridge.cutCoordinator.flushPlaybackCut(viewerSeat, PlaybackCutBoundary.MainLoopStep)

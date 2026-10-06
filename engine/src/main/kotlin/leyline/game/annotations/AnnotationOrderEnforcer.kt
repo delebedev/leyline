@@ -32,13 +32,14 @@ object AnnotationOrderEnforcer {
         annotations: List<AnnotationInfo>,
         frameEntryStep: Step? = null,
         resolutionSourceOwners: Map<Int, Int> = emptyMap(),
+        sagaInstanceIds: Set<Int> = emptySet(),
     ): List<AnnotationInfo> {
         val allEdges =
             OrderRules.all.flatMap { rule ->
                 when (rule) {
                     PhaseOrStepFirstRule -> PhaseOrStepFirstRule.edges(annotations, frameEntryStep)
                     SameCardIncrementalRule -> SameCardIncrementalRule.edges(annotations, resolutionSourceOwners)
-                    ResolutionLifecycleRule -> ResolutionLifecycleRule.edges(annotations, resolutionSourceOwners)
+                    ResolutionLifecycleRule -> ResolutionLifecycleRule.edges(annotations, resolutionSourceOwners, sagaInstanceIds)
                     ObjectIdChangedFirstRule,
                     TokenCreatedFirstRule,
                     AbilityCreationFirstRule,

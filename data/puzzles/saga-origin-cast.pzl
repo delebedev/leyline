@@ -1,0 +1,18 @@
+[metadata]
+Name:Saga Final Chapter — Origin of Spider-Man
+Goal:Survive
+Turns:6
+Difficulty:Easy
+Description:Cast Origin of Spider-Man and advance through all three chapters.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Origin of Spider-Man
+humanbattlefield=Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

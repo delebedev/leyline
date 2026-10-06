@@ -1,0 +1,18 @@
+[metadata]
+Name:Saga Multiple Chapters — History of Benalia
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Cast History of Benalia, then put two lore counters on it with Storyweave.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=History of Benalia;Storyweave;Plains
+humanbattlefield=Plains;Plains;Plains;Forest;Forest;Forest;Forest
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain

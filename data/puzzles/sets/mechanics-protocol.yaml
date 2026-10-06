@@ -984,6 +984,58 @@ scenarios:
             - stack_empty: true
             - action: { type: play_land, card: Swamp }
       - play_land: Swamp
+  - id: saga-origin-final-sacrifice
+    puzzle: saga-origin-cast
+    run: cast Origin of Spider-Man and resolve its final chapter
+    expect: Origin of Spider-Man leaves after chapter III and play continues
+    steps:
+      - expect:
+          action: { type: cast, card: Origin of Spider-Man }
+      - cast: Origin of Spider-Man
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 30
+      - target: { side: ours, zone: battlefield, card: Spider Token }
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 30
+      - target: { side: ours, zone: battlefield, card: Spider Token }
+      - pass_until:
+          zone_contains: { side: ours, zone: graveyard, card: Origin of Spider-Man }
+          max_passes: 12
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: Origin of Spider-Man }
+            - stack_empty: true
+            - action: { type: play_land, card: Plains }
+      - play_land: Plains
+  - id: saga-history-two-lore
+    puzzle: saga-history-two-lore
+    run: cast History of Benalia and use Storyweave to cross chapters II and III
+    expect: both chapters resolve before History of Benalia is sacrificed
+    steps:
+      - expect:
+          action: { type: cast, card: History of Benalia }
+      - cast: History of Benalia
+      - pass_until:
+          zone_contains: { side: ours, zone: battlefield, card: Knight Token }
+          max_passes: 12
+      - cast: Storyweave
+      - modal_choice: { index: 1 }
+      - pass_until:
+          prompt: SelectTargetsReq
+          max_passes: 8
+      - target: { side: ours, zone: battlefield, card: History of Benalia }
+      - pass_until:
+          zone_contains: { side: ours, zone: graveyard, card: History of Benalia }
+          max_passes: 20
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: battlefield, card: History of Benalia }
+            - zone_contains: { side: ours, zone: battlefield, card: Knight Token }
+            - stack_empty: true
+            - action: { type: play_land, card: Plains }
+      - play_land: Plains
   - id: daynight-roundtrip-cathar
     puzzle: daynight-roundtrip-cathar
     run: cast Brutal Cathar and advance until Day turns to Night

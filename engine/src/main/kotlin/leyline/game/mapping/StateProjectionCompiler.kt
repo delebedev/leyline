@@ -118,6 +118,11 @@ object StateProjectionCompiler {
             finalizeAnnotations(
                 plannedOrder.gsm.annotationsList + supplementAnnotations,
                 supplementAnnotations.resolutionSourceOwners,
+                stagedCanonical.snapshot.objects
+                    .filterValues { it.isSaga }
+                    .keys
+                    .map { planned.idResolver.cardIid(it).value }
+                    .toSet(),
                 planned.firstAnnotationId,
                 stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
                 editor.annotations,
@@ -411,11 +416,12 @@ object StateProjectionCompiler {
     private fun finalizeAnnotations(
         annotations: List<AnnotationInfo>,
         resolutionSourceOwners: Map<Int, Int>,
+        sagaInstanceIds: Set<Int>,
         firstId: Int,
         previousStep: Step?,
         journal: leyline.game.state.AnnotationProjectionState.Planner,
     ): FinalizedAnnotationFrame {
-        val ordered = AnnotationOrderEnforcer.enforce(annotations, previousStep, resolutionSourceOwners)
+        val ordered = AnnotationOrderEnforcer.enforce(annotations, previousStep, resolutionSourceOwners, sagaInstanceIds)
         return AnnotationFrameFinalizer.numberOrdered(retainResolutionMarkers(ordered, journal), firstId)
     }
 

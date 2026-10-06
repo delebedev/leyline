@@ -38,6 +38,7 @@ data class CardSnapshot(
     val isOmenCard: Boolean = false,
     /** True when the card has the `Room` subtype (split-room enchantment with two doors). */
     val isRoom: Boolean = false,
+    val isSaga: Boolean = false,
     /** True when the card has at least one mana ability (used for ActivateMana action shape). */
     val hasManaAbilities: Boolean = false,
     /** ManaColor enum numbers this battlefield source can produce. */
