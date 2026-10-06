@@ -87,6 +87,7 @@ object MechanicAnnotations {
     fun mechanicAnnotations(
         events: List<GameEvent>,
         manaPaidForgeCardIds: Set<ForgeCardId> = emptySet(),
+        preEmittedTapEventIndices: Set<Int> = emptySet(),
         idResolver: (ForgeCardId) -> InstanceId,
         effectIdAllocator: () -> EffectId = { EffectId(0) },
         activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
@@ -226,6 +227,7 @@ object MechanicAnnotations {
                     )
                 }
                 is GameEvent.CardTapped -> {
+                    if (eventIndex in preEmittedTapEventIndices) continue
                     if (ev.cardId in manaPaidForgeCardIds) {
                         log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.cardId)
                     } else {

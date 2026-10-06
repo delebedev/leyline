@@ -7,8 +7,10 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
+import leyline.game.annotations.AnnotationBuilder
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
+import leyline.game.sid
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -133,6 +135,98 @@ class InvariantCheckerTest :
         ) = InvariantChecker(InvariantSelection.only(reason, *checks))
 
         // --- Tests ---
+
+        test("resumed Untap boundary is valid for both ordering diagnostics") {
+            for (check in listOf(InvariantCheck.PhaseFirst, InvariantCheck.AnnotationOrdering)) {
+                for (nextStep in listOf(2, 3)) {
+                    val checker = checkerFor("resumed step", check)
+                    checker.seedFull(
+                        gsm(1, emptyList())
+                            .toBuilder()
+                            .setTurnInfo(
+                                wotc.mtgo.gre.external.messaging.Messages.TurnInfo
+                                    .newBuilder()
+                                    .setStep(wotc.mtgo.gre.external.messaging.Messages.Step.Untap),
+                            ).build(),
+                    )
+                    val resumed =
+                        gsm(
+                            2,
+                            listOf(
+                                annotation(1, AnnotationType.TappedUntappedPermanent),
+                                AnnotationBuilder
+                                    .phaseOrStepModified(1.sid, 1, nextStep)
+                                    .toBuilder()
+                                    .setId(2)
+                                    .build(),
+                            ),
+                        ).toBuilder().setType(GameStateType.Diff).build()
+                    checker.process(greMessage(1, resumed))
+                    checker.violations.shouldBeEmpty()
+                }
+            }
+        }
+
+        test("ordering diagnostics retain turn info across Diff and replace it on Full or Undo") {
+            for (check in listOf(InvariantCheck.PhaseFirst, InvariantCheck.AnnotationOrdering)) {
+                for (reset in listOf(false, true)) {
+                    val checker = checkerFor("step baseline", check)
+                    checker.seedFull(
+                        gsm(1, emptyList())
+                            .toBuilder()
+                            .setTurnInfo(
+                                wotc.mtgo.gre.external.messaging.Messages.TurnInfo
+                                    .newBuilder()
+                                    .setStep(wotc.mtgo.gre.external.messaging.Messages.Step.Untap),
+                            ).build(),
+                    )
+                    val emptyDiff = gsm(2, emptyList()).toBuilder().setType(GameStateType.Diff).build()
+                    checker.process(greMessage(1, emptyDiff))
+                    val resumed =
+                        gsm(
+                            3,
+                            listOf(
+                                annotation(1, AnnotationType.TappedUntappedPermanent),
+                                AnnotationBuilder
+                                    .phaseOrStepModified(1.sid, 1, 2)
+                                    .toBuilder()
+                                    .setId(2)
+                                    .build(),
+                            ),
+                        ).toBuilder().setType(GameStateType.Diff).build()
+                    checker.process(greMessage(2, resumed))
+                    checker.violations.shouldBeEmpty()
+                    val replacement =
+                        if (reset) {
+                            emptyDiff
+                                .toBuilder()
+                                .setUpdate(wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.Undo)
+                                .build()
+                        } else {
+                            gsm(4, emptyList())
+                                .toBuilder()
+                                .setTurnInfo(
+                                    wotc.mtgo.gre.external.messaging.Messages.TurnInfo
+                                        .newBuilder()
+                                        .setStep(wotc.mtgo.gre.external.messaging.Messages.Step.None_a2cb),
+                                ).build()
+                        }
+                    checker.process(greMessage(3, replacement))
+                    checker.process(greMessage(4, resumed.toBuilder().setGameStateId(5).build()))
+                    checker.violations
+                        .filter {
+                            it.check ==
+                                if (check ==
+                                    InvariantCheck.PhaseFirst
+                                ) {
+                                    "phase_first"
+                                } else {
+                                    "annotation_ordering"
+                                }
+                        }.shouldNotBeEmpty()
+                }
+            }
+        }
 
         test("phase_first violation when PhaseOrStepModified is not at index 0") {
             val checker = checkerFor("phase diagnostic", InvariantCheck.PhaseFirst)

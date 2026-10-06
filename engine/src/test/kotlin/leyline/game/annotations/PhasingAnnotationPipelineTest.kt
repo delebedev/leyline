@@ -83,13 +83,49 @@ class PhasingAnnotationPipelineTest :
             val rows =
                 annotations(
                     listOf(
-                        GameEvent.CardPhased(cardId, false),
                         GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 1),
+                        GameEvent.CardPhased(cardId, false),
                     ),
                 )
             val inside = rows.single { AnnotationType.PhasedIn in it.typeList }
             val phase = rows.single { AnnotationType.PhaseOrStepModified in it.typeList }
             rows.indexOf(inside).shouldBeGreaterThan(rows.indexOf(phase))
+        }
+
+        test("natural phase in remains between untap and the following upkeep") {
+            val rows =
+                annotations(
+                    listOf(
+                        GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 1),
+                        GameEvent.CardPhased(cardId, false),
+                        GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 2),
+                    ),
+                )
+            rows.map { it.typeList.single() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.PhasedIn,
+                    AnnotationType.PhaseOrStepModified,
+                )
+        }
+
+        test("ordinary untap changes precede upkeep without collapsing repeated transitions") {
+            val rows =
+                annotations(
+                    listOf(
+                        GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 1),
+                        GameEvent.CardTapped(cardId, false),
+                        GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 2),
+                        GameEvent.PhaseChanged(SeatId(1), phase = 1, step = 2),
+                    ),
+                )
+            rows.map { it.typeList.single() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.TappedUntappedPermanent,
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.PhaseOrStepModified,
+                )
         }
 
         test("phase in has no affector even when another ability resolves in the frame") {

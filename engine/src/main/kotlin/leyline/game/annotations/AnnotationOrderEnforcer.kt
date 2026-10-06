@@ -2,6 +2,7 @@ package leyline.game.annotations
 
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.Step
 import java.util.PriorityQueue
 
 /**
@@ -29,8 +30,14 @@ object AnnotationOrderEnforcer {
      *
      * O(n) for the common case (no violations).
      */
-    fun enforce(annotations: List<AnnotationInfo>): List<AnnotationInfo> {
-        val allEdges = OrderRules.all.flatMap { it.edges(annotations) }
+    fun enforce(
+        annotations: List<AnnotationInfo>,
+        frameEntryStep: Step? = null,
+    ): List<AnnotationInfo> {
+        val allEdges =
+            OrderRules.all.flatMap { rule ->
+                if (rule == PhaseOrStepFirstRule) PhaseOrStepFirstRule.edges(annotations, frameEntryStep) else rule.edges(annotations)
+            }
         if (allEdges.isEmpty()) return annotations
         val violationCount = allEdges.count { (from, to) -> from > to }
         if (violationCount == 0) return annotations
