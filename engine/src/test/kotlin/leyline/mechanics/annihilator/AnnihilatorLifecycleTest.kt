@@ -92,8 +92,43 @@ class AnnihilatorLifecycleTest :
                         message.toBuilder().setGameStateMessage(gsm.toBuilder().addAnnotations(completed)).build()
                     }
                 }
-            shouldThrow<AssertionError> { contract.verify(delayedStart) }
-            shouldThrow<AssertionError> { contract.verify(prematureCompletion) }
+            val finalSacrifice =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .last {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                            it.affectorId == abilityIid &&
+                            it.detailsList.any { detail -> detail.key == "category" && "Sacrifice" in detail.valueStringList }
+                    }
+            val finalIdChange =
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .single {
+                        AnnotationType.ObjectIdChanged in it.typeList &&
+                            it.detailsList.any { detail ->
+                                detail.key == "new_id" &&
+                                    finalSacrifice.affectedIdsList.single() in detail.valueInt32List
+                            }
+                    }
+            val lateSacrifice =
+                allMessages.map { message ->
+                    if (!message.hasGameStateMessage()) {
+                        message
+                    } else {
+                        val gsm = message.gameStateMessage
+                        val rows = gsm.annotationsList.filter { it != finalIdChange && it != finalSacrifice }.toMutableList()
+                        val completionIndex = rows.indexOf(completed)
+                        if (completionIndex >= 0) rows.addAll(completionIndex + 1, listOf(finalIdChange, finalSacrifice))
+                        message.toBuilder().setGameStateMessage(gsm.toBuilder().clearAnnotations().addAllAnnotations(rows)).build()
+                    }
+                }
+            assertSoftly {
+                shouldThrow<AssertionError> { contract.verify(lateSacrifice) }
+                shouldThrow<AssertionError> { contract.verify(delayedStart) }
+                shouldThrow<AssertionError> { contract.verify(prematureCompletion) }
+            }
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.toList() shouldContainExactlyInAnyOrder sacrificed
                 human.getZone(ZoneType.Battlefield).cards.toList() shouldContainExactlyInAnyOrder retained

@@ -55,3 +55,8 @@ windows:
     after: started
     before: choice
     absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+  - id: all-sacrifices-before-completion
+    after: started
+    before: completed
+    count: {type: ZoneTransfer, fields: {details.category: [Sacrifice]}, equals: {affectorId: started.affectorId}}
+    exactly: 6
