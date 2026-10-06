@@ -559,6 +559,13 @@ internal class MatchCutCoordinator(
 
     internal fun failDelivery(cause: Throwable): Nothing = prompts.failDelivery(cause)
 
+    internal fun failDrainUnlessGameOver(cause: Throwable) {
+        synchronized(feedLock) {
+            if (gameOver.committed() != null || bridge.getGame()?.isGameOver == true) return
+            prompts.failDelivery(cause)
+        }
+    }
+
     internal fun failTerminal(
         cause: Throwable,
         context: MatchCutTerminalRuntime.Context,
