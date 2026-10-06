@@ -45,6 +45,14 @@ Kotlin interprets the contracts. Changing an emitted field requires checking its
 before changing the expectation. A green gameplay scenario alone does not justify
 loosening a protocol assertion.
 
+The default emitted-stream validator rejects duplicate persistent annotation IDs,
+duplicate persistent deletion IDs, and emission/deletion overlap within one GSM.
+It permits repeated IDs across messages, including mutable row updates and Full
+or Undo baselines. Unknown deletions are not hard failures: a projection batch
+can create and retire a row before its first viewer-visible emission. Cross-message
+lifetime and reuse of retired IDs remain outside this packet-local check. Scenario
+contracts retain their distinct lifecycle and gameplay assertions.
+
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
 numbers. Casting options omit an absent cost or permission field. Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
