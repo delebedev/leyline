@@ -806,7 +806,13 @@ object AnnotationPipeline {
             for ((index, event) in events.withIndex()) {
                 if (event is GameEvent.PhaseChanged) {
                     untapStep = event.step == Step.Untap.number
-                } else if (event is GameEvent.CardTapped && untapStep && !event.tapped) {
+                } else if (event is GameEvent.CardTapped &&
+                    untapStep &&
+                    !event.tapped &&
+                    event.affectorCardId == null &&
+                    event.affectorAbilityForgeId == 0 &&
+                    event.affectorSpellCardId == null
+                ) {
                     add(index)
                 }
             }
