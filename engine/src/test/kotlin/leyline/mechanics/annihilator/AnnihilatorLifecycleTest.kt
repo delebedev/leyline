@@ -124,10 +124,8 @@ class AnnihilatorLifecycleTest :
                         message.toBuilder().setGameStateMessage(gsm.toBuilder().clearAnnotations().addAllAnnotations(rows)).build()
                     }
                 }
-            assertSoftly {
-                shouldThrow<AssertionError> { contract.verify(lateSacrifice) }
-                shouldThrow<AssertionError> { contract.verify(delayedStart) }
-                shouldThrow<AssertionError> { contract.verify(prematureCompletion) }
+            for (mutatedStream in listOf(lateSacrifice, delayedStart, prematureCompletion)) {
+                shouldThrow<AssertionError> { contract.verify(mutatedStream) }
             }
             assertSoftly {
                 human.getZone(ZoneType.Graveyard).cards.toList() shouldContainExactlyInAnyOrder sacrificed

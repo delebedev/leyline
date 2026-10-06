@@ -166,6 +166,10 @@ class ScryETBFlowTest :
         session("scry put on bottom produces Scry annotation with card ids", puzzleFile = "test-puzzles/scry-etb.pzl") {
             playLand().shouldBeTrue()
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
+            val scryStart =
+                allMessages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }.last {
+                    AnnotationType.ResolutionStart in it.typeList
+                }
 
             val allAnnotations =
                 after {
@@ -183,11 +187,13 @@ class ScryETBFlowTest :
                 scryAnn.detailIntList("bottomIds") shouldBe cardIds
             }
 
-            // ResolutionStart + ResolutionComplete for the creature spell
+            val scryCompletion =
+                allAnnotations.single {
+                    AnnotationType.ResolutionComplete in it.typeList && it.affectorId == scryStart.affectorId
+                }
             assertSoftly {
-                val types = allAnnotations.flatMap { it.typeList }
-                types shouldContain AnnotationType.ResolutionStart
-                types shouldContain AnnotationType.ResolutionComplete
+                scryCompletion.detailInt("grpid") shouldBe scryStart.detailInt("grpid")
+                allAnnotations.none { AnnotationType.ResolutionStart in it.typeList && it.affectorId == scryStart.affectorId } shouldBe true
             }
         }
 
