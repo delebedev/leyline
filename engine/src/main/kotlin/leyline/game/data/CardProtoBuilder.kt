@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import leyline.game.snapshot.FaceDownKind
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -46,14 +47,19 @@ class CardProtoBuilder(
      * Build a [GameObjectInfo] for a supported face-down permanent. The
      * projection drops printed identity (name,
      * subtypes, color, the per-card abilities) and substitutes the
-     * universal face-down stencil — `overlayGrpId=3`, single
-     * Ward {2} ability `141939`, 2/2 P/T, `Creature` card type.
+     * universal face-down stencil, 2/2 P/T, and `Creature` card type.
+     * Cloak and Disguise add intrinsic Ward {2}; Manifest Dread does not.
+     * Independently granted keyword abilities remain visible.
      *
      * The [grpId] of the underlying card is still set on the proto so the
-     * per-seat filter can preserve it for the controller and strip it for
-     * the opponent (opponent visibility=Private doesn't reveal identity).
+     * per-seat filter can preserve it for the controller and substitute
+     * the stencil identity for the opponent.
      */
-    fun buildFaceDownObjectInfo(grpId: Int): GameObjectInfo.Builder =
+    fun buildFaceDownObjectInfo(
+        grpId: Int,
+        kind: FaceDownKind,
+        extrinsicKeywordGrpIds: List<Int> = emptyList(),
+    ): GameObjectInfo.Builder =
         GameObjectInfo
             .newBuilder()
             .setGrpId(grpId)
@@ -62,12 +68,16 @@ class CardProtoBuilder(
             .addCardTypes(CardType.Creature)
             .setPower(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
             .setToughness(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
-            .addUniqueAbilities(
-                UniqueAbilityInfo
-                    .newBuilder()
-                    .setId(50)
-                    .setGrpId(KeywordAbilityIds.WARD_TWO),
-            )
+            .apply {
+                val intrinsicAbilities =
+                    when (kind) {
+                        FaceDownKind.Cloak, FaceDownKind.Disguise -> listOf(KeywordAbilityIds.WARD_TWO)
+                        FaceDownKind.ManifestDread -> emptyList()
+                    }
+                (intrinsicAbilities + extrinsicKeywordGrpIds).forEachIndexed { index, abilityGrpId ->
+                    addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(50 + index).setGrpId(abilityGrpId))
+                }
+            }
 
     /** Build a [GameObjectInfo] from DB data, no template — for the buildFromSnapshot path. */
     fun buildObjectInfo(

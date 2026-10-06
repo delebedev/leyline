@@ -7,6 +7,10 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.InMemoryCardRepository
+import leyline.game.data.CardData
+import leyline.game.data.CardProtoBuilder
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.FaceDownKind
 import leyline.game.snapshot.GsmSnapshot
@@ -16,6 +20,7 @@ import leyline.game.state.ProjectionState
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
+import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -212,6 +217,27 @@ class StateProjectionCompilerVisibilityTest :
             val zones = if (kind == FaceDownKind.Disguise) listOf(ZoneType.Stack, ZoneType.Battlefield) else listOf(ZoneType.Battlefield)
             for (zoneType in zones) {
                 test("$kind in $zoneType preserves its public face-down object through Full and Diff") {
+                    val cards = InMemoryCardRepository()
+                    cards.registerData(
+                        CardData(
+                            grpId = 101,
+                            titleId = 101,
+                            power = "5",
+                            toughness = "5",
+                            colors = emptyList(),
+                            types = listOf(CardType.Creature.number),
+                            subtypes = emptyList(),
+                            supertypes = emptyList(),
+                            abilityIds = listOf(9001 to 0),
+                            manaCost = emptyList(),
+                        ),
+                        "Hidden creature",
+                    )
+                    val environment =
+                        compilerEnvironment().copy(
+                            cardProto = CardProtoBuilder(cards),
+                            cardReferences = ProjectionCardReferences(cards),
+                        )
                     val cardId = ForgeCardId(10)
                     val zoneId = if (zoneType == ZoneType.Stack) ZoneIds.STACK else ZoneIds.BATTLEFIELD
                     val printed =
@@ -241,7 +267,7 @@ class StateProjectionCompilerVisibilityTest :
                         prior: ProjectionState,
                         previous: GsmSnapshot? = null,
                     ) = StateProjectionCompiler.compileViewers(
-                        compilerEnvironment(),
+                        environment,
                         prior,
                         (1..2).map { seat ->
                             StateProjectionCompiler.ViewerInput(compilerInput(current, previous).copy(viewingSeatId = seat))
@@ -276,6 +302,8 @@ class StateProjectionCompilerVisibilityTest :
                                 obj.name shouldBe 0
                                 obj.subtypesList shouldBe emptyList()
                                 obj.colorList shouldBe emptyList()
+                                obj.uniqueAbilitiesList.map { it.grpId } shouldBe
+                                    if (kind == FaceDownKind.ManifestDread) emptyList() else listOf(KeywordAbilityIds.WARD_TWO)
                             }
                         }
                     }
@@ -296,6 +324,7 @@ class StateProjectionCompilerVisibilityTest :
                             obj.isFacedown shouldBe false
                             obj.visibility shouldBe Visibility.Public
                             obj.viewersList shouldBe emptyList()
+                            obj.uniqueAbilitiesList.map { it.grpId } shouldBe listOf(9001)
                         }
                     }
                 }
