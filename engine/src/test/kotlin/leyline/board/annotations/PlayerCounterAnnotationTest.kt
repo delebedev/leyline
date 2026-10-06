@@ -1,6 +1,8 @@
 package leyline.board.annotations
 
 import com.google.common.collect.HashMultiset
+import forge.game.Game
+import forge.game.GameState
 import forge.game.card.CounterEnumType
 import forge.game.card.CounterType
 import io.kotest.assertions.assertSoftly
@@ -121,5 +123,49 @@ class PlayerCounterAnnotationTest :
                     (1 to ProtoCounterType.Energy.number) to 2,
                     (2 to ProtoCounterType.Poison.number) to 5,
                 )
+        }
+
+        test("player state restore emits only old to final counter changes") {
+            val board = startWithBoard { _, _, _ -> }
+            board.snapshotDiff {
+                board.human.setPoisonCounters(2, board.ai)
+                board.human.setCounters(CounterEnumType.ENERGY, 1, board.human, true)
+            }
+            val restore =
+                object : GameState() {
+                    fun applySynchronously(game: Game) = applyGameOnThread(game)
+                }.apply {
+                    parse(
+                        listOf(
+                            "ActivePlayer=Human",
+                            "ActivePhase=Main1",
+                            "HumanLife=20",
+                            "AILife=20",
+                            "humancounters=POISON=2,ENERGY=4",
+                            "humanlibrary=Island;Island",
+                            "ailibrary=Forest;Forest",
+                        ),
+                    )
+                }
+            val restored = board.snapshotDiff { restore.applySynchronously(board.game) }
+            val changes =
+                restored.annotationsList.filter {
+                    AnnotationType.CounterAdded in it.typeList || AnnotationType.CounterRemoved in it.typeList
+                }
+            assertSoftly {
+                changes.size shouldBe 1
+                changes.single().typeList shouldContain AnnotationType.CounterAdded
+                changes.single().detailInt("counter_type") shouldBe ProtoCounterType.Energy.number
+                changes.single().detailInt("transaction_amount") shouldBe 3
+                board.human.counters.count(CounterEnumType.POISON) shouldBe 2
+                board.human.counters.count(CounterEnumType.ENERGY) shouldBe 4
+                restored.persistentAnnotationsList
+                    .single { AnnotationType.Counter_803b in it.typeList }
+                    .detailInt("count") shouldBe 4
+            }
+            val unchanged = board.snapshotDiff { restore.applySynchronously(board.game) }
+            unchanged.annotationsList.filter {
+                AnnotationType.CounterAdded in it.typeList || AnnotationType.CounterRemoved in it.typeList
+            } shouldBe emptyList()
         }
     })
