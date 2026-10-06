@@ -33,10 +33,12 @@ internal fun fallbackGrouping(
 }
 
 internal fun fallbackCardSelect(
-    indices: List<Int>,
+    request: PromptRequest,
     candidateHandles: List<Card>,
 ): CardSelectInteractionResult {
-    val selected = indices.filter(candidateHandles.indices::contains).distinct()
+    check(request.min in 0..request.max && request.min <= candidateHandles.size) { "Invalid CardSelect cardinality" }
+    val preferred = listOf(request.defaultIndex).filter(candidateHandles.indices::contains)
+    val selected = (preferred + candidateHandles.indices).distinct().take(request.min)
     return CardSelectInteractionResult(selected, selected.map(candidateHandles::get))
 }
 

@@ -6,9 +6,15 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.acceptance.AcceptancePaths
+import leyline.bridge.coord.GameLoopPoller
+import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.InstanceId
+import leyline.bridge.types.SeatId
+import leyline.config.EngineSettings
+import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ProtocolContract
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
@@ -30,6 +36,90 @@ class AnnihilatorLifecycleTest :
             aibattlefield=Emrakul, the Aeons Torn
             ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
+
+        test("Annihilator timeout sacrifices six default permanents and combat continues") {
+            val h =
+                MatchFlowHarness(
+                    engineSettings =
+                        EngineSettings(
+                            aiSpeed = 0.0,
+                            bridgeTimeoutMs = 5_000L,
+                            promptFailsafeMs = 100L,
+                            aiTurnWaitMs = 500L,
+                            mulliganWaitMs = 500L,
+                        ),
+                    fullControl = true,
+                    responseMode = HeadlessResponseMode.PolicyVisible,
+                )
+            try {
+                h.connect(
+                    puzzleResource = "data/puzzles/resolution-annihilator-choice.pzl",
+                    aiScript = listOf(ScriptedAction.Attack(listOf("Emrakul, the Aeons Torn"))),
+                )
+                val before =
+                    h.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .toList()
+                val handlesByIid = before.associateBy { card -> h.run { human.battlefield.iid(card.name) } }
+                h.passUntil { allMessages.any { it.hasSelectNReq() } }.shouldBeTrue()
+                val prompt = h.allMessages.single { it.hasSelectNReq() }
+                val expected =
+                    prompt.selectNReq.idsList
+                        .take(6)
+                        .map { handlesByIid.getValue(it) }
+                GameLoopPoller.awaitCondition(timeoutMs = 20_000L) {
+                    h.drainSink()
+                    h.bridge.cutCoordinator.cardSelect
+                        .current() == null &&
+                        h.bridge
+                            .promptBridge(SeatId(1))
+                            .history
+                            .any { it.outcome == PromptCallStatus.TIMEOUT }
+                }
+                h.passUntil { phase() == "MAIN2" }.shouldBeTrue()
+                val fallback =
+                    h.bridge
+                        .promptBridge(SeatId(1))
+                        .history
+                        .single { it.outcome == PromptCallStatus.TIMEOUT }
+                val annotations = h.allMessages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }
+                assertSoftly {
+                    prompt.selectNReq.minSel shouldBe 6
+                    prompt.selectNReq.maxSel shouldBe 6
+                    prompt.selectNReq.idsCount shouldBe 8
+                    fallback.result shouldBe (0..5).toList()
+                    h.human
+                        .getZone(ZoneType.Graveyard)
+                        .cards
+                        .toList() shouldContainExactlyInAnyOrder expected
+                    h.human
+                        .getZone(ZoneType.Battlefield)
+                        .cards
+                        .toList() shouldContainExactlyInAnyOrder before.filter { it !in expected }
+                    annotations.count {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                            it.detailsList.any { detail -> detail.key == "category" && "Sacrifice" in detail.valueStringList }
+                    } shouldBe
+                        6
+                    h.game().stackZone.size() shouldBe 0
+                    h.human.life shouldBe 25
+                    h.allMessages.any { it.hasDeclareBlockersReq() }.shouldBeFalse()
+                    h.bridge.cutCoordinator.cardSelect
+                        .current()
+                        .shouldBeNull()
+                    h.bridge.responseAcceptance
+                        .acceptedSnapshot()
+                        .none { it.respId == prompt.msgId }
+                        .shouldBeTrue()
+                    h.bridge.cutCoordinator
+                        .failure()
+                        .shouldBeNull()
+                }
+            } finally {
+                h.shutdown()
+            }
+        }
 
         session(
             "human defender chooses six sacrifices before blockers and combat continues",

@@ -89,7 +89,7 @@ class BrainstormOrderTest :
             }
         }
 
-        test("Brainstorm timeout advances its default card through the one-card order path") {
+        test("Brainstorm timeout returns two default cards through the order lifecycle") {
             val h =
                 MatchFlowHarness(
                     engineSettings =
@@ -105,11 +105,10 @@ class BrainstormOrderTest :
                 h.connectAndKeepPuzzle("data/puzzles/brainstorm-order.pzl")
                 val selectReq = h.castSpellUntilSelectNReq("Brainstorm")
                 val selectMsg = h.allMessages.last { it.hasSelectNReq() }
-                val defaultName =
-                    h.bridge
-                        .getForgeCardId(leyline.bridge.types.InstanceId(selectReq.idsList.first()))
-                        ?.let { h.game().findById(it.value) }
-                        ?.name ?: error("Default LibraryPutback card did not resolve")
+                val defaultNames =
+                    selectReq.idsList.take(2).map { iid ->
+                        h.cardByIid(iid)?.name ?: error("Default LibraryPutback card did not resolve")
+                    }
 
                 GameLoopPoller.awaitCondition(timeoutMs = 20_000L) {
                     h.drainSink()
@@ -118,8 +117,8 @@ class BrainstormOrderTest :
                         checkNotNull(h.bridge.getPlayer(SeatId(1)))
                             .getZone(ZoneType.Library)
                             .cards
-                            .firstOrNull()
-                            ?.name == defaultName
+                            .take(2)
+                            .map { it.name } == defaultNames
                 }
 
                 assertSoftly {
@@ -129,15 +128,17 @@ class BrainstormOrderTest :
                     h.bridge.cutCoordinator.order
                         .current()
                         .shouldBeNull()
-                    h.allMessages.none { it.gameStateId > selectMsg.gameStateId && it.hasOrderReq() } shouldBe true
+                    h.allMessages
+                        .single { it.gameStateId > selectMsg.gameStateId && it.hasOrderReq() }
+                        .orderReq.idsCount shouldBe 2
                     h.bridge.cutCoordinator
                         .failure()
                         .shouldBeNull()
                     checkNotNull(h.bridge.getPlayer(SeatId(1)))
                         .getZone(ZoneType.Library)
                         .cards
-                        .first()
-                        .name shouldBe defaultName
+                        .take(2)
+                        .map { it.name } shouldBe defaultNames
                 }
             } finally {
                 h.shutdown()
