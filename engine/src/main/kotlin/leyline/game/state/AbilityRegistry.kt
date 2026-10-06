@@ -227,7 +227,14 @@ class AbilityRegistry private constructor(
             triggerMap: MutableMap<Int, Int>,
             keywordFamilies: MutableMap<AbilityDefinitionRef, AbilityKeywordFamily>,
         ): Int {
-            val keywordStrings = card.currentState.intrinsicKeywords.map { it.original }
+            val declarationCards =
+                listOfNotNull(card, card.copiedPermanent, card.cloneStates.maxByOrNull { it.key }?.value?.origin)
+            val keywordStrings =
+                declarationCards.asSequence()
+                    .mapNotNull { it.rules }
+                    .flatMap { it.allFaces.asSequence() }
+                    .firstOrNull { it.name == card.currentState.name }
+                    ?.keywords?.toList().orEmpty()
             val liveKeywords = card.getKeywords() ?: emptyList()
             val claimed = mutableSetOf<KeywordInterface>()
 
