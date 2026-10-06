@@ -282,6 +282,7 @@ private val promptRouteFamilies =
                 listOf(
                     PromptSemantic.StaticColorChoice,
                     PromptSemantic.StaticSubtypeChoice,
+                    PromptSemantic.StaticCardTypeChoice,
                     PromptSemantic.StaticParityChoice,
                 ),
         ),
