@@ -751,6 +751,18 @@ data object TriggeringObjectKind : PersistentAnnotationKind {
     ): Boolean = ann.affectorId !in frame.stackIids || ann.affectorId in frame.resolvingStackIids
 }
 
+/** Imprint rows are rebuilt from current membership and have no temporary-return marker. */
+data object ImprintDisplayKind : PersistentAnnotationKind {
+    override val name = "ImprintDisplay"
+    override val pruneStale = true
+    override val collisionStrategy = CollisionStrategy.KEEP_EXISTING
+
+    override fun matches(ann: AnnotationInfo): Boolean =
+        DisplayCardUnderCardKind.matches(ann) && ann.detailsList.none { it.key == DetailKeys.TEMPORARY_ZONE_TRANSFER }
+
+    override fun identityKey(ann: AnnotationInfo): Any = ann.affectorId to ann.affectedIdsList
+}
+
 data object DisplayCardUnderCardKind : PersistentAnnotationKind {
     override val name = "DisplayCardUnderCard"
     override val pruneStale = false
@@ -819,6 +831,7 @@ object PersistentAnnotationKinds {
             ModifiedTypeForCrewKind,
             TemporaryPermanentKind,
             DelayedTriggerAffecteesKind,
+            ImprintDisplayKind,
             CardRevealedKind,
             InstanceRevealedToOpponentKind,
             TargetSpecKind,

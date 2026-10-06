@@ -1517,7 +1517,7 @@ object AnnotationBuilder {
         affectorId: InstanceId,
         instanceId: InstanceId,
         disable: Int = 0,
-        temporaryZoneTransfer: Int = 1,
+        temporaryZoneTransfer: Int? = 1,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
@@ -1525,8 +1525,9 @@ object AnnotationBuilder {
             .setAffectorId(affectorId.value)
             .addAffectedIds(instanceId.value)
             .addDetails(int32Detail(DetailKeys.DISABLE, disable))
-            .addDetails(int32Detail(DetailKeys.TEMPORARY_ZONE_TRANSFER, temporaryZoneTransfer))
-            .build()
+            .apply {
+                temporaryZoneTransfer?.let { addDetails(int32Detail(DetailKeys.TEMPORARY_ZONE_TRANSFER, it)) }
+            }.build()
 
     /** Predicted direct damage preview text. client type 66 (PredictedDirectDamage). */
     fun predictedDirectDamage(

@@ -549,6 +549,7 @@ object SnapshotCapture {
             basicLandManaAbilityGrpId = BasicLandAbilities.byForgeSubtypeNames(type.subtypes) ?: 0,
             effectSourceForgeCardId = card.effectSource?.let { ForgeCardId(it.id) },
             hasParadigmKeyword = card.hasKeyword("Paradigm"),
+            imprintedCardIds = if (onBf) card.imprintedCards.map { ForgeCardId(it.id) } else emptyList(),
             isLand = isLand,
             isAdventureCard = isAdventureCard,
             isOmenCard = isOmenCard,

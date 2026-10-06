@@ -203,13 +203,28 @@ object PersistentAnnotationStore {
                 mechanicResult.perKindPersistent[QualificationKind] ?: emptyList(),
             )
 
+        // Settled imprint membership supersedes a temporary row born during the exile move.
+        val imprintKeys =
+            mechanicResult.perKindPersistent[ImprintDisplayKind]
+                .orEmpty()
+                .mapTo(mutableSetOf(), ImprintDisplayKind::identityKey)
+
+        fun supersededDisplay(ann: AnnotationInfo): Boolean =
+            DisplayCardUnderCardKind.matches(ann) &&
+                !ImprintDisplayKind.matches(ann) &&
+                ImprintDisplayKind.identityKey(ann) in imprintKeys
+        active.filterValues(::supersededDisplay).keys.forEach { id ->
+            active.remove(id)
+            deletions.add(id)
+        }
+
         // 3b. Mechanic-originated mixed list (Counter + Attachment +
         //     DisplayCardUnderCard + ControllerChangedEffect). Counter
         //     rows go through CounterKind's REPLACE_ALWAYS collision
         //     handling; non-Counter rows pure-append since their lifecycle
         //     is cleanup-driven (steps 4-6).
         for (ann in mechanicResult.persistent) {
-            if (isExistingCastingOption(ann, active.values)) {
+            if (supersededDisplay(ann) || isExistingCastingOption(ann, active.values)) {
                 continue
             }
             if (CounterKind.matches(ann)) {

@@ -96,6 +96,39 @@ class PersistentAnnotationPipelineTest :
             result.exileSourceLeftPlayForgeCardIds shouldBe listOf(ForgeCardId(90))
         }
 
+        test("settled imprint replaces carried and incoming temporary rows without touching other pairs") {
+            val temporary =
+                AnnotationBuilder
+                    .displayCardUnderCard(1090.iid, 1080.iid)
+                    .toBuilder()
+                    .setId(5)
+                    .build()
+            val unrelated =
+                AnnotationBuilder
+                    .displayCardUnderCard(1090.iid, 1081.iid)
+                    .toBuilder()
+                    .setId(6)
+                    .build()
+            val imprint = AnnotationBuilder.displayCardUnderCard(1090.iid, 1080.iid, temporaryZoneTransfer = null)
+            val result =
+                PersistentAnnotationStore.computeBatch(
+                    currentActive = mapOf(5 to temporary, 6 to unrelated),
+                    startPersistentId = 10,
+                    effectPersistent = emptyList(),
+                    effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                    transferPersistent = emptyList(),
+                    mechanicResult =
+                        MechanicAnnotationResult(
+                            transient = emptyList(),
+                            persistent = listOf(temporary.toBuilder().setId(0).build()),
+                            perKindPersistent = mapOf(ImprintDisplayKind to listOf(imprint)),
+                        ),
+                    resolveInstanceId = ::testResolver,
+                )
+            result.deletedIds shouldBe listOf(5)
+            result.allAnnotations shouldBe listOf(unrelated, imprint.toBuilder().setId(10).build())
+        }
+
         test("computeBatchRemovesDisplayCardUnderCardWhenSourceLeavesPlay") {
             val ann =
                 AnnotationBuilder
