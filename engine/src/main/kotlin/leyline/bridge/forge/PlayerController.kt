@@ -227,12 +227,15 @@ class PlayerController(
             viewerSeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
             currentSourceEntityId = ::currentSourceEntityId,
             isCastingSpell = { activeSourceIsSpell },
-            currentStackAbilityId = {
+            currentStackAbilityId = { callbackAbility ->
                 game.stack
                     .firstOrNull()
                     ?.takeIf { it.isAbility }
                     ?.spellAbility
-                    ?.id
+                    ?.takeIf { stackAbility ->
+                        val effect = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
+                        callbackAbility == null || callbackAbility.rootAbility === effect || callbackAbility.rootAbility === stackAbility
+                    }?.id
             },
         )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)

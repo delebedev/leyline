@@ -267,7 +267,8 @@ object SnapshotCapture {
                 ),
             )
         }
-        return StackSnapshot(entries)
+        val resolvingAbilityId = stack.takeIf { it.isResolving }?.peekAbility()?.id
+        return StackSnapshot(entries, entries.firstOrNull { it.forgeAbilityId == resolvingAbilityId })
     }
 
     private fun resolveStackSourceCardGrpId(

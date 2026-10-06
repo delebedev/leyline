@@ -1459,7 +1459,18 @@ class BundleBuilder(
                         updateType = updateType(observation.frame.snapshot, observation.frame.events),
                         revealForSeat = viewer.seatId.value.takeIf { revealPlayerCards && viewer.role.seesSeatPrivateCards },
                     ),
-                    intentForViewer(viewer),
+                    intentForViewer(viewer).let { viewerIntent ->
+                        ViewerProjectionIntent.of(
+                            supplements =
+                                listOfNotNull(
+                                    observation.frame.snapshot.stack.resolvingEntry
+                                        ?.let(ProjectionSupplement::ResolutionStarted),
+                                ) +
+                                    viewerIntent.supplements,
+                            privateCardPrompt = viewerIntent.privateCardPrompt,
+                            orderPrompt = viewerIntent.orderPrompt,
+                        )
+                    },
                     role = viewer.role,
                 )
             }
@@ -1701,11 +1712,6 @@ class BundleBuilder(
                 routes,
                 ViewerProjectionIntent.of(
                     privateCardPrompt = privatePrompt,
-                    supplements =
-                        window.sourceForgeCardId
-                            ?.takeIf { window.kind == CardSelectKind.Resolution }
-                            ?.let { listOf(ProjectionSupplement.ResolutionSelection(it)) }
-                            .orEmpty(),
                 ),
             )
         return finishSettledPrompt(

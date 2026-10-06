@@ -211,6 +211,13 @@ facts that were originally closed.
 
 ## Pre-mutation prompts
 
+Effect-choice cuts freeze the exact executing stack entry in the snapshot before
+publishing the request. Projection opens its resolution by stack identity and
+retains that open boundary across further choices. Completion retires ability
+lineage or records a pending spell resolution, so a later state-based choice
+cannot reopen the completed interaction. Spell sources must still occupy
+the stack; this does not infer an earlier spell identity after a zone change.
+
 Forge can ask for input before performing a mutation that the client must
 already present. Such prompts use explicit projection supplements: materialize the
 intended state, commit it with the request, then reconcile it after Forge

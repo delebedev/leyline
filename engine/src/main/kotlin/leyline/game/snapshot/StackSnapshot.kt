@@ -5,6 +5,8 @@ import leyline.bridge.types.SeatId
 
 data class StackSnapshot(
     val entries: List<StackEntry>,
+    /** Exact stack item currently executing, retained across blocking effect choices. */
+    val resolvingEntry: StackEntry? = null,
 )
 
 /**

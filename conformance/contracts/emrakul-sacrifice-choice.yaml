@@ -1,0 +1,62 @@
+name: Attack trigger resolution pauses for sacrifice selection
+scenario: {suite: resolution-choice, id: annihilator-sacrifice}
+frames:
+  - id: trigger
+    events:
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        fields: {affectedIds.length: 1}
+  - id: start
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        equals: {affectorId: "created.affectedIds[0]"}
+  - id: choice
+    events:
+      - id: choice
+        type: SelectNReq
+        lane: prompt
+        fields: {raw.selectNReq.minSel: 6, raw.selectNReq.maxSel: 6}
+  - id: effects
+    events:
+      - id: changed
+        type: ObjectIdChanged
+        lane: transient
+      - id: sacrificed
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [Sacrifice]}
+        equals: {affectorId: started.affectorId, "affectedIds[0]": "changed.details.new_id[0]"}
+      - id: completed
+        type: ResolutionComplete
+        lane: transient
+        equals: {affectorId: started.affectorId, details.grpid: started.details.grpid}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        equals: {affectedIds: created.affectedIds}
+counts:
+  - match: {type: ResolutionStart, equals: {affectorId: started.affectorId}}
+    exactly: 1
+  - match: {type: ResolutionComplete, equals: {affectorId: started.affectorId}}
+    exactly: 1
+  - match: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+    exactly: 1
+  - match: {type: ZoneTransfer, fields: {details.category: [Sacrifice]}, equals: {affectorId: started.affectorId}}
+    exactly: 6
+windows:
+  - id: no-completion-before-choice
+    after: started
+    before: choice
+    absent: {type: ResolutionComplete, equals: {affectorId: started.affectorId}}
+  - id: no-retirement-before-choice
+    after: started
+    before: choice
+    absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+  - id: all-sacrifices-before-completion
+    after: started
+    before: completed
+    count: {type: ZoneTransfer, fields: {details.category: [Sacrifice]}, equals: {affectorId: started.affectorId}}
+    exactly: 6

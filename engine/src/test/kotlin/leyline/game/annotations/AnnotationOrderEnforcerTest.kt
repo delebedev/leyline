@@ -352,6 +352,8 @@ class AnnotationOrderEnforcerTest :
             val attached = AnnotationBuilder.attachmentCreated(500.iid, 502.iid)
             val layer = AnnotationBuilder.layeredEffectCreated(7005.eid, 500.iid)
             AnnotationOrderEnforcer.enforce(listOf(attached, layer)) shouldBe listOf(layer, attached)
+            AnnotationOrderEnforcer.enforce(listOf(attached, layer), resolutionSourceOwners = mapOf(500 to 501)) shouldBe
+                listOf(layer, attached)
         }
 
         test("LayeredEffectCreated stays inside its resolution bracket") {

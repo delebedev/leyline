@@ -9,6 +9,7 @@ import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -45,6 +46,68 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 class StateProjectionCompilerTest :
     FunSpec({
         tags(UnitTag)
+
+        beforeSpec { GameBootstrap.initializeLocalization() }
+
+        test("resolution choices retain exact ability identity across repeated prompts and completion") {
+            val source = ForgeCardId(10)
+            val older = stackAbility(source, 30)
+            val resolving = stackAbility(source, 31)
+            val snapshot = stackAbilitySnapshot(1, source, listOf(resolving, older))
+            val intent = ViewerProjectionIntent.of(listOf(ProjectionSupplement.ResolutionStarted(resolving)))
+            val opened =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot),
+                    ProjectionState.initial(),
+                    intent,
+                )
+            val abilityIid =
+                opened.transition.nextState.identities.forgeIdToInstanceId.getValue(
+                    FrameIdResolver.triggerStackAbilityForgeId(31),
+                )
+            val starts = opened.gsm.annotationsList.filter { AnnotationType.ResolutionStart in it.typeList }
+            starts.single().affectorId shouldBe abilityIid.value
+            starts
+                .single()
+                .detailsList
+                .single { it.key == "grpid" }
+                .valueInt32List shouldBe listOf(resolving.grpId)
+            val repeated =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot),
+                    opened.transition.nextState,
+                    intent,
+                )
+            repeated.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+            val completion = GameEvent.SpellResolved(source, false, isAbility = true, abilityForgeId = 31, abilityGrpId = resolving.grpId)
+            val finished =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot, FrameEventLog(listOf(completion))),
+                    repeated.transition.nextState,
+                    intent,
+                )
+            assertSoftly {
+                finished.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+                finished.gsm.annotationsList
+                    .single { AnnotationType.ResolutionComplete in it.typeList }
+                    .affectorId shouldBe
+                    abilityIid.value
+                finished.transition.nextState.annotations.openResolutions shouldBe emptySet()
+                finished.transition.nextState.annotations.abilityLineage
+                    .find(abilityIid.value) shouldBe null
+            }
+            val afterCompletion =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, snapshot),
+                    finished.transition.nextState,
+                    intent,
+                )
+            afterCompletion.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+        }
 
         for (pendingKind in listOf("spell", "ability", "reserved ability")) {
             test("pending $pendingKind is above the existing mixed stack") {
@@ -582,7 +645,7 @@ internal fun compilerInput(
         persistentFeedFacts = PersistentFeedFacts(),
     )
 
-private fun stackAbility(
+internal fun stackAbility(
     sourceId: ForgeCardId,
     abilityId: Int,
 ) = StackEntry(
@@ -597,19 +660,24 @@ private fun stackAbility(
     forgeAbilityId = abilityId,
 )
 
-private fun stackAbilitySnapshot(
+internal fun stackAbilitySnapshot(
     gameStateId: Int,
     sourceId: ForgeCardId,
     entries: List<StackEntry>,
+    targetId: ForgeCardId? = null,
 ): GsmSnapshot =
     GsmSnapshot.forTest(
         matchId = "compiler",
         gameStateId = gameStateId,
-        objects = mapOf(sourceId to CardSnapshot(sourceId, "Ability Source", 9001, SeatId(1), SeatId(1))),
+        objects =
+            buildMap {
+                put(sourceId, CardSnapshot(sourceId, "Ability Source", 9001, SeatId(1), SeatId(1)))
+                targetId?.let { put(it, CardSnapshot(it, "Effect Target", 9003, SeatId(1), SeatId(1))) }
+            },
         zones =
             linkedMapOf(
                 ZoneIds.BATTLEFIELD to
-                    ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOf(sourceId)),
+                    ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOfNotNull(sourceId, targetId)),
                 ZoneIds.STACK to ZoneSnapshot(ZoneIds.STACK, ZoneType.Stack, null, Visibility.Public, emptyList()),
                 ZoneIds.LIMBO to ZoneSnapshot(ZoneIds.LIMBO, ZoneType.Limbo, null, Visibility.Public, emptyList()),
             ),
