@@ -226,6 +226,13 @@ class AbilityRegistryTest :
                 registry.slotLayout.forgeIndexFor(147974) shouldBe 0
                 registry.slotLayout.forgeIndexFor(244) shouldBe 1
             }
+
+            injected.card.name = "Mishra's Warform"
+            val renamedRegistry = AbilityRegistry.build(injected.card, CardDataDeriver.fromForgeCard(injected.card, cardName))
+            assertSoftly {
+                renamedRegistry.forSpellAbility(attach.id) shouldBe 147974
+                renamedRegistry.forSpellAbility(unattach.id) shouldBe 244
+            }
         }
 
         test("unclaimed intrinsic static maps to matching intrinsic ability slot") {

@@ -229,12 +229,13 @@ class AbilityRegistry private constructor(
         ): Int {
             val declarationCards =
                 listOfNotNull(card, card.copiedPermanent, card.cloneStates.maxByOrNull { it.key }?.value?.origin)
-            val keywordStrings =
+            val declaredFace =
                 declarationCards.asSequence()
                     .mapNotNull { it.rules }
                     .flatMap { it.allFaces.asSequence() }
                     .firstOrNull { it.name == card.currentState.name }
-                    ?.keywords?.toList().orEmpty()
+                    ?: card.rules?.mainPart
+            val keywordStrings = declaredFace?.keywords?.toList().orEmpty()
             val liveKeywords = card.getKeywords() ?: emptyList()
             val claimed = mutableSetOf<KeywordInterface>()
 
