@@ -4,38 +4,19 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.ClientAccumulator
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.TestCardRegistry
-import leyline.testkit.annotations
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
-/**
- * Phase 3 — Saga full-lifecycle integration test (scope §2a + §2c, layers L2 and L3).
- *
- * Cast-from-hand shape. BF-pre-seeded sagas hang the puzzle finalizer because
- * Forge's saga ETB `DB$ PutCounter | UpTo$ True | CounterNum$ FinalChapterNr`
- * prompts the player and the puzzle loader has no controller. Lore counter
- * timing: PhaseHandler adds a lore counter at the active player's
- * precombat-Main1. Human→AI→human sequence → saga ticks turn 1 (ETB),
- * turn 3 (Main1), turn 5 (Main1) → Ch I / Ch II / Ch III.
- *
- * Assertion layers:
- * 1. **Forge-state** (engine did the right thing): Echo of Death's Wail
- *    on BF, back-face state.
- * 2. **Wire shape** (emission structure correct): 2x ObjectIdChanged in the
- *    saga's iid chain; ZoneTransfer(Exile) + ZoneTransfer(Return).
- * 3. **Accumulator** (client reconstructs correctly): BF zone contains
- *    Echo's grpId (back face), front-face grpId gone from BF, old iid
- *    retired, accumulator invariants hold. This is the assertion that
- *    catches L2/L3 bugs where Forge is correct but the wire emission
- *    leaves the client with a wrong reconstructed state.
- */
+/** Cast from hand so Forge can make the Saga's entry choice before its chapter triggers. */
 class SagaTransformPuzzleTest :
     FunSpec({
 
@@ -96,50 +77,100 @@ class SagaTransformPuzzleTest :
                                     }}",
                             )
                         }
+                val chapterIIIGrpId =
+                    TestCardRegistry.repo
+                        .findByGrpId(sagaFrontGrpId)!!
+                        .abilityIds[2]
+                        .first
 
                 harness.castSpellByName("Tribute to Horobi").shouldBeTrue()
 
-                // Follow engine-owned runtime horizons until the transform lands or the game ends.
-                var transformed = false
-                repeat(8) {
-                    if (harness.isGameOver()) return@repeat
-                    val ourBf = game.humanPlayer.getZone(ZoneType.Battlefield).cards
-                    if (ourBf.any { it.name == "Echo of Death's Wail" }) {
-                        transformed = true
-                        return@repeat
-                    }
-                    harness.passPriority()
-                }
-
-                // --- Layer 1: Forge-state (engine correctness) ---
-                transformed.shouldBeTrue()
-
-                // --- Layer 2: wire-shape (emission structure) ---
-                val annotations =
-                    harness.allMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.annotationsList }
-
-                val oicCount = annotations.count { AnnotationType.ObjectIdChanged in it.typeList }
-                oicCount shouldBeGreaterThanOrEqual 2
-
-                val zoneCategories =
-                    annotations
-                        .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
-                        .mapNotNull { ann ->
-                            ann.detailsList
-                                .firstOrNull { it.key == "category" }
-                                ?.valueStringList
-                                ?.firstOrNull()
+                harness
+                    .passUntil(maxPasses = 40) {
+                        allMessages.any { message ->
+                            message.hasGameStateMessage() &&
+                                message.gameStateMessage.gameObjectsList.any {
+                                    it.type == GameObjectType.Ability && it.grpId == chapterIIIGrpId
+                                }
                         }
+                    }.shouldBeTrue()
+
+                val creationIndex =
+                    harness.allMessages.indexOfLast { message ->
+                        message.hasGameStateMessage() &&
+                            message.gameStateMessage.gameObjectsList.any {
+                                it.type == GameObjectType.Ability && it.grpId == chapterIIIGrpId
+                            }
+                    }
+                val beforeResolution = harness.allMessages[creationIndex].gameStateMessage
+                val beforeAccumulator = ClientAccumulator().apply { processAll(harness.allMessages.take(creationIndex + 1)) }
+                val chapter =
+                    beforeResolution.gameObjectsList.single {
+                        it.type == GameObjectType.Ability && it.grpId == chapterIIIGrpId
+                    }
+                val sagaIid = chapter.parentId
                 assertSoftly {
-                    zoneCategories.containsAll(listOf("Exile", "Return")).shouldBeTrue()
+                    chapter.objectSourceGrpId shouldBe sagaFrontGrpId
+                    beforeResolution.annotationsList
+                        .single {
+                            AnnotationType.AbilityInstanceCreated in it.typeList && it.affectedIdsList.contains(chapter.instanceId)
+                        }.affectorId shouldBe sagaIid
+                    (sagaIid in beforeAccumulator.zones.getValue(ZoneIds.BATTLEFIELD).objectInstanceIdsList).shouldBeTrue()
+                    (chapter.instanceId in beforeAccumulator.zones.getValue(ZoneIds.STACK).objectInstanceIdsList).shouldBeTrue()
                 }
 
-                // --- Layer 3: client-accumulator (client reconstruction) ---
-                // The critical assertions: if the wire emissions are buggy,
-                // Forge is still correct but the client ends up with a wrong
-                // reconstructed BF. The accumulator catches that.
+                harness
+                    .passUntil(maxPasses = 12) {
+                        game.humanPlayer
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .any { it.name == "Echo of Death's Wail" }
+                    }.shouldBeTrue()
+
+                val transform =
+                    harness.allMessages
+                        .single { message ->
+                            message.hasGameStateMessage() &&
+                                message.gameStateMessage.annotationsList.any {
+                                    AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == sagaIid
+                                }
+                        }.gameStateMessage
+                val transfers =
+                    transform.annotationsList
+                        .filter {
+                            AnnotationType.ObjectIdChanged in it.typeList || AnnotationType.ZoneTransfer_af5a in it.typeList
+                        }.filter {
+                            it.typeList.contains(AnnotationType.ObjectIdChanged) ||
+                                it.detailString("category") in setOf("Exile", "Return")
+                        }
+                val exileIid = transfers[0].detailInt("new_id")
+                val echoIid = transfers[2].detailInt("new_id")
+                assertSoftly {
+                    transfers.map { it.typeList.first() } shouldBe
+                        listOf(
+                            AnnotationType.ObjectIdChanged,
+                            AnnotationType.ZoneTransfer_af5a,
+                            AnnotationType.ObjectIdChanged,
+                            AnnotationType.ZoneTransfer_af5a,
+                        )
+                    transfers[0].detailInt("orig_id") shouldBe sagaIid
+                    transfers[1].affectedIdsList shouldBe listOf(exileIid)
+                    transfers[1].detailString("category") shouldBe "Exile"
+                    transfers[2].detailInt("orig_id") shouldBe exileIid
+                    transfers[3].affectedIdsList shouldBe listOf(echoIid)
+                    transfers[3].detailString("category") shouldBe "Return"
+                    transform.annotationsList.single {
+                        AnnotationType.ResolutionStart in it.typeList && it.affectorId == chapter.instanceId
+                    }
+                    transform.annotationsList.single {
+                        AnnotationType.ResolutionComplete in it.typeList && it.affectorId == chapter.instanceId
+                    }
+                    transform.annotationsList
+                        .single {
+                            AnnotationType.AbilityInstanceDeleted in it.typeList && it.affectedIdsList.contains(chapter.instanceId)
+                        }.affectorId shouldBe sagaIid
+                }
+
                 harness.accumulator.assertConsistent("after saga transform")
 
                 val bfZone =
@@ -155,14 +186,13 @@ class SagaTransformPuzzleTest :
                     bfZone.objectInstanceIdsList
                         .mapNotNull { harness.accumulator.objects[it] }
                         .first { it.grpId == echoBackGrpId }
-                echoObj.type shouldBe GameObjectType.Card
-                // othersideGrpId flakes under some test-order sequences — the
-                // ObjectMapper resolveOthersideGrpId path is independently
-                // covered by DfcTransformTest. Assert only if present so the
-                // happy path still documents the UI-flip affordance.
-                if (echoObj.othersideGrpId != 0) {
+                assertSoftly {
+                    echoObj.type shouldBe GameObjectType.Card
+                    echoObj.instanceId shouldBe echoIid
                     echoObj.othersideGrpId shouldBe sagaFrontGrpId
+                    (chapter.instanceId in harness.accumulator.objects) shouldBe false
                 }
+                harness.playLand("Swamp").shouldBeTrue()
             } finally {
                 harness.shutdown()
             }

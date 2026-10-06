@@ -239,6 +239,7 @@ data object ResolutionLifecycleRule : OrderRule {
     fun edges(
         annotations: List<AnnotationInfo>,
         executionOwners: Map<Int, Int>,
+        sagaInstanceIds: Set<Int> = emptySet(),
     ): List<Pair<Int, Int>> {
         val starts = mutableMapOf<Int, Int>()
         val completions = mutableMapOf<Int, Int>()
@@ -258,6 +259,7 @@ data object ResolutionLifecycleRule : OrderRule {
             for ((abilityId, completion) in completions) {
                 deletions[abilityId]?.forEach { add(completion to it) }
             }
+            addAll(sagaRetirementEdges(annotations, completions, sagaInstanceIds))
             for ((index, annotation) in annotations.withIndex()) {
                 val isEffect =
                     AnnotationType.LayeredEffectCreated in annotation.typeList ||
@@ -288,6 +290,37 @@ data object ResolutionLifecycleRule : OrderRule {
             }
         }
     }
+
+    private fun sagaRetirementEdges(
+        annotations: List<AnnotationInfo>,
+        completions: Map<Int, Int>,
+        sagaInstanceIds: Set<Int>,
+    ): List<Pair<Int, Int>> =
+        buildList {
+            for (transfer in annotations) {
+                if (AnnotationType.ZoneTransfer_af5a !in transfer.typeList ||
+                    transfer.detailString(DetailKeys.CATEGORY) != "Sacrifice" ||
+                    transfer.affectorId != 0
+                ) {
+                    continue
+                }
+                val movedId = transfer.affectedIdsList.firstOrNull() ?: continue
+                if (movedId !in sagaInstanceIds) continue
+                val reallocation =
+                    annotations.indexOfFirst {
+                        AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
+                    }
+                if (reallocation < 0) continue
+                val sourceId = annotations[reallocation].detailInt(DetailKeys.ORIG_ID)
+                annotations.indices
+                    .filter {
+                        val annotation = annotations[it]
+                        AnnotationType.AbilityInstanceDeleted in annotation.typeList &&
+                            annotation.affectorId == sourceId &&
+                            annotation.affectedIdsList.any { abilityId -> abilityId in completions }
+                    }.forEach { add(it to reallocation) }
+            }
+        }
 }
 
 /** Ability creation precedes costs and accepted actions owned by that ability. */

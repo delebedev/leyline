@@ -374,6 +374,36 @@ class AnnotationOrderEnforcerTest :
                 )
         }
 
+        test("final Saga sacrifice follows chapter retirement without moving other sacrifices") {
+            val changed = AnnotationBuilder.objectIdChanged(500.iid, 600.iid)
+            val transfer = AnnotationBuilder.zoneTransfer(600.iid, ZoneIds.BATTLEFIELD, ZoneIds.P1_GRAVEYARD, "Sacrifice")
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val deleted = AnnotationBuilder.abilityInstanceDeleted(501.iid, 500.iid)
+            val input = listOf(changed, transfer, start, complete, deleted)
+
+            AnnotationOrderEnforcer.enforce(input, sagaInstanceIds = setOf(600)) shouldBe
+                listOf(start, complete, deleted, changed, transfer)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
+        test("every completed Saga chapter retires before its sacrifice") {
+            val changed = AnnotationBuilder.objectIdChanged(500.iid, 600.iid)
+            val transfer = AnnotationBuilder.zoneTransfer(600.iid, ZoneIds.BATTLEFIELD, ZoneIds.P1_GRAVEYARD, "Sacrifice")
+            val firstStart = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val firstComplete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val firstDeleted = AnnotationBuilder.abilityInstanceDeleted(501.iid, 500.iid)
+            val secondStart = AnnotationBuilder.resolutionStart(502.iid, 124.grp)
+            val secondComplete = AnnotationBuilder.resolutionComplete(502.iid, 124.grp)
+            val secondDeleted = AnnotationBuilder.abilityInstanceDeleted(502.iid, 500.iid)
+
+            AnnotationOrderEnforcer.enforce(
+                listOf(changed, transfer, firstStart, firstComplete, firstDeleted, secondStart, secondComplete, secondDeleted),
+                sagaInstanceIds = setOf(600),
+            ) shouldBe
+                listOf(firstStart, firstComplete, firstDeleted, secondStart, secondComplete, secondDeleted, changed, transfer)
+        }
+
         test("Rule 2: ControllerChanged before TappedUntapped on same card") {
             val cardId = 500.iid
             val tap = AnnotationBuilder.tappedUntappedPermanent(permanentId = cardId, abilityId = 501.iid, tapped = true)

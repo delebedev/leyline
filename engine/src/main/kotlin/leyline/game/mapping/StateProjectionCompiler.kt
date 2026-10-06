@@ -80,6 +80,7 @@ object StateProjectionCompiler {
         actions: ActionsAvailableReq,
     ): Result = compileViewers(environment, prior, listOf(ViewerInput(input, intent, actions))).viewers.single().result
 
+    @Suppress("LongMethod") // Shared projection stages run in one transaction.
     fun compileViewers(
         environment: StateProjectionEnvironment,
         prior: ProjectionState,
@@ -114,10 +115,17 @@ object StateProjectionCompiler {
             )
         val selectedOptions = projectSelectedCastOptions(canonical.intent.supplements, planned, editor)
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
+        val sagaIds =
+            stagedCanonical.snapshot.objects
+                .filterValues { it.isSaga }
+                .keys
+                .map { planned.idResolver.cardIid(it).value }
+                .toSet()
         val finalized =
             finalizeAnnotations(
                 plannedOrder.gsm.annotationsList + supplementAnnotations,
                 supplementAnnotations.resolutionSourceOwners,
+                sagaIds,
                 planned.firstAnnotationId,
                 stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
                 editor.annotations,
@@ -411,11 +419,12 @@ object StateProjectionCompiler {
     private fun finalizeAnnotations(
         annotations: List<AnnotationInfo>,
         resolutionSourceOwners: Map<Int, Int>,
+        sagaInstanceIds: Set<Int>,
         firstId: Int,
         previousStep: Step?,
         journal: leyline.game.state.AnnotationProjectionState.Planner,
     ): FinalizedAnnotationFrame {
-        val ordered = AnnotationOrderEnforcer.enforce(annotations, previousStep, resolutionSourceOwners)
+        val ordered = AnnotationOrderEnforcer.enforce(annotations, previousStep, resolutionSourceOwners, sagaInstanceIds)
         return AnnotationFrameFinalizer.numberOrdered(retainResolutionMarkers(ordered, journal), firstId)
     }
 

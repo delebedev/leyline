@@ -1,0 +1,18 @@
+[metadata]
+Name:Saga Countered Final Chapter — History of Benalia
+Goal:Survive
+Turns:6
+Difficulty:Easy
+Description:Cast History of Benalia and counter its final chapter ability.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=History of Benalia;Stifle
+humanbattlefield=Plains;Plains;Plains;Island;Island
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

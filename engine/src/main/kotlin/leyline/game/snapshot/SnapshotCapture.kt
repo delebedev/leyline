@@ -555,6 +555,7 @@ object SnapshotCapture {
             isAdventureCard = isAdventureCard,
             isOmenCard = isOmenCard,
             isRoom = isRoom,
+            isSaga = card.isSaga,
             hasManaAbilities = hasManaAbilities,
             manaProductionColors = manaProductionColors,
             chosenType = chosenType,
