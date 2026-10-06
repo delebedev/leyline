@@ -1,0 +1,22 @@
+# Mechanic: Energy acquisition and payment on a player.
+# Forcing: Pummeler is the only spell and supplies exactly its activation cost.
+# AI behavior: No hand or mana. The human owns every decision.
+# Failure modes: Missing energy prevents activation. Unpaid cost leaves power unchanged.
+# Card roles: Pummeler supplies and spends energy. Islands pay its generic cast cost.
+# Protocol path: Player CounterAdded and current Counter total, then CounterRemoved and zero total.
+[metadata]
+Name:Player energy acquisition and payment
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast Electrostatic Pummeler, then spend its three energy counters to double its power.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Island;Island;Island
+humanhand=Electrostatic Pummeler
+humanlibrary=Island;Island;Island;Island
+ailibrary=Forest;Forest;Forest;Forest
