@@ -29,10 +29,48 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PrioritySignal
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.BoardTest
 
 class TargetingCoordinatorTest :
     BoardTest({
+
+        test("controlled and nested card targets retain their original hand zones") {
+            val board =
+                startWithBoard { _, human, ai ->
+                    addCard("Forest", human, ZoneType.Hand)
+                    addCard("Mountain", ai, ZoneType.Hand)
+                }
+            val human = board.human
+            val ai = board.ai
+            val coordinator = TargetingCoordinator(testPromptBridge(), testSeating)
+            val humanCard = human.hand.card("Forest")
+            val aiCard = ai.hand.card("Mountain")
+            ai.addController(10, human)
+            ai.lobbyPlayer shouldBe human.originalLobbyPlayer
+            coordinator.cardTargetCandidate(0, aiCard)?.zoneId shouldBe ZoneIds.P2_HAND
+            human.addController(11, ai)
+            coordinator.cardTargetCandidate(1, humanCard)?.zoneId shouldBe ZoneIds.P1_HAND
+            human.removeController(11)
+            ai.removeController(10)
+            coordinator.cardTargetCandidate(0, aiCard)?.zoneId shouldBe ZoneIds.P2_HAND
+        }
+
+        test("controlled hand reveals retain owner identity through player and view callbacks") {
+            val board = startWithBoard { _, _, ai -> addCard("Mountain", ai, ZoneType.Hand) }
+            val bridge = testPromptBridge()
+            val human = board.human
+            val ai = board.ai
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+            val card = ai.hand.card("Mountain")
+            ai.addController(10, human)
+            coordinator.captureReveal(CardCollection(listOf(card)), ZoneType.Hand, ai)
+            bridge.drainReveals().single().ownerSeatId shouldBe SeatId(2)
+            bridge.journal.activeReveal()?.ownerSeatId shouldBe SeatId(2)
+            coordinator.captureReveal(listOf(card.view), ZoneType.Hand, ai.view, board.game.players)
+            bridge.drainReveals().single().ownerSeatId shouldBe SeatId(2)
+            bridge.journal.activeReveal()?.ownerSeatId shouldBe SeatId(2)
+        }
 
         test("library order uses revealed library position when present") {
             val bridge = testPromptBridge()
