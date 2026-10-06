@@ -17,6 +17,39 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EffectCardChoiceTest :
     SessionTest({
+        for (accept in listOf(false, true)) {
+            session(
+                "Dragon's Disciple optional singleton accept=$accept preserves the chosen outcome",
+                puzzle = """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Dragon's Disciple;Volcanic Dragon
+                    humanbattlefield=Plains;Plains
+                    humanlibrary=Island;Island;Island
+                    ailibrary=Island;Island;Island
+                """,
+                fullControl = true,
+            ) {
+                val dragon = human.hand.iid("Volcanic Dragon")
+                val req = castSpellUntilSelectNReq("Dragon's Disciple")
+                assertSoftly {
+                    req.idsList shouldContainExactly listOf(dragon)
+                    req.minSel shouldBe 0
+                    req.maxSel shouldBe 1
+                    allMessages.last { it.hasSelectNReq() }.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
+                }
+                respondToSelectN(if (accept) listOf(dragon) else emptyList())
+                passUntilResolved()
+                assertSoftly {
+                    "Volcanic Dragon" should beInZoneOf(ZoneType.Hand, human)
+                    human.battlefield.card("Dragon's Disciple").netPower shouldBe if (accept) 2 else 1
+                    human.battlefield.card("Dragon's Disciple").netToughness shouldBe if (accept) 4 else 3
+                }
+            }
+        }
+
         session(
             "Single Combat keeps the selected non-first creature and sacrifices the other",
             puzzle = """

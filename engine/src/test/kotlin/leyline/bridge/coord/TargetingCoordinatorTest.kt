@@ -180,6 +180,30 @@ class TargetingCoordinatorTest :
             }
         }
 
+        test("optional singleton effect and reveal choices allow decline or the exact card") {
+            val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
+            val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
+            for (reveal in listOf(false, true)) {
+                for (accept in listOf(false, true)) {
+                    val bridge = testPromptBridge(cardSelectRuntime = selectingCards(*if (accept) intArrayOf(0) else intArrayOf()))
+                    val coordinator = TargetingCoordinator(bridge, testSeating)
+                    val chosen =
+                        if (reveal) {
+                            coordinator.chooseCardsToRevealFromHand(0, 1, cards)
+                        } else {
+                            coordinator.chooseCardsForEffect(cards, null, null, 0, 1, true)
+                        }
+                    assertSoftly {
+                        if (accept) chosen.single() shouldBeSameInstanceAs cards[0] else chosen.shouldBeEmpty()
+                        val request = bridge.history.single()
+                        (request.route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe CardSelectKind.ResolutionMapped
+                        request.min shouldBe 0
+                        request.max shouldBe 1
+                    }
+                }
+            }
+        }
+
         test("effect and reveal empty and mandatory singleton choices return without a prompt") {
             val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
             val cards = CardCollection(board.human.getZone(ZoneType.Hand).cards)
