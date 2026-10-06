@@ -42,9 +42,11 @@ class EffectCardChoiceTest :
             }
             respondToSelectN(listOf(chosen))
             passUntilResolved()
-            "Centaur Courser" should beInZoneOf(ZoneType.Battlefield, human)
-            "Grizzly Bears" should beMissingFrom(ZoneType.Battlefield, human)
-            "Grizzly Bears" should beInZoneOf(ZoneType.Graveyard, human)
+            assertSoftly {
+                "Centaur Courser" should beInZoneOf(ZoneType.Battlefield, human)
+                "Grizzly Bears" should beMissingFrom(ZoneType.Battlefield, human)
+                "Grizzly Bears" should beInZoneOf(ZoneType.Graveyard, human)
+            }
         }
 
         session(
