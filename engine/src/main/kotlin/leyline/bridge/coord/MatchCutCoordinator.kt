@@ -5,6 +5,7 @@ import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.DamageAssignmentCommand
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.types.SeatId
 import leyline.game.MaterializationDiagnostic
 import leyline.game.PendingCut
@@ -558,6 +559,18 @@ internal class MatchCutCoordinator(
         }
 
     internal fun failDelivery(cause: Throwable): Nothing = prompts.failDelivery(cause)
+
+    internal fun failDrainUnlessVisibleOrGameOver(
+        seatId: SeatId,
+        cause: Throwable,
+    ) {
+        synchronized(feedLock) {
+            if (gameOver.committed() != null || bridge.getGame()?.isGameOver == true) return
+            val pending = bridge.actionBridge(seatId).getPending()
+            if ((pending != null && pending.state.kind != PendingActionKind.SYNC_ONLY) || prompts.hasPendingInteraction()) return
+            prompts.failDelivery(cause)
+        }
+    }
 
     internal fun failTerminal(
         cause: Throwable,

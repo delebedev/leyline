@@ -141,6 +141,19 @@ in order, and acknowledges an exact `SYNC_ONLY` barrier only after successful
 delivery. An iterative response that does not release the engine does not wait
 for another horizon.
 
+Each engine horizon retains the configured priority-wait timeout. A continuous
+state-only drain also has a three-minute total limit. Publishing more state does not renew
+the total limit. Exhaustion fails the existing cut coordinator and wakes its
+action and prompt waiters, so an automatic stream cannot retain the session
+lock indefinitely. A visible player-choice window ends the drain and keeps
+its own interaction lifetime.
+
+The total limit is containment for unbounded automatic work, including work
+that keeps changing state. It does not identify a rules-engine cause. A
+committed game-over cut is delivered even after the limit. If Forge completes
+before that cut commits, the drain returns without failure and the existing
+completion hook and delivery observer finish terminal publication.
+
 The inbound handler drains the horizon released by its accepted response while
 holding `sessionLock`. The connection's delivery observer handles horizons
 published after that handler returns by taking the same lock and using the same
