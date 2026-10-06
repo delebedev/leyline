@@ -227,6 +227,7 @@ object ObjectMapper {
                 .setVisibility(Visibility.Private)
                 .setOwnerSeatId(ownerSeatId)
                 .setControllerSeatId(cardSnap.controller.value)
+                .addViewers(cardSnap.controller.value)
                 .apply {
                     if (cardSnap.isOnBattlefield) {
                         setIsTapped(cardSnap.tapped)

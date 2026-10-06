@@ -1300,7 +1300,7 @@ object StateMapper {
                 idResolver = fullResult.idResolver,
                 objectRefreshInstanceIds = fullResult.objectRefreshInstanceIds,
             )
-        return if (includePrivateObjects) draft else draft.forViewer(viewingSeatId, includePrivateObjects = false)
+        return draft.forViewer(viewingSeatId, includePrivateObjects, actions)
     }
 
     private fun Draft.forViewer(
@@ -1314,9 +1314,34 @@ object StateMapper {
             } else {
                 val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
                 val visibleObjects =
-                    gsm.gameObjectsList.filter { obj ->
-                        obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
-                    }
+                    gsm.gameObjectsList
+                        .map { obj ->
+                            if (obj.visibility == Visibility.Private &&
+                                obj.isFacedown &&
+                                (!includePrivateObjects || viewingSeatId !in obj.viewersList)
+                            ) {
+                                val facade =
+                                    if (obj.zoneId == ZoneIds.EXILE) {
+                                        ZoneMapper
+                                            .hiddenCardObject(obj.instanceId, obj.zoneId, SeatId(obj.ownerSeatId))
+                                            .toBuilder()
+                                            .setControllerSeatId(obj.controllerSeatId)
+                                            .addAllViewers(obj.viewersList)
+                                    } else {
+                                        obj.toBuilder()
+                                    }
+                                facade
+                                    .setVisibility(Visibility.Public)
+                                    .setGrpId(3)
+                                    .setOverlayGrpId(3)
+                                    .setIsFacedown(true)
+                                    .build()
+                            } else {
+                                obj
+                            }
+                        }.filter { obj ->
+                            obj.visibility != Visibility.Private || includePrivateObjects && viewingSeatId in obj.viewersList
+                        }
                 gsm
                     .toBuilder()
                     .clearZones()

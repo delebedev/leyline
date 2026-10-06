@@ -443,7 +443,7 @@ class StateProjectionCompilerTest :
         }
     })
 
-private fun compilerEnvironment(): StateProjectionEnvironment {
+internal fun compilerEnvironment(): StateProjectionEnvironment {
     val cards = InMemoryCardRepository()
     return StateProjectionEnvironment(
         CardProtoBuilder(cards),
@@ -452,7 +452,7 @@ private fun compilerEnvironment(): StateProjectionEnvironment {
     )
 }
 
-private fun compilerInput(
+internal fun compilerInput(
     snapshot: GsmSnapshot,
     previousSnapshot: GsmSnapshot? = null,
     events: FrameEventLog = FrameEventLog.EMPTY,
