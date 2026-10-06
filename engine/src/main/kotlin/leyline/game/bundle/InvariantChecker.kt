@@ -64,6 +64,9 @@ class InvariantChecker(
         if (msg.hasGameStateMessage()) {
             val gsm = msg.gameStateMessage
             checkGsIdChain(gsm)
+            if (selection.includes(InvariantCheck.PersistentPacket)) {
+                checkPersistentPacket(gsm)
+            }
             if (selection.includes(InvariantCheck.AnnotationSequentiality)) {
                 checkAnnotationIdSequentiality(gsm)
             }
@@ -223,6 +226,25 @@ class InvariantChecker(
         }
         highWaterGsId = maxOf(highWaterGsId, gsId)
         seenGsIds.add(gsId)
+    }
+
+    /** Packet-local identity conflicts only; cross-message updates and baselines remain legal. */
+    private fun checkPersistentPacket(gsm: GameStateMessage) {
+        val emitted = mutableSetOf<Int>()
+        val deleted = mutableSetOf<Int>()
+        for (row in gsm.persistentAnnotationsList) {
+            if (!emitted.add(row.id)) {
+                record(gsm.gameStateId, "persistent_packet", "Duplicate persistent annotation id=${row.id}")
+            }
+        }
+        for (id in gsm.diffDeletedPersistentAnnotationIdsList) {
+            if (!deleted.add(id)) {
+                record(gsm.gameStateId, "persistent_packet", "Duplicate persistent deletion id=$id")
+            }
+            if (id in emitted) {
+                record(gsm.gameStateId, "persistent_packet", "Persistent annotation id=$id is emitted and deleted in one GSM")
+            }
+        }
     }
 
     private fun checkAnnotationIdSequentiality(gsm: GameStateMessage) {

@@ -132,6 +132,104 @@ class InvariantCheckerTest :
             vararg checks: InvariantCheck,
         ) = InvariantChecker(InvariantSelection.only(reason, *checks))
 
+        // --- Persistent packet boundaries ---
+
+        val persistentRow = annotation(42, AnnotationType.DamagedThisTurn)
+        for ((name, rows, deletions) in listOf(
+            Triple("duplicate persistent rows", listOf(persistentRow, persistentRow), emptyList()),
+            Triple("duplicate persistent deletions", emptyList(), listOf(42, 42)),
+            Triple("persistent emit and delete overlap", listOf(persistentRow), listOf(42)),
+        )) {
+            test("default checker rejects $name") {
+                val checker = InvariantChecker()
+                val packet =
+                    gsm(1, emptyList())
+                        .toBuilder()
+                        .addAllPersistentAnnotations(rows)
+                        .addAllDiffDeletedPersistentAnnotationIds(deletions)
+                        .build()
+                checker.process(greMessage(1, packet))
+                checker.violations.single().check shouldBe "persistent_packet"
+            }
+        }
+
+        test("persistent rows may rebroadcast and change membership affectors and details") {
+            val checker = InvariantChecker()
+            val updated =
+                persistentRow
+                    .toBuilder()
+                    .setAffectorId(102)
+                    .addAffectedIds(101)
+                    .addAffectedIds(103)
+                    .addDetails(
+                        KeyValuePairInfo
+                            .newBuilder()
+                            .setKey("value")
+                            .setType(KeyValuePairValueType.Int32)
+                            .addValueInt32(2),
+                    ).build()
+            for ((index, row) in listOf(persistentRow, persistentRow, updated).withIndex()) {
+                val packet =
+                    gsm(index + 1, emptyList())
+                        .toBuilder()
+                        .setType(if (index == 0) GameStateType.Full else GameStateType.Diff)
+                        .addPersistentAnnotations(row)
+                        .build()
+                checker.process(greMessage(index + 1, packet))
+            }
+            checker.violations.shouldBeEmpty()
+        }
+
+        test("Full seed and Undo baselines permit restored persistent rows") {
+            val checker = InvariantChecker()
+            checker.process(
+                greMessage(
+                    1,
+                    gsm(1, emptyList())
+                        .toBuilder()
+                        .addPersistentAnnotations(persistentRow)
+                        .build(),
+                ),
+            )
+            checker.process(
+                greMessage(
+                    2,
+                    gsm(2, emptyList())
+                        .toBuilder()
+                        .setType(GameStateType.Diff)
+                        .addDiffDeletedPersistentAnnotationIds(42)
+                        .build(),
+                ),
+            )
+            checker.seedFull(
+                gsm(3, emptyList())
+                    .toBuilder()
+                    .addPersistentAnnotations(persistentRow)
+                    .build(),
+            )
+            checker.process(
+                greMessage(
+                    4,
+                    gsm(4, emptyList())
+                        .toBuilder()
+                        .setUpdate(wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.Undo)
+                        .addPersistentAnnotations(persistentRow)
+                        .build(),
+                ),
+            )
+            checker.process(
+                greMessage(
+                    5,
+                    gsm(5, emptyList())
+                        .toBuilder()
+                        .setType(GameStateType.Diff)
+                        .addPersistentAnnotations(persistentRow)
+                        .build(),
+                ),
+            )
+            checker.violations.shouldBeEmpty()
+        }
+
         // --- Tests ---
 
         test("phase_first violation when PhaseOrStepModified is not at index 0") {
