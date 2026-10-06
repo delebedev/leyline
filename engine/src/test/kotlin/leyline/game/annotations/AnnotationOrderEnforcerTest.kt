@@ -15,6 +15,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.sid
 import leyline.game.wid
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AnnotationOrderEnforcerTest :
@@ -435,6 +436,17 @@ class AnnotationOrderEnforcerTest :
 
         // ===== Rule 4: PhaseOrStepFirst =====
 
+        test("Rule 4: committed Untap retains resumed effects before a later boundary") {
+            val effect = AnnotationInfo.newBuilder().addType(AnnotationType.TappedUntappedPermanent).build()
+            for (step in listOf(2, 3)) {
+                val boundary = AnnotationBuilder.phaseOrStepModified(1.sid, 1, step)
+                AnnotationOrderEnforcer.enforce(listOf(effect, boundary), wotc.mtgo.gre.external.messaging.Messages.Step.Untap) shouldBe
+                    listOf(effect, boundary)
+                AnnotationOrderEnforcer.enforce(listOf(effect, boundary), wotc.mtgo.gre.external.messaging.Messages.Step.None_a2cb) shouldBe
+                    listOf(boundary, effect)
+            }
+        }
+
         test("Rule 4: reorders so PhaseOrStepModified leads") {
             val aic = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900.iid, sourceZoneId = 31)
             val counter = AnnotationBuilder.counterAdded(instanceId = 500.iid, counterType = "+1/+1", amount = 1)
@@ -458,6 +470,24 @@ class AnnotationOrderEnforcerTest :
             val result = AnnotationOrderEnforcer.enforce(input)
 
             result shouldBe input
+        }
+
+        test("later phase boundaries do not precede natural untap changes") {
+            val untap = AnnotationBuilder.phaseOrStepModified(1.sid, phase = 1, step = 1)
+            val inside = AnnotationBuilder.phasedPermanent(500.iid, false)
+            val untapped = AnnotationBuilder.tappedUntappedPermanent(500.iid, 500.iid, false)
+            val upkeep = AnnotationBuilder.phaseOrStepModified(1.sid, phase = 1, step = 2)
+            val input = listOf(untap, inside, untapped, upkeep, upkeep)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
+        test("target submission can lead effects without cycling later phase boundaries") {
+            val untap = AnnotationBuilder.phaseOrStepModified(1.sid, phase = 1, step = 1)
+            val inside = AnnotationBuilder.phasedPermanent(500.iid, false)
+            val upkeep = AnnotationBuilder.phaseOrStepModified(1.sid, phase = 1, step = 2)
+            val submitted = AnnotationBuilder.playerSubmittedTargets(900.iid, 1.sid)
+            AnnotationOrderEnforcer.enforce(listOf(untap, inside, upkeep, submitted)) shouldBe
+                listOf(untap, submitted, inside, upkeep)
         }
 
         test("Rule 4: no-op when PhaseOrStepModified absent") {

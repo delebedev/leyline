@@ -42,6 +42,41 @@ class ProtocolContractMutationTest :
             }
         }
 
+        regression("kaito-phasing-chronology.yaml") { contract, messages ->
+            val wrongOrder =
+                messages.map { message ->
+                    if (!message.hasGameStateMessage() ||
+                        message.gameStateMessage.annotationsList.none { AnnotationType.PhasedIn in it.typeList }
+                    ) {
+                        message
+                    } else {
+                        val gsm = message.gameStateMessage
+                        val rows = gsm.annotationsList
+                        val phases = rows.filter { AnnotationType.PhaseOrStepModified in it.typeList }
+                        val rest = rows.filterNot { AnnotationType.PhaseOrStepModified in it.typeList }
+                        message.toBuilder().setGameStateMessage(gsm.toBuilder().clearAnnotations().addAllAnnotations(phases + rest)).build()
+                    }
+                }
+            val duplicate =
+                messages.map { message ->
+                    if (!message.hasGameStateMessage()) {
+                        message
+                    } else {
+                        val gsm = message.gameStateMessage
+                        val inside = gsm.annotationsList.singleOrNull { AnnotationType.PhasedIn in it.typeList }
+                        if (inside ==
+                            null
+                        ) {
+                            message
+                        } else {
+                            message.toBuilder().setGameStateMessage(gsm.toBuilder().addAnnotations(inside)).build()
+                        }
+                    }
+                }
+            shouldThrow<AssertionError> { contract.verify(wrongOrder) }
+            shouldThrow<AssertionError> { contract.verify(duplicate) }
+        }
+
         regression("rabbit-battery.yaml") { contract, messages ->
             for ((name, mutant) in listOf(
                 "wrong attach action" to

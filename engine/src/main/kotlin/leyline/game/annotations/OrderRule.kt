@@ -4,6 +4,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.Step
 
 /**
  * One ordering rule for the annotation pipeline. Each rule contributes a list
@@ -171,16 +172,20 @@ data object TokenCreatedFirstRule : OrderRule {
 }
 
 /**
- * Rule 4: PhaseOrStepModified must lead any GSM where it appears.
- *
- * Each PoSM annotation gets an edge to every non-PoSM annotation, which makes
- * the entire PoSM block lead. PoSM-vs-PoSM has no edge, so multiple PoSMs
- * preserve their input order via topological sort stability.
+ * The initial contiguous phase group leads the frame's effects.
+ * Later phase boundaries follow the effects preceding them, preserving
+ * intermediate untap changes when several steps share a frame. A committed
+ * Untap step also makes the first following marker a later boundary.
  */
 data object PhaseOrStepFirstRule : OrderRule {
     override val name: String = "phase_or_step_first"
 
-    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> = edges(annotations, null)
+
+    fun edges(
+        annotations: List<AnnotationInfo>,
+        frameEntryStep: Step?,
+    ): List<Pair<Int, Int>> {
         val posmIndices =
             annotations.indices.filter {
                 AnnotationType.PhaseOrStepModified in annotations[it].typeList
@@ -193,9 +198,28 @@ data object PhaseOrStepFirstRule : OrderRule {
         if (nonPosmIndices.isEmpty()) return emptyList()
 
         val edges = mutableListOf<Pair<Int, Int>>()
+        // Only the initial contiguous phase group may lead earlier effects.
+        // Later boundaries retain the chronology of intervening effects.
+        val resumesUntap =
+            frameEntryStep == Step.Untap &&
+                annotations[posmIndices.first()].detailInt(DetailKeys.STEP) != Step.Untap.number
+        val firstGroupEnd =
+            if (resumesUntap) {
+                -1
+            } else {
+                posmIndices.first().let { first ->
+                    var end = first
+                    while (end + 1 in posmIndices) end++
+                    end
+                }
+            }
         for (posm in posmIndices) {
             for (other in nonPosmIndices) {
-                edges.add(posm to other)
+                if (posm <= firstGroupEnd) {
+                    edges.add(posm to other)
+                } else if (other < posm) {
+                    edges.add(other to posm)
+                }
             }
         }
         return edges

@@ -1,0 +1,44 @@
+name: Kaito natural phase-in chronology
+scenario: {suite: phasing, id: kaito-cycle}
+frames:
+  - id: phase-out
+    events:
+      - id: phase-out
+        type: PhasedOut
+        lane: transient
+        fields: {affectedIds.length: 1}
+  - id: natural-return
+    events:
+      - id: untap
+        type: PhaseOrStepModified
+        lane: transient
+        where: {fields: {details.phase: [1], details.step: [1], affectedIds: [1]}}
+        fields: {details.phase: [1], details.step: [1]}
+      - id: phase-in
+        type: PhasedIn
+        lane: transient
+        keys: []
+        fields: {affectorId: 0, affectedIds.length: 1}
+        equals: {affectedIds: phase-out.affectedIds}
+      - id: first-untap
+        type: TappedUntappedPermanent
+        lane: transient
+        fields: {details.tapped: [0]}
+      - id: second-untap
+        type: TappedUntappedPermanent
+        lane: transient
+        fields: {details.tapped: [0]}
+      - id: third-untap
+        type: TappedUntappedPermanent
+        lane: transient
+        fields: {details.tapped: [0]}
+      - id: upkeep
+        type: PhaseOrStepModified
+        lane: transient
+        where: {fields: {details.phase: [1], details.step: [2], affectedIds: [1]}}
+        fields: {details.phase: [1], details.step: [2]}
+counts:
+  - match: {type: PhasedIn, lane: transient}
+    exactly: 1
+  - match: {type: PhasedOut, lane: transient}
+    exactly: 1

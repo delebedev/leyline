@@ -17,6 +17,7 @@ import leyline.game.state.ProjectionState
 import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.SyntheticEffectProjection
 import leyline.game.state.TargetSpec
+import wotc.mtgo.gre.external.messaging.Messages.Step
 
 /**
  * Bundle of the shared annotation-time resolvers used across the
@@ -45,6 +46,8 @@ class AnnotationContext(
     val abilityExhaustionFacts: AbilityExhaustionFacts,
     val opponentKnowledge: List<InstanceId> = emptyList(),
     val transferResult: TransferResult? = null,
+    /** Step in the previously committed viewer frame. */
+    val frameEntryStep: Step? = null,
 ) {
     /** Private synthetic-effect planner for this tentative projection. */
     internal val effects: SyntheticEffectProjection.Planner get() = editor.effects
