@@ -5,7 +5,14 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.InMemoryCardRepository
+import leyline.game.mapping.ObjectMapper
+import leyline.game.mapping.ZoneIds
+import leyline.game.snapshot.CardSnapshot
+import leyline.game.snapshot.FaceDownKind
+import leyline.game.state.EffectTracker
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.SubType
@@ -14,6 +21,29 @@ import wotc.mtgo.gre.external.messaging.Messages.SuperType
 class CardProtoBuilderTest :
     FunSpec({
         tags(UnitTag)
+
+        test("face-down projections retain independently granted Ward") {
+            val builder = CardProtoBuilder(InMemoryCardRepository())
+            for (kind in FaceDownKind.entries) {
+                val snapshot =
+                    CardSnapshot(ForgeCardId(1), "Hidden creature", 1, SeatId(1), SeatId(1), isOnBattlefield = true, faceDownKind = kind)
+                val projected =
+                    ObjectMapper.buildFromSnapshot(
+                        snapshot,
+                        instanceId = 42,
+                        zoneId = ZoneIds.BATTLEFIELD,
+                        ownerSeatId = 1,
+                        cardProto = builder,
+                        keywordSnapshot =
+                            mapOf(
+                                42 to listOf(EffectTracker.KeywordEntry(1, 1, "Ward", abilityGrpId = KeywordAbilityIds.WARD_TWO)),
+                            ),
+                    )
+                val intrinsicCount = if (kind == FaceDownKind.ManifestDread) 0 else 1
+                projected.uniqueAbilitiesList.map { it.grpId } shouldBe List(intrinsicCount + 1) { KeywordAbilityIds.WARD_TWO }
+                projected.uniqueAbilitiesList.map { it.id } shouldBe (50..50 + intrinsicCount).toList()
+            }
+        }
 
         test("both object projections preserve every subtype number and omit unknown values") {
             val repo = InMemoryCardRepository()

@@ -212,15 +212,17 @@ object ObjectMapper {
                     },
                 ).build()
         }
-        // Supported face-down creatures get a synthetic stencil envelope —
-        // the per-card identity (name, subtypes, color, abilities) is
-        // suppressed in favor of the universal face-down stencil (overlay
-        // grpId=3, ability=141939). Mechanic-agnostic so Morph / Manifest /
-        // Cloak can ride the same projection once their snapshot
-        // recognizers land.
+        val extrinsicKws = keywordSnapshot[instanceId]?.mapNotNull { it.resolvedAbilityGrpId } ?: emptyList()
+        // Face-down creatures conceal printed identity while retaining
+        // mechanic-specific intrinsic abilities and established keyword grants.
         if (cardSnap.faceDownKind != null) {
+            val hasIntrinsicWard =
+                when (cardSnap.faceDownKind) {
+                    leyline.game.snapshot.FaceDownKind.Cloak, leyline.game.snapshot.FaceDownKind.Disguise -> true
+                    leyline.game.snapshot.FaceDownKind.ManifestDread -> false
+                }
             return cardProto
-                .buildFaceDownObjectInfo(cardSnap.grpId)
+                .buildFaceDownObjectInfo(cardSnap.grpId, hasIntrinsicWard, extrinsicKws)
                 .setInstanceId(instanceId)
                 .setType(GameObjectType.Card)
                 .setZoneId(zoneId)
@@ -246,10 +248,6 @@ object ObjectMapper {
                 // but represent normal castable spells — projected as plain Cards.
                 GameObjectType.Card
             }
-        val extrinsicKws =
-            keywordSnapshot[instanceId]
-                ?.mapNotNull { it.resolvedAbilityGrpId }
-                ?: emptyList()
         val extraAbilityGrpIds = extrinsicKws + cardSnap.mergedComponentAbilityGrpIds
         val builder =
             cardProto
