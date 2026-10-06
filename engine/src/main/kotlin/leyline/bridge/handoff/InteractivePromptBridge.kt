@@ -495,7 +495,7 @@ class InteractivePromptBridge(
     ): CardSelectInteractionResult {
         check(request.route is ResolvedPromptRoute.CardSelect) { "CardSelect route required" }
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
-            return fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
+            return fallbackCardSelect(request, candidateHandles)
         }
         val runtime = checkNotNull(runtimeBindings.cardSelect) { "CardSelect runtime is not registered" }
         return try {
@@ -504,7 +504,7 @@ class InteractivePromptBridge(
             prioritySignal?.markPromptResolved()
             result
         } catch (_: CardSelectInteractionTimeoutException) {
-            val fallback = fallbackCardSelect(listOf(request.defaultIndex), candidateHandles)
+            val fallback = fallbackCardSelect(request, candidateHandles)
             record(request, PromptCallStatus.TIMEOUT, fallback.optionIndices)
             prioritySignal?.signal()
             fallback
