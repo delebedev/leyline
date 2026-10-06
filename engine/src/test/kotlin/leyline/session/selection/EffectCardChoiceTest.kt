@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.beInZoneOf
 import leyline.testkit.beMissingFrom
@@ -35,6 +36,7 @@ class EffectCardChoiceTest :
             val chosen = human.battlefield.iid("Centaur Courser")
             val req = castSpellUntilSelectNReq("Single Combat")
             assertSoftly {
+                allMessages.last { it.hasSelectNReq() }.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
                 req.idsList shouldContainExactly listOf(first, chosen)
                 req.unfilteredIdsList shouldContainExactly req.idsList
                 req.minSel shouldBe 1
@@ -82,6 +84,7 @@ class EffectCardChoiceTest :
             val first = human.hand.iid("Shivan Dragon")
             val chosen = human.hand.iid("Volcanic Dragon")
             val req = castSpellUntilSelectNReq("Dragon's Disciple")
+            allMessages.last { it.hasSelectNReq() }.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
             req.idsList shouldContainExactly listOf(first, chosen)
             respondToSelectN(listOf(chosen))
             passUntilResolved()

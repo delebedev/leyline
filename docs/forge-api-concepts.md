@@ -54,7 +54,7 @@ Enlist callbacks consume their own selections on the engine thread before
 Forge pays optional attack costs. Selecting a normal attack declines those
 costs without opening another choice.
 
-Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback.
+Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Visible resolution choices use a neutral selection instruction. Hidden-library look-and-pick choices keep their dedicated instruction. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback.
 
 ## 3. SpellAbility Is A Chain
 
