@@ -2061,16 +2061,20 @@ class GameBridge(
      */
     private fun seedCounterAnnotations(game: Game) {
         for ((seatNum, player) in players) {
-            val poisonCount = player.poisonCounters
-            if (poisonCount <= 0) continue
-            val ann =
-                AnnotationBuilder
-                    .playerCounter(SeatId(seatNum), CounterTypes.counterTypeId("POISON"), poisonCount)
-                    .toBuilder()
-                    .setId(nextPersistentAnnotationId())
-                    .build()
-            addPersistentAnnotation(ann)
-            log.debug("seedCounter: seat={} POISON = {}", seatNum, poisonCount)
+            for (entry in player.counters.entrySet()) {
+                val counterType = entry.element.name
+                val count = entry.count
+                val counterTypeId = CounterTypes.counterTypeId(counterType)
+                if (count <= 0 || counterTypeId == 0) continue
+                val ann =
+                    AnnotationBuilder
+                        .playerCounter(SeatId(seatNum), counterTypeId, count)
+                        .toBuilder()
+                        .setId(nextPersistentAnnotationId())
+                        .build()
+                addPersistentAnnotation(ann)
+                log.debug("seedCounter: seat={} {} = {}", seatNum, counterType, count)
+            }
         }
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {

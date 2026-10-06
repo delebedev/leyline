@@ -438,7 +438,7 @@ sealed interface GameEvent {
         val affectorCardId: ForgeCardId? = null,
     ) : GameEvent
 
-    /** Counters added or removed on a player. Currently emitted for poison counters. */
+    /** Counters added or removed on a player. */
     data class PlayerCountersChanged(
         val seatId: SeatId,
         val counterType: String,
