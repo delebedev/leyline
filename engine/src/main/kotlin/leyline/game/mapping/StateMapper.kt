@@ -1317,19 +1317,24 @@ object StateMapper {
                     gsm.gameObjectsList
                         .map { obj ->
                             if (obj.visibility == Visibility.Private &&
-                                obj.zoneId == ZoneIds.EXILE &&
                                 obj.isFacedown &&
                                 (!includePrivateObjects || viewingSeatId !in obj.viewersList)
                             ) {
-                                ZoneMapper
-                                    .hiddenCardObject(obj.instanceId, obj.zoneId, SeatId(obj.ownerSeatId))
-                                    .toBuilder()
-                                    .setControllerSeatId(obj.controllerSeatId)
+                                val facade =
+                                    if (obj.zoneId == ZoneIds.EXILE) {
+                                        ZoneMapper
+                                            .hiddenCardObject(obj.instanceId, obj.zoneId, SeatId(obj.ownerSeatId))
+                                            .toBuilder()
+                                            .setControllerSeatId(obj.controllerSeatId)
+                                            .addAllViewers(obj.viewersList)
+                                    } else {
+                                        obj.toBuilder()
+                                    }
+                                facade
                                     .setVisibility(Visibility.Public)
                                     .setGrpId(3)
                                     .setOverlayGrpId(3)
                                     .setIsFacedown(true)
-                                    .addAllViewers(obj.viewersList)
                                     .build()
                             } else {
                                 obj

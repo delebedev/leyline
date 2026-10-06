@@ -132,190 +132,6 @@ class StateProjectionCompilerTest :
             }
         }
 
-        test("foretold exile keeps its owner identity and exposes only a public card back to the opponent") {
-            val foretoldId = ForgeCardId(10)
-            val publicId = ForgeCardId(20)
-            val handId = ForgeCardId(30)
-            val snapshot =
-                GsmSnapshot.forTest(
-                    matchId = "foretell",
-                    gameStateId = 1,
-                    seats = listOf(SeatSnapshot(SeatId(1), 20, 20, 7), SeatSnapshot(SeatId(2), 20, 20, 7)),
-                    objects =
-                        mapOf(
-                            foretoldId to CardSnapshot(foretoldId, "Foretold card", 101, SeatId(1), SeatId(2), isForetold = true),
-                            publicId to CardSnapshot(publicId, "Public exile card", 202, SeatId(2), SeatId(2)),
-                            handId to CardSnapshot(handId, "Private hand card", 303, SeatId(1), SeatId(1)),
-                        ),
-                    zones =
-                        mapOf(
-                            ZoneIds.EXILE to
-                                ZoneSnapshot(
-                                    ZoneIds.EXILE,
-                                    ZoneType.Exile,
-                                    null,
-                                    Visibility.Public,
-                                    listOf(foretoldId, publicId),
-                                ),
-                            ZoneIds.P1_HAND to ZoneSnapshot(ZoneIds.P1_HAND, ZoneType.Hand, SeatId(1), Visibility.Private, listOf(handId)),
-                        ),
-                )
-            val projected =
-                StateProjectionCompiler.compileViewers(
-                    compilerEnvironment(),
-                    ProjectionState.initial(),
-                    listOf(
-                        StateProjectionCompiler.ViewerInput(compilerInput(snapshot).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(snapshot).copy(viewingSeatId = 2)),
-                    ),
-                )
-            val foretoldIid =
-                projected.transition.nextState.identities.forgeIdToInstanceId
-                    .getValue(foretoldId)
-                    .value
-            val owner = projected.viewers[0].result.gsm
-            val opponent = projected.viewers[1].result.gsm
-            val card = owner.gameObjectsList.single { it.instanceId == foretoldIid }
-            assertSoftly {
-                card.grpId shouldBe 101
-                card.overlayGrpId shouldBe 3
-                card.isFacedown shouldBe true
-                card.visibility shouldBe Visibility.Private
-                card.viewersList shouldBe listOf(1)
-                card.ownerSeatId shouldBe 1
-                card.controllerSeatId shouldBe 2
-                val opponentCard = opponent.gameObjectsList.single { it.instanceId == foretoldIid }
-                opponentCard.grpId shouldBe 3
-                opponentCard.overlayGrpId shouldBe 3
-                opponentCard.isFacedown shouldBe true
-                opponentCard.visibility shouldBe Visibility.Public
-                opponentCard.ownerSeatId shouldBe 1
-                opponentCard.controllerSeatId shouldBe 2
-                opponentCard.viewersList shouldBe listOf(1)
-                opponentCard.name shouldBe 0
-                opponentCard.cardTypesList shouldBe emptyList()
-                opponentCard.uniqueAbilitiesList shouldBe emptyList()
-                opponentCard.objectSourceGrpId shouldBe 0
-                opponent.gameObjectsList.map { it.grpId } shouldContainExactly listOf(3, 202)
-                owner.gameObjectsList.single { it.grpId == 303 }.visibility shouldBe Visibility.Private
-                owner.zonesList.single { it.zoneId == ZoneIds.EXILE }.objectInstanceIdsList shouldBe
-                    opponent.zonesList.single { it.zoneId == ZoneIds.EXILE }.objectInstanceIdsList
-                owner.gameObjectsList.single { it.grpId == 202 }.visibility shouldBe Visibility.Public
-                snapshot.objects.getValue(foretoldId).grpId shouldBe 101
-            }
-            val handSnapshot =
-                GsmSnapshot.forTest(
-                    matchId = snapshot.matchId,
-                    gameStateId = 1,
-                    seats = snapshot.seats,
-                    objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
-                    zones =
-                        snapshot.zones +
-                            mapOf(
-                                ZoneIds.EXILE to snapshot.zones.getValue(ZoneIds.EXILE).copy(contents = listOf(publicId)),
-                                ZoneIds.P1_HAND to snapshot.zones.getValue(ZoneIds.P1_HAND).copy(contents = listOf(foretoldId, handId)),
-                            ),
-                )
-            val hand =
-                StateProjectionCompiler.compileViewers(
-                    compilerEnvironment(),
-                    ProjectionState.initial(),
-                    listOf(
-                        StateProjectionCompiler.ViewerInput(compilerInput(handSnapshot).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(handSnapshot).copy(viewingSeatId = 2)),
-                    ),
-                )
-            val preparedSnapshot = snapshot.withGameStateId(2)
-            val actions = ActionsAvailableReq.newBuilder().addActions(Action.newBuilder().setActionType(ActionType.Pass)).build()
-            val prepared =
-                StateProjectionCompiler.compileViewers(
-                    compilerEnvironment(),
-                    hand.transition.nextState,
-                    listOf(
-                        StateProjectionCompiler.ViewerInput(
-                            compilerInput(preparedSnapshot, handSnapshot).copy(viewingSeatId = 1),
-                            actions = actions,
-                        ),
-                        StateProjectionCompiler.ViewerInput(
-                            compilerInput(preparedSnapshot, handSnapshot).copy(viewingSeatId = 2),
-                            actions = actions,
-                        ),
-                    ),
-                )
-            val preparedIid =
-                prepared.transition.nextState.identities.forgeIdToInstanceId
-                    .getValue(foretoldId)
-                    .value
-            for (index in prepared.viewers.indices) {
-                val diff = prepared.viewers[index].result.gsm
-                val expected =
-                    projected.viewers[index]
-                        .result.gsm.gameObjectsList
-                        .single { it.instanceId == foretoldIid }
-                assertSoftly {
-                    diff.type shouldBe GameStateType.Diff
-                    diff.gameObjectsList
-                        .single { it.instanceId == preparedIid }
-                        .toBuilder()
-                        .clearInstanceId()
-                        .build() shouldBe
-                        expected.toBuilder().clearInstanceId().build()
-                    diff.actionsList
-                        .single()
-                        .action.actionType shouldBe ActionType.Pass
-                    diff.actionsList.single().seatId shouldBe index + 1
-                }
-            }
-            val castSnapshot =
-                GsmSnapshot.forTest(
-                    matchId = snapshot.matchId,
-                    gameStateId = 3,
-                    seats = snapshot.seats,
-                    objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
-                    zones =
-                        snapshot.zones +
-                            mapOf(
-                                ZoneIds.EXILE to snapshot.zones.getValue(ZoneIds.EXILE).copy(contents = listOf(publicId)),
-                                ZoneIds.STACK to ZoneSnapshot(ZoneIds.STACK, ZoneType.Stack, null, Visibility.Public, listOf(foretoldId)),
-                            ),
-                )
-            val cast =
-                StateProjectionCompiler.compileViewers(
-                    compilerEnvironment(),
-                    prepared.transition.nextState,
-                    listOf(
-                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, preparedSnapshot).copy(viewingSeatId = 1)),
-                        StateProjectionCompiler.ViewerInput(compilerInput(castSnapshot, preparedSnapshot).copy(viewingSeatId = 2)),
-                    ),
-                )
-            val stackIid =
-                cast.transition.nextState.identities.forgeIdToInstanceId
-                    .getValue(foretoldId)
-                    .value
-            for (viewer in cast.viewers) {
-                val stackCard =
-                    viewer.result.gsm.gameObjectsList
-                        .single { it.instanceId == stackIid }
-                assertSoftly {
-                    viewer.result.gsm.type shouldBe GameStateType.Diff
-                    stackCard.zoneId shouldBe ZoneIds.STACK
-                    stackCard.grpId shouldBe 101
-                    stackCard.overlayGrpId shouldBe 101
-                    stackCard.visibility shouldBe Visibility.Public
-                    stackCard.isFacedown shouldBe false
-                    stackCard.viewersList shouldBe emptyList()
-                    viewer.result.gsm.zonesList
-                        .single { it.zoneId == ZoneIds.EXILE }
-                        .objectInstanceIdsList shouldBe
-                        listOf(
-                            projected.transition.nextState.identities.forgeIdToInstanceId
-                                .getValue(publicId)
-                                .value,
-                        )
-                }
-            }
-        }
-
         test("Observer role redacts seat-private objects in Full and Diff") {
             val playerCard = ForgeCardId(10)
             val observerCard = ForgeCardId(20)
@@ -627,7 +443,7 @@ class StateProjectionCompilerTest :
         }
     })
 
-private fun compilerEnvironment(): StateProjectionEnvironment {
+internal fun compilerEnvironment(): StateProjectionEnvironment {
     val cards = InMemoryCardRepository()
     return StateProjectionEnvironment(
         CardProtoBuilder(cards),
@@ -636,7 +452,7 @@ private fun compilerEnvironment(): StateProjectionEnvironment {
     )
 }
 
-private fun compilerInput(
+internal fun compilerInput(
     snapshot: GsmSnapshot,
     previousSnapshot: GsmSnapshot? = null,
     events: FrameEventLog = FrameEventLog.EMPTY,
