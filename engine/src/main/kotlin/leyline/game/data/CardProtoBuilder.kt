@@ -1,6 +1,5 @@
 package leyline.game.data
 
-import leyline.game.snapshot.FaceDownKind
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -48,7 +47,7 @@ class CardProtoBuilder(
      * projection drops printed identity (name,
      * subtypes, color, the per-card abilities) and substitutes the
      * universal face-down stencil, 2/2 P/T, and `Creature` card type.
-     * Cloak and Disguise add intrinsic Ward {2}; Manifest Dread does not.
+     * Intrinsic Ward {2} is included when the caller's mechanic provides it.
      * Independently granted keyword abilities remain visible.
      *
      * The [grpId] of the underlying card is still set on the proto so the
@@ -57,7 +56,7 @@ class CardProtoBuilder(
      */
     fun buildFaceDownObjectInfo(
         grpId: Int,
-        kind: FaceDownKind,
+        hasIntrinsicWard: Boolean,
         extrinsicKeywordGrpIds: List<Int> = emptyList(),
     ): GameObjectInfo.Builder =
         GameObjectInfo
@@ -69,11 +68,7 @@ class CardProtoBuilder(
             .setPower(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
             .setToughness(Int32Value.newBuilder().setValue(faceDownPowerAndToughness))
             .apply {
-                val intrinsicAbilities =
-                    when (kind) {
-                        FaceDownKind.Cloak, FaceDownKind.Disguise -> listOf(KeywordAbilityIds.WARD_TWO)
-                        FaceDownKind.ManifestDread -> emptyList()
-                    }
+                val intrinsicAbilities = if (hasIntrinsicWard) listOf(KeywordAbilityIds.WARD_TWO) else emptyList()
                 (intrinsicAbilities + extrinsicKeywordGrpIds).forEachIndexed { index, abilityGrpId ->
                     addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(50 + index).setGrpId(abilityGrpId))
                 }
