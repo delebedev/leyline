@@ -228,9 +228,17 @@ class AbilityRegistry private constructor(
             keywordFamilies: MutableMap<AbilityDefinitionRef, AbilityKeywordFamily>,
         ): Int {
             val declarationCards =
-                listOfNotNull(card, card.copiedPermanent, card.cloneStates.maxByOrNull { it.key }?.value?.origin)
+                listOfNotNull(
+                    card,
+                    card.copiedPermanent,
+                    card.cloneStates
+                        .maxByOrNull { it.key }
+                        ?.value
+                        ?.origin,
+                )
             val declaredFace =
-                declarationCards.asSequence()
+                declarationCards
+                    .asSequence()
                     .mapNotNull { it.rules }
                     .flatMap { it.allFaces.asSequence() }
                     .firstOrNull { it.name == card.currentState.name }
