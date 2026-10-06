@@ -13,13 +13,11 @@ import java.util.PriorityQueue
  * ordering load-bearing — see individual [OrderRule] implementations for the
  * specific constraints.
  *
- * The pipeline already builds annotations in correct order by construction.
- * This enforcer is a safety net against regressions, exercised by puzzle
- * fixtures under `data/puzzles/` and the unit suite in
- * `engine/src/test/kotlin/leyline/game/`.
+ * The merged frame contains rows from independent producers. Constraints
+ * place each row before its consumers.
  *
  * Adding a new rule: implement [OrderRule] as a `data object` and add it to
- * [OrderRules.all]. The enforcer body never changes.
+ * [OrderRules.all].
  */
 object AnnotationOrderEnforcer {
     private val log = LoggerFactory.getLogger(AnnotationOrderEnforcer::class.java)
@@ -33,10 +31,21 @@ object AnnotationOrderEnforcer {
     fun enforce(
         annotations: List<AnnotationInfo>,
         frameEntryStep: Step? = null,
+        resolutionSourceOwners: Map<Int, Int> = emptyMap(),
     ): List<AnnotationInfo> {
         val allEdges =
             OrderRules.all.flatMap { rule ->
-                if (rule == PhaseOrStepFirstRule) PhaseOrStepFirstRule.edges(annotations, frameEntryStep) else rule.edges(annotations)
+                when (rule) {
+                    PhaseOrStepFirstRule -> PhaseOrStepFirstRule.edges(annotations, frameEntryStep)
+                    SameCardIncrementalRule -> SameCardIncrementalRule.edges(annotations, resolutionSourceOwners)
+                    ResolutionLifecycleRule -> ResolutionLifecycleRule.edges(annotations, resolutionSourceOwners)
+                    ObjectIdChangedFirstRule,
+                    TokenCreatedFirstRule,
+                    AbilityCreationFirstRule,
+                    ResolveTransferOrderingRule,
+                    SubmittedTargetsLeadsFrameRule,
+                    -> rule.edges(annotations)
+                }
             }
         if (allEdges.isEmpty()) return annotations
         val violationCount = allEdges.count { (from, to) -> from > to }

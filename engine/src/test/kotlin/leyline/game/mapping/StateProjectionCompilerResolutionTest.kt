@@ -18,6 +18,71 @@ class StateProjectionCompilerResolutionTest :
     FunSpec({
         tags(UnitTag)
 
+        test("opening resolution orders owned effects and preserves foreign effect placement") {
+            val source = ForgeCardId(10)
+            val target = ForgeCardId(20)
+            val resolving = stackAbility(source, 31)
+            val snapshot = stackAbilitySnapshot(1, source, listOf(resolving, stackAbility(source, 30)), target)
+            val opened =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot, events = FrameEventLog(listOf(GameEvent.CardAttached(source, target, SeatId(1))))).copy(
+                        effectFacts =
+                            EffectProjectionFacts(
+                                boostEntries =
+                                    listOf(
+                                        EffectProjectionFacts.BoostEntry(
+                                            target,
+                                            1,
+                                            2,
+                                            1,
+                                            1,
+                                            sourceAbilityGrpId = resolving.grpId,
+                                            sourceForgeCardId = source,
+                                        ),
+                                        EffectProjectionFacts.BoostEntry(
+                                            target,
+                                            3,
+                                            4,
+                                            2,
+                                            2,
+                                            sourceAbilityGrpId = 9004,
+                                            sourceForgeCardId = target,
+                                        ),
+                                    ),
+                            ),
+                    ),
+                    ProjectionState.initial(),
+                    ViewerProjectionIntent.of(listOf(ProjectionSupplement.ResolutionStarted(resolving))),
+                )
+            val identities = opened.transition.nextState.identities.forgeIdToInstanceId
+            val sourceId = identities.getValue(source).value
+            val foreignId = identities.getValue(target).value
+            val abilityId = identities.getValue(FrameIdResolver.triggerStackAbilityForgeId(31)).value
+            val relevant = setOf(AnnotationType.ResolutionStart, AnnotationType.LayeredEffectCreated, AnnotationType.AttachmentCreated)
+            assertSoftly {
+                opened.gsm.annotationsList
+                    .filter {
+                        it.affectorId in setOf(sourceId, foreignId, abilityId) && it.typeList.any { type -> type in relevant }
+                    }.map {
+                        it.typeList.single() to
+                            it.affectorId
+                    } shouldContainExactly
+                    listOf(
+                        AnnotationType.LayeredEffectCreated to foreignId,
+                        AnnotationType.ResolutionStart to abilityId,
+                        AnnotationType.AttachmentCreated to sourceId,
+                        AnnotationType.LayeredEffectCreated to sourceId,
+                    )
+                opened.gsm.annotationsList.count {
+                    AnnotationType.ResolutionComplete in it.typeList ||
+                        AnnotationType.AbilityInstanceDeleted in it.typeList
+                } shouldBe
+                    0
+                opened.transition.nextState.annotations.openResolutions shouldBe setOf(abilityId)
+            }
+        }
+
         test("completion orders source effects before retirement after an earlier resolution start") {
             val source = ForgeCardId(10)
             val target = ForgeCardId(20)

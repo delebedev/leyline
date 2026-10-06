@@ -7,6 +7,7 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationContext
 import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.FinalizedAnnotationFrame
 import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
@@ -29,6 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
+import wotc.mtgo.gre.external.messaging.Messages.Step
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -112,15 +114,13 @@ object StateProjectionCompiler {
             )
         val selectedOptions = projectSelectedCastOptions(canonical.intent.supplements, planned, editor)
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
-        val orderedAnnotations =
-            AnnotationOrderEnforcer.enforce(
-                plannedOrder.gsm.annotationsList + supplementAnnotations,
-                stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
-            )
         val finalized =
-            AnnotationFrameFinalizer.numberOrdered(
-                retainResolutionMarkers(orderedAnnotations, editor.annotations),
+            finalizeAnnotations(
+                plannedOrder.gsm.annotationsList + supplementAnnotations,
+                supplementAnnotations.resolutionSourceOwners,
                 planned.firstAnnotationId,
+                stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
+                editor.annotations,
             )
         val shared =
             planned.copy(
@@ -408,6 +408,17 @@ object StateProjectionCompiler {
             targetSpecs = targetSpecs + next.targetSpecs,
         )
 
+    private fun finalizeAnnotations(
+        annotations: List<AnnotationInfo>,
+        resolutionSourceOwners: Map<Int, Int>,
+        firstId: Int,
+        previousStep: Step?,
+        journal: leyline.game.state.AnnotationProjectionState.Planner,
+    ): FinalizedAnnotationFrame {
+        val ordered = AnnotationOrderEnforcer.enforce(annotations, previousStep, resolutionSourceOwners)
+        return AnnotationFrameFinalizer.numberOrdered(retainResolutionMarkers(ordered, journal), firstId)
+    }
+
     /** A prompt may start resolution in an earlier frame than its effects and completion. */
     private fun retainResolutionMarkers(
         annotations: List<AnnotationInfo>,
@@ -427,6 +438,7 @@ object StateProjectionCompiler {
     private data class SupplementAnnotations(
         val annotations: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>,
         val consumedSubmittedTargets: Boolean,
+        val resolutionSourceOwners: Map<Int, Int>,
     ) : List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> by annotations
 
     private fun projectSelectedCastOptions(
@@ -467,6 +479,7 @@ object StateProjectionCompiler {
     ): SupplementAnnotations {
         val annotations = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
         var submittedTargetsConsumed = false
+        val resolutionSourceOwners = mutableMapOf<Int, Int>()
         val frameIds = draft.idResolver
         for (supplement in supplements) {
             when (supplement) {
@@ -487,7 +500,10 @@ object StateProjectionCompiler {
                             identity != null
                         }
                     val grpId = if (entry.isSpell) entry.sourceCardGrpId else identity?.abilityGrpId ?: entry.grpId
-                    if (unresolved) annotations += AnnotationBuilder.resolutionStart(instanceId, leyline.bridge.types.GrpId(grpId))
+                    if (unresolved) {
+                        annotations += AnnotationBuilder.resolutionStart(instanceId, leyline.bridge.types.GrpId(grpId))
+                        if (!entry.isSpell) resolutionSourceOwners[frameIds.cardIid(entry.forgeCardId).value] = instanceId.value
+                    }
                 }
                 ProjectionSupplement.NewTurnStarted ->
                     annotations += AnnotationBuilder.newTurnStarted(input.snapshot.phase.activePlayer)
@@ -561,7 +577,7 @@ object StateProjectionCompiler {
                 }
             }
         }
-        return SupplementAnnotations(annotations, submittedTargetsConsumed)
+        return SupplementAnnotations(annotations, submittedTargetsConsumed, resolutionSourceOwners.toMap())
     }
 
     private data class OrderResult(

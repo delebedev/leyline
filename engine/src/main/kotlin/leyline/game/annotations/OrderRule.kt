@@ -14,7 +14,6 @@ import wotc.mtgo.gre.external.messaging.Messages.Step
  * constraint exists.
  *
  * Adding a rule is one new `data object` plus one entry in [OrderRules.all].
- * The enforcer body never changes.
  */
 sealed interface OrderRule {
     /** Stable identifier for diagnostics and toggling. */
@@ -86,8 +85,13 @@ data object ObjectIdChangedFirstRule : OrderRule {
 data object SameCardIncrementalRule : OrderRule {
     override val name: String = "same_card_incremental"
 
-    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
-        val sourceOwners = sourceResolutionOwners(annotations)
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> = edges(annotations, emptyMap())
+
+    fun edges(
+        annotations: List<AnnotationInfo>,
+        executionOwners: Map<Int, Int>,
+    ): List<Pair<Int, Int>> {
+        val sourceOwners = sourceResolutionOwners(annotations, executionOwners)
         val cardToAnnotations = mutableMapOf<Int, MutableList<Int>>()
         for ((i, ann) in annotations.withIndex()) {
             val spec = annotationSpec(ann) ?: continue
@@ -230,11 +234,16 @@ data object PhaseOrStepFirstRule : OrderRule {
 data object ResolutionLifecycleRule : OrderRule {
     override val name: String = "resolution_lifecycle"
 
-    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
+    override fun edges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> = edges(annotations, emptyMap())
+
+    fun edges(
+        annotations: List<AnnotationInfo>,
+        executionOwners: Map<Int, Int>,
+    ): List<Pair<Int, Int>> {
         val starts = mutableMapOf<Int, Int>()
         val completions = mutableMapOf<Int, Int>()
         val deletions = mutableMapOf<Int, MutableList<Int>>()
-        val sourceAbilities = sourceResolutionOwners(annotations)
+        val sourceAbilities = sourceResolutionOwners(annotations, executionOwners)
         for ((index, annotation) in annotations.withIndex()) {
             when {
                 AnnotationType.ResolutionStart in annotation.typeList -> starts.putIfAbsent(annotation.affectorId, index)
@@ -463,7 +472,10 @@ internal fun AnnotationInfo.detailString(key: String): String =
         }.orEmpty()
 
 /** Source-owned effects can use a card affector while their ability owns the bracket. */
-private fun sourceResolutionOwners(annotations: List<AnnotationInfo>): Map<Int, Int> {
+private fun sourceResolutionOwners(
+    annotations: List<AnnotationInfo>,
+    executionOwners: Map<Int, Int>,
+): Map<Int, Int> {
     val starts = annotations.filter { AnnotationType.ResolutionStart in it.typeList }.map { it.affectorId }.toSet()
     val completed = annotations.filter { AnnotationType.ResolutionComplete in it.typeList }.map { it.affectorId }.toSet()
     return annotations
@@ -475,5 +487,5 @@ private fun sourceResolutionOwners(annotations: List<AnnotationInfo>): Map<Int, 
                 .distinct()
                 .singleOrNull { it in starts && it in completed }
                 ?.let { source to it }
-        }.toMap()
+        }.toMap() + executionOwners.filterValues { it in starts }
 }
