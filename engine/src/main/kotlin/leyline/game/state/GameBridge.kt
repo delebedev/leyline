@@ -1333,6 +1333,9 @@ class GameBridge(
                 ?: ability.trigger
                     ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
                     ?.let { refreshed.resolveSoleIntrinsicTrigger(definition as AbilityDefinitionRef.Trigger) }
+                ?: ability.trigger
+                    ?.let(::resolveSpawningTriggerAbilityGrpId)
+                    ?.let { ResolvedAbilityIdentity(definition, it) }
         }
         val abilityGrpId = registry.forSpellAbility(ability) ?: return null
         return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }

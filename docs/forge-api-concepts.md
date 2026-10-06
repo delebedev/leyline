@@ -115,6 +115,9 @@ Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(c
 Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit
 special actions such as turning a face-down card face up retain their own lookup.
+Intrinsic keyword slots also follow the current state. Generated triggers without
+a direct definition binding use their spawning ability's identity during targeting
+and stack resolution.
 
 Abilities copied by continuous effects retain `SpellAbility.originalAbility`.
 `AbilityRegistry.identitySource` selects that definition's card catalog, while

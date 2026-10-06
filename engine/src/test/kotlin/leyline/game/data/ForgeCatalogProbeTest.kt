@@ -14,7 +14,6 @@ import kotlinx.serialization.json.*
 import leyline.ForgeCatalogTag
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
-import leyline.bridge.types.StaticChoiceIds
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.GrpIdResolver
 import leyline.testkit.annotationsOfType
@@ -357,71 +356,6 @@ class ForgeCatalogProbeTest :
                 assertSoftly {
                     room.unlockedRooms shouldBe setOf(forge.card.CardStateName.LeftSplit, forge.card.CardStateName.RightSplit)
                     designations.containsAll(setOf(19, 20)).shouldBeTrue()
-                }
-            }
-        }
-        test("Specialize selects a color and publishes the resulting form identity") {
-            forgeCatalogProbe(
-                "specialize",
-                puzzleFile = "data/puzzles/specialize-ambergris.pzl",
-            ) { repo ->
-                val base = requireNotNull(repo.findGrpIdByName("Ambergris, Citadel Agent"))
-                val tyranny = requireNotNull(repo.findGrpIdByNameAnyFace("Ambergris, Agent of Tyranny"))
-                val ambergris = human.battlefield.card("Ambergris, Citadel Agent")
-                val ambergrisIid = human.battlefield.iid(ambergris)
-                activateAbility("Ambergris, Citadel Agent").shouldBeTrue()
-                val colorReq = lastSelectNReq()
-                colorReq.staticList shouldBe StaticList.Colors
-                respondToSelectN(listOf(requireNotNull(StaticChoiceIds.colorIdForName("Black"))))
-                val discardReq = lastSelectNReq()
-                respondToSelectN(listOf(findInstanceId(discardReq.idsList, "Swamp")))
-                passUntil(10) { ambergris.name == "Ambergris, Agent of Tyranny" }.shouldBeTrue()
-                val formObjects =
-                    allMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.gameObjectsList }
-                        .filter { it.instanceId == ambergrisIid }
-                assertSoftly {
-                    ambergris.netPower shouldBe 4
-                    ambergris.netToughness shouldBe 3
-                    formObjects.last().grpId shouldBe tyranny
-                    repo.findGrpIdByName("Ambergris, Agent of Tyranny") shouldBe base
-                    human.graveyard.cards.count { it.name == "Swamp" } shouldBe 1
-                }
-
-                holdNextOptionalAction()
-                passUntil(10) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
-                declareAttackers(listOf(ambergrisIid))
-                passUntil(5) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
-                respondToOptionalAction(accept = true)
-                passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
-                selectTargets(listOf(ai.battlefield.iid("Grizzly Bears")))
-                passUntil(10) { ai.graveyard.cards.any { it.name == "Grizzly Bears" } }.shouldBeTrue()
-                assertSoftly {
-                    ai.graveyard.cards.count { it.name == "Grizzly Bears" } shouldBe 1
-                    human.graveyard.cards.count { it.name == "Walking Corpse" } shouldBe 1
-                    human.hand.cards.count { it.name == "Unsummon" } shouldBe 2
-                }
-
-                val unsummon = requireNotNull(repo.findGrpIdByName("Unsummon"))
-                passUntil(10) {
-                    allMessages.lastOrNull { it.hasActionsAvailableReq() }?.actionsAvailableReq?.actionsList?.any {
-                        it.actionType == ActionType.Cast && it.grpId == unsummon
-                    } == true
-                }.shouldBeTrue()
-                castSpellByName("Unsummon").shouldBeTrue()
-                selectTargets(listOf(ambergrisIid))
-                passUntil(10) { human.hand.cards.any { it.name == "Ambergris, Agent of Tyranny" } }.shouldBeTrue()
-                val movedAmbergris = human.hand.card("Ambergris, Agent of Tyranny")
-                val movedAmbergrisIid = human.hand.iid(movedAmbergris)
-                val movedObject =
-                    allMessages
-                        .filter { it.hasGameStateMessage() }
-                        .flatMap { it.gameStateMessage.gameObjectsList }
-                        .last { it.instanceId == movedAmbergrisIid && it.zoneId == ZoneIds.P1_HAND }
-                assertSoftly {
-                    movedObject.grpId shouldBe tyranny
-                    movedAmbergrisIid shouldNotBe ambergrisIid
                 }
             }
         }

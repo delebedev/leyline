@@ -227,11 +227,7 @@ class AbilityRegistry private constructor(
             triggerMap: MutableMap<Int, Int>,
             keywordFamilies: MutableMap<AbilityDefinitionRef, AbilityKeywordFamily>,
         ): Int {
-            val keywordStrings =
-                card.rules
-                    ?.mainPart
-                    ?.keywords
-                    ?.toList() ?: emptyList()
+            val keywordStrings = card.currentState.intrinsicKeywords.map { it.original }
             val liveKeywords = card.getKeywords() ?: emptyList()
             val claimed = mutableSetOf<KeywordInterface>()
 
