@@ -16,6 +16,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.after
 import leyline.testkit.beOnBattlefieldOf
+import leyline.testkit.detailInt
 import leyline.testkit.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -395,6 +396,13 @@ class ModalETBFlowTest :
                             }
                         }
                 resolutionState.diffDeletedPersistentAnnotationIdsList shouldContain displayCardUnderCard.id
+                for (type in listOf(AnnotationType.ResolutionStart, AnnotationType.ResolutionComplete)) {
+                    allMessages
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.annotationsList }
+                        .single { type in it.typeList && it.affectorId == returnAbility.instanceId }
+                        .detailInt("grpid") shouldBe princeReturnGrpId
+                }
                 allMessages
                     .filter { it.hasGameStateMessage() }
                     .any { holder.instanceId in it.gameStateMessage.diffDeletedInstanceIdsList }
