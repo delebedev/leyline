@@ -1,5 +1,6 @@
 package leyline.game.mapping
 
+import forge.game.phase.PhaseType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -18,6 +19,7 @@ import leyline.game.event.GameEvent
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
+import leyline.game.snapshot.PhaseSnapshot
 import leyline.game.snapshot.SeatSnapshot
 import leyline.game.snapshot.StackEntry
 import leyline.game.snapshot.StackSnapshot
@@ -162,6 +164,52 @@ class StateProjectionCompilerTest :
                         .single { it.zoneId == ZoneIds.STACK }
                         .objectInstanceIdsList shouldContainExactly expected
                 }
+            }
+        }
+
+        for (causeKind in listOf("card", "ability", "spell")) {
+            test("caused $causeKind untap during Untap retains its affector") {
+                val target = ForgeCardId(42)
+                val source = ForgeCardId(43)
+                val untap = GameEvent.CardTapped(target, false)
+                val caused =
+                    when (causeKind) {
+                        "card" -> untap.copy(affectorCardId = source)
+                        "ability" -> untap.copy(affectorAbilityForgeId = 91)
+                        else -> untap.copy(affectorSpellCardId = source)
+                    }
+                val snapshot =
+                    GsmSnapshot.forTest(
+                        objects =
+                            mapOf(
+                                target to CardSnapshot(target, "Target", 9001, SeatId(1), SeatId(1)),
+                                source to CardSnapshot(source, "Source", 9001, SeatId(1), SeatId(1)),
+                            ),
+                        phase = PhaseSnapshot(1, SeatId(1), SeatId(1), PhaseType.UPKEEP),
+                    )
+                val result =
+                    StateProjectionCompiler.compileOneViewer(
+                        compilerEnvironment(),
+                        compilerInput(
+                            snapshot,
+                            events =
+                                FrameEventLog(
+                                    listOf(
+                                        GameEvent.PhaseChanged(SeatId(1), 1, 1),
+                                        caused,
+                                        GameEvent.PhaseChanged(SeatId(1), 1, 2),
+                                    ),
+                                ),
+                        ),
+                        ProjectionState.initial(),
+                    )
+                val row = result.gsm.annotationsList.single { AnnotationType.TappedUntappedPermanent in it.typeList }
+                row.affectorId shouldNotBe row.affectedIdsList.single()
+                val expectedSource = if (causeKind == "ability") FrameIdResolver.triggerStackAbilityForgeId(91) else source
+                row.affectorId shouldBe
+                    result.transition.nextState.identities.forgeIdToInstanceId
+                        .getValue(expectedSource)
+                        .value
             }
         }
 

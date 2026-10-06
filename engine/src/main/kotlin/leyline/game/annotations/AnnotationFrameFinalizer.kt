@@ -1,6 +1,7 @@
 package leyline.game.annotations
 
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.Step
 
 data class FinalizedAnnotationFrame(
     val annotations: List<AnnotationInfo>,
@@ -12,9 +13,10 @@ object AnnotationFrameFinalizer {
     fun finalize(
         annotations: List<AnnotationInfo>,
         firstId: Int,
+        frameEntryStep: Step? = null,
     ): FinalizedAnnotationFrame {
         require(firstId > 0) { "Transient annotation IDs must be positive" }
-        val ordered = AnnotationOrderEnforcer.enforce(annotations)
+        val ordered = AnnotationOrderEnforcer.enforce(annotations, frameEntryStep)
         val numbered = ordered.mapIndexed { index, annotation -> annotation.toBuilder().setId(firstId + index).build() }
         return FinalizedAnnotationFrame(numbered, firstId + numbered.size)
     }

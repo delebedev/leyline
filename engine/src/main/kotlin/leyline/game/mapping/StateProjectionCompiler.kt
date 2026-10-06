@@ -114,6 +114,7 @@ object StateProjectionCompiler {
             AnnotationFrameFinalizer.finalize(
                 retainResolutionMarkers(plannedOrder.gsm.annotationsList + supplementAnnotations, editor.annotations),
                 planned.firstAnnotationId,
+                stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
             )
         val shared =
             planned.copy(

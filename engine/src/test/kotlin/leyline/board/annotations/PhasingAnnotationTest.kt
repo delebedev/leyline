@@ -3,6 +3,8 @@ package leyline.board.annotations
 import forge.game.card.Card
 import forge.game.card.CounterEnumType
 import forge.game.event.GameEventCardCounters
+import forge.game.event.GameEventTurnPhase
+import forge.game.phase.PhaseType
 import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -84,6 +86,83 @@ class PhasingAnnotationTest :
 
             kaito.isPhasedOut shouldBe true
             resolved.shouldPhaseOutWithinResolution(kaitoIid, triggerIid)
+        }
+
+        test("resumed natural untap stays before the following upkeep boundary") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield).setTapped(true)
+                }
+            val creature = board.human.battlefield.card("Grizzly Bears")
+            board.snapshotDiff { board.game.phaseHandler.devModeSet(PhaseType.UNTAP, board.human) }
+            val resumed =
+                board.snapshotDiff {
+                    creature.untap()
+                    board.game.phaseHandler.devModeSet(PhaseType.UPKEEP, board.human)
+                }
+            resumed.annotationsList
+                .filter {
+                    AnnotationType.PhaseOrStepModified in it.typeList || AnnotationType.TappedUntappedPermanent in it.typeList
+                }.map { it.typeList.single() } shouldBe
+                listOf(
+                    AnnotationType.TappedUntappedPermanent,
+                    AnnotationType.PhaseOrStepModified,
+                )
+        }
+
+        test("effect untap from Main retains the existing leading boundary policy") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield).setTapped(true)
+                }
+            val creature = board.human.battlefield.card("Grizzly Bears")
+            board.snapshotDiff { board.game.phaseHandler.devModeSet(PhaseType.MAIN1, board.human) }
+            val frame =
+                board.snapshotDiff {
+                    creature.untap()
+                    board.game.phaseHandler.devModeSet(PhaseType.UPKEEP, board.human)
+                }
+            frame.annotationsList
+                .filter {
+                    AnnotationType.PhaseOrStepModified in it.typeList || AnnotationType.TappedUntappedPermanent in it.typeList
+                }.map { it.typeList.single() } shouldBe
+                listOf(
+                    AnnotationType.PhaseOrStepModified,
+                    AnnotationType.TappedUntappedPermanent,
+                )
+        }
+
+        test("ordinary untap and a later effect untap of the same card each emit once") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Grizzly Bears", human, ZoneType.Battlefield).setTapped(true)
+                }
+            val creature = board.human.battlefield.card("Grizzly Bears")
+            val iid = board.instanceId(creature.id)
+            val frame =
+                board.snapshotDiff {
+                    board.game.fireEvent(GameEventTurnPhase(board.human, PhaseType.UNTAP, ""))
+                    creature.untap()
+                    board.game.fireEvent(GameEventTurnPhase(board.human, PhaseType.UPKEEP, ""))
+                    creature.setTapped(true)
+                    creature.untap()
+                }
+            val rows =
+                frame.annotationsList.filter {
+                    AnnotationType.PhaseOrStepModified in it.typeList || AnnotationType.TappedUntappedPermanent in it.typeList
+                }
+            assertSoftly {
+                rows.map { it.typeList.single() } shouldBe
+                    listOf(
+                        AnnotationType.PhaseOrStepModified,
+                        AnnotationType.TappedUntappedPermanent,
+                        AnnotationType.PhaseOrStepModified,
+                        AnnotationType.TappedUntappedPermanent,
+                    )
+                rows.filter { AnnotationType.TappedUntappedPermanent in it.typeList }.map { it.affectedIdsList } shouldBe
+                    listOf(listOf(iid), listOf(iid))
+                frame.annotationsList.none { AnnotationType.PhasedIn in it.typeList } shouldBe true
+            }
         }
 
         test("phasing preserves battlefield membership identity and counters without transfers") {

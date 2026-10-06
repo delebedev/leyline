@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import kotlinx.serialization.Serializable
 import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.PhaseOrStepFirstRule
 import leyline.game.annotations.TransferCategory
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.ZoneIds
@@ -45,7 +46,9 @@ class InvariantChecker(
     private val needsRuntimeAccumulator =
         selection.includes(InvariantCheck.ActionInstanceIds) ||
             selection.includes(InvariantCheck.ZoneObjects) ||
-            selection.includes(InvariantCheck.AnnotationReferences)
+            selection.includes(InvariantCheck.AnnotationReferences) ||
+            selection.includes(InvariantCheck.PhaseFirst) ||
+            selection.includes(InvariantCheck.AnnotationOrdering)
 
     // --- Public API ---
 
@@ -270,6 +273,9 @@ class InvariantChecker(
         }
     }
 
+    private fun frameEntryStep(gsm: GameStateMessage): Step? =
+        if (gsm.type == GameStateType.Diff && gsm.update != GameStateUpdate.Undo) accumulator.turnInfo?.step else null
+
     /**
      * Verify annotation ordering invariants (Rules 1 and 2) by delegating
      * to [AnnotationOrderEnforcer]. If enforce() returns a different list,
@@ -279,7 +285,7 @@ class InvariantChecker(
         val annotations = gsm.annotationsList
         if (annotations.isEmpty()) return
 
-        val enforced = AnnotationOrderEnforcer.enforce(annotations)
+        val enforced = AnnotationOrderEnforcer.enforce(annotations, frameEntryStep(gsm))
         if (enforced !== annotations) {
             // Find which annotations moved
             for (i in annotations.indices) {
@@ -304,6 +310,7 @@ class InvariantChecker(
         val annotations = gsm.annotationsList
         val firstPosIdx = annotations.indexOfFirst { AnnotationType.PhaseOrStepModified in it.typeList }
         if (firstPosIdx <= 0) return
+        if (PhaseOrStepFirstRule.edges(annotations, frameEntryStep(gsm)).none { (from, to) -> from > to }) return
         record(
             gsm.gameStateId,
             "phase_first",
@@ -557,6 +564,8 @@ class InvariantChecker(
  * Processes Full/Diff GSMs, tracks objects/zones/actions for invariant checking.
  */
 class RuntimeAccumulator {
+    var turnInfo: TurnInfo? = null
+        private set
     val objects = mutableMapOf<Int, GameObjectInfo>()
     val zones = mutableMapOf<Int, ZoneInfo>()
     var actions: ActionsAvailableReq? = null
@@ -606,6 +615,8 @@ class RuntimeAccumulator {
     }
 
     private fun processGameState(gs: GameStateMessage) {
+        if (gs.type != GameStateType.Diff || gs.update == GameStateUpdate.Undo) turnInfo = null
+        if (gs.hasTurnInfo()) turnInfo = gs.turnInfo
         when (gs.type) {
             GameStateType.Full -> {
                 objects.clear()
