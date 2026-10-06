@@ -24,6 +24,22 @@ data class SelectNEnvelope(
                 prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build(),
             )
 
+        fun sacrificeEffect(
+            req: SelectNReq,
+            hostId: Int,
+        ): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt =
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.SELECT_N_SACRIFICE)
+                        .addParameters(cardIdPromptParameter(hostId))
+                        .addParameters(cardIdPromptParameter(req.maxSel))
+                        .build(),
+                allowCancel = AllowCancel.No_a526,
+            )
+
         fun legendRule(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,

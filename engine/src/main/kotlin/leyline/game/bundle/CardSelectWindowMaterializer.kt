@@ -3,6 +3,7 @@ package leyline.game.bundle
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectOriginZone
 import leyline.bridge.handoff.CardSelectWindowValue
+import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -23,7 +24,8 @@ internal class CardSelectWindowMaterializer {
     ): SettledPromptMaterialization {
         val request = buildRequest(window, context)
         if (window.kind in privateCandidateKinds) requirePrivateCandidates(context, request.idsList)
-        val envelope = envelope(window, request)
+        val hostId = window.sourceForgeCardId?.let { context.requiredInstanceId(it, "CardSelect card") } ?: 0
+        val envelope = envelope(window, request, hostId)
         val state =
             context.gameState
                 .toBuilder()
@@ -81,7 +83,16 @@ internal class CardSelectWindowMaterializer {
                     CardSelectKind.Learn -> setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
-                    CardSelectKind.SacrificeEffect,
+                    CardSelectKind.SacrificeEffect -> {
+                        setSelectNInnerPrompt(PromptIds.SELECT_N_SACRIFICE_INNER_PARAMETER)
+                        if (window.forgeAbilityId != 0) {
+                            sourceId =
+                                context.requiredInstanceId(
+                                    FrameIdResolver.triggerStackAbilityForgeId(window.forgeAbilityId),
+                                    "CardSelect ability",
+                                )
+                        }
+                    }
                     CardSelectKind.MutateTopBottom,
                     -> prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build()
                 }
@@ -91,6 +102,7 @@ internal class CardSelectWindowMaterializer {
     private fun envelope(
         window: CardSelectWindowValue,
         request: SelectNReq,
+        hostId: Int,
     ): SelectNEnvelope =
         when (window.kind) {
             CardSelectKind.LegendRule -> SelectNEnvelope.legendRule(request)
@@ -107,9 +119,8 @@ internal class CardSelectWindowMaterializer {
                         PromptIds.LEARN_LESSON_ONLY
                     },
                 )
-            CardSelectKind.Discard,
-            CardSelectKind.SacrificeEffect,
-            -> SelectNEnvelope.default(request)
+            CardSelectKind.Discard -> SelectNEnvelope.default(request)
+            CardSelectKind.SacrificeEffect -> SelectNEnvelope.sacrificeEffect(request, hostId)
             CardSelectKind.Suspect -> SelectNEnvelope.suspectChoice(request)
             CardSelectKind.MutateTopBottom -> SelectNEnvelope.mutateTopBottom(request)
         }

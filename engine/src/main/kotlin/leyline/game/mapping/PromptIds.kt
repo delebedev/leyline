@@ -117,6 +117,10 @@ object PromptIds {
      *  client expects on this slot for resolution-time pick prompts. */
     const val SELECT_N_INNER_PARAMETER = 2
 
+    /** Mandatory resolution-time sacrifice selection. */
+    const val SELECT_N_SACRIFICE = 180
+    const val SELECT_N_SACRIFICE_INNER_PARAMETER = 5
+
     /** Inner SelectNReq.prompt PromptId Parameter value for Learn prompts. */
     const val SELECT_N_LEARN_INNER_PARAMETER = 1
 

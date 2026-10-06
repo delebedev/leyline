@@ -186,8 +186,10 @@ class MatchCardSelectInteractionRuntimeTest :
                     SelectionContext.Resolution_a163,
                     SelectionListType.Dynamic,
                     OptionContext.Resolution_a9d7,
-                    outerPromptId = PromptIds.SELECT_N,
-                    allowCancel = AllowCancel.None_a526,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_SACRIFICE_INNER_PARAMETER,
+                    outerPromptId = PromptIds.SELECT_N_SACRIFICE,
+                    allowCancel = AllowCancel.No_a526,
                 ),
                 Case(
                     PromptSemantic.SuspectChoice,

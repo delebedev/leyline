@@ -13,7 +13,9 @@ import leyline.testkit.ProtocolContract
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.tooling.headless.HeadlessResponseMode
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 class AnnihilatorLifecycleTest :
     SessionTest({
@@ -56,6 +58,22 @@ class AnnihilatorLifecycleTest :
                 selection.minSel shouldBe 6
                 selection.maxSel shouldBe 6
                 selection.idsCount shouldBe 8
+                promptMessage.prompt.promptId shouldBe 180
+                promptMessage.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId", "CardId")
+                promptMessage.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number, ParameterType.Number)
+                promptMessage.prompt.parametersList.map { it.numberValue } shouldBe listOf(ai.battlefield.iid("Emrakul, the Aeons Torn"), 6)
+                selection.sourceId shouldBe abilityIid
+                selection.prompt.promptId shouldBe 0
+                selection.prompt.parametersList
+                    .single()
+                    .parameterName shouldBe "Parameter"
+                selection.prompt.parametersList
+                    .single()
+                    .type shouldBe ParameterType.PromptId
+                selection.prompt.parametersList
+                    .single()
+                    .promptId shouldBe 5
+                promptMessage.allowCancel shouldBe AllowCancel.No_a526
                 sacrificed.size shouldBe 6
                 phase() shouldBe "COMBAT_DECLARE_ATTACKERS"
                 allMessages.any { it.hasDeclareBlockersReq() }.shouldBeFalse()

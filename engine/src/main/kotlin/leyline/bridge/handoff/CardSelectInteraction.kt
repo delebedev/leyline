@@ -24,6 +24,7 @@ data class CardSelectWindowValue(
     val max: Int,
     val defaultOptionIndex: Int,
     val choiceResultSentiment: Int?,
+    val forgeAbilityId: Int = 0,
 )
 
 data class PublishedCardSelectInteraction(

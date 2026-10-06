@@ -82,7 +82,7 @@ class TargetingCoordinator(
     private val viewerSeatId: SeatId = seating.humanSeat,
     private val currentSourceEntityId: () -> Int? = { null },
     private val isCastingSpell: () -> Boolean = { false },
-    private val currentStackAbilityId: () -> Int? = { null },
+    private val currentStackAbilityId: (SpellAbility?) -> Int? = { null },
 ) {
     fun cardTargetCandidate(
         optionIndex: Int,
@@ -372,7 +372,7 @@ class TargetingCoordinator(
         ability: SpellAbility?,
     ): SearchSourceValue? {
         if (semantic != PromptSemantic.Search && semantic != PromptSemantic.GroupedSearch) return null
-        val exactStackAbilityId = currentStackAbilityId()
+        val exactStackAbilityId = currentStackAbilityId(null)
         return SearchSourceValue(
             hostCardId = (ability?.hostCard?.id ?: currentSourceEntityId())?.let(::ForgeCardId),
             forgeAbilityId = exactStackAbilityId ?: ability?.id ?: 0,
@@ -463,6 +463,7 @@ class TargetingCoordinator(
             semantic = semantic,
             candidateRefs = buildCandidateRefs(validTargets),
             sourceEntityId = sa?.hostCard?.id,
+            forgeAbilityId = if (semantic == PromptSemantic.SelectNSacrificeEffect) sa?.let(currentStackAbilityId) ?: 0 else 0,
         )
     }
 
@@ -1042,7 +1043,7 @@ class TargetingCoordinator(
     }
 
     private fun groupingSource(): GroupingSourceValue? {
-        val stackAbilityId = currentStackAbilityId()
+        val stackAbilityId = currentStackAbilityId(null)
         val hostCardId = currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId)
         return GroupingSourceValue(hostCardId, stackAbilityId ?: 0, stackAbilityId != null)
             .takeIf { it.hostCardId != null || it.abilityOnStack }
@@ -1072,6 +1073,7 @@ class TargetingCoordinator(
         searchSource: SearchSourceValue? = null,
         searchGroupOptionIndices: List<List<Int>> = emptyList(),
         resolutionRouteInput: ResolutionRouteInput? = null,
+        forgeAbilityId: Int = 0,
     ): CardCollection {
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
@@ -1096,6 +1098,7 @@ class TargetingCoordinator(
                         tapPayment,
                     ),
                 sourceEntityId = sourceEntityId,
+                forgeAbilityId = forgeAbilityId,
                 costSelectionWeights = costSelectionWeights,
                 minSelectionWeight = minSelectionWeight,
                 payCostsPromptSource = payCostsPromptSource,
