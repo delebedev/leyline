@@ -372,7 +372,7 @@ class TargetingCoordinatorTest :
             }
         }
 
-        test("Learn timeout returns the exact sideboard default and records its reveal before returning") {
+        test("Learn timeout declines the optional choice without revealing a sideboard card") {
             val board =
                 startWithBoard { _, human, _ ->
                     addCard("Environmental Sciences", human, ZoneType.Sideboard)
@@ -401,13 +401,15 @@ class TargetingCoordinatorTest :
                     hasDelayedReveal = false,
                 )
 
-            val reveal = bridge.drainReveals().single()
             assertSoftly {
-                chosen shouldBeSameInstanceAs sideboard
+                chosen shouldBe null
                 (bridge.history.single().route as ResolvedPromptRoute.CardSelect).descriptor.kind shouldBe CardSelectKind.Learn
                 bridge.history.single().outcome shouldBe PromptCallStatus.TIMEOUT
-                reveal.forgeCardIds shouldContainExactly listOf(ForgeCardId(sideboard.id))
-                reveal.ownerSeatId shouldBe SeatId(1)
+                bridge.history
+                    .single()
+                    .result
+                    .shouldBeEmpty()
+                bridge.drainReveals().shouldBeEmpty()
             }
         }
 

@@ -10,6 +10,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.acceptance.AcceptancePaths
 import leyline.bridge.coord.GameLoopPoller
+import leyline.bridge.handoff.PendingActionKind
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -21,6 +22,7 @@ import leyline.testkit.SessionTest
 import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 class AnnihilatorLifecycleTest :
@@ -56,6 +58,7 @@ class AnnihilatorLifecycleTest :
                     puzzleResource = "data/puzzles/resolution-annihilator-choice.pzl",
                     aiScript = listOf(ScriptedAction.Attack(listOf("Emrakul, the Aeons Torn"))),
                 )
+                val firstTurn = h.turn()
                 val before =
                     h.human
                         .getZone(ZoneType.Battlefield)
@@ -75,9 +78,20 @@ class AnnihilatorLifecycleTest :
                         h.bridge
                             .promptBridge(SeatId(1))
                             .history
-                            .any { it.outcome == PromptCallStatus.TIMEOUT }
+                            .any { it.outcome == PromptCallStatus.TIMEOUT } &&
+                        h.allMessages.any { it.hasActionsAvailableReq() && it.msgId > prompt.msgId }
                 }
-                h.passUntil { phase() == "MAIN2" }.shouldBeTrue()
+                h.passThroughCombat(firstTurn)
+                h
+                    .passUntil {
+                        val pending = bridge.actionBridge(SeatId(1)).getPending()
+                        turn() > firstTurn &&
+                            pending?.state?.kind == PendingActionKind.PRIORITY &&
+                            pendingActionHorizonPublished(pending, 0)
+                    }.shouldBeTrue()
+                val actionHorizon = checkNotNull(h.bridge.actionBridge(SeatId(1)).getPending())
+                h.awaitPendingActionHorizon(actionHorizon, 0)
+                val continuationPrompt = h.allMessages.last { it.hasActionsAvailableReq() }
                 val fallback =
                     h.bridge
                         .promptBridge(SeatId(1))
@@ -104,6 +118,8 @@ class AnnihilatorLifecycleTest :
                         6
                     h.game().stackZone.size() shouldBe 0
                     h.human.life shouldBe 25
+                    h.turn() shouldBe firstTurn + 1
+                    h.allMessages.last { it.hasActionsAvailableReq() }.gameStateId shouldBe actionHorizon.promptGameStateId
                     h.allMessages.any { it.hasDeclareBlockersReq() }.shouldBeFalse()
                     h.bridge.cutCoordinator.cardSelect
                         .current()
@@ -116,6 +132,12 @@ class AnnihilatorLifecycleTest :
                         .failure()
                         .shouldBeNull()
                 }
+                h.passPriority()
+                h.bridge.responseAcceptance
+                    .acceptedSnapshot()
+                    .any { it.respId == continuationPrompt.msgId }
+                    .shouldBeTrue()
+                h.allMessages.count { it.type == GREMessageType.IllegalRequest } shouldBe 0
             } finally {
                 h.shutdown()
             }
