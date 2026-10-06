@@ -26,6 +26,12 @@ Do not duplicate game rules in Kotlin. Ask Forge what is legal or what happened,
 
 Forge dispatches interactive work through virtual methods on the player controller. There is no registration table or composition hook that replaces this surface, so overrides live on `bridge/forge/PlayerController`.
 
+Install runtime adapters as each player's base controller. Forge's timestamped
+controller layers belong to temporary control effects and restore the base when
+they retire. Controlled-player adapters retain the decision owner's lobby factory
+and interaction bridges while keeping the subject player explicit. Resolve zone
+ownership from the original lobby identity, independently of the decision owner.
+
 Use this decision rule:
 
 - Priority actions and combat declarations go through `GameActionBridge`.

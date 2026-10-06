@@ -1,0 +1,21 @@
+# Design Narrative
+# Mechanic: Glarb permits casting the eligible top spell and playing the next top land.
+# Forcing: The hand is empty and both cards begin in the library.
+# AI behavior: An empty hand and battlefield provide no response decisions.
+# Failure modes: A missing action blocks the flow; a missing permanent disproves resolution.
+# Card roles: Glarb grants permission; Baloth has mana value four; Mountain is the next top.
+# Protocol path: Legal actions, mana payment, resolution, and land play.
+[metadata]
+Name:Glarb Library Play
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Cast Rumbling Baloth from the library, then play the next Mountain.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Glarb, Calamity's Augur;Forest;Forest;Island;Swamp
+humanlibrary=Rumbling Baloth;Mountain;Island;Forest;Swamp
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

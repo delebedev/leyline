@@ -231,10 +231,9 @@ class CostPaymentCoordinator(
         if (player.controller is PlayerControllerAi) {
             return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
         }
-        // GameBridge keeps the bridged controller at Long.MAX_VALUE - 1, so
-        // Forge's timestamp-based runWithController cannot put an AI controller
-        // above it. ComputerUtilMana requires that controller while it pays the
-        // non-mana costs of selected sources.
+        // ComputerUtilMana requires an AI controller while paying non-mana
+        // costs of selected sources. The temporary layer outranks active
+        // player-control effects and leaves their controller layers intact.
         player.addController(
             Long.MAX_VALUE,
             player,

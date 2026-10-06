@@ -85,6 +85,7 @@ import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
 import leyline.bridge.types.toCandidateRefs
 import leyline.game.data.KeywordAbilityIds
@@ -209,12 +210,13 @@ class PlayerController(
     private val seating: Seating,
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
-    priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
+    private val priorityPolicy: PriorityPolicyRuntime = PriorityPolicyRuntime(),
     private val runtimeHorizonMode: RuntimeHorizonMode = RuntimeHorizonMode.Direct,
     private val onStateChanged: (() -> Unit)? = null,
     private val onCompanionToHand: ((SpellAbility) -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
-    interactionRuntime: BlockingInteractionRuntime,
+    private val interactionRuntime: BlockingInteractionRuntime,
+    private val viewerSeatId: SeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
@@ -224,7 +226,7 @@ class PlayerController(
         TargetingCoordinator(
             bridge,
             seating,
-            viewerSeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
+            viewerSeatId = viewerSeatId,
             currentSourceEntityId = ::currentSourceEntityId,
             isCastingSpell = { activeSourceIsSpell },
             currentStackAbilityId = { callbackAbility ->
@@ -239,6 +241,27 @@ class PlayerController(
             },
         )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
+
+    fun forControlledPlayer(controlledPlayer: Player): PlayerController =
+        PlayerController(
+            game = game,
+            player = controlledPlayer,
+            lobbyPlayer = lobbyPlayer,
+            bridge = bridge,
+            seating = seating,
+            actionBridge = actionBridge,
+            mulliganBridge = mulliganBridge,
+            priorityPolicy = priorityPolicy,
+            runtimeHorizonMode = runtimeHorizonMode,
+            onStateChanged = onStateChanged,
+            onCompanionToHand = onCompanionToHand,
+            smartPhaseSkip = smartPhaseSkip,
+            interactionRuntime = interactionRuntime,
+            viewerSeatId = viewerSeatId,
+        )
+
+    override fun isGuiPlayer(): Boolean = viewerSeatId == seating.humanSeat
+
     private val staticChoiceCoordinator = StaticChoiceCoordinator(bridge)
     private var activeSpellSourceId: Int? = null
     private var activeSourceIsSpell: Boolean = false
@@ -275,13 +298,13 @@ class PlayerController(
                     activeStackTargetingAbility?.let(targetingCoordinator::effectiveTargetPromptId)
                 },
                 playerSeatOf = { target ->
-                    if (target.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                    if (target.originalLobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
                 },
                 playerViewSeatOf = { target ->
                     game.players
                         .firstOrNull { it.id == target.id }
                         ?.let {
-                            if (it.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
+                            if (it.originalLobbyPlayer is LobbyPlayerAi) seating.familiarSeat.value else seating.humanSeat.value
                         }
                 },
                 stackTargetCandidate = ::listTargetCandidate,
@@ -450,7 +473,7 @@ class PlayerController(
                     ?.takeIf { it.zone == setOf(ZoneType.Library) }
                     ?.owner
                     ?.let { view -> game.players.firstOrNull { it.id == view.id } }
-                    ?.let { owner -> if (owner.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat },
+                    ?.let { owner -> if (owner.originalLobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat },
         )
     }
 

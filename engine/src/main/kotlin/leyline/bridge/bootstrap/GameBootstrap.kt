@@ -9,12 +9,12 @@ import forge.game.GameStage
 import forge.game.GameType
 import forge.game.Match
 import forge.game.phase.PhaseType
+import forge.game.player.Player
 import forge.game.player.RegisteredPlayer
 import forge.gui.GuiBase
 import forge.gui.interfaces.IGuiGame
 import forge.localinstance.properties.ForgePreferences.FPref
 import forge.model.FModel
-import forge.player.GamePlayerUtil
 import forge.player.LobbyPlayerHuman
 import forge.player.PlayerControllerHuman
 import forge.util.Lang
@@ -24,6 +24,7 @@ import leyline.bridge.types.SeatId
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
+import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
 /** True when game rules indicate a puzzle (either primary type or applied variant). */
 val Game.isPuzzle: Boolean
@@ -44,6 +45,16 @@ const val BRAWL_STARTING_LIFE = 25
 fun isCommanderVariant(gameType: String): Boolean = gameType.lowercase() in COMMANDER_VARIANTS
 
 object GameBootstrap {
+    private fun humanLobbyPlayer(name: String = "Human") =
+        object : LobbyPlayerHuman(name) {
+            override fun createMindSlaveController(
+                master: Player,
+                slave: Player,
+            ): forge.game.player.PlayerController =
+                (master.controller as? BridgedPlayerController)?.forControlledPlayer(slave)
+                    ?: super.createMindSlaveController(master, slave)
+        }
+
     private var initialized = false
     private val cardDbLatch = CountDownLatch(1)
 
@@ -59,7 +70,7 @@ object GameBootstrap {
         val deck = Deck()
 
         // Human + AI so startGameLoop creates bridges for the human seat.
-        players.add(RegisteredPlayer(deck).setPlayer(LobbyPlayerHuman("player1")))
+        players.add(RegisteredPlayer(deck).setPlayer(humanLobbyPlayer("player1")))
         players.add(RegisteredPlayer(deck).setPlayer(LobbyPlayerAi("player2", null)))
 
         val rules = GameRules(GameType.Constructed)
@@ -104,7 +115,7 @@ object GameBootstrap {
 
         val human =
             RegisteredPlayer(deck)
-                .setPlayer(GamePlayerUtil.getGuiPlayer())
+                .setPlayer(humanLobbyPlayer())
         human.startingHand = 0
 
         val ai =
@@ -150,7 +161,7 @@ object GameBootstrap {
 
         val human =
             RegisteredPlayer(humanDeck)
-                .setPlayer(GamePlayerUtil.getGuiPlayer())
+                .setPlayer(humanLobbyPlayer())
         players.add(human)
 
         val ai =
@@ -185,7 +196,7 @@ object GameBootstrap {
         val human =
             RegisteredPlayer
                 .forCommander(humanDeck)
-                .setPlayer(GamePlayerUtil.getGuiPlayer())
+                .setPlayer(humanLobbyPlayer())
         if (isBrawl) human.startingLife = BRAWL_STARTING_LIFE
         players.add(human)
 

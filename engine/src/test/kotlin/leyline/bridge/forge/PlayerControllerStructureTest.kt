@@ -78,6 +78,7 @@ class PlayerControllerStructureTest :
                 "getCostDecisionMaker",
                 "helpPayForAssistSpell",
                 "isAI",
+                "isGuiPlayer",
                 "mulliganKeepHand",
                 "orderMoveToZoneList",
                 "payCostToPreventEffect",
