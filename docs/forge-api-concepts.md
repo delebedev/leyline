@@ -228,6 +228,12 @@ Do not infer a cause from snapshots when a Forge event can carry it. Do not stor
 
 When an upstream Forge event lacks the payload needed for protocol translation, prefer a small fork-local event enrichment over correlating unrelated events after the fact. The event should carry the Forge object IDs needed by the bridge, not protocol instance IDs.
 
+Imprint display is persistent state, so the snapshot reads the source's current
+`imprintedCards` membership after resolution. Projection includes only battlefield
+sources and cards still in exile. Rebuilding this feed retires a display when the
+relationship ends, without treating every exile within an Imprint operation as
+an imprinted card. Imprint rows omit the temporary-return marker.
+
 ### Atomic imported places
 
 Puzzle-based state import has one protected pre-settle hook immediately before

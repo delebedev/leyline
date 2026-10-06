@@ -208,7 +208,7 @@ object PersistentAnnotationStore {
         //     rows go through CounterKind's REPLACE_ALWAYS collision
         //     handling; non-Counter rows pure-append since their lifecycle
         //     is cleanup-driven (steps 4-6).
-        for (ann in mechanicResult.persistent) {
+        for (ann in normalizeImprintDisplays(active, deletions, mechanicResult)) {
             if (isExistingCastingOption(ann, active.values)) {
                 continue
             }
@@ -270,6 +270,28 @@ object PersistentAnnotationStore {
             (activeStealForgeCardIds + mechanicResult.controllerChangedEffects.map { it.forgeCardId }) -
                 mechanicResult.controllerRevertedForgeCardIds.toSet()
         return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts, nextActiveSteals)
+    }
+
+    /** Settled imprint membership supersedes temporary rows born during an exile move. */
+    private fun normalizeImprintDisplays(
+        active: MutableMap<Int, AnnotationInfo>,
+        deletions: MutableList<Int>,
+        mechanicResult: MechanicAnnotationResult,
+    ): List<AnnotationInfo> {
+        val imprintKeys =
+            mechanicResult.perKindPersistent[ImprintDisplayKind]
+                .orEmpty()
+                .mapTo(mutableSetOf(), ImprintDisplayKind::identityKey)
+
+        fun supersededDisplay(ann: AnnotationInfo): Boolean =
+            DisplayCardUnderCardKind.matches(ann) &&
+                !ImprintDisplayKind.matches(ann) &&
+                ImprintDisplayKind.identityKey(ann) in imprintKeys
+        active.filterValues(::supersededDisplay).keys.forEach { id ->
+            active.remove(id)
+            deletions.add(id)
+        }
+        return mechanicResult.persistent.filterNot(::supersededDisplay)
     }
 
     private fun remapDelayedTriggerAffectors(

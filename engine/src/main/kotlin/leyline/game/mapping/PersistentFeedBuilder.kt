@@ -28,6 +28,7 @@ import leyline.game.state.FaceDownForetellKind
 import leyline.game.state.FaceDownManifestDreadKind
 import leyline.game.state.ForetellSuppressedKind
 import leyline.game.state.HolderRecord
+import leyline.game.state.ImprintDisplayKind
 import leyline.game.state.LinkInfoChoiceKind
 import leyline.game.state.PersistentAnnotationKind
 import leyline.game.state.PersistentFeedFacts
@@ -111,6 +112,7 @@ internal object PersistentFeedBuilder {
                                     }
                                 },
                             QualificationKind to qualification,
+                            ImprintDisplayKind to buildImprintDisplays(snap, frameIds),
                             TemporaryPermanentKind to temporaryPermanent.temporaryPermanent,
                             DelayedTriggerAffecteesKind to temporaryPermanent.delayedTriggerAffectees,
                             AbilityWordActiveKind to abilityWord,
@@ -127,6 +129,26 @@ internal object PersistentFeedBuilder {
                 ),
             currentHolders = temporaryPermanent.currentHolders,
         )
+    }
+
+    private fun buildImprintDisplays(
+        snap: GsmSnapshot,
+        frameIds: FrameIdResolver,
+    ): List<AnnotationInfo> {
+        val exiled =
+            snap.zones[ZoneIds.EXILE]
+                ?.contents
+                .orEmpty()
+                .toSet()
+        return snap.objects.values.filter { it.isOnBattlefield }.flatMap { source ->
+            source.imprintedCardIds.filter { it in exiled }.map { cardId ->
+                AnnotationBuilder.displayCardUnderCard(
+                    affectorId = frameIds.cardIid(source.forgeCardId),
+                    instanceId = frameIds.cardIid(cardId),
+                    temporaryZoneTransfer = null,
+                )
+            }
+        }
     }
 
     private fun buildQualificationAnnotations(

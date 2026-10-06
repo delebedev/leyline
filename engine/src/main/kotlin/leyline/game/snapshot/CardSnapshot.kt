@@ -27,6 +27,8 @@ data class CardSnapshot(
     val effectSourceForgeCardId: ForgeCardId? = null,
     /** Exact live Paradigm keyword membership observed at snapshot capture. */
     val hasParadigmKeyword: Boolean = false,
+    /** Cards currently imprinted by this battlefield permanent. */
+    val imprintedCardIds: List<ForgeCardId> = emptyList(),
     // --- ActionMapper shape flags ---
     /** True when Forge considers this card a land (type.isLand). */
     val isLand: Boolean = false,
