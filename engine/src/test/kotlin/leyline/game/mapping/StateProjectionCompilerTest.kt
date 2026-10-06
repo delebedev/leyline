@@ -9,6 +9,7 @@ import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
+import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
@@ -37,6 +38,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -45,6 +47,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 class StateProjectionCompilerTest :
     FunSpec({
         tags(UnitTag)
+
+        beforeSpec { GameBootstrap.initializeLocalization() }
 
         test("resolution choices retain exact ability identity across repeated prompts and completion") {
             val source = ForgeCardId(10)
@@ -104,6 +108,106 @@ class StateProjectionCompilerTest :
                     intent,
                 )
             afterCompletion.gsm.annotationsList.count { AnnotationType.ResolutionStart in it.typeList } shouldBe 0
+        }
+
+        test("completion orders source effects before retirement after an earlier resolution start") {
+            val source = ForgeCardId(10)
+            val target = ForgeCardId(20)
+            val resolving = stackAbility(source, 31)
+            val snapshot = stackAbilitySnapshot(1, source, listOf(resolving), target)
+            val intent = ViewerProjectionIntent.of(listOf(ProjectionSupplement.ResolutionStarted(resolving)))
+            val opened =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot),
+                    ProjectionState.initial(),
+                    intent,
+                )
+            val finished =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(
+                        snapshot,
+                        snapshot,
+                        FrameEventLog(
+                            listOf(
+                                GameEvent.CardAttached(source, target, SeatId(1)),
+                                GameEvent.SpellResolved(
+                                    source,
+                                    false,
+                                    isAbility = true,
+                                    abilityForgeId = 31,
+                                    abilityGrpId = resolving.grpId,
+                                ),
+                            ),
+                        ),
+                    ).copy(
+                        effectFacts =
+                            EffectProjectionFacts(
+                                boostEntries =
+                                    listOf(
+                                        EffectProjectionFacts.BoostEntry(
+                                            target,
+                                            1,
+                                            2,
+                                            1,
+                                            1,
+                                            sourceAbilityGrpId = resolving.grpId,
+                                            sourceForgeCardId = source,
+                                        ),
+                                    ),
+                            ),
+                    ),
+                    opened.transition.nextState,
+                    intent,
+                )
+            val annotations = finished.gsm.annotationsList
+            val relevant =
+                setOf(
+                    AnnotationType.ResolutionStart,
+                    AnnotationType.AttachmentCreated,
+                    AnnotationType.LayeredEffectCreated,
+                    AnnotationType.ResolutionComplete,
+                    AnnotationType.AbilityInstanceDeleted,
+                )
+            annotations.flatMap { it.typeList }.filter { it in relevant } shouldContainExactly
+                listOf(
+                    AnnotationType.AttachmentCreated,
+                    AnnotationType.LayeredEffectCreated,
+                    AnnotationType.ResolutionComplete,
+                    AnnotationType.AbilityInstanceDeleted,
+                )
+            val abilityId =
+                opened.gsm.annotationsList
+                    .single { AnnotationType.ResolutionStart in it.typeList }
+                    .affectorId
+            annotations.single { AnnotationType.ResolutionComplete in it.typeList }.affectorId shouldBe abilityId
+            annotations.single { AnnotationType.AbilityInstanceDeleted in it.typeList }.affectedIdsList shouldBe listOf(abilityId)
+            annotations.map { it.id } shouldContainExactly (annotations.first().id..annotations.last().id).toList()
+            finished.transition.nextState.annotations.openResolutions shouldBe emptySet()
+        }
+
+        test("zero ability id resolution uses the projected source surrogate") {
+            val source = ForgeCardId(10)
+            val resolving = stackAbility(source, 0)
+            val snapshot = stackAbilitySnapshot(1, source, listOf(resolving))
+            val opened =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(snapshot),
+                    ProjectionState.initial(),
+                    ViewerProjectionIntent.of(listOf(ProjectionSupplement.ResolutionStarted(resolving))),
+                )
+            val identities = opened.transition.nextState.identities.forgeIdToInstanceId
+            val abilityId = identities.getValue(FrameIdResolver.stackAbilityForgeId(source))
+            opened.gsm.annotationsList
+                .single { AnnotationType.ResolutionStart in it.typeList }
+                .affectorId shouldBe abilityId.value
+            opened.gsm.gameObjectsList
+                .single { it.instanceId == abilityId.value }
+                .type shouldBe GameObjectType.Ability
+            identities.containsKey(FrameIdResolver.triggerStackAbilityForgeId(0)) shouldBe false
+            opened.transition.nextState.annotations.openResolutions shouldBe setOf(abilityId.value)
         }
 
         for (pendingKind in listOf("spell", "ability", "reserved ability")) {
@@ -661,15 +765,20 @@ private fun stackAbilitySnapshot(
     gameStateId: Int,
     sourceId: ForgeCardId,
     entries: List<StackEntry>,
+    targetId: ForgeCardId? = null,
 ): GsmSnapshot =
     GsmSnapshot.forTest(
         matchId = "compiler",
         gameStateId = gameStateId,
-        objects = mapOf(sourceId to CardSnapshot(sourceId, "Ability Source", 9001, SeatId(1), SeatId(1))),
+        objects =
+            buildMap {
+                put(sourceId, CardSnapshot(sourceId, "Ability Source", 9001, SeatId(1), SeatId(1)))
+                targetId?.let { put(it, CardSnapshot(it, "Effect Target", 9003, SeatId(1), SeatId(1))) }
+            },
         zones =
             linkedMapOf(
                 ZoneIds.BATTLEFIELD to
-                    ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOf(sourceId)),
+                    ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOfNotNull(sourceId, targetId)),
                 ZoneIds.STACK to ZoneSnapshot(ZoneIds.STACK, ZoneType.Stack, null, Visibility.Public, emptyList()),
                 ZoneIds.LIMBO to ZoneSnapshot(ZoneIds.LIMBO, ZoneType.Limbo, null, Visibility.Public, emptyList()),
             ),

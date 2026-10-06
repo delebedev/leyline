@@ -4,7 +4,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
 import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationBuilder
+import leyline.game.annotations.AnnotationContext
 import leyline.game.annotations.AnnotationFrameFinalizer
+import leyline.game.annotations.AnnotationOrderEnforcer
 import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
@@ -110,11 +112,15 @@ object StateProjectionCompiler {
             )
         val selectedOptions = projectSelectedCastOptions(canonical.intent.supplements, planned, editor)
         val supplementAnnotations = projectSupplements(canonical.input, prior, canonical.intent.supplements, planned, editor)
-        val finalized =
-            AnnotationFrameFinalizer.finalize(
-                retainResolutionMarkers(plannedOrder.gsm.annotationsList + supplementAnnotations, editor.annotations),
-                planned.firstAnnotationId,
+        val orderedAnnotations =
+            AnnotationOrderEnforcer.enforce(
+                plannedOrder.gsm.annotationsList + supplementAnnotations,
                 stagedCanonical.previousSnapshot?.let { GsmFrame.from(it).step },
+            )
+        val finalized =
+            AnnotationFrameFinalizer.numberOrdered(
+                retainResolutionMarkers(orderedAnnotations, editor.annotations),
+                planned.firstAnnotationId,
             )
         val shared =
             planned.copy(
@@ -467,7 +473,11 @@ object StateProjectionCompiler {
                 is ProjectionSupplement.ResolutionStarted -> {
                     val entry = supplement.entry
                     val instanceId =
-                        if (entry.isSpell) frameIds.cardIid(entry.forgeCardId) else frameIds.triggerStackAbilityIid(entry.forgeAbilityId)
+                        if (entry.isSpell) {
+                            frameIds.cardIid(entry.forgeCardId)
+                        } else {
+                            InstanceId(AnnotationContext.stackAbilityIid(entry.forgeAbilityId, entry.forgeCardId, frameIds))
+                        }
                     val identity = editor.annotations.ability(instanceId.value)
                     val unresolved =
                         if (entry.isSpell) {

@@ -17,7 +17,16 @@ object AnnotationFrameFinalizer {
     ): FinalizedAnnotationFrame {
         require(firstId > 0) { "Transient annotation IDs must be positive" }
         val ordered = AnnotationOrderEnforcer.enforce(annotations, frameEntryStep)
-        val numbered = ordered.mapIndexed { index, annotation -> annotation.toBuilder().setId(firstId + index).build() }
+        return numberOrdered(ordered, firstId)
+    }
+
+    /** Numbers a frame whose full lifecycle rows have already been ordered. */
+    fun numberOrdered(
+        annotations: List<AnnotationInfo>,
+        firstId: Int,
+    ): FinalizedAnnotationFrame {
+        require(firstId > 0) { "Transient annotation IDs must be positive" }
+        val numbered = annotations.mapIndexed { index, annotation -> annotation.toBuilder().setId(firstId + index).build() }
         return FinalizedAnnotationFrame(numbered, firstId + numbered.size)
     }
 }
