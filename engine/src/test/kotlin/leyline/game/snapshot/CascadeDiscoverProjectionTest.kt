@@ -188,14 +188,19 @@ class CascadeDiscoverProjectionTest :
                 }
             }
 
+            val cascadeStart =
+                projectedStates.flatMap { it.annotationsList }.single {
+                    AnnotationType.ResolutionStart in it.typeList && it.affectorId == cascadeEntry.instanceId
+                }
+            cascadeStart.affectorId shouldBe mixedStack.getObjectInstanceIds(0)
             val beforeCast = messageSnapshot()
             respondToOptionalAction(accept = true)
             val castStates = messagesSince(beforeCast).gameStateMessages()
-            val firstResolution =
-                castStates.flatMap { it.annotationsList }.first {
-                    AnnotationType.ResolutionStart in it.typeList
+            val cascadeCompletion =
+                castStates.flatMap { it.annotationsList }.single {
+                    AnnotationType.ResolutionComplete in it.typeList && it.affectorId == cascadeStart.affectorId
                 }
-            firstResolution.affectorId shouldBe mixedStack.getObjectInstanceIds(0)
+            cascadeCompletion.detailInt("grpid") shouldBe cascadeStart.detailInt("grpid")
             val castingTimeOption =
                 castStates
                     .flatMap { it.persistentAnnotationsList }
