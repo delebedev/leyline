@@ -15,6 +15,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.data.CardProtoBuilder
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
+import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.SeatSnapshot
@@ -42,6 +43,67 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 class StateProjectionCompilerTest :
     FunSpec({
         tags(UnitTag)
+
+        for (pendingKind in listOf("spell", "ability", "reserved ability")) {
+            test("pending $pendingKind is above the existing mixed stack") {
+                val pendingSpell = pendingKind == "spell"
+                val source = ForgeCardId(10)
+                val pending = ForgeCardId(20)
+                val spell = stackAbility(source, 8).copy(isSpell = true, isActivatedAbility = false, grpId = 9001)
+                val existing = listOf(stackAbility(source, 7), spell)
+                val card = CardSnapshot(pending, "Pending Spell", 9001, SeatId(1), SeatId(1))
+                val snapshot =
+                    GsmSnapshot.forTest(
+                        objects = mapOf(source to CardSnapshot(source, "Stack Spell", 9001, SeatId(1), SeatId(1))),
+                        zones =
+                            mapOf(
+                                ZoneIds.STACK to ZoneSnapshot(ZoneIds.STACK, ZoneType.Stack, null, Visibility.Public, listOf(source)),
+                            ),
+                        stack = StackSnapshot(existing),
+                    )
+                val supplement =
+                    if (pendingKind == "reserved ability") {
+                        ProjectionSupplement.ReserveTriggeredAbility(9)
+                    } else if (pendingSpell) {
+                        ProjectionSupplement.PreStackSpell(BoundCard(pending, card, null))
+                    } else {
+                        ProjectionSupplement.PreStackAbility(9, source, 9002, 9001, SeatId(1), SeatId(1), emptyList())
+                    }
+                val result =
+                    StateProjectionCompiler.compileOneViewer(
+                        compilerEnvironment(),
+                        compilerInput(
+                            snapshot,
+                            if (pendingKind == "reserved ability") {
+                                GsmSnapshot.forTest(stack = StackSnapshot(listOf(stackAbility(source, 9)) + existing))
+                            } else {
+                                null
+                            },
+                        ),
+                        ProjectionState.initial(),
+                        ViewerProjectionIntent.of(listOf(supplement)),
+                    )
+                val pendingEntry =
+                    if (pendingSpell) {
+                        spell.copy(forgeCardId = pending, forgeAbilityId = 0)
+                    } else {
+                        stackAbility(source, 9)
+                    }
+                val identities = result.transition.nextState.identities.forgeIdToInstanceId
+                val expected =
+                    listOf(
+                        identities.getValue(if (pendingSpell) pending else FrameIdResolver.triggerStackAbilityForgeId(9)).value,
+                        identities.getValue(FrameIdResolver.triggerStackAbilityForgeId(7)).value,
+                        identities.getValue(source).value,
+                    )
+                assertSoftly {
+                    result.projectionSnapshot.stack.entries shouldContainExactly listOf(pendingEntry) + existing
+                    result.gsm.zonesList
+                        .single { it.zoneId == ZoneIds.STACK }
+                        .objectInstanceIdsList shouldContainExactly expected
+                }
+            }
+        }
 
         test("viewer intent defensively freezes ordered supplements and order values") {
             val supplementValues = mutableListOf<ProjectionSupplement>(ProjectionSupplement.NewTurnStarted)

@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.BoardTag
@@ -153,7 +154,13 @@ class CascadeDiscoverProjectionTest :
             val freeCastActions = freeCastRequest.actionsAvailableReq.actionsList
             val freeCast = freeCastActions.single { it.actionType == ActionType.Cast }
             val exileCard = projectedStates.flatMap { it.gameObjectsList }.first { it.instanceId == freeCast.instanceId }
+            val mixedStack =
+                projectedStates.flatMap { it.zonesList }.first {
+                    it.zoneId == ZoneIds.STACK &&
+                        it.objectInstanceIdsList.containsAll(listOf(cascadeEntry.instanceId, triggeringSource.instanceId))
+                }
             assertSoftly {
+                mixedStack.objectInstanceIdsList shouldContainExactly listOf(cascadeEntry.instanceId, triggeringSource.instanceId)
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
                 cascadeEntry.grpId shouldBe 86
                 cascadeEntry.objectSourceGrpId shouldBe bbeGrpId
@@ -184,6 +191,11 @@ class CascadeDiscoverProjectionTest :
             val beforeCast = messageSnapshot()
             respondToOptionalAction(accept = true)
             val castStates = messagesSince(beforeCast).gameStateMessages()
+            val firstResolution =
+                castStates.flatMap { it.annotationsList }.first {
+                    AnnotationType.ResolutionStart in it.typeList
+                }
+            firstResolution.affectorId shouldBe mixedStack.getObjectInstanceIds(0)
             val castingTimeOption =
                 castStates
                     .flatMap { it.persistentAnnotationsList }
