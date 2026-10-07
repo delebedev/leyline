@@ -170,10 +170,13 @@ internal object ActionAutoTapSupport {
                 val colors = ActivatedActionEmitter.producedManaColors(sa)
                 if (colors.isEmpty()) continue
                 val instanceId = context.instanceId(card)
-                val identitySource = AbilityRegistry.identitySource(sa)
-                val cardData = context.cardData(context.grpId(identitySource))
-                val registry = context.abilityRegistry(identitySource, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa) ?: ActivatedActionEmitter.basicLandAbilityGrpId(card, sa)
+                val abilityGrpId =
+                    AbilityRegistry
+                        .resolveSpellAbility(
+                            sa,
+                            { context.cardData(context.grpId(it)) },
+                            context::abilityRegistry,
+                        )?.abilityGrpId ?: ActivatedActionEmitter.basicLandAbilityGrpId(card, sa)
                 for (color in colors) {
                     sources.add(ManaSource(instanceId, color, abilityGrpId, fromSnow = card.type.isSnow))
                 }

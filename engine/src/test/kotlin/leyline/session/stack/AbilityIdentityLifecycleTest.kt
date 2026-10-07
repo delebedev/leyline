@@ -25,6 +25,40 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 class AbilityIdentityLifecycleTest :
     SessionTest({
         session(
+            "cross-card activation agrees with its object and resolves the offered definition",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Grizzly Bears|Id:1;Presence of Gond|AttachedTo:1;Plains;Plains
+                humanlibrary=Forest;Forest
+                ailibrary=Island;Island
+                """.trimIndent(),
+        ) {
+            val bearIid = human.battlefield.iid("Grizzly Bears")
+            val offer =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Activate_add3 && it.instanceId == bearIid }
+            val row =
+                allMessages
+                    .allGameObjects()
+                    .last { it.instanceId == bearIid }
+                    .uniqueAbilitiesList
+                    .single { it.grpId == offer.abilityGrpId }
+            row.id shouldBe offer.uniqueAbilityId
+            val start = messageSnapshot()
+            submitAction(offer)
+            passUntilResolved()
+            val stack = messagesSince(start).allGameObjects().first { it.type == GameObjectType.Ability && it.parentId == bearIid }
+            stack.grpId shouldBe offer.abilityGrpId
+            human.battlefield.card("Elf Warrior Token")
+        }
+
+        session(
             "Blood token activation retains its source and ability identities",
             puzzle =
                 """

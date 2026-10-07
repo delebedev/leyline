@@ -25,6 +25,7 @@ import leyline.game.codes.DetailKeys
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.ManaSnapshotCapture
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.AbilityRegistry
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import leyline.testkit.detailInt
@@ -220,6 +221,20 @@ class ActionMapperSnapshotTest :
                 val ability = checkNotNull(offer.command.shouldBeInstanceOf<PlayerAction.ActivateAbility>().ability)
                 val stackCopy = ability.copy().also { it.setOriginalAbility(ability) }
                 b.resolveAbilityIdentity(stackCopy.hostCard, stackCopy)?.abilityGrpId shouldBe offer.action.abilityGrpId
+                val identity =
+                    AbilityRegistry.resolveActivated(
+                        ability.hostCard,
+                        stackCopy,
+                        { b.cardRepository.findByGrpId(b.resolveGrpId(it)) },
+                        b::abilityRegistryFor,
+                    )
+                assertSoftly {
+                    identity.definition.definitionId shouldBe ability.definitionId
+                    identity.abilityGrpId shouldBe offer.action.abilityGrpId
+                    identity.uniqueAbilityId shouldBe offer.action.uniqueAbilityId
+                    identity.grant?.sourceForgeCardId shouldBe ForgeCardId(ability.grantorStatic.hostCard.id)
+                    identity.grant?.forgeCardId shouldBe ForgeCardId(guardForgeId)
+                }
             }
 
             val guard = checkNotNull(b.findCard(ForgeCardId(guardForgeId)))
@@ -344,6 +359,16 @@ class ActionMapperSnapshotTest :
                     b.resolveAbilityIdentity(ability.hostCard, ability)?.abilityGrpId shouldBe offer.action.abilityGrpId
                     val stackCopy = ability.copy().also { it.setOriginalAbility(ability) }
                     b.resolveAbilityIdentity(stackCopy.hostCard, stackCopy)?.abilityGrpId shouldBe offer.action.abilityGrpId
+                    val identity =
+                        AbilityRegistry.resolveActivated(
+                            ability.hostCard,
+                            stackCopy,
+                            { b.cardRepository.findByGrpId(b.resolveGrpId(it)) },
+                            b::abilityRegistryFor,
+                        )
+                    identity.definition.definitionId shouldBe original.definitionId
+                    identity.abilityGrpId shouldBe offer.action.abilityGrpId
+                    identity.uniqueAbilityId shouldBe offer.action.uniqueAbilityId
                 }
             }
         }

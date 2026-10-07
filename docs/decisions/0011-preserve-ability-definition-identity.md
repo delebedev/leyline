@@ -149,8 +149,12 @@ window ownership. Its action offers already preserve identity at the action
 source. This ADR continues the identity contract after Forge begins execution
 and across independent event, stack, and prompt lifecycles.
 
-The action catalog should adopt the shared identity value when useful, but this
-work must not reopen action candidate enumeration or response binding.
+The action catalog resolves live activations through `AbilityRegistry`. Its
+immutable `ActivatedIdentity` binds the original definition, catalog row,
+recipient-local unique id, and current continuous-grant fact in one observation.
+Action offers and object effect facts consume the same resolution. `EffectTracker`
+continues to own grant retirement. This does not reopen action candidate
+enumeration or response binding.
 
 ## Migration
 

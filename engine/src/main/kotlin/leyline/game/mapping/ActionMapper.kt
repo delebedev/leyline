@@ -915,14 +915,20 @@ object ActionMapper {
                 if (!ability.canPlay()) continue
                 val canPay = canExecute(ability, player)
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
-                val registry = bridge.abilityRegistryFor(forgeCard, cardData)
-                val abilityGrpId = registry?.forSpellAbility(ability.definitionId) ?: 0
+                val identity =
+                    AbilityRegistry.resolveActivated(
+                        forgeCard,
+                        ability,
+                        { if (it === forgeCard) cardData else bridge.cardRepository.findByGrpId(bridge.resolveGrpId(it)) },
+                        bridge::abilityRegistryFor,
+                    )
+                val abilityGrpId = identity.abilityGrpId
                 ActivatedActionEmitter.emitActivatedAbilityAction(
                     builder = builder,
                     instanceId = instanceId,
                     grpId = cardSnap.grpId,
                     abilityGrpId = abilityGrpId,
-                    uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId),
+                    uniqueAbilityId = identity.uniqueAbilityId,
                     abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana,
                     canPay = canPay,
                     envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,

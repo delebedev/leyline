@@ -7,7 +7,6 @@ import forge.game.GameType
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
-import forge.game.card.CardTraitChanges
 import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.player.PlayerView
@@ -1313,30 +1312,25 @@ class GameBridge(
         card: Card,
         ability: SpellAbility,
     ): ResolvedAbilityIdentity? {
-        val definition =
-            ability.trigger?.let { AbilityDefinitionRef.Trigger(it.definitionId) }
-                ?: AbilityDefinitionRef.SpellAbility(ability.definitionId)
-        val identityCard = if (ability.trigger != null) card else AbilityRegistry.identitySource(ability)
-        val cardData = abilityCardData(identityCard) ?: return null
-        val registry = abilityRegistryFor(identityCard, cardData) ?: return null
-        if (ability.trigger != null) {
-            registry.resolve(definition)?.let { return it }
-            val refreshed = AbilityRegistry.build(identityCard, cardData)
-            abilityRegistries[identityCard.id] = refreshed
-            return refreshed.resolve(definition)
-                ?: ability.trigger
-                    ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
-                    ?.let { refreshed.resolveSoleIntrinsicTrigger(definition as AbilityDefinitionRef.Trigger) }
-                ?: ability.trigger
-                    ?.let { trigger ->
-                        pendingTriggerCleanupAbilityGrpId(trigger.id)
-                            ?: pendingTriggerAbilityGrpId(trigger.id)
-                            ?: resolveSpawningTriggerAbilityGrpId(trigger)
-                    }?.let { ResolvedAbilityIdentity(definition, it) }
+        if (ability.trigger == null) {
+            return AbilityRegistry.resolveSpellAbility(ability, ::abilityCardData, ::abilityRegistryFor)
         }
-        val abilityGrpId = registry.forSpellAbility(ability) ?: return null
-        return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
-            ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+        val definition = AbilityDefinitionRef.Trigger(ability.trigger.definitionId)
+        val cardData = abilityCardData(card) ?: return null
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+        registry.resolve(definition)?.let { return it }
+        val refreshed = AbilityRegistry.build(card, cardData)
+        abilityRegistries[card.id] = refreshed
+        return refreshed.resolve(definition)
+            ?: ability.trigger
+                ?.takeIf { it.isIntrinsic && it.spawningAbility == null }
+                ?.let { refreshed.resolveSoleIntrinsicTrigger(definition) }
+            ?: ability.trigger
+                ?.let { trigger ->
+                    pendingTriggerCleanupAbilityGrpId(trigger.id)
+                        ?: pendingTriggerAbilityGrpId(trigger.id)
+                        ?: resolveSpawningTriggerAbilityGrpId(trigger)
+                }?.let { ResolvedAbilityIdentity(definition, it) }
     }
 
     internal fun openingHandAbilityGrpId(cardName: String): Int? {
@@ -2164,7 +2158,7 @@ class GameBridge(
                     }
                 }
 
-                grantedAbilities += grantedAbilityEntries(card, forgeCardId)
+                grantedAbilities += grantedAbilityEntries(card)
 
                 card.getCrewedByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
                     crew +=
@@ -2233,35 +2227,12 @@ class GameBridge(
             ),
         )
 
-    private fun grantedAbilityEntries(
-        card: Card,
-        forgeCardId: ForgeCardId,
-    ): List<EffectProjectionFacts.GrantedAbilityEntry> {
-        val cardData = cardRepository.findByGrpId(resolveGrpId(card)) ?: return emptyList()
-        return buildList {
-            for (cell in card.changedCardTraits.cellSet()) {
-                for (ability in (cell.value as? CardTraitChanges)?.getAbilities().orEmpty()) {
-                    if (!ability.isActivatedAbility) continue
-                    val grantor = ability.grantorStatic?.hostCard ?: continue
-                    val source = AbilityRegistry.identitySource(ability)
-                    val sourceData = cardRepository.findByGrpId(resolveGrpId(source)) ?: continue
-                    val registry = abilityRegistryFor(source, sourceData) ?: continue
-                    val abilityGrpId = registry.forSpellAbility(ability) ?: continue
-                    val grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, ability) ?: continue
-                    add(
-                        EffectProjectionFacts.GrantedAbilityEntry(
-                            forgeCardId = forgeCardId,
-                            timestamp = cell.rowKey,
-                            staticId = cell.columnKey,
-                            abilityGrpId = abilityGrpId,
-                            uniqueAbilityId = 50 + cardData.abilityIds.size + grantedIndex,
-                            sourceForgeCardId = ForgeCardId(grantor.id),
-                        ),
-                    )
-                }
-            }
-        }
-    }
+    private fun grantedAbilityEntries(card: Card): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        AbilityRegistry.grantedAbilityEntries(
+            card,
+            { cardRepository.findByGrpId(resolveGrpId(it)) },
+            ::abilityRegistryFor,
+        )
 
     /** Resolve boost source ability metadata while the shell owns the live Forge cut. */
     private fun resolveBoostSourceAbilityGrpId(
