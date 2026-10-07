@@ -3,11 +3,17 @@ package leyline.testkit
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.acceptance.AcceptancePaths
 import leyline.acceptance.AcceptanceSuiteLoader
 import leyline.acceptance.MatchdoorAcceptanceExecutor
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantChecker
+import leyline.game.bundle.RuntimeAccumulator
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
@@ -272,7 +278,10 @@ class ProtocolContractMutationTest :
             }
         }
 
-        regression("lightning-bolt.yaml", ::checkDamageMutations)
+        regression("lightning-bolt.yaml") { contract, messages ->
+            checkDamageMutations(contract, messages)
+            checkSpellTransitionMutations(messages)
+        }
         regression("rabbit-battery-target-selection.yaml", ::checkTargetMutations)
         regression("llanowar-elves.yaml", ::checkManaMutations)
         regression("novice-inspector.yaml") { contract, messages ->
@@ -602,6 +611,86 @@ private fun checkCounterMutations(
         }
     withClue("missing initial counter retirement") {
         shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(initialRow.id)) }
+    }
+}
+
+private fun checkSpellTransitionMutations(messages: List<GREToClientMessage>) {
+    InvariantChecker().also { it.processAll(messages) }.violations.shouldBeEmpty()
+    val castIndex =
+        messages.indexOfFirst { message ->
+            message.hasGameStateMessage() &&
+                message.gameStateMessage.annotationsList.any {
+                    AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "CastSpell"
+                }
+        }
+    val frame = messages[castIndex].gameStateMessage
+    val change = frame.annotation(AnnotationType.ObjectIdChanged)
+    val oldId = change.detailInt("orig_id")
+    val newId = change.detailInt("new_id")
+    val prior = RuntimeAccumulator().also { state -> messages.take(castIndex + 1).forEach(state::process) }
+    val hand = prior.zones.getValue(ZoneIds.P1_HAND)
+    val stack = prior.zones.getValue(ZoneIds.STACK)
+    val mutants =
+        listOf(
+            "mismatched pair" to
+                frame
+                    .toBuilder()
+                    .setAnnotations(
+                        frame.annotationsList.indexOf(change),
+                        change.withIntDetail("new_id", newId + 100000),
+                    ).build(),
+            "unmatched successor cannot hide missing projection" to
+                frame
+                    .toBuilder()
+                    .clearGameObjects()
+                    .addAllGameObjects(frame.gameObjectsList.filter { it.instanceId != newId })
+                    .clearZones()
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.STACK })
+                    .addZones(
+                        stack.toBuilder().clearObjectInstanceIds().addAllObjectInstanceIds(
+                            stack.objectInstanceIdsList.filter {
+                                it !=
+                                    newId
+                            },
+                        ),
+                    ).addAnnotations(change.withIntDetail("orig_id", newId).withIntDetail("new_id", newId + 100000))
+                    .build(),
+            "old identity still in hand" to
+                frame
+                    .toBuilder()
+                    .clearZones()
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.P1_HAND })
+                    .addZones(hand.toBuilder().addObjectInstanceIds(oldId))
+                    .build(),
+            "missing stack object" to
+                frame
+                    .toBuilder()
+                    .clearGameObjects()
+                    .addAllGameObjects(frame.gameObjectsList.filter { it.instanceId != newId })
+                    .build(),
+            "missing stack membership" to
+                frame
+                    .toBuilder()
+                    .clearZones()
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.STACK })
+                    .addZones(
+                        stack.toBuilder().clearObjectInstanceIds().addAllObjectInstanceIds(
+                            stack.objectInstanceIdsList.filter { it != newId },
+                        ),
+                    ).build(),
+        )
+    for ((name, mutant) in mutants) {
+        withClue(name) {
+            val altered = messages.replacing(castIndex, messages[castIndex].toBuilder().setGameStateMessage(mutant).build())
+            InvariantChecker()
+                .also {
+                    it.processAll(
+                        altered,
+                    )
+                }.violations
+                .map { it.check }
+                .shouldContain(InvariantCheck.ZoneTransitionIdentity.id)
+        }
     }
 }
 

@@ -11,6 +11,7 @@ import leyline.UnitTag
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -107,6 +108,32 @@ class ValidatingMessageSinkTest :
                     strictSink().send(listOf(greMessage(msgId = 1, gsm = packet)))
                 }.message shouldContain "id=42"
             }
+        }
+
+        test("default strict sink rejects a mismatched ordinary spell identity pair") {
+            val pair =
+                annotation(1, AnnotationType.ObjectIdChanged)
+                    .toBuilder()
+                    .addDetails(intDetail(DetailKeys.ORIG_ID, 100))
+                    .addDetails(intDetail(DetailKeys.NEW_ID, 200))
+                    .build()
+            val transfer =
+                annotation(2, AnnotationType.ZoneTransfer_af5a)
+                    .toBuilder()
+                    .addAffectedIds(201)
+                    .addDetails(intDetail(DetailKeys.ZONE_SRC, ZoneIds.P1_HAND))
+                    .addDetails(intDetail(DetailKeys.ZONE_DEST, ZoneIds.STACK))
+                    .addDetails(KeyValuePairInfo.newBuilder().setKey(DetailKeys.CATEGORY).addValueString("CastSpell"))
+                    .build()
+            val packet =
+                gsm(1, type = GameStateType.Full, annotations = listOf(pair, transfer))
+                    .toBuilder()
+                    .addZones(ZoneInfo.newBuilder().setZoneId(ZoneIds.P1_HAND).setType(ZoneType.Hand))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(ZoneIds.STACK).setType(ZoneType.Stack))
+                    .build()
+            shouldThrow<AssertionError> {
+                strictSink().send(listOf(greMessage(msgId = 1, gsm = packet)))
+            }.message shouldContain "requires one ObjectIdChanged pair"
         }
 
         // --- Positive: clean stream ---

@@ -53,6 +53,23 @@ can create and retire a row before its first viewer-visible emission. Cross-mess
 lifetime and reuse of retired IDs remain outside this packet-local check. Scenario
 contracts retain their distinct lifecycle and gameplay assertions.
 
+The default stream validator also checks ordinary spell identity transitions:
+`CastSpell` from Hand to Stack and `Resolve` from Stack to Graveyard, when both
+zones are known. Each transfer requires a distinct `ObjectIdChanged` pair before
+its affected identity, retirement from active zone lists, and final destination
+membership. Public destinations require a matching object row. Limbo may retain
+old or intermediate identities, hidden destinations need no visible row, and
+same-frame chains defer projection checks only with an ordered successor pair
+and a later transfer from the current destination. Other transfer
+families and shuffle-only identity changes remain outside this check.
+
+`InvariantCheckerTransitionTest` covers malformed pairs, ordering, retirement and projection
+with valid Limbo, hidden and chained controls. The Lightning Bolt contract replay
+also rejects altered cast pairs and destination projection. `OmenLifecycleTest`
+relies on this default check for distinct cast identity and pair ordering, while
+retaining its companion, first-annotation, resolution, shuffle and gameplay
+obligations. The Omen interaction contract retains required transfer emission.
+
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
 numbers. Casting options omit an absent cost or permission field. Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.

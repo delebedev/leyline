@@ -91,17 +91,12 @@ class OmenLifecycleTest :
                 castAnnotations.single {
                     it.isType(AnnotationType.ObjectIdChanged) && it.detailInt("orig_id") == handParentIid
                 }
-            val castTransfer =
-                castAnnotations.single {
-                    it.isType(AnnotationType.ZoneTransfer_af5a) && it.detailString("category") == "CastSpell"
-                }
             val acceptedOmen =
                 castAnnotations.single {
                     it.isType(AnnotationType.UserActionTaken) && it.detailInt("actionType") == ActionType.CastOmen.number
                 }
 
             assertSoftly {
-                stackCard.instanceId shouldNotBe handParentIid
                 stackCompanion.parentId shouldBe stackCard.instanceId
                 stackCompanion.grpId shouldBe 95537
                 stackCompanion.instanceId shouldNotBe handCompanion.instanceId
@@ -112,7 +107,6 @@ class OmenLifecycleTest :
                     .first { it.zoneId == ZoneIds.STACK }
                     .objectInstanceIdsList shouldNotContain stackCompanion.instanceId
                 castAnnotations.indexOf(castObjectIdChanged) shouldBe 0
-                castAnnotations.indexOf(castObjectIdChanged) shouldBeLessThan castAnnotations.indexOf(castTransfer)
                 acceptedOmen.detailInt("abilityGrpId") shouldBe 0
             }
 
