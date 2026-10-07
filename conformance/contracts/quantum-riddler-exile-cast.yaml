@@ -135,6 +135,16 @@ frames:
     fields:
       details.source_zone: [28]
 windows:
+- id: predicted-exile-offer
+  after: exiled
+  before: exile-cast
+  exists:
+    type: Action
+    lane: action
+    op: offer
+    fields: {raw.actionType: Cast, raw.abilityGrpId: 371}
+    equals: {raw.instanceId: exiled.affectorId}
+    present: [raw.autoTapSolution]
 - {id: exile-casting-option-holds, holds: exile-casting-option, until: exile-casting-option-retired}
 - {id: draw-trigger-source-holds, holds: draw-trigger-source, until: draw-trigger-source-retired}
 counts:

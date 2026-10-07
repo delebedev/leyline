@@ -13,7 +13,7 @@ frames:
         type: TriggerHolder
         lane: object
         op: create
-        fields: {raw.zoneId: 30, raw.grpId: 5, raw.uniqueAbilities.length: 1}
+        fields: {raw.zoneId: 30, raw.grpId: 5, raw.uniqueAbilities.length: 1, "raw.uniqueAbilities[0].grpId": 372}
         equals: {raw.parentId: source.affectorId, raw.objectSourceGrpId: source.raw.grpId}
       - id: pending
         type: DelayedTriggerAffectees
@@ -75,6 +75,10 @@ frames:
         sameRow: pending
         equals: {affectedIds: pending.affectedIds}
 counts:
+  - match: {type: TriggerHolder, lane: object}
+    exactly: 1
+  - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [1], details.abilityGrpId: [0]}, equals: {affectedIds: pending.affectedIds, "details.alternativeGrpId[0]": "source.raw.uniqueAbilities[0].grpId"}}
+    exactly: 1
   - match: {type: Ability, lane: object, equals: {raw.grpId: "pending.details.abilityGrpId[0]"}}
     exactly: 1
   - match: {type: AbilityInstanceCreated, lane: transient, equals: {affectedIds: created.affectedIds}}
