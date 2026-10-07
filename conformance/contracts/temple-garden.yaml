@@ -48,7 +48,7 @@ frames:
         type: SyntheticEvent
         lane: transient
         keys: [type]
-        fields: {details.type: [1]}
+        fields: {details.type: [1], affectedIds: [1]}
         equals: {affectorId: replacement.affectorId}
       - id: life-paid
         type: ModifiedLife
@@ -60,7 +60,7 @@ frames:
         type: UserActionTaken
         lane: transient
         keys: [actionType, abilityGrpId]
-        fields: {details.actionType: [3], details.abilityGrpId: [0]}
+        fields: {details.actionType: [3], details.abilityGrpId: [0], affectorId: 1}
         equals: {"affectedIds[0]": "replacement.affectedIds[0]"}
       - id: retired
         type: ReplacementEffect
@@ -68,6 +68,14 @@ frames:
         op: delete
         sameRow: replacement
 counts:
+  - match: {type: ObjectIdChanged, lane: transient}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient}
+    exactly: 1
+  - match: {type: SyntheticEvent, lane: transient}
+    exactly: 1
+  - match: {type: UserActionTaken, lane: transient}
+    exactly: 1
   - match: {type: OptionalActionMessage, lane: prompt}
     exactly: 1
   - match: {type: ModifiedLife, lane: transient, equals: {affectorId: replacement.affectorId}}
