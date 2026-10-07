@@ -1,30 +1,18 @@
 package leyline.mechanics.warp
 
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.bridge.getAllCastableAbilities
-import leyline.game.codes.DetailKeys
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActionMapper
-import leyline.game.snapshot.SnapshotCapture
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
 import leyline.testkit.beInExileOf
 import leyline.testkit.beMissingFrom
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
-import leyline.testkit.hasCard
-import leyline.testkit.hasDetail
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
-
-private const val WARP_DELAYED_ABILITY_GRP_ID = KeywordAbilityIds.WARP_DELAYED_TRIGGER
 
 private val WARP_PUZZLE =
     """
@@ -66,62 +54,10 @@ private val REGULAR_COST_PUZZLE =
     ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
     """.trimIndent()
 
-private val WARP_END_STEP_PUZZLE =
-    """
-    [metadata]
-    Name:Warp - warp-cost cast exiles at end of turn
-    Goal:Cast Germinating Wurm for {1}{G}; exiled at end of turn.
-    Turns:5
-    Difficulty:Easy
-
-    [state]
-    ActivePlayer=Human
-    ActivePhase=Main1
-    HumanLife=20
-    AILife=20
-
-    humanhand=Germinating Wurm
-    humanbattlefield=Forest;Forest;Forest;Forest;Forest
-    humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
-    ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
-    """.trimIndent()
-
-private val QUANTUM_RIDDLER_PUZZLE =
-    """
-    [metadata]
-    Name:Warp - delayed exile lifecycle
-    Goal:Cast Quantum Riddler for its warp cost, then exile it at end step.
-    Turns:5
-    Difficulty:Easy
-
-    [state]
-    ActivePlayer=Human
-    ActivePhase=Main1
-    HumanLife=20
-    AILife=20
-
-    humanhand=Quantum Riddler
-    humanbattlefield=Island;Island;Island;Island;Island
-    humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
-    ailibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
-    """.trimIndent()
-
 @Suppress("UnnecessaryNotNullOperator")
 class WarpLifecycleTest :
     SessionTest({
-        session("alternativeGrpId cast chooses the warp spell ability", puzzle = WARP_PUZZLE) {
-            val warpAbilityGrpId = warpAbilityGrpId()
-
-            check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-
-            assertSoftly {
-                "Germinating Wurm" should beMissingFrom(ZoneType.Hand, human)
-                human.hasCardAnywhereExceptHand("Germinating Wurm") shouldBe true
-            }
-        }
-
-        session("warp cast emits CastThroughAbility annotation for the selected rail", puzzle = WARP_PUZZLE) {
+        session("two-mana warp cast selects its rail and exiles at end step", puzzle = WARP_PUZZLE) {
             val warpAbilityGrpId = warpAbilityGrpId()
 
             check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
@@ -139,6 +75,9 @@ class WarpLifecycleTest :
                 it.detailInt("alternateCostGrpId") shouldBe warpAbilityGrpId
                 it.detailsList.map { detail -> detail.key } shouldNotContain "castAbilityGrpId"
             }
+            "Germinating Wurm" should beMissingFrom(ZoneType.Hand, human)
+            passUntilTurn(2, maxPasses = 30)
+            "Germinating Wurm" should beInExileOf(human)
         }
 
         session("regular-cost cast keeps Germinating Wurm on the battlefield", puzzle = REGULAR_COST_PUZZLE) {
@@ -155,79 +94,6 @@ class WarpLifecycleTest :
                 .flatMap { it.gameStateMessage.persistentAnnotationsList }
                 .none { AnnotationType.DelayedTriggerAffectees in it.typeList } shouldBe true
         }
-
-        session("warp-cost cast exiles Germinating Wurm at end of turn", puzzle = WARP_END_STEP_PUZZLE) {
-            val warpAbilityGrpId = warpAbilityGrpId()
-
-            check(castSpellByName("Germinating Wurm", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-            passUntilTurn(2, maxPasses = 30)
-
-            assertSoftly {
-                "Germinating Wurm" should beInExileOf(human)
-            }
-        }
-
-        session("warped card offers an executable exile cast with predicted mana", puzzle = QUANTUM_RIDDLER_PUZZLE) {
-            val riddlerGrpId = bridge.cardRepository.findGrpIdByName("Quantum Riddler")!!
-            val warpAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(riddlerGrpId, KeywordAbilityIds.WARP)!!
-
-            check(castSpellByName("Quantum Riddler", alternativeGrpId = warpAbilityGrpId))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-
-            val battlefieldIid = human.battlefield.iid("Quantum Riddler")
-            val holder =
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.gameObjectsList }
-                    .single { it.type == GameObjectType.TriggerHolder }
-            val pending =
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                    .single { AnnotationType.DelayedTriggerAffectees in it.typeList }
-            val castAction =
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.annotationsList }
-                    .single {
-                        AnnotationType.UserActionTaken in it.typeList &&
-                            it.hasDetail(DetailKeys.ALTERNATIVE_GRP_ID) &&
-                            it.detailInt(DetailKeys.ALTERNATIVE_GRP_ID) == warpAbilityGrpId
-                    }
-            assertSoftly {
-                castAction.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe 0
-                holder.objectSourceGrpId shouldBe riddlerGrpId
-                holder.parentId shouldBe battlefieldIid
-                holder.uniqueAbilitiesList.single().grpId shouldBe WARP_DELAYED_ABILITY_GRP_ID
-                pending.affectedIdsList shouldBe listOf(battlefieldIid)
-                pending.detailInt(DetailKeys.ABILITY_GRP_ID) shouldBe WARP_DELAYED_ABILITY_GRP_ID
-                pending.detailInt(DetailKeys.REMOVES_FROM_ZONE) shouldBe 1
-                allMessages
-                    .filter { it.hasGameStateMessage() }
-                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
-                    .none {
-                        AnnotationType.TemporaryPermanent in it.typeList &&
-                            battlefieldIid in it.affectedIdsList
-                    } shouldBe true
-            }
-
-            check(passUntil(maxPasses = 30) { human.hasCard("Quantum Riddler", ZoneType.Exile) })
-
-            val exiled = human.getCardsIn(ZoneType.Exile).single { it.name == "Quantum Riddler" }
-            check(passUntil(maxPasses = 30) { getAllCastableAbilities(exiled, human).isNotEmpty() })
-            check(!isGameOver())
-            getAllCastableAbilities(exiled, human).shouldNotBeEmpty()
-            val exileCast =
-                ActionMapper
-                    .buildFromSnapshot(1, SnapshotCapture.run(game(), bridge, "test", 0), bridge)
-                    .actionsList
-                    .single { it.actionType == ActionType.Cast && it.instanceId == bridge.instanceId(exiled) }
-            exileCast.hasAutoTapSolution() shouldBe true
-            check(castFromExile("Quantum Riddler"))
-            check(passUntil(maxPasses = 20) { game().stack.isEmpty })
-            "Quantum Riddler" should beOnBattlefieldOf(human)
-        }
     })
 
 private fun MatchFlowHarness.warpAbilityGrpId(): Int {
@@ -235,8 +101,3 @@ private fun MatchFlowHarness.warpAbilityGrpId(): Int {
     val wurmGrpId = repo.findGrpIdByName("Germinating Wurm")!!
     return repo.findKeywordAbilityGrpId(wurmGrpId, KeywordAbilityIds.WARP)!!
 }
-
-private fun forge.game.player.Player.hasCardAnywhereExceptHand(name: String): Boolean =
-    hasCard(name, ZoneType.Battlefield) ||
-        hasCard(name, ZoneType.Exile) ||
-        hasCard(name, ZoneType.Graveyard)

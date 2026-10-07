@@ -1,6 +1,14 @@
 name: Warp delayed exile lifecycle
 scenario: {suite: mechanics-protocol, id: warp-quantum-riddler}
 frames:
+  - id: warp-cast
+    events:
+      - id: warp-option
+        type: CastingTimeOption
+        lane: persistent
+        op: create
+        keys: [type, alternateCostGrpId]
+        fields: {details.type: [13]}
   - id: source
     events:
       - id: source
@@ -77,7 +85,7 @@ frames:
 counts:
   - match: {type: TriggerHolder, lane: object}
     exactly: 1
-  - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [1], details.abilityGrpId: [0]}, equals: {affectedIds: pending.affectedIds, "details.alternativeGrpId[0]": "source.raw.uniqueAbilities[0].grpId"}}
+  - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [1], details.abilityGrpId: [0]}, equals: {affectedIds: pending.affectedIds, "details.alternativeGrpId[0]": "warp-option.details.alternateCostGrpId[0]"}}
     exactly: 1
   - match: {type: Ability, lane: object, equals: {raw.grpId: "pending.details.abilityGrpId[0]"}}
     exactly: 1

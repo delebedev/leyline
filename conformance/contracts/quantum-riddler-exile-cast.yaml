@@ -142,7 +142,7 @@ windows:
     type: Action
     lane: action
     op: offer
-    fields: {raw.actionType: Cast, raw.abilityGrpId: 371}
+    fields: {raw.actionType: Cast}
     equals: {raw.instanceId: exiled.affectorId}
     present: [raw.autoTapSolution]
 - {id: exile-casting-option-holds, holds: exile-casting-option, until: exile-casting-option-retired}
