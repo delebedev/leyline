@@ -46,32 +46,22 @@ class ProtocolContractMutationTest :
         regression("kaito-phasing-chronology.yaml") { contract, messages ->
             val wrongOrder =
                 messages.map { message ->
-                    if (!message.hasGameStateMessage() ||
-                        message.gameStateMessage.annotationsList.none { AnnotationType.PhasedIn in it.typeList }
-                    ) {
-                        message
-                    } else {
-                        val gsm = message.gameStateMessage
+                    message.mutatingGameState { gsm ->
                         val rows = gsm.annotationsList
-                        val phases = rows.filter { AnnotationType.PhaseOrStepModified in it.typeList }
-                        val rest = rows.filterNot { AnnotationType.PhaseOrStepModified in it.typeList }
-                        message.toBuilder().setGameStateMessage(gsm.toBuilder().clearAnnotations().addAllAnnotations(phases + rest)).build()
+                        if (rows.none { AnnotationType.PhasedIn in it.typeList }) {
+                            gsm
+                        } else {
+                            val phases = rows.filter { AnnotationType.PhaseOrStepModified in it.typeList }
+                            val rest = rows.filterNot { AnnotationType.PhaseOrStepModified in it.typeList }
+                            gsm.clearAnnotations().addAllAnnotations(phases + rest)
+                        }
                     }
                 }
             val duplicate =
                 messages.map { message ->
-                    if (!message.hasGameStateMessage()) {
-                        message
-                    } else {
-                        val gsm = message.gameStateMessage
-                        val inside = gsm.annotationsList.singleOrNull { AnnotationType.PhasedIn in it.typeList }
-                        if (inside ==
-                            null
-                        ) {
-                            message
-                        } else {
-                            message.toBuilder().setGameStateMessage(gsm.toBuilder().addAnnotations(inside)).build()
-                        }
+                    message.mutatingGameState { gsm ->
+                        gsm.annotationsList.singleOrNull { AnnotationType.PhasedIn in it.typeList }?.let(gsm::addAnnotations)
+                        gsm
                     }
                 }
             shouldThrow<AssertionError> { contract.verify(wrongOrder) }
@@ -547,7 +537,7 @@ private fun checkTransformMutations(
         "reallocated transform" to transformed.toBuilder().setInstanceId(0).build(),
         "wrong transform zone" to transformed.toBuilder().setZoneId(29).build(),
     )) {
-        val changed = frame.toBuilder().setGameStateMessage(frame.gameStateMessage.toBuilder().setGameObjects(objectIndex, mutant)).build()
+        val changed = frame.mutatingGameState { it.setGameObjects(objectIndex, mutant) }
         withClue(name) { shouldThrow<AssertionError> { contract.verify(messages.replacing(index, changed)) } }
     }
 }
@@ -758,16 +748,11 @@ private fun checkDamageMutations(
             ).build()
     for ((name, mutant) in listOf(
         "duplicate damage" to
-            frame.toBuilder().setGameStateMessage(frame.gameStateMessage.toBuilder().addAnnotations(damage)).build(),
+            frame.mutatingGameState { it.addAnnotations(damage) },
         "wrong amount" to
-            frame
-                .toBuilder()
-                .setGameStateMessage(
-                    frame.gameStateMessage.toBuilder().setAnnotations(
-                        frame.gameStateMessage.annotationsList.indexOf(damage),
-                        wrongDamage,
-                    ),
-                ).build(),
+            frame.mutatingGameState {
+                it.setAnnotations(frame.gameStateMessage.annotationsList.indexOf(damage), wrongDamage)
+            },
     )) {
         withClue(name) { shouldThrow<AssertionError> { contract.verify(messages.replacing(frameIndex, mutant)) } }
     }
@@ -775,20 +760,11 @@ private fun checkDamageMutations(
     val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
     val premature =
         messages.mapIndexed { index, message ->
-            if (!message.hasGameStateMessage()) {
-                message
-            } else {
-                val deletions = message.gameStateMessage.diffDeletedPersistentAnnotationIdsList.filter { it != row.id }
-                message
-                    .toBuilder()
-                    .setGameStateMessage(
-                        message.gameStateMessage
-                            .toBuilder()
-                            .clearDiffDeletedPersistentAnnotationIds()
-                            .addAllDiffDeletedPersistentAnnotationIds(
-                                deletions + if (index == birth) listOf(row.id) else emptyList(),
-                            ),
-                    ).build()
+            message.mutatingGameState { gsm ->
+                val deletions = gsm.diffDeletedPersistentAnnotationIdsList.filter { it != row.id }
+                gsm.clearDiffDeletedPersistentAnnotationIds().addAllDiffDeletedPersistentAnnotationIds(
+                    deletions + if (index == birth) listOf(row.id) else emptyList(),
+                )
             }
         }
     withClue("premature target retirement") { shouldThrow<AssertionError> { contract.verify(premature) } }
@@ -913,7 +889,7 @@ private fun checkTokenMutations(
         "wrong token parent" to token.toBuilder().setParentId(0).build(),
         "wrong token source" to token.toBuilder().setObjectSourceGrpId(0).build(),
     )) {
-        val changed = frame.toBuilder().setGameStateMessage(frame.gameStateMessage.toBuilder().setGameObjects(tokenIndex, mutant)).build()
+        val changed = frame.mutatingGameState { it.setGameObjects(tokenIndex, mutant) }
         withClue(name) { shouldThrow<AssertionError> { contract.verify(messages.replacing(index, changed)) } }
     }
 }
@@ -924,21 +900,14 @@ private fun List<GREToClientMessage>.mutatingAnnotation(
     mutate: (AnnotationInfo) -> AnnotationInfo,
 ): List<GREToClientMessage> =
     map { message ->
-        if (!message.hasGameStateMessage()) {
-            message
-        } else {
-            val gsm = message.gameStateMessage
+        message.mutatingGameState { gsm ->
             val annotations = if (persistent) gsm.persistentAnnotationsList else gsm.annotationsList
             val changed = annotations.map { if (type in it.typeList) mutate(it) else it }
-            val builder = gsm.toBuilder()
             if (persistent) {
-                builder.clearPersistentAnnotations().addAllPersistentAnnotations(
-                    changed,
-                )
+                gsm.clearPersistentAnnotations().addAllPersistentAnnotations(changed)
             } else {
-                builder.clearAnnotations().addAllAnnotations(changed)
+                gsm.clearAnnotations().addAllAnnotations(changed)
             }
-            message.toBuilder().setGameStateMessage(builder).build()
         }
     }
 
@@ -950,18 +919,14 @@ private fun AnnotationInfo.withIntDetail(
 
 private fun List<GREToClientMessage>.withoutRowDeletion(id: Int): List<GREToClientMessage> =
     map { message ->
-        if (!message.hasGameStateMessage()) {
-            message
-        } else {
-            message
-                .toBuilder()
-                .setGameStateMessage(
-                    message.gameStateMessage.toBuilder().clearDiffDeletedPersistentAnnotationIds().addAllDiffDeletedPersistentAnnotationIds(
-                        message.gameStateMessage.diffDeletedPersistentAnnotationIdsList.filter { it != id },
-                    ),
-                ).build()
+        message.mutatingGameState { gsm ->
+            val remaining = gsm.diffDeletedPersistentAnnotationIdsList.filter { it != id }
+            gsm.clearDiffDeletedPersistentAnnotationIds().addAllDiffDeletedPersistentAnnotationIds(remaining)
         }
     }
+
+private fun GREToClientMessage.mutatingGameState(mutate: (GameStateMessage.Builder) -> GameStateMessage.Builder): GREToClientMessage =
+    if (hasGameStateMessage()) toBuilder().setGameStateMessage(mutate(gameStateMessage.toBuilder())).build() else this
 
 private fun List<GREToClientMessage>.replacing(
     index: Int,
