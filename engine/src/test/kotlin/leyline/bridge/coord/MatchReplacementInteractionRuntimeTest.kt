@@ -22,8 +22,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.PlaybackTerminalFailure
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActivatedActionEmitter
 import leyline.game.mapping.PromptIds
+import leyline.game.state.AbilityRegistry
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -153,7 +153,7 @@ class MatchReplacementInteractionRuntimeTest :
                     val abilityGrpId = checkNotNull(board.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS))
                     val uniqueAbilityId =
                         checkNotNull(
-                            ActivatedActionEmitter.uniqueAbilityIdFor(
+                            AbilityRegistry.uniqueAbilityIdFor(
                                 checkNotNull(board.bridge.cardRepository.findByGrpId(grpId)),
                                 abilityGrpId,
                             ),

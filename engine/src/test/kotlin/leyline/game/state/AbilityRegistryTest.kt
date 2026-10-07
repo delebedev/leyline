@@ -141,12 +141,14 @@ class AbilityRegistryTest :
                     .filter { it.isActivatedAbility && !it.isManaAbility() }
             granted.shouldHaveSize(1)
             val ability = granted.single()
-            val registry = AbilityRegistry.build(card, CardDataDeriver.fromForgeCard(card, card.name))
+            val data = CardDataDeriver.fromForgeCard(card, card.name)
+            val registry = AbilityRegistry.build(card, data)
 
             assertSoftly {
                 ability.grantorStatic.hostCard shouldBe card
                 registry.grantedAbilityGrpId(ability) shouldBe 179264
-                AbilityRegistry.grantedAbilityUniqueIndex(card, ability) shouldBe 0
+                AbilityRegistry.resolveActivated(card, ability, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
+                    50 + data.abilityIds.size
             }
         }
 
@@ -167,7 +169,8 @@ class AbilityRegistryTest :
                     .cellSet()
                     .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
                     .single { it.isActivatedAbility && !it.isManaAbility() }
-            val registry = AbilityRegistry.build(card, CardDataDeriver.fromForgeCard(card, card.name))
+            val data = CardDataDeriver.fromForgeCard(card, card.name)
+            val registry = AbilityRegistry.build(card, data)
 
             registry.forSpellAbility(first) shouldBe 179264
 
@@ -187,8 +190,10 @@ class AbilityRegistryTest :
                 registry.forSpellAbility(first) shouldBe 179264
                 registry.forSpellAbility(second) shouldBe 179264
                 second.definitionId shouldBe first.definitionId
-                AbilityRegistry.grantedAbilityUniqueIndex(card, first) shouldBe 0
-                AbilityRegistry.grantedAbilityUniqueIndex(card, second) shouldBe 1
+                AbilityRegistry.resolveActivated(card, first, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
+                    50 + data.abilityIds.size
+                AbilityRegistry.resolveActivated(card, second, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
+                    51 + data.abilityIds.size
             }
         }
 

@@ -10,6 +10,7 @@ import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
 import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.AbilityKeywordFamily
+import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ResolvedAbilityIdentity
 import leyline.game.codes.SlotEntry
 import leyline.game.codes.SlotKind
@@ -90,26 +91,115 @@ class AbilityRegistry private constructor(
     }
 
     companion object {
+        private const val INITIAL_UNIQUE_ABILITY_ID = 50
+
         /** Copied abilities use the original definition's catalog, rather than the copying effect's catalog. */
-        fun identitySource(ability: SpellAbility): Card =
+        private fun identitySource(ability: SpellAbility): Card =
             ability.originalAbility?.let(::identitySource) ?: ability.grantorStatic?.hostCard ?: ability.hostCard
 
-        /** Shared ordinal for activated grants, including mana abilities. */
-        fun grantedAbilityUniqueIndex(
+        /** Resolve the original definition's catalog without retaining a live ability. */
+        fun resolveSpellAbility(
+            ability: SpellAbility,
+            cardDataLookup: (Card) -> CardData?,
+            registryLookup: (Card, CardData?) -> AbilityRegistry?,
+        ): ResolvedAbilityIdentity? {
+            val source = identitySource(ability)
+            val registry = registryLookup(source, cardDataLookup(source)) ?: return null
+            val abilityGrpId = registry.forSpellAbility(ability) ?: return null
+            val original = generateSequence(ability) { it.originalAbility }.last()
+            val definition = AbilityDefinitionRef.SpellAbility(original.definitionId)
+            return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
+                ?: ResolvedAbilityIdentity(definition, abilityGrpId)
+        }
+
+        /** Immutable identity observed while the caller owns the live Forge graph. */
+        data class ActivatedIdentity(
+            val definition: AbilityDefinitionRef.SpellAbility,
+            val abilityGrpId: Int,
+            val uniqueAbilityId: Int?,
+            val grant: EffectProjectionFacts.GrantedAbilityEntry?,
+        )
+
+        /** Resolve definition, catalog row, recipient ordinal, and current grant lifetime together. */
+        fun resolveActivated(
             card: Card,
             ability: SpellAbility,
-        ): Int? {
+            cardDataLookup: (Card) -> CardData?,
+            registryLookup: (Card, CardData?) -> AbilityRegistry?,
+            fallbackAbilityGrpId: Int = 0,
+        ): ActivatedIdentity {
+            val resolved = resolveSpellAbility(ability, cardDataLookup, registryLookup)
+            val abilityGrpId = resolved?.abilityGrpId ?: fallbackAbilityGrpId
+            val cardData = cardDataLookup(card)
             val grants =
-                card.changedCardTraits
-                    .cellSet()
-                    .flatMap { (it.value as? CardTraitChanges)?.getAbilities().orEmpty() }
+                card.changedCardTraits.cellSet().flatMap { cell ->
+                    (cell.value as? CardTraitChanges)
+                        ?.getAbilities()
+                        .orEmpty()
+                        .filter { it.isActivatedAbility && it.grantorStatic != null }
+                        .map { Triple(it, cell.rowKey, cell.columnKey) }
+                }
+            val grantIndex =
+                grants.indexOfFirst { it.first.id == ability.id }.takeIf { it >= 0 }
+                    ?: grants
+                        .withIndex()
+                        .singleOrNull {
+                            it.value.first.definitionId == ability.definitionId && it.value.first.grantorStatic == ability.grantorStatic
+                        }?.index
+            val uniqueAbilityId =
+                if (abilityGrpId != 0 && cardData != null && grantIndex != null) {
+                    INITIAL_UNIQUE_ABILITY_ID + cardData.abilityIds.size + grantIndex
+                } else {
+                    uniqueAbilityIdFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
+                }
+            val grant =
+                grantIndex?.let { index ->
+                    val (_, timestamp, staticId) = grants[index]
+                    val grantor = ability.grantorStatic?.hostCard
+                    if (cardData == null || uniqueAbilityId == null || grantor == null) {
+                        null
+                    } else {
+                        EffectProjectionFacts.GrantedAbilityEntry(
+                            ForgeCardId(card.id),
+                            timestamp,
+                            staticId,
+                            abilityGrpId,
+                            uniqueAbilityId,
+                            ForgeCardId(grantor.id),
+                        )
+                    }
+                }
+            val original = generateSequence(ability) { it.originalAbility }.last()
+            return ActivatedIdentity(AbilityDefinitionRef.SpellAbility(original.definitionId), abilityGrpId, uniqueAbilityId, grant)
+        }
+
+        /** Current grant facts; effect allocation and retirement remain with EffectTracker. */
+        fun grantedAbilityEntries(
+            card: Card,
+            cardDataLookup: (Card) -> CardData?,
+            registryLookup: (Card, CardData?) -> AbilityRegistry?,
+        ): List<EffectProjectionFacts.GrantedAbilityEntry> =
+            card.changedCardTraits.cellSet().flatMap { cell ->
+                (cell.value as? CardTraitChanges)
+                    ?.getAbilities()
+                    .orEmpty()
                     .filter { it.isActivatedAbility && it.grantorStatic != null }
-            grants.indexOfFirst { it.id == ability.id }.takeIf { it >= 0 }?.let { return it }
-            return grants
-                .withIndex()
-                .singleOrNull {
-                    it.value.definitionId == ability.definitionId && it.value.grantorStatic == ability.grantorStatic
-                }?.index
+                    .mapNotNull { resolveActivated(card, it, cardDataLookup, registryLookup).grant }
+            }
+
+        internal fun uniqueAbilityIdFor(
+            cardData: CardData?,
+            abilityGrpId: Int,
+            fallbackWhenUnmapped: Boolean = false,
+        ): Int? {
+            if (abilityGrpId == 0) return null
+            if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
+            val index = cardData.abilityIds.indexOfFirst { it.first == abilityGrpId }
+            return when {
+                index >= 0 -> INITIAL_UNIQUE_ABILITY_ID + index
+                fallbackWhenUnmapped -> INITIAL_UNIQUE_ABILITY_ID
+                else -> null
+            }
         }
 
         /** Empty registry — no mappings. */

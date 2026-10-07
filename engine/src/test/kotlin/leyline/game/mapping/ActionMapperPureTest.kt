@@ -8,6 +8,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.game.data.CardData
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.AbilityRegistry
 import leyline.testkit.BoardTest
 import leyline.testkit.haveManaCost
 import leyline.testkit.mana
@@ -107,8 +108,8 @@ class ActionMapperPureTest :
                 )
 
             assertSoftly {
-                ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId = 100) shouldBe null
-                ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId = 100, fallbackWhenUnmapped = true) shouldBe 50
+                AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId = 100) shouldBe null
+                AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId = 100, fallbackWhenUnmapped = true) shouldBe 50
             }
         }
 

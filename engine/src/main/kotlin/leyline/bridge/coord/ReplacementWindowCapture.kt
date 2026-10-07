@@ -9,7 +9,7 @@ import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import leyline.game.data.KeywordAbilityIds
-import leyline.game.mapping.ActivatedActionEmitter
+import leyline.game.state.AbilityRegistry
 
 /** Captures a projectable, keyword-backed replacement window on the engine thread. */
 internal class ReplacementWindowCapture(
@@ -38,7 +38,7 @@ internal class ReplacementWindowCapture(
                 if (grpId == 0) return null
                 val cardData = owner.bridge.cardRepository.findByGrpId(grpId) ?: return null
                 val abilityGrpId = owner.bridge.cardRepository.findKeywordAbilityGrpId(grpId, KeywordAbilityIds.MADNESS) ?: return null
-                val uniqueAbilityId = ActivatedActionEmitter.uniqueAbilityIdFor(cardData, abilityGrpId) ?: return null
+                val uniqueAbilityId = AbilityRegistry.uniqueAbilityIdFor(cardData, abilityGrpId) ?: return null
                 ReplacementOptionValue(index, hostId, uniqueAbilityId, abilityGrpId)
             }
         if (options.map { it.hostForgeCardId }.distinct().size != options.size) return null

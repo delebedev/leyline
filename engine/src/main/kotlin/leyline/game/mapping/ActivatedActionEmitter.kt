@@ -38,7 +38,6 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectionValidationType
  */
 internal object ActivatedActionEmitter {
     private const val INITIAL_MANA_ID = 10
-    private const val INITIAL_UNIQUE_ABILITY_ID = 50
 
     enum class Envelope(
         val includesSourceIdentity: Boolean,
@@ -83,18 +82,20 @@ internal object ActivatedActionEmitter {
                 }
             val actionInstanceId = instanceId()
             val actionGrpId = grpId(card)
-            val actionCardData = cardData(actionGrpId)
-            val identityCard = AbilityRegistry.identitySource(ability)
-            val identityCardData = cardData(grpId(identityCard))
-            val registry = abilityRegistryLookup(identityCard, identityCardData)
-            val abilityGrpId = registry?.forSpellAbility(ability) ?: 0
-            val grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, ability)
+            val identity =
+                AbilityRegistry.resolveActivated(
+                    card,
+                    ability,
+                    { cardData(grpId(it)) },
+                    abilityRegistryLookup,
+                )
+            val abilityGrpId = identity.abilityGrpId
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
                 grpId = actionGrpId,
                 abilityGrpId = abilityGrpId,
-                uniqueAbilityId = uniqueAbilityIdFor(actionCardData, abilityGrpId, grantedIndex = grantedIndex),
+                uniqueAbilityId = identity.uniqueAbilityId,
                 abilityCost = abilityCost,
                 autoTapSolution = autoTap,
                 canPay = canPay,
@@ -161,12 +162,10 @@ internal object ActivatedActionEmitter {
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
         abilities: List<SpellAbility> = getPlayableManaAbilities(card, card.controller),
     ): List<ManaAction> {
-        val cardData = cardDataLookup(card)
         return distinctManaAbilities(card, abilities).mapNotNull { (abilityIndex, sa) ->
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val source = AbilityRegistry.identitySource(sa)
-            val registry = abilityRegistryLookup(source, cardDataLookup(source))
-            val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
+            val identity = AbilityRegistry.resolveActivated(card, sa, cardDataLookup, abilityRegistryLookup, basicLandAbilityGrpId)
+            val abilityGrpId = identity.abilityGrpId
             val colors = producedManaColors(sa)
             if (colors.isEmpty()) return@mapNotNull null
 
@@ -179,12 +178,7 @@ internal object ActivatedActionEmitter {
                     .setFacetId(instanceId)
                     .setIsBatchable(true)
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            uniqueAbilityIdFor(
-                cardData,
-                abilityGrpId,
-                fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
-                grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, sa),
-            )?.let(actionBuilder::setUniqueAbilityId)
+            identity.uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
 
             for ((idx, manaColor) in colors.withIndex()) {
                 val manaInfo =
@@ -241,14 +235,12 @@ internal object ActivatedActionEmitter {
         cardDataLookup: (Card) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): List<Action> {
-        val cardData = cardDataLookup(card)
         return distinctManaAbilities(card, card.manaAbilities).mapNotNull { (_, sa) ->
             sa.setActivatingPlayer(card.controller)
             if (sa.canPlay()) return@mapNotNull null
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
-            val source = AbilityRegistry.identitySource(sa)
-            val registry = abilityRegistryLookup(source, cardDataLookup(source))
-            val abilityGrpId = registry?.forSpellAbility(sa) ?: basicLandAbilityGrpId
+            val identity = AbilityRegistry.resolveActivated(card, sa, cardDataLookup, abilityRegistryLookup, basicLandAbilityGrpId)
+            val abilityGrpId = identity.abilityGrpId
             val actionBuilder =
                 Action
                     .newBuilder()
@@ -259,12 +251,7 @@ internal object ActivatedActionEmitter {
             actionBuilder
                 .apply {
                     if (abilityGrpId != 0) setAbilityGrpId(abilityGrpId)
-                    uniqueAbilityIdFor(
-                        cardData,
-                        abilityGrpId,
-                        fallbackWhenUnmapped = abilityGrpId == basicLandAbilityGrpId,
-                        grantedIndex = AbilityRegistry.grantedAbilityUniqueIndex(card, sa),
-                    )?.let(::setUniqueAbilityId)
+                    identity.uniqueAbilityId?.let(::setUniqueAbilityId)
                 }
             sa.payCosts
                 ?.totalMana
@@ -326,23 +313,6 @@ internal object ActivatedActionEmitter {
             existing.additionalAbilityLists.isEmpty()
 
     private fun Map<String, String>.withoutSecondaryMarker(): Map<String, String> = this - "Secondary"
-
-    fun uniqueAbilityIdFor(
-        cardData: CardData?,
-        abilityGrpId: Int,
-        fallbackWhenUnmapped: Boolean = false,
-        grantedIndex: Int? = null,
-    ): Int? {
-        if (abilityGrpId == 0) return null
-        if (cardData == null) return INITIAL_UNIQUE_ABILITY_ID
-        grantedIndex?.let { return INITIAL_UNIQUE_ABILITY_ID + cardData.abilityIds.size + it }
-        val index = cardData.abilityIds.indexOfFirst { (grpId, _) -> grpId == abilityGrpId }
-        return when {
-            index >= 0 -> INITIAL_UNIQUE_ABILITY_ID + index
-            fallbackWhenUnmapped -> INITIAL_UNIQUE_ABILITY_ID
-            else -> null
-        }
-    }
 
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {
         if (sa.api == ApiType.ManaReflected) {
