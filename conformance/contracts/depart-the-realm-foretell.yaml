@@ -47,3 +47,12 @@ frames:
         op: create
         keys: []
         equals: {affectorId: face-down.affectorId, affectedIds: face-down.affectedIds}
+  - id: later-offer
+    events:
+      - id: offer
+        type: Action
+        lane: action
+        op: offer
+        where: {equals: {raw.instanceId: exile-card.affectorId}}
+        fields: {raw.actionType: Cast, raw.abilityGrpId: 0}
+        equals: {raw.alternativeGrpId: "source.raw.uniqueAbilities[0].grpId"}
