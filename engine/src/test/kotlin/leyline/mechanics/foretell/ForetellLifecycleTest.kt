@@ -15,7 +15,10 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class ForetellLifecycleTest :
     SessionTest({
-        session("local face-down rows survive exile and retire on cast announcement", puzzleFile = "data/puzzles/foretell-depart-the-realm.pzl") {
+        session(
+            "local face-down rows survive exile and retire on cast announcement",
+            puzzleFile = "data/puzzles/foretell-depart-the-realm.pzl",
+        ) {
             val cardGrpId = bridge.cardRepository.findGrpIdByName("Depart the Realm")!!
             val foretellAbilityGrpId =
                 bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.FORETELL)!!
