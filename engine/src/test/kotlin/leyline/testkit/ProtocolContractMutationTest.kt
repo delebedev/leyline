@@ -639,6 +639,22 @@ private fun checkSpellTransitionMutations(messages: List<GREToClientMessage>) {
                         frame.annotationsList.indexOf(change),
                         change.withIntDetail("new_id", newId + 100000),
                     ).build(),
+            "unmatched successor cannot hide missing projection" to
+                frame
+                    .toBuilder()
+                    .clearGameObjects()
+                    .addAllGameObjects(frame.gameObjectsList.filter { it.instanceId != newId })
+                    .clearZones()
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.STACK })
+                    .addZones(
+                        stack.toBuilder().clearObjectInstanceIds().addAllObjectInstanceIds(
+                            stack.objectInstanceIdsList.filter {
+                                it !=
+                                    newId
+                            },
+                        ),
+                    ).addAnnotations(change.withIntDetail("orig_id", newId).withIntDetail("new_id", newId + 100000))
+                    .build(),
             "old identity still in hand" to
                 frame
                     .toBuilder()

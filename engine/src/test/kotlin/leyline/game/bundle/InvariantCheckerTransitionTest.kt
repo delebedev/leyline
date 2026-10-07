@@ -92,6 +92,12 @@ class InvariantCheckerTransitionTest :
                     clean.toBuilder().setAnnotations(1, cast.toBuilder().clearAffectedIds().addAffectedIds(201)).build(),
                     clean.toBuilder().setZones(0, zone(ZoneIds.P1_HAND, ZoneType.Hand, 100)).build(),
                     clean.toBuilder().clearGameObjects().build(),
+                    clean
+                        .toBuilder()
+                        .clearGameObjects()
+                        .setZones(1, zone(ZoneIds.STACK, ZoneType.Stack))
+                        .addAnnotations(change(200, 300))
+                        .build(),
                     clean.toBuilder().setZones(1, zone(ZoneIds.STACK, ZoneType.Stack)).build(),
                     clean
                         .toBuilder()
@@ -138,6 +144,9 @@ class InvariantCheckerTransitionTest :
                 check(chain).shouldBeEmpty()
                 check(chain.toBuilder().setZones(1, zone(ZoneIds.STACK, ZoneType.Stack, 200)).build()).shouldNotBeEmpty()
                 check(chain.toBuilder().clearGameObjects().build()).shouldNotBeEmpty()
+                check(
+                    chain.toBuilder().setAnnotations(3, transfer(300, ZoneIds.P1_HAND, ZoneIds.P1_GRAVEYARD, "Resolve")).build(),
+                ).shouldNotBeEmpty()
             }
         }
     })

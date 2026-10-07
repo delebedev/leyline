@@ -59,7 +59,8 @@ zones are known. Each transfer requires a distinct `ObjectIdChanged` pair before
 its affected identity, retirement from active zone lists, and final destination
 membership. Public destinations require a matching object row. Limbo may retain
 old or intermediate identities, hidden destinations need no visible row, and
-same-frame chains defer projection checks to the final transfer. Other transfer
+same-frame chains defer projection checks only with an ordered successor pair
+and a later transfer from the current destination. Other transfer
 families and shuffle-only identity changes remain outside this check.
 
 `InvariantCheckerTransitionTest` covers malformed pairs, ordering, retirement and projection

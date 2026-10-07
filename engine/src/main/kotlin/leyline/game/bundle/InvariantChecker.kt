@@ -593,7 +593,7 @@ class InvariantChecker(
                 }
                 checkRetired(oldId)
                 // A same-frame successor owns the final projection; intermediate IDs may remain in Limbo.
-                if (changes.any { it.detailInt(DetailKeys.ORIG_ID) == newId }) {
+                if (hasSuccessorTransfer(gsm, change, transfer)) {
                     checkRetired(newId)
                     continue
                 }
@@ -601,6 +601,23 @@ class InvariantChecker(
             }
         }
     }
+
+    private fun hasSuccessorTransfer(
+        gsm: GameStateMessage,
+        change: AnnotationInfo,
+        transfer: AnnotationInfo,
+    ): Boolean =
+        gsm.annotationsList.any { successor ->
+            AnnotationType.ObjectIdChanged in successor.typeList &&
+                successor.detailInt(DetailKeys.ORIG_ID) == change.detailInt(DetailKeys.NEW_ID) &&
+                gsm.annotationsList.indexOf(successor) > gsm.annotationsList.indexOf(change) &&
+                gsm.annotationsList.drop(gsm.annotationsList.indexOf(transfer) + 1).any { later ->
+                    AnnotationType.ZoneTransfer_af5a in later.typeList &&
+                        successor.detailInt(DetailKeys.NEW_ID) in later.affectedIdsList &&
+                        later.detailInt(DetailKeys.ZONE_SRC) == transfer.detailInt(DetailKeys.ZONE_DEST) &&
+                        gsm.annotationsList.indexOf(successor) < gsm.annotationsList.indexOf(later)
+                }
+        }
 
     private fun isOrdinarySpellTransfer(
         source: ZoneType,
