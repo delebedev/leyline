@@ -3,6 +3,7 @@ package leyline.behavior.cards
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
@@ -52,6 +53,7 @@ class ShockLandEtbTest :
             human.life shouldBe 20
             phase() shouldBe "MAIN1"
 
+            val oldIid = human.hand.iid("Temple Garden")
             val promptStart = messageSnapshot()
             playShockLandUntilChoice()
             val promptMessages = messagesSince(promptStart)
@@ -62,16 +64,28 @@ class ShockLandEtbTest :
 
             assertSoftly {
                 replacement.detailInt(DetailKeys.GRPID) shouldBe 90846
+                replacement.detailInt(DetailKeys.REPLACEMENT_SOURCE_ZCID) shouldBe oldIid
                 checkNotNull(ghost).grpId shouldBe 98590
             }
 
             // Accept — pay 2 life
+            val responseStart = messageSnapshot()
             respondToOptionalAction(true)
+            val annotations = messagesSince(responseStart).allAnnotations()
+            val expectedTypes = listOf(
+                AnnotationType.ObjectIdChanged,
+                AnnotationType.ZoneTransfer_af5a,
+                AnnotationType.SyntheticEvent,
+                AnnotationType.ModifiedLife,
+                AnnotationType.UserActionTaken,
+            )
             // Verify: life=18, Temple Garden on battlefield untapped
             val bf = human.getZone(ZoneType.Battlefield).cards
             val templeGarden = bf.firstOrNull { it.name == "Temple Garden" }
             checkNotNull(templeGarden) { "Temple Garden should be on battlefield" }
             assertSoftly {
+                annotations.map { it.getType(0) }.filter { it in expectedTypes } shouldContainExactly expectedTypes
+                for (type in expectedTypes) annotations.count { type in it.typeList } shouldBe 1
                 human.life shouldBe 18
                 templeGarden.isTapped shouldBe false
             }

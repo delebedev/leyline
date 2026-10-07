@@ -42,7 +42,7 @@ frames:
         type: ZoneTransfer
         lane: transient
         keys: [zone_src, zone_dest, category]
-        fields: {details.zone_src: [31], details.zone_dest: [28], details.category: [PlayLand]}
+        fields: {details.zone_src: [31], details.zone_dest: [28], details.category: [PlayLand], affectedIds.length: 1}
         equals: {"affectedIds[0]": "replacement.affectedIds[0]"}
       - id: payment
         type: SyntheticEvent
@@ -60,7 +60,7 @@ frames:
         type: UserActionTaken
         lane: transient
         keys: [actionType, abilityGrpId]
-        fields: {details.actionType: [3], details.abilityGrpId: [0], affectorId: 1}
+        fields: {details.actionType: [3], details.abilityGrpId: [0], affectorId: 1, affectedIds.length: 1}
         equals: {"affectedIds[0]": "replacement.affectedIds[0]"}
       - id: retired
         type: ReplacementEffect
@@ -68,14 +68,6 @@ frames:
         op: delete
         sameRow: replacement
 counts:
-  - match: {type: ObjectIdChanged, lane: transient}
-    exactly: 1
-  - match: {type: ZoneTransfer, lane: transient}
-    exactly: 1
-  - match: {type: SyntheticEvent, lane: transient}
-    exactly: 1
-  - match: {type: UserActionTaken, lane: transient}
-    exactly: 1
   - match: {type: OptionalActionMessage, lane: prompt}
     exactly: 1
   - match: {type: ModifiedLife, lane: transient, equals: {affectorId: replacement.affectorId}}
