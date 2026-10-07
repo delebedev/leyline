@@ -577,10 +577,7 @@ class InvariantChecker(
                     .firstOrNull { it.key == DetailKeys.CATEGORY }
                     ?.valueStringList
                     ?.firstOrNull()
-            val selected =
-                (source.type == ZoneType.Hand && destination.type == ZoneType.Stack && category == TransferCategory.CastSpell.label) ||
-                    (source.type == ZoneType.Stack && destination.type == ZoneType.Graveyard && category == TransferCategory.Resolve.label)
-            if (!selected) continue
+            if (!isOrdinarySpellTransfer(source.type, destination.type, category)) continue
             if (transfer.affectedIdsCount == 0) fail("ZoneTransfer requires an affected identity")
             for (newId in transfer.affectedIdsList) {
                 val pairs = changes.filter { it.detailInt(DetailKeys.NEW_ID) == newId }
@@ -600,15 +597,32 @@ class InvariantChecker(
                     checkRetired(newId)
                     continue
                 }
-                if (newId !in destination.objectInstanceIdsList) {
-                    fail("ZoneTransfer iid=$newId missing from destination zone=${destination.zoneId}")
-                }
-                if (destination.visibility != Visibility.Hidden && destination.visibility != Visibility.Private) {
-                    val obj = accumulator.objects[newId]
-                    if (obj == null || obj.zoneId != destination.zoneId) {
-                        fail("ZoneTransfer iid=$newId missing destination object zone=${destination.zoneId}")
-                    }
-                }
+                checkFinalTransitionProjection(gsm.gameStateId, newId, destination)
+            }
+        }
+    }
+
+    private fun isOrdinarySpellTransfer(
+        source: ZoneType,
+        destination: ZoneType,
+        category: String?,
+    ): Boolean =
+        (source == ZoneType.Hand && destination == ZoneType.Stack && category == TransferCategory.CastSpell.label) ||
+            (source == ZoneType.Stack && destination == ZoneType.Graveyard && category == TransferCategory.Resolve.label)
+
+    private fun checkFinalTransitionProjection(
+        gsId: Int,
+        newId: Int,
+        destination: ZoneInfo,
+    ) {
+        fun fail(message: String) = record(gsId, InvariantCheck.ZoneTransitionIdentity.id, message)
+        if (newId !in destination.objectInstanceIdsList) {
+            fail("ZoneTransfer iid=$newId missing from destination zone=${destination.zoneId}")
+        }
+        if (destination.visibility != Visibility.Hidden && destination.visibility != Visibility.Private) {
+            val obj = accumulator.objects[newId]
+            if (obj == null || obj.zoneId != destination.zoneId) {
+                fail("ZoneTransfer iid=$newId missing destination object zone=${destination.zoneId}")
             }
         }
     }

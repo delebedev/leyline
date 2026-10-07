@@ -11,6 +11,7 @@ import leyline.UnitTag
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantSelection
 import leyline.game.codes.DetailKeys
+import leyline.game.mapping.ZoneIds
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -120,15 +121,15 @@ class ValidatingMessageSinkTest :
                 annotation(2, AnnotationType.ZoneTransfer_af5a)
                     .toBuilder()
                     .addAffectedIds(201)
-                    .addDetails(intDetail(DetailKeys.ZONE_SRC, 31))
-                    .addDetails(intDetail(DetailKeys.ZONE_DEST, 27))
+                    .addDetails(intDetail(DetailKeys.ZONE_SRC, ZoneIds.P1_HAND))
+                    .addDetails(intDetail(DetailKeys.ZONE_DEST, ZoneIds.STACK))
                     .addDetails(KeyValuePairInfo.newBuilder().setKey(DetailKeys.CATEGORY).addValueString("CastSpell"))
                     .build()
             val packet =
                 gsm(1, type = GameStateType.Full, annotations = listOf(pair, transfer))
                     .toBuilder()
-                    .addZones(ZoneInfo.newBuilder().setZoneId(31).setType(ZoneType.Hand))
-                    .addZones(ZoneInfo.newBuilder().setZoneId(27).setType(ZoneType.Stack))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(ZoneIds.P1_HAND).setType(ZoneType.Hand))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(ZoneIds.STACK).setType(ZoneType.Stack))
                     .build()
             shouldThrow<AssertionError> {
                 strictSink().send(listOf(greMessage(msgId = 1, gsm = packet)))

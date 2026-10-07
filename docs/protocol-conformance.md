@@ -62,12 +62,12 @@ old or intermediate identities, hidden destinations need no visible row, and
 same-frame chains defer projection checks to the final transfer. Other transfer
 families and shuffle-only identity changes remain outside this check.
 
-`InvariantCheckerTest` covers malformed pairs, ordering, retirement and projection
+`InvariantCheckerTransitionTest` covers malformed pairs, ordering, retirement and projection
 with valid Limbo, hidden and chained controls. The Lightning Bolt contract replay
 also rejects altered cast pairs and destination projection. `OmenLifecycleTest`
 relies on this default check for distinct cast identity and pair ordering, while
 retaining its companion, first-annotation, resolution, shuffle and gameplay
-obligations.
+obligations. The Omen interaction contract retains required transfer emission.
 
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent

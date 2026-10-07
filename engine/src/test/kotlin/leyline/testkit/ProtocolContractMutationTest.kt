@@ -13,6 +13,7 @@ import leyline.acceptance.MatchdoorAcceptanceExecutor
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantChecker
 import leyline.game.bundle.RuntimeAccumulator
+import leyline.game.mapping.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
@@ -627,8 +628,8 @@ private fun checkSpellTransitionMutations(messages: List<GREToClientMessage>) {
     val oldId = change.detailInt("orig_id")
     val newId = change.detailInt("new_id")
     val prior = RuntimeAccumulator().also { state -> messages.take(castIndex + 1).forEach(state::process) }
-    val hand = prior.zones.getValue(31)
-    val stack = prior.zones.getValue(27)
+    val hand = prior.zones.getValue(ZoneIds.P1_HAND)
+    val stack = prior.zones.getValue(ZoneIds.STACK)
     val mutants =
         listOf(
             "mismatched pair" to
@@ -642,7 +643,7 @@ private fun checkSpellTransitionMutations(messages: List<GREToClientMessage>) {
                 frame
                     .toBuilder()
                     .clearZones()
-                    .addAllZones(frame.zonesList.filter { it.zoneId != 31 })
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.P1_HAND })
                     .addZones(hand.toBuilder().addObjectInstanceIds(oldId))
                     .build(),
             "missing stack object" to
@@ -655,7 +656,7 @@ private fun checkSpellTransitionMutations(messages: List<GREToClientMessage>) {
                 frame
                     .toBuilder()
                     .clearZones()
-                    .addAllZones(frame.zonesList.filter { it.zoneId != 27 })
+                    .addAllZones(frame.zonesList.filter { it.zoneId != ZoneIds.STACK })
                     .addZones(
                         stack.toBuilder().clearObjectInstanceIds().addAllObjectInstanceIds(
                             stack.objectInstanceIdsList.filter { it != newId },
