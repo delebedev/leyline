@@ -160,3 +160,9 @@ or [`rabbit-battery-target-selection.yaml`](../conformance/contracts/rabbit-batt
 Add one bounded interaction at a time and bind it to an existing scripted scenario.
 
 The Quantum Riddler exile-cast definition checks cast permission, stable battlefield identity, the entry draw bracket, and row lifetimes across updates. Entry-trigger creation shares the spell-resolution update before the trigger resolves.
+
+Foretell's immediate face-down row cleanup remains an implementation regression
+in `ForetellLifecycleTest`; the contracts own cast identities and offers.
+Warp's contracts own the delayed-exile and subsequent cast flow. Its scoped
+`TemporaryPermanent` exclusion remains an implementation check on the same
+scripted stream. `WarpLifecycleTest` retains the two-mana and regular-cost controls.
