@@ -455,6 +455,15 @@ class StateProjectionCompilerTest :
 
             val first = StateProjectionCompiler.compileOneViewer(compilerEnvironment(), input, prior, intent)
             val retry = StateProjectionCompiler.compileOneViewer(compilerEnvironment(), input, prior, intent)
+            val both =
+                StateProjectionCompiler.compileViewers(
+                    compilerEnvironment(),
+                    prior,
+                    listOf(
+                        StateProjectionCompiler.ViewerInput(input, intent),
+                        StateProjectionCompiler.ViewerInput(input.copy(viewingSeatId = 2), role = ProjectionViewerRole.Observer),
+                    ),
+                )
             val next = first.transition.nextState
             val newCardId = next.identities.forgeIdToInstanceId.getValue(cardId)
             val annotationTypes = first.gsm.annotationsList.map { it.typeList.single() }
@@ -484,6 +493,21 @@ class StateProjectionCompilerTest :
             assertSoftly {
                 first.gsm.toByteArray().toList() shouldBe retry.gsm.toByteArray().toList()
                 first.transition shouldBe retry.transition
+                both.transition.nextState.identities shouldBe first.transition.nextState.identities
+                both.transition.nextState.limboInstanceIds shouldBe first.transition.nextState.limboInstanceIds
+                both.viewers
+                    .first()
+                    .result.gsm shouldBe first.gsm
+                both.viewers
+                    .last()
+                    .result.gsm.gameObjectsList
+                    .none { it.grpId == 9001 } shouldBe true
+                both.viewers
+                    .first()
+                    .result.gsm.zonesList
+                    .single { it.zoneId == ZoneIds.LIMBO }
+                    .objectInstanceIdsList
+                    .count { it == 100 } shouldBe 1
                 prior.identities.forgeIdToInstanceId shouldBe emptyMap()
                 first.projectionSnapshot.zones
                     .getValue(ZoneIds.P1_HAND)

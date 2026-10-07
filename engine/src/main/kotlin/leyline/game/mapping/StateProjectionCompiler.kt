@@ -7,7 +7,10 @@ import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationContext
 import leyline.game.annotations.AnnotationFrameFinalizer
 import leyline.game.annotations.AnnotationOrderEnforcer
+import leyline.game.annotations.AppliedTransfer
 import leyline.game.annotations.FinalizedAnnotationFrame
+import leyline.game.annotations.TransferAnnotations
+import leyline.game.annotations.TransferCategory
 import leyline.game.bundle.GsmFrame
 import leyline.game.event.GameEvent
 import leyline.game.snapshot.CardSnapshot
@@ -23,6 +26,9 @@ import leyline.game.state.ProjectionState
 import leyline.game.state.ProjectionTransition
 import leyline.game.state.ProjectionViewerRole
 import leyline.game.state.ViewerProjectionCursor
+import leyline.game.state.ZoneHandoff
+import leyline.game.state.ZoneHandoffProjection
+import leyline.game.state.ZoneProjectionLifecycle
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -753,7 +759,7 @@ object StateProjectionCompiler {
             }
         val stagedSnapshot = stagedOrderSnapshot(snapshot, move, sourceZoneId, destinationZoneId)
         val sourceId = order.sourceForgeId?.let(editor.identities::getOrAlloc) ?: InstanceId(0)
-        val stagedGsm =
+        val (stagedGsm, lifecycle) =
             stagedOrderGsm(
                 gsm,
                 snapshot,
@@ -766,8 +772,7 @@ object StateProjectionCompiler {
                 environment,
                 editor,
             )
-        editor.limboInstanceIds += moved.map { it.reallocation.old.value }
-        moved.forEach { editor.protoZones[it.reallocation.new.value] = destinationZoneId }
+        lifecycle.applyTo(editor)
         return OrderResult(stagedGsm, stagedSnapshot, moved.map { it.reallocation })
     }
 
@@ -804,7 +809,7 @@ object StateProjectionCompiler {
                 destinationZoneId,
                 environment,
                 editor,
-            ),
+            ).first,
             planned.snapshot,
             planned.idReallocations,
         )
@@ -869,43 +874,61 @@ object StateProjectionCompiler {
         destinationZoneId: Int,
         environment: StateProjectionEnvironment,
         editor: ProjectionState.Editor,
-    ): GameStateMessage {
+    ): Pair<GameStateMessage, ZoneProjectionLifecycle> {
         val oldIds = moved.mapTo(mutableSetOf()) { it.reallocation.old.value }
         val newIds = moved.mapTo(mutableSetOf()) { it.reallocation.new.value }
-        val builder = gsm.toBuilder()
+        val originalIds = moved.associate { it.forgeCardId to it.reallocation.old }
         val replacementZones =
             listOfNotNull(
-                stagedSnapshot.zones[sourceZoneId]?.let { zoneInfo(it, editor) },
-                stagedSnapshot.zones[destinationZoneId]?.let { zoneInfo(it, editor) },
-                limboZoneInfo(editor, moved.map { it.reallocation.old }),
+                stagedSnapshot.zones[sourceZoneId]?.let { zoneInfo(it, editor, originalIds) },
+                stagedSnapshot.zones[destinationZoneId]?.let { zoneInfo(it, editor, originalIds) },
+                limboZoneInfo(editor),
             )
-        builder.clearZones()
-        builder.addAllZones(
-            (gsm.zonesList.filterNot { it.zoneId in setOf(sourceZoneId, destinationZoneId, ZoneIds.LIMBO) } + replacementZones)
-                .sortedBy { it.zoneId },
-        )
-        builder.clearGameObjects()
-        builder.addAllGameObjects(gsm.gameObjectsList.filterNot { it.instanceId in oldIds || it.instanceId in newIds })
+        val projection =
+            ZoneHandoffProjection(
+                gsm.gameObjectsList.filterNot { it.instanceId in oldIds || it.instanceId in newIds },
+                gsm.zonesList.filterNot { it.zoneId in setOf(sourceZoneId, destinationZoneId, ZoneIds.LIMBO) } + replacementZones,
+            )
+        val annotations = mutableListOf<AnnotationInfo>()
         for (movedCard in moved) {
-            val card = snapshot.objects[movedCard.forgeCardId] ?: continue
-            builder.addGameObjects(
-                orderObject(card, movedCard.reallocation.old, ZoneIds.LIMBO, move.seatId.value, environment),
+            val handoff = ZoneHandoff.fromRealloc(movedCard.reallocation, destinationZoneId)
+            val card = snapshot.objects[movedCard.forgeCardId]
+            if (card == null) {
+                projection.apply(handoff)
+                continue
+            }
+            projection.objects.add(
+                orderObject(card, movedCard.reallocation.old, destinationZoneId, move.seatId.value, environment),
             )
-            builder.addGameObjects(
-                orderObject(card, movedCard.reallocation.new, destinationZoneId, move.seatId.value, environment),
+            projection.applyRetainingObject(
+                handoff,
+                projection.objects.lastIndex,
             )
-            builder.addAnnotations(AnnotationBuilder.objectIdChanged(movedCard.reallocation.old, movedCard.reallocation.new, sourceId))
-            builder.addAnnotations(
-                AnnotationBuilder.zoneTransfer(
-                    movedCard.reallocation.new,
-                    sourceZoneId,
-                    destinationZoneId,
-                    "Put",
-                    affectorId = sourceId,
-                ),
-            )
+            annotations +=
+                TransferAnnotations
+                    .annotationsForTransfer(
+                        AppliedTransfer(
+                            origId = movedCard.reallocation.old.value,
+                            newId = movedCard.reallocation.new.value,
+                            category = TransferCategory.Put,
+                            srcZoneId = sourceZoneId,
+                            destZoneId = destinationZoneId,
+                            forgeCardId = movedCard.forgeCardId,
+                            grpId = card.grpId,
+                            ownerSeatId = move.seatId.value,
+                            affectorId = sourceId.value,
+                        ),
+                        move.seatId,
+                    ).first
         }
-        return builder.build()
+        return gsm
+            .toBuilder()
+            .clearZones()
+            .addAllZones(projection.zones.sortedBy { it.zoneId })
+            .clearGameObjects()
+            .addAllGameObjects(projection.objects)
+            .addAllAnnotations(annotations)
+            .build() to projection.lifecycle()
     }
 
     private fun exposePrivateCandidates(
@@ -956,6 +979,7 @@ object StateProjectionCompiler {
     private fun zoneInfo(
         zone: ZoneSnapshot,
         editor: ProjectionState.Editor,
+        originalIds: Map<ForgeCardId, InstanceId>,
     ): ZoneInfo {
         val builder =
             ZoneInfo
@@ -967,20 +991,17 @@ object StateProjectionCompiler {
             builder.ownerSeatId = owner.value
             if (zone.type == ZoneType.Hand || zone.type == ZoneType.Sideboard) builder.addViewers(owner.value)
         }
-        zone.contents.forEach { builder.addObjectInstanceIds(editor.identities.getOrAlloc(it).value) }
+        zone.contents.forEach { builder.addObjectInstanceIds((originalIds[it] ?: editor.identities.getOrAlloc(it)).value) }
         return builder.build()
     }
 
-    private fun limboZoneInfo(
-        editor: ProjectionState.Editor,
-        extraIds: List<InstanceId>,
-    ): ZoneInfo =
+    private fun limboZoneInfo(editor: ProjectionState.Editor): ZoneInfo =
         ZoneInfo
             .newBuilder()
             .setZoneId(ZoneIds.LIMBO)
             .setType(ZoneType.Limbo)
             .setVisibility(Visibility.Public)
-            .addAllObjectInstanceIds((editor.limboInstanceIds.map(::InstanceId) + extraIds).distinct().map { it.value })
+            .addAllObjectInstanceIds(editor.limboInstanceIds)
             .build()
 
     private fun orderObject(

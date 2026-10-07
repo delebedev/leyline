@@ -33,6 +33,25 @@ internal class ZoneHandoffProjection(
         objectIndex: Int? = null,
     ) = applyChain(listOf(handoff), projectedZoneId, projectedInstanceId, objectIndex)
 
+    /** A staged move keeps the old object available for animation while exposing its new lifetime. */
+    fun applyRetainingObject(
+        handoff: ZoneHandoff,
+        objectIndex: Int,
+    ) {
+        val original = objects[objectIndex]
+        apply(handoff, objectIndex = objectIndex)
+        handoff.limboRetirement?.let { retired ->
+            objects.add(
+                objectIndex,
+                original
+                    .toBuilder()
+                    .setInstanceId(retired.value)
+                    .setZoneId(ZoneIds.LIMBO)
+                    .build(),
+            )
+        }
+    }
+
     /** Only the last destination survives a same-frame chain; every old lifetime retires. */
     fun applyChain(
         handoffs: List<ZoneHandoff>,
@@ -57,7 +76,9 @@ internal class ZoneHandoffProjection(
     /** Retirement also covers vanished stack abilities that have no card handoff. */
     fun retire(instanceId: Int) {
         retiredIds.add(instanceId)
-        appendToZone(ZoneIds.LIMBO, instanceId)
+        if (zones.none { it.zoneId == ZoneIds.LIMBO && instanceId in it.objectInstanceIdsList }) {
+            appendToZone(ZoneIds.LIMBO, instanceId)
+        }
     }
 
     /** Resulting-state observations include hidden cards and newly created objects. */
