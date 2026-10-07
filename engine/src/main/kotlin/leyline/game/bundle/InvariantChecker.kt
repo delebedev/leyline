@@ -48,7 +48,8 @@ class InvariantChecker(
             selection.includes(InvariantCheck.ZoneObjects) ||
             selection.includes(InvariantCheck.AnnotationReferences) ||
             selection.includes(InvariantCheck.PhaseFirst) ||
-            selection.includes(InvariantCheck.AnnotationOrdering)
+            selection.includes(InvariantCheck.AnnotationOrdering) ||
+            selection.includes(InvariantCheck.ZoneTransitionIdentity)
 
     // --- Public API ---
 
@@ -99,6 +100,9 @@ class InvariantChecker(
             checkActionInstanceIdConsistency(gsId)
         }
         if (msg.hasGameStateMessage()) {
+            if (selection.includes(InvariantCheck.ZoneTransitionIdentity)) {
+                checkZoneTransitionIdentity(msg.gameStateMessage)
+            }
             if (selection.includes(InvariantCheck.ZoneObjects)) {
                 checkZoneObjectConsistency(gsId)
             }
@@ -548,6 +552,64 @@ class InvariantChecker(
     ) {
         if (selection.includes(check)) {
             _violations.add(Violation(messageIndex, gsId, check, message))
+        }
+    }
+
+    /** Ordinary reallocating spell transfers require one ordered identity pair and a final projection. */
+    private fun checkZoneTransitionIdentity(gsm: GameStateMessage) {
+        val changes = gsm.annotationsList.filter { AnnotationType.ObjectIdChanged in it.typeList }
+
+        fun fail(message: String) = record(gsm.gameStateId, InvariantCheck.ZoneTransitionIdentity.id, message)
+
+        fun checkRetired(id: Int) {
+            val liveZones =
+                accumulator.zones.values.filter {
+                    it.type != ZoneType.Limbo && id in it.objectInstanceIdsList
+                }
+            if (liveZones.isNotEmpty()) fail("Retired iid=$id remains in live zones ${liveZones.map { it.zoneId }}")
+        }
+        for (transfer in gsm.annotationsList) {
+            if (AnnotationType.ZoneTransfer_af5a !in transfer.typeList) continue
+            val source = accumulator.zones[transfer.detailInt(DetailKeys.ZONE_SRC)] ?: continue
+            val destination = accumulator.zones[transfer.detailInt(DetailKeys.ZONE_DEST)] ?: continue
+            val category =
+                transfer.detailsList
+                    .firstOrNull { it.key == DetailKeys.CATEGORY }
+                    ?.valueStringList
+                    ?.firstOrNull()
+            val selected =
+                (source.type == ZoneType.Hand && destination.type == ZoneType.Stack && category == TransferCategory.CastSpell.label) ||
+                    (source.type == ZoneType.Stack && destination.type == ZoneType.Graveyard && category == TransferCategory.Resolve.label)
+            if (!selected) continue
+            if (transfer.affectedIdsCount == 0) fail("ZoneTransfer requires an affected identity")
+            for (newId in transfer.affectedIdsList) {
+                val pairs = changes.filter { it.detailInt(DetailKeys.NEW_ID) == newId }
+                if (pairs.size != 1) {
+                    fail("ZoneTransfer iid=$newId requires one ObjectIdChanged pair, found ${pairs.size}")
+                    continue
+                }
+                val change = pairs.single()
+                val oldId = change.detailInt(DetailKeys.ORIG_ID)
+                if (oldId == 0 || oldId == newId) fail("ObjectIdChanged requires distinct identities: $oldId->$newId")
+                if (gsm.annotationsList.indexOf(change) >= gsm.annotationsList.indexOf(transfer)) {
+                    fail("ObjectIdChanged $oldId->$newId must precede its ZoneTransfer")
+                }
+                checkRetired(oldId)
+                // A same-frame successor owns the final projection; intermediate IDs may remain in Limbo.
+                if (changes.any { it.detailInt(DetailKeys.ORIG_ID) == newId }) {
+                    checkRetired(newId)
+                    continue
+                }
+                if (newId !in destination.objectInstanceIdsList) {
+                    fail("ZoneTransfer iid=$newId missing from destination zone=${destination.zoneId}")
+                }
+                if (destination.visibility != Visibility.Hidden && destination.visibility != Visibility.Private) {
+                    val obj = accumulator.objects[newId]
+                    if (obj == null || obj.zoneId != destination.zoneId) {
+                        fail("ZoneTransfer iid=$newId missing destination object zone=${destination.zoneId}")
+                    }
+                }
+            }
         }
     }
 

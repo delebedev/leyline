@@ -109,6 +109,32 @@ class ValidatingMessageSinkTest :
             }
         }
 
+        test("default strict sink rejects a mismatched ordinary spell identity pair") {
+            val pair =
+                annotation(1, AnnotationType.ObjectIdChanged)
+                    .toBuilder()
+                    .addDetails(intDetail(DetailKeys.ORIG_ID, 100))
+                    .addDetails(intDetail(DetailKeys.NEW_ID, 200))
+                    .build()
+            val transfer =
+                annotation(2, AnnotationType.ZoneTransfer_af5a)
+                    .toBuilder()
+                    .addAffectedIds(201)
+                    .addDetails(intDetail(DetailKeys.ZONE_SRC, 31))
+                    .addDetails(intDetail(DetailKeys.ZONE_DEST, 27))
+                    .addDetails(KeyValuePairInfo.newBuilder().setKey(DetailKeys.CATEGORY).addValueString("CastSpell"))
+                    .build()
+            val packet =
+                gsm(1, type = GameStateType.Full, annotations = listOf(pair, transfer))
+                    .toBuilder()
+                    .addZones(ZoneInfo.newBuilder().setZoneId(31).setType(ZoneType.Hand))
+                    .addZones(ZoneInfo.newBuilder().setZoneId(27).setType(ZoneType.Stack))
+                    .build()
+            shouldThrow<AssertionError> {
+                strictSink().send(listOf(greMessage(msgId = 1, gsm = packet)))
+            }.message shouldContain "requires one ObjectIdChanged pair"
+        }
+
         // --- Positive: clean stream ---
 
         test("Clean message stream produces no violations") {
