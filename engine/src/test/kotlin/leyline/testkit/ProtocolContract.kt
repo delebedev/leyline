@@ -332,32 +332,9 @@ private fun validatePattern(
     ids: Set<String>,
 ) {
     val type = pattern.string("type")
-    require(
-        type in promptTypes ||
-            AnnotationType.entries.any { it.protocolName() == type } ||
-            GameObjectType.entries.any { it.name == type } ||
-            type == "Action",
-    ) {
-        "unsupported event type $type"
-    }
-    val lanes =
-        when {
-            type in promptTypes -> setOf("prompt")
-            type == "Action" -> setOf("action")
-            GameObjectType.entries.any { it.name == type } -> setOf("object")
-            else -> setOf("transient", "persistent")
-        }
-    pattern["lane"]?.let { require(it in lanes) { "unsupported lane for $type" } }
-    val operations =
-        when {
-            "object" in lanes -> setOf("create", "update")
-            "action" in lanes -> setOf("offer")
-            pattern["lane"] == "persistent" -> setOf("create", "update", "delete")
-            else -> setOf("emit")
-        }
-    pattern["op"]?.let { require(it in operations) { "unsupported operation for $type" } }
+    validateKind(type, pattern["lane"], pattern["op"])
     pattern["keys"]?.list()?.forEach { require(it is String) { "invalid detail key" } }
-    validatePresence(pattern["present"])
+    pattern["present"]?.list()?.let(::validatePresence)
     pattern["sameRow"]?.let { require(it in ids) { "unknown row reference $it" } }
     pattern["where"]?.map()?.let { selection ->
         selection.keysOnly("fields", "equals")
@@ -382,13 +359,42 @@ private fun validatePattern(
     }
 }
 
-private fun validatePresence(value: Any?) {
-    value?.list()?.let { selectors ->
-        require(selectors.isNotEmpty()) { "empty presence assertion" }
-        selectors.forEach {
-            require(it is String) { "invalid presence selector" }
-            validateSelector(it)
+private fun validateKind(
+    type: String,
+    lane: Any?,
+    op: Any?,
+) {
+    require(
+        type in promptTypes ||
+            AnnotationType.entries.any { it.protocolName() == type } ||
+            GameObjectType.entries.any { it.name == type } ||
+            type == "Action",
+    ) {
+        "unsupported event type $type"
+    }
+    val lanes =
+        when {
+            type in promptTypes -> setOf("prompt")
+            type == "Action" -> setOf("action")
+            GameObjectType.entries.any { it.name == type } -> setOf("object")
+            else -> setOf("transient", "persistent")
         }
+    lane?.let { require(it in lanes) { "unsupported lane for $type" } }
+    val operations =
+        when {
+            "object" in lanes -> setOf("create", "update")
+            "action" in lanes -> setOf("offer")
+            lane == "persistent" -> setOf("create", "update", "delete")
+            else -> setOf("emit")
+        }
+    op?.let { require(it in operations) { "unsupported operation for $type" } }
+}
+
+private fun validatePresence(selectors: List<Any?>) {
+    require(selectors.isNotEmpty()) { "empty presence assertion" }
+    selectors.forEach {
+        require(it is String) { "invalid presence selector" }
+        validateSelector(it)
     }
 }
 
