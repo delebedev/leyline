@@ -72,13 +72,14 @@ class ShockLandEtbTest :
             val responseStart = messageSnapshot()
             respondToOptionalAction(true)
             val annotations = messagesSince(responseStart).allAnnotations()
-            val expectedTypes = listOf(
-                AnnotationType.ObjectIdChanged,
-                AnnotationType.ZoneTransfer_af5a,
-                AnnotationType.SyntheticEvent,
-                AnnotationType.ModifiedLife,
-                AnnotationType.UserActionTaken,
-            )
+            val expectedTypes =
+                listOf(
+                    AnnotationType.ObjectIdChanged,
+                    AnnotationType.ZoneTransfer_af5a,
+                    AnnotationType.SyntheticEvent,
+                    AnnotationType.ModifiedLife,
+                    AnnotationType.UserActionTaken,
+                )
             // Verify: life=18, Temple Garden on battlefield untapped
             val bf = human.getZone(ZoneType.Battlefield).cards
             val templeGarden = bf.firstOrNull { it.name == "Temple Garden" }
@@ -120,11 +121,12 @@ class ShockLandEtbTest :
 
 private fun MatchFlowHarness.playShockLandUntilChoice(): GREToClientMessage {
     val land = human.hand.card("Temple Garden")
-    val msg = performAction {
-        actionType = ActionType.Play_add3
-        instanceId = human.hand.iid(land)
-        grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
-    }
+    val msg =
+        performAction {
+            actionType = ActionType.Play_add3
+            instanceId = human.hand.iid(land)
+            grpId = bridge.cardRepository.findGrpIdByName(land.name) ?: 0
+        }
     send(submitWithGsId(msg))
     allMessages.addAll(sink.messages)
     allRawMessages.addAll(sink.rawMessages)
