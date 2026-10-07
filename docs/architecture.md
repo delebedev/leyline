@@ -241,7 +241,10 @@ object/zone patch set. Ordered same-frame chains retain every retired lifetime
 and record only the final destination. Hidden-object observations and vanished
 ability retirements remain distinct operations. Its immutable
 `ZoneProjectionLifecycle` is applied to the tentative editor after ordinary
-frame assembly; allocation and committed ownership remain in `ProjectionState`.
+frame assembly. Synthetic library ordering uses the same application and
+`TransferAnnotations` recipe before its prompt is presented, while per-view
+rendering reuses the planned allocations. Allocation and committed ownership
+remain in `ProjectionState`.
 
 Stack membership interleaves spell cards and abilities in Forge's top-first
 order. Pending cast and targeting entries appear above admitted entries, while

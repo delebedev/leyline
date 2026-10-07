@@ -17,11 +17,9 @@ import leyline.bridge.types.InstanceId
  *  - [zoneAssignment] — (new iid, destination zone id) pair the caller
  *    folds into the next [ProjectionState].
  *
- * Built via the [Companion] factories. Pure-pipeline callers use
- * [fromRealloc] with an `idAllocator` lambda; a direct-bridge entry point
- * is omitted because the only realloc site
- * ([leyline.game.annotations.ZoneTransferDetector]) is itself
- * lambda-driven. Add one if a second realloc site appears.
+ * Producers allocate through the tentative projection identity workspace.
+ * [ZoneHandoffProjection] applies ordinary and staged handoffs without allocating
+ * identities or changing the committed state.
  */
 data class ZoneHandoff(
     val realloc: InstanceIdRegistry.IdReallocation,

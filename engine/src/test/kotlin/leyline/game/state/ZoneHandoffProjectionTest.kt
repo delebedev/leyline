@@ -77,4 +77,27 @@ class ZoneHandoffProjectionTest :
                 projection.zones shouldBe listOf(zone(ZoneIds.LIMBO, 70))
             }
         }
+
+        test("staged rendering retains the private old object without duplicating an existing Limbo membership") {
+            val card =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(100)
+                    .setZoneId(ZoneIds.P1_LIBRARY)
+                    .build()
+            val projection =
+                ZoneHandoffProjection(
+                    listOf(card),
+                    listOf(zone(ZoneIds.P1_LIBRARY, 100), zone(ZoneIds.LIMBO, 100)),
+                )
+            projection.applyRetainingObject(handoff(100, 200, ZoneIds.P1_LIBRARY), 0)
+            assertSoftly {
+                projection.objects.map { it.instanceId to it.zoneId } shouldBe
+                    listOf(100 to ZoneIds.LIMBO, 200 to ZoneIds.P1_LIBRARY)
+                projection.zones shouldBe listOf(zone(ZoneIds.P1_LIBRARY, 200), zone(ZoneIds.LIMBO, 100))
+                projection.lifecycle() shouldBe ZoneProjectionLifecycle(listOf(100), listOf(200 to ZoneIds.P1_LIBRARY))
+                card.instanceId shouldBe 100
+                card.zoneId shouldBe ZoneIds.P1_LIBRARY
+            }
+        }
     })
