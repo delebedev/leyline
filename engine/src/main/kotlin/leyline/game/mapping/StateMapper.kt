@@ -632,8 +632,7 @@ object StateMapper {
 
         holderBatch.removed.forEach(editor.delayedTriggerHolders::remove)
         holderBatch.added.forEach { editor.delayedTriggerHolders[it.iid] = it }
-        editor.limboInstanceIds += transferResult.retiredIds
-        transferResult.zoneRecordings.forEach { (iid, zid) -> editor.protoZones[iid] = zid }
+        transferResult.lifecycle.applyTo(editor)
         editor.persistentAnnotations =
             editor.persistentAnnotations.copy(
                 activeAnnotations = remaining.batch.allAnnotations.associateBy { it.id },
@@ -1549,7 +1548,7 @@ object StateMapper {
         return copy(
             patchedObjects = updatedObjects,
             patchedZones = updatedZones,
-            retiredIds = retiredIds.filterNot { it in resolvedIids },
+            lifecycle = lifecycle.copy(retiredIds = lifecycle.retiredIds.filterNot { it in resolvedIids }),
         )
     }
 

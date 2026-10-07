@@ -118,10 +118,10 @@ class OmenZoneTransferDetectorTest :
                 resolve.grpId shouldBe 95537
                 resolve.ownerSeatId shouldBe 1
 
-                result.retiredIds shouldBe listOf(100, 200)
+                result.lifecycle.retiredIds shouldBe listOf(100, 200)
                 result.patchedZones.first { it.zoneId == ZoneIds.P1_LIBRARY }.objectInstanceIdsList shouldBe listOf(201)
                 result.patchedZones.first { it.zoneId == ZoneIds.LIMBO }.objectInstanceIdsList shouldBe listOf(100, 200)
-                result.zoneRecordings shouldContain (201 to ZoneIds.P1_LIBRARY)
+                result.lifecycle.zoneAssignments shouldContain (201 to ZoneIds.P1_LIBRARY)
             }
 
             val annotations =
@@ -177,7 +177,7 @@ class OmenZoneTransferDetectorTest :
                 transfer.origId shouldBe 100
                 transfer.newId shouldBe 200
                 transfer.grpId shouldBe 95537
-                result.retiredIds shouldContain 100
+                result.lifecycle.retiredIds shouldContain 100
                 result.patchedZones.first { it.zoneId == ZoneIds.P1_LIBRARY }.objectInstanceIdsList shouldBe listOf(200)
             }
         }
@@ -239,10 +239,10 @@ class OmenZoneTransferDetectorTest :
                 exile.srcZoneId shouldBe ZoneIds.STACK
                 exile.destZoneId shouldBe ZoneIds.EXILE
 
-                result.retiredIds shouldBe listOf(100, 200)
+                result.lifecycle.retiredIds shouldBe listOf(100, 200)
                 result.patchedZones.first { it.zoneId == ZoneIds.EXILE }.objectInstanceIdsList shouldBe listOf(201)
                 result.patchedZones.first { it.zoneId == ZoneIds.LIMBO }.objectInstanceIdsList shouldBe listOf(100, 200)
-                result.zoneRecordings shouldContain (201 to ZoneIds.EXILE)
+                result.lifecycle.zoneAssignments shouldContain (201 to ZoneIds.EXILE)
             }
         }
     })

@@ -12,6 +12,8 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.InstanceIdRegistry
 import leyline.game.state.ZoneHandoff
+import leyline.game.state.ZoneHandoffProjection
+import leyline.game.state.ZoneProjectionLifecycle
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -115,10 +117,7 @@ data class TransferResult(
     val patchedObjects: List<GameObjectInfo>,
     /** Zones with instanceIds patched + Limbo entries appended. */
     val patchedZones: List<ZoneInfo>,
-    /** InstanceIds to retire to Limbo (caller applies via [leyline.game.state.ZoneTracking.retireToLimbo]). */
-    val retiredIds: List<Int>,
-    /** (instanceId, zoneId) pairs to record (caller applies via [leyline.game.state.ZoneTracking.recordZone]). */
-    val zoneRecordings: List<Pair<Int, Int>>,
+    val lifecycle: ZoneProjectionLifecycle = ZoneProjectionLifecycle(),
     /** Triggered abilities that just appeared on the stack. */
     val stackAbilityAppearances: List<StackAbilityAppearance> = emptyList(),
     /** Triggered abilities that left the stack (resolved/fizzled). */
@@ -207,11 +206,10 @@ object ZoneTransferDetector {
         val paradigmSourceIidLookup = context.paradigmSourceIidLookup
         val ledgerIntents = ZoneMoveLedger.fold(context.zoneMoves, events)
         val pendingLedgerIntents = ledgerIntents.toMutableList()
-        val patchedObjects = gameObjects.toMutableList()
-        val patchedZones = zones.toMutableList()
+        val projection = ZoneHandoffProjection(gameObjects, zones)
+        val patchedObjects = projection.objects
+        val patchedZones = projection.zones
         val transfers = mutableListOf<AppliedTransfer>()
-        val retiredIds = mutableListOf<Int>()
-        val zoneRecordings = mutableListOf<Pair<Int, Int>>()
         val snapshotFallbacks = mutableListOf<SnapshotTransferFallback>()
 
         for (i in patchedObjects.indices) {
@@ -219,7 +217,7 @@ object ZoneTransferDetector {
             val prevZone = previousZones[obj.instanceId]?.let(::logicalZone)
             if (prevZone != null && prevZone != logicalZone(obj.zoneId)) {
                 if (prevZone == ZoneIds.STACK && obj.zoneId == ZoneIds.SUPPRESSED) {
-                    zoneRecordings.add(obj.instanceId to obj.zoneId)
+                    projection.recordZone(obj.instanceId to obj.zoneId)
                     continue
                 }
                 val forgeCardId =
@@ -230,16 +228,13 @@ object ZoneTransferDetector {
                 if (isCollapsedParadigmOriginal(obj, prevZone, forgeCardId, ledgerIntents)) {
                     val collapsedForgeCardId = forgeCardId ?: continue
                     addCollapsedParadigmOriginalTransfers(
+                        projection = projection,
                         obj = obj,
                         objectIndex = i,
                         prevZone = prevZone,
                         forgeCardId = collapsedForgeCardId,
                         events = events,
-                        patchedObjects = patchedObjects,
-                        patchedZones = patchedZones,
                         transfers = transfers,
-                        retiredIds = retiredIds,
-                        zoneRecordings = zoneRecordings,
                         idAllocator = idAllocator,
                         idLookup = idLookup,
                         manaAbilityGrpIdResolver = manaAbilityGrpIdResolver,
@@ -311,7 +306,7 @@ object ZoneTransferDetector {
                 val origId = handoff.realloc.old.value
                 val newId = handoff.realloc.new.value
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
-                applyHandoffToPatchSet(handoff, patchedObjects, i, patchedZones, obj.zoneId, retiredIds)
+                projection.apply(handoff, objectIndex = i)
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId allocated against the SA-id-keyed surrogate
@@ -492,21 +487,17 @@ object ZoneTransferDetector {
                         openingHandSeatId = openingHandAction?.seatId?.value ?: 0,
                     ),
                 )
-                zoneRecordings.add(newId to obj.zoneId)
             } else {
-                zoneRecordings.add(obj.instanceId to obj.zoneId)
+                projection.recordZone(obj.instanceId to obj.zoneId)
             }
         }
 
         // Post-pass: detect token sacrifices invisible to the main loop.
         detectDisappearedSacrifices(
+            projection,
             events,
             previousZones,
-            patchedObjects,
-            patchedZones,
             transfers,
-            retiredIds,
-            zoneRecordings,
             forgeIdLookup,
             idAllocator,
             idLookup,
@@ -519,11 +510,9 @@ object ZoneTransferDetector {
         // the card still on BF so the main diff loop skips it, but the client
         // protocol requires the two zone-hop annotations.
         detectExileReturnRoundTrips(
+            projection,
             context.zoneMoves,
             transfers,
-            patchedObjects,
-            patchedZones,
-            retiredIds,
             idAllocator,
             idLookup,
         )
@@ -534,15 +523,13 @@ object ZoneTransferDetector {
         // cards can appear only in ZoneInfo.objectInstanceIds, with no
         // GameObjectInfo for the main loop to inspect.
         detectZoneOnlyTransfers(
+            projection,
             events,
             ledgerIntents,
             pendingLedgerIntents,
             previousZones,
             gameObjectIds,
-            patchedZones,
             transfers,
-            retiredIds,
-            zoneRecordings,
             snapshotFallbacks,
             forgeIdLookup,
             idAllocator,
@@ -580,22 +567,18 @@ object ZoneTransferDetector {
         // Retire disappeared ability instanceIds to Limbo so annotation
         // references (affectedIds) remain resolvable by the validating sink.
         for (id in disappearedRetiredIds) {
-            retiredIds.add(id)
-            appendToZone(patchedZones, ZoneIds.LIMBO, id)
+            projection.retire(id)
         }
 
         detectEventOnlyParadigmCopyCasts(patchedObjects, previousZones, events, forgeIdLookup, idLookup).forEach { transfer ->
             transfers.add(transfer)
-            zoneRecordings.add(transfer.newId to transfer.destZoneId)
+            projection.recordZone(transfer.newId to transfer.destZoneId)
         }
         detectCollapsedParadigmCopyTransfers(
+            projection = projection,
             events = events,
             previousZones = previousZones,
-            patchedObjects = patchedObjects,
             transfers = transfers,
-            patchedZones = patchedZones,
-            retiredIds = retiredIds,
-            zoneRecordings = zoneRecordings,
             idAllocator = idAllocator,
             idLookup = idLookup,
             grpIdResolver = grpIdResolver,
@@ -603,11 +586,12 @@ object ZoneTransferDetector {
 
         // Record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
+        val recordedZones = projection.lifecycle().zoneAssignments.toMutableSet()
         for (zone in patchedZones) {
             for (iid in zone.objectInstanceIdsList) {
                 val zonePair = iid to zone.zoneId
-                if (iid !in gameObjectIds && zonePair !in zoneRecordings) {
-                    zoneRecordings.add(zonePair)
+                if (iid !in gameObjectIds && recordedZones.add(zonePair)) {
+                    projection.recordZone(zonePair)
                 }
             }
         }
@@ -616,8 +600,7 @@ object ZoneTransferDetector {
             transfers,
             patchedObjects,
             patchedZones,
-            retiredIds,
-            zoneRecordings,
+            projection.lifecycle(),
             stackAbilityAppearances = appearances,
             stackAbilityDisappearances = disappearances,
             snapshotFallbacks = snapshotFallbacks,
@@ -673,17 +656,15 @@ object ZoneTransferDetector {
 
     @Suppress("LongParameterList")
     private fun detectCollapsedParadigmCopyTransfers(
+        projection: ZoneHandoffProjection,
         events: List<GameEvent>,
         previousZones: Map<Int, Int>,
-        patchedObjects: MutableList<GameObjectInfo>,
         transfers: MutableList<AppliedTransfer>,
-        patchedZones: MutableList<ZoneInfo>,
-        retiredIds: MutableList<Int>,
-        zoneRecordings: MutableList<Pair<Int, Int>>,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> GrpId,
     ) {
+        val patchedObjects = projection.objects
         val affectorId = paradigmDelayedTriggerIid(events, idLookup).takeIf { it != 0 } ?: paradigmDelayedTriggerIid(patchedObjects)
         val resolvedCopyIds =
             events
@@ -714,12 +695,12 @@ object ZoneTransferDetector {
             val exileId = handoff.realloc.old.value
             val stackId = handoff.realloc.new.value
             stackIdsByCard[cast.cardId] = stackId
-            retiredIds.add(exileId)
-            appendToZone(patchedZones, ZoneIds.LIMBO, exileId)
+            projection.retire(exileId)
+
             patchedObjects.indexOfFirst { it.instanceId == currentId }.takeIf { it >= 0 }?.let { index ->
                 patchedObjects[index] = patchedObjects[index].toBuilder().setInstanceId(stackId).build()
             }
-            patchZoneInstanceId(patchedZones, ZoneIds.STACK, currentId, stackId)
+            projection.replaceInZone(ZoneIds.STACK, currentId, stackId)
             transfers.add(
                 AppliedTransfer(
                     origId = exileId,
@@ -735,7 +716,7 @@ object ZoneTransferDetector {
                     castAbilityGrpId = KeywordAbilityIds.PARADIGM_DELAYED_TRIGGER,
                 ),
             )
-            if (cast.cardId !in resolvedCopyIds) zoneRecordings.add(stackId to ZoneIds.STACK)
+            if (cast.cardId !in resolvedCopyIds) projection.recordZone(stackId to ZoneIds.STACK)
         }
 
         for (resolved in resolvedCopyIds.values) {
@@ -757,10 +738,10 @@ object ZoneTransferDetector {
                     ownerSeatId = 0,
                 ),
             )
-            retiredIds.add(stackId)
-            appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
-            appendToZone(patchedZones, ZoneIds.EXILE, exileId)
-            zoneRecordings.add(exileId to ZoneIds.EXILE)
+            projection.retire(stackId)
+
+            projection.appendToZone(ZoneIds.EXILE, exileId)
+            projection.recordZone(exileId to ZoneIds.EXILE)
         }
     }
 
@@ -947,16 +928,13 @@ object ZoneTransferDetector {
 
     @Suppress("LongParameterList")
     private fun addCollapsedParadigmOriginalTransfers(
+        projection: ZoneHandoffProjection,
         obj: GameObjectInfo,
         objectIndex: Int,
         prevZone: Int,
         forgeCardId: ForgeCardId,
         events: List<GameEvent>,
-        patchedObjects: MutableList<GameObjectInfo>,
-        patchedZones: MutableList<ZoneInfo>,
         transfers: MutableList<AppliedTransfer>,
-        retiredIds: MutableList<Int>,
-        zoneRecordings: MutableList<Pair<Int, Int>>,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
@@ -978,12 +956,8 @@ object ZoneTransferDetector {
                 )
             } ?: emptyList()
 
-        patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(exileId).build()
-        patchZoneInstanceId(patchedZones, ZoneIds.EXILE, obj.instanceId, exileId)
-        retiredIds.add(handId)
-        appendToZone(patchedZones, ZoneIds.LIMBO, handId)
-        retiredIds.add(stackId)
-        appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
+        projection.applyChain(listOf(stackHandoff, exileHandoff), projectedInstanceId = obj.instanceId, objectIndex = objectIndex)
+
         transfers.add(
             AppliedTransfer(
                 origId = handId,
@@ -1009,26 +983,24 @@ object ZoneTransferDetector {
                 ownerSeatId = obj.ownerSeatId,
             ),
         )
-        zoneRecordings.add(exileId to ZoneIds.EXILE)
     }
 
     @Suppress("LongMethod", "LongParameterList")
     private fun detectZoneOnlyTransfers(
+        projection: ZoneHandoffProjection,
         events: List<GameEvent>,
         ledgerIntents: List<ZoneMoveIntent>,
         pendingLedgerIntents: MutableList<ZoneMoveIntent>,
         previousZones: Map<Int, Int>,
         gameObjectIds: Set<Int>,
-        patchedZones: MutableList<ZoneInfo>,
         transfers: MutableList<AppliedTransfer>,
-        retiredIds: MutableList<Int>,
-        zoneRecordings: MutableList<Pair<Int, Int>>,
         snapshotFallbacks: MutableList<SnapshotTransferFallback>,
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         grpIdResolver: (ForgeCardId) -> GrpId,
         pendingSpellResolutionLookup: (ForgeCardId) -> GameEvent.SpellResolved?,
     ) {
+        val patchedZones = projection.zones
         val currentZoneById =
             patchedZones
                 .asSequence()
@@ -1053,11 +1025,8 @@ object ZoneTransferDetector {
                 val pendingResolution = pendingSpellResolutionLookup(forgeCardId)
                 val grpId = pendingResolution?.spellGrpId?.takeIf { it != 0 } ?: grpIdResolver(forgeCardId).value
 
-                patchZoneInstanceId(patchedZones, destZone, iid, libraryId)
-                retiredIds.add(handId)
-                appendToZone(patchedZones, ZoneIds.LIMBO, handId)
-                retiredIds.add(stackId)
-                appendToZone(patchedZones, ZoneIds.LIMBO, stackId)
+                projection.applyChain(listOf(castHandoff, resolveHandoff), projectedInstanceId = iid)
+
                 transfers.add(
                     AppliedTransfer(
                         origId = handId,
@@ -1082,7 +1051,6 @@ object ZoneTransferDetector {
                         ownerSeatId = ownerSeatId,
                     ),
                 )
-                zoneRecordings.add(libraryId to destZone)
                 log.debug(
                     "zone-only cast-resolve transfer: iid {} -> stack {} -> library {}",
                     handId,
@@ -1117,7 +1085,7 @@ object ZoneTransferDetector {
             val origId = handoff.realloc.old.value
             val newId = handoff.realloc.new.value
 
-            applyHiddenHandoffToZoneSet(handoff, patchedZones, destZone, retiredIds)
+            projection.apply(handoff)
             transfers.add(
                 AppliedTransfer(
                     origId = origId,
@@ -1136,7 +1104,6 @@ object ZoneTransferDetector {
                     chosenX = spellCastEvent?.chosenX ?: 0,
                 ),
             )
-            zoneRecordings.add(newId to destZone)
             log.debug("zone-only transfer: iid {} -> {} category={}", origId, newId, category)
         }
     }
@@ -1448,14 +1415,13 @@ object ZoneTransferDetector {
      */
     @Suppress("LongParameterList")
     private fun detectExileReturnRoundTrips(
+        projection: ZoneHandoffProjection,
         zoneMoves: List<ZoneMove>,
         transfers: MutableList<AppliedTransfer>,
-        patchedObjects: MutableList<GameObjectInfo>,
-        patchedZones: MutableList<ZoneInfo>,
-        retiredIds: MutableList<Int>,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
     ) {
+        val patchedObjects = projection.objects
         // Dedupe by ForgeCardId: if a card bounces exile→return multiple times in
         // one resolve (delayed-trigger + chapter interactions), we only synthesize
         // once — the later pairs would try to retire already-retired iids.
@@ -1515,10 +1481,11 @@ object ZoneTransferDetector {
                 ),
             )
 
-            retiredIds.add(currentIid)
-            retiredIds.add(exileIid)
-            appendToZone(patchedZones, ZoneIds.LIMBO, currentIid)
-            appendToZone(patchedZones, ZoneIds.LIMBO, exileIid)
+            projection.applyChain(
+                listOf(ZoneHandoff.fromRealloc(exileAlloc, ZoneIds.EXILE), ZoneHandoff.fromRealloc(returnAlloc, ZoneIds.BATTLEFIELD)),
+                objectIndex = objIdx,
+            )
+
             // Synthesize intermediate GameObjectInfos for the retired iids so
             // ZoneTransfer annotations referencing them resolve against a real
             // object (matches tribute-to-horobi.md gsId 145: both 288 and 318
@@ -1537,8 +1504,6 @@ object ZoneTransferDetector {
                     .setZoneId(ZoneIds.LIMBO)
                     .build(),
             )
-            patchedObjects[objIdx] = currentObj.toBuilder().setInstanceId(returnIid).build()
-            patchZoneInstanceId(patchedZones, ZoneIds.BATTLEFIELD, currentIid, returnIid)
 
             log.debug(
                 "exile-return transform: forgeCardId={} currentIid={} exileIid={} returnIid={}",
@@ -1552,18 +1517,17 @@ object ZoneTransferDetector {
 
     @Suppress("LongParameterList")
     private fun detectDisappearedSacrifices(
+        projection: ZoneHandoffProjection,
         events: List<GameEvent>,
         previousZones: Map<Int, Int>,
-        patchedObjects: MutableList<GameObjectInfo>,
-        patchedZones: MutableList<ZoneInfo>,
         transfers: MutableList<AppliedTransfer>,
-        retiredIds: MutableList<Int>,
-        zoneRecordings: MutableList<Pair<Int, Int>>,
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> GrpId,
     ) {
+        val patchedObjects = projection.objects
+        val patchedZones = projection.zones
         val currentInstanceIds = patchedObjects.map { it.instanceId }.toSet()
         val sacrificeEvents = events.filterIsInstance<GameEvent.CardSacrificed>()
         if (sacrificeEvents.isEmpty()) return
@@ -1599,7 +1563,7 @@ object ZoneTransferDetector {
                             0
                         }
                     removeFromZone(patchedZones, ZoneIds.BATTLEFIELD, instanceId)
-                    appendToZone(patchedZones, destZone, newId)
+                    projection.appendToZone(destZone, newId)
                     grp
                 } else {
                     0
@@ -1625,10 +1589,7 @@ object ZoneTransferDetector {
                 }
             }
 
-            handoff.limboRetirement?.let { limbo ->
-                retiredIds.add(limbo.value)
-                appendToZone(patchedZones, ZoneIds.LIMBO, limbo.value)
-            }
+            projection.apply(handoff)
 
             transfers.add(
                 AppliedTransfer(
@@ -1643,8 +1604,6 @@ object ZoneTransferDetector {
                     manaPayments = manaPayments,
                 ),
             )
-            val (recIid, recZone) = handoff.zoneAssignment
-            zoneRecordings.add(recIid.value to recZone)
             log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)
         }
     }
@@ -1673,80 +1632,6 @@ object ZoneTransferDetector {
                 spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )
-    }
-
-    /**
-     * Apply a [ZoneHandoff]'s structural mutations to the local patch-set:
-     * rewrite the GameObject's instanceId, rewrite the source zone's
-     * `objectInstanceIds` list, append the old iid to Limbo, and signal
-     * retirement to the caller's [retiredIds] accumulator.
-     *
-     * No-op when [ZoneHandoff.limboRetirement] is null (Resolve / keep-same-iid).
-     */
-    private fun applyHandoffToPatchSet(
-        handoff: ZoneHandoff,
-        patchedObjects: MutableList<GameObjectInfo>,
-        objectIndex: Int,
-        patchedZones: MutableList<ZoneInfo>,
-        sourceZoneId: Int,
-        retiredIds: MutableList<Int>,
-    ) {
-        val limbo = handoff.limboRetirement ?: return
-        val origId = limbo.value
-        val newId = handoff.realloc.new.value
-        val obj = patchedObjects[objectIndex]
-        patchedObjects[objectIndex] = obj.toBuilder().setInstanceId(newId).build()
-        patchZoneInstanceId(patchedZones, sourceZoneId, origId, newId)
-        retiredIds.add(origId)
-        appendToZone(patchedZones, ZoneIds.LIMBO, origId)
-    }
-
-    private fun applyHiddenHandoffToZoneSet(
-        handoff: ZoneHandoff,
-        patchedZones: MutableList<ZoneInfo>,
-        destinationZoneId: Int,
-        retiredIds: MutableList<Int>,
-    ) {
-        val limbo = handoff.limboRetirement ?: return
-        val origId = limbo.value
-        val newId = handoff.realloc.new.value
-        patchZoneInstanceId(patchedZones, destinationZoneId, origId, newId)
-        retiredIds.add(origId)
-        appendToZone(patchedZones, ZoneIds.LIMBO, origId)
-    }
-
-    /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */
-    private fun patchZoneInstanceId(
-        zones: MutableList<ZoneInfo>,
-        zoneId: Int,
-        oldId: Int,
-        newId: Int,
-    ) {
-        val idx = zones.indexOfFirst { it.zoneId == zoneId }
-        if (idx < 0) return
-        val zone = zones[idx]
-        val ids = zone.objectInstanceIdsList.toMutableList()
-        val idIdx = ids.indexOf(oldId)
-        if (idIdx >= 0) {
-            ids[idIdx] = newId
-            zones[idx] =
-                zone
-                    .toBuilder()
-                    .clearObjectInstanceIds()
-                    .addAllObjectInstanceIds(ids)
-                    .build()
-        }
-    }
-
-    /** Append an instanceId to a zone's objectInstanceIds list. */
-    private fun appendToZone(
-        zones: MutableList<ZoneInfo>,
-        zoneId: Int,
-        instanceId: Int,
-    ) {
-        val idx = zones.indexOfFirst { it.zoneId == zoneId }
-        if (idx < 0) return
-        zones[idx] = zones[idx].toBuilder().addObjectInstanceIds(instanceId).build()
     }
 
     /** Remove an instanceId from a zone's objectInstanceIds list (no-op if not found). */

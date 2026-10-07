@@ -357,7 +357,7 @@ private fun projectPersistentFrame(
             prev = null,
             frameIds = FrameIdResolver(editor.identities),
             decayedCleanupSourcesThisGsm = emptySet(),
-            transferResult = TransferResult(emptyList(), emptyList(), emptyList(), emptyList(), emptyList()),
+            transferResult = TransferResult(emptyList(), emptyList(), emptyList()),
             promptFacts = promptFacts,
             persistentFeedFacts = facts,
             references = ProjectionCardReferences(InMemoryCardRepository()),

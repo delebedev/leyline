@@ -350,8 +350,6 @@ class StateZoneTransferProjectionTest :
                             transfers = emptyList(),
                             patchedObjects = emptyList(),
                             patchedZones = emptyList(),
-                            retiredIds = emptyList(),
-                            zoneRecordings = emptyList(),
                         ),
                     actingSeat = 1,
                     annotationJournal = journal,
