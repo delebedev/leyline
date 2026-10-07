@@ -20,22 +20,18 @@ class ProtocolContractActionTest :
         test("selected offers require their own prediction and reject contradictory first offers") {
             val contract = ProtocolContract.parse(offerContract)
             contract.verify(listOf(offers(predictedOffer.toBuilder().setInstanceId(20).build(), predictedOffer)))
-            shouldThrow<AssertionError> {
-                contract.verify(listOf(offers(predictedOffer.toBuilder().clearAutoTapSolution().build(), predictedOffer)))
-            }
-            shouldThrow<AssertionError> {
-                contract.verify(listOf(offers(predictedOffer.toBuilder().setAbilityGrpId(0).build(), predictedOffer)))
-            }
-            shouldThrow<AssertionError> {
-                contract.verify(
-                    listOf(
-                        GREToClientMessage
-                            .newBuilder()
-                            .setActionsAvailableReq(
-                                ActionsAvailableReq.newBuilder().addInactiveActions(predictedOffer),
-                            ).build(),
-                    ),
-                )
+            val inactive =
+                GREToClientMessage
+                    .newBuilder()
+                    .setActionsAvailableReq(
+                        ActionsAvailableReq.newBuilder().addInactiveActions(predictedOffer),
+                    ).build()
+            for (messages in listOf(
+                listOf(offers(predictedOffer.toBuilder().clearAutoTapSolution().build(), predictedOffer)),
+                listOf(offers(predictedOffer.toBuilder().setAbilityGrpId(0).build(), predictedOffer)),
+                listOf(inactive),
+            )) {
+                shouldThrow<AssertionError> { contract.verify(messages) }
             }
         }
 

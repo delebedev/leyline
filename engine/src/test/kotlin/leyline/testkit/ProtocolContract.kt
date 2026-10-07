@@ -4,6 +4,7 @@ import com.google.protobuf.Descriptors.EnumValueDescriptor
 import com.google.protobuf.Message
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.acceptance.AcceptancePaths
@@ -89,7 +90,7 @@ class ProtocolContract private constructor(
                     val found = between.filter { matches(it, pattern, bound) }
                     withClue("matching events: $found") {
                         if (window["exists"] != null) {
-                            found.isNotEmpty() shouldBe true
+                            found.shouldNotBeEmpty()
                         } else {
                             found.size shouldBe (window["exactly"] ?: 0)
                         }
@@ -249,8 +250,7 @@ private fun matches(
     pattern: Map<String, Any?>,
     bound: Map<String, IndexedValue<Event>>,
 ): Boolean {
-    if (!kindMatches(event, pattern)) return false
-    if (pattern["present"]?.list()?.any { select(event.values, it as String) == null } == true) return false
+    if (!kindMatches(event, pattern) || pattern["present"]?.list()?.any { select(event.values, it as String) == null } == true) return false
     if (pattern["keys"] != null &&
         (event.values["keys"] as? List<*>)?.sortedBy { it.toString() } != pattern["keys"].list().sortedBy { it.toString() }
     ) {
@@ -357,13 +357,7 @@ private fun validatePattern(
         }
     pattern["op"]?.let { require(it in operations) { "unsupported operation for $type" } }
     pattern["keys"]?.list()?.forEach { require(it is String) { "invalid detail key" } }
-    pattern["present"]?.list()?.let { selectors ->
-        require(selectors.isNotEmpty()) { "empty presence assertion" }
-        selectors.forEach {
-            require(it is String) { "invalid presence selector" }
-            validateSelector(it)
-        }
-    }
+    validatePresence(pattern["present"])
     pattern["sameRow"]?.let { require(it in ids) { "unknown row reference $it" } }
     pattern["where"]?.map()?.let { selection ->
         selection.keysOnly("fields", "equals")
@@ -385,6 +379,16 @@ private fun validatePattern(
         validateSelector(selector)
         require(reference is String && '.' in reference && reference.substringBefore('.') in ids) { "unknown event reference $reference" }
         validateSelector(reference.substringAfter('.'))
+    }
+}
+
+private fun validatePresence(value: Any?) {
+    value?.list()?.let { selectors ->
+        require(selectors.isNotEmpty()) { "empty presence assertion" }
+        selectors.forEach {
+            require(it is String) { "invalid presence selector" }
+            validateSelector(it)
+        }
     }
 }
 
