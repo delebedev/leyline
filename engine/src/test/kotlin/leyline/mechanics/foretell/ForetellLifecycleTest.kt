@@ -1,9 +1,7 @@
 package leyline.mechanics.foretell
 
-import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.shouldBe
 import leyline.game.data.KeywordAbilityIds
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
@@ -32,18 +30,13 @@ class ForetellLifecycleTest :
             val castAction = foretellCastOffer(foretellAbilityGrpId)
             check(castAction != null) { "Foretell cast offer did not appear before game end" }
             val preCastMessages = messagesSince(lifecycleStart)
-            assertSoftly {
-                preCastMessages.deletedPersistentAnnotationIds() shouldNotContain faceDown.id
-                preCastMessages.deletedPersistentAnnotationIds() shouldNotContain suppressed.id
-            }
+            val rowIds = setOf(faceDown.id, suppressed.id)
+            preCastMessages.deletedPersistentAnnotationIds().toSet().intersect(rowIds) shouldBe emptySet()
 
             val castStart = messageSnapshot()
             submitAction(castAction)
 
-            assertSoftly {
-                messagesSince(castStart).deletedPersistentAnnotationIds() shouldContain faceDown.id
-                messagesSince(castStart).deletedPersistentAnnotationIds() shouldContain suppressed.id
-            }
+            messagesSince(castStart).deletedPersistentAnnotationIds().toSet().intersect(rowIds) shouldBe rowIds
         }
     })
 
