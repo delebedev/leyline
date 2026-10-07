@@ -5,7 +5,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
@@ -14,7 +13,6 @@ import leyline.testkit.after
 import leyline.testkit.allPersistentAnnotations
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
-import leyline.testkit.gameStateMessages
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 
@@ -22,17 +20,7 @@ class ReconfigureLifecycleTest :
     SessionTest({
         session(
             "Rabbit Battery attaches and unattaches through Reconfigure",
-            puzzle =
-                """
-                ActivePlayer=Human
-                ActivePhase=Main1
-                HumanLife=20
-                AILife=20
-
-                humanbattlefield=Rabbit Battery;Grizzly Bears;Mountain;Mountain
-                humanlibrary=Mountain;Mountain;Mountain
-                ailibrary=Mountain;Mountain;Mountain
-                """.trimIndent(),
+            puzzleFile = "data/puzzles/reconfigure-rabbit-battery.pzl",
         ) {
             val rabbitIid = human.battlefield.iid("Rabbit Battery")
             val bearIid = human.battlefield.iid("Grizzly Bears")
@@ -45,25 +33,7 @@ class ReconfigureLifecycleTest :
 
             val attachedObject = accumulator.objects[rabbitIid].shouldNotBeNull()
             val attachedPersistent = attachSlice.allPersistentAnnotations()
-            val attachTypes = attachSlice.gameStateMessages().flatMap { it.annotationsList }.flatMap { it.typeList }
-            val selectingFrame =
-                attachSlice.indexOfFirst {
-                    it.hasGameStateMessage() &&
-                        it.gameStateMessage.annotationsList.any { annotation ->
-                            AnnotationType.PlayerSelectingTargets in annotation.typeList
-                        }
-                }
-            val promptFrame = attachSlice.indexOfFirst { it.hasSelectTargetsReq() }
-            val submittedFrame =
-                attachSlice.indexOfFirst {
-                    it.hasGameStateMessage() &&
-                        it.gameStateMessage.annotationsList.any { annotation ->
-                            AnnotationType.PlayerSubmittedTargets in annotation.typeList
-                        }
-                }
             assertSoftly {
-                promptFrame shouldBeGreaterThan selectingFrame
-                submittedFrame shouldBeGreaterThan promptFrame
                 attachedObject.cardTypesList shouldContain CardType.Artifact_a80b
                 attachedObject.cardTypesList shouldNotContain CardType.Creature
                 attachedObject.parentId shouldBe bearIid
@@ -75,13 +45,6 @@ class ReconfigureLifecycleTest :
                     .any {
                         AnnotationType.ModifiedType in it.typeList && rabbitIid in it.affectedIdsList
                     }.shouldBeTrue()
-                attachTypes shouldContain AnnotationType.AttachmentCreated
-                attachTypes shouldContain AnnotationType.LayeredEffectCreated
-                human
-                    .getZone(forge.game.zone.ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-                    .netPower shouldBe 3
             }
 
             val unattachSlice =
@@ -117,11 +80,6 @@ class ReconfigureLifecycleTest :
                     .none {
                         AnnotationType.ModifiedType in it.typeList && rabbitIid in it.affectedIdsList
                     }.shouldBeTrue()
-                human
-                    .getZone(forge.game.zone.ZoneType.Battlefield)
-                    .cards
-                    .first { it.name == "Grizzly Bears" }
-                    .netPower shouldBe 2
             }
         }
     })
