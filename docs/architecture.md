@@ -236,6 +236,13 @@ baselines, annotation lifecycles, prompt facts, and logical output advance only
 when that transition installs. The projection core receives immutable inputs;
 it does not query the live Forge graph.
 
+`ZoneHandoffProjection` applies already allocated card handoffs to a private
+object/zone patch set. Ordered same-frame chains retain every retired lifetime
+and record only the final destination. Hidden-object observations and vanished
+ability retirements remain distinct operations. Its immutable
+`ZoneProjectionLifecycle` is applied to the tentative editor after ordinary
+frame assembly; allocation and committed ownership remain in `ProjectionState`.
+
 Stack membership interleaves spell cards and abilities in Forge's top-first
 order. Pending cast and targeting entries appear above admitted entries, while
 lingering spell entries cannot restore cards that left the Stack zone.

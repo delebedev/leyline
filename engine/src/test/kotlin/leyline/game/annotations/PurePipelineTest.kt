@@ -173,7 +173,7 @@ class PurePipelineTest :
                 transfer.category shouldBe TransferCategory.PlayLand
                 transfer.origId shouldBe 100
                 transfer.newId shouldBe 200
-                result.retiredIds shouldBe listOf(100)
+                result.lifecycle.retiredIds shouldBe listOf(100)
             }
         }
 
@@ -243,7 +243,7 @@ class PurePipelineTest :
                 transfer.category shouldBe TransferCategory.Resolve
                 transfer.origId shouldBe 100
                 transfer.newId shouldBe 100
-                result.retiredIds.shouldBeEmpty()
+                result.lifecycle.retiredIds.shouldBeEmpty()
             }
         }
 
@@ -275,7 +275,7 @@ class PurePipelineTest :
                 transfer.category shouldBe TransferCategory.Resolve
                 transfer.origId shouldBe 100
                 transfer.newId shouldBe 200
-                result.retiredIds shouldBe listOf(100)
+                result.lifecycle.retiredIds shouldBe listOf(100)
                 result.patchedObjects.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.instanceId shouldBe 200
                 result.patchedZones.first { it.zoneId == ZoneIds.P1_GRAVEYARD }.objectInstanceIdsList shouldBe listOf(200)
             }
@@ -341,7 +341,7 @@ class PurePipelineTest :
                 )
 
             result.transfers.shouldBeEmpty()
-            result.retiredIds.shouldBeEmpty()
+            result.lifecycle.retiredIds.shouldBeEmpty()
         }
 
         // -----------------------------------------------------------------------
@@ -533,8 +533,6 @@ class PurePipelineTest :
                         ),
                     patchedObjects = emptyList(),
                     patchedZones = emptyList(),
-                    retiredIds = emptyList(),
-                    zoneRecordings = emptyList(),
                 )
             val combatResult =
                 CombatAnnotations.combatAnnotations(
@@ -596,8 +594,6 @@ class PurePipelineTest :
                         ),
                     patchedObjects = emptyList(),
                     patchedZones = emptyList(),
-                    retiredIds = emptyList(),
-                    zoneRecordings = emptyList(),
                 )
             val combatResult =
                 CombatAnnotations.combatAnnotations(
@@ -673,8 +669,6 @@ class PurePipelineTest :
                         ),
                     patchedObjects = emptyList(),
                     patchedZones = emptyList(),
-                    retiredIds = emptyList(),
-                    zoneRecordings = emptyList(),
                 )
             val events =
                 listOf(

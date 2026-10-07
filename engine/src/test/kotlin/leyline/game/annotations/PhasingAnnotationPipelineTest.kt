@@ -23,7 +23,7 @@ class PhasingAnnotationPipelineTest :
             events: List<GameEvent>,
             transfers: List<AppliedTransfer> = emptyList(),
         ) = GameBridge(cardRepository = InMemoryCardRepository()).let { bridge ->
-            val transfer = TransferResult(transfers, emptyList(), emptyList(), emptyList(), emptyList())
+            val transfer = TransferResult(transfers, emptyList(), emptyList())
             AnnotationPipeline
                 .computeAnnotations(
                     annotationContext(bridge, events = events, transferResult = transfer),

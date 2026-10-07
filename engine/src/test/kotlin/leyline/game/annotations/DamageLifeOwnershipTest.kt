@@ -28,8 +28,6 @@ class DamageLifeOwnershipTest :
                     transfers = transfers,
                     patchedObjects = emptyList(),
                     patchedZones = emptyList(),
-                    retiredIds = emptyList(),
-                    zoneRecordings = emptyList(),
                 )
             val pipeline =
                 AnnotationPipeline.computeAnnotations(

@@ -44,8 +44,6 @@ class RevealStateContributorTest :
                         ),
                     patchedObjects = emptyList(),
                     patchedZones = emptyList(),
-                    retiredIds = emptyList(),
-                    zoneRecordings = emptyList(),
                 )
             val ctx =
                 annotationContext(
