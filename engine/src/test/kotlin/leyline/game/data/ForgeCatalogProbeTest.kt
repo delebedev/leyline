@@ -87,6 +87,22 @@ class ForgeCatalogProbeTest :
             repo.lookupModalOptions(inspector) shouldBe null
         }
 
+        test("replacement effect mode choice keeps Outpost Siege match playable") {
+            forgeCatalogProbe(
+                "outpost-siege",
+                "humanhand=Outpost Siege\nhumanbattlefield=Mountain;Mountain;Mountain;Mountain",
+            ) { repo ->
+                val cardId = requireNotNull(repo.findGrpIdByName("Outpost Siege"))
+                val choices = requireNotNull(repo.lookupModalOptions(cardId))
+                choices.childGrpIds.map { repo.findAbilityLocalization(it)?.text } shouldBe listOf("Khans", "Dragons")
+
+                val modal = castSpellUntilCastingTimeOptionsReq("Outpost Siege").getCastingTimeOptionReq(0).modalReq
+                modal.modalOptionsList.map { it.grpId } shouldBe choices.childGrpIds
+                respondModalChoice(listOf(choices.childGrpIds.first()))
+                passUntil(10) { human.battlefield.cards.any { it.name == "Outpost Siege" } }.shouldBeTrue()
+            }
+        }
+
         test("targeted activated ability resolves with a generated ability identity") {
             forgeCatalogProbe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
                 activateAbility("Goblin Fireslinger").shouldBeTrue()

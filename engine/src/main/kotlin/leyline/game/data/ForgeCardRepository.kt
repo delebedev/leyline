@@ -170,8 +170,7 @@ class ForgeCardRepository private constructor(
                 rows.forEach { raw ->
                     add("$prefix:ability:${slot++}:$raw")
                     val variables = face.variables.associate { it.key to it.value }
-                    val parsed = parseParams(raw)
-                    val effect = modalEffect(parsed, variables)
+                    val effect = modalEffect(raw, variables)
                     effect["Choices"]?.split(',')?.forEachIndexed { index, variable ->
                         add("$prefix:mode:${slot - 1}:$index:$variable")
                     }
@@ -232,12 +231,16 @@ class ForgeCardRepository private constructor(
                 }.distinct()
         }
 
-        /** Reflexive triggers can reach their modes through several Execute references. */
+        /** Modal choices may be referenced by an entering replacement or an Execute chain. */
         private fun modalEffect(
-            params: Map<String, String>,
+            raw: String,
             variables: Map<String, String>,
         ): Map<String, String> {
-            var effect = params
+            var effect = parseParams(raw)
+            if (raw.startsWith("ETBReplacement:Other:")) {
+                val variable = raw.substringAfter("ETBReplacement:Other:").substringBefore(':')
+                effect = variables[variable]?.let(::parseParams) ?: effect
+            }
             val visited = mutableSetOf<String>()
             while (!effect.containsKey("Choices")) {
                 val variable = effect["Execute"] ?: break
@@ -473,7 +476,7 @@ class ForgeCardRepository private constructor(
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
             rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana))
-            val effect = modalEffect(parsed, variables)
+            val effect = modalEffect(raw, variables)
             effect["Choices"]
                 ?.split(",")
                 ?.mapIndexed { index, variable ->
