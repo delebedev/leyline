@@ -1,5 +1,6 @@
 package leyline.testkit
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
@@ -31,21 +32,14 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 class ProtocolContractMutationTest :
     FunSpec({
         tags(IntegrationTag)
+        val regressions = mutableMapOf<ProtocolContract, (ProtocolContract, List<GREToClientMessage>) -> Unit>()
 
         fun regression(
             file: String,
             check: (ProtocolContract, List<GREToClientMessage>) -> Unit,
         ) {
             val contract = ProtocolContract.load(AcceptancePaths.resolve("conformance/contracts/$file"))
-            test("${contract.name} rejects altered output") {
-                val scenario = AcceptanceSuiteLoader.load(contract.suite).scenarios.single { it.id == contract.scenario }
-                MatchdoorAcceptanceExecutor().runScenario(scenario) { messages ->
-                    withClue(contract.name) {
-                        contract.verify(messages)
-                        check(contract, messages)
-                    }
-                } shouldBe scenario.steps.size
-            }
+            regressions[contract] = check
         }
 
         regression("kaito-phasing-chronology.yaml") { contract, messages ->
@@ -475,6 +469,18 @@ class ProtocolContractMutationTest :
                 "missing trigger-source retirement" to messages.withoutRowDeletion(row.id),
             )) {
                 withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+            }
+        }
+        for ((identity, cases) in regressions.entries.groupBy { it.key.suite to it.key.scenario }) {
+            test("${identity.first}/${identity.second} rejects altered output") {
+                val scenario = AcceptanceSuiteLoader.load(identity.first).scenarios.single { it.id == identity.second }
+                MatchdoorAcceptanceExecutor().runScenario(scenario) { messages ->
+                    ProtocolContract.verifyAll(cases.map { it.key }, messages)
+                    val results = cases.map { (contract, check) -> contract.name to runCatching { check(contract, messages) } }
+                    assertSoftly {
+                        for ((name, result) in results) withClue(name) { result.exceptionOrNull() shouldBe null }
+                    }
+                } shouldBe scenario.steps.size
             }
         }
     })

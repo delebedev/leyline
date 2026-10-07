@@ -1,6 +1,5 @@
 package leyline.behavior.conformance
 
-import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -19,12 +18,12 @@ class ProtocolConformanceTest :
         tags(IntegrationTag, ConformanceTag)
         val paths = ProtocolContract.files()
         require(paths.isNotEmpty()) { "no protocol contracts" }
-        for (path in paths) {
-            val contract = ProtocolContract.load(path)
-            test(contract.name) {
-                val scenario = AcceptanceSuiteLoader.load(contract.suite).scenarios.single { it.id == contract.scenario }
+        val scenarios = paths.map(ProtocolContract::load).groupBy { it.suite to it.scenario }
+        for ((identity, contracts) in scenarios) {
+            test("${identity.first}/${identity.second}") {
+                val scenario = AcceptanceSuiteLoader.load(identity.first).scenarios.single { it.id == identity.second }
                 MatchdoorAcceptanceExecutor().runScenario(scenario) { messages ->
-                    withClue(contract.name) { contract.verify(messages) }
+                    ProtocolContract.verifyAll(contracts, messages)
                 } shouldBe scenario.steps.size
             }
         }

@@ -8,7 +8,8 @@ read_when:
 
 Run `just test-conformance` for authored YAML protocol obligations over the emitted
 GRE stream. Every file under [`conformance/contracts/`](../conformance/contracts/)
-is discovered and executed. The extended CI job runs the same task and propagates failures.
+is discovered and verified. Contracts sharing a `(suite, id)` execute their scenario
+once, with independent named failures for each contract. The extended CI job runs the same task and propagates failures.
 JUnit output lives under `engine/build/test-results/testConformance/`.
 
 Conformance runs immediately after Build in Extended, before the longer
@@ -93,7 +94,8 @@ retirement, incorrect solve progress and designation, duplicate solve triggers,
 incorrect delayed holder identities or exile destination, and premature Ward
 ability retirement, incorrect transformation faces or identity, mismatched Discover
 cast offers, broken stack reallocation, and early casting-option creation or retirement, wrong foretell state or action, broken cycling identities or retirement, and incorrect selection bounds, source, ordering domain or repeated selection, incorrect attachment/action/layer identities, cast permissions and alternative costs, return identities, and option-row updates or reintroduction.
-Each regression scenario runs once; mutations reuse its messages. The conformance lane only discovers,
+Each regression scenario runs once, grouped by `(suite, id)`; mutations reuse its messages.
+Sibling baseline and mutation checks retain independent named failures. The conformance lane only discovers,
 executes, and verifies authored contracts.
 
 Keep mechanism, concurrency, cancellation, transport, and head presentation
@@ -104,9 +106,11 @@ A contract names its acceptance `scenario` (`suite` and `id`), ordered `frames`,
 and optional exact `counts`. Each frame contains ordered `events` that coexist in
 one emitted message. A later frame may continue in that same message.
 An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
-`fields`, and `equals` references to earlier events. `sameRow` relates persistent
+`fields`, positive `present` selectors, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
 normalized `details`, `detailTypes`, identities, array indices, and `length`.
+`present` requires each selector to resolve. For protobuf message fields it checks
+field presence, so an explicitly present empty message satisfies the obligation.
 Enum fields use their protocol names with protobuf collision suffixes removed.
 Quote enum names such as `"No"` that YAML otherwise reads as booleans.
 Unknown schema fields, invalid references, and explicit null entries fail loading. A missing event, contradictory value, or
@@ -120,6 +124,9 @@ event cannot hide an earlier contradictory one.
 
 Optional `windows` constrain the stream strictly between two bound events.
 `absent` forbids a matching event; `count` requires an exact nonnegative count.
+`exists` requires at least one matching event inside the window. Earlier
+nonmatching events are allowed, unlike a selected frame event whose contradictory
+assertions fail immediately.
 Patterns use the same typed fields and identity relations as stream counts.
 `holds` requires a persistent row introduced or updated by its first anchor to
 survive until the endpoint. Retirement at the endpoint is allowed. Boundaries
@@ -139,7 +146,9 @@ windows:
 
 The prompt lane supports `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
 `OrderReq`, and `ActionsAvailableReq`. Their full protobuf payload remains
-available through `raw` selectors.
+available through `raw` selectors. The `Action` type uses `lane: action` and
+`op: offer` for each active action in `ActionsAvailableReq`. Its `raw` selectors
+address that action directly. Inactive actions do not become offer events.
 
 Persistent rows become inactive at deletion. A later emission of that row is a
 new `create`, while repeated deletions retain their last-known identity for
