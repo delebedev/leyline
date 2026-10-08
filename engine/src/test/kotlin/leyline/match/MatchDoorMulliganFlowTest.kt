@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
-private const val deck = "60 Forest"
+private const val DECK = "60 Forest"
 
 private fun engineSettings() =
     EngineSettings(
@@ -153,7 +153,7 @@ private fun greOutbound(channel: EmbeddedChannel): List<GREToClientMessage> =
 private fun connectPair(
     registry: MatchRegistry,
     matchId: String,
-    deckList: String = deck,
+    deckList: String = DECK,
     familiarFirst: Boolean = false,
     drainInitial: Boolean = true,
 ): Pair<EmbeddedChannel, EmbeddedChannel> {
