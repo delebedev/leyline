@@ -551,6 +551,7 @@ class ProtocolContractMutationTest :
                 withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
             }
         }
+        regression("brutal-cathar-entry-exile.yaml", ::checkEntryTriggerMutations)
         for ((identity, cases) in regressions.entries.groupBy { it.key.suite to it.key.scenario }) {
             test("${identity.first}/${identity.second} rejects altered output") {
                 val scenario = AcceptanceSuiteLoader.load(identity.first).scenarios.single { it.id == identity.second }
@@ -724,6 +725,98 @@ private fun checkCombatDeathMutations(
         }
     contract.verify(reversedDeaths)
     for ((name, mutant) in mutants) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
+private fun checkEntryTriggerMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val target =
+        messages
+            .persistentAnnotationsOfType(AnnotationType.TargetSpec)
+            .distinctBy { it.id }
+            .single { it.detailInt("promptId") == 1014 }
+    val targetId = target.affectedIdsList.single()
+    val changed = messages.annotationsOfType(AnnotationType.ObjectIdChanged).single { it.detailInt("orig_id") == targetId }
+    val newTargetId = changed.detailInt("new_id")
+    val wrongTarget =
+        messages
+            .mutatingAnnotation(AnnotationType.TargetSpec, persistent = true) {
+                if (it.id == target.id) {
+                    it
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(0)
+                        .build()
+                } else {
+                    it
+                }
+            }.mutatingAnnotation(AnnotationType.ObjectIdChanged) {
+                if (it == changed) {
+                    it
+                        .withIntDetail("orig_id", 0)
+                        .withIntDetail("new_id", 1)
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(0)
+                        .build()
+                } else {
+                    it
+                }
+            }.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+                if (it.detailString("category") == "Exile" && newTargetId in it.affectedIdsList) {
+                    it
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(1)
+                        .build()
+                } else {
+                    it
+                }
+            }.mutatingAnnotation(AnnotationType.DisplayCardUnderCard, persistent = true) {
+                if (newTargetId in it.affectedIdsList) {
+                    it
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(1)
+                        .build()
+                } else {
+                    it
+                }
+            }
+    val lateDay =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val rows = gsm.annotationsList
+                val day = rows.singleOrNull { AnnotationType.GainDesignation in it.typeList }
+                val created = rows.indexOfFirst { AnnotationType.AbilityInstanceCreated in it.typeList }
+                if (day != null && created >= 0) {
+                    val reordered = rows.filterNot { it == day }.toMutableList()
+                    reordered.add(reordered.indexOfFirst { AnnotationType.AbilityInstanceCreated in it.typeList } + 1, day)
+                    gsm.clearAnnotations().addAllAnnotations(reordered)
+                } else {
+                    gsm
+                }
+            }
+        }
+    for ((name, mutant) in listOf(
+        "correlated target outside offered candidates" to wrongTarget,
+        "entry trigger precedes initial Day" to lateDay,
+        "stale entry source zone" to
+            messages.mutatingAnnotation(AnnotationType.AbilityInstanceCreated) {
+                if (target.affectorId in it.affectedIdsList) it.withIntDetail("source_zone", ZoneIds.STACK) else it
+            },
+        "wrong target definition" to
+            messages.map { message ->
+                if (message.hasSelectTargetsReq()) {
+                    message.toBuilder().setSelectTargetsReq(message.selectTargetsReq.toBuilder().setAbilityGrpId(0)).build()
+                } else {
+                    message
+                }
+            },
+    )) {
         withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
     }
 }

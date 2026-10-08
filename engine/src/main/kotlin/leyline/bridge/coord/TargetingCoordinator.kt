@@ -975,9 +975,11 @@ class TargetingCoordinator(
                 PromptIds.TARGET_CREATURE_OR_PLANESWALKER_YOU_DONT_CONTROL
             targetKinds == setOf("creature") && normalized.all { "youctrl" in it && "youdontctrl" !in it } ->
                 PromptIds.TARGET_CREATURE_YOU_CONTROL
+            targetKinds == setOf("creature") && normalized.all { "oppctrl" in it } ->
+                PromptIds.TARGET_OPPONENT_CREATURE
             targetKinds == setOf("creature") && allOpponentControlled ->
                 PromptIds.TARGET_CREATURE_YOU_DONT_CONTROL
-            targetKinds == setOf("creature") && normalized.none { "youctrl" in it || "youdontctrl" in it } ->
+            targetKinds == setOf("creature") && normalized.none { "youctrl" in it || "youdontctrl" in it || "oppctrl" in it } ->
                 PromptIds.TARGET_CREATURE
             else -> null
         }

@@ -1,0 +1,148 @@
+name: Brutal Cathar entry targeting and exile link
+scenario: {suite: mechanics-protocol, id: daynight-roundtrip-cathar}
+frames:
+  - id: cast
+    events:
+      - id: cast
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+      - id: source
+        type: Card
+        lane: object
+        where: {equals: {affectorId: 'cast.affectedIds[0]'}}
+        equals: {affectorId: 'cast.affectedIds[0]'}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1, 'raw.cardTypes[0]': Creature}
+      - id: cast-action
+        type: UserActionTaken
+        lane: transient
+        where: {equals: {affectedIds: cast.affectedIds}}
+        keys: [actionType, abilityGrpId]
+        fields: {details.actionType: [1], details.abilityGrpId: [0]}
+        equals: {affectedIds: cast.affectedIds}
+  - id: entered
+    events:
+      - id: entry-started
+        type: ResolutionStart
+        lane: transient
+        where: {equals: {affectorId: source.affectorId}}
+        keys: [grpid]
+        equals: {affectorId: source.affectorId, 'details.grpid[0]': source.raw.grpId}
+      - id: entry-resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: source.affectorId, 'details.grpid[0]': source.raw.grpId}
+      - id: entered
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Resolve], details.zone_src: [27], details.zone_dest: [28]}
+        equals: {affectedIds: cast.affectedIds}
+      - id: day
+        type: GainDesignation
+        lane: transient
+        keys: [DesignationType]
+        fields: {details.DesignationType: [10]}
+      - id: trigger
+        type: Ability
+        lane: object
+        where: {equals: {raw.parentId: source.affectorId}}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+        equals: {raw.parentId: source.affectorId, raw.objectSourceGrpId: source.raw.grpId}
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        keys: [source_zone]
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: source.affectorId, 'affectedIds[0]': trigger.affectorId}
+      - id: selecting
+        type: PlayerSelectingTargets
+        lane: transient
+        keys: []
+        equals: {affectedIds: created.affectedIds}
+      - id: trigger-source
+        type: TriggeringObject
+        lane: persistent
+        op: create
+        keys: [source_zone]
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: trigger.affectorId, 'affectedIds[0]': source.affectorId}
+  - id: target-prompt
+    events:
+      - id: prompt
+        type: SelectTargetsReq
+        lane: prompt
+        fields:
+          raw.prompt.promptId: 10
+          raw.selectTargetsReq.targets.length: 1
+          'raw.selectTargetsReq.targets[0].targets.length': 1
+          'raw.selectTargetsReq.targets[0].prompt.promptId': 1014
+          'raw.selectTargetsReq.targets[0].minTargets': 1
+          'raw.selectTargetsReq.targets[0].maxTargets': 1
+        equals:
+          gameStateId: selecting.gameStateId
+          raw.selectTargetsReq.sourceId: trigger.affectorId
+          raw.selectTargetsReq.abilityGrpId: trigger.raw.grpId
+          'raw.selectTargetsReq.targets[0].targetingAbilityGrpId': trigger.raw.grpId
+  - id: target-submitted
+    events:
+      - id: submitted
+        type: PlayerSubmittedTargets
+        lane: transient
+        keys: []
+        equals: {affectedIds: created.affectedIds}
+      - id: target
+        type: TargetSpec
+        lane: persistent
+        op: create
+        keys: [abilityGrpId, index, promptId, promptParameters]
+        fields: {details.index: [1], details.promptId: [1014], affectedIds.length: 1}
+        equals: {affectorId: trigger.affectorId, 'details.abilityGrpId[0]': trigger.raw.grpId, 'affectedIds[0]': 'prompt.raw.selectTargetsReq.targets[0].targets[0].targetInstanceId'}
+  - id: exile
+    events:
+      - id: exile-started
+        type: ResolutionStart
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: trigger.affectorId, 'details.grpid[0]': trigger.raw.grpId}
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {affectorId: trigger.affectorId, affectedIds: target.affectedIds, details.orig_id: target.affectedIds}
+      - id: exiled
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.category: [Exile], details.zone_src: [28], details.zone_dest: [29]}
+        equals: {affectorId: trigger.affectorId, affectedIds: reallocated.details.new_id}
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+        equals: {affectorId: trigger.affectorId, 'details.grpid[0]': trigger.raw.grpId}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: source.affectorId, affectedIds: created.affectedIds}
+      - id: target-retired
+        type: TargetSpec
+        lane: persistent
+        op: delete
+        sameRow: target
+      - id: linked
+        type: DisplayCardUnderCard
+        lane: persistent
+        op: create
+        keys: [TemporaryZoneTransfer, Disable]
+        fields: {details.TemporaryZoneTransfer: [1], details.Disable: [0]}
+        equals: {affectorId: source.affectorId, affectedIds: exiled.affectedIds}
+windows:
+  - {id: target-holds, holds: target, until: target-retired}
+counts:
+  - {match: {type: DisplayCardUnderCard, lane: persistent, op: create, sameRow: linked}, exactly: 1}
+  - {match: {type: TargetSpec, lane: persistent, op: create, sameRow: target}, exactly: 1}
+  - {match: {type: TargetSpec, lane: persistent, op: delete, sameRow: target}, exactly: 1}

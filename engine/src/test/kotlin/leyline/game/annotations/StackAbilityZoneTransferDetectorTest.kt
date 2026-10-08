@@ -116,6 +116,58 @@ class StackAbilityZoneTransferDetectorTest :
             }
         }
 
+        test("entry trigger observes the source current zone before its cast event exists") {
+            val source =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(
+                        sourceCardIid,
+                    ).setZoneId(ZoneIds.BATTLEFIELD)
+                    .setType(GameObjectType.Card)
+                    .build()
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(abilityObject(), source),
+                    zones = listOf(stackZone(ZoneIds.STACK, ZoneType.Stack, abilityIid), stackZone(ZoneIds.LIMBO, ZoneType.Limbo)),
+                    events = emptyList(),
+                    context =
+                        stackContext(
+                            previousZones = mapOf(sourceCardIid to ZoneIds.STACK),
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                        ).copy(stackAbilityLookup = { StackAbilitySourceFacts(sourceForgeId, false) }),
+                )
+
+            result.stackAbilityAppearances.single().sourceZoneId shouldBe ZoneIds.BATTLEFIELD
+        }
+
+        test("pending leave trigger retains its battlefield source context") {
+            val source =
+                GameObjectInfo
+                    .newBuilder()
+                    .setInstanceId(
+                        sourceCardIid,
+                    ).setZoneId(ZoneIds.P1_GRAVEYARD)
+                    .setType(GameObjectType.Card)
+                    .build()
+            val result =
+                ZoneTransferDetector.detectZoneTransfers(
+                    gameObjects = listOf(abilityObject(), source),
+                    zones = listOf(stackZone(ZoneIds.STACK, ZoneType.Stack, abilityIid), stackZone(ZoneIds.LIMBO, ZoneType.Limbo)),
+                    events = emptyList(),
+                    context =
+                        stackContext(
+                            previousZones = mapOf(sourceCardIid to ZoneIds.BATTLEFIELD),
+                            forgeIdLookup = forgeIdLookup,
+                            idAllocator = noOpAllocator,
+                            idLookup = idLookup,
+                        ).copy(stackAbilityLookup = { StackAbilitySourceFacts(sourceForgeId, false) }),
+                )
+
+            result.stackAbilityAppearances.single().sourceZoneId shouldBe ZoneIds.BATTLEFIELD
+        }
+
         test("detectZoneTransfers finds stack ability disappearance") {
             val result =
                 detectStackAbilityDisappearance(hasFizzled = false, forgeIdLookup, noOpAllocator, idLookup, sourceForgeId, cardGrpId)
