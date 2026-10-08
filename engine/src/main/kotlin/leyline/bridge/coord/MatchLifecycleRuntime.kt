@@ -339,6 +339,7 @@ internal class MatchLifecycleRuntime(
                     )
                 }
             install(seatId, prior, planner, prepared)
+            currentMulliganBatch = prepared.messages
             gameStateId
         }
 
@@ -368,7 +369,7 @@ internal class MatchLifecycleRuntime(
                 prepared,
                 hooks = CutInstallHooks(beforeInstall = beforeRedrawInstall, afterInstall = afterRedrawInstall),
             )
-            currentKeepRequest = prepared.messages.last { it.hasMulliganReq() }
+            currentKeepRequest = prepared.messages.lastOrNull { it.hasMulliganReq() }
             currentMulliganBatch = prepared.messages
             requestGameStateId
         }
