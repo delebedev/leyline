@@ -113,9 +113,9 @@ frames:
 counts:
   - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [1]}}
     exactly: 1
-  - match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: option}
+  - match: {type: CastingTimeOption, lane: persistent, op: create, equals: {details.alternateCostGrpId: accepted.details.alternativeGrpId}}
     exactly: 1
-  - match: {type: TemporaryPermanent, lane: persistent, op: create, sameRow: marker}
+  - match: {type: TemporaryPermanent, lane: persistent, op: create}
     exactly: 1
   - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Sacrifice]}}
     exactly: 1

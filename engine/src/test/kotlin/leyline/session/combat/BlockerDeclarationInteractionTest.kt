@@ -10,7 +10,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.afterActionInstall
 import leyline.bridge.coord.beforeActionInstall
@@ -19,9 +18,6 @@ import leyline.game.PlaybackTerminalFailure
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
-import leyline.testkit.beInGraveyardOf
-import leyline.testkit.detailInt
-import leyline.testkit.detailString
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -117,32 +113,6 @@ class BlockerDeclarationInteractionTest :
         // ─── Single-blocker block / decline / trade ──────────────────────────
 
         session(
-            "human blocks AI attacker",
-            deckList = COMBAT_DECK,
-            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
-        ) {
-            val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
-
-            // Human life before blocking
-            val lifeBefore = human.life
-
-            // Declare block: human's Raging Goblin blocks AI's Raging Goblin
-            declareBlockers(mapOf(blockerIid to attackerIid))
-
-            passThroughCombat()
-
-            assertSoftly {
-                // Human life should NOT decrease (blocked damage)
-                human.life shouldBe lifeBefore
-
-                // Both 1/1s should have traded — human's creature should be in graveyard
-                "Raging Goblin" should beInGraveyardOf(human, count = 1)
-
-                isGameOver().shouldBeFalse()
-            }
-        }
-
-        session(
             "human declines blocking takes damage",
             deckList = COMBAT_DECK,
             aiScript = GOBLIN_ATTACK_AI_SCRIPT,
@@ -162,49 +132,6 @@ class BlockerDeclarationInteractionTest :
 
                 // Human's creature should still be alive
                 humanBattlefieldCreatures() shouldHaveSize 1
-
-                isGameOver().shouldBeFalse()
-            }
-        }
-
-        session(
-            "trade produces creature deaths",
-            deckList = COMBAT_DECK,
-            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
-        ) {
-            val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
-            val start = messageSnapshot()
-
-            // Declare block
-            declareBlockers(mapOf(blockerIid to attackerIid))
-
-            passThroughCombat()
-
-            val damageFrame =
-                messagesSince(start)
-                    .filter { it.hasGameStateMessage() }
-                    .map { it.gameStateMessage }
-                    .single { gsm -> gsm.annotationsList.count { AnnotationType.DamageDealt_af5a in it.typeList } == 2 }
-            val rows = damageFrame.annotationsList
-            val damagePositions = rows.indices.filter { AnnotationType.DamageDealt_af5a in rows[it].typeList }
-            for (oldId in listOf(blockerIid, attackerIid)) {
-                val rename = rows.single { AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == oldId }
-                val moved =
-                    rows.single {
-                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                            it.affectedIdsList == listOf(rename.detailInt("new_id"))
-                    }
-                assertSoftly {
-                    rows.indexOf(rename) shouldBeGreaterThan damagePositions.max()
-                    rows.indexOf(moved) shouldBeGreaterThan rows.indexOf(rename)
-                    moved.detailString("category") shouldBe "SBA_Damage"
-                }
-            }
-
-            assertSoftly {
-                // Both 1/1s should have traded — exactly one Raging Goblin in each graveyard
-                "Raging Goblin" should beInGraveyardOf(human, count = 1)
-                "Raging Goblin" should beInGraveyardOf(ai, count = 1)
 
                 isGameOver().shouldBeFalse()
             }

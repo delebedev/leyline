@@ -21,3 +21,7 @@ scenarios:
             - our_life: 20
             - opponent_life: 20
             - stack_empty: true
+      - pass_until:
+          phase: Main2
+          max_passes: 12
+      - expect: { phase: Main2 }
