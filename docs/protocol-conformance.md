@@ -28,6 +28,7 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `core-actions/counterspell-response` | Visible priority reference, offered hand identity, stack target binding, countered target retirement inside resolution and ordinary resolving-spell exit. Two contracts share one execution. |
 | `warmup/land-spell-face` | Land offer and play identity, mana-source activation and consumer binding, cast and resolution framing, source and target identity, exact damage count and typed detail values, object reallocation, target-row retirement. |
 | `mechanics-warmup/reconfigure-attach-unattach` | Ability and targeting order, target-group cardinality and bounds, prompt flags, source binding, submitted target identity, target-row retirement, attach payment and action, and source-owned attachment/layer resolution. |
+| `mechanics-protocol/evoke-mulldrifter` | Selected paid cost, entry trigger parent, draw count, sacrifice resolution and identity, and marker lifetime. |
 | `mechanics-protocol/llanowar-elves-mana` | Creature-source binding, activation and tap order, payment detail types, source and spell-consumer identity, accepted cast, exact payment and retirement counts. |
 | `mechanics-protocol/investigate-novice-inspector` | Trigger-source row introduction and retirement, token parent and source identity, resolution framing. |
 | `mechanics-protocol/boast-usher-of-the-fallen` | Activation identity, exhaustion keys and remaining uses, token parent and source identity, resolution and ability retirement. |
@@ -78,7 +79,7 @@ cardinality and required transfer emission.
 
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
-numbers. Casting options omit an absent cost or permission field. Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
+numbers. Casting options omit an absent cost or permission field. Paid Evoke, Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 

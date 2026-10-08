@@ -56,7 +56,7 @@ class EvokeLifecycleTest :
 
             assertSoftly {
                 cto.detailInt("type") shouldBe CastingTimeOptionType.CastThroughAbility.number
-                cto.detailInt("castAbilityGrpId") shouldBe evokeAbilityGrpId
+                cto.detailsList.map { it.key }.sorted() shouldBe listOf("alternateCostGrpId", "type")
                 marker.affectorId shouldBe marker.affectedIdsList.single()
                 marker.detailInt("AbilityGrpId") shouldBe evokeAbilityGrpId
                 castAction.detailInt("abilityGrpId") shouldBe 0

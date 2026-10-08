@@ -11,7 +11,8 @@ object SpellAbilityShapes {
     }
 
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
-        (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in setOf(AlternativeCost.Warp, AlternativeCost.Foretold)
+        (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in
+            setOf(AlternativeCost.Warp, AlternativeCost.Foretold, AlternativeCost.Evoke)
 
     fun isReconfigureAttach(sa: SpellAbility?): Boolean = sa?.api == ApiType.Attach && sa.getParam("PrecostDesc") == "Reconfigure"
 

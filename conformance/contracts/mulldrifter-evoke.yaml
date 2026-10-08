@@ -1,0 +1,131 @@
+name: Mulldrifter paid Evoke and sacrifice lifecycle
+scenario: {suite: mechanics-protocol, id: evoke-mulldrifter}
+frames:
+  - id: source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 31, raw.controllerSeatId: 1}}
+        fields: {raw.zoneId: 31, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}
+  - id: cast
+    events:
+      - id: cast-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": source.affectorId}
+      - id: cast
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+        equals: {affectedIds: cast-reallocated.details.new_id}
+      - id: accepted
+        type: UserActionTaken
+        lane: transient
+        where: {fields: {details.actionType: [1]}}
+        fields: {details.actionType: [1], details.abilityGrpId: [0], affectorId: 1}
+        equals: {affectedIds: cast-reallocated.details.new_id}
+      - id: option
+        type: CastingTimeOption
+        lane: persistent
+        op: create
+        keys: [type, alternateCostGrpId]
+        fields: {details.type: [13]}
+        equals:
+          affectorId: "cast-reallocated.details.new_id[0]"
+          affectedIds: cast-reallocated.details.new_id
+          details.alternateCostGrpId: accepted.details.alternativeGrpId
+      - id: marker
+        type: TemporaryPermanent
+        lane: persistent
+        op: create
+        keys: [AbilityGrpId]
+        equals:
+          affectorId: "cast-reallocated.details.new_id[0]"
+          affectedIds: cast-reallocated.details.new_id
+          details.AbilityGrpId: accepted.details.alternativeGrpId
+  - id: entry
+    events:
+      - id: entry
+        type: ZoneTransfer
+        lane: transient
+        where: {fields: {details.category: [Resolve], details.zone_src: [27], details.zone_dest: [28]}}
+        fields: {details.category: [Resolve], details.zone_src: [27], details.zone_dest: [28]}
+        equals: {affectedIds: marker.affectedIds}
+      - id: permanent
+        type: Card
+        lane: object
+        where: {equals: {affectorId: marker.affectorId}}
+        fields: {raw.zoneId: 28}
+        equals: {affectorId: marker.affectorId, raw.grpId: source.raw.grpId}
+      - id: trigger
+        type: Ability
+        lane: object
+        where: {equals: {raw.grpId: "option.details.alternateCostGrpId[0]"}}
+        equals:
+          raw.parentId: permanent.affectorId
+          raw.objectSourceGrpId: source.raw.grpId
+          raw.grpId: "option.details.alternateCostGrpId[0]"
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        where: {equals: {"affectedIds[0]": trigger.affectorId}}
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: permanent.affectorId, "affectedIds[0]": trigger.affectorId}
+  - id: sacrifice
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        where: {equals: {affectorId: trigger.affectorId}}
+        equals: {affectorId: trigger.affectorId, "details.grpid[0]": trigger.raw.grpId}
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {affectorId: trigger.affectorId, "details.orig_id[0]": permanent.affectorId}
+      - id: sacrificed
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [Sacrifice], details.zone_src: [28], details.zone_dest: [33]}
+        equals: {affectorId: trigger.affectorId, affectedIds: reallocated.details.new_id}
+      - id: completed
+        type: ResolutionComplete
+        lane: transient
+        equals: {affectorId: trigger.affectorId, "details.grpid[0]": trigger.raw.grpId}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: permanent.affectorId, "affectedIds[0]": trigger.affectorId}
+      - id: marker-retired
+        type: TemporaryPermanent
+        lane: persistent
+        op: delete
+        sameRow: marker
+      - id: graveyard
+        type: Card
+        lane: object
+        where: {equals: {affectorId: "reallocated.details.new_id[0]"}}
+        fields: {raw.zoneId: 33}
+        equals: {affectorId: "reallocated.details.new_id[0]", raw.grpId: source.raw.grpId}
+counts:
+  - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [1]}}
+    exactly: 1
+  - match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: option}
+    exactly: 1
+  - match: {type: TemporaryPermanent, lane: persistent, op: create, sameRow: marker}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Sacrifice]}}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Draw], details.zone_src: [32], details.zone_dest: [31]}}
+    exactly: 2
+  - match: {type: TemporaryPermanent, lane: persistent, op: delete, sameRow: marker}
+    exactly: 1
+  - match: {type: AbilityInstanceDeleted, lane: transient, equals: {"affectedIds[0]": trigger.affectorId}}
+    exactly: 1
+windows:
+  - id: marker-through-entry
+    holds: marker
+    until: marker-retired

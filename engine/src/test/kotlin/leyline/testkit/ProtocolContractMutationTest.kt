@@ -301,6 +301,7 @@ class ProtocolContractMutationTest :
             }
         }
 
+        regression("mulldrifter-evoke.yaml", ::checkEvokeMutations)
         regression("counterspell-offer.yaml", ::checkCounterOfferMutations)
         regression("counterspell-response.yaml", ::checkCounterResponseMutations)
         regression("lightning-bolt.yaml") { contract, messages ->
@@ -1237,6 +1238,81 @@ private fun checkRowLifetimeMutations(
     val changed = messages.toMutableList().also { it.add(birth + 1, update) }
     withClue("contradictory row update") { shouldThrow<AssertionError> { contract.verify(changed) } }
     withClue("retired row reintroduced") { shouldThrow<AssertionError> { contract.verify(messages + rowMessage(row)) } }
+}
+
+private fun checkEvokeMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val row = messages.allPersistentAnnotations().single { AnnotationType.TemporaryPermanent in it.typeList }
+    val wrongMarker =
+        messages.mutatingAnnotation(AnnotationType.TemporaryPermanent, persistent = true) {
+            it.toBuilder().setAffectorId(0).build()
+        }
+    val wrongOption =
+        messages.mutatingAnnotation(AnnotationType.CastingTimeOption, persistent = true) {
+            it.withIntDetail("alternateCostGrpId", 0)
+        }
+    val wrongSource =
+        messages.mutatingAnnotation(AnnotationType.ObjectIdChanged) {
+            if (it.detailInt("orig_id") == row.affectorId) it.withIntDetail("orig_id", 0) else it
+        }
+    val wrongCause =
+        messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+            if (it.detailString("category") == "Sacrifice") it.toBuilder().setAffectorId(0).build() else it
+        }
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val earlyRetirement =
+        messages.withoutRowDeletion(row.id).toMutableList().also {
+            val frame =
+                messages[birth].mutatingGameState { gsm ->
+                    gsm
+                        .clearAnnotations()
+                        .clearPersistentAnnotations()
+                        .clearGameObjects()
+                        .addDiffDeletedPersistentAnnotationIds(row.id)
+                }
+            it.add(birth + 1, frame)
+        }
+    val missingDraw =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val kept =
+                    gsm.annotationsList.filterNot {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Draw"
+                    }
+                gsm.clearAnnotations().addAllAnnotations(kept)
+            }
+        }
+    val earlySacrifice =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val rows = gsm.annotationsList
+                val exits =
+                    rows.filter {
+                        AnnotationType.ObjectIdChanged in it.typeList ||
+                            (AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Sacrifice")
+                    }
+                if (rows.any { AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Sacrifice" }) {
+                    val reordered = exits + (rows - exits.toSet())
+                    gsm.clearAnnotations().addAllAnnotations(reordered)
+                } else {
+                    gsm
+                }
+            }
+        }
+    for ((name, mutant) in listOf(
+        "wrong marker identity" to wrongMarker,
+        "wrong selected cost" to wrongOption,
+        "premature marker retirement" to earlyRetirement,
+        "missing draws" to missingDraw,
+        "wrong permanent source" to wrongSource,
+        "wrong sacrifice cause" to wrongCause,
+        "sacrifice before resolution" to earlySacrifice,
+        "missing marker retirement" to messages.withoutRowDeletion(row.id),
+    )) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
 }
 
 private fun checkLandPaymentMutations(

@@ -874,6 +874,7 @@ scenarios:
             - annotation_seen: AbilityInstanceDeleted
             - zone_contains: { side: ours, zone: graveyard, card: Mulldrifter }
             - zone_not_contains: { side: ours, zone: battlefield, card: Mulldrifter }
+            - zone_count_at_least: { side: ours, zone: hand, count: 2 }
             - stack_empty: true
   - id: dash-zurgo-bellstriker
     puzzle: dash-zurgo-bellstriker
