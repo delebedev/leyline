@@ -163,7 +163,8 @@ class HandVisibilityProjectionTest :
                     .fullState!!
             assertSoftly {
                 retained.gameObjectsList.single { it.type == GameObjectType.RevealedCard } shouldBe companionView
-                retained.zonesList.single { it.zoneId == ZoneIds.REVEALED_P2 }.objectInstanceIdsList shouldBe listOf(companionView.instanceId)
+                retained.zonesList.single { it.zoneId == ZoneIds.REVEALED_P2 }.objectInstanceIdsList shouldBe
+                    listOf(companionView.instanceId)
                 overlapping.gsm.diffDeletedInstanceIdsList.shouldBeEmpty()
             }
         }
