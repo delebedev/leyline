@@ -810,6 +810,7 @@ object ZoneTransferDetector {
             srcZone == ZoneIds.P1_HAND || srcZone == ZoneIds.P2_HAND ->
                 when (destZone) {
                     ZoneIds.STACK -> TransferCategory.CastSpell
+                    ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY -> TransferCategory.Put
                     ZoneIds.BATTLEFIELD -> TransferCategory.PlayLand
                     else -> TransferCategory.ZoneTransfer
                 }

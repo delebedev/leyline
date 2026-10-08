@@ -737,7 +737,7 @@ class MatchDoorMulliganFlowTest :
                         val newId = changed.detailInt("new_id")
                         val transfer =
                             annotations.single {
-                                AnnotationType.ZoneTransfer in it.typeList &&
+                                AnnotationType.ZoneTransfer_af5a in it.typeList &&
                                     it.affectedIdsList == listOf(newId)
                             }
                         transfer.detailInt("zone_src") shouldBe ZoneIds.P1_HAND

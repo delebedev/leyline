@@ -60,6 +60,7 @@ object TransferCategoryResolver {
             from == Zone.Hand && to == Zone.Battlefield -> TransferCategory.PlayLand
             from == Zone.Hand && to == Zone.Stack -> TransferCategory.CastSpell
             from == Zone.Hand && to == Zone.Graveyard -> TransferCategory.Discard
+            from == Zone.Hand && to == Zone.Library -> TransferCategory.Put
             from == Zone.Stack && to == Zone.Battlefield -> TransferCategory.Resolve
             from == Zone.Stack && to == Zone.Graveyard -> TransferCategory.Countered
             from == Zone.Battlefield && to == Zone.Graveyard -> TransferCategory.Destroy

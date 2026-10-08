@@ -17,6 +17,7 @@ class LondonMulliganTest :
                     }
                 val player = game.players.first()
                 val mulligan = LondonMulligan(player, firstFree)
+                mulligan.canMulligan() shouldBe true
                 mulligan.mulligan()
                 player.getZone(ZoneType.Hand).size() shouldBe 7
                 mulligan.tuckCardsDuringMulligan() shouldBe if (firstFree) 0 else 1
@@ -42,6 +43,35 @@ class LondonMulliganTest :
                 }
                 player.getZone(ZoneType.Hand).size() shouldBe if (firstFree) 7 else 6
                 mulligan.hasKept() shouldBe true
+                mulligan.canMulligan() shouldBe false
+            }
+        }
+        listOf(false, true).forEach { firstFree ->
+            test("London cannot redraw beyond an empty final hand, free first=$firstFree") {
+                val (bridge, game, _) =
+                    startWithBoard { _, human, _ ->
+                        repeat(7) { addCard("Forest", human, ZoneType.Hand) }
+                        repeat(20) { addCard("Island", human, ZoneType.Library) }
+                    }
+                val player = game.players.first()
+                val mulligan = LondonMulligan(player, firstFree)
+                repeat(if (firstFree) 8 else 7) {
+                    mulligan.canMulligan() shouldBe true
+                    mulligan.mulligan()
+                    player.getZone(ZoneType.Hand).size() shouldBe 7
+                }
+                mulligan.canMulligan() shouldBe false
+                mulligan.tuckCardsDuringMulligan() shouldBe 7
+                val keeper =
+                    Thread { mulligan.keep() }.apply {
+                        isDaemon = true
+                        start()
+                    }
+                bridge.awaitTuckReady()
+                bridge.submitTuck(SeatId(1), player.getZone(ZoneType.Hand).cards.toList()) shouldBe true
+                keeper.join(1_000)
+                keeper.isAlive shouldBe false
+                player.getZone(ZoneType.Hand).size() shouldBe 0
             }
         }
     })
