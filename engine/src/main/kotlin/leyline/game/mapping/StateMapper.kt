@@ -1765,7 +1765,8 @@ object StateMapper {
     ) {
         val eventReveals =
             events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }
-        val privateLookCards = privateLookCards(activeReveal, eventReveals)
+        val privateLookCards =
+            privateLookCards(activeReveal, eventReveals) - snap.seats.mapNotNull { it.companion?.card?.forgeCardId }.toSet()
         val revealFacts =
             buildList {
                 snap.seats.forEach { seat ->
