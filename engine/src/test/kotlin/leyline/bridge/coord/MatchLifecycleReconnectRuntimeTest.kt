@@ -124,8 +124,17 @@ class MatchLifecycleReconnectRuntimeTest :
                 }
             awaitMulliganPrompt(bridge, seatId)
 
+            coordinator.lifecycle.publishMulliganTuck(seatId)
+            val queuedTuck =
+                coordinator
+                    .feed(seatId)
+                    .queue
+                    .single()
+                    .messages
+                    .single { it.hasGroupReq() }
             val reconnectGameStateId = coordinator.lifecycle.publishInitial(seatId, includeStartingPlayerPrompt = true)
             val reconnect = coordinator.drain(seatId).single()
+            reconnect.none { it.msgId == queuedTuck.msgId } shouldBe true
             val fullState = reconnect.single { it.hasGameStateMessage() }.gameStateMessage
             val request = reconnect.single { it.hasGroupReq() }
             val staleResponse = groupResponse(staleRequest.gameStateId, staleRequest.msgId)
@@ -141,9 +150,15 @@ class MatchLifecycleReconnectRuntimeTest :
                     FailureReason.ReqRespMismatch
                 ResponseEnvelopeGuard.mismatchReason(currentResponse, bridge.committedSequence(), bridge.responseAcceptance) shouldBe null
             }
-            bridge.mulliganBridge(seatId).submitTuck(emptyList())
+            bridge.mulliganBridge(seatId).submitTuck(emptyList()) shouldBe false
+            val selected =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            bridge.mulliganBridge(seatId).submitTuck(listOf(selected)) shouldBe true
             engineThread.join(2_000)
-            tucked.get() shouldBe emptyList()
+            tucked.get() shouldBe listOf(selected)
         }
 
         test("reconnect after redraw keeps only the current hand identities") {

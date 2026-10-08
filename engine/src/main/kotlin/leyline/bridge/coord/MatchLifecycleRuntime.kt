@@ -191,7 +191,7 @@ internal class MatchLifecycleRuntime(
                 .orEmpty()
         val horizonMessage =
             mulliganPrompt?.let {
-                LifecycleMessageMaterializer.reconnectMulliganRequest(
+                LifecycleMessageMaterializer.mulliganRequest(
                     msgId = planner.currentMsgId(),
                     gameStateId = gameStateId,
                     seatId = seatId,
@@ -325,6 +325,24 @@ internal class MatchLifecycleRuntime(
             gameStateId
         }
 
+    fun publishMulliganTuck(seatId: SeatId): Int =
+        withPlan(seatId) { prior, planner, gameStateId ->
+            val prompt = checkNotNull(owner.bridge.mulliganBridge(seatId).pendingPrompt())
+            val prepared =
+                prepare {
+                    LifecycleMessageMaterializer.mulliganTuck(
+                        planner.currentMsgId(),
+                        gameStateId,
+                        owner.bridge,
+                        seatId,
+                        prompt,
+                    )
+                }
+            install(seatId, prior, planner, prepared)
+            currentMulliganBatch = prepared.messages
+            gameStateId
+        }
+
     fun publishMulliganRedraw(
         seatId: SeatId,
         facts: MulliganRedrawFacts,
@@ -351,7 +369,7 @@ internal class MatchLifecycleRuntime(
                 prepared,
                 hooks = CutInstallHooks(beforeInstall = beforeRedrawInstall, afterInstall = afterRedrawInstall),
             )
-            currentKeepRequest = prepared.messages.last { it.hasMulliganReq() }
+            currentKeepRequest = prepared.messages.lastOrNull { it.hasMulliganReq() }
             currentMulliganBatch = prepared.messages
             requestGameStateId
         }

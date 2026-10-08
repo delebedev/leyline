@@ -36,7 +36,7 @@ object LifecycleMessageMaterializer {
         val transition: ProjectionTransition,
     )
 
-    internal fun reconnectMulliganRequest(
+    internal fun mulliganRequest(
         msgId: Int,
         gameStateId: Int,
         seatId: SeatId,
@@ -358,7 +358,29 @@ object LifecycleMessageMaterializer {
                 numCards,
                 ProjectionTransition(prior.revision, next),
             )
-        return LifecycleMessages(listOf(deal) + request.messages, request.nextMsgId, request.transition)
+        val prompt = bridge.mulliganBridge(seatId).pendingPrompt()
+        val messages =
+            if (prompt?.phase == MulliganPhase.WaitingTuck) {
+                request.messages.map { message ->
+                    if (message.hasMulliganReq()) {
+                        mulliganRequest(
+                            message.msgId,
+                            requestGameStateId,
+                            seatId,
+                            prompt,
+                            states.first.zonesList
+                                .single { it.zoneId == ZoneIds.handOf(seatId) }
+                                .objectInstanceIdsList,
+                            keepRequest = null,
+                        )
+                    } else {
+                        message
+                    }
+                }
+            } else {
+                request.messages
+            }
+        return LifecycleMessages(listOf(deal) + messages, request.nextMsgId, request.transition)
     }
 
     /** DealHand + MulliganReq bundled for seat 2 — built from game state. */
@@ -408,6 +430,43 @@ object LifecycleMessageMaterializer {
                 mulliganSnap to buildMulliganRequestState(gameStateId, mulliganSnap)
             }
         return mulliganRequestMessages(msgIdStart, gameStateId, gsm, mulliganCount, numCards, transition)
+    }
+
+    internal fun mulliganTuck(
+        msgId: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+        seatId: SeatId,
+        prompt: MulliganBridge.PendingPrompt,
+    ): LifecycleMessages {
+        val (gsm, transition) =
+            project(bridge, seatId) {
+                val snapshot = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
+                snapshot to
+                    buildMulliganRequestState(gameStateId, snapshot)
+                        .toBuilder()
+                        .setPendingMessageCount(1)
+                        .build()
+            }
+        val state =
+            GREToClientMessage
+                .newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId.value)
+                .setMsgId(msgId)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build()
+        val request =
+            mulliganRequest(
+                msgId + 1,
+                gameStateId,
+                seatId,
+                prompt,
+                bridge.getHandCards(seatId).map { bridge.instance(it).value },
+                null,
+            )
+        return LifecycleMessages(listOf(state, request), msgId + 2, transition)
     }
 
     private fun buildMulliganRequestState(

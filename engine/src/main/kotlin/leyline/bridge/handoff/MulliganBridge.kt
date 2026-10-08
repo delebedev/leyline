@@ -47,6 +47,7 @@ class MulliganBridge(
             val cardsToTuck: Int,
             val sequence: Int,
             val future: CompletableFuture<List<Card>>,
+            val eligibleCardIds: Set<Int>,
         ) : MulliganState
     }
 
@@ -149,6 +150,7 @@ class MulliganBridge(
                     cardsToTuck = count,
                     sequence = nextPromptSequence(),
                     future = future,
+                    eligibleCardIds = hand.map { it.id }.toSet(),
                 )
         }
         log.info("MulliganBridge: awaiting tuck {} cards for player {}", count, playerId)
@@ -173,10 +175,18 @@ class MulliganBridge(
         return future?.complete(false) == true
     }
 
-    fun submitTuck(cards: List<Card>) {
-        val future = synchronized(this) { (state as? MulliganState.WaitingTuck)?.future }
-        future?.complete(cards)
-    }
+    fun submitTuck(cards: List<Card>): Boolean =
+        synchronized(this) {
+            val current = state as? MulliganState.WaitingTuck ?: return false
+            val ids = cards.map { it.id }
+            if (ids.size != current.cardsToTuck ||
+                ids.toSet().size != ids.size ||
+                !current.eligibleCardIds.containsAll(ids)
+            ) {
+                return false
+            }
+            current.future.complete(cards)
+        }
 
     fun cancelPending() {
         val current =

@@ -9,6 +9,9 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.event.DestructionCause
 import leyline.game.event.GameEvent
+import leyline.game.event.Zone
+import leyline.game.mapping.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 class TransferCategoryResolverTest :
     FunSpec({
@@ -49,6 +52,17 @@ class TransferCategoryResolverTest :
         ).forEach { case ->
             test("resolves ${case.name} fallback from its operation event") {
                 TransferCategoryResolver.categoryFromEvents(cardId, listOf(case.event)) shouldBe case.expected
+            }
+        }
+
+        test("hand to library defaults to Put but operation facts win") {
+            val moved = GameEvent.ZoneChanged(cardId, Zone.Hand, Zone.Library)
+            assertSoftly {
+                ZoneTransferDetector.inferCategory(GameObjectInfo.getDefaultInstance(), ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY) shouldBe
+                    TransferCategory.Put
+                TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved)) shouldBe TransferCategory.Put
+                TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved, GameEvent.CardBounced(cardId, seatId))) shouldBe
+                    TransferCategory.Bounce
             }
         }
 

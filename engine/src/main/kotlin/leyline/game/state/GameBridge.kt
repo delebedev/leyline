@@ -1536,15 +1536,7 @@ class GameBridge(
 
     // TODO: wire mulliganBridge for familiarSeat to support paired mulligan flow
 
-    /**
-     * Submit mulligan decision for seat.
-     * Blocks until engine re-deals and reaches mulligan again.
-     *
-     * London mulligan: after mull, the engine draws 7 then calls
-     * [tuckCardsViaMulligan] which blocks on [MulliganPhase.WaitingTuck].
-     * We auto-tuck first N cards (same as forge-web) to unblock the engine,
-     * then wait for the next [MulliganPhase.WaitingKeep].
-     */
+    /** Submit a mulligan and wait for the new full-hand decision horizon. */
     fun submitMull(seatId: SeatId): Boolean {
         log.info("GameBridge: seat {} mulligans", seatId.value)
         if (seatId == seating.humanSeat) {
@@ -1556,32 +1548,16 @@ class GameBridge(
                 log.debug("ignored stale mulligan for seat {}", seatId.value)
                 return false
             }
-            // London: engine draws 7 then calls tuckCardsViaMulligan() → WaitingTuck.
-            // Wait for a NEW prompt (higher sequence) that's either WaitingTuck or WaitingKeep.
             val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
                 val prompt = bridge.pendingPromptAfter(seqBefore)
                 if (prompt != null) {
-                    when (prompt.phase) {
-                        MulliganPhase.WaitingKeep -> {
-                            log.info("GameBridge: engine re-dealt hand after mulligan (no tuck)")
-                            return true
-                        }
-                        MulliganPhase.WaitingTuck -> {
-                            val n = prompt.cardsToTuck
-                            val hand = getHandCards(seatId)
-                            log.info("GameBridge: auto-tucking {} cards (London mulligan)", n)
-                            bridge.submitTuck(hand.take(n))
-                            // After tuck, engine continues → next WaitingKeep
-                            awaitMulliganReady()
-                            log.info("GameBridge: engine re-dealt hand after mulligan+tuck")
-                            return true
-                        }
-                    }
+                    log.info("GameBridge: engine re-dealt hand after mulligan")
+                    return true
                 }
                 Thread.sleep(POLL_INTERVAL_MS)
             }
-            log.warn("GameBridge: timed out waiting for engine after mull+tuck")
+            log.warn("GameBridge: timed out waiting for new mulligan decision")
         }
         return false
     }
@@ -1617,9 +1593,9 @@ class GameBridge(
     fun submitTuck(
         seatId: SeatId,
         cards: List<Card>,
-    ) {
+    ): Boolean {
         log.info("GameBridge: seat {} tucking {} cards", seatId.value, cards.size)
-        if (seatId == seating.humanSeat) mulliganBridge(seatId).submitTuck(cards)
+        return seatId == seating.humanSeat && mulliganBridge(seatId).submitTuck(cards)
     }
 
     /** True when this bridge is running a puzzle game. */

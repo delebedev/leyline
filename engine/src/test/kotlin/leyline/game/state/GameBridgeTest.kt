@@ -155,7 +155,7 @@ class GameBridgeTest :
             }
         }
 
-        test("submit mull auto-tucks and produces new hand") {
+        test("submit mull produces a full hand pending keep") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start()
@@ -166,20 +166,28 @@ class GameBridgeTest :
             b.submitMull(SeatId(1))
 
             val handAfter = b.getHandGrpIds(SeatId(1))
-            // London: drew 7, auto-tucked 1 → 6 cards remain
-            handAfter.size shouldBe 6
+            handAfter.size shouldBe 7
+            b.mulliganBridge(SeatId(1)).pendingPrompt()?.mulliganCount shouldBe 1
         }
 
-        test("submit mull twice reduces hand by two") {
+        test("two redraws retain seven until two cards are selected for bottom") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start()
 
             b.submitMull(SeatId(1))
-            b.getHandGrpIds(SeatId(1)).size shouldBe 6
+            b.getHandGrpIds(SeatId(1)).size shouldBe 7
 
             b.submitMull(SeatId(1))
-            b.getHandGrpIds(SeatId(1)).size shouldBe 5
+            b.getHandGrpIds(SeatId(1)).size shouldBe 7
+            b.submitKeep(SeatId(1)).shouldBeTrue()
+            b.awaitTuckReady()
+            assertSoftly {
+                b.getTuckCount() shouldBe 2
+                b.submitTuck(SeatId(1), b.getHandCards(SeatId(1)).take(2)).shouldBeTrue()
+                b.awaitActionPriority(SeatId(1)).shouldBeTrue()
+                b.getHandGrpIds(SeatId(1)).size shouldBe 5
+            }
         }
 
         test("mull then keep reaches priority") {
@@ -188,12 +196,17 @@ class GameBridgeTest :
             b.start()
 
             b.submitMull(SeatId(1))
-            b.getHandGrpIds(SeatId(1)).size shouldBe 6
+            b.getHandGrpIds(SeatId(1)).size shouldBe 7
 
-            b.submitKeep(SeatId(1))
-            b.awaitActionPriority(SeatId(1)).shouldBeTrue()
+            b.submitKeep(SeatId(1)).shouldBeTrue()
+            b.awaitTuckReady()
+            assertSoftly {
+                b.getTuckCount() shouldBe 1
+                b.submitTuck(SeatId(1), b.getHandCards(SeatId(1)).take(1)).shouldBeTrue()
+                b.awaitActionPriority(SeatId(1)).shouldBeTrue()
 
-            b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+                b.actionBridge(SeatId(1)).getPending().shouldNotBeNull()
+            }
         }
 
         test("build actions includes lands") {

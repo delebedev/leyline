@@ -1,5 +1,6 @@
 package leyline.bridge.handoff
 
+import forge.game.card.Card
 import forge.game.card.CardCollection
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
@@ -83,13 +84,16 @@ class MulliganBridgeTest :
 
             val ready = CountDownLatch(1)
             val resultSize = AtomicReference<Int>()
+            val first = Card(1, null)
+            val second = Card(2, null)
+            val hand = CardCollection(listOf(first, second))
 
             val engineThread =
                 Thread {
                     ready.countDown()
                     resultSize.set(
                         bridge
-                            .awaitTuckDecision(playerId = 1, count = 2, hand = CardCollection.EMPTY)
+                            .awaitTuckDecision(playerId = 1, count = 2, hand = hand)
                             .size,
                     )
                 }
@@ -106,11 +110,17 @@ class MulliganBridgeTest :
                 prompt.sequence shouldBe 2
             }
 
-            bridge.submitTuck(emptyList())
+            assertSoftly {
+                bridge.submitTuck(emptyList()) shouldBe false
+                bridge.submitTuck(listOf(first, first)) shouldBe false
+                bridge.submitTuck(listOf(first, Card(3, null))) shouldBe false
+                bridge.pendingPrompt() shouldBe prompt
+                bridge.submitTuck(listOf(second, first)) shouldBe true
+            }
             engineThread.join(2_000)
 
             assertSoftly {
-                resultSize.get() shouldBe 0
+                resultSize.get() shouldBe 2
                 bridge.pendingPrompt().shouldBeNull()
             }
         }
