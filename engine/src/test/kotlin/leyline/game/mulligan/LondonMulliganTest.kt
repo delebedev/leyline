@@ -2,6 +2,7 @@ package leyline.game.mulligan
 
 import forge.game.mulligan.LondonMulligan
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
 import leyline.testkit.BoardTest
@@ -41,9 +42,11 @@ class LondonMulliganTest :
                     keeper.join(1_000)
                     keeper.isAlive shouldBe false
                 }
-                player.getZone(ZoneType.Hand).size() shouldBe if (firstFree) 7 else 6
-                mulligan.hasKept() shouldBe true
-                mulligan.canMulligan() shouldBe false
+                assertSoftly {
+                    player.getZone(ZoneType.Hand).size() shouldBe if (firstFree) 7 else 6
+                    mulligan.hasKept() shouldBe true
+                    mulligan.canMulligan() shouldBe false
+                }
             }
         }
         listOf(false, true).forEach { firstFree ->

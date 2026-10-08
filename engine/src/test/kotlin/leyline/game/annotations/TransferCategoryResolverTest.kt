@@ -57,11 +57,13 @@ class TransferCategoryResolverTest :
 
         test("hand to library defaults to Put but operation facts win") {
             val moved = GameEvent.ZoneChanged(cardId, Zone.Hand, Zone.Library)
-            ZoneTransferDetector.inferCategory(GameObjectInfo.getDefaultInstance(), ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY) shouldBe
-                TransferCategory.Put
-            TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved)) shouldBe TransferCategory.Put
-            TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved, GameEvent.CardBounced(cardId, seatId))) shouldBe
-                TransferCategory.Bounce
+            assertSoftly {
+                ZoneTransferDetector.inferCategory(GameObjectInfo.getDefaultInstance(), ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY) shouldBe
+                    TransferCategory.Put
+                TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved)) shouldBe TransferCategory.Put
+                TransferCategoryResolver.categoryFromEvents(cardId, listOf(moved, GameEvent.CardBounced(cardId, seatId))) shouldBe
+                    TransferCategory.Bounce
+            }
         }
 
         test("operation precedence is deterministic") {

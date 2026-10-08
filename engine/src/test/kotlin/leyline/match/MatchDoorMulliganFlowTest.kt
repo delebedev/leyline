@@ -3,8 +3,11 @@ package leyline.match
 import com.google.protobuf.ByteString
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
@@ -50,6 +53,158 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+private const val deck = "60 Forest"
+
+private fun engineSettings() =
+    EngineSettings(
+        seed = 42L,
+        dieRollWinner = 1,
+        skipMulligan = false,
+        bridgeTimeoutMs = 2_000L,
+        promptFailsafeMs = 2_000L,
+        aiTurnWaitMs = 2_000L,
+        mulliganWaitMs = 2_000L,
+    )
+
+private val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
+
+private fun handler(registry: MatchRegistry) =
+    MatchHandler(
+        registry = registry,
+        engineSettings = engineSettings(),
+        cardRepository = TestCardRegistry.repo,
+        runtimeMatchConfigs = runtimeMatchConfigs,
+    )
+
+private fun serviceMessage(
+    type: ClientToMatchServiceMessageType,
+    payload: ByteString,
+    requestId: Int,
+): ClientToMatchServiceMessage =
+    ClientToMatchServiceMessage
+        .newBuilder()
+        .setRequestId(requestId)
+        .setClientToMatchServiceMessageType(type)
+        .setPayload(payload)
+        .build()
+
+private fun greMessage(
+    seatId: Int,
+    type: ClientMessageType,
+    customize: ClientToGREMessage.Builder.() -> Unit = {},
+): ClientToGREMessage =
+    ClientToGREMessage
+        .newBuilder()
+        .setSystemSeatId(seatId)
+        .setType(type)
+        .apply(customize)
+        .build()
+
+private fun auth(
+    clientId: String,
+    requestId: Int,
+): ClientToMatchServiceMessage =
+    serviceMessage(
+        ClientToMatchServiceMessageType.AuthenticateRequest_f487,
+        AuthenticateRequest
+            .newBuilder()
+            .setClientId(clientId)
+            .setPlayerName(clientId)
+            .build()
+            .toByteString(),
+        requestId,
+    )
+
+private fun connect(
+    matchId: String,
+    seatId: Int,
+    requestId: Int,
+): ClientToMatchServiceMessage =
+    serviceMessage(
+        ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487,
+        ClientToMatchDoorConnectRequest
+            .newBuilder()
+            .setMatchId(matchId)
+            .setClientToGreMessageBytes(
+                greMessage(seatId, ClientMessageType.ConnectReq_097b) {
+                    setConnectReq(ConnectReq.newBuilder())
+                }.toByteString(),
+            ).build()
+            .toByteString(),
+        requestId,
+    )
+
+private fun greServiceMessage(
+    gre: ClientToGREMessage,
+    requestId: Int,
+): ClientToMatchServiceMessage =
+    serviceMessage(
+        ClientToMatchServiceMessageType.ClientToGremessage,
+        gre.toByteString(),
+        requestId,
+    )
+
+private fun greOutbound(channel: EmbeddedChannel): List<GREToClientMessage> =
+    generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }
+        .filter { it.hasGreToClientEvent() }
+        .flatMap { it.greToClientEvent.greToClientMessagesList }
+        .toList()
+
+private fun connectPair(
+    registry: MatchRegistry,
+    matchId: String,
+    deckList: String = deck,
+    familiarFirst: Boolean = false,
+    drainInitial: Boolean = true,
+): Pair<EmbeddedChannel, EmbeddedChannel> {
+    runtimeMatchConfigs.put(
+        RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
+    )
+    val local = EmbeddedChannel(handler(registry))
+    val familiar = EmbeddedChannel(handler(registry))
+
+    local.writeInbound(auth("local-player", 1))
+    familiar.writeInbound(auth("local-player_Familiar", 2))
+    greOutbound(local)
+    greOutbound(familiar)
+
+    if (familiarFirst) {
+        familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+        local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+    } else {
+        local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
+        familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
+    }
+    if (drainInitial) {
+        greOutbound(local)
+        greOutbound(familiar)
+    }
+    return local to familiar
+}
+
+private fun dealHandCount(messages: List<GREToClientMessage>): Int =
+    messages.count { message ->
+        message.hasGameStateMessage() &&
+            message.gameStateMessage.playersList.any {
+                it.pendingMessageType == ClientMessageType.MulliganResp_097b
+            }
+    }
+
+private fun chooseStartingPlayer(
+    respId: Int,
+    seatId: Int = 1,
+): ClientToGREMessage =
+    greMessage(2, ClientMessageType.ChooseStartingPlayerResp_097b) {
+        setRespId(respId)
+        setChooseStartingPlayerResp(
+            ChooseStartingPlayerResp
+                .newBuilder()
+                .setTeamType(TeamType.Individual)
+                .setSystemSeatId(seatId)
+                .setTeamId(seatId),
+        )
+    }
+
 class MatchDoorMulliganFlowTest :
     FunSpec({
         tags(IntegrationTag)
@@ -58,158 +213,6 @@ class MatchDoorMulliganFlowTest :
             GameBootstrap.initializeCardDatabase(quiet = true)
             TestCardRegistry.ensureRegistered()
         }
-
-        val deck = "60 Forest"
-
-        fun engineSettings() =
-            EngineSettings(
-                seed = 42L,
-                dieRollWinner = 1,
-                skipMulligan = false,
-                bridgeTimeoutMs = 2_000L,
-                promptFailsafeMs = 2_000L,
-                aiTurnWaitMs = 2_000L,
-                mulliganWaitMs = 2_000L,
-            )
-
-        val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
-
-        fun handler(registry: MatchRegistry) =
-            MatchHandler(
-                registry = registry,
-                engineSettings = engineSettings(),
-                cardRepository = TestCardRegistry.repo,
-                runtimeMatchConfigs = runtimeMatchConfigs,
-            )
-
-        fun serviceMessage(
-            type: ClientToMatchServiceMessageType,
-            payload: ByteString,
-            requestId: Int,
-        ): ClientToMatchServiceMessage =
-            ClientToMatchServiceMessage
-                .newBuilder()
-                .setRequestId(requestId)
-                .setClientToMatchServiceMessageType(type)
-                .setPayload(payload)
-                .build()
-
-        fun greMessage(
-            seatId: Int,
-            type: ClientMessageType,
-            customize: ClientToGREMessage.Builder.() -> Unit = {},
-        ): ClientToGREMessage =
-            ClientToGREMessage
-                .newBuilder()
-                .setSystemSeatId(seatId)
-                .setType(type)
-                .apply(customize)
-                .build()
-
-        fun auth(
-            clientId: String,
-            requestId: Int,
-        ): ClientToMatchServiceMessage =
-            serviceMessage(
-                ClientToMatchServiceMessageType.AuthenticateRequest_f487,
-                AuthenticateRequest
-                    .newBuilder()
-                    .setClientId(clientId)
-                    .setPlayerName(clientId)
-                    .build()
-                    .toByteString(),
-                requestId,
-            )
-
-        fun connect(
-            matchId: String,
-            seatId: Int,
-            requestId: Int,
-        ): ClientToMatchServiceMessage =
-            serviceMessage(
-                ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487,
-                ClientToMatchDoorConnectRequest
-                    .newBuilder()
-                    .setMatchId(matchId)
-                    .setClientToGreMessageBytes(
-                        greMessage(seatId, ClientMessageType.ConnectReq_097b) {
-                            setConnectReq(ConnectReq.newBuilder())
-                        }.toByteString(),
-                    ).build()
-                    .toByteString(),
-                requestId,
-            )
-
-        fun greServiceMessage(
-            gre: ClientToGREMessage,
-            requestId: Int,
-        ): ClientToMatchServiceMessage =
-            serviceMessage(
-                ClientToMatchServiceMessageType.ClientToGremessage,
-                gre.toByteString(),
-                requestId,
-            )
-
-        fun greOutbound(channel: EmbeddedChannel): List<GREToClientMessage> =
-            generateSequence { channel.readOutbound<MatchServiceToClientMessage>() }
-                .filter { it.hasGreToClientEvent() }
-                .flatMap { it.greToClientEvent.greToClientMessagesList }
-                .toList()
-
-        fun connectPair(
-            registry: MatchRegistry,
-            matchId: String,
-            deckList: String = deck,
-            familiarFirst: Boolean = false,
-            drainInitial: Boolean = true,
-        ): Pair<EmbeddedChannel, EmbeddedChannel> {
-            runtimeMatchConfigs.put(
-                RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
-            )
-            val local = EmbeddedChannel(handler(registry))
-            val familiar = EmbeddedChannel(handler(registry))
-
-            local.writeInbound(auth("local-player", 1))
-            familiar.writeInbound(auth("local-player_Familiar", 2))
-            greOutbound(local)
-            greOutbound(familiar)
-
-            if (familiarFirst) {
-                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
-                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
-            } else {
-                local.writeInbound(connect(matchId, seatId = 1, requestId = 3))
-                familiar.writeInbound(connect(matchId, seatId = 2, requestId = 4))
-            }
-            if (drainInitial) {
-                greOutbound(local)
-                greOutbound(familiar)
-            }
-            return local to familiar
-        }
-
-        fun dealHandCount(messages: List<GREToClientMessage>): Int =
-            messages.count { message ->
-                message.hasGameStateMessage() &&
-                    message.gameStateMessage.playersList.any {
-                        it.pendingMessageType == ClientMessageType.MulliganResp_097b
-                    }
-            }
-
-        fun chooseStartingPlayer(
-            respId: Int,
-            seatId: Int = 1,
-        ): ClientToGREMessage =
-            greMessage(2, ClientMessageType.ChooseStartingPlayerResp_097b) {
-                setRespId(respId)
-                setChooseStartingPlayerResp(
-                    ChooseStartingPlayerResp
-                        .newBuilder()
-                        .setTeamType(TeamType.Individual)
-                        .setSystemSeatId(seatId)
-                        .setTeamId(seatId),
-                )
-            }
 
         listOf(false to "player-first", true to "Familiar-first").forEach { (familiarFirst, order) ->
             test("$order startup progresses exactly once after both sessions connect") {
@@ -521,7 +524,7 @@ class MatchDoorMulliganFlowTest :
                                 AnnotationType.AbilityInstanceCreated in it.typeList &&
                                     it.affectedIdsList == listOf(abilityId)
                             }
-                        originalHandIds.contains(created.affectorId) shouldBe true
+                        originalHandIds shouldContain created.affectorId
                         val started = annotations.single { AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityId }
                         started.detailInt("grpid") shouldBe 175903
                         val changed =
@@ -530,10 +533,12 @@ class MatchDoorMulliganFlowTest :
                                     it.detailInt("orig_id") == created.affectorId
                             }
                         val put = annotations.single { AnnotationType.ZoneTransfer_af5a in it.typeList && it.affectorId == abilityId }
-                        put.affectedIdsList shouldBe listOf(changed.detailInt("new_id"))
-                        put.detailInt("zone_src") shouldBe created.detailInt("source_zone")
-                        put.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
-                        put.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
+                        assertSoftly {
+                            put.affectedIdsList shouldBe listOf(changed.detailInt("new_id"))
+                            put.detailInt("zone_src") shouldBe created.detailInt("source_zone")
+                            put.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
+                            put.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
+                        }
                         val retired =
                             annotations.single {
                                 AnnotationType.AbilityInstanceDeleted in it.typeList &&
@@ -707,7 +712,7 @@ class MatchDoorMulliganFlowTest :
                     )
                     val postKeep = greOutbound(local)
                     val grouping = postKeep.single { it.hasGroupReq() }
-                    ((System.nanoTime() - keepStarted) / 1_000_000 < 1_000) shouldBe true
+                    ((System.nanoTime() - keepStarted) / 1_000_000) shouldBeLessThan 1_000L
                     val ids = grouping.groupReq.instanceIdsList
                     val keptIds = ids.dropLast(mulligans)
                     val bottomIds = ids.takeLast(mulligans)
@@ -743,12 +748,14 @@ class MatchDoorMulliganFlowTest :
                                 20 + index,
                             ),
                         )
-                        greOutbound(local).isEmpty() shouldBe true
-                        session.gameBridge.getHandCards(SeatId(1)).size shouldBe 7
-                        session.gameBridge
-                            .mulliganBridge(SeatId(1))
-                            .pendingPrompt()
-                            ?.cardsToTuck shouldBe mulligans
+                        assertSoftly {
+                            greOutbound(local).shouldBeEmpty()
+                            session.gameBridge.getHandCards(SeatId(1)).size shouldBe 7
+                            session.gameBridge
+                                .mulliganBridge(SeatId(1))
+                                .pendingPrompt()
+                                ?.cardsToTuck shouldBe mulligans
+                        }
                     }
                     local.writeInbound(
                         greServiceMessage(
@@ -780,16 +787,17 @@ class MatchDoorMulliganFlowTest :
                                 AnnotationType.ZoneTransfer_af5a in it.typeList &&
                                     it.affectedIdsList == listOf(newId)
                             }
-                        transfer.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
-                        transfer.detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
-                        transfer.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
-                        (annotations.indexOf(changed) < annotations.indexOf(transfer)) shouldBe true
-                        postTuck
-                            .filter { it.hasGameStateMessage() }
-                            .flatMap { it.gameStateMessage.zonesList }
-                            .last { it.zoneId == ZoneIds.P1_LIBRARY }
-                            .objectInstanceIdsList
-                            .contains(newId) shouldBe true
+                        assertSoftly {
+                            transfer.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
+                            transfer.detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
+                            transfer.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
+                            annotations.indexOf(changed) shouldBeLessThan annotations.indexOf(transfer)
+                            postTuck
+                                .filter { it.hasGameStateMessage() }
+                                .flatMap { it.gameStateMessage.zonesList }
+                                .last { it.zoneId == ZoneIds.P1_LIBRARY }
+                                .objectInstanceIdsList shouldContain newId
+                        }
                     }
                     val keptHand = session.gameBridge.getHandGrpIds(SeatId(1))
                     val activeHandIds = session.gameBridge.getHandCards(SeatId(1)).map { session.gameBridge.instance(it).value }

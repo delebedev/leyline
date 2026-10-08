@@ -110,11 +110,13 @@ class MulliganBridgeTest :
                 prompt.sequence shouldBe 2
             }
 
-            bridge.submitTuck(emptyList()) shouldBe false
-            bridge.submitTuck(listOf(first, first)) shouldBe false
-            bridge.submitTuck(listOf(first, Card(3, null))) shouldBe false
-            bridge.pendingPrompt() shouldBe prompt
-            bridge.submitTuck(listOf(second, first)) shouldBe true
+            assertSoftly {
+                bridge.submitTuck(emptyList()) shouldBe false
+                bridge.submitTuck(listOf(first, first)) shouldBe false
+                bridge.submitTuck(listOf(first, Card(3, null))) shouldBe false
+                bridge.pendingPrompt() shouldBe prompt
+                bridge.submitTuck(listOf(second, first)) shouldBe true
+            }
             engineThread.join(2_000)
 
             assertSoftly {
