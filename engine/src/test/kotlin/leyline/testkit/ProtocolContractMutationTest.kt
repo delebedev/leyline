@@ -754,7 +754,17 @@ private fun checkEntryTriggerMutations(
                     it
                 }
             }.mutatingAnnotation(AnnotationType.ObjectIdChanged) {
-                if (it == changed) it.withIntDetail("orig_id", 0).withIntDetail("new_id", 1) else it
+                if (it == changed) {
+                    it
+                        .withIntDetail("orig_id", 0)
+                        .withIntDetail("new_id", 1)
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(0)
+                        .build()
+                } else {
+                    it
+                }
             }.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
                 if (it.detailString("category") == "Exile" && newTargetId in it.affectedIdsList) {
                     it
