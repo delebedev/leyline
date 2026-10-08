@@ -361,7 +361,7 @@ class PlayerController(
         messagePrefix: String?,
         addMsgSuffix: Boolean,
     ) {
-        targetingCoordinator.captureReveal(cards, zone, owner)
+        targetingCoordinator.captureReveal(cards, zone, owner, lookOnly = resolvingPrivateLook())
     }
 
     override fun reveal(
@@ -371,7 +371,13 @@ class PlayerController(
         messagePrefix: String?,
         addMsgSuffix: Boolean,
     ) {
-        targetingCoordinator.captureReveal(cards, zone, owner, game.players)
+        targetingCoordinator.captureReveal(cards, zone, owner, game.players, lookOnly = resolvingPrivateLook())
+    }
+
+    private fun resolvingPrivateLook(): Boolean {
+        val stacked = game.stack.firstOrNull()?.spellAbility ?: return false
+        val ability = (stacked as? WrappedAbility)?.wrappedAbility ?: stacked
+        return ability.api == ApiType.RevealHand && ability.hasParam("Look")
     }
 
     // -- Sacrifice / Destroy ----------------------------------------------
@@ -1074,15 +1080,13 @@ class PlayerController(
         activeDividedAllocationAbility = currentAbility
         val chosen =
             try {
-                // Forge selects a sole player candidate without interaction. Emblem
-                // abilities need that target group published before stack placement.
-                val emblemPlayerTarget =
-                    currentAbility.hostCard.isEmblem &&
-                        currentAbility.targets.isEmpty() &&
+                // Publish a targeted player's selection even when only one player is legal.
+                val solePlayerTarget =
+                    currentAbility.targets.isEmpty() &&
                         currentAbility.targetRestrictions?.getAllCandidates(currentAbility, true)?.singleOrNull() is Player &&
                         currentAbility.minTargets == 1 &&
                         currentAbility.maxTargets == 1
-                if (emblemPlayerTarget && !targetingCoordinator.selectTargets(emptyList(), currentAbility, true, null).isChosen) {
+                if (solePlayerTarget && !targetingCoordinator.selectTargets(emptyList(), currentAbility, true, null).isChosen) {
                     false
                 } else {
                     super.chooseTargetsFor(currentAbility)

@@ -33,6 +33,7 @@ sealed interface PromptSideEffect {
     data class RevealStarted(
         val allHandCardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
+        val lookOnly: Boolean = false,
     ) : PromptSideEffect
 
     /** Stashed optional cost decision (kicker, buyback, etc.). Indices into OptionalCostValue list. */

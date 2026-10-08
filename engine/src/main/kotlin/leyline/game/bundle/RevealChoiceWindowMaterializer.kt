@@ -31,12 +31,18 @@ internal class RevealChoiceWindowMaterializer {
                 },
                 context.message(GREMessageType.SelectNreq) {
                     it.selectNReq = request
-                    it.prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build()
-                    it.allowCancel = AllowCancel.No_a526
+                    it.prompt = Prompt.newBuilder().setPromptId(promptId(window)).build()
+                    it.allowCancel = if (isPrivateExileChoice(window)) AllowCancel.Continue else AllowCancel.No_a526
                 },
             )
         return context.prepared(messages, awaitedRequest = messages.last())
     }
+
+    private fun promptId(window: RevealChoiceWindowValue): Int =
+        if (isPrivateExileChoice(window)) PromptIds.EXILE_FROM_OPPONENT_HAND else PromptIds.SELECT_N
+
+    private fun isPrivateExileChoice(window: RevealChoiceWindowValue): Boolean =
+        window.lookOnly && window.exileUnderSourceForgeCardId != null && window.max == 1
 
     private fun buildRequest(
         window: RevealChoiceWindowValue,
@@ -53,10 +59,10 @@ internal class RevealChoiceWindowMaterializer {
             .setIdType(IdType.InstanceId_ab2c)
             .addAllIds(window.candidates.map { context.requiredInstanceId(it.forgeCardId, "RevealChoice card") })
             .addAllUnfilteredIds(window.fullRevealCardIds.map { context.requiredInstanceId(it, "RevealChoice card") })
-            .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            .setPrompt(Prompt.newBuilder().setPromptId(promptId(window)))
             .apply {
                 if (window.candidates.isNotEmpty()) {
-                    minSel = window.min
+                    minSel = if (isPrivateExileChoice(window)) 1 else window.min
                     maxSel = window.max
                 }
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "RevealChoice card") }

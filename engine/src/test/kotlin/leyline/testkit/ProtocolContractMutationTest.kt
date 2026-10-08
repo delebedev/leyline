@@ -11,6 +11,8 @@ import leyline.IntegrationTag
 import leyline.acceptance.AcceptancePaths
 import leyline.acceptance.AcceptanceSuiteLoader
 import leyline.acceptance.MatchdoorAcceptanceExecutor
+import leyline.bridge.types.InstanceId
+import leyline.game.annotations.AnnotationBuilder
 import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantChecker
 import leyline.game.bundle.RuntimeAccumulator
@@ -552,6 +554,7 @@ class ProtocolContractMutationTest :
             }
         }
         regression("brutal-cathar-entry-exile.yaml", ::checkEntryTriggerMutations)
+        regression("deep-cavern-bat-target-look-exile.yaml", ::checkPrivateHandMutations)
         for ((identity, cases) in regressions.entries.groupBy { it.key.suite to it.key.scenario }) {
             test("${identity.first}/${identity.second} rejects altered output") {
                 val scenario = AcceptanceSuiteLoader.load(identity.first).scenarios.single { it.id == identity.second }
@@ -725,6 +728,69 @@ private fun checkCombatDeathMutations(
         }
     contract.verify(reversedDeaths)
     for ((name, mutant) in mutants) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
+private fun checkPrivateHandMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val choice = messages.first { it.hasSelectNReq() }.selectNReq
+    val selectedId = choice.getIds(0)
+    val lookIndex =
+        messages.indexOfFirst { message ->
+            message.hasGameStateMessage() &&
+                message.gameStateMessage.gameObjectsList.any {
+                    it.instanceId == selectedId &&
+                        it.type == GameObjectType.Card &&
+                        it.visibility == wotc.mtgo.gre.external.messaging.Messages.Visibility.Private
+                }
+        }
+    check(lookIndex >= 0) { "Selected hand card must have a private view" }
+    val leakedRow =
+        AnnotationBuilder
+            .cardRevealed(InstanceId(choice.sourceId), InstanceId(selectedId), ZoneIds.P2_HAND)
+            .toBuilder()
+            .setId(999_999)
+            .build()
+    for ((name, mutant) in listOf(
+        "missing sole opponent selection" to messages.filterNot { it.hasSelectTargetsReq() },
+        "wrong hand choice envelope" to
+            messages.map { message ->
+                if (message.hasSelectNReq()) {
+                    message.toBuilder().setPrompt(message.prompt.toBuilder().setPromptId(1243)).build()
+                } else {
+                    message
+                }
+            },
+        "selected card view becomes public" to
+            messages.map { message ->
+                message.mutatingGameState { gsm ->
+                    val objects =
+                        gsm.gameObjectsList.map { obj ->
+                            if (obj.instanceId == selectedId && obj.type == GameObjectType.Card) {
+                                obj.toBuilder().setVisibility(wotc.mtgo.gre.external.messaging.Messages.Visibility.Public).build()
+                            } else {
+                                obj
+                            }
+                        }
+                    gsm.clearGameObjects().addAllGameObjects(objects)
+                }
+            },
+        "look creates persistent public reveal" to
+            messages.mapIndexed { index, message ->
+                if (index == lookIndex) message.mutatingGameState { it.addPersistentAnnotations(leakedRow) } else message
+            },
+        "choice offers a different card identity" to
+            messages.map { message ->
+                if (message.hasSelectNReq()) {
+                    message.toBuilder().setSelectNReq(message.selectNReq.toBuilder().setIds(0, 0)).build()
+                } else {
+                    message
+                }
+            },
+    )) {
         withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
     }
 }

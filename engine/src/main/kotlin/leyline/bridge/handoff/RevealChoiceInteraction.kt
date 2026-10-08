@@ -20,6 +20,7 @@ data class RevealChoiceWindowValue(
     val min: Int,
     val max: Int,
     val defaultOptionIndex: Int,
+    val lookOnly: Boolean = false,
 )
 
 data class PublishedRevealChoiceInteraction(

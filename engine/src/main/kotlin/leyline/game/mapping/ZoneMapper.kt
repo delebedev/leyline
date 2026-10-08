@@ -47,10 +47,11 @@ object ZoneMapper {
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
         revealHand: Boolean = false,
+        lookHand: Boolean = false,
         previousSnapshot: GsmSnapshot? = null,
     ) {
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId.value || revealHand
-        val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
+        val handVisibility = if (revealHand && !lookHand) Visibility.Public else Visibility.Private
         val handBuilder =
             ZoneInfo
                 .newBuilder()
@@ -68,7 +69,7 @@ object ZoneMapper {
                     ?.mayLookSeatIds
                     .orEmpty()
                     .mapTo(linkedSetOf()) { it.value }
-            val permittedViewers = inspectionViewers + seatId.value
+            val permittedViewers = inspectionViewers + seatId.value + if (revealHand) setOf(seatId.opponent.value) else emptySet()
             if (canSeeHand || viewingSeatId in inspectionViewers) {
                 addPlayerCardObjects(
                     snap,
@@ -78,7 +79,7 @@ object ZoneMapper {
                     seatId,
                     environment,
                     instanceIdLookup,
-                    if (revealHand) Visibility.Public else Visibility.Private,
+                    handVisibility,
                     "hand",
                     gameObjects,
                     viewers = permittedViewers,

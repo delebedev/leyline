@@ -28,7 +28,7 @@ object OpponentKnowledgeTracker {
                 .associateWith(frameIds::cardIid)
         val next = prior.known.toMutableMap()
         next.entries.removeIf { (cardId, iid) -> hiddenCards[cardId] != iid }
-        events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }.forEach { reveal ->
+        events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId && !it.lookOnly }.forEach { reveal ->
             reveal.cardIds.forEach { cardId -> hiddenCards[cardId]?.let { next[cardId] = it } }
         }
         val state = State(next.toMap())

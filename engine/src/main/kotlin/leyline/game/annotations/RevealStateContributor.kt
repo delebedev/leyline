@@ -17,13 +17,16 @@ object RevealStateContributor : AnnotationContributor {
                 .filterIsInstance<GameEvent.CardsRevealed>()
                 .filter { it.viewerSeatId != it.ownerSeatId }
                 .flatMap { reveal -> reveal.cardIds.map { cardId -> reveal to cardId } }
-                .distinctBy { (_, cardId) -> cardId }
+                .groupBy { (_, cardId) -> cardId }
+                .values
+                .map { occurrences -> occurrences.firstOrNull { !it.first.lookOnly } ?: occurrences.first() }
         val transient = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
         val faceUp = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
 
         reveals.forEach { (reveal, cardId) ->
             val proxyId = ctx.editor.revealProxies.lookup(cardId) ?: return@forEach
             transient += AnnotationBuilder.revealedCardCreated(proxyId)
+            if (reveal.lookOnly) return@forEach
             val affectorId = revealAffector(reveal.sourceCardId, ctx) ?: return@forEach
             faceUp +=
                 AnnotationBuilder.cardRevealed(

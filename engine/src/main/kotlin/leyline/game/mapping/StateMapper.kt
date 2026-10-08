@@ -279,6 +279,7 @@ object StateMapper {
                 viewingSeatId,
                 revealForSeat,
                 revealHand = revealedHandSeat == 1,
+                lookHand = activeReveal?.lookOnly == true,
                 previousSnapshot = prev,
             )
         }
@@ -299,6 +300,7 @@ object StateMapper {
                 viewingSeatId,
                 revealForSeat,
                 revealHand = revealedHandSeat == 2,
+                lookHand = activeReveal?.lookOnly == true,
                 previousSnapshot = prev,
             )
         }
@@ -1176,7 +1178,11 @@ object StateMapper {
                     if (hasActiveReveal &&
                         opponentHandZoneId != 0 &&
                         obj.zoneId == opponentHandZoneId &&
-                        (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)
+                        (
+                            obj.type == GameObjectType.RevealedCard ||
+                                obj.visibility == Visibility.Public ||
+                                (obj.visibility == Visibility.Private && viewingSeatId in obj.viewersList)
+                        )
                     ) {
                         return@filter true
                     }

@@ -8,7 +8,9 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.handoff.TargetToggleValue
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.awaitFreshPending
 import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
@@ -50,8 +52,25 @@ class DfcTransformBridgeTest :
                     PlayerAction.PassPriority,
                 ).shouldBeTrue()
 
-            val pending3 = awaitFreshPending(b, pending2.actionId)
-            pending3.shouldNotBeNull()
+            awaitFreshPending(b, pending2.actionId) shouldBe null
+            val targeting = b.cutCoordinator.targeting
+            val targetPrompt = targeting.current().shouldNotBeNull()
+            val selected =
+                targeting
+                    .submitToggle(
+                        targetPrompt.interactionId,
+                        targetPrompt.gameStateId,
+                        targetPrompt.targetIndex,
+                        listOf(TargetToggleValue(2, selected = true)),
+                    ).shouldNotBeNull()
+            b.cutCoordinator.drain(SeatId(1))
+            targeting.acknowledgeDelivery(selected.interactionId, checkNotNull(selected.deliveryToken)).shouldBeTrue()
+            val selectedPrompt = targeting.current().shouldNotBeNull()
+            val submittedTargets =
+                targeting.submitTargets(selectedPrompt.interactionId, selectedPrompt.gameStateId).shouldNotBeNull()
+            b.cutCoordinator.drain(SeatId(1))
+            targeting.acknowledgeDelivery(submittedTargets.interactionId, checkNotNull(submittedTargets.deliveryToken)).shouldBeTrue()
+            awaitFreshPending(b, pending2.actionId).shouldNotBeNull()
 
             assertSoftly {
                 curtains.isBackSide shouldBe true

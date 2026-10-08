@@ -1,0 +1,121 @@
+name: Deep-Cavern Bat opponent targeting and private hand choice
+scenario: {suite: mechanics-protocol, id: deep-cavern-bat-reveal-exile}
+frames:
+  - id: cast
+    events:
+      - id: cast
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+      - id: source
+        type: Card
+        lane: object
+        where: {equals: {affectorId: 'cast.affectedIds[0]'}}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+        equals: {affectorId: 'cast.affectedIds[0]'}
+  - id: entry
+    events:
+      - id: created
+        type: AbilityInstanceCreated
+        lane: transient
+        where: {equals: {affectorId: source.affectorId}}
+        keys: [source_zone]
+        fields: {details.source_zone: [28]}
+        equals: {affectorId: source.affectorId}
+      - id: trigger
+        type: Ability
+        lane: object
+        where: {equals: {affectorId: 'created.affectedIds[0]'}}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+        equals: {affectorId: 'created.affectedIds[0]', raw.parentId: source.affectorId}
+      - id: selecting
+        type: PlayerSelectingTargets
+        lane: transient
+        fields: {affectorId: 1}
+        equals: {affectedIds: created.affectedIds}
+  - id: target-prompt
+    events:
+      - id: target-prompt
+        type: SelectTargetsReq
+        lane: prompt
+        fields:
+          raw.prompt.promptId: 10
+          raw.selectTargetsReq.targets.length: 1
+          'raw.selectTargetsReq.targets[0].targets.length': 1
+          'raw.selectTargetsReq.targets[0].targets[0].targetInstanceId': 2
+          'raw.selectTargetsReq.targets[0].prompt.promptId': 1038
+          'raw.selectTargetsReq.targets[0].minTargets': 1
+          'raw.selectTargetsReq.targets[0].maxTargets': 1
+        equals:
+          gameStateId: selecting.gameStateId
+          raw.selectTargetsReq.sourceId: trigger.affectorId
+          raw.selectTargetsReq.abilityGrpId: trigger.raw.grpId
+  - id: target-submitted
+    events:
+      - id: target
+        type: TargetSpec
+        lane: persistent
+        op: create
+        keys: [abilityGrpId, index, promptId, promptParameters]
+        fields: {affectedIds: [2], details.index: [1], details.promptId: [1038]}
+        equals: {affectorId: trigger.affectorId, 'details.abilityGrpId[0]': trigger.raw.grpId}
+  - id: looked-hand
+    events:
+      - id: hand-card
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 35, raw.ownerSeatId: 2, 'raw.cardTypes[0]': Sorcery}}
+        fields: {raw.visibility: Private, raw.controllerSeatId: 2, raw.viewers: [2, 1]}
+  - id: hand-choice
+    events:
+      - id: choice
+        type: SelectNReq
+        lane: prompt
+        fields:
+          raw.prompt.promptId: 7142
+          raw.allowCancel: Continue
+          raw.selectNReq.context: Resolution
+          raw.selectNReq.optionContext: Resolution
+          raw.selectNReq.listType: Dynamic
+          raw.selectNReq.idType: InstanceId
+          raw.selectNReq.ids.length: 2
+          raw.selectNReq.unfilteredIds.length: 3
+          raw.selectNReq.minSel: 1
+          raw.selectNReq.maxSel: 1
+        equals: {gameStateId: hand-card.gameStateId, raw.selectNReq.sourceId: source.affectorId, 'raw.selectNReq.ids[0]': hand-card.affectorId}
+  - id: exiled
+    events:
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {'details.orig_id[0]': 'choice.raw.selectNReq.ids[0]', 'affectedIds[0]': 'choice.raw.selectNReq.ids[0]'}
+      - id: exiled
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.zone_src: [35], details.zone_dest: [29], details.category: [Exile]}
+        equals: {'affectedIds[0]': 'reallocated.details.new_id[0]'}
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        equals: {affectorId: source.affectorId, affectedIds: created.affectedIds}
+      - id: target-retired
+        type: TargetSpec
+        lane: persistent
+        op: delete
+        sameRow: target
+      - id: linked
+        type: DisplayCardUnderCard
+        lane: persistent
+        op: create
+        keys: [Disable, TemporaryZoneTransfer]
+        fields: {details.Disable: [0], details.TemporaryZoneTransfer: [1]}
+        equals: {affectorId: source.affectorId, affectedIds: exiled.affectedIds}
+windows:
+  - {id: target-holds, holds: target, until: target-retired}
+counts:
+  - {match: {type: CardRevealed, lane: persistent}, exactly: 0}
+  - {match: {type: InstanceRevealedToOpponent, lane: persistent}, exactly: 0}
+  - {match: {type: TargetSpec, lane: persistent, op: create}, exactly: 1}
+  - {match: {type: TargetSpec, lane: persistent, op: delete}, exactly: 1}

@@ -501,13 +501,14 @@ sealed interface GameEvent {
     // Not from EventBus — captured via InteractivePromptBridge.drainReveals()
     // in PlayerController.reveal() override.
 
-    /** Cards were revealed to all players (e.g. draw-and-reveal, Explore, etc.). */
+    /** A callback made cards visible to one viewer, either publicly or through a private look. */
     data class CardsRevealed(
         val cardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
         val viewerSeatId: SeatId,
         val sourceZone: RevealZone? = null,
         val sourceCardId: ForgeCardId? = null,
+        val lookOnly: Boolean = false,
     ) : GameEvent
 
     /** RevealedCard proxies removed after reveal-choose resolution. */
