@@ -230,6 +230,7 @@ private val promptTypes =
         "SelectNReq",
         "OrderReq",
         "ActionsAvailableReq",
+        "IntermissionReq",
     )
 private val enumSuffix = Regex("_[0-9a-f]{4}$")
 
@@ -239,7 +240,7 @@ internal fun AnnotationType.protocolName(): String = name.replace(enumSuffix, ""
 private fun validateSelector(selector: String) {
     require(
         selector.substringBefore('.').substringBefore('[') in
-            setOf("affectorId", "affectedIds", "annotationId", "gameStateId", "details", "detailTypes", "raw"),
+            setOf("affectorId", "affectedIds", "annotationId", "gameStateId", "state", "details", "detailTypes", "raw"),
     ) {
         "unknown selector $selector"
     }
