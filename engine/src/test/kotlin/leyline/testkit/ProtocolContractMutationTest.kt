@@ -360,7 +360,21 @@ class ProtocolContractMutationTest :
             withClue("wrong disturb identity") { shouldThrow<AssertionError> { contract.verify(wrongIdentity) } }
         }
         regression("origin-spider-man-final-chapter.yaml") { contract, messages ->
-            val wrongSource = messages.mutatingAnnotation(AnnotationType.ObjectIdChanged) { it.withIntDetail("orig_id", 0) }
+            val wrongSource =
+                messages
+                    .mutatingAnnotation(AnnotationType.Counter_803b, persistent = true) {
+                        if (it.detailInt("count") == 3) {
+                            it
+                                .toBuilder()
+                                .clearAffectedIds()
+                                .addAffectedIds(0)
+                                .build()
+                        } else {
+                            it
+                        }
+                    }.mutatingAnnotation(AnnotationType.AbilityInstanceDeleted) {
+                        it.toBuilder().setAffectorId(0).build()
+                    }.mutatingAnnotation(AnnotationType.ObjectIdChanged) { it.withIntDetail("orig_id", 0) }
             val earlySacrifice =
                 messages.map { message ->
                     message.mutatingGameState { gsm ->
