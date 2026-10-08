@@ -2,7 +2,9 @@ package leyline.testkit
 
 import com.google.protobuf.Descriptors.EnumValueDescriptor
 import com.google.protobuf.Message
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.acceptance.AcceptancePaths
@@ -84,15 +86,35 @@ class ProtocolContract private constructor(
                     val rowId = start.value.values["annotationId"]
                     between.none { it.lane == "persistent" && it.op == "delete" && it.values["annotationId"] == rowId } shouldBe true
                 } else {
-                    val pattern = (window["absent"] ?: window["count"]).map()
+                    val pattern = (window["absent"] ?: window["count"] ?: window["exists"]).map()
                     val found = between.filter { matches(it, pattern, bound) }
-                    withClue("matching events: $found") { found.size shouldBe (window["exactly"] ?: 0) }
+                    withClue("matching events: $found") {
+                        if (window["exists"] != null) {
+                            found.shouldNotBeEmpty()
+                        } else {
+                            found.size shouldBe (window["exactly"] ?: 0)
+                        }
+                    }
                 }
             }
         }
     }
 
     companion object {
+        /** Evaluate sibling contracts before collecting their named failures. */
+        fun verifyAll(
+            contracts: List<ProtocolContract>,
+            messages: List<GREToClientMessage>,
+        ) {
+            require(contracts.isNotEmpty()) { "no protocol contracts" }
+            val results = contracts.map { contract -> contract.name to runCatching { contract.verify(messages) } }
+            assertSoftly {
+                for ((name, result) in results) {
+                    withClue(name) { result.exceptionOrNull() shouldBe null }
+                }
+            }
+        }
+
         fun files(): List<Path> =
             Files.list(AcceptancePaths.resolve("conformance/contracts")).use { paths ->
                 paths.filter { it.toString().endsWith(".yaml") }.sorted().toList()
@@ -118,7 +140,7 @@ class ProtocolContract private constructor(
                             .list()
                             .map { rawEvent ->
                                 val event = rawEvent.map()
-                                event.keysOnly("id", "type", "lane", "op", "keys", "fields", "equals", "sameRow", "where")
+                                event.keysOnly("id", "type", "lane", "op", "keys", "fields", "present", "equals", "sameRow", "where")
                                 validatePattern(event, ids)
                                 require(ids.add(event.string("id"))) { "duplicate event id" }
                                 event
@@ -129,7 +151,7 @@ class ProtocolContract private constructor(
                     val count = raw.map()
                     count.keysOnly("match", "exactly")
                     val pattern = count["match"].map()
-                    pattern.keysOnly("type", "lane", "op", "keys", "fields", "equals", "sameRow")
+                    pattern.keysOnly("type", "lane", "op", "keys", "fields", "present", "equals", "sameRow")
                     validatePattern(pattern, ids)
                     require(count["exactly"] is Int && (count["exactly"] as Int) >= 0) { "invalid exact count" }
                     count
@@ -192,6 +214,11 @@ private fun project(messages: List<GREToClientMessage>): List<Event> {
             if (prompt != null) {
                 add(Event(index, prompt, "prompt", "emit", mapOf("raw" to message)))
             }
+            if (message.hasActionsAvailableReq()) {
+                for (action in message.actionsAvailableReq.actionsList) {
+                    add(Event(index, "Action", "action", "offer", mapOf("raw" to action)))
+                }
+            }
         }
     }
 }
@@ -223,7 +250,7 @@ private fun matches(
     pattern: Map<String, Any?>,
     bound: Map<String, IndexedValue<Event>>,
 ): Boolean {
-    if (!kindMatches(event, pattern)) return false
+    if (!kindMatches(event, pattern) || pattern["present"]?.list()?.any { select(event.values, it as String) == null } == true) return false
     if (pattern["keys"] != null &&
         (event.values["keys"] as? List<*>)?.sortedBy { it.toString() } != pattern["keys"].list().sortedBy { it.toString() }
     ) {
@@ -305,28 +332,9 @@ private fun validatePattern(
     ids: Set<String>,
 ) {
     val type = pattern.string("type")
-    require(
-        type in promptTypes ||
-            AnnotationType.entries.any { it.protocolName() == type } ||
-            GameObjectType.entries.any { it.name == type },
-    ) {
-        "unsupported event type $type"
-    }
-    val lanes =
-        when {
-            type in promptTypes -> setOf("prompt")
-            GameObjectType.entries.any { it.name == type } -> setOf("object")
-            else -> setOf("transient", "persistent")
-        }
-    pattern["lane"]?.let { require(it in lanes) { "unsupported lane for $type" } }
-    val operations =
-        when {
-            "object" in lanes -> setOf("create", "update")
-            pattern["lane"] == "persistent" -> setOf("create", "update", "delete")
-            else -> setOf("emit")
-        }
-    pattern["op"]?.let { require(it in operations) { "unsupported operation for $type" } }
+    validateKind(type, pattern["lane"], pattern["op"])
     pattern["keys"]?.list()?.forEach { require(it is String) { "invalid detail key" } }
+    pattern["present"]?.list()?.let(::validatePresence)
     pattern["sameRow"]?.let { require(it in ids) { "unknown row reference $it" } }
     pattern["where"]?.map()?.let { selection ->
         selection.keysOnly("fields", "equals")
@@ -351,6 +359,45 @@ private fun validatePattern(
     }
 }
 
+private fun validateKind(
+    type: String,
+    lane: Any?,
+    op: Any?,
+) {
+    require(
+        type in promptTypes ||
+            AnnotationType.entries.any { it.protocolName() == type } ||
+            GameObjectType.entries.any { it.name == type } ||
+            type == "Action",
+    ) {
+        "unsupported event type $type"
+    }
+    val lanes =
+        when {
+            type in promptTypes -> setOf("prompt")
+            type == "Action" -> setOf("action")
+            GameObjectType.entries.any { it.name == type } -> setOf("object")
+            else -> setOf("transient", "persistent")
+        }
+    lane?.let { require(it in lanes) { "unsupported lane for $type" } }
+    val operations =
+        when {
+            "object" in lanes -> setOf("create", "update")
+            "action" in lanes -> setOf("offer")
+            lane == "persistent" -> setOf("create", "update", "delete")
+            else -> setOf("emit")
+        }
+    op?.let { require(it in operations) { "unsupported operation for $type" } }
+}
+
+private fun validatePresence(selectors: List<Any?>) {
+    require(selectors.isNotEmpty()) { "empty presence assertion" }
+    selectors.forEach {
+        require(it is String) { "invalid presence selector" }
+        validateSelector(it)
+    }
+}
+
 /** Windows use strict event boundaries; the endpoint itself may retire a held row. */
 private fun validateWindows(
     windows: List<Map<String, Any?>>,
@@ -367,15 +414,17 @@ private fun validateWindows(
                 "holds requires an active persistent row"
             }
         } else {
-            require((window["absent"] != null) != (window["count"] != null)) { "window requires absent or count" }
+            require(listOf("absent", "count", "exists").count { window[it] != null } == 1) { "window requires absent, count or exists" }
             if (window["absent"] != null) {
                 window.keysOnly("id", "after", "before", "absent")
+            } else if (window["exists"] != null) {
+                window.keysOnly("id", "after", "before", "exists")
             } else {
                 window.keysOnly("id", "after", "before", "count", "exactly")
                 require(window["exactly"] is Int && (window["exactly"] as Int) >= 0) { "invalid window count" }
             }
-            val pattern = (window["absent"] ?: window["count"]).map()
-            pattern.keysOnly("type", "lane", "op", "keys", "fields", "equals", "sameRow")
+            val pattern = (window["absent"] ?: window["count"] ?: window["exists"]).map()
+            pattern.keysOnly("type", "lane", "op", "keys", "fields", "present", "equals", "sameRow")
             validatePattern(pattern, ids.toSet())
         }
         val start = window.string(if (window["holds"] != null) "holds" else "after")

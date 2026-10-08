@@ -1,8 +1,10 @@
 package leyline.testkit
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -21,6 +23,17 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 class ProtocolContractTest :
     FunSpec({
         tags(UnitTag)
+
+        test("grouped contracts retain both named failures") {
+            val contracts = listOf("first", "second").map { ProtocolContract.parse(contractText.replace("name: damage", "name: $it")) }
+            ProtocolContract.verifyAll(contracts, listOf(frame(start, damage)))
+            val failure = shouldThrow<AssertionError> { ProtocolContract.verifyAll(contracts, listOf(frame(start))) }
+            assertSoftly {
+                failure.message.orEmpty() shouldContain "first"
+                failure.message.orEmpty() shouldContain "second"
+            }
+            shouldThrow<IllegalArgumentException> { ProtocolContract.verifyAll(emptyList(), listOf(frame(start, damage))) }
+        }
 
         test("malformed specs fail loading rather than weaken assertions") {
             for (invalid in listOf(
