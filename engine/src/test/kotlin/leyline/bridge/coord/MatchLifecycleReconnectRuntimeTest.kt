@@ -141,9 +141,15 @@ class MatchLifecycleReconnectRuntimeTest :
                     FailureReason.ReqRespMismatch
                 ResponseEnvelopeGuard.mismatchReason(currentResponse, bridge.committedSequence(), bridge.responseAcceptance) shouldBe null
             }
-            bridge.mulliganBridge(seatId).submitTuck(emptyList())
+            bridge.mulliganBridge(seatId).submitTuck(emptyList()) shouldBe false
+            val selected =
+                board.human
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .first()
+            bridge.mulliganBridge(seatId).submitTuck(listOf(selected)) shouldBe true
             engineThread.join(2_000)
-            tucked.get() shouldBe emptyList()
+            tucked.get() shouldBe listOf(selected)
         }
 
         test("reconnect after redraw keeps only the current hand identities") {
