@@ -1,12 +1,28 @@
 name: Miscalculation cycling activation
 scenario: {suite: mechanics-warmup, id: cycling-activate}
 frames:
+  - id: hand-source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 31, "raw.cardTypes[0]": Instant, raw.controllerSeatId: 1}
+  - id: hand-offer
+    events:
+      - id: offered
+        type: Action
+        lane: action
+        op: offer
+        where: {fields: {raw.actionType: Activate}, equals: {raw.instanceId: source.affectorId}}
+        fields: {raw.actionType: Activate}
+        equals: {raw.instanceId: source.affectorId}
   - id: ability
     events:
       - id: ability
         type: Ability
         lane: object
         fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+        equals: {raw.parentId: source.affectorId, raw.grpId: offered.raw.abilityGrpId}
       - id: created
         type: AbilityInstanceCreated
         lane: transient
@@ -55,3 +71,6 @@ windows:
     after: created
     before: retired
     absent: {type: AbilityInstanceDeleted, equals: {affectedIds: created.affectedIds}}
+counts:
+  - match: {type: UserActionTaken, lane: transient, fields: {details.actionType: [2]}}
+    exactly: 1

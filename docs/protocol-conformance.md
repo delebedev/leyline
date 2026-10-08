@@ -37,7 +37,8 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 | `mechanics-protocol/daynight-roundtrip-cathar` | Battlefield identity and reciprocal runtime face identities across the night transformation. |
 | `mechanics-protocol/discover-hidden-courtyard` | Exile offer and stack reallocation identity, Discover ability binding, absence of casting options before acceptance, and option-row lifetime through resolution. |
 | `mechanics-protocol/foretell-depart-the-realm-lifecycle` | Accepted special action, runtime ability binding, face-down reason, persistent suppression identity, later cast option and targeting, return view and identity, and stack-row retirement. |
-| `mechanics-warmup/cycling-activate` | Hand-source activation, discard cost, runtime ability identity, draw inside resolution, and no premature retirement. |
+| `mechanics-warmup/cycling-activate` | Offered hand ability identity, exactly one accepted activation, discard cost, draw inside resolution, and no premature retirement. |
+| `mechanics-protocol/saga-origin-final-sacrifice` | Final lore count, same-frame chapter completion, retirement, source reallocation and sacrifice identity. |
 | `mechanics-protocol/stock-up-bottom-order` | Resolution begins before selection, exact selection bounds, Put transfers, bottom-order domain and source, and no repeated selection. |
 | `mechanics-protocol/ward-tax` | Ward trigger identity, source-row lifetime, and no premature ability retirement. |
 
@@ -68,8 +69,9 @@ families and shuffle-only identity changes remain outside this check.
 with valid Limbo, hidden and chained controls. The Lightning Bolt contract replay
 also rejects altered cast pairs and destination projection. `OmenLifecycleTest`
 relies on this default check for distinct cast identity and pair ordering, while
-retaining its companion, first-annotation, resolution, shuffle and gameplay
-obligations. The Omen interaction contract retains required transfer emission.
+retaining its companion, first-annotation, shuffle and gameplay
+obligations. The Omen interaction contract owns the resolution bracket, token
+cardinality and required transfer emission.
 
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
@@ -166,3 +168,8 @@ in `ForetellLifecycleTest`; the contracts own cast identities and offers.
 Warp's contracts own the delayed-exile and subsequent cast flow. Its scoped
 `TemporaryPermanent` exclusion remains an implementation check on the same
 scripted stream. `WarpLifecycleTest` retains the two-mana and regular-cost controls.
+
+Saga countered chapters and simultaneous two-lore triggers remain local regressions.
+`SagaFinalChapterTest` also retains exact lore progression, pre-response sacrifice
+absence, historical chapter parent and gameplay continuation. Cycling keeps exact
+hand and graveyard count changes and its cache-cleared identity regression locally.

@@ -48,7 +48,11 @@ frames:
         fields: {details.category: [Resolve], details.zone_src: [27], details.zone_dest: [32]}
         equals: {"affectedIds[0]": "library-reallocated.details.new_id[0]"}
 counts:
-  - match: {type: TokenCreated, lane: transient, equals: {affectorId: spell.affectorId}}
+  - match: {type: TokenCreated, lane: transient}
     exactly: 1
   - match: {type: ResolutionComplete, lane: transient, equals: {affectorId: spell.affectorId}}
+    exactly: 1
+  - match: {type: ResolutionStart, lane: transient, equals: {"details.grpid[0]": spell.raw.grpId}}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Resolve]}}
     exactly: 1
