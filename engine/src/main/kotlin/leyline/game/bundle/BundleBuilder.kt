@@ -1222,8 +1222,8 @@ class BundleBuilder(
      * Echo-back bundle for iterative attacker toggle: thin Diff with base creature
      * objects + fresh DeclareAttackersReq.
      *
-     * Echo objects carry no combat state; the refreshed DeclareAttackersReq carries
-     * selectedDamageRecipient on currently selected attacker options.
+     * Selected echo objects carry Declared combat state and the provisional target.
+     * The refreshed DeclareAttackersReq carries the matching selectedDamageRecipient.
      *
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
