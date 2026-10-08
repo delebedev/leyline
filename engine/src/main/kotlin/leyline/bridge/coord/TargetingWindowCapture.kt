@@ -48,7 +48,7 @@ internal class TargetingWindowCapture(
                     ?.firstOrNull()
                     ?.first
                 ?: 0
-        val shape = targetShape(targetingAbility, abilityIdentity, sourceGrpId, defaultTargetingGrpId)
+        val shape = targetShape(targetingAbility, abilityIdentity, sourceGrpId, defaultTargetingGrpId, request.isTriggeredAbility)
         val castAlternateCostGrpId =
             targetingAbility
                 ?.rootAbility
@@ -185,6 +185,7 @@ internal class TargetingWindowCapture(
         identity: ResolvedAbilityIdentity?,
         sourceGrpId: Int,
         defaultTargetingGrpId: Int,
+        isTriggeredAbility: Boolean,
     ): TargetShape =
         when (identity?.keywordFamily) {
             AbilityKeywordFamily.Mentor ->
@@ -201,7 +202,7 @@ internal class TargetingWindowCapture(
                     )
                 } else {
                     TargetShape(
-                        sourceGrpId,
+                        if (isTriggeredAbility) defaultTargetingGrpId else sourceGrpId,
                         if (SpellAbilityShapes.isReconfigureAttach(ability)) {
                             KeywordAbilityIds.RECONFIGURE_ATTACH
                         } else {

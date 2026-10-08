@@ -1289,6 +1289,12 @@ object ZoneTransferDetector {
                     ?.activationZoneId
                     ?.takeIf { it != 0 }
                     ?: matchingCast?.let { sourceZoneLookup(it.cardId) }
+                    ?: patchedObjects
+                        .firstOrNull {
+                            it.instanceId == sourceCardIid &&
+                                it.zoneId == ZoneIds.BATTLEFIELD &&
+                                previousZones[sourceCardIid] == ZoneIds.STACK
+                        }?.zoneId
                     ?: if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
             val activationZone =
                 if (isActivated) matchingCast?.activationZoneId ?: sourceZoneId else 0

@@ -7,8 +7,11 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.annotations.AnnotationBuilder
 import leyline.game.annotations.AnnotationConstants
+import leyline.game.annotations.TransferCategory
 import leyline.game.codes.DetailKeys
+import leyline.game.iid
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -82,6 +85,33 @@ class DayNightTransientsTest :
                 designationType(out[1]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
                 out.forEach { it.detailsList shouldHaveSize 1 }
             }
+        }
+
+        test("initial Day follows resolution and precedes its entry trigger") {
+            val unrelated = AnnotationBuilder.abilityInstanceCreated(90.iid, 70.iid, ZoneIds.BATTLEFIELD)
+            val resolve = AnnotationBuilder.zoneTransfer(100.iid, ZoneIds.STACK, ZoneIds.BATTLEFIELD, TransferCategory.Resolve.label)
+            val trigger = AnnotationBuilder.abilityInstanceCreated(101.iid, 100.iid, ZoneIds.BATTLEFIELD)
+            val out = mutableListOf(unrelated, resolve, trigger)
+
+            insertDayNightDesignationTransients(out, prevDayTime = null, curDayTime = false)
+
+            assertSoftly {
+                out.take(2) shouldContainExactly listOf(unrelated, resolve)
+                out[2].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
+                out[3] shouldBe trigger
+            }
+        }
+
+        test("a later Day transition does not reposition entry lifecycle events") {
+            val resolve = AnnotationBuilder.zoneTransfer(100.iid, ZoneIds.STACK, ZoneIds.BATTLEFIELD, TransferCategory.Resolve.label)
+            val trigger = AnnotationBuilder.abilityInstanceCreated(101.iid, 100.iid, ZoneIds.BATTLEFIELD)
+            val out = mutableListOf(resolve, trigger)
+
+            insertDayNightDesignationTransients(out, prevDayTime = true, curDayTime = false)
+
+            out.take(2) shouldContainExactly listOf(resolve, trigger)
+            out.drop(2).map { it.typeList.single() } shouldContainExactly
+                listOf(AnnotationType.LoseDesignation, AnnotationType.GainDesignation)
         }
 
         test("no transition: empty out (APSC ticks via persistent re-emit, not transients)") {
