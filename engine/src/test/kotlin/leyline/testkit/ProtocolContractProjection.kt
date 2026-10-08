@@ -90,6 +90,8 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
                 }
                 val prompt =
                     when {
+                        message.hasDeclareAttackersReq() -> "DeclareAttackersReq"
+                        message.hasDeclareBlockersReq() -> "DeclareBlockersReq"
                         message.hasSelectTargetsReq() -> "SelectTargetsReq"
                         message.hasOptionalActionMessage() -> "OptionalActionMessage"
                         message.hasSelectNReq() -> "SelectNReq"

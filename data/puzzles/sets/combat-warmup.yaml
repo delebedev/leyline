@@ -16,4 +16,8 @@ scenarios:
       - expect:
           all:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Juggernaut }
+            - zone_contains: { side: ours, zone: graveyard, card: Centaur Courser }
+            - zone_contains: { side: opponent, zone: graveyard, card: Juggernaut }
+            - our_life: 20
+            - opponent_life: 20
             - stack_empty: true

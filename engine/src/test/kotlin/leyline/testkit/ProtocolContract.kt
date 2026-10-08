@@ -221,7 +221,16 @@ private fun kindMatches(
         (pattern["op"] == null || event.op == pattern["op"])
 
 private val segment = Regex("([A-Za-z][A-Za-z0-9_]*)(?:\\[(\\d+)])?")
-private val promptTypes = setOf("SelectTargetsReq", "OptionalActionMessage", "SelectNReq", "OrderReq", "ActionsAvailableReq")
+private val promptTypes =
+    setOf(
+        "DeclareAttackersReq",
+        "DeclareBlockersReq",
+        "SelectTargetsReq",
+        "OptionalActionMessage",
+        "SelectNReq",
+        "OrderReq",
+        "ActionsAvailableReq",
+    )
 private val enumSuffix = Regex("_[0-9a-f]{4}$")
 
 /** Protobuf name-collision suffixes are build identifiers, not protocol names. */
