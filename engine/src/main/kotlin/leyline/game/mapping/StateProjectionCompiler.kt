@@ -33,6 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
@@ -207,6 +208,28 @@ object StateProjectionCompiler {
             )
         }
 
+    private fun viewerRevealAnnotations(
+        annotations: List<AnnotationInfo>,
+        current: GameStateMessage,
+        previous: GameStateMessage?,
+    ): List<AnnotationInfo> {
+        val visible = current.gameObjectsList.filter { it.type == GameObjectType.RevealedCard }.mapTo(mutableSetOf()) { it.instanceId }
+        val previouslyVisible =
+            previous
+                ?.gameObjectsList
+                .orEmpty()
+                .filter {
+                    it.type == GameObjectType.RevealedCard
+                }.mapTo(mutableSetOf()) { it.instanceId }
+        return annotations.filter { annotation ->
+            when {
+                AnnotationType.RevealedCardCreated in annotation.typeList -> annotation.affectedIdsList.all { it in visible }
+                AnnotationType.RevealedCardDeleted in annotation.typeList -> annotation.affectedIdsList.all { it in previouslyVisible }
+                else -> true
+            }
+        }
+    }
+
     @Suppress("LongParameterList")
     private fun renderViewer(
         viewer: ViewerInput,
@@ -218,14 +241,27 @@ object StateProjectionCompiler {
         prior: ProjectionState,
         editor: ProjectionState.Editor,
     ): Pair<SeatId, Result> {
+        val sharedViewerState =
+            StateMapper.renderViewerFullState(
+                shared,
+                viewer.input.viewingSeatId,
+                viewer.actions,
+                viewer.role.seesSeatPrivateCards,
+            )
+        val visibleAnnotations =
+            viewerRevealAnnotations(
+                finalizedAnnotations,
+                sharedViewerState,
+                prior.viewerCursors[SeatId(viewer.input.viewingSeatId)]?.fullState,
+            )
         val viewerAnnotations =
             if (
                 submittedTargetsConsumed &&
                 viewer.intent.supplements.none { it is ProjectionSupplement.SubmitPendingTargets }
             ) {
-                finalizedAnnotations.filterNot { AnnotationType.PlayerSubmittedTargets in it.typeList }
+                visibleAnnotations.filterNot { AnnotationType.PlayerSubmittedTargets in it.typeList }
             } else {
-                finalizedAnnotations
+                visibleAnnotations
             }
         val stagedInput = stagePreStackAbilities(viewer.input, viewer.intent.supplements)
         val projected =
@@ -300,12 +336,7 @@ object StateProjectionCompiler {
         val finalizedOrderOverlay = applyViewerOverlays(rendered.gsm, rendered.projectionSnapshot)
         val fullState =
             applyViewerOverlays(
-                StateMapper.renderViewerFullState(
-                    shared,
-                    viewer.input.viewingSeatId,
-                    viewer.actions,
-                    includePrivateObjects = viewer.role.seesSeatPrivateCards,
-                ),
+                sharedViewerState,
                 rendered.projectionSnapshot,
             ).gsm
                 .toBuilder()
