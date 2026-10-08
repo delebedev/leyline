@@ -51,6 +51,8 @@ class ProtocolContractMutationTest :
         for (file in listOf("combat-attack-main2.yaml", "combat-trade-attacker.yaml", "combat-trade-blocker.yaml")) {
             regression(file, ::checkCombatMutations)
         }
+        regression("core-cleanup-discard.yaml", ::checkCleanupDiscardMutations)
+        regression("core-life-total-loss.yaml", ::checkLifeTotalLossMutations)
 
         regression("kaito-phasing-chronology.yaml") { contract, messages ->
             val wrongOrder =
@@ -1271,7 +1273,7 @@ private fun checkTokenMutations(
     }
 }
 
-private fun List<GREToClientMessage>.mutatingAnnotation(
+internal fun List<GREToClientMessage>.mutatingAnnotation(
     type: AnnotationType,
     persistent: Boolean = false,
     mutate: (AnnotationInfo) -> AnnotationInfo,
@@ -1288,7 +1290,7 @@ private fun List<GREToClientMessage>.mutatingAnnotation(
         }
     }
 
-private fun AnnotationInfo.withIntDetail(
+internal fun AnnotationInfo.withIntDetail(
     key: String,
     value: Int,
 ): AnnotationInfo =
@@ -1302,7 +1304,7 @@ private fun List<GREToClientMessage>.withoutRowDeletion(id: Int): List<GREToClie
         }
     }
 
-private fun GREToClientMessage.mutatingGameState(mutate: (GameStateMessage.Builder) -> GameStateMessage.Builder): GREToClientMessage =
+internal fun GREToClientMessage.mutatingGameState(mutate: (GameStateMessage.Builder) -> GameStateMessage.Builder): GREToClientMessage =
     if (hasGameStateMessage()) toBuilder().setGameStateMessage(mutate(gameStateMessage.toBuilder())).build() else this
 
 private fun GREToClientMessage.mutatingActions(mutate: (Action) -> Action): GREToClientMessage =
@@ -1313,7 +1315,7 @@ private fun GREToClientMessage.mutatingActions(mutate: (Action) -> Action): GRET
         this
     }
 
-private fun List<GREToClientMessage>.replacing(
+internal fun List<GREToClientMessage>.replacing(
     index: Int,
     message: GREToClientMessage,
 ): List<GREToClientMessage> = toMutableList().also { it[index] = message }

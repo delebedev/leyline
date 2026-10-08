@@ -97,6 +97,7 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
                         message.hasSelectNReq() -> "SelectNReq"
                         message.hasOrderReq() -> "OrderReq"
                         message.hasActionsAvailableReq() -> "ActionsAvailableReq"
+                        message.hasIntermissionReq() -> "IntermissionReq"
                         else -> null
                     }
                 if (prompt !=
@@ -115,7 +116,11 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
         events.map { event ->
             val message = messages[event.position.messageIndex]
             val stateId = if (message.hasGameStateMessage()) message.gameStateMessage.gameStateId else message.gameStateId
-            event.copy(values = event.values + ("gameStateId" to stateId))
+            event.copy(
+                values =
+                    event.values + ("gameStateId" to stateId) +
+                        if (message.hasGameStateMessage()) mapOf("state" to message.gameStateMessage) else emptyMap(),
+            )
         }
     return ContractProjection(correlated, removals)
 }

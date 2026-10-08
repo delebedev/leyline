@@ -159,16 +159,17 @@ internal class MatchGameOverRuntime(
     }
 }
 
-private fun annotationLossReasonFor(lossState: GameLossReason?): AnnotationLossReason =
+internal fun annotationLossReasonFor(lossState: GameLossReason?): AnnotationLossReason =
     when (lossState) {
         GameLossReason.Poisoned -> AnnotationLossReason.Poison
         GameLossReason.Milled -> AnnotationLossReason.DrawFromEmptyLibrary
         GameLossReason.Conceded -> AnnotationLossReason.Concede
-        GameLossReason.LifeReachedZero,
+        GameLossReason.LifeReachedZero -> AnnotationLossReason.LifeTotal
+
         GameLossReason.CommanderDamage,
         GameLossReason.IntentionalDraw,
         GameLossReason.OpponentWon,
         GameLossReason.SpellEffect,
         null,
-        -> AnnotationLossReason.LifeTotal
+        -> AnnotationLossReason.Unspecified
     }

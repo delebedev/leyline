@@ -106,6 +106,7 @@ enum class CardSelectKind {
     LibraryPutback,
     ManifestDread,
     Discard,
+    CleanupDiscard,
     SacrificeEffect,
     Suspect,
     MutateTopBottom,
@@ -294,6 +295,7 @@ object PromptRouteResolver {
             PromptSemantic.DividedAllocationCounters -> ResolvedPromptRoute.Distribution(semantic, DistributionRouteKind.Counters)
             PromptSemantic.SelectNLegendRule -> cardSelect(semantic, CardSelectKind.LegendRule)
             PromptSemantic.SelectNDiscard -> cardSelect(semantic, CardSelectKind.Discard, choiceResultSentiment = 1)
+            PromptSemantic.SelectNDiscardCleanup -> cardSelect(semantic, CardSelectKind.CleanupDiscard)
             PromptSemantic.RevealChoose -> ResolvedPromptRoute.RevealChoice(semantic)
             PromptSemantic.SelectNResolution ->
                 when {

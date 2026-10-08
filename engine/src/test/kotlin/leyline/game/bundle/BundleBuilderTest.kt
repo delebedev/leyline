@@ -582,7 +582,9 @@ class BundleBuilderTest :
                 gs1.gameInfo.stage shouldBe Messages.GameStage.GameOver
                 gs1.gameInfo.resultsCount shouldBe 1
                 gs1.teamsCount shouldBeGreaterThan 0
-                gs1.annotationsCount shouldBeGreaterThan 0
+                gs1.annotationsCount shouldBe 0
+                gs1.persistentAnnotationsCount shouldBe 1
+                gs1.persistentAnnotationsList.single().affectedIdsList shouldBe listOf(2)
             }
 
             val gs2 = result.messages[1].gameStateMessage

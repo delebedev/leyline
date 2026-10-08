@@ -1,0 +1,59 @@
+name: Turn-based cleanup discard
+scenario: {suite: core-turns, id: cleanup-discard}
+frames:
+  - id: hand
+    events:
+      - id: candidate
+        type: Card
+        lane: object
+        fields: {raw.zoneId: 31, raw.controllerSeatId: 1, "raw.subtypes[0]": Mountain}
+  - id: cleanup
+    events:
+      - id: cleanup
+        type: PhaseOrStepModified
+        lane: transient
+        where: {fields: {details.phase: [5], details.step: [10]}}
+        fields: {details.phase: [5], details.step: [10]}
+  - id: choice
+    events:
+      - id: choice
+        type: SelectNReq
+        lane: prompt
+        fields:
+          raw.prompt.promptId: 14
+          "raw.prompt.parameters[0].parameterName": NumberOfCards
+          "raw.prompt.parameters[0].numberValue": 1
+          raw.selectNReq.context: Discard
+          raw.selectNReq.optionContext: TurnBased
+          raw.selectNReq.listType: Dynamic
+          raw.selectNReq.minSel: 1
+          raw.selectNReq.maxSel: 1
+          raw.selectNReq.ids.length: 8
+          raw.selectNReq.idType: InstanceId
+          raw.selectNReq.validationType: NonRepeatable
+          raw.selectNReq.sourceId: 0
+          raw.selectNReq.minWeight: 0
+          raw.selectNReq.maxWeight: 0
+        equals: {gameStateId: cleanup.gameStateId}
+  - id: discarded
+    events:
+      - id: changed
+        type: ObjectIdChanged
+        lane: transient
+        equals: {"details.orig_id[0]": candidate.affectorId}
+      - id: discarded
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [Discard], details.zone_src: [31], details.zone_dest: [33], affectedIds.length: 1}
+        equals: {"affectedIds[0]": "changed.details.new_id[0]"}
+      - id: graveyard-card
+        type: Card
+        lane: object
+        op: create
+        fields: {raw.zoneId: 33, "raw.subtypes[0]": Mountain}
+        equals: {affectorId: "changed.details.new_id[0]"}
+counts:
+  - match: {type: SelectNReq, lane: prompt}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Discard]}}
+    exactly: 1

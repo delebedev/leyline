@@ -161,8 +161,10 @@ windows:
 ```
 
 The prompt lane supports `DeclareAttackersReq`, `DeclareBlockersReq`, `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
-`OrderReq`, and `ActionsAvailableReq`. Their full protobuf payload remains
-available through `raw` selectors. The `Action` type uses `lane: action` and
+`OrderReq`, `ActionsAvailableReq`, and `IntermissionReq`. Their full protobuf payload remains
+available through `raw` selectors. The `state` selector exposes the GSM payload
+only on events from that message. It is absent from prompt events; `gameStateId`
+binds their reference to the corresponding state publication. The `Action` type uses `lane: action` and
 `op: offer` for each active action in `ActionsAvailableReq`. Its `raw` selectors
 address that action directly. Inactive actions do not become offer events.
 

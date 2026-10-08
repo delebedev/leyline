@@ -4,6 +4,7 @@ import forge.game.GameEndReason
 import forge.game.player.GameLossReason
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.SeatId
@@ -17,35 +18,69 @@ import wotc.mtgo.gre.external.messaging.Messages.ResultType
 
 class MatchGameOverRuntimeTest :
     BoardTest({
-        test("engine completion commits one terminal outcome for every viewer exactly once") {
-            val board = startWithBoard { _, _, _ -> }
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.registerViewers(
-                listOf(
-                    ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
-                    ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
-                ),
-            )
-            val playback = GamePlayback(board.bridge, 1)
-            board.ai.loseConditionMet(GameLossReason.Poisoned, null)
-            board.game.setGameOver(GameEndReason.AllOpposingTeamsLost)
+        for ((lossCause, annotationReason) in listOf(
+            GameLossReason.LifeReachedZero to AnnotationLossReason.LifeTotal,
+            GameLossReason.Poisoned to AnnotationLossReason.Poison,
+            GameLossReason.Milled to AnnotationLossReason.DrawFromEmptyLibrary,
+        )) {
+            test("$lossCause completion commits one terminal outcome for every viewer exactly once") {
+                val board = startWithBoard { _, _, _ -> }
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.registerViewers(
+                    listOf(
+                        ProjectionViewer(SeatId(1), ProjectionViewerRole.Player),
+                        ProjectionViewer(SeatId(2), ProjectionViewerRole.Observer),
+                    ),
+                )
+                val playback = GamePlayback(board.bridge, 1)
+                board.ai.loseConditionMet(lossCause, null)
+                board.game.setGameOver(GameEndReason.AllOpposingTeamsLost)
 
-            playback.onMainLoopStepCompleted()
+                playback.onMainLoopStepCompleted()
 
-            val outcome = coordinator.committedGameOverOutcome().shouldNotBeNull()
-            val player = coordinator.drain(SeatId(1)).single()
-            val observer = coordinator.drain(SeatId(2)).single()
-            assertSoftly {
-                outcome shouldBe GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Game_ae0a, 2, AnnotationLossReason.Poison)
-                player.last().intermissionReq.result shouldBe observer.last().intermissionReq.result
+                val outcome = coordinator.committedGameOverOutcome().shouldNotBeNull()
+                val player = coordinator.drain(SeatId(1)).single()
+                val observer = coordinator.drain(SeatId(2)).single()
+                assertSoftly {
+                    outcome shouldBe GameOverOutcome(ResultType.WinLoss, 1, ResultReason.Game_ae0a, 2, annotationReason)
+                    player.last().intermissionReq.result shouldBe observer.last().intermissionReq.result
+                    val playerLoss =
+                        player
+                            .first()
+                            .gameStateMessage.persistentAnnotationsList
+                            .single()
+                    val observerLoss =
+                        observer
+                            .first()
+                            .gameStateMessage.persistentAnnotationsList
+                            .single()
+                    playerLoss shouldBe observerLoss
+                    board.bridge
+                        .projectionStateSnapshot()
+                        .persistentAnnotations.activeAnnotations[playerLoss.id] shouldBe playerLoss
+                    playerLoss.id shouldBeGreaterThan 0
+                    playerLoss.affectedIdsList shouldBe listOf(2)
+                }
+
+                playback.onMainLoopStepCompleted()
+
+                assertSoftly {
+                    coordinator.drain(SeatId(1)).shouldBeEmpty()
+                    coordinator.drain(SeatId(2)).shouldBeEmpty()
+                    coordinator.committedGameOverOutcome() shouldBe outcome
+                }
             }
+        }
 
-            playback.onMainLoopStepCompleted()
-
+        test("loss cause mapping keeps life total distinct from other causes") {
             assertSoftly {
-                coordinator.drain(SeatId(1)).shouldBeEmpty()
-                coordinator.drain(SeatId(2)).shouldBeEmpty()
-                coordinator.committedGameOverOutcome() shouldBe outcome
+                annotationLossReasonFor(GameLossReason.LifeReachedZero) shouldBe AnnotationLossReason.LifeTotal
+                annotationLossReasonFor(GameLossReason.Poisoned) shouldBe AnnotationLossReason.Poison
+                annotationLossReasonFor(GameLossReason.Milled) shouldBe AnnotationLossReason.DrawFromEmptyLibrary
+                annotationLossReasonFor(GameLossReason.Conceded) shouldBe AnnotationLossReason.Concede
+                for (reason in listOf(GameLossReason.CommanderDamage, GameLossReason.OpponentWon, GameLossReason.SpellEffect, null)) {
+                    annotationLossReasonFor(reason) shouldBe AnnotationLossReason.Unspecified
+                }
             }
         }
 
@@ -62,7 +97,7 @@ class MatchGameOverRuntimeTest :
 
             assertSoftly {
                 coordinator.committedGameOverOutcome() shouldBe
-                    GameOverOutcome(ResultType.Draw_a544, 0, ResultReason.Game_ae0a, 0, AnnotationLossReason.LifeTotal)
+                    GameOverOutcome(ResultType.Draw_a544, 0, ResultReason.Game_ae0a, 0, AnnotationLossReason.Unspecified)
                 coordinator
                     .drain(SeatId(1))
                     .single()

@@ -1,0 +1,23 @@
+# Mechanic: Cleanup discards exactly one card from an eight-card hand.
+# Forcing: Divination raises the seven-card hand to eight before cleanup.
+# AI behavior: No hand actions; Centaur Courser keeps the board nonterminal.
+# Failure modes: Missing choice or discard fails the scripted hand transition.
+# Card roles: Divination draws two; Mountain supplies the unique discard candidate; Islands supply mana and library filler.
+# Protocol path: Draw, cleanup selection, discard identity and next-turn continuation.
+[metadata]
+Name:Cleanup Discard
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Cast Divination, discard one Mountain during cleanup, then continue.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Divination;Mountain;Island;Island;Island;Island;Island
+humanbattlefield=Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island
+ailibrary=Island;Island;Island;Island;Island
+aibattlefield=Centaur Courser
