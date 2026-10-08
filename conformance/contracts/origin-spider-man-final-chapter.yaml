@@ -1,6 +1,13 @@
 name: Origin of Spider-Man final chapter sacrifice
 scenario: {suite: mechanics-protocol, id: saga-origin-final-sacrifice}
 frames:
+  - id: source
+    events:
+      - id: saga
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 28, "raw.cardTypes[0]": Enchantment, raw.controllerSeatId: 1}}
+        fields: {raw.zoneId: 28, "raw.cardTypes[0]": Enchantment, raw.cardTypes.length: 1, raw.controllerSeatId: 1}
   - id: final-lore
     events:
       - id: final-lore
@@ -9,6 +16,7 @@ frames:
         where: {fields: {details.count: [3]}}
         keys: [counter_type, count]
         fields: {details.counter_type: [108], details.count: [3], affectedIds.length: 1}
+        equals: {"affectedIds[0]": saga.affectorId}
   - id: departure
     events:
       - id: resolved
