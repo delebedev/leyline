@@ -15,6 +15,7 @@ import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantChecker
 import leyline.game.bundle.RuntimeAccumulator
 import leyline.game.mapping.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -139,20 +140,13 @@ class ProtocolContractMutationTest :
                     .instanceId
             val withoutPrediction =
                 messages.map { message ->
-                    if (!message.hasActionsAvailableReq()) return@map message
-                    message
-                        .toBuilder()
-                        .setActionsAvailableReq(
-                            message.actionsAvailableReq.toBuilder().clearActions().addAllActions(
-                                message.actionsAvailableReq.actionsList.map { action ->
-                                    if (action.actionType == ActionType.Cast && action.instanceId == exileId) {
-                                        action.toBuilder().clearAutoTapSolution().build()
-                                    } else {
-                                        action
-                                    }
-                                },
-                            ),
-                        ).build()
+                    message.mutatingActions { action ->
+                        if (action.actionType == ActionType.Cast && action.instanceId == exileId) {
+                            action.toBuilder().clearAutoTapSolution().build()
+                        } else {
+                            action
+                        }
+                    }
                 }
             shouldThrow<AssertionError> { contract.verify(withoutPrediction) }
             for ((name, mutant) in listOf(
@@ -221,22 +215,9 @@ class ProtocolContractMutationTest :
         regression("miscalculation-cycling.yaml") { contract, messages ->
             val wrongOffer =
                 messages.map { message ->
-                    if (!message.hasActionsAvailableReq()) return@map message
-                    message
-                        .toBuilder()
-                        .setActionsAvailableReq(
-                            message.actionsAvailableReq.toBuilder().clearActions().addAllActions(
-                                message.actionsAvailableReq.actionsList.map { action ->
-                                    if (action.actionType ==
-                                        ActionType.Activate_add3
-                                    ) {
-                                        action.toBuilder().setAbilityGrpId(0).build()
-                                    } else {
-                                        action
-                                    }
-                                },
-                            ),
-                        ).build()
+                    message.mutatingActions { action ->
+                        if (action.actionType == ActionType.Activate_add3) action.toBuilder().setAbilityGrpId(0).build() else action
+                    }
                 }
             withClue("offered Cycling identity differs from activation") { shouldThrow<AssertionError> { contract.verify(wrongOffer) } }
             for ((name, mutant) in listOf(
@@ -978,6 +959,14 @@ private fun List<GREToClientMessage>.withoutRowDeletion(id: Int): List<GREToClie
 
 private fun GREToClientMessage.mutatingGameState(mutate: (GameStateMessage.Builder) -> GameStateMessage.Builder): GREToClientMessage =
     if (hasGameStateMessage()) toBuilder().setGameStateMessage(mutate(gameStateMessage.toBuilder())).build() else this
+
+private fun GREToClientMessage.mutatingActions(mutate: (Action) -> Action): GREToClientMessage =
+    if (hasActionsAvailableReq()) {
+        val actions = actionsAvailableReq.actionsList.map(mutate)
+        toBuilder().setActionsAvailableReq(actionsAvailableReq.toBuilder().clearActions().addAllActions(actions)).build()
+    } else {
+        this
+    }
 
 private fun List<GREToClientMessage>.replacing(
     index: Int,
