@@ -63,6 +63,15 @@ class AnnotationOrderEnforcerTest :
             result shouldBe listOf(start, targetChanged, targetExit, complete, ownChanged, ownExit)
         }
 
+        test("fizzled spell self retirement remains after its resolution completes") {
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val changed = AnnotationBuilder.objectIdChanged(501.iid, 503.iid, 501.iid)
+            val exit = AnnotationBuilder.zoneTransfer(503.iid, 27, 33, "Countered", affectorId = 501.iid)
+            val input = listOf(start, complete, changed, exit)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
         test("countered stack exit without causal resolution owner keeps its chronology") {
             val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
             val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
