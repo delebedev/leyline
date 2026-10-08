@@ -30,7 +30,6 @@ import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardInjector
 import leyline.testkit.after
-import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
 import leyline.testkit.assertAccumulatorConsistent
@@ -718,52 +717,6 @@ class CombatInteractionTest :
                 damage.detailInt("damage") shouldBe 1
                 val life = gsm.annotationsList.single { AnnotationType.ModifiedLife in it.typeList }
                 life.detailInt("life") shouldBe -1
-            }
-        }
-
-        session(
-            "combat death produces zone transfer",
-            deckList = COMBAT_DECK,
-            validation = combatValidation,
-            aiScript =
-                listOf(
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.CastSpell("Raging Goblin"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.DeclareNoBlockers, // let human's attack through (unblocked)
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Mountain"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
-        ) {
-            // Human turn 1: play Mountain, cast Raging Goblin
-            playLand("Mountain").shouldBeTrue()
-            castSpellByName("Raging Goblin").shouldBeTrue()
-            passUntilResolved()
-
-            val creatures = humanBattlefieldCreatures()
-            creatures shouldHaveSize 1
-            val iid = creatures.first().first
-            val startTurn = turn()
-
-            // Declare attack
-            val combatMsgs =
-                after {
-                    val daReq = allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-                    if (daReq != null) declareAttackers(listOf(iid))
-                    passThroughCombat(startTurn)
-                }.messages
-            val allAnnotations =
-                combatMsgs
-                    .allAnnotations()
-
-            // Either ZoneTransfer (trade) or damage annotations should be present
-            assertSoftly {
-                combatMsgs.shouldNotBeEmpty()
-                allAnnotations.count { AnnotationType.ZoneTransfer_af5a in it.typeList } +
-                    allAnnotations.count { AnnotationType.DamageDealt_af5a in it.typeList } shouldBeGreaterThanOrEqualTo 1
-                isGameOver().shouldBeFalse()
             }
         }
 

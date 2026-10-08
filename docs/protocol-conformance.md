@@ -80,6 +80,8 @@ cardinality and required transfer emission.
 Runtime card and ability identifiers use the Forge catalog. Contracts relate
 those identifiers within one interaction rather than pinning catalog-dependent
 numbers. Casting options omit an absent cost or permission field. Paid Evoke, Warp alternative casts and foretold casts carry only the selected cost; other established alternative-cost routes retain both fields. A targeted alternative cast publishes its selected option on announcement and retains that row through target submission. Stable protocol values, detail keys, counts, and ordering are explicit.
+Paid Evoke and ordinary combat trade lifecycle checks share their acceptance scenarios with these contracts. The ordinary-cost Evoke regression, combat accumulator checks, and distinct combat transport and strike controls remain local.
+
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 
