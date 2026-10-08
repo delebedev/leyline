@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
-import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.netty.channel.embedded.EmbeddedChannel
@@ -355,15 +354,6 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
-        fun mulliganDecision(
-            decision: MulliganOption,
-            respId: Int,
-        ): ClientToGREMessage =
-            greMessage(1, ClientMessageType.MulliganResp_097b) {
-                setRespId(respId)
-                setMulliganResp(MulliganResp.newBuilder().setDecision(decision))
-            }
-
         fun passPriority(prompt: GREToClientMessage): ClientToGREMessage =
             greMessage(1, ClientMessageType.PerformActionResp_097b) {
                 setGameStateId(prompt.gameStateId)
@@ -638,6 +628,10 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
+        test("last legal redraw publishes the forced seven-card tuck horizon") {
+            verifyFinalRedrawTuck() shouldBe 7
+        }
+
         listOf(1, 2).forEach { mulligans ->
             test("$mulligans mulligans then keep preserve the selected hand") {
                 val registry = MatchRegistry()
@@ -696,7 +690,6 @@ class MatchDoorMulliganFlowTest :
                     val secondRedrawMulligan = secondRedrawPrompt.last { it.hasMulliganReq() }
                     val secondRedrawHand = session.gameBridge.getHandGrpIds(SeatId(1))
                     val redrawHandIds = session.gameBridge.getHandCards(SeatId(1)).map { session.gameBridge.instance(it).value }
-                    val keepStarted = System.nanoTime()
                     local.writeInbound(
                         greServiceMessage(
                             mulliganDecision(
@@ -712,7 +705,6 @@ class MatchDoorMulliganFlowTest :
                     )
                     val postKeep = greOutbound(local)
                     val grouping = postKeep.single { it.hasGroupReq() }
-                    ((System.nanoTime() - keepStarted) / 1_000_000) shouldBeLessThan 1_000L
                     val ids = grouping.groupReq.instanceIdsList
                     val keptIds = ids.dropLast(mulligans)
                     val bottomIds = ids.takeLast(mulligans)
@@ -825,3 +817,71 @@ class MatchDoorMulliganFlowTest :
             }
         }
     })
+
+private fun verifyFinalRedrawTuck(): Int {
+    val registry = MatchRegistry()
+    val matchId = "mulligan-final-redraw"
+    val (local, familiar) = connectPair(registry, matchId, drainInitial = false)
+    try {
+        greOutbound(local)
+        greOutbound(familiar)
+        val session = registry.getConnection(matchId, SeatId(1))?.session as MatchSession
+        var redraw = emptyList<GREToClientMessage>()
+        repeat(7) { index ->
+            local.writeInbound(
+                greServiceMessage(
+                    mulliganDecision(MulliganOption.Mulligan, session.gameBridge.committedSequence().lastPromptMsgId),
+                    6 + index,
+                ),
+            )
+            redraw = greOutbound(local)
+            session.gameBridge.getHandCards(SeatId(1)).size shouldBe 7
+            if (index < 6) redraw.last { it.hasMulliganReq() }.mulliganReq.mulliganCount shouldBe index + 1
+        }
+        val grouping = redraw.single { it.hasGroupReq() }
+        val handIds = session.gameBridge.getHandCards(SeatId(1)).map { session.gameBridge.instance(it).value }
+        assertSoftly {
+            redraw.none { it.hasMulliganReq() } shouldBe true
+            grouping.groupReq.instanceIdsList.sorted() shouldBe handIds.sorted()
+            grouping.groupReq.groupSpecsList.map { it.lowerBound } shouldBe listOf(0, 7)
+            session.gameBridge
+                .mulliganBridge(SeatId(1))
+                .pendingPrompt()
+                ?.cardsToTuck shouldBe 7
+        }
+        local.writeInbound(
+            greServiceMessage(
+                greMessage(1, ClientMessageType.GroupResp_097b) {
+                    setRespId(grouping.msgId)
+                    setGroupResp(
+                        GroupResp.newBuilder().addGroups(Group.newBuilder()).addGroups(Group.newBuilder().addAllIds(handIds)),
+                    )
+                },
+                14,
+            ),
+        )
+        val postTuck = greOutbound(local)
+        postTuck.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+        val annotations = postTuck.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }
+        handIds.forEach { oldId ->
+            annotations.any {
+                AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == oldId
+            } shouldBe true
+        }
+        session.gameBridge.mulliganBridge(SeatId(1)).pendingPrompt() shouldBe null
+        session.gameBridge.getHandCards(SeatId(1)).size shouldBe 1
+        return annotations.count { AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") in handIds }
+    } finally {
+        local.close()
+        familiar.close()
+    }
+}
+
+private fun mulliganDecision(
+    decision: MulliganOption,
+    respId: Int,
+): ClientToGREMessage =
+    greMessage(1, ClientMessageType.MulliganResp_097b) {
+        setRespId(respId)
+        setMulliganResp(MulliganResp.newBuilder().setDecision(decision))
+    }

@@ -358,7 +358,29 @@ object LifecycleMessageMaterializer {
                 numCards,
                 ProjectionTransition(prior.revision, next),
             )
-        return LifecycleMessages(listOf(deal) + request.messages, request.nextMsgId, request.transition)
+        val prompt = bridge.mulliganBridge(seatId).pendingPrompt()
+        val messages =
+            if (prompt?.phase == MulliganPhase.WaitingTuck) {
+                request.messages.map { message ->
+                    if (message.hasMulliganReq()) {
+                        mulliganRequest(
+                            message.msgId,
+                            requestGameStateId,
+                            seatId,
+                            prompt,
+                            states.first.zonesList
+                                .single { it.zoneId == ZoneIds.handOf(seatId) }
+                                .objectInstanceIdsList,
+                            keepRequest = null,
+                        )
+                    } else {
+                        message
+                    }
+                }
+            } else {
+                request.messages
+            }
+        return LifecycleMessages(listOf(deal) + messages, request.nextMsgId, request.transition)
     }
 
     /** DealHand + MulliganReq bundled for seat 2 — built from game state. */

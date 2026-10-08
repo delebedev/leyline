@@ -1551,7 +1551,7 @@ class GameBridge(
             val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
             while (System.currentTimeMillis() < deadline) {
                 val prompt = bridge.pendingPromptAfter(seqBefore)
-                if (prompt?.phase == MulliganPhase.WaitingKeep) {
+                if (prompt != null) {
                     log.info("GameBridge: engine re-dealt hand after mulligan")
                     return true
                 }
