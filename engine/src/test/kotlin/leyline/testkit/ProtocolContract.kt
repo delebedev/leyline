@@ -11,7 +11,6 @@ import leyline.acceptance.AcceptancePaths
 import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -20,7 +19,7 @@ import java.nio.file.Path
 
 /**
  * Interprets authored protocol obligations over one scripted interaction's emitted messages.
- * Frames require ordered events in one message; counts cover the complete scenario stream.
+ * Frames require one message and preserve each wire list’s order; counts cover the complete stream.
  * Windows constrain events strictly between bound witnesses, including within one message.
  * Runtime identities bind between events instead of depending on catalog-specific numbers.
  * Scenario execution is owned by the acceptance executor, not this checker.
@@ -39,17 +38,21 @@ class ProtocolContract private constructor(
      * fields on the selected interaction. Later frames may continue in the same message.
      */
     fun verify(messages: List<GREToClientMessage>) {
-        val events = project(messages)
-        val bound = mutableMapOf<String, IndexedValue<Event>>()
-        var cursor = 0
+        val projection = projectContract(messages)
+        val events = projection.events
+        val bound = mutableMapOf<String, ContractEvent>()
+        val consumed = mutableMapOf<String, ContractPosition>()
+        var earliestMessage = 0
         // ponytail: one matching start per scripted interaction; add occurrence selection when a scenario repeats indistinguishable starts.
         for (frame in frames) {
             var messageIndex: Int? = null
             for (pattern in frame) {
                 val id = pattern["id"] as String
                 val index =
-                    (cursor until events.size).firstOrNull { index ->
-                        (messageIndex == null || events[index].messageIndex == messageIndex) &&
+                    events.indices.firstOrNull { index ->
+                        events[index].position.messageIndex >= earliestMessage &&
+                            (messageIndex == null || events[index].position.messageIndex == messageIndex) &&
+                            (consumed[events[index].position.wireList]?.precedes(events[index].position) != false) &&
                             kindMatches(events[index], pattern) &&
                             (
                                 pattern["where"] == null ||
@@ -58,7 +61,7 @@ class ProtocolContract private constructor(
                             (pattern["where"] != null || bound.isNotEmpty() || matches(events[index], pattern, bound)) &&
                             (
                                 pattern["sameRow"] == null ||
-                                    events[index].values["annotationId"] == bound[pattern["sameRow"]]?.value?.values?.get("annotationId")
+                                    events[index].values["annotationId"] == bound[pattern["sameRow"]]?.values?.get("annotationId")
                             )
                     }
                 withClue("$name: required event $id after ${bound.keys.lastOrNull()}") { index shouldNotBe null }
@@ -66,9 +69,10 @@ class ProtocolContract private constructor(
                 withClue("$name: $id has contradictory fields or identity; expected=$pattern actual=${event.values}") {
                     matches(event, pattern, bound) shouldBe true
                 }
-                bound[id] = IndexedValue(index, event)
-                messageIndex = event.messageIndex
-                cursor = index + 1
+                bound[id] = event
+                messageIndex = event.position.messageIndex
+                earliestMessage = event.position.messageIndex
+                consumed[event.position.wireList] = event.position
             }
         }
         for (count in counts) {
@@ -77,17 +81,35 @@ class ProtocolContract private constructor(
                 events.count { matches(it, pattern, bound) } shouldBe count["exactly"]
             }
         }
+        verifyWindows(projection, bound)
+    }
+
+    private fun verifyWindows(
+        projection: ContractProjection,
+        bound: Map<String, ContractEvent>,
+    ) {
+        val events = projection.events
         for (window in windows) {
             val start = bound.getValue((window["after"] ?: window["holds"]) as String)
             val end = bound.getValue((window["before"] ?: window["until"]) as String)
-            val between = events.subList(start.index + 1, end.index)
-            withClue("$name: window ${window["id"]} between events ${start.index} and ${end.index}") {
+            withClue("$name: window ${window["id"]} between ${start.position} and ${end.position}") {
                 if (window["holds"] != null) {
-                    val rowId = start.value.values["annotationId"]
-                    between.none { it.lane == "persistent" && it.op == "delete" && it.values["annotationId"] == rowId } shouldBe true
+                    val rowId = start.values["annotationId"]
+                    projection.removals.none { removal ->
+                        removal.rowId == rowId && removal.breaksHold(start.position, end.position)
+                    } shouldBe true
                 } else {
+                    withClue("window anchors require observable wire order") {
+                        start.position.precedes(end.position) shouldBe true
+                    }
                     val pattern = (window["absent"] ?: window["count"] ?: window["exists"]).map()
-                    val found = between.filter { matches(it, pattern, bound) }
+                    val candidates = events.filter { matches(it, pattern, bound) }
+                    withClue("matching event at a boundary has no cross-list ordering") {
+                        candidates.none {
+                            it.position.unorderedWith(start.position) || it.position.unorderedWith(end.position)
+                        } shouldBe true
+                    }
+                    val found = candidates.filter { start.position.precedes(it.position) && it.position.precedes(end.position) }
                     withClue("matching events: $found") {
                         if (window["exists"] != null) {
                             found.shouldNotBeEmpty()
@@ -163,92 +185,10 @@ class ProtocolContract private constructor(
     }
 }
 
-private data class Event(
-    val messageIndex: Int,
-    val type: String,
-    val lane: String,
-    val op: String,
-    val values: Map<String, Any?>,
-)
-
-private fun project(messages: List<GREToClientMessage>): List<Event> {
-    val rows = mutableMapOf<Int, AnnotationInfo>()
-    val activeRows = mutableSetOf<Int>()
-    val objects = mutableSetOf<Int>()
-    return buildList {
-        messages.forEachIndexed { index, message ->
-            if (message.hasGameStateMessage()) {
-                val gsm = message.gameStateMessage
-                for (obj in gsm.gameObjectsList) {
-                    add(
-                        Event(
-                            index,
-                            obj.type.name,
-                            "object",
-                            if (objects.add(obj.instanceId)) "create" else "update",
-                            mapOf("affectorId" to obj.instanceId, "raw" to obj),
-                        ),
-                    )
-                }
-                for (annotation in gsm.annotationsList) addAll(annotation.events(index, "transient", "emit"))
-                for (annotation in gsm.persistentAnnotationsList) {
-                    val op = if (activeRows.add(annotation.id)) "create" else "update"
-                    rows[annotation.id] = annotation
-                    addAll(annotation.events(index, "persistent", op))
-                }
-                for (id in gsm.diffDeletedPersistentAnnotationIdsList) {
-                    activeRows.remove(id)
-                    // Retain the last row to expose repeated deletions to exact-count obligations.
-                    rows[id]?.let { addAll(it.events(index, "persistent", "delete")) }
-                }
-            }
-            val prompt =
-                when {
-                    message.hasSelectTargetsReq() -> "SelectTargetsReq"
-                    message.hasOptionalActionMessage() -> "OptionalActionMessage"
-                    message.hasSelectNReq() -> "SelectNReq"
-                    message.hasOrderReq() -> "OrderReq"
-                    message.hasActionsAvailableReq() -> "ActionsAvailableReq"
-                    else -> null
-                }
-            if (prompt != null) {
-                add(Event(index, prompt, "prompt", "emit", mapOf("raw" to message)))
-            }
-            if (message.hasActionsAvailableReq()) {
-                for (action in message.actionsAvailableReq.actionsList) {
-                    add(Event(index, "Action", "action", "offer", mapOf("raw" to action)))
-                }
-            }
-        }
-    }
-}
-
-private fun AnnotationInfo.events(
-    index: Int,
-    lane: String,
-    op: String,
-): List<Event> {
-    val values =
-        mapOf(
-            "annotationId" to id,
-            "affectorId" to affectorId,
-            "affectedIds" to affectedIdsList,
-            "details" to
-                detailsList.associate { detail ->
-                    val field = detail.descriptorForType.findFieldByName("value${detail.type.name}")
-                    detail.key to field?.let { detail.getField(it) }
-                },
-            "detailTypes" to detailsList.associate { it.key to it.type.name },
-            "keys" to detailsList.map { it.key },
-            "raw" to this,
-        )
-    return typeList.map { Event(index, it.protocolName(), lane, op, values) }
-}
-
 private fun matches(
-    event: Event,
+    event: ContractEvent,
     pattern: Map<String, Any?>,
-    bound: Map<String, IndexedValue<Event>>,
+    bound: Map<String, ContractEvent>,
 ): Boolean {
     if (!kindMatches(event, pattern) || pattern["present"]?.list()?.any { select(event.values, it as String) == null } == true) return false
     if (pattern["keys"] != null &&
@@ -257,7 +197,7 @@ private fun matches(
         return false
     }
     pattern["sameRow"]?.let {
-        val row = bound[it]?.value?.values?.get("annotationId") ?: return false
+        val row = bound[it]?.values?.get("annotationId") ?: return false
         if (event.values["annotationId"] != row) return false
     }
     for ((selector, expected) in pattern["fields"]?.map().orEmpty()) {
@@ -265,7 +205,7 @@ private fun matches(
     }
     for ((selector, reference) in pattern["equals"]?.map().orEmpty()) {
         val value = reference as String
-        val other = bound[value.substringBefore('.')]?.value
+        val other = bound[value.substringBefore('.')]
         val expected = other?.let { select(it.values, value.substringAfter('.')) } ?: return false
         if (select(event.values, selector) != expected) return false
     }
@@ -273,7 +213,7 @@ private fun matches(
 }
 
 private fun kindMatches(
-    event: Event,
+    event: ContractEvent,
     pattern: Map<String, Any?>,
 ): Boolean =
     event.type == pattern["type"] &&
@@ -285,7 +225,7 @@ private val promptTypes = setOf("SelectTargetsReq", "OptionalActionMessage", "Se
 private val enumSuffix = Regex("_[0-9a-f]{4}$")
 
 /** Protobuf name-collision suffixes are build identifiers, not protocol names. */
-private fun AnnotationType.protocolName(): String = name.replace(enumSuffix, "")
+internal fun AnnotationType.protocolName(): String = name.replace(enumSuffix, "")
 
 private fun validateSelector(selector: String) {
     require(

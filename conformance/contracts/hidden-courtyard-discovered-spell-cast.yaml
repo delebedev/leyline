@@ -73,7 +73,7 @@ frames:
 windows:
   - id: no-option-before-cast
     after: discovered-to-exile
-    before: cast-transfer
+    before: option
     absent: {type: CastingTimeOption}
   - id: option-holds
     holds: option

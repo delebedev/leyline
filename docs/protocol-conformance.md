@@ -104,9 +104,13 @@ Keep mechanism, concurrency, cancellation, transport, and head presentation
 tests. Remove a duplicate lifecycle test only after a contract proves every
 distinct obligation that test protects.
 
-A contract names its acceptance `scenario` (`suite` and `id`), ordered `frames`,
-and optional exact `counts`. Each frame contains ordered `events` that coexist in
-one emitted message. A later frame may continue in that same message.
+A contract names its acceptance `scenario` (`suite` and `id`), `frames`,
+and optional exact `counts`. Each frame requires its events in one emitted message.
+Events preserve order within each repeated wire field and between messages.
+Different fields have no relative order: persistent publications and deletion IDs
+are separate lists even though both use the persistent lane. A later frame may
+continue in the same message without reusing an already selected wire entry.
+Multiple types on one annotation share that entry’s position.
 An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
 `fields`, positive `present` selectors, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
@@ -132,7 +136,12 @@ assertions fail immediately.
 Patterns use the same typed fields and identity relations as stream counts.
 `holds` requires a persistent row introduced or updated by its first anchor to
 survive until the endpoint. Retirement at the endpoint is allowed. Boundaries
-use event order, so these obligations also distinguish events within one message.
+use message order and ordinal order within the same wire field. An interval with
+same-message anchors in different fields is ambiguous and fails. A matching
+candidate in an endpoint message’s different field also fails rather than being
+silently excluded. Choose a bound witness on the relevant wire list when that
+list’s exact boundary is the obligation. Snapshot disappearance also breaks a
+hold, including disappearance at its endpoint message.
 Unknown, equal, or backwards anchors and malformed clauses fail loading.
 
 ```yaml
@@ -152,9 +161,12 @@ available through `raw` selectors. The `Action` type uses `lane: action` and
 `op: offer` for each active action in `ActionsAvailableReq`. Its `raw` selectors
 address that action directly. Inactive actions do not become offer events.
 
-Persistent rows become inactive at deletion. A later emission of that row is a
-new `create`, while repeated deletions retain their last-known identity for
-counting. The target, trigger-source, and replacement contracts require one
+Persistent rows become inactive at explicit deletion or omission from a Full
+snapshot. Full omission changes membership without producing a selectable
+`delete` event or satisfying a deletion count. A later emission of that row is a
+new `create`, while repeated explicit deletions retain their last-known identity
+for counting. Publication of an already active ID is an observable `update`,
+even when its content is unchanged or it is republished in a Full snapshot. The target, trigger-source, and replacement contracts require one
 creation, no updates, and one deletion for their selected row.
 
 Start with [`lightning-bolt.yaml`](../conformance/contracts/lightning-bolt.yaml)
