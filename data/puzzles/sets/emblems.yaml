@@ -7,6 +7,14 @@ scenarios:
     expect: the emblem survives its creator and its later targeted drain wins
     steps:
       - cast: End the Festivities
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - resolve_stack: {}
       - expect:
           all:

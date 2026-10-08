@@ -316,6 +316,8 @@ scenarios:
       - expect:
           action: { type: cast, card: Duress }
       - cast: Duress
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - pass_until:
           prompt: SelectNReq
           max_passes: 8

@@ -18,6 +18,10 @@ class RevealTrackingAiController(
     player: Player,
     private val promptBridge: InteractivePromptBridge,
     private val viewerSeatId: SeatId,
+    private val privateLook: () -> Boolean = {
+        leyline.bridge.interaction.SpellAbilityShapes
+            .isPrivateHandLook(trackedGame.stack.peekAbility())
+    },
     private val currentSourceCardId: () -> ForgeCardId? = {
         trackedGame.stack
             .peekAbility()
@@ -59,7 +63,7 @@ class RevealTrackingAiController(
         zone: ZoneType,
         ownerSeatId: SeatId,
     ) {
-        promptBridge.recordReveal(cardIds, ownerSeatId, viewerSeatId, revealZone(zone), currentSourceCardId())
+        promptBridge.recordReveal(cardIds, ownerSeatId, viewerSeatId, revealZone(zone), currentSourceCardId(), lookOnly = privateLook())
     }
 
     private fun seatOf(owner: Player): SeatId = SeatId(trackedGame.players.indexOf(owner) + 1)

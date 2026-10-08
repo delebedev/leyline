@@ -32,7 +32,7 @@ internal class RevealChoiceWindowMaterializer {
                 context.message(GREMessageType.SelectNreq) {
                     it.selectNReq = request
                     it.prompt = Prompt.newBuilder().setPromptId(promptId(window)).build()
-                    it.allowCancel = if (isPrivateExileChoice(window)) AllowCancel.Continue else AllowCancel.No_a526
+                    it.allowCancel = if (isPrivateExileChoice(window) && window.min == 0) AllowCancel.Continue else AllowCancel.No_a526
                 },
             )
         return context.prepared(messages, awaitedRequest = messages.last())

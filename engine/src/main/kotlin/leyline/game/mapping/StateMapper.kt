@@ -1357,7 +1357,21 @@ object StateMapper {
                             if (!includePrivateObjects && zone.visibility == Visibility.Private) {
                                 zone.toBuilder().clearObjectInstanceIds().build()
                             } else {
-                                redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                                if (zone.type == ZoneType.Revealed) {
+                                    val hiddenIds =
+                                        gsm.gameObjectsList
+                                            .filter {
+                                                it.visibility == Visibility.Private &&
+                                                    (!includePrivateObjects || viewingSeatId !in it.viewersList)
+                                            }.mapTo(mutableSetOf()) { it.instanceId }
+                                    zone
+                                        .toBuilder()
+                                        .clearObjectInstanceIds()
+                                        .addAllObjectInstanceIds(zone.objectInstanceIdsList.filterNot { it in hiddenIds })
+                                        .build()
+                                } else {
+                                    redactOpponentSideboardZone(zone, opponentSideboardZoneId)
+                                }
                             }
                         },
                     ).clearGameObjects()
@@ -1814,6 +1828,13 @@ object StateMapper {
                             viewerSeat,
                             environment.cardProto,
                             parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
+                            lookOnly =
+                                eventReveals.none { !it.lookOnly && forgeCardId in it.cardIds } &&
+                                    (
+                                        activeReveal?.lookOnly == true &&
+                                            forgeCardId in activeReveal.allHandCardIds ||
+                                            eventReveals.any { it.lookOnly && forgeCardId in it.cardIds }
+                                    ),
                         ),
                     )
                 }
