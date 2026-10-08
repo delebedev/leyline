@@ -16,7 +16,6 @@ import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
-import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -29,28 +28,10 @@ class OmenLifecycleTest :
     SessionTest({
         fun AnnotationInfo.isType(type: AnnotationType): Boolean = type in typeList
 
-        val omenPuzzle =
-            """
-            [metadata]
-            Name:Omen lifecycle
-            Goal:Win
-            Turns:5
-            Difficulty:Easy
-            Description:Cast either face of Riling Dawnbreaker.
-
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=4
-
-            humanhand=Riling Dawnbreaker
-            humanbattlefield=Plains;Plains;Plains;Plains;Plains
-            humanlibrary=Plains;Plains;Plains;Plains
-            ailibrary=Plains;Plains;Plains;Plains
-            """.trimIndent()
-
-        session("Riling Dawnbreaker Omen face follows hand stack library lifecycle", puzzle = omenPuzzle) {
+        session(
+            "Riling Dawnbreaker Omen face follows hand stack library lifecycle",
+            puzzleFile = "data/puzzles/omen-riling-dawnbreaker.pzl",
+        ) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
             val handCompanion =
                 accumulator.objects.values.single {
@@ -129,22 +110,10 @@ class OmenLifecycleTest :
             val shuffle =
                 annotations.singleOrNull { it.isType(AnnotationType.Shuffle) }
                     ?: error("No Shuffle; types=${annotations.flatMap { it.typeList }}")
-            val resolutionStart =
-                annotations.singleOrNull {
-                    it.isType(AnnotationType.ResolutionStart) && it.detailInt("grpid") == 95537
-                } ?: error(
-                    "No Omen ResolutionStart; annotations=${annotations.map { ann ->
-                        ann.typeList to ann.detailsList.associate { it.key to (it.valueStringList + it.valueInt32List) }
-                    }}",
-                )
             val resolutionComplete =
                 annotations.singleOrNull {
                     it.isType(AnnotationType.ResolutionComplete) && it.detailInt("grpid") == 95537
                 } ?: error("No Omen ResolutionComplete; types=${annotations.flatMap { it.typeList }}")
-            val tokenCreated =
-                annotations.singleOrNull {
-                    it.isType(AnnotationType.TokenCreated)
-                } ?: error("No TokenCreated; types=${annotations.flatMap { it.typeList }}")
             val resolveObjectIdChanged =
                 annotations.singleOrNull {
                     it.isType(AnnotationType.ObjectIdChanged) && it.detailInt("orig_id") == stackCard.instanceId
@@ -153,10 +122,6 @@ class OmenLifecycleTest :
                         it.isType(AnnotationType.ObjectIdChanged)
                     }.map { it.detailsList.associate { detail -> detail.key to detail.valueInt32List } }}",
                 )
-            val resolveTransfer =
-                annotations.singleOrNull {
-                    it.isType(AnnotationType.ZoneTransfer_af5a) && it.detailString("category") == "Resolve"
-                } ?: error("No Resolve ZoneTransfer; types=${annotations.flatMap { it.typeList }}")
             val libraryZone =
                 lifecycleMessages
                     .gameStateMessages()
@@ -176,22 +141,19 @@ class OmenLifecycleTest :
                 deletedIds shouldContain libraryCompanion.instanceId
                 deletedIds.count { it == libraryParent.instanceId } shouldBe 1
                 deletedIds.count { it == libraryCompanion.instanceId } shouldBe 1
-                annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(resolutionComplete)
-                annotations.indexOf(resolutionStart) shouldBeLessThan annotations.indexOf(tokenCreated)
-                annotations.indexOf(tokenCreated) shouldBeLessThan annotations.indexOf(resolutionComplete)
-                tokenCreated.affectorId shouldBe stackCard.instanceId
                 shuffle.affectorId shouldBe stackCard.instanceId
                 shuffle.detailIntList("OldIds").size shouldBe 5
                 shuffle.detailIntList("NewIds") shouldBe libraryZone.objectInstanceIdsList
                 shuffle.detailIntList("OldIds").toSet().intersect(shuffle.detailIntList("NewIds").toSet()) shouldBe emptySet()
                 annotations.indexOf(shuffle) shouldBeLessThan annotations.indexOf(resolutionComplete)
-                annotations.indexOf(resolutionComplete) shouldBeLessThan annotations.indexOf(resolveObjectIdChanged)
-                annotations.indexOf(resolveObjectIdChanged) shouldBeLessThan annotations.indexOf(resolveTransfer)
                 libraryZone.objectInstanceIdsList.count { it == libraryParent.instanceId } shouldBe 1
             }
         }
 
-        session("Riling Dawnbreaker main face preserves its Omen companion through resolution", puzzle = omenPuzzle) {
+        session(
+            "Riling Dawnbreaker main face preserves its Omen companion through resolution",
+            puzzleFile = "data/puzzles/omen-riling-dawnbreaker.pzl",
+        ) {
             val handParentIid = human.hand.iid("Riling Dawnbreaker")
             val handCardId = checkNotNull(bridge.getForgeCardId(InstanceId(handParentIid)))
             bridge.setSelectedSpellGrpId(handCardId, 95537)

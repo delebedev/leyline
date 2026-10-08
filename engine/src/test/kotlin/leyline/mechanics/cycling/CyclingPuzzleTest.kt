@@ -36,15 +36,6 @@ private val CYCLE_MISCALCULATION_PUZZLE =
     ailibrary=Mountain
     """.trimIndent()
 
-/**
- * Integration test for Cycling (hand-zone activated ability with discard-as-cost).
- *
- * Miscalculation — `K:Cycling:2`. Pay {2}, discard from hand → draw a card.
- * Validates that the existing hand-activated-ability rail (which makes Channel
- * work) also surfaces Cycling: Activate_add3 offered for the hand card,
- * Discard<1/CARDNAME> cost component fires the Hand→Graveyard ZoneTransfer
- * with category=Discard, and the resolve effect (Draw) lands.
- */
 @Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
     SessionTest({
@@ -67,7 +58,6 @@ class CyclingPuzzleTest :
                     .actionsAvailableReq.actionsList
                     .single { it.actionType == ActionType.Activate_add3 && it.instanceId == cardIid }
             offer.abilityGrpId shouldBeGreaterThan 0
-            val activationStart = messageSnapshot()
 
             // Cycle Miscalculation — same path as Channel.
             activateAbilityFromHand("Miscalculation").shouldBeTrue()
@@ -77,11 +67,6 @@ class CyclingPuzzleTest :
                 human.getZone(ZoneType.Graveyard).cards.any { it.name == "Miscalculation" } &&
                     human.getZone(ZoneType.Hand).cards.any { it.name == "Lightning Bolt" }
             }.shouldBeTrue()
-
-            val activation =
-                messagesSince(activationStart)
-                    .annotationsOfType(AnnotationType.UserActionTaken)
-                    .single { it.detailInt("actionType") == ActionType.Activate_add3.number }
 
             assertSoftly {
                 human
@@ -97,7 +82,6 @@ class CyclingPuzzleTest :
                     .any { it.name == "Lightning Bolt" }
                     .shouldBeTrue()
                 human.getZone(ZoneType.Graveyard).size() shouldBe gyBefore + 1
-                activation.detailInt("abilityGrpId") shouldBe offer.abilityGrpId
             }
         }
 

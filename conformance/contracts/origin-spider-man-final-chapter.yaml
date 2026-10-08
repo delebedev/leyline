@@ -1,0 +1,42 @@
+name: Origin of Spider-Man final chapter sacrifice
+scenario: {suite: mechanics-protocol, id: saga-origin-final-sacrifice}
+frames:
+  - id: source
+    events:
+      - id: saga
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 28, "raw.cardTypes[0]": Enchantment, raw.controllerSeatId: 1}}
+        fields: {raw.zoneId: 28, "raw.cardTypes[0]": Enchantment, raw.cardTypes.length: 1, raw.controllerSeatId: 1}
+  - id: final-lore
+    events:
+      - id: final-lore
+        type: Counter
+        lane: persistent
+        where: {fields: {details.count: [3]}}
+        keys: [counter_type, count]
+        fields: {details.counter_type: [108], details.count: [3], affectedIds.length: 1}
+        equals: {"affectedIds[0]": saga.affectorId}
+  - id: departure
+    events:
+      - id: resolved
+        type: ResolutionComplete
+        lane: transient
+        keys: [grpid]
+      - id: retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        fields: {affectedIds.length: 1}
+        equals: {"affectedIds[0]": resolved.affectorId, affectorId: "final-lore.affectedIds[0]"}
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": "final-lore.affectedIds[0]"}
+      - id: sacrificed
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.zone_src: [28], details.zone_dest: [33], details.category: [Sacrifice]}
+        equals: {"affectedIds[0]": "reallocated.details.new_id[0]"}
