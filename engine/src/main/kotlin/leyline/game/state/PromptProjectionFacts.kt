@@ -69,6 +69,7 @@ data class ChoiceResult(
 data class RevealStarted(
     val allHandCardIds: List<ForgeCardId>,
     val ownerSeatId: SeatId,
+    val lookOnly: Boolean = false,
 )
 
 data class ConvokePayment(

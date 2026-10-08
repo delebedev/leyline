@@ -84,6 +84,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
+import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
@@ -361,7 +362,7 @@ class PlayerController(
         messagePrefix: String?,
         addMsgSuffix: Boolean,
     ) {
-        targetingCoordinator.captureReveal(cards, zone, owner)
+        targetingCoordinator.captureReveal(cards, zone, owner, lookOnly = resolvingPrivateLook())
     }
 
     override fun reveal(
@@ -371,8 +372,10 @@ class PlayerController(
         messagePrefix: String?,
         addMsgSuffix: Boolean,
     ) {
-        targetingCoordinator.captureReveal(cards, zone, owner, game.players)
+        targetingCoordinator.captureReveal(cards, zone, owner, game.players, lookOnly = resolvingPrivateLook())
     }
+
+    private fun resolvingPrivateLook(): Boolean = SpellAbilityShapes.isPrivateHandLook(game.stack.firstOrNull()?.spellAbility)
 
     // -- Sacrifice / Destroy ----------------------------------------------
     // PCHuman uses InputSelectCardsFromList
@@ -1074,15 +1077,13 @@ class PlayerController(
         activeDividedAllocationAbility = currentAbility
         val chosen =
             try {
-                // Forge selects a sole player candidate without interaction. Emblem
-                // abilities need that target group published before stack placement.
-                val emblemPlayerTarget =
-                    currentAbility.hostCard.isEmblem &&
-                        currentAbility.targets.isEmpty() &&
+                // Publish a targeted player's selection even when only one player is legal.
+                val solePlayerTarget =
+                    currentAbility.targets.isEmpty() &&
                         currentAbility.targetRestrictions?.getAllCandidates(currentAbility, true)?.singleOrNull() is Player &&
                         currentAbility.minTargets == 1 &&
                         currentAbility.maxTargets == 1
-                if (emblemPlayerTarget && !targetingCoordinator.selectTargets(emptyList(), currentAbility, true, null).isChosen) {
+                if (solePlayerTarget && !targetingCoordinator.selectTargets(emptyList(), currentAbility, true, null).isChosen) {
                     false
                 } else {
                     super.chooseTargetsFor(currentAbility)

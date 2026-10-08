@@ -132,7 +132,11 @@ class DiscardInteractionTest :
                 """,
             turns = 10,
         ) {
-            val req = castSpellUntilSelectNReq("Duress")
+            castSpellUntilSelectTargetsReq("Duress")
+            val choiceStart = messageSnapshot()
+            selectTargets(listOf(2))
+            passUntil(maxPasses = 10) { messagesSince(choiceStart).any { it.hasSelectNReq() } } shouldBe true
+            val req = messagesSince(choiceStart).last { it.hasSelectNReq() }.selectNReq
             val divinationId = findInstanceId(req.idsList, "Divination")
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
@@ -168,7 +172,11 @@ class DiscardInteractionTest :
                 """,
             turns = 10,
         ) {
-            val req = castSpellUntilSelectNReq("Duress")
+            castSpellUntilSelectTargetsReq("Duress")
+            val choiceStart = messageSnapshot()
+            selectTargets(listOf(2))
+            passUntil(maxPasses = 10) { messagesSince(choiceStart).any { it.hasSelectNReq() } } shouldBe true
+            val req = messagesSince(choiceStart).last { it.hasSelectNReq() }.selectNReq
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
                 req.minSel shouldBe 0
@@ -210,14 +218,19 @@ class DiscardInteractionTest :
         ) {
             val promptStart = messageSnapshot()
             castSpellByName("Deep-Cavern Bat") shouldBe true
+            passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectTargetsReq() } } shouldBe true
+            selectTargets(listOf(2))
             passUntil(maxPasses = 10) { messagesSince(promptStart).any { it.hasSelectNReq() } } shouldBe true
 
-            val req = messagesSince(promptStart).last { it.hasSelectNReq() }.selectNReq
+            val choice = messagesSince(promptStart).last { it.hasSelectNReq() }
+            val req = choice.selectNReq
             val divinationId = findInstanceId(req.idsList, "Divination")
             assertSoftly {
                 req.context shouldBe SelectionContext.Resolution_a163
-                req.minSel shouldBe 0
+                req.minSel shouldBe 1
                 req.maxSel shouldBe 1
+                choice.allowCancel shouldBe AllowCancel.Continue
+                choice.prompt.promptId shouldBe 7142
                 req.idsList shouldHaveSize 2
                 req.unfilteredIdsList shouldHaveSize 3
                 req.idsList shouldContain divinationId

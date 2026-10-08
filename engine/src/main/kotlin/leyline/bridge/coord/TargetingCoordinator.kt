@@ -586,6 +586,7 @@ class TargetingCoordinator(
         cards: CardCollectionView,
         zone: ZoneType,
         owner: Player,
+        lookOnly: Boolean = false,
     ) {
         if (cards.isEmpty()) return
         val cardIds = cards.map { ForgeCardId(it.id) }
@@ -596,9 +597,10 @@ class TargetingCoordinator(
             viewerSeatId,
             revealZone(zone),
             currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+            lookOnly,
         )
         if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, owner)) {
-            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
+            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat, lookOnly)
         }
     }
 
@@ -607,6 +609,7 @@ class TargetingCoordinator(
         zone: ZoneType,
         owner: PlayerView,
         players: Iterable<Player>,
+        lookOnly: Boolean = false,
     ) {
         if (cards.isEmpty()) return
         val ownerPlayer = players.firstOrNull { owner.id == it.id } ?: return
@@ -618,9 +621,10 @@ class TargetingCoordinator(
             viewerSeatId,
             revealZone(zone),
             currentSourceEntityId()?.takeIf { it > 0 }?.let(::ForgeCardId),
+            lookOnly,
         )
         if (viewerSeatId != ownerSeat && zone == ZoneType.Hand && revealsWholeCurrentHand(cardIds, ownerPlayer)) {
-            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat)
+            TargetingCoordinator.startReveal(bridge, cardIds, ownerSeat, lookOnly)
         }
     }
 
@@ -960,6 +964,7 @@ class TargetingCoordinator(
         if (valid.isEmpty()) return null
         val normalized = valid.map { it.lowercase() }
         if (normalized == listOf("permanent.nonland")) return PromptIds.TARGET_NONLAND_PERMANENT
+        if (normalized == listOf("opponent")) return PromptIds.TARGET_OPPONENT
         if (normalized == listOf("any")) return PromptIds.CHOOSE_ANY_TARGET
         val allOpponentControlled = normalized.all { "youdontctrl" in it }
         val targetKinds =
@@ -1241,8 +1246,9 @@ class TargetingCoordinator(
             prompt: InteractivePromptBridge,
             cardIds: List<ForgeCardId>,
             ownerSeat: SeatId,
+            lookOnly: Boolean = false,
         ) {
-            prompt.journal.record(PromptSideEffect.RevealStarted(cardIds, ownerSeat))
+            prompt.journal.record(PromptSideEffect.RevealStarted(cardIds, ownerSeat, lookOnly))
         }
     }
 }

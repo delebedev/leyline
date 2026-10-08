@@ -316,6 +316,8 @@ scenarios:
       - expect:
           action: { type: cast, card: Duress }
       - cast: Duress
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - pass_until:
           prompt: SelectNReq
           max_passes: 8
@@ -334,14 +336,16 @@ scenarios:
           action: { type: cast, card: Deep-Cavern Bat }
       - cast: Deep-Cavern Bat
       - pass_until:
-          prompt: SelectNReq
+          prompt: { type: SelectTargetsReq, prompt_id: 10 }
+          max_passes: 8
+      - target: opponent
+      - pass_until:
+          prompt: { type: SelectNReq, prompt_id: 7142 }
           max_passes: 8
       - select_card: { side: opponent, zone: hand, card: Divination }
       - resolve_stack: {}
       - expect:
           all:
-            - annotation_seen: CardRevealed
-            - annotation_seen: InstanceRevealedToOpponent
             - zone_not_contains: { side: opponent, zone: hand, card: Divination }
             - zone_contains: { side: ours, zone: battlefield, card: Deep-Cavern Bat }
   - id: stock-up-bottom-order

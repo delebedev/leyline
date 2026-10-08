@@ -5,6 +5,11 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 
 object SpellAbilityShapes {
+    fun isPrivateHandLook(sa: SpellAbility?): Boolean {
+        val ability = (sa as? forge.game.trigger.WrappedAbility)?.wrappedAbility ?: sa
+        return ability?.api == ApiType.RevealHand && ability.hasParam("Look")
+    }
+
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
         (sa?.alternativeCost ?: sa?.rootAbility?.alternativeCost) in setOf(AlternativeCost.Warp, AlternativeCost.Foretold)
 

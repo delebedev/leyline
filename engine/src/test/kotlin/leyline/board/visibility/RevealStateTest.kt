@@ -24,6 +24,7 @@ import leyline.testkit.persistentAnnotation
 import leyline.testkit.persistentAnnotationOrNull
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class RevealStateTest :
     BoardTest({
@@ -255,7 +256,47 @@ class RevealStateTest :
             }
         }
 
-        test("AI viewer publishes a human-owned reveal with its audience and source") {
+        test("opponent hand look expires without lasting knowledge and a later reveal remains public") {
+            val board = startWithBoard { _, _, ai -> addCard("Forest", ai, ZoneType.Hand) }
+            val card =
+                board.ai
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .single()
+            val cardId = board.instanceId(card.id)
+            val prompt = board.bridge.promptBridge(SeatId(1))
+            val coordinator = TargetingCoordinator(prompt, board.bridge.seating, currentSourceEntityId = { card.id })
+            val looked =
+                board.snapshotDiff {
+                    coordinator.captureReveal(CardCollection(listOf(card)), ZoneType.Hand, board.ai, lookOnly = true)
+                }
+            val handCard = looked.gameObjectsList.single { it.instanceId == cardId && it.type == GameObjectType.Card }
+            assertSoftly {
+                handCard.visibility shouldBe Visibility.Private
+                handCard.viewersList shouldBe listOf(2, 1)
+                looked.persistentAnnotationOrNull(AnnotationType.CardRevealed).shouldBeNull()
+                looked.persistentAnnotationOrNull(AnnotationType.InstanceRevealedToOpponent).shouldBeNull()
+            }
+            prompt.journal.clearActiveReveal(checkNotNull(prompt.journal.activeRevealEntry()))
+            val expired = board.stateOnlyDiff()
+            assertSoftly {
+                board.bridge
+                    .projectionStateSnapshot()
+                    .opponentKnowledge.known shouldBe emptyMap()
+                expired.persistentAnnotationOrNull(AnnotationType.CardRevealed).shouldBeNull()
+                expired.persistentAnnotationOrNull(AnnotationType.InstanceRevealedToOpponent).shouldBeNull()
+            }
+            val revealed =
+                board.snapshotDiff {
+                    coordinator.captureReveal(CardCollection(listOf(card)), ZoneType.Hand, board.ai)
+                }
+            assertSoftly {
+                revealed.persistentAnnotation(AnnotationType.CardRevealed).detailInt("source_zone") shouldBe ZoneIds.P2_HAND
+                revealed.persistentAnnotation(AnnotationType.InstanceRevealedToOpponent).affectorId shouldBe cardId
+            }
+        }
+
+        test("AI viewer publishes a human-owned private look with its audience and source") {
             val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
             val card =
                 board.game.humanPlayer
@@ -269,6 +310,7 @@ class RevealStateTest :
                     board.game.aiPlayer,
                     board.bridge.promptBridge(SeatId(1)),
                     SeatId(2),
+                    privateLook = { true },
                 ) { sourceCardId }
 
             controller.reveal(CardCollection(listOf(card)), ZoneType.Hand, board.game.humanPlayer, null, true)
@@ -280,6 +322,7 @@ class RevealStateTest :
                 record.viewerSeatId shouldBe SeatId(2)
                 record.sourceZone shouldBe RevealZone.HAND
                 record.sourceCardId shouldBe sourceCardId
+                record.lookOnly shouldBe true
             }
         }
 

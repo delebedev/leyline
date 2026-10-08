@@ -1,5 +1,6 @@
 package leyline.board.visibility
 
+import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -7,8 +8,13 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.RevealZone
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.InvariantCheck
+import leyline.game.bundle.InvariantChecker
+import leyline.game.bundle.InvariantSelection
 import leyline.game.event.FrameEventLog
+import leyline.game.event.GameEvent
 import leyline.game.mapping.StateFrameInput
 import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ZoneIds
@@ -23,11 +29,146 @@ import leyline.game.state.PromptProjectionFacts
 import leyline.game.state.RevealStarted
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class HandVisibilityProjectionTest :
     BoardTest({
+        for (publicReveal in listOf(false, true)) {
+            test("reveal lifecycle annotations follow viewer visibility, public: $publicReveal") {
+                val board = startWithBoard { _, _, ai -> addCard("Forest", ai, ZoneType.Hand) }
+                val hand =
+                    board.ai
+                        .getZone(ZoneType.Hand)
+                        .cards
+                        .map { ForgeCardId(it.id) }
+                val facts =
+                    PromptProjectionFacts(
+                        reveals =
+                            listOf(
+                                PromptProjectionFacts.RevealFact(
+                                    PromptFactKey(SeatId(1), 1),
+                                    RevealStarted(hand, SeatId(2), lookOnly = !publicReveal),
+                                    hasPendingPrompt = true,
+                                ),
+                            ),
+                    )
+                val snapshot = handSnapshot(board, 1)
+                val events =
+                    FrameEventLog(listOf(GameEvent.CardsRevealed(hand, SeatId(2), SeatId(1), RevealZone.HAND, lookOnly = !publicReveal)))
+                val chooser = projectHand(board, snapshot, 1, promptFacts = facts, events = events)
+                val observer = projectHand(board, snapshot, 1, promptFacts = facts, role = ProjectionViewerRole.Observer, events = events)
+                val owner = projectHand(board, snapshot, 2, promptFacts = facts, events = events)
+                val ownerClosed = projectHand(board, handSnapshot(board, 2), 2, snapshot, owner.transition.nextState)
+                val chooserProxy =
+                    chooser.gsm.gameObjectsList
+                        .single { it.type == GameObjectType.RevealedCard }
+                        .instanceId
+                val observerProxies =
+                    observer.gsm.gameObjectsList
+                        .filter { it.type == GameObjectType.RevealedCard }
+                        .map { it.instanceId }
+                val chooserClosed = projectHand(board, handSnapshot(board, 2), 1, snapshot, chooser.transition.nextState)
+                val observerClosed =
+                    projectHand(
+                        board,
+                        handSnapshot(board, 2),
+                        1,
+                        snapshot,
+                        observer.transition.nextState,
+                        role = ProjectionViewerRole.Observer,
+                    )
+                assertSoftly {
+                    chooser.gsm.gameObjectsList
+                        .single { it.type == GameObjectType.RevealedCard }
+                        .visibility shouldBe
+                        if (publicReveal) Visibility.Public else Visibility.Private
+                    chooser.gsm.annotationsList
+                        .single { AnnotationType.RevealedCardCreated in it.typeList }
+                        .affectedIdsList shouldBe
+                        listOf(chooserProxy)
+                    chooserClosed.gsm.annotationsList
+                        .single { AnnotationType.RevealedCardDeleted in it.typeList }
+                        .affectedIdsList shouldBe
+                        listOf(chooserProxy)
+                    owner.gsm.annotationsList
+                        .filter { AnnotationType.RevealedCardCreated in it.typeList }
+                        .flatMap { it.affectedIdsList }
+                        .size shouldBe
+                        if (publicReveal) 1 else 0
+                    ownerClosed.gsm.annotationsList
+                        .filter { AnnotationType.RevealedCardDeleted in it.typeList }
+                        .flatMap { it.affectedIdsList }
+                        .size shouldBe
+                        if (publicReveal) 1 else 0
+                    observerProxies.size shouldBe if (publicReveal) 1 else 0
+                    observer.gsm.annotationsList
+                        .filter { AnnotationType.RevealedCardCreated in it.typeList }
+                        .flatMap { it.affectedIdsList } shouldBe
+                        observerProxies
+                    observerClosed.gsm.annotationsList
+                        .filter { AnnotationType.RevealedCardDeleted in it.typeList }
+                        .flatMap { it.affectedIdsList } shouldBe
+                        observerProxies
+                    observer.gsm.zonesList
+                        .filter { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Revealed }
+                        .flatMap { it.objectInstanceIdsList } shouldBe observerProxies
+                    val checker =
+                        InvariantChecker(InvariantSelection.only("observer reveal references", InvariantCheck.AnnotationReferences))
+                    listOf(
+                        observer.gsm,
+                        observerClosed.gsm,
+                    ).forEach { checker.process(GREToClientMessage.newBuilder().setGameStateMessage(it).build()) }
+                    checker.violations.shouldBeEmpty()
+                }
+            }
+        }
+
+        test("public companion knowledge survives an overlapping private hand look") {
+            val board = startWithBoard { _, _, ai -> addCard("Lurrus of the Dream-Den", ai, ZoneType.Hand) }
+            val card = board.ai.getCardsIn(ZoneType.Hand).single()
+            board.ai.getZone(ZoneType.Command).add(Player.createCompanionEffect(card))
+            val hand = listOf(ForgeCardId(card.id))
+            val initial = handSnapshot(board, 1)
+            val baseline = projectHand(board, initial, 1, role = ProjectionViewerRole.Observer)
+            val companionView = baseline.gsm.gameObjectsList.single { it.type == GameObjectType.RevealedCard }
+            val facts =
+                PromptProjectionFacts(
+                    reveals =
+                        listOf(
+                            PromptProjectionFacts.RevealFact(
+                                PromptFactKey(SeatId(1), 1),
+                                RevealStarted(hand, SeatId(2), lookOnly = true),
+                                hasPendingPrompt = true,
+                            ),
+                        ),
+                )
+            val overlapping =
+                projectHand(
+                    board,
+                    handSnapshot(board, 2),
+                    1,
+                    initial,
+                    baseline.transition.nextState,
+                    promptFacts = facts,
+                    role = ProjectionViewerRole.Observer,
+                    events = FrameEventLog(listOf(GameEvent.CardsRevealed(hand, SeatId(2), SeatId(1), RevealZone.HAND, lookOnly = true))),
+                )
+            val retained =
+                overlapping.transition.nextState.viewerCursors
+                    .getValue(SeatId(1))
+                    .fullState!!
+            assertSoftly {
+                retained.gameObjectsList.single { it.type == GameObjectType.RevealedCard } shouldBe companionView
+                retained.zonesList.single { it.zoneId == ZoneIds.REVEALED_P2 }.objectInstanceIdsList shouldBe
+                    listOf(companionView.instanceId)
+                overlapping.gsm.diffDeletedInstanceIdsList.shouldBeEmpty()
+            }
+        }
+
         test("continuous hand permission grants identities and withdraws them from the same viewer") {
             val board = startPuzzleAtMain1(HAND_INSPECTION_PUZZLE)
             val hand =
@@ -231,6 +372,7 @@ private fun projectHand(
     prior: ProjectionState = board.bridge.projectionStateSnapshot(),
     promptFacts: PromptProjectionFacts = PromptProjectionFacts(),
     role: ProjectionViewerRole = ProjectionViewerRole.Player,
+    events: FrameEventLog = FrameEventLog.EMPTY,
 ): StateProjectionCompiler.Result =
     StateProjectionCompiler
         .compileViewers(
@@ -243,7 +385,7 @@ private fun projectHand(
                         gameStateId = snapshot.gameStateId,
                         viewingSeatId = viewer,
                         previousSnapshot = previous,
-                        events = FrameEventLog.EMPTY,
+                        events = events,
                         updateType = GameStateUpdate.SendAndRecord,
                         revealForSeat = null,
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),

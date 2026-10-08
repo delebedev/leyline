@@ -128,11 +128,12 @@ class TargetSpecConformanceTest :
                 """,
         ) {
             castSpellByName("Pilfer") shouldBe true
+            selectTargets(listOf(OPPONENT_SEAT))
 
             val targetSpec = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec).single()
             assertSoftly {
                 targetSpec.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
-                targetSpec.detailInt("promptId") shouldBe PromptIds.SELECT_TARGETS
+                targetSpec.detailInt("promptId") shouldBe PromptIds.TARGET_OPPONENT
             }
         }
     })

@@ -69,9 +69,12 @@ class MatchRevealChoiceInteractionRuntimeTest :
                 .cards
                 .single()
 
-        fun revealEntry(board: Board): leyline.bridge.handoff.PromptJournal.RevealEntry {
+        fun revealEntry(
+            board: Board,
+            lookOnly: Boolean = false,
+        ): leyline.bridge.handoff.PromptJournal.RevealEntry {
             board.bridge.promptBridge(SeatId(1)).journal.record(
-                PromptSideEffect.RevealStarted(revealed(board).map { ForgeCardId(it.id) }, SeatId(2)),
+                PromptSideEffect.RevealStarted(revealed(board).map { ForgeCardId(it.id) }, SeatId(2), lookOnly),
             )
             return checkNotNull(
                 board.bridge
@@ -196,46 +199,99 @@ class MatchRevealChoiceInteractionRuntimeTest :
             }
         }
 
-        test("zero-selectable reveal remains a first-class cut and clears its exact reveal") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val entry = revealEntry(board)
-            val result = AtomicReference<RevealChoiceInteractionResult>()
-            val finished = CountDownLatch(1)
-            Thread {
-                result.set(
-                    coordinator.revealChoices.awaitSelection(
-                        request(board, emptyList(), min = 0, max = 0),
-                        emptyList(),
-                        entry,
-                        false,
-                        3_000,
-                    ),
-                )
-                finished.countDown()
-            }.start()
+        for (lookOnly in listOf(false, true)) {
+            test("zero-selectable reveal clears its exact reveal, private look: $lookOnly") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val entry = revealEntry(board, lookOnly)
+                val result = AtomicReference<RevealChoiceInteractionResult>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator.revealChoices.awaitSelection(
+                            request(board, emptyList(), min = 0, max = 0),
+                            emptyList(),
+                            entry,
+                            false,
+                            3_000,
+                        ),
+                    )
+                    finished.countDown()
+                }.start()
 
-            val published = awaitPublished(coordinator)
-            val req =
-                coordinator
-                    .drain(SeatId(1))
-                    .flatten()
-                    .single { it.hasSelectNReq() }
-                    .selectNReq
-            assertSoftly {
-                req.idsList.shouldBeEmpty()
-                req.unfilteredIdsCount shouldBe 2
-                req.minSel shouldBe 0
-                req.maxSel shouldBe 0
-                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe true
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                result.get().handles.shouldBeEmpty()
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .activeRevealEntry()
-                    .shouldBeNull()
+                val published = awaitPublished(coordinator)
+                val req =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+                        .selectNReq
+                assertSoftly {
+                    req.idsList.shouldBeEmpty()
+                    req.unfilteredIdsCount shouldBe 2
+                    req.minSel shouldBe 0
+                    req.maxSel shouldBe 0
+                    coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get().handles.shouldBeEmpty()
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .journal
+                        .activeRevealEntry()
+                        .shouldBeNull()
+                }
+            }
+        }
+
+        for (minimum in listOf(0, 1)) {
+            test("private hand exile continuation matches its minimum $minimum") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val candidates = revealed(board).take(1)
+                val entry = revealEntry(board, lookOnly = true)
+                val result = AtomicReference<RevealChoiceInteractionResult>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator.revealChoices.awaitSelection(request(board, candidates, min = minimum), candidates, entry, true, 3_000),
+                    )
+                    finished.countDown()
+                }.start()
+                val published = awaitPublished(coordinator)
+                val message = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+                assertSoftly {
+                    message.prompt.promptId shouldBe PromptIds.EXILE_FROM_OPPONENT_HAND
+                    message.allowCancel shouldBe if (minimum == 0) AllowCancel.Continue else AllowCancel.No_a526
+                    message.selectNReq.minSel shouldBe 1
+                    message.selectNReq.maxSel shouldBe 1
+                    coordinator.acceptSettled(
+                        leyline.testkit.selectNResp(
+                            if (minimum ==
+                                0
+                            ) {
+                                emptyList()
+                            } else {
+                                listOf(message.selectNReq.idsList.single())
+                            },
+                        ),
+                        published.gameStateId,
+                    ) shouldBe
+                        true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get().handles.size shouldBe minimum
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .journal
+                        .activeRevealEntry()
+                        .shouldBeNull()
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .journal
+                        .consumeExiledUnderSource(ForgeCardId(candidates.single().id))
+                        .let { (it != null) shouldBe (minimum == 1) }
+                }
             }
         }
 

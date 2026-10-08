@@ -61,6 +61,7 @@ internal object RevealChoiceWindowCapture {
                     min = request.min,
                     max = request.max,
                     defaultOptionIndex = request.defaultIndex,
+                    lookOnly = revealEntry.reveal.lookOnly,
                 ),
             revealEntry = revealEntry,
             handlesByOption = candidateHandles.mapIndexed { index, card -> index to card }.toMap(),

@@ -210,6 +210,7 @@ class InteractivePromptBridge(
         val viewerSeatId: SeatId,
         val sourceZone: RevealZone? = null,
         val sourceCardId: ForgeCardId? = null,
+        val lookOnly: Boolean = false,
     )
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
@@ -221,9 +222,10 @@ class InteractivePromptBridge(
         viewerSeatId: SeatId,
         sourceZone: RevealZone? = null,
         sourceCardId: ForgeCardId? = null,
+        lookOnly: Boolean = false,
     ) {
         if (forgeCardIds.isEmpty()) return
-        revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId, viewerSeatId, sourceZone, sourceCardId))
+        revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId, viewerSeatId, sourceZone, sourceCardId, lookOnly))
         log.debug("Reveal recorded: {} cards for seat {}", forgeCardIds.size, ownerSeatId)
     }
 

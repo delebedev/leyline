@@ -141,7 +141,7 @@ object ObjectMapper {
     /**
      * Build a [GameObjectInfo] for a RevealedCard proxy from a [CardSnapshot].
      *
-     * Proxy has `type = RevealedCard`, `visibility = Public`,
+     * The view object has `type = RevealedCard`, audience-scoped visibility,
      * `zoneId = sourceZoneId` (overlays the source zone, not a synthetic zone),
      * and `viewers = [seatId-of-viewer]`. Mirrors grpId, types, P/T from snapshot.
      */
@@ -153,13 +153,14 @@ object ObjectMapper {
         viewerSeatId: Int,
         cardProto: CardProtoBuilder,
         parentLinkage: ParentLinkage? = null,
+        lookOnly: Boolean = false,
     ): GameObjectInfo =
         cardProto
             .buildObjectInfo(cardSnap.grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
             .setZoneId(sourceZoneId)
-            .setVisibility(Visibility.Public)
+            .setVisibility(if (lookOnly) Visibility.Private else Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
             .addViewers(viewerSeatId)

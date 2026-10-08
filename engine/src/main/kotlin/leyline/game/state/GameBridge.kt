@@ -745,7 +745,7 @@ class GameBridge(
                 reveals +=
                     PromptProjectionFacts.RevealFact(
                         PromptFactKey(seatId, entry.version),
-                        RevealStarted(entry.reveal.allHandCardIds.toList(), entry.reveal.ownerSeatId),
+                        RevealStarted(entry.reveal.allHandCardIds.toList(), entry.reveal.ownerSeatId, entry.reveal.lookOnly),
                         cutCoordinator.prompts.hasRevealProjectionPrompt(),
                     )
             }
@@ -946,6 +946,7 @@ class GameBridge(
                     reveal.viewerSeatId,
                     reveal.sourceZone,
                     reveal.sourceCardId,
+                    reveal.lookOnly,
                 ),
             )
         }

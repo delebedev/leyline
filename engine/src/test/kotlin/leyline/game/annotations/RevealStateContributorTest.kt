@@ -1,6 +1,9 @@
 package leyline.game.annotations
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.types.ForgeCardId
@@ -69,5 +72,30 @@ class RevealStateContributorTest :
                     .single()
 
             row.affectorId shouldBe 200
+        }
+        for (normalAfterLook in listOf(false, true)) {
+            test("private look preserves a subsequent normal reveal: $normalAfterLook") {
+                val bridge = GameBridge(cardRepository = InMemoryCardRepository())
+                val source = ForgeCardId(10)
+                val card = ForgeCardId(20)
+                val sourceIid = bridge.getOrAllocInstanceId(source)
+                bridge.replaceProjectionStateForTest(
+                    bridge.projectionStateSnapshot().copy(revealProxies = RevealProxyTracker.State(mapOf(card to InstanceId(501)))),
+                )
+                val look = GameEvent.CardsRevealed(listOf(card), SeatId(2), SeatId(1), RevealZone.HAND, source, lookOnly = true)
+                val events = if (normalAfterLook) listOf(look, look.copy(lookOnly = false)) else listOf(look)
+                val result = RevealStateContributor.contribute(annotationContext(bridge = bridge, events = events))
+                assertSoftly {
+                    result.transient shouldHaveSize 1
+                    if (normalAfterLook) {
+                        result.persistent
+                            .getValue(CardRevealedKind)
+                            .single()
+                            .affectorId shouldBe sourceIid.value
+                    } else {
+                        result.persistent.getValue(CardRevealedKind).shouldBeEmpty()
+                    }
+                }
+            }
         }
     })
