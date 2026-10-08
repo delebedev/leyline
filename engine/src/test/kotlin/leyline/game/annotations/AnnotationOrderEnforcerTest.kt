@@ -41,6 +41,17 @@ class AnnotationOrderEnforcerTest :
             result shouldBe listOf(unrelated, start, changed, draw, complete)
         }
 
+        test("source-owned reallocation stays inside its ability resolution bracket") {
+            val changed = AnnotationBuilder.objectIdChanged(100.iid, 200.iid, 100.iid)
+            val transfer = AnnotationBuilder.zoneTransfer(200.iid, 28, 29, "Warp", affectorId = 100.iid)
+            val start = AnnotationBuilder.resolutionStart(501.iid, 372.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 372.grp)
+            val deleted = AnnotationBuilder.abilityInstanceDeleted(501.iid, 100.iid)
+            val unrelated = AnnotationBuilder.objectIdChanged(101.iid, 201.iid)
+            AnnotationOrderEnforcer.enforce(listOf(unrelated, changed, start, transfer, complete, deleted)) shouldBe
+                listOf(unrelated, start, changed, transfer, complete, deleted)
+        }
+
         test("no-op when already ordered: ObjectIdChanged before ZoneTransfer") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt =

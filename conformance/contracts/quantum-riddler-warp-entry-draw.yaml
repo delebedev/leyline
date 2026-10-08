@@ -1,74 +1,68 @@
-name: Quantum Riddler — cast from exile
+name: Quantum Riddler initial Warp cast and entry draw
 scenario: {suite: mechanics-protocol, id: warp-quantum-riddler}
 frames:
-- id: exiled-object
+- id: hand
   events:
-  - id: exiled
+  - id: hand-card
     type: Card
     lane: object
-    fields: {raw.zoneId: 29, raw.controllerSeatId: 1}
-- id: stack-object
+    where: {fields: {raw.zoneId: 31, 'raw.cardTypes[0]': Creature}}
+    fields: {raw.zoneId: 31, raw.controllerSeatId: 1, 'raw.cardTypes[0]': Creature}
+- id: cast
   events:
   - id: spell
     type: Card
     lane: object
+    where: {fields: {raw.zoneId: 27}, equals: {raw.grpId: hand-card.raw.grpId}}
     fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
-    where:
-      fields: {raw.zoneId: 27}
-      equals: {raw.grpId: exiled.raw.grpId}
-    equals: {raw.grpId: exiled.raw.grpId}
-- id: exile-cast
-  events:
-  - id: exile-cast
+    equals: {raw.grpId: hand-card.raw.grpId}
+  - id: cast-reallocated
+    type: ObjectIdChanged
+    lane: transient
+    keys: [orig_id, new_id]
+    equals: {'affectedIds[0]': hand-card.affectorId, 'details.orig_id[0]': hand-card.affectorId, 'details.new_id[0]': spell.affectorId}
+  - id: cast
     type: ZoneTransfer
     lane: transient
     keys: [zone_src, zone_dest, category]
-    fields:
-      details.category: [CastSpell]
-      details.zone_src: [29]
-      details.zone_dest: [27]
-    equals: {'affectedIds[0]': spell.affectorId}
-  - id: exile-cast-action
-    where:
-      equals: {'affectedIds[0]': 'exile-cast.affectedIds[0]'}
+    fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+    equals: {affectedIds: cast-reallocated.details.new_id}
+  - id: action
+    where: {equals: {affectedIds: cast.affectedIds}}
     type: UserActionTaken
     lane: transient
-    keys: [actionType, abilityGrpId]
-    equals: {'affectedIds[0]': 'exile-cast.affectedIds[0]'}
-    fields:
-      details.actionType: [1]
-      details.abilityGrpId: [371]
-  - id: exile-casting-option
+    keys: [actionType, abilityGrpId, alternativeGrpId]
+    fields: {details.actionType: [1], details.abilityGrpId: [0], details.alternativeGrpId.length: 1}
+    equals: {affectedIds: cast.affectedIds}
+  - id: option
     type: CastingTimeOption
     lane: persistent
     op: create
-    keys: [castAbilityGrpId, type]
-    equals: {affectorId: 'exile-cast.affectedIds[0]', 'affectedIds[0]': 'exile-cast.affectedIds[0]'}
-    fields:
-      details.castAbilityGrpId: [371]
-      details.type: [13]
-- id: exile-cast-resolve
+    keys: [alternateCostGrpId, type]
+    fields: {details.type: [13]}
+    equals: {affectorId: spell.affectorId, affectedIds: cast.affectedIds, details.alternateCostGrpId: action.details.alternativeGrpId}
+- id: resolve
   events:
   - id: draw-ability
     type: Ability
     lane: object
     fields: {raw.zoneId: 27}
     equals: {raw.parentId: spell.affectorId, raw.objectSourceGrpId: spell.raw.grpId}
-  - id: exile-cast-resolution-started
+  - id: spell-resolution-started
     type: ResolutionStart
     lane: transient
     keys: [grpid]
-    equals: {affectorId: 'exile-cast.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
-  - id: exile-cast-resolved
+    equals: {affectorId: 'cast.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
+  - id: spell-resolved
     type: ResolutionComplete
     lane: transient
     keys: [grpid]
-    equals: {affectorId: 'exile-cast.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
-  - id: exile-cast-to-battlefield
+    equals: {affectorId: 'cast.affectedIds[0]', 'details.grpid[0]': spell.raw.grpId}
+  - id: spell-to-battlefield
     type: ZoneTransfer
     lane: transient
     keys: [zone_src, zone_dest, category]
-    equals: {'affectedIds[0]': 'exile-cast.affectedIds[0]'}
+    equals: {'affectedIds[0]': 'cast.affectedIds[0]'}
     fields:
       details.category: [Resolve]
       details.zone_src: [27]
@@ -77,7 +71,7 @@ frames:
     type: AbilityInstanceCreated
     lane: transient
     keys: [source_zone]
-    equals: {affectorId: 'exile-cast.affectedIds[0]', 'affectedIds[0]': draw-ability.affectorId}
+    equals: {affectorId: 'cast.affectedIds[0]', 'affectedIds[0]': draw-ability.affectorId}
     fields:
       details.source_zone: [28]
   - id: draw-trigger-source
@@ -88,15 +82,13 @@ frames:
     equals: {affectorId: 'draw-trigger-created.affectedIds[0]', 'affectedIds[0]': draw-trigger-created.affectorId}
     fields:
       details.source_zone: [28]
-  - id: exile-casting-option-retired
+  - id: option-retired
     type: CastingTimeOption
     lane: persistent
     op: delete
-    keys: [castAbilityGrpId, type]
-    sameRow: exile-casting-option
-    fields:
-      details.castAbilityGrpId: [371]
-      details.type: [13]
+    keys: [alternateCostGrpId, type]
+    sameRow: option
+    fields: {details.type: [13]}
 - id: draw-trigger
   events:
   - id: draw-resolution-started
@@ -116,6 +108,8 @@ frames:
     equals: {affectorId: 'draw-trigger-created.affectedIds[0]', 'affectedIds[0]': 'drawn-card-reallocated.details.new_id[0]'}
     fields:
       details.category: [Draw]
+      details.zone_src: [32]
+      details.zone_dest: [31]
   - id: draw-resolved
     type: ResolutionComplete
     lane: transient
@@ -135,22 +129,12 @@ frames:
     fields:
       details.source_zone: [28]
 windows:
-- id: predicted-exile-offer
-  after: exiled
-  before: exile-cast
-  exists:
-    type: Action
-    lane: action
-    op: offer
-    fields: {raw.actionType: Cast}
-    equals: {raw.instanceId: exiled.affectorId}
-    present: [raw.autoTapSolution]
-- {id: exile-casting-option-holds, holds: exile-casting-option, until: exile-casting-option-retired}
-- {id: draw-trigger-source-holds, holds: draw-trigger-source, until: draw-trigger-source-retired}
+- {id: option-holds, holds: option, until: option-retired}
+- {id: draw-source-holds, holds: draw-trigger-source, until: draw-trigger-source-retired}
 counts:
-- match: {type: CastingTimeOption, lane: persistent, op: create, equals: {affectorId: exile-casting-option.affectorId}, fields: {details.type: [13]}}
+- match: {type: CastingTimeOption, lane: persistent, op: create, sameRow: option}
   exactly: 1
-- match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: exile-casting-option}
+- match: {type: CastingTimeOption, lane: persistent, op: delete, sameRow: option}
   exactly: 1
 - match: {type: TriggeringObject, lane: persistent, op: create, sameRow: draw-trigger-source}
   exactly: 1
