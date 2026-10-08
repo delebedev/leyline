@@ -1,0 +1,75 @@
+name: Attack declaration and unblocked combat damage
+scenario: {suite: warmup, id: attack-main2}
+frames:
+  - id: source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}}
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 1, raw.cardTypes.length: 1, "raw.cardTypes[0]": Creature}
+  - id: offered
+    events:
+      - id: offered
+        type: DeclareAttackersReq
+        lane: prompt
+        fields:
+          raw.declareAttackersReq.attackers.length: 1
+          "raw.declareAttackersReq.attackers[0].legalDamageRecipients.length": 1
+          "raw.declareAttackersReq.attackers[0].legalDamageRecipients[0].type": Player
+          "raw.declareAttackersReq.attackers[0].legalDamageRecipients[0].playerSystemSeatId": 2
+        equals: {"raw.declareAttackersReq.attackers[0].attackerInstanceId": source.affectorId}
+  - id: provisional
+    events:
+      - id: provisional
+        type: Card
+        lane: object
+        where: {equals: {affectorId: source.affectorId}}
+        fields: {raw.attackState: Declared, raw.attackInfo.targetId: 2, raw.isTapped: false}
+        equals: {affectorId: source.affectorId}
+  - id: selected
+    events:
+      - id: selected
+        type: DeclareAttackersReq
+        lane: prompt
+        fields:
+          raw.declareAttackersReq.attackers.length: 1
+          "raw.declareAttackersReq.attackers[0].selectedDamageRecipient.type": Player
+          "raw.declareAttackersReq.attackers[0].selectedDamageRecipient.playerSystemSeatId": 2
+        equals: {"raw.declareAttackersReq.attackers[0].attackerInstanceId": source.affectorId, gameStateId: provisional.gameStateId}
+  - id: committed
+    events:
+      - id: attacking
+        type: Card
+        lane: object
+        where: {fields: {raw.attackState: Attacking}, equals: {affectorId: source.affectorId}}
+        fields: {raw.isTapped: true, raw.attackState: Attacking, raw.attackInfo.targetId: 2}
+        equals: {affectorId: source.affectorId}
+      - id: tapped
+        type: TappedUntappedPermanent
+        lane: transient
+        where: {equals: {"affectedIds[0]": source.affectorId}}
+        fields: {details.tapped: [1]}
+        equals: {"affectedIds[0]": source.affectorId}
+  - id: damage
+    events:
+      - id: damage
+        type: DamageDealt
+        lane: transient
+        keys: [damage, type, markDamage]
+        fields: {affectedIds: [2], details.type: [1], details.markDamage: [1]}
+        equals: {affectorId: source.affectorId, "details.damage[0]": source.raw.power.value}
+      - id: life
+        type: ModifiedLife
+        lane: transient
+        fields: {affectedIds: [2], details.life: [-2]}
+  - id: second-main
+    events:
+      - id: second-main
+        type: PhaseOrStepModified
+        lane: transient
+        where: {fields: {details.phase: [4]}}
+        fields: {details.phase: [4]}
+counts:
+  - match: {type: DamageDealt, lane: transient}
+    exactly: 1

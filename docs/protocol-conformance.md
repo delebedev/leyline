@@ -23,6 +23,8 @@ reuses `MatchdoorAcceptanceExecutor` and the existing scenario YAML:
 
 | Scenario | Protocol obligations |
 |---|---|
+| `warmup/attack-main2` | Offered and selected attacker identity, recipient, tap and attacking state, combat damage and second-main continuation. |
+| `combat-warmup/block-trade` | Offered and selected blocker relationship, reciprocal combat damage and independently ordered graveyard identity chains. Two contracts share one execution. |
 | `warmup/land-spell-face` | Cast and resolution framing, source and target identity, exact damage count and typed detail values, object reallocation, target-row retirement. |
 | `mechanics-warmup/reconfigure-attach-unattach` | Ability and targeting order, target-group cardinality and bounds, prompt flags, source binding, submitted target identity, target-row retirement, attach payment and action, and source-owned attachment/layer resolution. |
 | `mechanics-protocol/llanowar-elves-mana` | Creature-source binding, activation and tap order, payment detail types and source identity, exact payment and retirement counts. |
@@ -115,6 +117,9 @@ An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
 `fields`, positive `present` selectors, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
 normalized `details`, `detailTypes`, identities, array indices, and `length`.
+The normalized `gameStateId` is the GSM’s state identity or a separate GRE message’s
+referenced state identity. Bind it with `equals` to correlate a prompt with its
+preceding state without treating the two messages as one frame.
 `present` requires each selector to resolve. For protobuf message fields it checks
 field presence, so an explicitly present empty message satisfies the obligation.
 Enum fields use their protocol names with protobuf collision suffixes removed.
@@ -155,7 +160,7 @@ windows:
     until: source-retired
 ```
 
-The prompt lane supports `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
+The prompt lane supports `DeclareAttackersReq`, `DeclareBlockersReq`, `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
 `OrderReq`, and `ActionsAvailableReq`. Their full protobuf payload remains
 available through `raw` selectors. The `Action` type uses `lane: action` and
 `op: offer` for each active action in `ActionsAvailableReq`. Its `raw` selectors

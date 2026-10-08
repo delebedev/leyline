@@ -1,0 +1,81 @@
+name: Combat trade blocker damage and death
+scenario: {suite: combat-warmup, id: block-trade}
+frames:
+  - id: source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}}
+        fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature, raw.cardTypes.length: 1}
+  - id: offered
+    events:
+      - id: offered
+        type: DeclareBlockersReq
+        lane: prompt
+        fields: {raw.declareBlockersReq.blockers.length: 1, "raw.declareBlockersReq.blockers[0].attackerInstanceIds.length": 1}
+        equals: {"raw.declareBlockersReq.blockers[0].blockerInstanceId": source.affectorId}
+  - id: provisional-block
+    events:
+      - id: blocking
+        type: Card
+        lane: object
+        where: {equals: {affectorId: "offered.raw.declareBlockersReq.blockers[0].blockerInstanceId"}}
+        fields: {raw.blockState: Declared}
+        equals:
+          affectorId: "offered.raw.declareBlockersReq.blockers[0].blockerInstanceId"
+          raw.blockInfo.attackerIds: "offered.raw.declareBlockersReq.blockers[0].attackerInstanceIds"
+  - id: selected
+    events:
+      - id: selected
+        type: DeclareBlockersReq
+        lane: prompt
+        fields: {raw.declareBlockersReq.blockers.length: 1, "raw.declareBlockersReq.blockers[0].selectedAttackerInstanceIds.length": 1}
+        equals:
+          gameStateId: blocking.gameStateId
+          "raw.declareBlockersReq.blockers[0].blockerInstanceId": "offered.raw.declareBlockersReq.blockers[0].blockerInstanceId"
+          "raw.declareBlockersReq.blockers[0].selectedAttackerInstanceIds": "offered.raw.declareBlockersReq.blockers[0].attackerInstanceIds"
+  - id: damage
+    events:
+      - id: damage
+        type: DamageDealt
+        lane: transient
+        where: {equals: {affectorId: source.affectorId}}
+        keys: [damage, type, markDamage]
+        fields: {affectedIds.length: 1, details.type: [1], details.markDamage: [1]}
+        equals: {"details.damage[0]": source.raw.power.value, affectorId: source.affectorId, "affectedIds[0]": "offered.raw.declareBlockersReq.blockers[0].attackerInstanceIds[0]"}
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        where: {equals: {"details.orig_id[0]": source.affectorId}}
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": source.affectorId}
+      - id: graveyard
+        type: ZoneTransfer
+        lane: transient
+        where: {equals: {"affectedIds[0]": "reallocated.details.new_id[0]"}}
+        keys: [category, zone_src, zone_dest]
+        fields: {affectedIds.length: 1, details.zone_src: [28], details.zone_dest: [33], details.category: [SBA_Damage]}
+        equals: {affectedIds: reallocated.details.new_id}
+      - id: graveyard-object
+        type: Card
+        lane: object
+        where: {equals: {affectorId: "reallocated.details.new_id[0]"}}
+        fields: {raw.zoneId: 33}
+        equals: {affectorId: "reallocated.details.new_id[0]", raw.grpId: source.raw.grpId}
+counts:
+  - match: {type: DamageDealt, lane: transient}
+    exactly: 2
+  - match: {type: ObjectIdChanged, lane: transient, equals: {"details.orig_id[0]": source.affectorId}}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [SBA_Damage]}}
+    exactly: 2
+windows:
+  - id: reciprocal-damage-before-death
+    after: selected
+    before: reallocated
+    exists:
+      type: DamageDealt
+      lane: transient
+      fields: {affectedIds.length: 1, details.type: [1], details.markDamage: [1]}
+      equals: {affectorId: "offered.raw.declareBlockersReq.blockers[0].attackerInstanceIds[0]", "affectedIds[0]": source.affectorId}

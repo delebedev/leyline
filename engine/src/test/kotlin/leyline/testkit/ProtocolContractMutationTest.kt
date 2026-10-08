@@ -19,6 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -42,6 +44,10 @@ class ProtocolContractMutationTest :
         ) {
             val contract = ProtocolContract.load(AcceptancePaths.resolve("conformance/contracts/$file"))
             regressions[contract] = check
+        }
+
+        for (file in listOf("combat-attack-main2.yaml", "combat-trade-attacker.yaml", "combat-trade-blocker.yaml")) {
+            regression(file, ::checkCombatMutations)
         }
 
         regression("kaito-phasing-chronology.yaml") { contract, messages ->
@@ -558,6 +564,169 @@ class ProtocolContractMutationTest :
             }
         }
     })
+
+private fun checkCombatMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val mutants = mutableListOf<Pair<String, List<GREToClientMessage>>>()
+    for ((name, mutate) in listOf<Pair<String, (AnnotationInfo) -> AnnotationInfo>>(
+        "wrong damage source" to { it.toBuilder().setAffectorId(0).build() },
+        "wrong damage recipient" to {
+            it
+                .toBuilder()
+                .clearAffectedIds()
+                .addAffectedIds(0)
+                .build()
+        },
+        "wrong damage type" to { it.withIntDetail("type", 2) },
+        "wrong damage amount" to { it.withIntDetail("damage", 0) },
+    )) {
+        mutants += name to messages.mutatingAnnotation(AnnotationType.DamageDealt_af5a, mutate = mutate)
+    }
+    val damages =
+        messages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }.filter {
+            AnnotationType.DamageDealt_af5a in
+                it.typeList
+        }
+    for (damage in damages) {
+        mutants += "missing damage from ${damage.affectorId}" to
+            messages.map { message ->
+                message.mutatingGameState { gsm ->
+                    val kept = gsm.annotationsList.filterNot { it.id == damage.id }
+                    gsm.clearAnnotations().addAllAnnotations(kept)
+                }
+            }
+    }
+    mutants += "wrong offered combat identity" to
+        messages.map { message ->
+            when {
+                message.hasDeclareAttackersReq() ->
+                    message
+                        .toBuilder()
+                        .setDeclareAttackersReq(
+                            message.declareAttackersReq.toBuilder().setAttackers(
+                                0,
+                                message.declareAttackersReq
+                                    .getAttackers(0)
+                                    .toBuilder()
+                                    .setAttackerInstanceId(0),
+                            ),
+                        ).build()
+                message.hasDeclareBlockersReq() ->
+                    message
+                        .toBuilder()
+                        .setDeclareBlockersReq(
+                            message.declareBlockersReq.toBuilder().setBlockers(
+                                0,
+                                message.declareBlockersReq
+                                    .getBlockers(0)
+                                    .toBuilder()
+                                    .setBlockerInstanceId(0)
+                                    .clearAttackerInstanceIds()
+                                    .addAttackerInstanceIds(0),
+                            ),
+                        ).build()
+                else -> message
+            }
+        }
+    mutants += "stale selected combat state reference" to
+        messages.map { message ->
+            val selected =
+                (
+                    message.hasDeclareAttackersReq() &&
+                        message.declareAttackersReq.attackersList.any { it.hasSelectedDamageRecipient() }
+                ) ||
+                    (
+                        message.hasDeclareBlockersReq() &&
+                            message.declareBlockersReq.blockersList.any { it.selectedAttackerInstanceIdsCount > 0 }
+                    )
+            if (selected) message.toBuilder().setGameStateId(0).build() else message
+        }
+    mutants += "missing provisional combat state" to
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val objects =
+                    gsm.gameObjectsList.map { obj ->
+                        obj
+                            .toBuilder()
+                            .apply {
+                                if (obj.attackState ==
+                                    AttackState.Declared_a3a9
+                                ) {
+                                    clearAttackState()
+                                }
+                                if (obj.blockState == BlockState.Declared_aa2d) clearBlockState()
+                            }.build()
+                    }
+                gsm.clearGameObjects().addAllGameObjects(objects)
+            }
+        }
+    if (damages.size == 2) checkCombatDeathMutations(contract, messages, damages)
+    for ((name, mutant) in mutants) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
+private fun checkCombatDeathMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    damages: List<AnnotationInfo>,
+) {
+    val mutants = mutableListOf<Pair<String, List<GREToClientMessage>>>()
+    for (key in listOf("orig_id", "new_id")) {
+        mutants += "wrong death $key" to
+            messages.mutatingAnnotation(AnnotationType.ObjectIdChanged) { it.withIntDetail(key, 0) }
+    }
+    val sources = damages.map { it.affectorId }.toSet()
+    val deathRows =
+        messages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList }
+            .filter {
+                (AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") in sources) ||
+                    (AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "SBA_Damage")
+            }
+    val firstDamage = messages.indexOfFirst { it.hasGameStateMessage() && damages.first() in it.gameStateMessage.annotationsList }
+    mutants += "death before damage" to
+        messages.mapIndexed { index, message ->
+            message.mutatingGameState { gsm ->
+                val rows = gsm.annotationsList.filterNot { it in deathRows }
+                val early = if (index == firstDamage) deathRows + rows else rows
+                gsm.clearAnnotations().addAllAnnotations(early)
+            }
+        }
+    val reversedDamage =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val damage =
+                    gsm.annotationsList
+                        .filter { AnnotationType.DamageDealt_af5a in it.typeList }
+                        .reversed()
+                        .iterator()
+                val rows = gsm.annotationsList.map { if (AnnotationType.DamageDealt_af5a in it.typeList) damage.next() else it }
+                gsm.clearAnnotations().addAllAnnotations(rows)
+            }
+        }
+    contract.verify(reversedDamage)
+    val reorderedDeaths =
+        deathRows
+            .chunked(2)
+            .reversed()
+            .flatten()
+            .iterator()
+    val reversedDeaths =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val rows = gsm.annotationsList.map { if (it in deathRows) reorderedDeaths.next() else it }
+                gsm.clearAnnotations().addAllAnnotations(rows)
+            }
+        }
+    contract.verify(reversedDeaths)
+    for ((name, mutant) in mutants) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
 
 private fun checkTransformMutations(
     contract: ProtocolContract,
