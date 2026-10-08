@@ -1,0 +1,20 @@
+name: core-actions
+description: Ordinary spell response and priority lifecycle.
+scenarios:
+  - id: counterspell-response
+    puzzle: counterspell-response
+    run: respond to lethal Lightning Bolt with Counterspell
+    expect: both spells enter their owners' graveyards and the player retains three life
+    steps:
+      - pass_until:
+          action: { type: cast, card: Counterspell }
+          max_passes: 8
+      - cast: Counterspell
+      - target: { side: opponent, zone: stack, card: Lightning Bolt }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - our_life: 3
+            - zone_contains: { side: ours, zone: graveyard, card: Counterspell }
+            - zone_contains: { side: opponent, zone: graveyard, card: Lightning Bolt }
+            - stack_empty: true

@@ -1,0 +1,34 @@
+# Design Narrative
+# Mechanic: Counter an opponent's lethal instant through an ordinary stack response.
+# Forcing: Lightning Bolt is lethal and Counterspell is the only response, with exactly two Islands for payment.
+# AI behavior: The opponent has one castable lethal spell and one Mountain.
+# Failure modes:
+#   WIN = Lightning Bolt is countered and both spells enter their owners' graveyards while life remains three.
+#   LOSE = Lightning Bolt resolves before the response completes.
+#   TIMEOUT = priority, target selection, payment, or resolution stops advancing.
+# Card roles:
+#   Counterspell: unconditional counter and ordinary graveyard resolution.
+#   Lightning Bolt: lethal stack target.
+#   Islands: exact Counterspell payment.
+#   Mountain: opponent spell payment and library padding.
+# Protocol path: visible response offer, stack target selection, payment, counter retirement, and counterspell resolution.
+
+[metadata]
+Name:Counterspell Response
+Goal:Survive
+Turns:1
+Difficulty:Tutorial
+Description:Counter a lethal Lightning Bolt and preserve three life.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=3
+AILife=20
+
+humanhand=Counterspell
+humanbattlefield=Island;Island
+humanlibrary=Island
+aibattlefield=Mountain
+aihand=Lightning Bolt
+ailibrary=Mountain

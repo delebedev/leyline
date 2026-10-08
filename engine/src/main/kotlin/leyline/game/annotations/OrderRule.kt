@@ -261,14 +261,7 @@ data object ResolutionLifecycleRule : OrderRule {
             }
             addAll(sagaRetirementEdges(annotations, completions, sagaInstanceIds))
             for ((index, annotation) in annotations.withIndex()) {
-                val isEffect =
-                    AnnotationType.LayeredEffectCreated in annotation.typeList ||
-                        AnnotationType.AttachmentCreated in annotation.typeList ||
-                        (
-                            AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
-                                annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK
-                        )
-                if (!isEffect) continue
+                if (!isResolutionEffect(annotation, starts.keys)) continue
                 if (AnnotationType.LayeredEffectCreated in annotation.typeList && annotation.affectorId in sourceAbilities) {
                     annotations.indices
                         .filter {
@@ -290,6 +283,23 @@ data object ResolutionLifecycleRule : OrderRule {
             }
         }
     }
+
+    private fun isResolutionEffect(
+        annotation: AnnotationInfo,
+        resolutionOwners: Set<Int>,
+    ): Boolean =
+        AnnotationType.LayeredEffectCreated in annotation.typeList ||
+            AnnotationType.AttachmentCreated in annotation.typeList ||
+            (
+                AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                    (
+                        annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK ||
+                            (
+                                annotation.detailString(DetailKeys.CATEGORY) == TransferCategory.Countered.label &&
+                                    annotation.affectorId in resolutionOwners
+                            )
+                    )
+            )
 
     private fun sagaRetirementEdges(
         annotations: List<AnnotationInfo>,

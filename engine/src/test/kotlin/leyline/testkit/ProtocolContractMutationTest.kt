@@ -301,8 +301,11 @@ class ProtocolContractMutationTest :
             }
         }
 
+        regression("counterspell-offer.yaml", ::checkCounterOfferMutations)
+        regression("counterspell-response.yaml", ::checkCounterResponseMutations)
         regression("lightning-bolt.yaml") { contract, messages ->
             checkDamageMutations(contract, messages)
+            checkLandPaymentMutations(contract, messages)
             checkSpellTransitionMutations(messages)
         }
         regression("rabbit-battery-target-selection.yaml", ::checkTargetMutations)
@@ -1236,6 +1239,165 @@ private fun checkRowLifetimeMutations(
     withClue("retired row reintroduced") { shouldThrow<AssertionError> { contract.verify(messages + rowMessage(row)) } }
 }
 
+private fun checkLandPaymentMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val wrongOffer =
+        messages.map { message ->
+            message.mutatingActions { action ->
+                if (action.actionType == ActionType.Play_add3) action.toBuilder().setInstanceId(0).build() else action
+            }
+        }
+    val wrongPlay =
+        messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+            if (it.detailString("category") == "PlayLand") it.withIntDetail("zone_dest", 33) else it
+        }
+    val wrongManaAction =
+        messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
+            if (it.detailInt("actionType") == 4) {
+                it
+                    .toBuilder()
+                    .clearAffectedIds()
+                    .addAffectedIds(0)
+                    .build()
+            } else {
+                it
+            }
+        }
+    val wrongConsumer =
+        messages.mutatingAnnotation(AnnotationType.ManaPaid) {
+            it
+                .toBuilder()
+                .clearAffectedIds()
+                .addAffectedIds(0)
+                .build()
+        }
+    for ((name, mutant) in listOf(
+        "wrong land offer" to wrongOffer,
+        "wrong played land destination" to wrongPlay,
+        "wrong accepted mana identity" to wrongManaAction,
+        "wrong mana consumer" to wrongConsumer,
+    )) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
+private fun checkCounterOfferMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val wrongOffer =
+        messages.map { message ->
+            message.mutatingActions { action ->
+                if (action.actionType == ActionType.Cast) action.toBuilder().setInstanceId(0).build() else action
+            }
+        }
+    val wrongAccepted =
+        messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
+            if (it.detailInt("actionType") == 1) {
+                it
+                    .toBuilder()
+                    .clearAffectedIds()
+                    .addAffectedIds(0)
+                    .build()
+            } else {
+                it
+            }
+        }
+    for ((name, mutant) in listOf("wrong offered counterspell" to wrongOffer, "wrong accepted counterspell" to wrongAccepted)) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
+private fun checkCounterResponseMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    checkCounterOfferMutations(contract, messages)
+    val wrongCause =
+        messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+            if (it.detailString("category") == "Countered") it.toBuilder().setAffectorId(0).build() else it
+        }
+    val wrongDestination =
+        messages.mutatingAnnotation(AnnotationType.ZoneTransfer_af5a) {
+            if (it.detailString("category") == "Countered") it.withIntDetail("zone_dest", 33) else it
+        }
+    val countered =
+        messages.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }.single {
+            AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Countered"
+        }
+    val wrongTarget =
+        messages
+            .mutatingAnnotation(AnnotationType.ObjectIdChanged) {
+                if (it.detailInt("new_id") == countered.affectedIdsList.single()) {
+                    it
+                        .withIntDetail("orig_id", 0)
+                        .toBuilder()
+                        .clearAffectedIds()
+                        .addAffectedIds(0)
+                        .build()
+                } else {
+                    it
+                }
+            }.map { message ->
+                if (!message.hasSelectTargetsReq()) {
+                    message
+                } else {
+                    val req = message.selectTargetsReq
+                    val selection = req.getTargets(0)
+                    message
+                        .toBuilder()
+                        .setSelectTargetsReq(
+                            req.toBuilder().setTargets(
+                                0,
+                                selection.toBuilder().setTargets(0, selection.getTargets(0).toBuilder().setTargetInstanceId(0)),
+                            ),
+                        ).build()
+                }
+            }
+    val wrongReference =
+        messages.map {
+            if (it.hasActionsAvailableReq()) it.toBuilder().setGameStateId(0).build() else it
+        }
+    val wrongPriority =
+        messages.map { message ->
+            message.mutatingGameState { gsm -> gsm.setTurnInfo(gsm.turnInfo.toBuilder().setPriorityPlayer(2)) }
+        }
+    val noVisibleOffer = messages.filterNot { it.hasActionsAvailableReq() }
+    val lateCounter =
+        messages.map { message ->
+            message.mutatingGameState { gsm ->
+                val rows = gsm.annotationsList
+                val countered =
+                    rows.singleOrNull {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailString("category") == "Countered"
+                    }
+                if (countered == null) {
+                    gsm
+                } else {
+                    val changed =
+                        rows.single {
+                            AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("new_id") == countered.affectedIdsList.single()
+                        }
+                    val kept = rows.filterNot { it.id == changed.id || it.id == countered.id }
+                    gsm.clearAnnotations().addAllAnnotations(kept + listOf(changed, countered))
+                }
+            }
+        }
+    for ((name, mutant) in listOf(
+        "wrong counter cause" to wrongCause,
+        "wrong counter destination" to wrongDestination,
+        "correlated wrong stack target" to wrongTarget,
+        "stale priority request" to wrongReference,
+        "wrong rules priority" to wrongPriority,
+        "missing visible response offer" to noVisibleOffer,
+        "countered target after resolution" to lateCounter,
+    )) {
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
+    }
+}
+
 private fun checkManaMutations(
     contract: ProtocolContract,
     messages: List<GREToClientMessage>,
@@ -1243,10 +1405,19 @@ private fun checkManaMutations(
     val untapped = messages.mutatingAnnotation(AnnotationType.TappedUntappedPermanent) { it.withIntDetail("tapped", 0) }
     val wrongSource = messages.mutatingAnnotation(AnnotationType.ManaPaid) { it.toBuilder().setAffectorId(0).build() }
     val wrongAbility = messages.mutatingAnnotation(AnnotationType.UserActionTaken) { it.withIntDetail("abilityGrpId", 0) }
+    val wrongConsumer =
+        messages.mutatingAnnotation(AnnotationType.ManaPaid) {
+            it
+                .toBuilder()
+                .clearAffectedIds()
+                .addAffectedIds(0)
+                .build()
+        }
     for ((name, mutant) in listOf(
         "untapped source" to untapped,
         "wrong payment source" to wrongSource,
         "wrong mana ability" to wrongAbility,
+        "wrong mana consumer" to wrongConsumer,
     )) {
         withClue(name) { shouldThrow<AssertionError> { contract.verify(mutant) } }
     }
