@@ -64,6 +64,7 @@ object PromptIds {
 
     /** Mandatory additional cost (discard). Client expects PayCostsReq promptId=1024. */
     const val DISCARD_COST = 1024
+    const val DISCARD_TO_HAND_SIZE = 14
 
     /** "You may" trigger decision (OptionalActionMessage). */
     const val OPTIONAL_ACTION = 1159

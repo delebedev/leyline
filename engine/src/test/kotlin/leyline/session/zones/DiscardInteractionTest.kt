@@ -3,6 +3,7 @@ package leyline.session.zones
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -14,6 +15,7 @@ import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.assertAccumulatorConsistent
 import leyline.testkit.assertGsIdChain
+import leyline.testkit.detailInt
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -285,21 +287,54 @@ class DiscardInteractionTest :
             val req = messagesSince(cleanupStart).last { it.hasSelectNReq() }.selectNReq
             assertSoftly {
                 req.context shouldBe SelectionContext.Discard_a163
-                req.listType shouldBe SelectionListType.Static
-                req.optionContext shouldBe OptionContext.Payment
+                req.listType shouldBe SelectionListType.Dynamic
+                req.optionContext shouldBe OptionContext.TurnBased
                 req.minSel shouldBe 1
                 req.maxSel shouldBe 1
                 req.idsList shouldHaveSize 8
+                req.sourceId shouldBe 0
+                req.hasPrompt() shouldBe false
+                req.minWeight shouldBe 0
+                req.maxWeight shouldBe 0
+                val outer = messagesSince(cleanupStart).last { it.hasSelectNReq() }.prompt
+                outer.promptId shouldBe 14
+                outer.parametersList.single().numberValue shouldBe 1
             }
 
-            respondToSelectN(listOf(req.idsList.first()))
+            val selected = req.idsList.first()
+            respondToSelectN(listOf(selected))
+            val discardState =
+                messagesSince(cleanupStart)
+                    .first { message ->
+                        message.hasGameStateMessage() &&
+                            message.gameStateMessage.annotationsList.any {
+                                AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                                    it.detailsList.any { detail ->
+                                        detail.key == "category" && detail.valueStringList == listOf("Discard")
+                                    }
+                            }
+                    }.gameStateMessage
+            val hand = discardState.zonesList.single { it.zoneId == 31 }
+            val discarded = discardState.annotationsList.single { AnnotationType.ZoneTransfer_af5a in it.typeList }
+            val changed = discardState.annotationsList.single { AnnotationType.ObjectIdChanged in it.typeList }
+            val graveyard = discardState.zonesList.single { it.zoneId == 33 }
+            assertSoftly {
+                hand.objectInstanceIdsList shouldHaveSize 7
+                hand.objectInstanceIdsList shouldNotContain selected
+                discarded.affectorId shouldBe 0
+                changed.detailInt("orig_id") shouldBe selected
+                changed.detailInt("new_id") shouldBe discarded.affectedIdsList.single()
+                graveyard.objectInstanceIdsList shouldContain discarded.affectedIdsList.single()
+            }
 
             // Cleanup enforced 8 → 7; runtime continuation may then carry into the next
             // turn's draw step (7 + 1 drawn). Either depth is legitimate —
             // the enforcement itself is proven by the graveyard count below.
-            human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8
-            // Divination (resolved) + 1 discarded card
-            human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
+            assertSoftly {
+                human.getZone(ForgeZoneType.Hand).size() shouldBeInRange 7..8
+                // Divination (resolved) + 1 discarded card
+                human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
+            }
 
             // Verify the discard prompt was answered via the bridge
             val discardPrompts =

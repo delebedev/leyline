@@ -1,0 +1,34 @@
+name: Lethal spell life-total loss
+scenario: {suite: core-turns, id: lethal-spell}
+frames:
+  - id: terminal
+    events:
+      - id: loss
+        type: LossOfGame
+        lane: persistent
+        op: create
+        keys: [reason]
+        fields:
+          affectedIds: [2]
+          details.reason: [SBA_LifeTotal]
+          detailTypes.reason: String
+          state.gameInfo.stage: GameOver
+          state.gameInfo.matchState: GameComplete
+          state.players[0].systemSeatNumber: 2
+          state.players[0].status: PendingLoss
+  - id: result
+    events:
+      - id: result
+        type: IntermissionReq
+        lane: prompt
+        fields:
+          raw.intermissionReq.result.scope: Match
+          raw.intermissionReq.result.result: WinLoss
+          raw.intermissionReq.result.winningTeamId: 1
+          raw.intermissionReq.result.reason: Game
+          raw.intermissionReq.intermissionPrompt.promptId: 27
+counts:
+  - match: {type: LossOfGame}
+    exactly: 1
+  - match: {type: IntermissionReq}
+    exactly: 1

@@ -168,7 +168,7 @@ class GameEndTest :
             // First game-over GSM should have LossOfGame annotation
             val lossAnnotation =
                 gameOverGsms[0]
-                    .annotationsList
+                    .persistentAnnotationsList
                     .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
             assertSoftly {
                 lossAnnotation.shouldNotBeNull()
@@ -251,7 +251,7 @@ class GameEndTest :
                 counterState.detailInt("counter_type") shouldBe 3
             }
 
-            val lossAnnotation = allMessages.annotationsOfType(AnnotationType.LossOfGame_af5a).single()
+            val lossAnnotation = allMessages.persistentAnnotationsOfType(AnnotationType.LossOfGame_af5a).single()
             assertSoftly {
                 lossAnnotation.affectedIdsList shouldBe listOf(OPPONENT_SEAT)
                 lossAnnotation.detailString("reason") shouldBe "SBA_Poison"

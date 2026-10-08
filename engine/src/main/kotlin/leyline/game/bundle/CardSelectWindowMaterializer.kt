@@ -49,20 +49,32 @@ internal class CardSelectWindowMaterializer {
         window: CardSelectWindowValue,
         context: SettledPromptMaterializationContext,
     ): SelectNReq {
-        val discard = window.kind == CardSelectKind.Discard
+        val cleanup = window.kind == CardSelectKind.CleanupDiscard
+        val discard = window.kind == CardSelectKind.Discard || cleanup
         return SelectNReq
             .newBuilder()
             .setContext(if (discard) SelectionContext.Discard_a163 else SelectionContext.Resolution_a163)
-            .setListType(if (discard) SelectionListType.Static else SelectionListType.Dynamic)
+            .setListType(if (discard && !cleanup) SelectionListType.Static else SelectionListType.Dynamic)
             .setValidationType(SelectionValidationType.NonRepeatable)
-            .setOptionContext(if (discard) OptionContext.Payment else OptionContext.Resolution_a9d7)
-            .setMinWeight(Int.MIN_VALUE)
+            .setOptionContext(
+                if (cleanup) {
+                    OptionContext.TurnBased
+                } else if (discard) {
+                    OptionContext.Payment
+                } else {
+                    OptionContext.Resolution_a9d7
+                },
+            ).setMinWeight(Int.MIN_VALUE)
             .setMaxWeight(Int.MAX_VALUE)
             .setIdType(IdType.InstanceId_ab2c)
             .setMinSel(if (window.kind == CardSelectKind.Learn && window.candidates.isNotEmpty()) 1 else window.min)
             .setMaxSel(window.max)
             .addAllIds(window.candidates.map { context.requiredInstanceId(it.forgeCardId, "CardSelect card") })
             .apply {
+                if (cleanup) {
+                    clearMinWeight()
+                    clearMaxWeight()
+                }
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "CardSelect card") }
                 when (window.kind) {
                     CardSelectKind.LegendRule -> {
@@ -81,6 +93,7 @@ internal class CardSelectWindowMaterializer {
                         setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     }
                     CardSelectKind.Learn -> setSelectNInnerPrompt(PromptIds.SELECT_N_LEARN_INNER_PARAMETER)
+                    CardSelectKind.CleanupDiscard -> Unit
                     CardSelectKind.Discard -> prompt = Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST).build()
                     CardSelectKind.Suspect -> setSelectNInnerPrompt(PromptIds.SELECT_N_INNER_PARAMETER)
                     CardSelectKind.SacrificeEffect -> {
@@ -119,6 +132,7 @@ internal class CardSelectWindowMaterializer {
                         PromptIds.LEARN_LESSON_ONLY
                     },
                 )
+            CardSelectKind.CleanupDiscard -> SelectNEnvelope.cleanupDiscard(request)
             CardSelectKind.Discard -> SelectNEnvelope.default(request)
             CardSelectKind.SacrificeEffect -> SelectNEnvelope.sacrificeEffect(request, hostId)
             CardSelectKind.Suspect -> SelectNEnvelope.suspectChoice(request)

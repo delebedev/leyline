@@ -563,7 +563,7 @@ class AnnotationBuilderTest :
             assertSoftly {
                 ann.typeList shouldContain AnnotationType.LossOfGame_af5a
                 ann.affectedIdsList shouldBe listOf(1)
-                ann.detailInt("reason") shouldBe 0
+                ann.detailString("reason") shouldBe "SBA_LifeTotal"
             }
         }
 

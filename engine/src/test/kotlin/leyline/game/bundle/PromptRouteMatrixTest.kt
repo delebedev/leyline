@@ -47,6 +47,8 @@ class PromptRouteMatrixTest :
                         cardSelect(PromptSemantic.SelectNLegendRule, CardSelectKind.LegendRule),
                     PromptSemantic.SelectNDiscard to
                         cardSelect(PromptSemantic.SelectNDiscard, CardSelectKind.Discard, sentiment = 1),
+                    PromptSemantic.SelectNDiscardCleanup to
+                        cardSelect(PromptSemantic.SelectNDiscardCleanup, CardSelectKind.CleanupDiscard),
                     PromptSemantic.Search to ResolvedPromptRoute.Search(PromptSemantic.Search),
                     PromptSemantic.GroupedSearch to ResolvedPromptRoute.Search(PromptSemantic.GroupedSearch),
                     PromptSemantic.SelectReplacement to

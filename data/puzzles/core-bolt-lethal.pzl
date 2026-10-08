@@ -1,0 +1,22 @@
+# Mechanic: Lethal spell resolution publishes the terminal result.
+# Forcing: Lightning Bolt exactly exhausts the opponent's three life.
+# AI behavior: No actions compete with the spell.
+# Failure modes: Missing result or remaining life fails the scripted terminal check.
+# Card roles: Bolt is lethal; Mountain pays; basic libraries prevent unrelated losses.
+# Protocol path: Target, resolve, life-total loss and match intermission.
+[metadata]
+Name:Core Bolt Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Lightning Bolt at the opponent for exact lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain

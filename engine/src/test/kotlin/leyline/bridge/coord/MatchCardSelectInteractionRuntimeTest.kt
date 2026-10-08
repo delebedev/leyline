@@ -335,6 +335,7 @@ class MatchCardSelectInteractionRuntimeTest :
                         when (case.kind) {
                             CardSelectKind.LegendRule -> PromptIds.SELECT_N_LEGEND_RULE_SOURCE
                             CardSelectKind.Discard,
+                            CardSelectKind.CleanupDiscard,
                             CardSelectKind.ResolutionMapped,
                             -> 0
                             CardSelectKind.SacrificeEffect,

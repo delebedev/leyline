@@ -6,15 +6,15 @@ package leyline.game.annotations
  * These are client annotation-specific encodings and do not match the game
  * result enum; callers that start from a result enum need an explicit mapping.
  *
- * The annotation detail is mixed-type in the protocol: concession and life-total
- * losses use legacy numeric values, while poison and empty-library losses use
- * symbolic string reasons.
+ * The annotation detail is mixed-type in the protocol: concession uses a numeric value, while state-based losses use symbolic strings.
  */
 enum class AnnotationLossReason(
     val wireInt: Int? = null,
     val wireString: String? = null,
 ) {
-    LifeTotal(wireInt = 0),
+    /** Compatibility code for causes without a supported symbolic mapping. */
+    Unspecified(wireInt = 0),
+    LifeTotal(wireString = "SBA_LifeTotal"),
     Concede(wireInt = 3),
     Poison(wireString = "SBA_Poison"),
     DrawFromEmptyLibrary(wireString = "SBA_DrawFromEmptyLib"),

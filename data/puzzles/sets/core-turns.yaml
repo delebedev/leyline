@@ -1,0 +1,22 @@
+name: core-turns
+description: Cleanup choice and terminal result continuation.
+scenarios:
+  - id: cleanup-discard
+    puzzle: core-cleanup-discard
+    run: draw above maximum hand size, discard one Mountain and continue
+    expect: cleanup consumes one chosen hand card
+    steps:
+      - cast: Divination
+      - resolve_stack: {}
+      - pass_until: {prompt: SelectNReq, max_passes: 10}
+      - select_card: {zone: hand, card: Mountain}
+      - expect:
+          zone_contains: {side: ours, zone: graveyard, card: Mountain}
+  - id: lethal-spell
+    puzzle: core-bolt-lethal
+    run: resolve Lightning Bolt for lethal damage
+    expect: the opponent loses and the match publishes its result
+    steps:
+      - cast: Lightning Bolt
+      - target: opponent
+      - pass_until: {winner: ours, loser: opponent, max_passes: 3}

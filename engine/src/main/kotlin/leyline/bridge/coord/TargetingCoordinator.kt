@@ -540,7 +540,7 @@ class TargetingCoordinator(
             nDiscard,
             nDiscard,
             "Discard to hand size (select $nDiscard)",
-            semantic = PromptSemantic.SelectNDiscard,
+            semantic = PromptSemantic.SelectNDiscardCleanup,
             candidateRefs = buildCandidateRefs(hand),
         )
 

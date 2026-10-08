@@ -749,6 +749,7 @@ enum class PromptSemantic {
     VoteChoice,
     SelectNLegendRule,
     SelectNDiscard,
+    SelectNDiscardCleanup,
     Search,
     GroupedSearch,
 

@@ -2143,16 +2143,40 @@ class BundleBuilder(
     ): PreparedViewerCut<Unit> {
         val ids = allocateGameOverIds(counter)
         val (outputs, next) =
-            bridge.editProjection(priorProjection) {
+            bridge.editProjection(priorProjection) { editor ->
                 val snapshot = bridge.getGame()?.let { GsmSnapshot.capture(it, bridge, matchId, 0) }
+                val persistentLoss =
+                    if (losingPlayerSeatId != 0 && lossReason.wireString != null) {
+                        AnnotationBuilder
+                            .lossOfGame(SeatId(losingPlayerSeatId), lossReason)
+                            .toBuilder()
+                            .setId(bridge.nextPersistentAnnotationId())
+                            .build()
+                            .also { loss ->
+                                editor.persistentAnnotations =
+                                    editor.persistentAnnotations.copy(
+                                        activeAnnotations = editor.persistentAnnotations.activeAnnotations + (loss.id to loss),
+                                    )
+                            }
+                    } else {
+                        null
+                    }
                 routes.map { route ->
                     val (viewer, builder) = route
                     ViewerBatches(
                         viewer.seatId,
                         listOf(
                             builder
-                                .buildGameOverBundle(result, winningTeam, ids, snapshot, reason, losingPlayerSeatId, lossReason)
-                                .messages,
+                                .buildGameOverBundle(
+                                    result,
+                                    winningTeam,
+                                    ids,
+                                    snapshot,
+                                    reason,
+                                    losingPlayerSeatId,
+                                    lossReason,
+                                    persistentLoss,
+                                ).messages,
                         ),
                     )
                 }
@@ -2197,6 +2221,7 @@ class BundleBuilder(
         reason: ResultReason,
         losingPlayerSeatId: Int,
         lossReason: AnnotationLossReason,
+        persistentLoss: AnnotationInfo?,
     ): BundleResult {
         val prevGsId = ids.previousGsId
         val losingTeam = if (winningTeam == 1) 2 else 1
@@ -2274,7 +2299,11 @@ class BundleBuilder(
         gs1.addAllTimers(PlayerMapper.buildTimers())
         // LossOfGame annotation
         if (losingPlayerSeatId != 0) {
-            gs1.addAnnotations(AnnotationBuilder.lossOfGame(SeatId(losingPlayerSeatId), lossReason))
+            if (persistentLoss != null) {
+                gs1.addPersistentAnnotations(persistentLoss)
+            } else {
+                gs1.addAnnotations(AnnotationBuilder.lossOfGame(SeatId(losingPlayerSeatId), lossReason))
+            }
         }
 
         // gs2: MatchComplete with both Game + Match results

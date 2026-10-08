@@ -2,7 +2,9 @@ package leyline.game.bundle
 
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 data class SelectNEnvelope(
@@ -22,6 +24,22 @@ data class SelectNEnvelope(
             SelectNEnvelope(
                 req = req,
                 prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build(),
+            )
+
+        fun cleanupDiscard(req: SelectNReq): SelectNEnvelope =
+            SelectNEnvelope(
+                req = req,
+                prompt =
+                    Prompt
+                        .newBuilder()
+                        .setPromptId(PromptIds.DISCARD_TO_HAND_SIZE)
+                        .addParameters(
+                            PromptParameter
+                                .newBuilder()
+                                .setParameterName("NumberOfCards")
+                                .setType(ParameterType.Number)
+                                .setNumberValue(req.maxSel),
+                        ).build(),
             )
 
         fun sacrificeEffect(
