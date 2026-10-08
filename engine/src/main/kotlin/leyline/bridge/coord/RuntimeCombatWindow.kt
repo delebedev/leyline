@@ -47,6 +47,8 @@ internal class RuntimeCombatWindow(
 
     fun selectedDamageRecipients(): Map<Int, DamageRecipient> = attackers.mapValues { it.value.damageRecipient }
 
+    fun legalBlockerInstanceIds(): List<Int> = blockerByInstanceId.keys.toList()
+
     fun selectedBlockAssignments(): Map<Int, Int> = blockers.toMap()
 
     @Suppress("ReturnCount")

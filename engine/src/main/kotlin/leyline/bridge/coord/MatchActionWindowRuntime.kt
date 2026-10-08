@@ -322,7 +322,13 @@ internal class MatchActionWindowRuntime(
                             window.presentationActions,
                         )
                     PendingActionKind.DECLARE_BLOCKERS ->
-                        feed.builder.prepareEchoBlockers(game, planner, combat.selectedBlockAssignments(), window.presentationActions)
+                        feed.builder.prepareEchoBlockers(
+                            game,
+                            planner,
+                            combat.selectedBlockAssignments(),
+                            combat.legalBlockerInstanceIds(),
+                            window.presentationActions,
+                        )
                     PendingActionKind.PRIORITY,
                     PendingActionKind.SYNC_ONLY,
                     -> return false

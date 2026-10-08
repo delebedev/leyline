@@ -1222,8 +1222,8 @@ class BundleBuilder(
      * Echo-back bundle for iterative attacker toggle: thin Diff with base creature
      * objects + fresh DeclareAttackersReq.
      *
-     * Echo objects carry no combat state; the refreshed DeclareAttackersReq carries
-     * selectedDamageRecipient on currently selected attacker options.
+     * Selected echo objects carry Declared combat state and the provisional target.
+     * The refreshed DeclareAttackersReq carries the matching selectedDamageRecipient.
      *
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
@@ -1237,7 +1237,14 @@ class BundleBuilder(
         selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
         presentationActions: ActionsAvailableReq,
     ): ActionWindowPrepared =
-        prepareCombatEcho(game, counter, allLegalAttackerIds, GREMessageType.DeclareAttackersReq_695e, presentationActions) {
+        prepareCombatEcho(
+            game,
+            counter,
+            allLegalAttackerIds,
+            GREMessageType.DeclareAttackersReq_695e,
+            presentationActions,
+            provisionalAttackTargets = selectedDamageRecipients.filterKeys { it in selectedAttackerIds },
+        ) {
             val req =
                 RequestBuilder.buildDeclareAttackersReq(
                     SeatId(seatId),
@@ -1296,9 +1303,17 @@ class BundleBuilder(
         game: Game,
         counter: LogicalSequencePlanner,
         blockAssignments: Map<Int, Int>,
+        allLegalBlockerIds: Collection<Int>,
         presentationActions: ActionsAvailableReq,
     ): ActionWindowPrepared =
-        prepareCombatEcho(game, counter, blockAssignments.keys, GREMessageType.DeclareBlockersReq_695e, presentationActions) {
+        prepareCombatEcho(
+            game,
+            counter,
+            allLegalBlockerIds,
+            GREMessageType.DeclareBlockersReq_695e,
+            presentationActions,
+            provisionalBlockAssignments = blockAssignments,
+        ) {
             // Re-prompt with assigned blockers' attackerInstanceIds cleared
             val req =
                 RequestBuilder.buildDeclareBlockersReq(
@@ -1320,6 +1335,8 @@ class BundleBuilder(
         includedInstanceIds: Collection<Int>,
         requestType: GREMessageType,
         presentationActions: ActionsAvailableReq,
+        provisionalBlockAssignments: Map<Int, Int> = emptyMap(),
+        provisionalAttackTargets: Map<Int, DamageRecipient> = emptyMap(),
         buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
     ): ActionWindowPrepared {
         val player =
@@ -1331,7 +1348,7 @@ class BundleBuilder(
                 val nextGs = counter.nextGsId()
                 val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
-                // Echo objects carry no combat state; selection lives in the re-prompt.
+                // Provisional combat objects reflect the selection before Forge accepts the declaration.
                 val objects = mutableListOf<GameObjectInfo>()
                 for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
                     if (!card.isCreature) continue
@@ -1341,14 +1358,35 @@ class BundleBuilder(
                     val cardSnap = snap.objects[fid] ?: continue
 
                     objects.add(
-                        ObjectMapper.buildProvisionalCombatObject(
-                            cardSnap,
-                            iid,
-                            ZoneIds.BATTLEFIELD,
-                            ownerSeatId = seatId,
-                            cardProto = bridge.cardProto,
-                            parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                        ),
+                        ObjectMapper
+                            .buildProvisionalCombatObject(
+                                cardSnap,
+                                iid,
+                                ZoneIds.BATTLEFIELD,
+                                ownerSeatId = seatId,
+                                cardProto = bridge.cardProto,
+                                parentLinkage = snap.boundCards[fid]?.parentLinkage,
+                            ).let { obj ->
+                                provisionalBlockAssignments[iid]?.let { attackerId ->
+                                    obj
+                                        .toBuilder()
+                                        .setBlockState(BlockState.Declared_aa2d)
+                                        .setBlockInfo(BlockInfo.newBuilder().addAttackerIds(attackerId))
+                                        .build()
+                                } ?: provisionalAttackTargets[iid]?.let { recipient ->
+                                    val target =
+                                        when (recipient.type) {
+                                            DamageRecType.Player_a0e5 -> recipient.playerSystemSeatId
+                                            DamageRecType.PlanesWalker -> recipient.planeswalkerInstanceId
+                                            else -> error("Unsupported provisional attack recipient")
+                                        }
+                                    obj
+                                        .toBuilder()
+                                        .setAttackState(AttackState.Declared_a3a9)
+                                        .setAttackInfo(AttackInfo.newBuilder().setTargetId(target))
+                                        .build()
+                                } ?: obj
+                            },
                     )
                 }
 

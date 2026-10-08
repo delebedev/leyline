@@ -1200,7 +1200,7 @@ class BundleBuilderTest :
             }
         }
 
-        test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
+        test("attacker echo publishes provisional recipient without tapping or accepting combat") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Llanowar Elves", human, ZoneType.Battlefield)
@@ -1221,6 +1221,15 @@ class BundleBuilderTest :
                     counter,
                     selectedIds,
                     allIds,
+                    selectedDamageRecipients =
+                        mapOf(
+                            selectedIds.first() to
+                                Messages.DamageRecipient
+                                    .newBuilder()
+                                    .setType(Messages.DamageRecType.Player_a0e5)
+                                    .setPlayerSystemSeatId(2)
+                                    .build(),
+                        ),
                     presentationActions = Messages.ActionsAvailableReq.getDefaultInstance(),
                 )
             b.commitProjection(checkNotNull(prepared.transition))
@@ -1241,7 +1250,13 @@ class BundleBuilderTest :
             }
 
             val selected = gsm.gameObjectsList.first { it.instanceId == selectedIds.first() }
-            selected.attackState shouldBe Messages.AttackState.None_a3a9
+            assertSoftly {
+                selected.attackState shouldBe Messages.AttackState.Declared_a3a9
+                selected.attackInfo.targetId shouldBe 2
+                selected.isTapped shouldBe false
+                game.combat shouldBe null
+                creatures.first().isTapped shouldBe false
+            }
             selected.blockState shouldBe Messages.BlockState.None_aa2d
 
             for (obj in gsm.gameObjectsList.filter { it.instanceId != selectedIds.first() }) {
@@ -1253,7 +1268,7 @@ class BundleBuilderTest :
             // board-only setup here it's expected to be empty, so no assertion is needed.
         }
 
-        test("echoBlockersBundle conformance — SendAndRecord, no combat state, actions present") {
+        test("blocker echo publishes provisional pair before Forge accepts declaration") {
             val (b, game, counter) =
                 startWithBoard { _, human, _ ->
                     addCard("Llanowar Elves", human, ZoneType.Battlefield)
@@ -1272,6 +1287,7 @@ class BundleBuilderTest :
                     game,
                     counter,
                     blockAssignments,
+                    allLegalBlockerIds = listOf(blockerId),
                     presentationActions = Messages.ActionsAvailableReq.getDefaultInstance(),
                 )
             b.commitProjection(checkNotNull(prepared.transition))
@@ -1291,10 +1307,28 @@ class BundleBuilderTest :
                 gsm.pendingMessageCount shouldBe 0
             }
 
-            // Conformance: no blockState on echo objects
-            for (obj in gsm.gameObjectsList) {
-                obj.blockState shouldBe Messages.BlockState.None_aa2d
-                obj.attackState shouldBe Messages.AttackState.None_a3a9
+            val selected = gsm.gameObjectsList.single { it.instanceId == blockerId }
+            assertSoftly {
+                selected.blockState shouldBe Messages.BlockState.Declared_aa2d
+                selected.blockInfo.attackerIdsList shouldBe listOf(999)
+                selected.attackState shouldBe Messages.AttackState.None_a3a9
+                game.combat shouldBe null
+            }
+            val deselected =
+                bundleBuilder(b)
+                    .prepareEchoBlockers(
+                        game,
+                        counter,
+                        emptyMap(),
+                        allLegalBlockerIds = listOf(blockerId),
+                        presentationActions = Messages.ActionsAvailableReq.getDefaultInstance(),
+                    ).bundle.messages
+                    .first()
+                    .gameStateMessage.gameObjectsList
+                    .single { it.instanceId == blockerId }
+            assertSoftly {
+                deselected.blockState shouldBe Messages.BlockState.None_aa2d
+                deselected.hasBlockInfo() shouldBe false
             }
         }
 

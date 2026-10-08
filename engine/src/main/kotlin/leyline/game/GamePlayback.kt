@@ -57,7 +57,7 @@ class GamePlayback(
     private val pendingLocalTriggers = ConcurrentHashMap<LocalStackKey, Int>()
     private val pendingLocalAbilities = ConcurrentHashMap<LocalStackKey, Int>()
     private val pendingLocalCasts = ConcurrentHashMap<LocalStackKey, Int>()
-    private var resolvedFinalSagaThisStep = false
+    private var stateBasedActionsPendingThisStep = false
 
     override fun visit(ev: GameEventSpellAbilityCast) {
         val isTrigger = ev.si()?.isTrigger == true
@@ -103,9 +103,13 @@ class GamePlayback(
                 ?.id
                 ?.let { bridge.getGame()?.findById(it) }
         if (source?.isSaga == true && source.getCounters(CounterEnumType.LORE) >= source.finalChapterNr) {
-            resolvedFinalSagaThisStep = true
+            stateBasedActionsPendingThisStep = true
         }
         requestCut(PlaybackCutReason.StackObjectResolved, RESOLVE_DELAY)
+    }
+
+    override fun visit(ev: GameEventCardDamaged) {
+        if (ev.isCombat) stateBasedActionsPendingThisStep = true
     }
 
     override fun visit(ev: GameEventCardChangeZone) {
@@ -188,8 +192,11 @@ class GamePlayback(
     fun onMainLoopStepCompleted() {
         val viewerSeat = SeatId(seatId)
         val game = bridge.getGame()
-        val awaitStateEffects = resolvedFinalSagaThisStep && game?.stack?.isEmpty == true
-        resolvedFinalSagaThisStep = false
+        // Forge applies state-based actions before the next priority decision,
+        // after the mutation step that deals combat damage or resolves a final chapter.
+        val awaitStateEffects =
+            stateBasedActionsPendingThisStep && game?.stack?.isEmpty == true && bridge.eventCollector?.hasEvents() == true
+        stateBasedActionsPendingThisStep = false
         if (game?.isGameOver == true) {
             bridge.cutCoordinator.publishGameOverFromEngine(viewerSeat)
         } else if (!awaitStateEffects && game?.stack?.hasSimultaneousStackEntries() != true) {

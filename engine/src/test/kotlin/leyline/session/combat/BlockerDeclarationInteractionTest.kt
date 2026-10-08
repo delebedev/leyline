@@ -20,6 +20,9 @@ import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.beInGraveyardOf
+import leyline.testkit.detailInt
+import leyline.testkit.detailString
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
@@ -170,17 +173,84 @@ class BlockerDeclarationInteractionTest :
             aiScript = GOBLIN_ATTACK_AI_SCRIPT,
         ) {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
+            val start = messageSnapshot()
 
             // Declare block
             declareBlockers(mapOf(blockerIid to attackerIid))
 
             passThroughCombat()
 
+            val damageFrame =
+                messagesSince(start)
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .single { gsm -> gsm.annotationsList.count { AnnotationType.DamageDealt_af5a in it.typeList } == 2 }
+            val rows = damageFrame.annotationsList
+            val damagePositions = rows.indices.filter { AnnotationType.DamageDealt_af5a in rows[it].typeList }
+            for (oldId in listOf(blockerIid, attackerIid)) {
+                val rename = rows.single { AnnotationType.ObjectIdChanged in it.typeList && it.detailInt("orig_id") == oldId }
+                val moved =
+                    rows.single {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                            it.affectedIdsList == listOf(rename.detailInt("new_id"))
+                    }
+                assertSoftly {
+                    rows.indexOf(rename) shouldBeGreaterThan damagePositions.max()
+                    rows.indexOf(moved) shouldBeGreaterThan rows.indexOf(rename)
+                    moved.detailString("category") shouldBe "SBA_Damage"
+                }
+            }
+
             assertSoftly {
                 // Both 1/1s should have traded — exactly one Raging Goblin in each graveyard
                 "Raging Goblin" should beInGraveyardOf(human, count = 1)
                 "Raging Goblin" should beInGraveyardOf(ai, count = 1)
 
+                isGameOver().shouldBeFalse()
+            }
+        }
+
+        session(
+            "nonlethal blocked double strike preserves separate damage steps and continuation",
+            deckList = COMBAT_DECK,
+            aiScript = GOBLIN_ATTACK_AI_SCRIPT,
+        ) {
+            val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
+            human.battlefield.card("Raging Goblin").apply {
+                addNewPT(1, 4, 123L, 0L)
+                addIntrinsicKeyword("Double Strike")
+            }
+            ai.battlefield.card("Raging Goblin").addNewPT(1, 4, 124L, 0L)
+            val start = messageSnapshot()
+
+            declareBlockers(mapOf(blockerIid to attackerIid))
+            passThroughCombat()
+
+            val damageFrames =
+                messagesSince(start)
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+                    .filter { gsm -> gsm.annotationsList.any { AnnotationType.DamageDealt_af5a in it.typeList } }
+            assertSoftly {
+                damageFrames.map { it.turnInfo.step } shouldBe
+                    listOf(
+                        wotc.mtgo.gre.external.messaging.Messages.Step.FirstStrikeDamage_a2cb,
+                        wotc.mtgo.gre.external.messaging.Messages.Step.CombatDamage_a2cb,
+                    )
+                damageFrames.map { gsm -> gsm.annotationsList.count { AnnotationType.DamageDealt_af5a in it.typeList } } shouldBe
+                    listOf(1, 2)
+                damageFrames
+                    .last()
+                    .gameObjectsList
+                    .single { it.instanceId == blockerIid }
+                    .damage shouldBe 1
+                human.battlefield.card("Raging Goblin").damage shouldBe 0
+                damageFrames
+                    .last()
+                    .gameObjectsList
+                    .single { it.instanceId == attackerIid }
+                    .damage shouldBe 2
+                ai.battlefield.card("Raging Goblin").damage shouldBe 0
                 isGameOver().shouldBeFalse()
             }
         }

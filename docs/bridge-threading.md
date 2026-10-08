@@ -213,6 +213,11 @@ immutable facts and request a cut. They must not:
 `mainLoopStep` mutation burst. Playback defers that cut while simultaneous
 trigger entries are pending, so the next prompt or priority publication includes
 the creating mutation and trigger together. Terminal publication takes precedence.
+Combat card damage and final chapter resolution retain their open mutation batch
+until state-based actions settle before priority. Their ordinary completion hook
+defers that cut once. A prompt that already closed the journal leaves no pending
+batch to defer. Terminal publication still takes precedence.
+
 Narrow completion hooks own attacker declaration, blocker declaration, and combat
 teardown cuts. A combat journal may yield
 several ordered frames, but the pending cut compiles them as one private fold
@@ -234,7 +239,12 @@ the stack; this does not infer an earlier spell identity after a zone change.
 Forge can ask for input before performing a mutation that the client must
 already present. Such prompts use explicit projection supplements: materialize the
 intended state, commit it with the request, then reconcile it after Forge
-resumes. The supplement is a value owned by the prompt runtime; it is not a
+resumes. Iterative combat echoes use the retained declaration value to project `Declared`
+and its recipient or attacker relationship before Forge accepts combat. Deselecting
+an eligible creature clears that provisional relationship. Acceptance later
+projects the engine's `Attacking` or `Blocking` state.
+
+The supplement is a value owned by the prompt runtime; it is not a
 reason to mutate projection state outside compilation.
 
 ## Receive diagnostics
