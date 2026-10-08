@@ -16,6 +16,8 @@ import leyline.testkit.BoardTest
 import leyline.testkit.humanPlayer
 import leyline.testkit.submitTestAction
 
+// Each interaction must succeed before the next command can be submitted.
+@Suppress("MissingAssertSoftly")
 class DfcTransformBridgeTest :
     BoardTest({
 
