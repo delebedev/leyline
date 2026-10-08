@@ -14,6 +14,8 @@ frames:
       - id: source
         type: Card
         lane: object
+        where: {fields: {raw.zoneId: 28}, equals: {affectorId: warp-option.affectorId}}
+        equals: {affectorId: warp-option.affectorId}
         fields: {raw.zoneId: 28, raw.controllerSeatId: 1, "raw.cardTypes[0]": Creature}
   - id: armed
     events:

@@ -10,18 +10,18 @@ frames:
         fields: {details.category: [SBA_Damage], details.zone_src: [28], details.zone_dest: [33]}
   - id: disturb
     events:
-      - id: back-face
-        type: Card
-        lane: object
-        op: create
-        fields: {raw.zoneId: 27, "raw.cardTypes[0]": Creature, raw.controllerSeatId: 1}
       - id: reallocated
         type: ObjectIdChanged
         lane: transient
         keys: [orig_id, new_id]
-        equals:
-          "details.orig_id[0]": "died.affectedIds[0]"
-          "details.new_id[0]": back-face.affectorId
+        equals: {"details.orig_id[0]": "died.affectedIds[0]"}
+      - id: back-face
+        type: Card
+        lane: object
+        op: create
+        where: {equals: {affectorId: "reallocated.details.new_id[0]"}}
+        equals: {affectorId: "reallocated.details.new_id[0]"}
+        fields: {raw.zoneId: 27, "raw.cardTypes[0]": Creature, raw.controllerSeatId: 1}
       - id: cast
         type: ZoneTransfer
         lane: transient
