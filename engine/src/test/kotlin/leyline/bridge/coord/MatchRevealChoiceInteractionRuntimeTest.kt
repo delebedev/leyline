@@ -244,38 +244,54 @@ class MatchRevealChoiceInteractionRuntimeTest :
             }
         }
 
-        test("optional private hand exile advertises Continue and accepts a decline") {
-            val board = startPuzzleAtMain1(puzzle)
-            val coordinator = board.bridge.cutCoordinator
-            coordinator.drain(SeatId(1))
-            val candidates = revealed(board).take(1)
-            val entry = revealEntry(board, lookOnly = true)
-            val result = AtomicReference<RevealChoiceInteractionResult>()
-            val finished = CountDownLatch(1)
-            Thread {
-                result.set(coordinator.revealChoices.awaitSelection(request(board, candidates, min = 0), candidates, entry, true, 3_000))
-                finished.countDown()
-            }.start()
-            val published = awaitPublished(coordinator)
-            val message = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
-            assertSoftly {
-                message.prompt.promptId shouldBe PromptIds.EXILE_FROM_OPPONENT_HAND
-                message.allowCancel shouldBe AllowCancel.Continue
-                message.selectNReq.minSel shouldBe 1
-                message.selectNReq.maxSel shouldBe 1
-                coordinator.acceptSettled(leyline.testkit.selectNResp(emptyList()), published.gameStateId) shouldBe true
-                finished.await(3, TimeUnit.SECONDS) shouldBe true
-                result.get().handles.shouldBeEmpty()
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .activeRevealEntry()
-                    .shouldBeNull()
-                board.bridge
-                    .promptBridge(SeatId(1))
-                    .journal
-                    .consumeExiledUnderSource(ForgeCardId(candidates.single().id))
-                    .shouldBeNull()
+        for (minimum in listOf(0, 1)) {
+            test("private hand exile continuation matches its minimum $minimum") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val candidates = revealed(board).take(1)
+                val entry = revealEntry(board, lookOnly = true)
+                val result = AtomicReference<RevealChoiceInteractionResult>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    result.set(
+                        coordinator.revealChoices.awaitSelection(request(board, candidates, min = minimum), candidates, entry, true, 3_000),
+                    )
+                    finished.countDown()
+                }.start()
+                val published = awaitPublished(coordinator)
+                val message = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+                assertSoftly {
+                    message.prompt.promptId shouldBe PromptIds.EXILE_FROM_OPPONENT_HAND
+                    message.allowCancel shouldBe if (minimum == 0) AllowCancel.Continue else AllowCancel.No_a526
+                    message.selectNReq.minSel shouldBe 1
+                    message.selectNReq.maxSel shouldBe 1
+                    coordinator.acceptSettled(
+                        leyline.testkit.selectNResp(
+                            if (minimum ==
+                                0
+                            ) {
+                                emptyList()
+                            } else {
+                                listOf(message.selectNReq.idsList.single())
+                            },
+                        ),
+                        published.gameStateId,
+                    ) shouldBe
+                        true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get().handles.size shouldBe minimum
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .journal
+                        .activeRevealEntry()
+                        .shouldBeNull()
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .journal
+                        .consumeExiledUnderSource(ForgeCardId(candidates.single().id))
+                        .let { (it != null) shouldBe (minimum == 1) }
+                }
             }
         }
 

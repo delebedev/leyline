@@ -296,7 +296,7 @@ class RevealStateTest :
             }
         }
 
-        test("AI viewer publishes a human-owned reveal with its audience and source") {
+        test("AI viewer publishes a human-owned private look with its audience and source") {
             val board = startWithBoard { _, human, _ -> addCard("Forest", human, ZoneType.Hand) }
             val card =
                 board.game.humanPlayer
@@ -310,6 +310,7 @@ class RevealStateTest :
                     board.game.aiPlayer,
                     board.bridge.promptBridge(SeatId(1)),
                     SeatId(2),
+                    privateLook = { true },
                 ) { sourceCardId }
 
             controller.reveal(CardCollection(listOf(card)), ZoneType.Hand, board.game.humanPlayer, null, true)
@@ -321,6 +322,7 @@ class RevealStateTest :
                 record.viewerSeatId shouldBe SeatId(2)
                 record.sourceZone shouldBe RevealZone.HAND
                 record.sourceCardId shouldBe sourceCardId
+                record.lookOnly shouldBe true
             }
         }
 

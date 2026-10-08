@@ -7,6 +7,8 @@ scenarios:
     steps:
       - expect: { action: { type: cast, card: Bribery } }
       - cast: Bribery
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - pass_until: { prompt: { type: SearchReq } }
       - search_cards: { side: opponent, cards: [Centaur Courser] }
       - resolve_stack: {}
@@ -35,6 +37,8 @@ scenarios:
     headless: { full_control: true }
     steps:
       - cast: Bribery
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - resolve_stack: {}
       - expect: { stack_empty: true }
       - play_land: Forest

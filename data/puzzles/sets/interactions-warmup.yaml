@@ -132,6 +132,8 @@ scenarios:
       - expect:
           action: { type: activate, card: Concealing Curtains }
       - activate: Concealing Curtains
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 8 }
+      - target: opponent
       - resolve_stack: {}
       - expect:
           all:

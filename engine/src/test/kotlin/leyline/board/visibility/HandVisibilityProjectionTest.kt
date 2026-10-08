@@ -28,6 +28,41 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class HandVisibilityProjectionTest :
     BoardTest({
+        test("private hand-look views are absent from observer objects and revealed membership") {
+            val board = startWithBoard { _, _, ai -> addCard("Forest", ai, ZoneType.Hand) }
+            val hand =
+                board.ai
+                    .getZone(ZoneType.Hand)
+                    .cards
+                    .map { ForgeCardId(it.id) }
+            val facts =
+                PromptProjectionFacts(
+                    reveals =
+                        listOf(
+                            PromptProjectionFacts.RevealFact(
+                                PromptFactKey(SeatId(1), 1),
+                                RevealStarted(hand, SeatId(2), lookOnly = true),
+                                hasPendingPrompt = true,
+                            ),
+                        ),
+                )
+            val snapshot = handSnapshot(board, 1)
+            val chooser = projectHand(board, snapshot, 1, promptFacts = facts)
+            val observer = projectHand(board, snapshot, 1, promptFacts = facts, role = ProjectionViewerRole.Observer)
+            assertSoftly {
+                chooser.gsm.gameObjectsList
+                    .single { it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.RevealedCard }
+                    .visibility shouldBe Visibility.Private
+                observer.gsm.gameObjectsList
+                    .filter { it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.RevealedCard }
+                    .shouldBeEmpty()
+                observer.gsm.zonesList
+                    .filter { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Revealed }
+                    .flatMap { it.objectInstanceIdsList }
+                    .shouldBeEmpty()
+            }
+        }
+
         test("continuous hand permission grants identities and withdraws them from the same viewer") {
             val board = startPuzzleAtMain1(HAND_INSPECTION_PUZZLE)
             val hand =

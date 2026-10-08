@@ -84,6 +84,7 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
+import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.Seating
@@ -374,11 +375,7 @@ class PlayerController(
         targetingCoordinator.captureReveal(cards, zone, owner, game.players, lookOnly = resolvingPrivateLook())
     }
 
-    private fun resolvingPrivateLook(): Boolean {
-        val stacked = game.stack.firstOrNull()?.spellAbility ?: return false
-        val ability = (stacked as? WrappedAbility)?.wrappedAbility ?: stacked
-        return ability.api == ApiType.RevealHand && ability.hasParam("Look")
-    }
+    private fun resolvingPrivateLook(): Boolean = SpellAbilityShapes.isPrivateHandLook(game.stack.firstOrNull()?.spellAbility)
 
     // -- Sacrifice / Destroy ----------------------------------------------
     // PCHuman uses InputSelectCardsFromList

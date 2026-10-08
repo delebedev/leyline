@@ -212,7 +212,13 @@ class AbilityIdentityLifecycleTest :
             puzzleFile = "data/puzzles/emblem-sephiroth-persistent.pzl",
         ) {
             val creatorIid = human.battlefield.iid("Sephiroth, Fabled SOLDIER")
+            var targetStart = messageSnapshot()
             castSpellByName("End the Festivities").shouldBeTrue()
+            repeat(4) {
+                passUntil(20) { messagesSince(targetStart).any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                targetStart = messageSnapshot()
+                selectTargets(listOf(2))
+            }
             passUntil(20) { ai.life == 2 }.shouldBeTrue()
             val emblem = allMessages.allGameObjects().first { it.type == GameObjectType.Emblem }
             val hiddenId =
