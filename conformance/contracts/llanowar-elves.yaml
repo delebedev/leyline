@@ -8,6 +8,24 @@ frames:
         lane: object
         op: create
         fields: {raw.zoneId: 28, "raw.cardTypes[0]": Creature, raw.controllerSeatId: 1, raw.uniqueAbilities.length: 1}
+  - id: consumer
+    events:
+      - id: consumer
+        type: Card
+        lane: object
+        op: create
+        where: {fields: {raw.zoneId: 27}}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 1}
+      - id: consumer-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.new_id[0]": consumer.affectorId}
+      - id: consumer-cast
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+        equals: {affectedIds: consumer-reallocated.details.new_id}
   - id: activation
     events:
       - id: created
@@ -38,14 +56,19 @@ frames:
         lane: transient
         where: {equals: {affectorId: created.affectorId}}
         keys: [id, color]
-        fields: {detailTypes.id: Int32, detailTypes.color: Int32}
-        equals: {affectorId: created.affectorId}
+        fields: {detailTypes.id: Int32, detailTypes.color: Int32, details.color: [16]}
+        equals: {affectorId: created.affectorId, affectedIds: consumer-reallocated.details.new_id}
       - id: retired
         type: AbilityInstanceDeleted
         lane: transient
         where: {equals: {affectedIds: created.affectedIds}}
         keys: []
         equals: {affectorId: created.affectorId, affectedIds: created.affectedIds}
+      - id: accepted-cast
+        type: UserActionTaken
+        lane: transient
+        fields: {details.actionType: [1], details.abilityGrpId: [0], affectorId: 1}
+        equals: {affectedIds: consumer-reallocated.details.new_id}
 counts:
   - match: {type: ManaPaid, lane: transient, equals: {affectorId: created.affectorId}}
     exactly: 1

@@ -1,0 +1,39 @@
+name: Counterspell offered hand identity and accepted cast
+scenario: {suite: core-actions, id: counterspell-response}
+frames:
+  - id: source
+    events:
+      - id: source
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 31, raw.controllerSeatId: 1}}
+        fields: {raw.zoneId: 31, raw.controllerSeatId: 1, raw.cardTypes.length: 1, "raw.cardTypes[0]": Instant}
+  - id: offered
+    events:
+      - id: offered
+        type: Action
+        lane: action
+        op: offer
+        where: {fields: {raw.actionType: Cast}}
+        fields: {raw.actionType: Cast}
+        equals: {raw.instanceId: source.affectorId, raw.grpId: source.raw.grpId}
+  - id: cast
+    events:
+      - id: reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": source.affectorId}
+      - id: transfer
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+        equals: {affectedIds: reallocated.details.new_id}
+  - id: accepted
+    events:
+      - id: accepted
+        type: UserActionTaken
+        lane: transient
+        where: {fields: {details.actionType: [1]}}
+        fields: {details.actionType: [1], details.abilityGrpId: [0], affectorId: 1}
+        equals: {affectedIds: reallocated.details.new_id}

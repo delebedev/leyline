@@ -52,6 +52,35 @@ class AnnotationOrderEnforcerTest :
                 listOf(unrelated, start, changed, transfer, complete, deleted)
         }
 
+        test("countered target exits inside its causal resolution while resolving spell exits after completion") {
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val ownChanged = AnnotationBuilder.objectIdChanged(501.iid, 503.iid)
+            val ownExit = AnnotationBuilder.zoneTransfer(503.iid, 27, 33, "Resolve")
+            val targetChanged = AnnotationBuilder.objectIdChanged(500.iid, 502.iid, 501.iid)
+            val targetExit = AnnotationBuilder.zoneTransfer(502.iid, 27, 37, "Countered", affectorId = 501.iid)
+            val result = AnnotationOrderEnforcer.enforce(listOf(start, complete, ownChanged, ownExit, targetChanged, targetExit))
+            result shouldBe listOf(start, targetChanged, targetExit, complete, ownChanged, ownExit)
+        }
+
+        test("fizzled spell self retirement remains after its resolution completes") {
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val changed = AnnotationBuilder.objectIdChanged(501.iid, 503.iid, 501.iid)
+            val exit = AnnotationBuilder.zoneTransfer(503.iid, 27, 33, "Countered", affectorId = 501.iid)
+            val input = listOf(start, complete, changed, exit)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
+        test("countered stack exit without causal resolution owner keeps its chronology") {
+            val start = AnnotationBuilder.resolutionStart(501.iid, 123.grp)
+            val complete = AnnotationBuilder.resolutionComplete(501.iid, 123.grp)
+            val changed = AnnotationBuilder.objectIdChanged(500.iid, 502.iid)
+            val exit = AnnotationBuilder.zoneTransfer(502.iid, 27, 37, "Countered")
+            val input = listOf(start, complete, changed, exit)
+            AnnotationOrderEnforcer.enforce(input) shouldBe input
+        }
+
         test("no-op when already ordered: ObjectIdChanged before ZoneTransfer") {
             val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt =

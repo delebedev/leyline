@@ -261,14 +261,17 @@ data object ResolutionLifecycleRule : OrderRule {
             }
             addAll(sagaRetirementEdges(annotations, completions, sagaInstanceIds))
             for ((index, annotation) in annotations.withIndex()) {
-                val isEffect =
-                    AnnotationType.LayeredEffectCreated in annotation.typeList ||
-                        AnnotationType.AttachmentCreated in annotation.typeList ||
-                        (
-                            AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
-                                annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK
-                        )
-                if (!isEffect) continue
+                val reallocation =
+                    if (AnnotationType.ZoneTransfer_af5a in annotation.typeList) {
+                        val movedId = annotation.affectedIdsList.firstOrNull()
+                        annotations.indexOfFirst {
+                            AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
+                        }
+                    } else {
+                        -1
+                    }
+                val originalId = annotations.getOrNull(reallocation)?.detailInt(DetailKeys.ORIG_ID)
+                if (!isResolutionEffect(annotation, starts.keys, originalId)) continue
                 if (AnnotationType.LayeredEffectCreated in annotation.typeList && annotation.affectorId in sourceAbilities) {
                     annotations.indices
                         .filter {
@@ -277,19 +280,32 @@ data object ResolutionLifecycleRule : OrderRule {
                         }.forEach { add(it to index) }
                 }
                 val owner = if (annotation.affectorId in starts) annotation.affectorId else sourceAbilities[annotation.affectorId]
-                if (AnnotationType.ZoneTransfer_af5a in annotation.typeList) {
-                    val movedId = annotation.affectedIdsList.firstOrNull()
-                    val reallocation =
-                        annotations.indexOfFirst {
-                            AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
-                        }
-                    if (reallocation >= 0) starts[owner]?.let { add(it to reallocation) }
-                }
+                if (reallocation >= 0) starts[owner]?.let { add(it to reallocation) }
                 starts[owner]?.let { add(it to index) }
                 completions[owner]?.let { add(index to it) }
             }
         }
     }
+
+    private fun isResolutionEffect(
+        annotation: AnnotationInfo,
+        resolutionOwners: Set<Int>,
+        originalId: Int?,
+    ): Boolean =
+        AnnotationType.LayeredEffectCreated in annotation.typeList ||
+            AnnotationType.AttachmentCreated in annotation.typeList ||
+            (
+                AnnotationType.ZoneTransfer_af5a in annotation.typeList &&
+                    (
+                        annotation.detailInt(DetailKeys.ZONE_SRC) != ZoneIds.STACK ||
+                            (
+                                annotation.detailString(DetailKeys.CATEGORY) == TransferCategory.Countered.label &&
+                                    annotation.affectorId in resolutionOwners &&
+                                    originalId != null &&
+                                    originalId != annotation.affectorId
+                            )
+                    )
+            )
 
     private fun sagaRetirementEdges(
         annotations: List<AnnotationInfo>,

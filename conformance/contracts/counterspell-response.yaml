@@ -1,0 +1,97 @@
+name: Counterspell priority response and ordinary retirement
+scenario: {suite: core-actions, id: counterspell-response}
+frames:
+  - id: priority
+    events:
+      - id: target
+        type: Card
+        lane: object
+        op: update
+        where: {fields: {raw.zoneId: 27, raw.controllerSeatId: 2}}
+        fields: {raw.zoneId: 27, raw.controllerSeatId: 2, state.turnInfo.priorityPlayer: 1, state.turnInfo.decisionPlayer: 1}
+  - id: offered
+    events:
+      - id: visible
+        type: ActionsAvailableReq
+        lane: prompt
+        fields: {raw.systemSeatIds: [1]}
+        equals: {gameStateId: target.gameStateId}
+      - id: offered
+        type: Action
+        lane: action
+        op: offer
+        where: {fields: {raw.actionType: Cast}}
+        fields: {raw.actionType: Cast}
+  - id: cast
+    events:
+      - id: cast-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": offered.raw.instanceId}
+      - id: cast
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [CastSpell], details.zone_src: [31], details.zone_dest: [27]}
+        equals: {affectedIds: cast-reallocated.details.new_id}
+  - id: targets
+    events:
+      - id: targets
+        type: SelectTargetsReq
+        lane: prompt
+        fields:
+          raw.selectTargetsReq.targets.length: 1
+          "raw.selectTargetsReq.targets[0].minTargets": 1
+          "raw.selectTargetsReq.targets[0].maxTargets": 1
+          "raw.selectTargetsReq.targets[0].targets.length": 1
+          "raw.selectTargetsReq.targets[0].targetingPlayer": 1
+        equals:
+          raw.selectTargetsReq.sourceId: "cast-reallocated.details.new_id[0]"
+          "raw.selectTargetsReq.targets[0].targets[0].targetInstanceId": target.affectorId
+  - id: accepted
+    events:
+      - id: accepted
+        type: UserActionTaken
+        lane: transient
+        where: {fields: {details.actionType: [1]}}
+        fields: {details.actionType: [1], details.abilityGrpId: [0], affectorId: 1}
+        equals: {affectedIds: cast-reallocated.details.new_id}
+  - id: resolution
+    events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        equals: {affectorId: "cast-reallocated.details.new_id[0]"}
+      - id: countered-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        where: {equals: {"details.orig_id[0]": target.affectorId}}
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": target.affectorId}
+      - id: countered
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [Countered], details.zone_src: [27], details.zone_dest: [37]}
+        equals: {affectorId: "cast-reallocated.details.new_id[0]", affectedIds: countered-reallocated.details.new_id}
+      - id: completed
+        type: ResolutionComplete
+        lane: transient
+        equals: {affectorId: "cast-reallocated.details.new_id[0]"}
+      - id: resolved-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        where: {equals: {"details.orig_id[0]": "cast-reallocated.details.new_id[0]"}}
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": "cast-reallocated.details.new_id[0]"}
+      - id: resolved
+        type: ZoneTransfer
+        lane: transient
+        fields: {details.category: [Resolve], details.zone_src: [27], details.zone_dest: [33]}
+        equals: {affectedIds: resolved-reallocated.details.new_id}
+counts:
+  - match: {type: ZoneTransfer, lane: transient, fields: {details.category: [Countered]}}
+    exactly: 1
+  - match: {type: DamageDealt, lane: transient}
+    exactly: 0
+  - match: {type: ResolutionComplete, lane: transient, equals: {affectorId: "cast-reallocated.details.new_id[0]"}}
+    exactly: 1

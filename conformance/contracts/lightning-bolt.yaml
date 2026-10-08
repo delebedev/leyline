@@ -1,12 +1,49 @@
 name: Lightning Bolt cast and resolution
 scenario: {suite: warmup, id: land-spell-face}
 frames:
+  - id: land-source
+    events:
+      - id: land-source
+        type: Card
+        lane: object
+        where: {fields: {raw.zoneId: 31, "raw.cardTypes[0]": Land, raw.controllerSeatId: 1}}
+        fields: {raw.zoneId: 31, raw.cardTypes.length: 1, "raw.cardTypes[0]": Land, raw.controllerSeatId: 1}
+  - id: land-offer
+    events:
+      - id: land-offer
+        type: Action
+        lane: action
+        op: offer
+        where: {fields: {raw.actionType: Play}}
+        fields: {raw.actionType: Play}
+        equals: {raw.instanceId: land-source.affectorId}
+  - id: land-play
+    events:
+      - id: land-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        where: {equals: {"details.orig_id[0]": land-source.affectorId}}
+        keys: [orig_id, new_id]
+        equals: {"details.orig_id[0]": land-source.affectorId}
+      - id: land-play
+        type: ZoneTransfer
+        lane: transient
+        keys: [category, zone_src, zone_dest]
+        fields: {details.category: [PlayLand], details.zone_src: [31], details.zone_dest: [28]}
+        equals: {affectedIds: land-reallocated.details.new_id}
+      - id: land-action
+        type: UserActionTaken
+        lane: transient
+        keys: [abilityGrpId, actionType]
+        fields: {details.actionType: [3], details.abilityGrpId: [0], affectorId: 1}
+        equals: {affectedIds: land-reallocated.details.new_id}
   - id: cast
     events:
       - id: stack-object
         type: Card
         lane: object
         op: create
+        where: {fields: {raw.zoneId: 27}}
         fields: {raw.zoneId: 27}
       - id: cast-reallocated
         type: ObjectIdChanged
@@ -31,11 +68,33 @@ frames:
         lane: transient
         keys: []
         equals: {"affectedIds[0]": stack-object.affectorId}
+      - id: mana-created
+        type: AbilityInstanceCreated
+        lane: transient
+        where: {equals: {affectorId: "land-reallocated.details.new_id[0]"}}
+        keys: [source_zone]
+        fields: {details.source_zone: [28], affectedIds.length: 1}
+        equals: {affectorId: "land-reallocated.details.new_id[0]"}
+      - id: land-tapped
+        type: TappedUntappedPermanent
+        lane: transient
+        fields: {details.tapped: [1]}
+        equals: {affectorId: "mana-created.affectedIds[0]", affectedIds: land-reallocated.details.new_id}
+      - id: mana-action
+        type: UserActionTaken
+        lane: transient
+        fields: {details.actionType: [4], affectorId: 1}
+        equals: {affectedIds: mana-created.affectedIds}
       - id: mana-paid
         type: ManaPaid
         lane: transient
         keys: [id, color]
-        equals: {"affectedIds[0]": stack-object.affectorId}
+        equals: {"affectedIds[0]": stack-object.affectorId, affectorId: "land-reallocated.details.new_id[0]"}
+      - id: mana-retired
+        type: AbilityInstanceDeleted
+        lane: transient
+        keys: []
+        equals: {affectorId: "land-reallocated.details.new_id[0]", affectedIds: mana-created.affectedIds}
       - id: action
         type: UserActionTaken
         lane: transient
