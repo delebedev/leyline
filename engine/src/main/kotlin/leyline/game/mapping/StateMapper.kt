@@ -1745,6 +1745,15 @@ object StateMapper {
     // Nullable `activeReveal` is intentional: the function has two branches —
     // synthesize proxies when non-null, cleanup-and-clear when null.
     @Suppress("CanBeNonNullable")
+    private fun privateLookCards(
+        activeReveal: RevealStarted?,
+        events: List<GameEvent.CardsRevealed>,
+    ): Set<ForgeCardId> {
+        val looked = events.filter { it.lookOnly }.flatMap { it.cardIds }.toMutableSet()
+        if (activeReveal?.lookOnly == true) looked.addAll(activeReveal.allHandCardIds)
+        return looked - events.filterNot { it.lookOnly }.flatMap { it.cardIds }.toSet()
+    }
+
     private fun applyRevealProxies(
         activeReveal: RevealStarted?,
         snap: GsmSnapshot,
@@ -1756,6 +1765,7 @@ object StateMapper {
     ) {
         val eventReveals =
             events.filterIsInstance<GameEvent.CardsRevealed>().filter { it.viewerSeatId != it.ownerSeatId }
+        val privateLookCards = privateLookCards(activeReveal, eventReveals)
         val revealFacts =
             buildList {
                 snap.seats.forEach { seat ->
@@ -1828,13 +1838,7 @@ object StateMapper {
                             viewerSeat,
                             environment.cardProto,
                             parentLinkage = snap.boundCards[forgeCardId]?.parentLinkage,
-                            lookOnly =
-                                eventReveals.none { !it.lookOnly && forgeCardId in it.cardIds } &&
-                                    (
-                                        activeReveal?.lookOnly == true &&
-                                            forgeCardId in activeReveal.allHandCardIds ||
-                                            eventReveals.any { it.lookOnly && forgeCardId in it.cardIds }
-                                    ),
+                            lookOnly = forgeCardId in privateLookCards,
                         ),
                     )
                 }
