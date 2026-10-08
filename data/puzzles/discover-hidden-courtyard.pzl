@@ -26,5 +26,5 @@ HumanLife=20
 AILife=20
 
 humanbattlefield=Hidden Courtyard;Plains;Plains;Plains;Plains;Plains
-humanlibrary=Llanowar Elves;Plains;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Llanowar Elves;Plains;Plains;Plains;Plains
 ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

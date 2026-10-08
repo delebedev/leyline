@@ -1,0 +1,78 @@
+name: Discover skipped-card identity and activation link lifetime
+scenario: {suite: mechanics-protocol, id: discover-hidden-courtyard}
+frames:
+- id: source
+  events:
+  - id: source
+    type: Card
+    lane: object
+    where: {fields: {raw.zoneId: 28, 'raw.subtypes[0]': Cave}}
+    fields: {raw.zoneId: 28, raw.controllerSeatId: 1}
+- id: activation
+  events:
+  - id: ability
+    type: Ability
+    lane: object
+    where: {equals: {raw.parentId: source.affectorId}}
+    fields: {raw.zoneId: 27}
+    equals: {raw.parentId: source.affectorId, raw.objectSourceGrpId: source.raw.grpId}
+  - id: created
+    type: AbilityInstanceCreated
+    lane: transient
+    keys: [source_zone]
+    fields: {details.source_zone: [28]}
+    equals: {affectorId: source.affectorId, 'affectedIds[0]': ability.affectorId}
+  - id: link
+    type: LinkInfo
+    lane: persistent
+    op: create
+    keys: [LinkType]
+    fields: {details.LinkType: [2]}
+    equals: {affectorId: ability.affectorId, 'affectedIds[0]': source.affectorId}
+- id: resolution
+  events:
+  - id: started
+    type: ResolutionStart
+    lane: transient
+    where: {equals: {affectorId: ability.affectorId}}
+    keys: [grpid]
+    equals: {affectorId: ability.affectorId, 'details.grpid[0]': ability.raw.grpId}
+- id: skipped
+  events:
+  - id: skipped
+    type: Card
+    lane: object
+    where: {fields: {raw.zoneId: 29, 'raw.cardTypes[0]': Land}}
+    fields: {raw.zoneId: 29, raw.controllerSeatId: 1}
+  - id: skipped-reallocated
+    type: ObjectIdChanged
+    lane: transient
+    keys: [orig_id, new_id]
+    equals: {'details.new_id[0]': skipped.affectorId}
+  - id: skipped-transfer
+    type: ZoneTransfer
+    lane: transient
+    keys: [zone_src, zone_dest, category]
+    fields: {details.category: [Exile], details.zone_src: [32], details.zone_dest: [29]}
+    equals: {affectedIds: skipped-reallocated.details.new_id}
+- id: completion
+  events:
+  - id: completed
+    type: ResolutionComplete
+    lane: transient
+    where: {equals: {affectorId: ability.affectorId}}
+    keys: [grpid]
+    equals: {affectorId: ability.affectorId, 'details.grpid[0]': ability.raw.grpId}
+  - id: retired
+    type: LinkInfo
+    lane: persistent
+    op: delete
+    sameRow: link
+    equals: {affectorId: link.affectorId, affectedIds: link.affectedIds}
+windows:
+- {id: link-holds, holds: link, until: retired}
+counts:
+- match: {type: LinkInfo, lane: persistent, op: create, sameRow: link}
+  exactly: 1
+- match: {type: LinkInfo, lane: persistent, op: delete, sameRow: link}
+  exactly: 1

@@ -276,15 +276,15 @@ data object ResolutionLifecycleRule : OrderRule {
                                 annotations[it].affectorId == annotation.affectorId
                         }.forEach { add(it to index) }
                 }
+                val owner = if (annotation.affectorId in starts) annotation.affectorId else sourceAbilities[annotation.affectorId]
                 if (AnnotationType.ZoneTransfer_af5a in annotation.typeList) {
                     val movedId = annotation.affectedIdsList.firstOrNull()
                     val reallocation =
                         annotations.indexOfFirst {
                             AnnotationType.ObjectIdChanged in it.typeList && it.detailInt(DetailKeys.NEW_ID) == movedId
                         }
-                    if (reallocation >= 0) starts[annotation.affectorId]?.let { add(it to reallocation) }
+                    if (reallocation >= 0) starts[owner]?.let { add(it to reallocation) }
                 }
-                val owner = if (annotation.affectorId in starts) annotation.affectorId else sourceAbilities[annotation.affectorId]
                 starts[owner]?.let { add(it to index) }
                 completions[owner]?.let { add(index to it) }
             }

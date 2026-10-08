@@ -139,6 +139,8 @@ class ProtocolContractMutationTest :
             checkRowLifetimeMutations(contract, messages, row)
             checkDuplicateCastingOption(contract, messages, row)
         }
+        regression("quantum-riddler-warp-entry-draw.yaml", ::checkInitialWarpMutations)
+        regression("hidden-courtyard-discover-skip-link.yaml", ::checkDiscoverLinkMutations)
         regression("quantum-riddler-exile-cast.yaml") { contract, messages ->
             val exileId =
                 messages
@@ -194,8 +196,9 @@ class ProtocolContractMutationTest :
                         it.detailsList.any { detail -> detail.key == "castAbilityGrpId" && 371 in detail.valueInt32List }
                 }
             shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) }
-            checkRowLifetimeMutations(contract, messages, row)
+            checkRetirementMutations(contract, messages, row)
             checkDuplicateCastingOption(contract, messages, row)
+            checkIdenticalRepublication(contract, messages, row)
         }
 
         regression("depart-the-realm-foretell.yaml") { contract, messages ->
@@ -1314,3 +1317,89 @@ private fun List<GREToClientMessage>.replacing(
     index: Int,
     message: GREToClientMessage,
 ): List<GREToClientMessage> = toMutableList().also { it[index] = message }
+
+private fun checkInitialWarpMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    for ((name, type) in listOf("draw cause" to AnnotationType.ZoneTransfer_af5a, "trigger source" to AnnotationType.TriggeringObject)) {
+        val changed =
+            messages.mutatingAnnotation(type, persistent = type == AnnotationType.TriggeringObject) {
+                if (type == AnnotationType.TriggeringObject || it.detailString("category") == "Draw") {
+                    it.toBuilder().setAffectorId(0).build()
+                } else {
+                    it
+                }
+            }
+        withClue(name) { shouldThrow<AssertionError> { contract.verify(changed) } }
+    }
+    val row = messages.allPersistentAnnotations().first { AnnotationType.TriggeringObject in it.typeList }
+    checkRetirementMutations(contract, messages, row)
+    checkIdenticalRepublication(contract, messages, row)
+}
+
+private fun checkIdenticalRepublication(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    row: AnnotationInfo,
+) {
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val publication =
+        GREToClientMessage
+            .newBuilder()
+            .setGameStateMessage(
+                GameStateMessage
+                    .newBuilder()
+                    .setType(
+                        wotc.mtgo.gre.external.messaging.Messages.GameStateType.Diff,
+                    ).addPersistentAnnotations(row),
+            ).build()
+    contract.verify(messages.toMutableList().also { it.add(birth + 1, publication) })
+}
+
+private fun checkDiscoverLinkMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+) {
+    val wrongOwner =
+        messages.mutatingAnnotation(AnnotationType.LinkInfo, persistent = true) {
+            it.toBuilder().setAffectorId(0).build()
+        }
+    withClue("activation link owner") { shouldThrow<AssertionError> { contract.verify(wrongOwner) } }
+    val skipped =
+        messages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.gameObjectsList }
+            .first {
+                it.type == GameObjectType.Card &&
+                    it.zoneId == ZoneIds.EXILE &&
+                    wotc.mtgo.gre.external.messaging.Messages.CardType.Land_a80b in it.cardTypesList
+            }
+    val wrongReallocation =
+        messages.mutatingAnnotation(AnnotationType.ObjectIdChanged) {
+            if (it.detailInt("new_id") == skipped.instanceId) it.withIntDetail("new_id", 0) else it
+        }
+    withClue("skipped card reallocation") { shouldThrow<AssertionError> { contract.verify(wrongReallocation) } }
+    val row = messages.allPersistentAnnotations().first { AnnotationType.LinkInfo in it.typeList }
+    checkRowLifetimeMutations(contract, messages, row)
+}
+
+private fun checkRetirementMutations(
+    contract: ProtocolContract,
+    messages: List<GREToClientMessage>,
+    row: AnnotationInfo,
+) {
+    val birth = messages.indexOfFirst { it.hasGameStateMessage() && row in it.gameStateMessage.persistentAnnotationsList }
+    val deleted =
+        GREToClientMessage
+            .newBuilder()
+            .setGameStateMessage(
+                GameStateMessage.newBuilder().addDiffDeletedPersistentAnnotationIds(row.id),
+            ).build()
+    withClue("early retirement") {
+        shouldThrow<AssertionError> { contract.verify(messages.toMutableList().also { it.add(birth + 1, deleted) }) }
+    }
+    withClue("missing retirement") { shouldThrow<AssertionError> { contract.verify(messages.withoutRowDeletion(row.id)) } }
+    val publication = deleted.toBuilder().setGameStateMessage(GameStateMessage.newBuilder().addPersistentAnnotations(row)).build()
+    withClue("retired row reappears") { shouldThrow<AssertionError> { contract.verify(messages + publication) } }
+}

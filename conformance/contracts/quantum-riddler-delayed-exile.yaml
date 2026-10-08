@@ -57,6 +57,12 @@ frames:
         equals: {affectorId: ability.affectorId, affectedIds: pending.affectedIds, details.abilityGrpId: pending.details.abilityGrpId}
   - id: exile
     events:
+      - id: started
+        type: ResolutionStart
+        lane: transient
+        where: {equals: {affectorId: ability.affectorId}}
+        keys: [grpid]
+        equals: {affectorId: ability.affectorId, details.grpid: pending.details.abilityGrpId}
       - id: reallocated
         type: ObjectIdChanged
         lane: transient

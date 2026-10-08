@@ -6,8 +6,16 @@ frames:
       - id: discovered
         type: Card
         lane: object
+        where: {fields: {raw.zoneId: 29, 'raw.cardTypes[0]': Creature}}
         fields: {raw.zoneId: 29, raw.controllerSeatId: 1}
+      - id: discovered-reallocated
+        type: ObjectIdChanged
+        lane: transient
+        where: {equals: {'details.new_id[0]': discovered.affectorId}}
+        keys: [orig_id, new_id]
+        equals: {'details.new_id[0]': discovered.affectorId}
       - id: discovered-to-exile
+        where: {equals: {'affectedIds[0]': discovered.affectorId}}
         type: ZoneTransfer
         lane: transient
         keys: [zone_src, zone_dest, category]

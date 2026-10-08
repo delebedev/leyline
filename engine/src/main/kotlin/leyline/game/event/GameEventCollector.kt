@@ -887,29 +887,28 @@ class GameEventCollector(
         val card = ev.card()
         val from = ev.from()?.zoneType
         val to = ev.to()?.zoneType
+        val stack = bridge.getGame()?.stack
+        val resolvingAbility = stack?.peek()?.spellAbility?.takeIf { pendingStackAbilities.contextFor(it.id) != null }
+        val cause = ev.cause()
+        val moveCause =
+            zoneMoveCause(
+                cause,
+                resolvingAbility?.let(GameEventZoneChangeCause::from),
+                stack?.isResolving == true,
+                cause?.stackAbilityId()?.let { pendingStackAbilities.contextFor(it) != null } == true,
+            )
         zoneMoves.add(
             ZoneMove(
                 order = zoneMoves.size,
                 cardId = ForgeCardId(card.id),
                 from = from?.let(Zone::fromForge) ?: Zone.Other,
                 to = to?.let(Zone::fromForge) ?: Zone.Other,
-                cause =
-                    ev.cause()?.let { cause ->
-                        ZoneMoveCause(
-                            sourceCardId = cause.sourceCardId().takeIf { it != 0 }?.let(::ForgeCardId),
-                            abilityForgeId = cause.abilityId(),
-                            rootAbilityForgeId = cause.rootAbilityId(),
-                            api = cause.api()?.name,
-                            costPayment = cause.costPayment(),
-                            stackAbilityForgeId = cause.stackAbilityId(),
-                        )
-                    },
+                cause = moveCause,
             ),
         )
         if (to == null) return
         val seat = seatOf(card.controller)
         val exileUnderSource = consumeExileUnderSource(card.id)
-        val cause = ev.cause()
         if (
             openingHandActionWindow &&
             seat != null &&
@@ -1523,4 +1522,29 @@ class GameEventCollector(
             u.startsWith("MADNESS") || u.startsWith("MAYHEM")
         }
     }
+}
+
+/** Retain operation facts while correlating a matching effect with its resolving stack owner. */
+internal fun zoneMoveCause(
+    cause: GameEventZoneChangeCause?,
+    resolvingCause: GameEventZoneChangeCause?,
+    isResolving: Boolean,
+    explicitOwnerRegistered: Boolean,
+): ZoneMoveCause? {
+    val owner =
+        resolvingCause?.takeIf {
+            isResolving &&
+                cause?.costPayment() != true &&
+                !explicitOwnerRegistered &&
+                (cause == null || cause.sourceCardId() == it.sourceCardId())
+        }
+    val observed = cause ?: owner ?: return null
+    return ZoneMoveCause(
+        sourceCardId = observed.sourceCardId().takeIf { it != 0 }?.let(::ForgeCardId),
+        abilityForgeId = observed.abilityId(),
+        rootAbilityForgeId = observed.rootAbilityId(),
+        api = observed.api()?.name,
+        costPayment = observed.costPayment(),
+        stackAbilityForgeId = owner?.abilityId() ?: observed.stackAbilityId(),
+    )
 }
