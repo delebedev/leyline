@@ -111,7 +111,13 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
                 }
             }
         }
-    return ContractProjection(events, removals)
+    val correlated =
+        events.map { event ->
+            val message = messages[event.position.messageIndex]
+            val stateId = if (message.hasGameStateMessage()) message.gameStateMessage.gameStateId else message.gameStateId
+            event.copy(values = event.values + ("gameStateId" to stateId))
+        }
+    return ContractProjection(correlated, removals)
 }
 
 private fun AnnotationInfo.events(

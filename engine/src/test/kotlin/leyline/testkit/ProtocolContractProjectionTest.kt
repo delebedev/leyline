@@ -11,10 +11,44 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.SelectTargetsReq
 
 class ProtocolContractProjectionTest :
     FunSpec({
         tags(UnitTag)
+
+        test("a separate prompt binds the preceding state identity without sharing its packet") {
+            val specification =
+                contract(
+                    """
+                    - id: created
+                      events:
+                        - {id: created, type: AbilityInstanceCreated, lane: transient}
+                    - id: prompt
+                      events:
+                        - id: targets
+                          type: SelectTargetsReq
+                          lane: prompt
+                          equals: {gameStateId: created.gameStateId}
+                    """.trimIndent(),
+                )
+            val created =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateMessage(
+                        GameStateMessage.newBuilder().setGameStateId(42).addAnnotations(
+                            AnnotationInfo.newBuilder().addType(AnnotationType.AbilityInstanceCreated),
+                        ),
+                    ).build()
+            val prompt =
+                GREToClientMessage
+                    .newBuilder()
+                    .setGameStateId(42)
+                    .setSelectTargetsReq(SelectTargetsReq.getDefaultInstance())
+                    .build()
+            specification.verify(listOf(created, prompt))
+            shouldThrow<AssertionError> { specification.verify(listOf(created, prompt.toBuilder().setGameStateId(41).build())) }
+        }
 
         test("persistent publications and deletion IDs have no relative wire order") {
             val introduced = state(rows = listOf(target))

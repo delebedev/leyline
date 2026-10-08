@@ -239,7 +239,7 @@ internal fun AnnotationType.protocolName(): String = name.replace(enumSuffix, ""
 private fun validateSelector(selector: String) {
     require(
         selector.substringBefore('.').substringBefore('[') in
-            setOf("affectorId", "affectedIds", "annotationId", "details", "detailTypes", "raw"),
+            setOf("affectorId", "affectedIds", "annotationId", "gameStateId", "details", "detailTypes", "raw"),
     ) {
         "unknown selector $selector"
     }

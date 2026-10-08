@@ -117,6 +117,9 @@ An event matches `type`, optional `lane` and `op`, exact detail `keys`, typed
 `fields`, positive `present` selectors, and `equals` references to earlier events. `sameRow` relates persistent
 row introduction and deletion. Field selectors support protobuf `raw` fields,
 normalized `details`, `detailTypes`, identities, array indices, and `length`.
+The normalized `gameStateId` is the GSM’s state identity or a separate GRE message’s
+referenced state identity. Bind it with `equals` to correlate a prompt with its
+preceding state without treating the two messages as one frame.
 `present` requires each selector to resolve. For protobuf message fields it checks
 field presence, so an explicitly present empty message satisfies the obligation.
 Enum fields use their protocol names with protobuf collision suffixes removed.
