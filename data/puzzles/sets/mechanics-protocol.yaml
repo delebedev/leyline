@@ -1090,6 +1090,7 @@ scenarios:
             - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
             - zone_count_at_least: { side: opponent, zone: hand, count: 1 }
             - zone_contains: { side: ours, zone: graveyard, card: Depart the Realm }
+            - zone_not_contains: { side: ours, zone: exile, card: Depart the Realm }
             - annotation_seen: CastingTimeOption
             - annotation_seen: TargetSpec
             - annotation_seen: UserActionTaken

@@ -15,6 +15,7 @@ import leyline.game.bundle.InvariantCheck
 import leyline.game.bundle.InvariantChecker
 import leyline.game.bundle.RuntimeAccumulator
 import leyline.game.mapping.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
@@ -140,6 +141,30 @@ class ProtocolContractMutationTest :
             checkDuplicateCastingOption(contract, messages, row)
         }
         regression("quantum-riddler-exile-cast.yaml") { contract, messages ->
+            val exileId =
+                messages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .first { it.type == GameObjectType.Card && it.zoneId == 29 && it.controllerSeatId == 1 }
+                    .instanceId
+            val withoutPrediction =
+                messages.map { message ->
+                    if (!message.hasActionsAvailableReq()) return@map message
+                    message
+                        .toBuilder()
+                        .setActionsAvailableReq(
+                            message.actionsAvailableReq.toBuilder().clearActions().addAllActions(
+                                message.actionsAvailableReq.actionsList.map { action ->
+                                    if (action.actionType == ActionType.Cast && action.instanceId == exileId) {
+                                        action.toBuilder().clearAutoTapSolution().build()
+                                    } else {
+                                        action
+                                    }
+                                },
+                            ),
+                        ).build()
+                }
+            shouldThrow<AssertionError> { contract.verify(withoutPrediction) }
             for ((name, mutant) in listOf(
                 "wrong cast permission" to
                     messages.mutatingAnnotation(AnnotationType.UserActionTaken) {
@@ -433,6 +458,19 @@ class ProtocolContractMutationTest :
                     if (it.detailString("category") == "Warp") it.withIntDetail("zone_dest", 33) else it
                 }
             val row = messages.allPersistentAnnotations().first { AnnotationType.DelayedTriggerAffectees in it.typeList }
+
+            // Local implementation guarantee, separate from the contract's delayed-exile shape.
+            fun checkNoTemporaryPermanent(stream: List<GREToClientMessage>) {
+                stream.allPersistentAnnotations().none {
+                    AnnotationType.TemporaryPermanent in it.typeList && row.affectedIdsList.single() in it.affectedIdsList
+                } shouldBe true
+            }
+            checkNoTemporaryPermanent(messages)
+            val temporary =
+                messages.mutatingAnnotation(AnnotationType.DelayedTriggerAffectees, persistent = true) {
+                    it.toBuilder().addType(AnnotationType.TemporaryPermanent).build()
+                }
+            shouldThrow<AssertionError> { checkNoTemporaryPermanent(temporary) }
             for ((name, mutant) in listOf(
                 "holder parent" to messages.replacing(index, badParent),
                 "holder source" to messages.replacing(index, badSource),
