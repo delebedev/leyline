@@ -465,6 +465,12 @@ class MatchDoorMulliganFlowTest :
             try {
                 greOutbound(local)
                 greOutbound(familiar)
+                val openingBridge = registry.getMatch(matchId)!!.bridge
+                val originalHandIds =
+                    listOf(SeatId(1), SeatId(2))
+                        .flatMap { seat ->
+                            openingBridge.getHandCards(seat).map { openingBridge.instance(it).value }
+                        }.toSet()
                 local.writeInbound(
                     greServiceMessage(
                         mulliganDecision(
@@ -506,6 +512,40 @@ class MatchDoorMulliganFlowTest :
                         .map { it.instanceId }
                         .toSet()
 
+                openingGameStates.forEach { state ->
+                    val annotations = state.annotationsList
+                    annotations.filter { it in openingActions }.forEach { action ->
+                        val abilityId = action.affectedIdsList.single()
+                        val created =
+                            annotations.single {
+                                AnnotationType.AbilityInstanceCreated in it.typeList &&
+                                    it.affectedIdsList == listOf(abilityId)
+                            }
+                        originalHandIds.contains(created.affectorId) shouldBe true
+                        val started = annotations.single { AnnotationType.ResolutionStart in it.typeList && it.affectorId == abilityId }
+                        started.detailInt("grpid") shouldBe 175903
+                        val changed =
+                            annotations.single {
+                                AnnotationType.ObjectIdChanged in it.typeList &&
+                                    it.detailInt("orig_id") == created.affectorId
+                            }
+                        val put = annotations.single { AnnotationType.ZoneTransfer_af5a in it.typeList && it.affectorId == abilityId }
+                        put.affectedIdsList shouldBe listOf(changed.detailInt("new_id"))
+                        put.detailInt("zone_src") shouldBe created.detailInt("source_zone")
+                        put.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
+                        put.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
+                        val retired =
+                            annotations.single {
+                                AnnotationType.AbilityInstanceDeleted in it.typeList &&
+                                    it.affectedIdsList == listOf(abilityId)
+                            }
+                        retired.affectorId shouldBe created.affectorId
+                        val positions = listOf(created, started, changed, put, retired, action).map { annotations.indexOf(it) }
+                        positions shouldBe positions.sorted()
+                        annotations.subList(positions.first(), positions.last()).none { AnnotationType.ManaPaid in it.typeList } shouldBe
+                            true
+                    }
+                }
                 assertSoftly {
                     openingActions.size shouldBe 14
                     openingActions.map { it.affectorId }.toSet() shouldBe setOf(1, 2)
