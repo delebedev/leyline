@@ -792,7 +792,7 @@ class CombatInteractionTest :
         // ─── Iterative attacker toggle (echo back) ────────────────────────────
 
         session(
-            "echo back contains creature object without combat state",
+            "attacker selection echo declares recipient before acceptance",
             deckList = COMBAT_DECK,
             validation = combatValidation,
             aiScript = singleAttackerAiScript,
@@ -816,8 +816,9 @@ class CombatInteractionTest :
             assertSoftly {
                 attackerObj.shouldNotBeNull()
 
-                // Conformance: client echo carries NO combat state.
-                attackerObj.attackState shouldBe AttackState.None_a3a9
+                attackerObj.attackState shouldBe AttackState.Declared_a3a9
+                attackerObj.attackInfo.targetId shouldBe 2
+                attackerObj.isTapped shouldBe false
                 attackerObj.blockState shouldBe BlockState.None_aa2d
 
                 // Conformance: SendAndRecord, no pendingMessageCount
