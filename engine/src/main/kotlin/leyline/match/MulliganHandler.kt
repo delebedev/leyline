@@ -1,7 +1,7 @@
 package leyline.match
 
 import leyline.bridge.coord.MulliganRedrawFacts
-import leyline.bridge.types.InstanceId
+import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.game.state.GameBridge
@@ -86,7 +86,15 @@ class MulliganHandler(
 
         when (decision) {
             MulliganOption.AcceptHand -> {
+                val cardsToTuck = bridge.mulliganBridge(seatId).pendingPrompt()?.mulliganCount ?: return
                 if (!bridge.submitKeep(seatId)) return
+                if (cardsToTuck > 0) {
+                    bridge.awaitTuckReady()
+                    if (bridge.getTuckCount() == 0) return
+                    bridge.cutCoordinator.lifecycle.publishMulliganTuck(seatId)
+                    deliverTemplate(s, bridge, "mulligan_tuck")
+                    return
+                }
                 MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
                 s.onMulliganKeep()
             }
@@ -97,7 +105,12 @@ class MulliganHandler(
                 if (!bridge.submitMull(seatId)) return
                 mulliganCount++
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
-                sendMulliganRedraw(MulliganRedrawFacts(reportedMulliganCount = 0, numCards = seat1Hand.size))
+                sendMulliganRedraw(
+                    MulliganRedrawFacts(
+                        reportedMulliganCount = bridge.mulliganBridge(seatId).pendingPrompt()?.mulliganCount ?: mulliganCount,
+                        numCards = seat1Hand.size,
+                    ),
+                )
             }
         }
     }
@@ -109,15 +122,22 @@ class MulliganHandler(
         if (seatId != bridge.seating.humanSeat) return
 
         val groups = greMsg.groupResp.groupsList
-        val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
-        log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId.value, tuckIds.size)
+        val prompt = bridge.mulliganBridge(seatId).pendingPrompt() ?: return
+        if (prompt.phase != MulliganPhase.WaitingTuck || groups.size != 2) return
         val handCards = bridge.getHandCards(seatId)
-        val tuckCards =
-            tuckIds.mapNotNull { iid ->
-                val forgeId = bridge.getForgeCardId(InstanceId(iid))?.value
-                handCards.firstOrNull { it.id == forgeId }
-            }
-        bridge.submitTuck(seatId, tuckCards)
+        val eligible = handCards.associateBy { bridge.instance(it).value }
+        val keptIds = groups[0].idsList
+        val tuckIds = groups[1].idsList
+        val allIds = keptIds + tuckIds
+        if (tuckIds.size != prompt.cardsToTuck ||
+            keptIds.size != handCards.size - prompt.cardsToTuck ||
+            allIds.size != allIds.toSet().size ||
+            allIds.toSet() != eligible.keys
+        ) {
+            return
+        }
+        val tuckCards = tuckIds.map { eligible.getValue(it) }
+        if (!bridge.submitTuck(seatId, tuckCards)) return
         MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
         s.onMulliganKeep()
     }

@@ -34,11 +34,17 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ConnectReq
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.Group
+import wotc.mtgo.gre.external.messaging.Messages.GroupResp
+import wotc.mtgo.gre.external.messaging.Messages.GroupType
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
+import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.TeamType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -587,91 +593,187 @@ class MatchDoorMulliganFlowTest :
             }
         }
 
-        test("two mulligans then keep preserve the final redraw hand") {
-            val registry = MatchRegistry()
-            val matchId = "mulligan-flow-redraw"
-            val mixedDeck =
-                """
-                30 Forest
-                30 Mountain
-                """.trimIndent()
-            val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck, drainInitial = false)
+        listOf(1, 2).forEach { mulligans ->
+            test("$mulligans mulligans then keep preserve the selected hand") {
+                val registry = MatchRegistry()
+                val matchId = "mulligan-flow-redraw"
+                val mixedDeck =
+                    """
+                    30 Forest
+                    30 Mountain
+                    """.trimIndent()
+                val (local, familiar) = connectPair(registry, matchId, deckList = mixedDeck, drainInitial = false)
 
-            try {
-                greOutbound(local)
-                greOutbound(familiar)
-                val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
-                val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
+                try {
+                    greOutbound(local)
+                    greOutbound(familiar)
+                    val session = registry.getConnection(matchId, leyline.bridge.types.SeatId(1))?.session as MatchSession
+                    val firstHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
-                local.writeInbound(
-                    greServiceMessage(
-                        mulliganDecision(
-                            MulliganOption.Mulligan,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge
-                                .committedSequence()
-                                .lastPromptMsgId,
+                    local.writeInbound(
+                        greServiceMessage(
+                            mulliganDecision(
+                                MulliganOption.Mulligan,
+                                registry
+                                    .getMatch(matchId)!!
+                                    .bridge
+                                    .committedSequence()
+                                    .lastPromptMsgId,
+                            ),
+                            6,
                         ),
-                        6,
-                    ),
-                )
-                val firstRedrawPrompt = greOutbound(local)
-                val firstRedrawTypes = firstRedrawPrompt.map { it.type }
-                val firstRedrawMulligan = firstRedrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }
-                val firstRedrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
+                    )
+                    val firstRedrawPrompt = greOutbound(local)
+                    val firstRedrawTypes = firstRedrawPrompt.map { it.type }
+                    val firstRedrawMulligan = firstRedrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }
+                    val firstRedrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
 
-                local.writeInbound(
-                    greServiceMessage(
-                        mulliganDecision(
-                            MulliganOption.Mulligan,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge
-                                .committedSequence()
-                                .lastPromptMsgId,
+                    val secondRedrawPrompt =
+                        if (mulligans == 2) {
+                            local.writeInbound(
+                                greServiceMessage(
+                                    mulliganDecision(
+                                        MulliganOption.Mulligan,
+                                        registry
+                                            .getMatch(matchId)!!
+                                            .bridge
+                                            .committedSequence()
+                                            .lastPromptMsgId,
+                                    ),
+                                    7,
+                                ),
+                            )
+                            val result = greOutbound(local)
+                            result
+                        } else {
+                            firstRedrawPrompt
+                        }
+                    val secondRedrawMulligan = secondRedrawPrompt.last { it.hasMulliganReq() }
+                    val secondRedrawHand = session.gameBridge.getHandGrpIds(SeatId(1))
+                    val redrawHandIds = session.gameBridge.getHandCards(SeatId(1)).map { session.gameBridge.instance(it).value }
+                    val keepStarted = System.nanoTime()
+                    local.writeInbound(
+                        greServiceMessage(
+                            mulliganDecision(
+                                MulliganOption.AcceptHand,
+                                registry
+                                    .getMatch(matchId)!!
+                                    .bridge
+                                    .committedSequence()
+                                    .lastPromptMsgId,
+                            ),
+                            8,
                         ),
-                        7,
-                    ),
-                )
-                val secondRedrawPrompt = greOutbound(local)
-                val secondRedrawMulligan = secondRedrawPrompt.last { it.type == GREMessageType.MulliganReq_aa0d }
-                val secondRedrawHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
-
-                local.writeInbound(
-                    greServiceMessage(
-                        mulliganDecision(
-                            MulliganOption.AcceptHand,
-                            registry
-                                .getMatch(matchId)!!
-                                .bridge
-                                .committedSequence()
-                                .lastPromptMsgId,
+                    )
+                    val postKeep = greOutbound(local)
+                    val grouping = postKeep.single { it.hasGroupReq() }
+                    ((System.nanoTime() - keepStarted) / 1_000_000 < 1_000) shouldBe true
+                    val ids = grouping.groupReq.instanceIdsList
+                    val keptIds = ids.dropLast(mulligans)
+                    val bottomIds = ids.takeLast(mulligans)
+                    assertSoftly {
+                        session.gameBridge.getHandGrpIds(SeatId(1)).size shouldBe 7
+                        grouping.gameStateId shouldBe postKeep.single { it.hasGameStateMessage() }.gameStateMessage.gameStateId
+                        grouping.groupReq.context shouldBe GroupingContext.LondonMulligan
+                        grouping.groupReq.groupType shouldBe GroupType.Ordered
+                        grouping.groupReq.sourceId shouldBe 1
+                        ids.sorted() shouldBe redrawHandIds.sorted()
+                        ids.size shouldBe 7
+                        grouping.groupReq.groupSpecsList.map { it.lowerBound } shouldBe listOf(7 - mulligans, mulligans)
+                        grouping.groupReq.groupSpecsList.map { it.upperBound } shouldBe listOf(7 - mulligans, mulligans)
+                        grouping.groupReq.groupSpecsList.map { it.zoneType } shouldBe listOf(ZoneType.Hand, ZoneType.Library)
+                        grouping.groupReq.groupSpecsList.map { it.subZoneType } shouldBe listOf(SubZoneType.Top, SubZoneType.Bottom)
+                    }
+                    listOf(
+                        keptIds to emptyList(),
+                        keptIds to List(mulligans) { ids.last() }.let { if (mulligans == 1) listOf(keptIds.first()) else it },
+                        keptIds to (bottomIds.dropLast(1) + Int.MAX_VALUE),
+                    ).forEachIndexed { index, (kept, bottom) ->
+                        local.writeInbound(
+                            greServiceMessage(
+                                greMessage(1, ClientMessageType.GroupResp_097b) {
+                                    setRespId(grouping.msgId)
+                                    setGroupResp(
+                                        GroupResp
+                                            .newBuilder()
+                                            .addGroups(Group.newBuilder().addAllIds(kept))
+                                            .addGroups(Group.newBuilder().addAllIds(bottom)),
+                                    )
+                                },
+                                20 + index,
+                            ),
+                        )
+                        greOutbound(local).isEmpty() shouldBe true
+                        session.gameBridge.getHandCards(SeatId(1)).size shouldBe 7
+                        session.gameBridge
+                            .mulliganBridge(SeatId(1))
+                            .pendingPrompt()
+                            ?.cardsToTuck shouldBe mulligans
+                    }
+                    local.writeInbound(
+                        greServiceMessage(
+                            greMessage(1, ClientMessageType.GroupResp_097b) {
+                                setRespId(grouping.msgId)
+                                setGroupResp(
+                                    GroupResp
+                                        .newBuilder()
+                                        .addGroups(Group.newBuilder().addAllIds(keptIds))
+                                        .addGroups(Group.newBuilder().addAllIds(bottomIds)),
+                                )
+                            },
+                            9,
                         ),
-                        8,
-                    ),
-                )
-                val postKeep = greOutbound(local).map { it.type }
-                val keptHand = session.gameBridge.getHandGrpIds(leyline.bridge.types.SeatId(1))
+                    )
+                    val postTuck = greOutbound(local)
+                    val annotations = postTuck.filter { it.hasGameStateMessage() }.flatMap { it.gameStateMessage.annotationsList }
+                    bottomIds.forEach { oldId ->
+                        val changed =
+                            annotations.single {
+                                AnnotationType.ObjectIdChanged in it.typeList &&
+                                    it.detailInt(
+                                        "orig_id",
+                                    ) == oldId
+                            }
+                        val newId = changed.detailInt("new_id")
+                        val transfer =
+                            annotations.single {
+                                AnnotationType.ZoneTransfer in it.typeList &&
+                                    it.affectedIdsList == listOf(newId)
+                            }
+                        transfer.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
+                        transfer.detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
+                        transfer.detailsList.single { it.key == "category" }.valueStringList shouldBe listOf("Put")
+                        (annotations.indexOf(changed) < annotations.indexOf(transfer)) shouldBe true
+                        postTuck
+                            .filter { it.hasGameStateMessage() }
+                            .flatMap { it.gameStateMessage.zonesList }
+                            .last { it.zoneId == ZoneIds.P1_LIBRARY }
+                            .objectInstanceIdsList
+                            .contains(newId) shouldBe true
+                    }
+                    val keptHand = session.gameBridge.getHandGrpIds(SeatId(1))
+                    val activeHandIds = session.gameBridge.getHandCards(SeatId(1)).map { session.gameBridge.instance(it).value }
 
-                assertSoftly {
-                    firstRedrawTypes shouldContain GREMessageType.GameStateMessage_695e
-                    firstRedrawTypes shouldContain GREMessageType.PromptReq
-                    firstRedrawTypes shouldContain GREMessageType.MulliganReq_aa0d
-                    firstRedrawMulligan.mulliganReq.mulliganCount shouldBe 0
-                    firstRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 6
-                    firstRedrawHand.size shouldBe 6
-                    firstRedrawHand shouldNotBe firstHand
-                    secondRedrawMulligan.mulliganReq.mulliganCount shouldBe 0
-                    secondRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 5
-                    secondRedrawHand.size shouldBe 5
-                    keptHand shouldBe secondRedrawHand
-                    postKeep shouldContain GREMessageType.GameStateMessage_695e
-                    postKeep shouldContain GREMessageType.ActionsAvailableReq_695e
+                    assertSoftly {
+                        activeHandIds.sorted() shouldBe keptIds.sorted()
+                        firstRedrawTypes shouldContain GREMessageType.GameStateMessage_695e
+                        firstRedrawTypes shouldContain GREMessageType.PromptReq
+                        firstRedrawTypes shouldContain GREMessageType.MulliganReq_aa0d
+                        firstRedrawMulligan.mulliganReq.mulliganCount shouldBe 1
+                        firstRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 7
+                        firstRedrawHand.size shouldBe 7
+                        firstRedrawHand shouldNotBe firstHand
+                        secondRedrawMulligan.mulliganReq.mulliganCount shouldBe mulligans
+                        secondRedrawMulligan.prompt.parametersList.map { it.numberValue } shouldContain 7
+                        secondRedrawHand.size shouldBe 7
+                        keptHand.size shouldBe 7 - mulligans
+                        postTuck.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
+                        postTuck.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
+                    }
+                } finally {
+                    local.close()
+                    familiar.close()
                 }
-            } finally {
-                local.close()
-                familiar.close()
             }
         }
     })
