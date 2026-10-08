@@ -36,7 +36,7 @@ frames:
           raw.declareAttackersReq.attackers.length: 1
           "raw.declareAttackersReq.attackers[0].selectedDamageRecipient.type": Player
           "raw.declareAttackersReq.attackers[0].selectedDamageRecipient.playerSystemSeatId": 2
-        equals: {"raw.declareAttackersReq.attackers[0].attackerInstanceId": source.affectorId}
+        equals: {"raw.declareAttackersReq.attackers[0].attackerInstanceId": source.affectorId, gameStateId: provisional.gameStateId}
   - id: committed
     events:
       - id: attacking

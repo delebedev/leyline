@@ -630,6 +630,19 @@ private fun checkCombatMutations(
                 else -> message
             }
         }
+    mutants += "stale selected combat state reference" to
+        messages.map { message ->
+            val selected =
+                (
+                    message.hasDeclareAttackersReq() &&
+                        message.declareAttackersReq.attackersList.any { it.hasSelectedDamageRecipient() }
+                ) ||
+                    (
+                        message.hasDeclareBlockersReq() &&
+                            message.declareBlockersReq.blockersList.any { it.selectedAttackerInstanceIdsCount > 0 }
+                    )
+            if (selected) message.toBuilder().setGameStateId(0).build() else message
+        }
     mutants += "missing provisional combat state" to
         messages.map { message ->
             message.mutatingGameState { gsm ->

@@ -32,6 +32,7 @@ frames:
         lane: prompt
         fields: {raw.declareBlockersReq.blockers.length: 1, "raw.declareBlockersReq.blockers[0].selectedAttackerInstanceIds.length": 1}
         equals:
+          gameStateId: blocking.gameStateId
           "raw.declareBlockersReq.blockers[0].blockerInstanceId": "offered.raw.declareBlockersReq.blockers[0].blockerInstanceId"
           "raw.declareBlockersReq.blockers[0].selectedAttackerInstanceIds": "offered.raw.declareBlockersReq.blockers[0].attackerInstanceIds"
   - id: damage
