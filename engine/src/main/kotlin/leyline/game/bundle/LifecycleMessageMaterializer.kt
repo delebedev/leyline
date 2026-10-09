@@ -48,10 +48,14 @@ object LifecycleMessageMaterializer {
         when (prompt.phase) {
             MulliganPhase.WaitingKeep ->
                 keepRequest
-                    ?.toBuilder()
-                    ?.setMsgId(msgId)
-                    ?.setGameStateId(gameStateId)
-                    ?.build()
+                    ?.let { cached ->
+                        cached
+                            .toBuilder()
+                            .setMsgId(msgId)
+                            .setGameStateId(gameStateId)
+                            .setMulliganReq(cached.mulliganReq.toBuilder().setMulliganCount(bridge.mulliganBridge(seatId).redrawCount))
+                            .build()
+                    }
                     ?: GsmBuilder.buildMulliganReq(
                         bridge = bridge,
                         msgId = msgId,

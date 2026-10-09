@@ -180,6 +180,7 @@ class GameBridgeTest :
                 variant = "commander",
                 deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
             )
+            val cachedInitialRequest = LifecycleMessageMaterializer.mulliganReqSeat1(1, 3, b).messages.last()
 
             assertSoftly {
                 StateZoneProjection.buildGameInfo("match", b.stateProjectionEnvironment.matchConfig).freeMulliganCount shouldBe 1
@@ -188,11 +189,8 @@ class GameBridgeTest :
                     .messages
                     .last()
                     .mulliganReq.freeMulliganCount shouldBe 1
-                LifecycleMessageMaterializer
-                    .mulliganReqSeat1(1, 3, b)
-                    .messages
-                    .last()
-                    .mulliganReq.freeMulliganCount shouldBe 1
+                cachedInitialRequest.mulliganReq.freeMulliganCount shouldBe 1
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
                 LifecycleMessageMaterializer
                     .mulliganRequest(
                         b,
@@ -206,6 +204,34 @@ class GameBridgeTest :
             }
             check(b.getHandGrpIds(SeatId(1)).size == 7)
             check(b.submitMull(SeatId(1)))
+            val afterFreeRedraw =
+                LifecycleMessageMaterializer.mulliganRequest(
+                    b,
+                    20,
+                    4,
+                    SeatId(1),
+                    checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                    b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                    cachedInitialRequest,
+                )
+            assertSoftly {
+                afterFreeRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                afterFreeRedraw.mulliganReq.mulliganCount shouldBe 1
+                afterFreeRedraw.msgId shouldBe 20
+                afterFreeRedraw.gameStateId shouldBe 4
+                afterFreeRedraw.prompt shouldBe cachedInitialRequest.prompt
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        22,
+                        4,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.mulliganCount shouldBe 1
+            }
             LifecycleMessageMaterializer
                 .mulliganReqSeat1(1, 4, b, mulliganCount = 1)
                 .messages
@@ -213,6 +239,31 @@ class GameBridgeTest :
                 .mulliganReq.freeMulliganCount shouldBe 1
             check(b.getHandGrpIds(SeatId(1)).size == 7)
             check(b.submitMull(SeatId(1)))
+            val afterPaidRedraw =
+                LifecycleMessageMaterializer.mulliganRequest(
+                    b,
+                    21,
+                    5,
+                    SeatId(1),
+                    checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                    b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                    cachedInitialRequest,
+                )
+            assertSoftly {
+                afterPaidRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                afterPaidRedraw.mulliganReq.mulliganCount shouldBe 2
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        23,
+                        5,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.mulliganCount shouldBe 2
+            }
             check(b.getHandGrpIds(SeatId(1)).size == 7)
             check(b.submitKeep(SeatId(1)))
             b.awaitTuckReady()
