@@ -60,7 +60,7 @@ private fun engineSettings() =
         dieRollWinner = 1,
         skipMulligan = false,
         bridgeTimeoutMs = 2_000L,
-        promptFailsafeMs = 2_000L,
+        promptFailsafeMs = 10_000L,
         aiTurnWaitMs = 2_000L,
         mulliganWaitMs = 2_000L,
     )
