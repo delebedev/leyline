@@ -1,6 +1,6 @@
 package leyline.bridge.coord
 
-import forge.game.card.Card
+import forge.game.GameEntity
 import leyline.bridge.handoff.CompatibilityCostSelectionResult
 import leyline.bridge.handoff.CompatibilityCostSelectionRuntime
 import leyline.bridge.handoff.PromptRequest
@@ -9,7 +9,7 @@ import leyline.bridge.handoff.TargetToggleValue
 import leyline.bridge.handoff.TargetingCommandReceipt
 import leyline.bridge.handoff.TargetingInteractionKind
 
-/** Match-scoped SelectTargets compatibility owner for residual card choices. */
+/** Match-scoped SelectTargets compatibility owner for entity choices. */
 internal class MatchCompatibilityCostSelectionRuntime(
     private val owner: MatchCutCoordinator,
 ) : CompatibilityCostSelectionRuntime {
@@ -17,7 +17,7 @@ internal class MatchCompatibilityCostSelectionRuntime(
 
     override fun awaitSelection(
         request: PromptRequest,
-        candidateHandles: List<Card>,
+        candidateHandles: List<GameEntity>,
         timeoutMs: Long?,
     ): CompatibilityCostSelectionResult {
         val indices = targeting.awaitCompatibility(request, candidateHandles, timeoutMs)

@@ -1,6 +1,7 @@
 package leyline.bridge.handoff
 
 import forge.game.Game
+import forge.game.GameEntity
 import forge.game.card.Card
 import forge.game.replacement.ReplacementEffect
 import forge.game.spellability.AbilitySub
@@ -516,17 +517,17 @@ class InteractivePromptBridge(
         }
     }
 
-    /** Route one residual card choice through the SelectTargets compatibility runtime. */
+    /** Route one entity choice through the SelectTargets compatibility runtime. */
     fun requestCompatibilityCostSelection(
         request: PromptRequest,
-        candidateHandles: List<Card>,
+        candidateHandles: List<GameEntity>,
     ): CompatibilityCostSelectionResult {
         check(request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
             "CompatibilityCostSelection route required"
         }
         val runtime = runtimeBindings.compatibilityCostSelection
         if (runtime == null || NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) {
-            val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
+            val fallback = listOf(request.defaultIndex).filter { request.min > 0 && it in candidateHandles.indices }
             val outcome =
                 when {
                     runtime == null || timeoutMs == 0L -> PromptCallStatus.DEFAULTED_POLICY
@@ -542,7 +543,7 @@ class InteractivePromptBridge(
             prioritySignal?.markPromptResolved()
             result.copy(handles = result.optionIndices.mapNotNull(candidateHandles::getOrNull))
         } catch (_: TargetingInteractionTimeoutException) {
-            val fallback = listOf(request.defaultIndex).filter { it in candidateHandles.indices }
+            val fallback = listOf(request.defaultIndex).filter { request.min > 0 && it in candidateHandles.indices }
             record(request, PromptCallStatus.TIMEOUT, fallback)
             prioritySignal?.signal()
             CompatibilityCostSelectionResult(
@@ -777,6 +778,9 @@ enum class PromptSemantic {
      * domains remain residual.
      */
     SelectNResolution,
+
+    /** Counter-bearing permanents and players chosen during proliferate. */
+    Proliferate,
 
     /** Manifest Dread's mandatory top-two resolution choice. */
     ManifestDread,

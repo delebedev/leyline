@@ -52,10 +52,10 @@ internal class MatchTargetingInteractionRuntime(
         )
     }
 
-    /** Shared SelectTargets lifecycle for residual card choices. */
+    /** Shared SelectTargets lifecycle for entity choices. */
     internal fun awaitCompatibility(
         request: PromptRequest,
-        candidateHandles: List<forge.game.card.Card>,
+        candidateHandles: List<forge.game.GameEntity>,
         timeoutMs: Long?,
     ): List<Int> {
         check(request.route is ResolvedPromptRoute.CompatibilityCostSelection)
@@ -159,6 +159,7 @@ internal class MatchTargetingInteractionRuntime(
                             value,
                             transientSourceCard,
                             owner.viewerRoutes(),
+                            kind,
                         )
                     } catch (ex: Exception) {
                         owner.fail(ex)
@@ -302,7 +303,7 @@ internal class MatchTargetingInteractionRuntime(
                     feed.builder.prepareTargetingSubmit(
                         planner,
                         prior,
-                        pending.sourceInstanceId,
+                        pending.sourceInstanceId.takeIf { pending.published.kind == TargetingInteractionKind.Targeting },
                         owner.humanSeat,
                     )
                 } catch (ex: Exception) {

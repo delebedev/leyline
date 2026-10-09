@@ -63,6 +63,7 @@ object ChooseEntitiesPlanner {
         resolutionInput: ResolutionRouteInput,
     ): PromptSemantic =
         when {
+            sa?.api == ApiType.Proliferate -> PromptSemantic.Proliferate
             sa?.alternativeCost == AlternativeCost.Escape -> PromptSemantic.SelectNCostExileFromGrave
             SpellAbilityShapes.isHandToLibraryReorder(sa) -> PromptSemantic.SelectNLibraryPutback
             sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice -> PromptSemantic.Search

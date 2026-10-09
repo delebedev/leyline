@@ -305,6 +305,7 @@ object PromptRouteResolver {
                         cardSelect(semantic, CardSelectKind.ResolutionMapped)
                     else -> unclassifiedEntityChoice(semantic, dynamicResolutionShape)
                 }
+            PromptSemantic.Proliferate -> ResolvedPromptRoute.CompatibilityCostSelection(semantic)
             PromptSemantic.ManifestDread -> cardSelect(semantic, CardSelectKind.ManifestDread)
             PromptSemantic.SuspectChoice -> cardSelect(semantic, CardSelectKind.Suspect, choiceResultSentiment = 2)
             PromptSemantic.SelectNLibraryPutback -> cardSelect(semantic, CardSelectKind.LibraryPutback)

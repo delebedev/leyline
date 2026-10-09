@@ -111,7 +111,7 @@ class CostDecisionCounterTest :
                         object : CompatibilityCostSelectionRuntime {
                             override fun awaitSelection(
                                 request: PromptRequest,
-                                candidateHandles: List<forge.game.card.Card>,
+                                candidateHandles: List<forge.game.GameEntity>,
                                 timeoutMs: Long?,
                             ): CompatibilityCostSelectionResult {
                                 observed.set(request)

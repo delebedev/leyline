@@ -11,7 +11,9 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 
@@ -52,6 +54,33 @@ class ChooseEntitiesPlannerTest :
                 semantic shouldBe PromptSemantic.SelectNResolution
                 candidateRefsPolicy shouldBe CandidateRefsPolicy.SelectableAndUnfilteredForResolution
                 sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+            }
+        }
+
+        test("proliferate binds a mixed entity choice without changing other resolution choices") {
+            val candidates =
+                listOf(
+                    PromptCandidateRefDto(index = 0, kind = PromptCandidateKind.Player, entityId = 1),
+                    PromptCandidateRefDto(index = 1, kind = PromptCandidateKind.Card, entityId = 10, zone = "Battlefield"),
+                )
+            val plan =
+                ChooseEntitiesPlanner.plan(
+                    ChooseEntitiesContext(
+                        sa = abilitySub(ApiType.Proliferate),
+                        min = 0,
+                        max = candidates.size,
+                        optionCount = candidates.size,
+                        candidateRefs = candidates,
+                        allCandidatesProjectable = false,
+                    ),
+                )
+
+            assertSoftly {
+                plan.semantic shouldBe PromptSemantic.Proliferate
+                plan.effectiveMin shouldBe 0
+                PromptRouteResolver.resolve(plan.semantic, hasCandidateRefs = true) shouldBe
+                    ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Proliferate)
+                planFor(genericSa()).semantic shouldBe PromptSemantic.SelectNResolution
             }
         }
 
