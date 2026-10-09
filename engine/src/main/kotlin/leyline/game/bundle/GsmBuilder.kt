@@ -208,6 +208,7 @@ object GsmBuilder {
      * Build a MulliganReq GRE message.
      */
     fun buildMulliganReq(
+        bridge: GameBridge,
         msgId: Int,
         gameStateId: Int,
         seatId: Int,
@@ -235,9 +236,13 @@ object GsmBuilder {
                 MulliganReq
                     .newBuilder()
                     .setMulliganType(MulliganType.London)
-                    .setFreeMulliganCount(0)
+                    .setFreeMulliganCount(freeMulliganCount(bridge))
                     .setMulliganCount(mulliganCount),
             ).build()
+
+    /** The request reports the total allowance; mulliganCount tracks redraws already taken. */
+    private fun freeMulliganCount(bridge: GameBridge): Int =
+        if (bridge.getGame()?.let { it.rules.hasFreeFirstMulligan(it.players.size) } == true) 1 else 0
 
     /**
      * Build a GroupReq GRE message for London mulligan tuck.
@@ -307,7 +312,7 @@ object GsmBuilder {
     ): GameStateMessage {
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
-        val freeMulliganCount = if (bridge.getGame()?.let { it.rules.hasFreeFirstMulligan(it.players.size) } == true) 1 else 0
+        val freeMulliganCount = freeMulliganCount(bridge)
 
         val deckConstraints =
             if (isBrawl) {

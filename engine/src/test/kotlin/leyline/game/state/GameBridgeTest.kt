@@ -25,6 +25,7 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
@@ -179,8 +180,35 @@ class GameBridgeTest :
                 deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
             )
 
+            assertSoftly {
+                LifecycleMessageMaterializer
+                    .dealHandMulliganSeat2(1, 2, b)
+                    .messages
+                    .last()
+                    .mulliganReq.freeMulliganCount shouldBe 1
+                LifecycleMessageMaterializer
+                    .mulliganReqSeat1(1, 3, b)
+                    .messages
+                    .last()
+                    .mulliganReq.freeMulliganCount shouldBe 1
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        1,
+                        3,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.freeMulliganCount shouldBe 1
+            }
             check(b.getHandGrpIds(SeatId(1)).size == 7)
             check(b.submitMull(SeatId(1)))
+            LifecycleMessageMaterializer
+                .mulliganReqSeat1(1, 4, b, mulliganCount = 1)
+                .messages
+                .last()
+                .mulliganReq.freeMulliganCount shouldBe 1
             check(b.getHandGrpIds(SeatId(1)).size == 7)
             check(b.submitMull(SeatId(1)))
             check(b.getHandGrpIds(SeatId(1)).size == 7)
