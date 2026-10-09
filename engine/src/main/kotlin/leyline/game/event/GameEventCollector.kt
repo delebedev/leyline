@@ -1093,7 +1093,7 @@ class GameEventCollector(
         }
 
     override fun visit(ev: GameEventFlipCoin) {
-        val flipperView = ev.player() ?: return
+        val flipperView = ev.flipper() ?: return
         val sa = ev.sa() ?: return
         val won = ev.won()
         val flipper = seatOf(flipperView) ?: return
