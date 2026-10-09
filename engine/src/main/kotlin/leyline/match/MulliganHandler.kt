@@ -28,7 +28,10 @@ class MulliganHandler(
     private val log = LoggerFactory.getLogger(MulliganHandler::class.java)
 
     val mulliganCount: Int
-        get() = session?.gameBridge?.mulliganBridge(seatId)?.redrawCount ?: 0
+        get() {
+            val bridge = session?.gameBridge ?: return 0
+            return if (seatId == bridge.seating.humanSeat) bridge.mulliganBridge(seatId).redrawCount else 0
+        }
 
     var seat1Hand: List<Int> = emptyList()
     var seat2Hand: List<Int> = emptyList()
