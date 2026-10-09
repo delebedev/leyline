@@ -34,7 +34,7 @@ class StateMapperValueBoundaryTest :
             val environment =
                 StateProjectionEnvironment(
                     cardProto = CardProtoBuilder(cards),
-                    matchConfig = MatchProjectionConfig(isBrawlOrCommander = false),
+                    matchConfig = MatchProjectionConfig(isBrawlOrCommander = false, freeMulliganCount = 0),
                     cardReferences = ProjectionCardReferences(cards),
                 )
             val cardId = ForgeCardId(201)

@@ -61,7 +61,9 @@ class MulliganBridgeTest :
             assertSoftly {
                 result.get() shouldBe false
                 bridge.pendingPrompt().shouldBeNull()
+                bridge.redrawCount shouldBe 1
                 bridge.submitMull() shouldBe false
+                bridge.redrawCount shouldBe 1
                 bridge.submitKeep() shouldBe false
             }
         }

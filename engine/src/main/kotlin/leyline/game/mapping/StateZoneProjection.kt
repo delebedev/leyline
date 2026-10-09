@@ -56,6 +56,7 @@ object StateZoneProjection {
                 .setMatchState(MatchState.GameInProgress)
                 .setMatchWinCondition(MatchWinCondition.SingleElimination)
                 .setMulliganType(MulliganType.London)
+                .setFreeMulliganCount(config.freeMulliganCount)
         if (isBrawl) {
             builder.setDeckConstraintInfo(
                 DeckConstraintInfo
@@ -66,7 +67,6 @@ object StateZoneProjection {
                     .setMinCommanderSize(1)
                     .setMaxCommanderSize(1),
             )
-            builder.setFreeMulliganCount(1)
         }
         return builder.build()
     }

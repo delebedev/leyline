@@ -644,7 +644,7 @@ internal fun compilerEnvironment(): StateProjectionEnvironment {
     val cards = InMemoryCardRepository()
     return StateProjectionEnvironment(
         CardProtoBuilder(cards),
-        MatchProjectionConfig(isBrawlOrCommander = false),
+        MatchProjectionConfig(isBrawlOrCommander = false, freeMulliganCount = 0),
         ProjectionCardReferences(cards),
     )
 }

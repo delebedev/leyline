@@ -29,6 +29,7 @@ import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateZoneProjection
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -181,6 +182,7 @@ class GameBridgeTest :
             )
 
             assertSoftly {
+                StateZoneProjection.buildGameInfo("match", b.stateProjectionEnvironment.matchConfig).freeMulliganCount shouldBe 1
                 LifecycleMessageMaterializer
                     .dealHandMulliganSeat2(1, 2, b)
                     .messages
@@ -218,6 +220,22 @@ class GameBridgeTest :
             check(b.submitTuck(SeatId(1), b.getHandCards(SeatId(1)).take(1)))
             check(b.awaitActionPriority(SeatId(1)))
             b.getHandGrpIds(SeatId(1)).size shouldBe 6
+        }
+
+        test("two-player Oathbreaker projection has no free mulligan") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(
+                seed = 42L,
+                variant = "oathbreaker",
+                deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
+            )
+
+            val info = StateZoneProjection.buildGameInfo("match", b.stateProjectionEnvironment.matchConfig)
+            assertSoftly {
+                info.variant shouldBe Messages.GameVariant.Brawl
+                info.freeMulliganCount shouldBe 0
+            }
         }
 
         test("two redraws retain seven until two cards are selected for bottom") {

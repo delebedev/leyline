@@ -34,7 +34,7 @@ class StateZoneProjectionTest :
             val cards = InMemoryCardRepository()
             return StateProjectionEnvironment(
                 CardProtoBuilder(cards),
-                MatchProjectionConfig(isBrawl),
+                MatchProjectionConfig(isBrawl, if (isBrawl) 1 else 0),
                 ProjectionCardReferences(cards),
             )
         }
@@ -236,9 +236,10 @@ class StateZoneProjectionTest :
             assertSoftly {
                 StateZoneProjection.hasSeat(snap, SeatId(1)) shouldBe false
                 StateZoneProjection.hasSeat(snap, SeatId(2)) shouldBe true
-                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true)).variant shouldBe GameVariant.Brawl
-                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true)).freeMulliganCount shouldBe 1
-                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(false)).variant shouldBe GameVariant.Normal
+                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true, 1)).variant shouldBe GameVariant.Brawl
+                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true, 1)).freeMulliganCount shouldBe 1
+                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(true, 0)).freeMulliganCount shouldBe 0
+                StateZoneProjection.buildGameInfo("match", MatchProjectionConfig(false, 0)).variant shouldBe GameVariant.Normal
             }
         }
     })

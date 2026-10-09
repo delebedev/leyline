@@ -27,8 +27,8 @@ class MulliganHandler(
 ) {
     private val log = LoggerFactory.getLogger(MulliganHandler::class.java)
 
-    var mulliganCount = 0
-        private set
+    val mulliganCount: Int
+        get() = session?.gameBridge?.mulliganBridge(seatId)?.redrawCount ?: 0
 
     var seat1Hand: List<Int> = emptyList()
     var seat2Hand: List<Int> = emptyList()
@@ -103,11 +103,10 @@ class MulliganHandler(
             MulliganOption.UNRECOGNIZED,
             -> {
                 if (!bridge.submitMull(seatId)) return
-                mulliganCount++
                 seat1Hand = bridge.getHandGrpIds(SeatId(1))
                 sendMulliganRedraw(
                     MulliganRedrawFacts(
-                        reportedMulliganCount = bridge.mulliganBridge(seatId).pendingPrompt()?.mulliganCount ?: mulliganCount,
+                        reportedMulliganCount = bridge.mulliganBridge(seatId).redrawCount,
                         numCards = seat1Hand.size,
                     ),
                 )

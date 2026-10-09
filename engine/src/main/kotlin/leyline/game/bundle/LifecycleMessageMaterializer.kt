@@ -58,7 +58,7 @@ object LifecycleMessageMaterializer {
                         gameStateId = gameStateId,
                         seatId = seatId.value,
                         numCards = handInstanceIds.size,
-                        mulliganCount = prompt.mulliganCount,
+                        mulliganCount = bridge.mulliganBridge(seatId).redrawCount,
                     )
             MulliganPhase.WaitingTuck ->
                 GsmBuilder.buildGroupReq(

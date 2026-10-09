@@ -53,6 +53,11 @@ class MulliganBridge(
 
     @Volatile private var state: MulliganState = MulliganState.Idle
     private var promptSequenceValue: Int = 0
+    private var redrawCountValue: Int = 0
+
+    /** Total accepted redraws, including a free first redraw. */
+    val redrawCount: Int
+        get() = synchronized(this) { redrawCountValue }
 
     /** Monotonic counter — increments each time a keep/tuck prompt is posted. */
     val promptSequence: Int
@@ -170,10 +175,13 @@ class MulliganBridge(
         return future?.complete(true) == true
     }
 
-    fun submitMull(): Boolean {
-        val future = synchronized(this) { (state as? MulliganState.WaitingKeep)?.future }
-        return future?.complete(false) == true
-    }
+    fun submitMull(): Boolean =
+        synchronized(this) {
+            val future = (state as? MulliganState.WaitingKeep)?.future ?: return false
+            if (!future.complete(false)) return false
+            redrawCountValue++
+            true
+        }
 
     fun submitTuck(cards: List<Card>): Boolean =
         synchronized(this) {

@@ -13,6 +13,7 @@ data class StateProjectionEnvironment(
 /** Match-scoped protocol configuration frozen before state projection begins. */
 data class MatchProjectionConfig(
     val isBrawlOrCommander: Boolean,
+    val freeMulliganCount: Int,
 )
 
 /** Shell adapter that materializes the read-only state-projection environment. */
@@ -20,7 +21,11 @@ object StateProjectionEnvironmentCapture {
     fun from(bridge: GameBridge): StateProjectionEnvironment =
         StateProjectionEnvironment(
             cardProto = bridge.cardProto,
-            matchConfig = MatchProjectionConfig(bridge.isBrawlOrCommander),
+            matchConfig =
+                MatchProjectionConfig(
+                    bridge.isBrawlOrCommander,
+                    if (bridge.getGame()?.let { it.rules.hasFreeFirstMulligan(it.players.size) } == true) 1 else 0,
+                ),
             cardReferences = ProjectionCardReferences(bridge.cardRepository),
         )
 }
