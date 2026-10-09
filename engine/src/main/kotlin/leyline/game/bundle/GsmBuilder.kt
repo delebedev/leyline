@@ -307,7 +307,7 @@ object GsmBuilder {
     ): GameStateMessage {
         val isBrawl = bridge.isBrawlOrCommander
         val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
-        val freeMulliganCount = if (isBrawl) 1 else 0
+        val freeMulliganCount = if (bridge.getGame()?.let { it.rules.hasFreeFirstMulligan(it.players.size) } == true) 1 else 0
 
         val deckConstraints =
             if (isBrawl) {

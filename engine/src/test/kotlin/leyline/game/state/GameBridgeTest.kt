@@ -170,6 +170,28 @@ class GameBridgeTest :
             b.mulliganBridge(SeatId(1)).pendingPrompt()?.mulliganCount shouldBe 1
         }
 
+        test("configured Commander keeps seven after the free redraw and bottoms one after the next") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(
+                seed = 42L,
+                variant = "commander",
+                deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
+            )
+
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitMull(SeatId(1)))
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitMull(SeatId(1)))
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitKeep(SeatId(1)))
+            b.awaitTuckReady()
+            check(b.getTuckCount() == 1)
+            check(b.submitTuck(SeatId(1), b.getHandCards(SeatId(1)).take(1)))
+            check(b.awaitActionPriority(SeatId(1)))
+            b.getHandGrpIds(SeatId(1)).size shouldBe 6
+        }
+
         test("two redraws retain seven until two cards are selected for bottom") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b

@@ -40,6 +40,8 @@ Use this decision rule:
 - Yes/no optional-action style prompts use `OptionalActionGate` when the session must observe a pending prompt outside the normal prompt queue.
 - Numeric prompts use `NumericInputGate`.
 
+Local Commander games configure one free first mulligan in `GameBootstrap`; generic two-player Commander rules do not imply one. Forge's `GameRules` supplies the effective policy to both mulligan execution and the advertised `freeMulliganCount`. Each London redraw deals seven cards, and keeping requires one bottom choice per paid mulligan.
+
 The engine thread blocks in these calls. Never block on session-owned state from an override; post a pending request and let the session complete the future.
 
 Named `Choices` votes block in `PlayerController.vote` and retain the exact
