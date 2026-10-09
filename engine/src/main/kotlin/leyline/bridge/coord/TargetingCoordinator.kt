@@ -1080,6 +1080,7 @@ class TargetingCoordinator(
         if (cards.isEmpty()) return CardCollection()
         val effectiveMax = max.coerceAtMost(cards.size)
         val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
+        if (effectiveMax == 0) return CardCollection()
         if (!forcePrompt && cards.size <= effectiveMin) return CardCollection(cards)
         val labels = cards.map { it.name }
         val request =

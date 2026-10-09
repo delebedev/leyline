@@ -103,6 +103,24 @@ class ForgeCatalogProbeTest :
             }
         }
 
+        test("zero required sacrifices resolve without a choice") {
+            forgeCatalogProbe(
+                "zodiark-zero-sacrifice",
+                "humanhand=Zodiark, Umbral God\nhumanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Bonecaller Cleric",
+            ) { _ ->
+                val start = messageSnapshot()
+                resolveSpell("Zodiark, Umbral God").shouldBeTrue()
+                human.battlefield.card("Zodiark, Umbral God")
+                human.battlefield.card("Bonecaller Cleric")
+                assertSoftly {
+                    messagesSince(start).none { it.hasSelectNReq() }.shouldBeTrue()
+                    game().stackZone.size() shouldBe 0
+                    bridge.hasPendingNonActionInteraction() shouldBe false
+                    messagesSince(start).any { it.hasActionsAvailableReq() || it.hasDeclareAttackersReq() }.shouldBeTrue()
+                }
+            }
+        }
+
         test("targeted activated ability resolves with a generated ability identity") {
             forgeCatalogProbe("activated", "humanbattlefield=Goblin Fireslinger\naibattlefield=Centaur Courser") { repo ->
                 activateAbility("Goblin Fireslinger").shouldBeTrue()
