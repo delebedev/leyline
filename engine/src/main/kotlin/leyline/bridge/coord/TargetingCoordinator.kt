@@ -342,9 +342,7 @@ class TargetingCoordinator(
             return selected.handles.map { handle -> optionList.first { it === handle } }
         }
         if (request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
-            val candidateCards = optionList.filterIsInstance<Card>()
-            check(candidateCards.size == optionList.size) { "Compatibility options must be cards" }
-            val selected = bridge.requestCompatibilityCostSelection(request, candidateCards)
+            val selected = bridge.requestCompatibilityCostSelection(request, optionList.toList())
             return selected.handles.map { handle -> optionList.first { it === handle } }
         }
         val indices = residual?.indices ?: bridge.requestChoice(request)
@@ -1121,7 +1119,8 @@ class TargetingCoordinator(
             return CardCollection(bridge.requestCardSelect(request, cards.toList()).handles)
         }
         if (request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
-            return CardCollection(bridge.requestCompatibilityCostSelection(request, cards.toList()).handles)
+            val indices = bridge.requestCompatibilityCostSelection(request, cards.toList()).optionIndices
+            return CardCollection(indices.filter { it in 0 until cards.size }.map(cards::get))
         }
         val indices = residual?.indices ?: bridge.requestChoice(request)
         val result = CardCollection()

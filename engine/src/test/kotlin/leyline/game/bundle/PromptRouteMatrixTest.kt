@@ -63,6 +63,8 @@ class PromptRouteMatrixTest :
                     PromptSemantic.RevealChoose to
                         ResolvedPromptRoute.RevealChoice(PromptSemantic.RevealChoose),
                     PromptSemantic.SelectNResolution to selectN(PromptSemantic.SelectNResolution),
+                    PromptSemantic.Proliferate to
+                        ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Proliferate),
                     PromptSemantic.ManifestDread to
                         cardSelect(PromptSemantic.ManifestDread, CardSelectKind.ManifestDread),
                     PromptSemantic.SuspectChoice to

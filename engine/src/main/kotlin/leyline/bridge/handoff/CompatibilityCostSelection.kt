@@ -1,18 +1,18 @@
 package leyline.bridge.handoff
 
-import forge.game.card.Card
+import forge.game.GameEntity
 
-/** Exact SelectTargets-compatible residual card choice owned by the match cut. */
+/** Exact SelectTargets-compatible entity choice owned by the match cut. */
 interface CompatibilityCostSelectionRuntime {
     fun awaitSelection(
         request: PromptRequest,
-        candidateHandles: List<Card>,
+        candidateHandles: List<GameEntity>,
         timeoutMs: Long?,
     ): CompatibilityCostSelectionResult
 }
 
 data class CompatibilityCostSelectionResult(
     val optionIndices: List<Int>,
-    val handles: List<Card>,
+    val handles: List<GameEntity>,
     val timedOut: Boolean = false,
 )

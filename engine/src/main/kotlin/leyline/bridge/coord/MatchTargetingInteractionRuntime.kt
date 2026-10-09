@@ -52,10 +52,10 @@ internal class MatchTargetingInteractionRuntime(
         )
     }
 
-    /** Shared SelectTargets lifecycle for residual card choices. */
+    /** Shared SelectTargets lifecycle for entity choices. */
     internal fun awaitCompatibility(
         request: PromptRequest,
-        candidateHandles: List<forge.game.card.Card>,
+        candidateHandles: List<forge.game.GameEntity>,
         timeoutMs: Long?,
     ): List<Int> {
         check(request.route is ResolvedPromptRoute.CompatibilityCostSelection)

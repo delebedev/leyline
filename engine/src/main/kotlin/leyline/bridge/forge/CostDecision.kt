@@ -144,7 +144,11 @@ class CostDecision(
                     route = ResolvedPromptRoute.CompatibilityCostSelection(PromptSemantic.Generic),
                 )
             val selection = bridge.requestCompatibilityCostSelection(request, list.toList())
-            val card = selection.handles.firstOrNull() ?: return null
+            val card =
+                selection.optionIndices
+                    .firstOrNull()
+                    ?.takeIf { it in list.indices }
+                    ?.let(list::get) ?: return null
 
             val cType =
                 if (cost.counter != null) {
