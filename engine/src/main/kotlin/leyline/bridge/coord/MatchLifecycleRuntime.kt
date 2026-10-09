@@ -192,6 +192,7 @@ internal class MatchLifecycleRuntime(
         val horizonMessage =
             mulliganPrompt?.let {
                 LifecycleMessageMaterializer.mulliganRequest(
+                    bridge = owner.bridge,
                     msgId = planner.currentMsgId(),
                     gameStateId = gameStateId,
                     seatId = seatId,

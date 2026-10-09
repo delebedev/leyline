@@ -209,6 +209,8 @@ object GameBootstrap {
 
         val rules = GameRules(gameType)
         rules.addAppliedVariant(gameType)
+        // This local Commander flow grants a free first redraw; generic two-player Commander does not.
+        if (gameType == GameType.Commander) rules.setFreeFirstMulligan(true)
         val match = Match(rules, players, "Forge Web")
         val game = Game(players, rules, match)
 
@@ -266,6 +268,7 @@ object GameBootstrap {
 
         val rules = GameRules(gameType)
         rules.addAppliedVariant(gameType)
+        if (gameType == GameType.Commander) rules.setFreeFirstMulligan(true)
         val match = Match(rules, players, "Forge Web")
         return Game(players, rules, match)
     }

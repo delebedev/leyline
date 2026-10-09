@@ -93,6 +93,7 @@ class DealHandConformanceTest :
                 mull.type shouldBe GREMessageType.MulliganReq_aa0d
                 mull.hasPrompt().shouldBeTrue()
                 mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+                mull.mulliganReq.freeMulliganCount shouldBe 0
             }
         }
 
@@ -129,6 +130,7 @@ class DealHandConformanceTest :
                 mull.type shouldBe GREMessageType.MulliganReq_aa0d
                 mull.hasPrompt().shouldBeTrue()
                 mull.prompt.promptId shouldBe PromptIds.MULLIGAN
+                mull.mulliganReq.freeMulliganCount shouldBe 0
             }
         }
 

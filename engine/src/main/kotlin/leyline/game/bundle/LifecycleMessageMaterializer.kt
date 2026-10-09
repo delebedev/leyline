@@ -37,6 +37,7 @@ object LifecycleMessageMaterializer {
     )
 
     internal fun mulliganRequest(
+        bridge: GameBridge,
         msgId: Int,
         gameStateId: Int,
         seatId: SeatId,
@@ -47,16 +48,21 @@ object LifecycleMessageMaterializer {
         when (prompt.phase) {
             MulliganPhase.WaitingKeep ->
                 keepRequest
-                    ?.toBuilder()
-                    ?.setMsgId(msgId)
-                    ?.setGameStateId(gameStateId)
-                    ?.build()
+                    ?.let { cached ->
+                        cached
+                            .toBuilder()
+                            .setMsgId(msgId)
+                            .setGameStateId(gameStateId)
+                            .setMulliganReq(cached.mulliganReq.toBuilder().setMulliganCount(bridge.mulliganBridge(seatId).redrawCount))
+                            .build()
+                    }
                     ?: GsmBuilder.buildMulliganReq(
+                        bridge = bridge,
                         msgId = msgId,
                         gameStateId = gameStateId,
                         seatId = seatId.value,
                         numCards = handInstanceIds.size,
-                        mulliganCount = prompt.mulliganCount,
+                        mulliganCount = bridge.mulliganBridge(seatId).redrawCount,
                     )
             MulliganPhase.WaitingTuck ->
                 GsmBuilder.buildGroupReq(
@@ -351,6 +357,7 @@ object LifecycleMessageMaterializer {
                 .build()
         val request =
             mulliganRequestMessages(
+                bridge,
                 msgIdStart + 1,
                 requestGameStateId,
                 states.second,
@@ -364,6 +371,7 @@ object LifecycleMessageMaterializer {
                 request.messages.map { message ->
                     if (message.hasMulliganReq()) {
                         mulliganRequest(
+                            bridge,
                             message.msgId,
                             requestGameStateId,
                             seatId,
@@ -409,7 +417,7 @@ object LifecycleMessageMaterializer {
                 .setGameStateId(gameStateId)
                 .setGameStateMessage(gsm)
                 .build()
-        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 2)
+        val greMull = GsmBuilder.buildMulliganReq(bridge, msgId++, gameStateId, 2)
         return LifecycleMessages(listOf(greGsm, greMull), msgId, transition)
     }
 
@@ -429,7 +437,7 @@ object LifecycleMessageMaterializer {
                 val mulliganSnap = GsmSnapshot.capture(bridge.getGame()!!, bridge, "", 0)
                 mulliganSnap to buildMulliganRequestState(gameStateId, mulliganSnap)
             }
-        return mulliganRequestMessages(msgIdStart, gameStateId, gsm, mulliganCount, numCards, transition)
+        return mulliganRequestMessages(bridge, msgIdStart, gameStateId, gsm, mulliganCount, numCards, transition)
     }
 
     internal fun mulliganTuck(
@@ -459,6 +467,7 @@ object LifecycleMessageMaterializer {
                 .build()
         val request =
             mulliganRequest(
+                bridge,
                 msgId + 1,
                 gameStateId,
                 seatId,
@@ -486,6 +495,7 @@ object LifecycleMessageMaterializer {
             .build()
 
     private fun mulliganRequestMessages(
+        bridge: GameBridge,
         msgIdStart: Int,
         gameStateId: Int,
         gsm: GameStateMessage,
@@ -532,7 +542,7 @@ object LifecycleMessageMaterializer {
                 ).build()
 
         // 3) MulliganReq for seat 1
-        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
+        val greMull = GsmBuilder.buildMulliganReq(bridge, msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
 
         return LifecycleMessages(listOf(greGsm, grePrompt, greMull), msgId, transition)
     }

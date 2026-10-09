@@ -25,9 +25,11 @@ import leyline.game.InMemoryCardRepository
 import leyline.game.advanceToMain1
 import leyline.game.awaitFreshPending
 import leyline.game.bundle.BundleBuilder
+import leyline.game.bundle.LifecycleMessageMaterializer
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.event.FrameEventLog
 import leyline.game.mapping.ActionMapper
+import leyline.game.mapping.StateZoneProjection
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.GameBridge
@@ -168,6 +170,123 @@ class GameBridgeTest :
             val handAfter = b.getHandGrpIds(SeatId(1))
             handAfter.size shouldBe 7
             b.mulliganBridge(SeatId(1)).pendingPrompt()?.mulliganCount shouldBe 1
+        }
+
+        test("configured Commander keeps seven after the free redraw and bottoms one after the next") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(
+                seed = 42L,
+                variant = "commander",
+                deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
+            )
+            val cachedInitialRequest = LifecycleMessageMaterializer.mulliganReqSeat1(1, 3, b).messages.last()
+
+            assertSoftly {
+                StateZoneProjection.buildGameInfo("match", b.stateProjectionEnvironment.matchConfig).freeMulliganCount shouldBe 1
+                LifecycleMessageMaterializer
+                    .dealHandMulliganSeat2(1, 2, b)
+                    .messages
+                    .last()
+                    .mulliganReq.freeMulliganCount shouldBe 1
+                cachedInitialRequest.mulliganReq.freeMulliganCount shouldBe 1
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        1,
+                        3,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.freeMulliganCount shouldBe 1
+            }
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitMull(SeatId(1)))
+            val afterFreeRedraw =
+                LifecycleMessageMaterializer.mulliganRequest(
+                    b,
+                    20,
+                    4,
+                    SeatId(1),
+                    checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                    b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                    cachedInitialRequest,
+                )
+            assertSoftly {
+                afterFreeRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                afterFreeRedraw.mulliganReq.mulliganCount shouldBe 1
+                afterFreeRedraw.msgId shouldBe 20
+                afterFreeRedraw.gameStateId shouldBe 4
+                afterFreeRedraw.prompt shouldBe cachedInitialRequest.prompt
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        22,
+                        4,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.mulliganCount shouldBe 1
+            }
+            LifecycleMessageMaterializer
+                .mulliganReqSeat1(1, 4, b, mulliganCount = 1)
+                .messages
+                .last()
+                .mulliganReq.freeMulliganCount shouldBe 1
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitMull(SeatId(1)))
+            val afterPaidRedraw =
+                LifecycleMessageMaterializer.mulliganRequest(
+                    b,
+                    21,
+                    5,
+                    SeatId(1),
+                    checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                    b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                    cachedInitialRequest,
+                )
+            assertSoftly {
+                afterPaidRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                afterPaidRedraw.mulliganReq.mulliganCount shouldBe 2
+                cachedInitialRequest.mulliganReq.mulliganCount shouldBe 0
+                LifecycleMessageMaterializer
+                    .mulliganRequest(
+                        b,
+                        23,
+                        5,
+                        SeatId(1),
+                        checkNotNull(b.mulliganBridge(SeatId(1)).pendingPrompt()),
+                        b.getHandCards(SeatId(1)).map { b.instance(it).value },
+                        null,
+                    ).mulliganReq.mulliganCount shouldBe 2
+            }
+            check(b.getHandGrpIds(SeatId(1)).size == 7)
+            check(b.submitKeep(SeatId(1)))
+            b.awaitTuckReady()
+            check(b.getTuckCount() == 1)
+            check(b.submitTuck(SeatId(1), b.getHandCards(SeatId(1)).take(1)))
+            check(b.awaitActionPriority(SeatId(1)))
+            b.getHandGrpIds(SeatId(1)).size shouldBe 6
+        }
+
+        test("two-player Oathbreaker projection has no free mulligan") {
+            val b = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = b
+            b.start(
+                seed = 42L,
+                variant = "oathbreaker",
+                deckList = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains",
+            )
+
+            val info = StateZoneProjection.buildGameInfo("match", b.stateProjectionEnvironment.matchConfig)
+            assertSoftly {
+                info.variant shouldBe Messages.GameVariant.Brawl
+                info.freeMulliganCount shouldBe 0
+            }
         }
 
         test("two redraws retain seven until two cards are selected for bottom") {

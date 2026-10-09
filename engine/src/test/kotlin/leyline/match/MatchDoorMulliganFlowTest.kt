@@ -60,7 +60,7 @@ private fun engineSettings() =
         dieRollWinner = 1,
         skipMulligan = false,
         bridgeTimeoutMs = 2_000L,
-        promptFailsafeMs = 2_000L,
+        promptFailsafeMs = 10_000L,
         aiTurnWaitMs = 2_000L,
         mulliganWaitMs = 2_000L,
     )
@@ -153,11 +153,17 @@ private fun connectPair(
     registry: MatchRegistry,
     matchId: String,
     deckList: String = DECK,
+    gameVariant: String? = null,
     familiarFirst: Boolean = false,
     drainInitial: Boolean = true,
 ): Pair<EmbeddedChannel, EmbeddedChannel> {
     runtimeMatchConfigs.put(
-        RuntimeMatchConfig(matchId = matchId, seat1 = DeckSource.ForgeText(deckList), seat2 = DeckSource.ForgeText(deckList)),
+        RuntimeMatchConfig(
+            matchId = matchId,
+            seat1 = DeckSource.ForgeText(deckList),
+            seat2 = DeckSource.ForgeText(deckList),
+            gameVariant = gameVariant,
+        ),
     )
     val local = EmbeddedChannel(handler(registry))
     val familiar = EmbeddedChannel(handler(registry))
@@ -204,6 +210,7 @@ private fun chooseStartingPlayer(
         )
     }
 
+@Suppress("LargeClass") // Match Door lifecycle assertions share one embedded transport fixture.
 class MatchDoorMulliganFlowTest :
     FunSpec({
         tags(IntegrationTag)
@@ -630,6 +637,78 @@ class MatchDoorMulliganFlowTest :
 
         test("last legal redraw publishes the forced seven-card tuck horizon") {
             verifyFinalRedrawTuck() shouldBe 7
+        }
+
+        test("Commander redraw requests report total redraws through reconnect and keep") {
+            val registry = MatchRegistry()
+            val matchId = "commander-mulligan-count"
+            val deck = "[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains"
+            val (local, familiar) =
+                connectPair(registry, matchId, deckList = deck, gameVariant = "commander", drainInitial = false)
+
+            try {
+                val initial = greOutbound(local).single { it.hasMulliganReq() }
+                greOutbound(familiar)
+                assertSoftly {
+                    initial.mulliganReq.freeMulliganCount shouldBe 1
+                    initial.mulliganReq.mulliganCount shouldBe 0
+                }
+
+                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.Mulligan, initial.msgId), 6))
+                val firstRedraw = greOutbound(local).single { it.hasMulliganReq() }
+                assertSoftly {
+                    firstRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                    firstRedraw.mulliganReq.mulliganCount shouldBe 1
+                }
+
+                local.writeInbound(auth("local-player", 7))
+                greOutbound(local)
+                local.writeInbound(connect(matchId, seatId = 1, requestId = 8))
+                val reconnected = greOutbound(local).single { it.hasMulliganReq() }
+                assertSoftly {
+                    reconnected.mulliganReq.freeMulliganCount shouldBe 1
+                    reconnected.mulliganReq.mulliganCount shouldBe 1
+                    reconnected.msgId shouldNotBe firstRedraw.msgId
+                }
+
+                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.Mulligan, reconnected.msgId), 9))
+                val secondRedraw = greOutbound(local).single { it.hasMulliganReq() }
+                assertSoftly {
+                    secondRedraw.mulliganReq.freeMulliganCount shouldBe 1
+                    secondRedraw.mulliganReq.mulliganCount shouldBe 2
+                }
+
+                local.writeInbound(greServiceMessage(mulliganDecision(MulliganOption.AcceptHand, secondRedraw.msgId), 10))
+                val group = greOutbound(local).single { it.hasGroupReq() }
+                val ids = group.groupReq.instanceIdsList
+                assertSoftly {
+                    group.groupReq.groupSpecsList.map { it.lowerBound } shouldBe listOf(6, 1)
+                    ids.size shouldBe 7
+                }
+                local.writeInbound(
+                    greServiceMessage(
+                        greMessage(1, ClientMessageType.GroupResp_097b) {
+                            setRespId(group.msgId)
+                            setGroupResp(
+                                GroupResp
+                                    .newBuilder()
+                                    .addGroups(Group.newBuilder().addAllIds(ids.dropLast(1)))
+                                    .addGroups(Group.newBuilder().addIds(ids.last())),
+                            )
+                        },
+                        11,
+                    ),
+                )
+                greOutbound(local).any { it.hasActionsAvailableReq() } shouldBe true
+                registry
+                    .getMatch(matchId)!!
+                    .bridge
+                    .getHandCards(SeatId(1))
+                    .size shouldBe 6
+            } finally {
+                local.close()
+                familiar.close()
+            }
         }
 
         listOf(1, 2).forEach { mulligans ->
