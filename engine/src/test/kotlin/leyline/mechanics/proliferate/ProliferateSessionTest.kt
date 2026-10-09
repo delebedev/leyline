@@ -2,9 +2,9 @@ package leyline.mechanics.proliferate
 
 import forge.game.card.CounterEnumType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class ProliferateSessionTest :
     SessionTest({
@@ -30,12 +30,25 @@ class ProliferateSessionTest :
                     .last { it.hasSelectTargetsReq() }
                     .selectTargetsReq.targetsList
                     .single()
-            first.minTargets shouldBe 0
-            first.targetsList.map { it.targetInstanceId } shouldContainAll listOf(1, 2, creatureIid)
+            assertSoftly {
+                first.minTargets shouldBe 0
+                first.targetsList.map { it.targetInstanceId }.sorted() shouldBe listOf(1, 2, creatureIid).sorted()
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .none { AnnotationType.PlayerSelectingTargets in it.typeList } shouldBe true
+            }
 
             selectTargets(listOf(creatureIid, 2))
             passUntil(maxPasses = 20) { creature.getCounters(CounterEnumType.P1P1) == 2 } shouldBe true
             assertSoftly {
+                allMessages
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.annotationsList }
+                    .none {
+                        AnnotationType.PlayerSelectingTargets in it.typeList ||
+                            AnnotationType.PlayerSubmittedTargets in it.typeList
+                    } shouldBe true
                 creature.getCounters(CounterEnumType.P1P1) shouldBe 2
                 human.getCounters(CounterEnumType.POISON) shouldBe 1
                 ai.getCounters(CounterEnumType.POISON) shouldBe 2

@@ -159,6 +159,7 @@ internal class MatchTargetingInteractionRuntime(
                             value,
                             transientSourceCard,
                             owner.viewerRoutes(),
+                            kind,
                         )
                     } catch (ex: Exception) {
                         owner.fail(ex)
@@ -302,7 +303,7 @@ internal class MatchTargetingInteractionRuntime(
                     feed.builder.prepareTargetingSubmit(
                         planner,
                         prior,
-                        pending.sourceInstanceId,
+                        pending.sourceInstanceId.takeIf { pending.published.kind == TargetingInteractionKind.Targeting },
                         owner.humanSeat,
                     )
                 } catch (ex: Exception) {

@@ -17,6 +17,7 @@ import leyline.bridge.handoff.ReplacementWindowValue
 import leyline.bridge.handoff.RevealChoiceWindowValue
 import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.StaticChoiceKind
+import leyline.bridge.handoff.TargetingInteractionKind
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.InstanceId
@@ -1453,8 +1454,9 @@ class BundleBuilder(
         window: TargetingWindowValue,
         transientSourceCard: BoundCard? = null,
         routes: List<ViewerRoute>,
+        kind: TargetingInteractionKind = TargetingInteractionKind.Targeting,
     ): PreparedViewerCut<TargetingWindowMaterializer.Prepared> {
-        val intent = ViewerProjectionIntent.of(targetingSupplements(window, transientSourceCard))
+        val intent = ViewerProjectionIntent.of(targetingSupplements(window, transientSourceCard, kind))
         val frame = prepareViewerPromptProjection(game, counter, routes, intent)
         return finishViewerPrompt(
             frame,
@@ -1951,6 +1953,7 @@ class BundleBuilder(
     private fun targetingSupplements(
         window: TargetingWindowValue,
         transientSourceCard: BoundCard?,
+        kind: TargetingInteractionKind,
     ): List<ProjectionSupplement> {
         val abilityId = window.forgeAbilityId.takeIf { (window.isTriggeredAbility || window.isActivatedAbility) && it != 0 }
         val sourceId = window.sourceForgeCardId
@@ -1979,6 +1982,7 @@ class BundleBuilder(
                 )
             }
             when {
+                kind != TargetingInteractionKind.Targeting -> Unit
                 sourceId != null ->
                     add(
                         ProjectionSupplement.PlayerSelectingTargets(
