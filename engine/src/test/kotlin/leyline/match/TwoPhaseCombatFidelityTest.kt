@@ -12,6 +12,7 @@ import leyline.copilot.CopilotProposalService
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.BlockWarningType
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.FailureReason
@@ -51,12 +52,22 @@ class TwoPhaseCombatFidelityTest :
                     .first()
                     .attackerInstanceIdsList
                     .first()
+            prompt.declareBlockersReq.blockWarningsCount shouldBe 0
             toggleBlockers(mapOf(corpse to attacker))
+            val warning =
+                allMessages
+                    .last { it.hasDeclareBlockersReq() }
+                    .declareBlockersReq.blockWarningsList
+                    .single()
+            warning.instanceId shouldBe attacker
+            warning.type shouldBe BlockWarningType.InsufficientBlockers
+            warning.warningPromptId shouldBe 117
             val selectedPrompt = latestPromptMsgId()
             repeat(2) {
                 submitBlockers()
                 val retry = allMessages.last { it.hasDeclareBlockersReq() }
                 retry.msgId shouldBeGreaterThan selectedPrompt
+                retry.declareBlockersReq.blockWarningsCount shouldBe 0
                 bridge
                     .getGame()!!
                     .combat.allBlockers.size shouldBe 0
@@ -66,6 +77,7 @@ class TwoPhaseCombatFidelityTest :
                 toggleBlockers(mapOf(corpse to attacker))
             }
             toggleBlockers(mapOf(bear to attacker))
+            allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq.blockWarningsCount shouldBe 0
             submitBlockers()
             bridge
                 .getGame()!!

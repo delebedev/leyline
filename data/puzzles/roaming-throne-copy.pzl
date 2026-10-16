@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: A copied token chooses a creature type before entering the battlefield.
+# Forcing: Molten Duplication copies the only permanent target, Roaming Throne.
+# AI behavior: The opponent has no hand or battlefield decisions.
+# Failure modes: A missing choice prevents entry; success leaves two Thrones with independent chosen types.
+# Card roles: Molten Duplication creates the token; Roaming Throne supplies the entry choice; Mountains pay the spell cost.
+# Protocol path: Cast, SelectTargets, static subtype SelectN, then battlefield state and priority.
+
+[metadata]
+Name:Roaming Throne Copy
+Goal:Survive
+Turns:3
+Difficulty:Tutorial
+Description:Copy Roaming Throne with Molten Duplication and choose Goblin for the token.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Molten Duplication
+humanbattlefield=Mountain;Mountain;Roaming Throne|ChosenType:Elf
+humanlibrary=Mountain;Mountain;Mountain
+ailibrary=Forest;Forest;Forest
