@@ -126,6 +126,7 @@ class PromptRouteMatrixTest :
                     PromptSemantic.LearnLesson to
                         cardSelect(PromptSemantic.LearnLesson, CardSelectKind.Learn),
                     PromptSemantic.DungeonChoice to staticChoice(PromptSemantic.DungeonChoice, StaticChoiceKind.Dungeon),
+                    PromptSemantic.NamedChoice to staticChoice(PromptSemantic.NamedChoice, StaticChoiceKind.Named),
                     PromptSemantic.DungeonRoomChoice to staticChoice(PromptSemantic.DungeonRoomChoice, StaticChoiceKind.DungeonRoom),
                     PromptSemantic.StaticColorChoice to staticChoice(PromptSemantic.StaticColorChoice, StaticChoiceKind.Color),
                     PromptSemantic.StaticSubtypeChoice to staticChoice(PromptSemantic.StaticSubtypeChoice, StaticChoiceKind.Subtype),
