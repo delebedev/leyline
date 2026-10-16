@@ -8,7 +8,7 @@ Forge — MTG rules engine
   License: GPL-3.0
   Copyright: Forge contributors
 
-MtgaProto — MTG Arena protobuf definitions
+MtgaProto
   https://github.com/riQQ/MtgaProto
-  License: MIT
-  Copyright: riQQ
+  Protocol field definitions and numeric identifiers.
+  Upstream does not specify a license.
