@@ -40,7 +40,7 @@ class ForgeCatalogIndexTest :
                 path,
                 Files.readString(path).replace(
                     ForgeCatalogIndex.IDENTITY_SCHEME,
-                    "forge-card-catalog-v9-dungeon-rooms",
+                    "forge-card-catalog-v10-granted-trigger-modes",
                 ),
             )
             shouldThrow<IllegalArgumentException> { ForgeCardRepository.open(path, archiveHash) }
