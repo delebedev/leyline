@@ -121,7 +121,10 @@ class StackTargetingInteractionTest :
             respondToOptionalCost(0)
             latestTargetSourceName() shouldBe "Make Disappear"
             val shockTarget = latestTargetIidByCardName("Shock")
+            holdNextOptionalAction()
             selectTargets(listOf(shockTarget))
+            passUntilResolved(maxPasses = 10)
+            respondToOptionalAction(false)
             passUntilResolved(maxPasses = 10)
 
             ai.life shouldBe 20
@@ -154,7 +157,10 @@ class StackTargetingInteractionTest :
                 selection.maxTargets shouldBe 1
                 prompt.allowCancel shouldBe AllowCancel.Abort
             }
+            holdNextOptionalAction()
             selectTargets(listOf(shockTarget))
+            passUntilResolved(maxPasses = 10)
+            respondToOptionalAction(false)
             passUntilResolved(maxPasses = 10)
 
             assertSoftly {
@@ -243,7 +249,13 @@ class StackTargetingInteractionTest :
                     originalPrompt.targetsList.single().targetingAbilityGrpId
             }
             val shockTarget = latestTargetIidByCardName("Shock")
+            holdNextOptionalAction()
             selectTargets(listOf(shockTarget))
+            passUntilResolved(maxPasses = 20)
+            respondToOptionalAction(false)
+            holdNextOptionalAction()
+            passUntilResolved(maxPasses = 20)
+            respondToOptionalAction(false)
             passUntilResolved(maxPasses = 20)
 
             ai.life shouldBe 20
