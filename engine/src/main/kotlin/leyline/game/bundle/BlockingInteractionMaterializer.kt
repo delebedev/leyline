@@ -34,6 +34,26 @@ internal class BlockingInteractionMaterializer(
         val closesPlaybackFrame: Boolean = false,
     )
 
+    private fun optionalPrompt(
+        interaction: BlockingInteraction.Optional,
+        sourceId: Int,
+    ): Prompt =
+        Prompt
+            .newBuilder()
+            .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
+            .addParameters(cardIdPromptParameter(sourceId))
+            .apply {
+                interaction.paymentCost?.let { cost ->
+                    addParameters(
+                        PromptParameter
+                            .newBuilder()
+                            .setParameterName("Cost")
+                            .setType(ParameterType.NonLocalizedString)
+                            .setStringValue(cost),
+                    )
+                }
+            }.build()
+
     fun generalOptional(
         prior: ProjectionState,
         counter: LogicalSequencePlanner,
@@ -46,11 +66,7 @@ internal class BlockingInteractionMaterializer(
                     ?: error("Optional interaction requires a source")
             val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
             val prompt =
-                Prompt
-                    .newBuilder()
-                    .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
-                    .addParameters(cardIdPromptParameter(sourceId))
-                    .build()
+                optionalPrompt(interaction, sourceId)
             val link = counter.nextGameStateLink()
             val pending = pendingMessage(link)
             BundleBuilder.BundleResult(
@@ -199,11 +215,7 @@ internal class BlockingInteractionMaterializer(
         }
         val optional = OptionalActionMessage.newBuilder().setSourceId(sourceId).build()
         val prompt =
-            Prompt
-                .newBuilder()
-                .setPromptId(interaction.customPromptId ?: PromptIds.OPTIONAL_ACTION)
-                .addParameters(cardIdPromptParameter(sourceId))
-                .build()
+            optionalPrompt(interaction, sourceId)
         return Prepared(
             BundleBuilder.BundleResult(
                 stateMessages +

@@ -1024,6 +1024,7 @@ class PlayerController(
                         hostCard = sa.hostCard,
                         defaultOnTimeout = false,
                         logContext = "payCostToPreventEffect:mana",
+                        paymentCost = single.mana.toString(),
                     )
                 if (!accepted) return false
             }

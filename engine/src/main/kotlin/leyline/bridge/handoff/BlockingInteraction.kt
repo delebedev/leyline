@@ -12,6 +12,7 @@ sealed interface BlockingInteraction {
         val commanderReturn: CommanderReturnPromptContext?,
         val freeCast: FreeCast? = null,
         val etbPayLifeReplacement: Boolean = false,
+        val paymentCost: String? = null,
     ) : BlockingInteraction
 
     data class FreeCast(

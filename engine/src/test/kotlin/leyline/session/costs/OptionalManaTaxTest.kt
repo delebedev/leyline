@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 
 class OptionalManaTaxTest :
     SessionTest({
@@ -38,8 +39,13 @@ class OptionalManaTaxTest :
                 passUntil(maxPasses = 40) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
                 allMessages.any { it.hasOptionalActionMessage() }.shouldBeTrue()
                 val offer = allMessages.last { it.hasOptionalActionMessage() }
-                offer.optionalActionMessage.sourceId shouldBe ai.battlefield.iid("Smothering Tithe")
-                human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                val cost = offer.prompt.parametersList.single { it.parameterName == "Cost" }
+                assertSoftly {
+                    offer.optionalActionMessage.sourceId shouldBe ai.battlefield.iid("Smothering Tithe")
+                    cost.type shouldBe ParameterType.NonLocalizedString
+                    cost.stringValue shouldBe "{2}"
+                    human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
+                }
                 respondToOptionalAction(accept = case.accept)
                 advanceToMain1()
                 assertSoftly {
@@ -68,6 +74,10 @@ class OptionalManaTaxTest :
             holdNextOptionalAction()
             passUntil(maxPasses = 40) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
             allMessages.any { it.hasOptionalActionMessage() }.shouldBeTrue()
+            val offer = allMessages.last { it.hasOptionalActionMessage() }
+            offer.prompt.parametersList
+                .single { it.parameterName == "Cost" }
+                .stringValue shouldBe "{X}"
             respondToOptionalAction(accept = true)
             advanceToMain1()
             assertSoftly {
