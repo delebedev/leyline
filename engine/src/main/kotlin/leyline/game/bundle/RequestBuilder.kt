@@ -8,6 +8,7 @@ import forge.game.player.Player
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -198,6 +199,23 @@ object RequestBuilder {
                 blocker.addAllAttackerInstanceIds(legalAttackerIds)
             }
             builder.addBlockers(blocker)
+        }
+        val assignedCounts = blockerAssignments.values.groupingBy { it }.eachCount()
+        for (attacker in combat.attackers) {
+            val minimum = CombatUtil.getMinNumBlockersForAttacker(attacker, player)
+            if (minimum <= 1) continue
+            builder.setHasRestrictions(true)
+            val instanceId = bridge.instanceId(attacker)
+            val count = assignedCounts[instanceId] ?: 0
+            if (count in 1 until minimum) {
+                builder.addBlockWarnings(
+                    BlockWarning
+                        .newBuilder()
+                        .setInstanceId(instanceId)
+                        .setType(BlockWarningType.InsufficientBlockers)
+                        .setWarningPromptId(PromptIds.INSUFFICIENT_BLOCKERS),
+                )
+            }
         }
         // Conformance: client expects empty manaCost
         builder.addManaCost(ManaRequirement.getDefaultInstance())
