@@ -231,7 +231,7 @@ class ForgeCardRepository private constructor(
                 }.distinct()
         }
 
-        /** Modal choices may be referenced by an entering replacement or an Execute chain. */
+        /** Modal choices may be referenced by entering replacements, granted triggers, or Execute chains. */
         private fun modalEffect(
             raw: String,
             variables: Map<String, String>,
@@ -243,7 +243,7 @@ class ForgeCardRepository private constructor(
             }
             val visited = mutableSetOf<String>()
             while (!effect.containsKey("Choices")) {
-                val variable = effect["Execute"] ?: break
+                val variable = effect["Execute"] ?: effect["AddTrigger"] ?: break
                 if (!visited.add(variable)) break
                 effect = variables[variable]?.let(::parseParams) ?: break
             }
