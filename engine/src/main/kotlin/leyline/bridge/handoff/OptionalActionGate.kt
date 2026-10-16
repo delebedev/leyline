@@ -60,6 +60,7 @@ class OptionalActionGate(
         commanderReturn: CommanderReturnPromptContext? = null,
         freeCast: BlockingInteraction.FreeCast? = null,
         etbPayLifeReplacement: Boolean = false,
+        paymentCost: String? = null,
     ): Boolean {
         if (hostCard == null) return true
         return interactionRuntime.awaitOptional(
@@ -70,6 +71,7 @@ class OptionalActionGate(
                 commanderReturn = commanderReturn,
                 freeCast = freeCast,
                 etbPayLifeReplacement = etbPayLifeReplacement,
+                paymentCost = paymentCost,
             ),
             sourceCard = hostCard,
             timeoutMs = actionBridge?.getTimeoutMs(),

@@ -509,6 +509,8 @@ scenarios:
           prompt: SelectTargetsReq
           max_passes: 4
       - target: { side: ours, zone: stack, card: Shock }
+      - optional_action: { accept: false }
+      - optional_action: { accept: false }
       - resolve_stack: {}
       - expect:
           all:

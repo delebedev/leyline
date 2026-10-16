@@ -13,6 +13,7 @@ scenarios:
       - expect:
           prompt: SelectTargetsReq
       - target: { side: ours, zone: stack, card: Shock }
+      - optional_action: { accept: false }
       - resolve_stack: {}
       - expect:
           all:
