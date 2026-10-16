@@ -191,8 +191,9 @@ For mana color translation, use `ManaColorMapping`. Forge's color bitmasks and t
 
 Protection choices retain Forge's offered quality strings and order. Color-only
 choices use the static color-choice runtime with the exact allowed CardColors
-subset, including colorless value zero when offered. Other qualities retain the
-inherited callback until their choice domain is supported.
+subset, including colorless value zero when offered. Mixed qualities use named
+prompt-parameter choices with exact labels and one-based selection identities;
+the selected original string returns to Forge without color-enum conversion.
 
 For land color production:
 

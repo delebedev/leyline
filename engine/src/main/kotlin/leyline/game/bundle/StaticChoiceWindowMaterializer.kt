@@ -8,7 +8,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.IdType
 import wotc.mtgo.gre.external.messaging.Messages.OptionContext
+import wotc.mtgo.gre.external.messaging.Messages.ParameterType
 import wotc.mtgo.gre.external.messaging.Messages.Prompt
+import wotc.mtgo.gre.external.messaging.Messages.PromptParameter
 import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
 import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
@@ -75,8 +77,22 @@ internal class StaticChoiceWindowMaterializer {
             .setMaxWeight(Int.MAX_VALUE)
             .setMinSel(window.min)
             .setMaxSel(window.max)
-            .setPrompt(Prompt.newBuilder())
-            .apply {
+            .setPrompt(
+                Prompt.newBuilder().apply {
+                    if (window.kind == StaticChoiceKind.Named) {
+                        window.options.forEach { option ->
+                            addParameters(
+                                PromptParameter
+                                    .newBuilder()
+                                    .setParameterName(
+                                        "Choice",
+                                    ).setType(ParameterType.NonLocalizedString)
+                                    .setStringValue(checkNotNull(option.label)),
+                            )
+                        }
+                    }
+                },
+            ).apply {
                 window.sourceForgeCardId?.let { sourceId = context.requiredInstanceId(it, "StaticChoice source") }
                 window.staticList?.let { staticList = it }
                 if (window.sourceForgeAbilityId != 0) {
@@ -87,7 +103,17 @@ internal class StaticChoiceWindowMaterializer {
                         )
                 }
                 if (listType == SelectionListType.Dynamic) {
-                    idType = if (window.kind == StaticChoiceKind.Dungeon) IdType.CardGrpId else IdType.AbilityGrpId
+                    idType =
+                        when (window.kind) {
+                            StaticChoiceKind.Named -> IdType.PromptParameterIndex
+                            StaticChoiceKind.Dungeon -> IdType.CardGrpId
+                            StaticChoiceKind.DungeonRoom,
+                            StaticChoiceKind.Color,
+                            StaticChoiceKind.Subtype,
+                            StaticChoiceKind.CardType,
+                            StaticChoiceKind.Parity,
+                            -> IdType.AbilityGrpId
+                        }
                 }
                 if (listType != SelectionListType.Static) addAllIds(window.options.map { it.protocolValue })
             }.build()
@@ -96,6 +122,7 @@ internal class StaticChoiceWindowMaterializer {
     private fun outerPromptId(kind: StaticChoiceKind): Int =
         when (kind) {
             StaticChoiceKind.Color -> PromptIds.CHOOSE_COLOR
+            StaticChoiceKind.Named,
             StaticChoiceKind.Dungeon,
             StaticChoiceKind.DungeonRoom,
             StaticChoiceKind.Subtype,

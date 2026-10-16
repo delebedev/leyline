@@ -353,15 +353,45 @@ class MatchStaticChoiceInteractionRuntimeTest :
             }
         }
 
-        test("mixed protection qualities retain inherited fallback without a color prompt") {
-            val board = startPuzzleAtMain1(puzzle)
-            val source = board.human.battlefield.card("Island")
-            val controller = board.human.controller as PlayerController
-            board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
-            controller.chooseProtectionType(source.spellAbilities.first(), listOf("red", "Artifact")) shouldBe "red"
-            board.bridge.cutCoordinator.staticChoices
-                .current()
-                .shouldBeNull()
+        for (selected in listOf("red", "Artifact")) {
+            test("mixed protection qualities publish every exact label and return $selected") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val source = board.human.battlefield.card("Island")
+                val controller = board.human.controller as PlayerController
+                val result = AtomicReference<String>()
+                val finished = CountDownLatch(1)
+                val options = listOf("red", "Artifact")
+                Thread {
+                    try {
+                        board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+                        result.set(controller.chooseProtectionType(source.spellAbilities.first(), options))
+                    } finally {
+                        finished.countDown()
+                    }
+                }.start()
+                val published = awaitPublished(coordinator)
+                val req =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+                        .selectNReq
+                assertSoftly {
+                    req.listType shouldBe SelectionListType.Dynamic
+                    req.idType shouldBe IdType.PromptParameterIndex
+                    req.idsList shouldContainExactly listOf(1, 2)
+                    req.prompt.parametersList.map { it.type } shouldContainExactly List(2) { ParameterType.NonLocalizedString }
+                    req.prompt.parametersList.map { it.stringValue } shouldContainExactly options
+                    coordinator.acceptSettled(
+                        leyline.testkit.selectNResp(listOf(options.indexOf(selected) + 1)),
+                        published.gameStateId,
+                    ) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    result.get() shouldBe selected
+                }
+            }
         }
 
         test("colorless-only callback resolves without publishing a prompt") {

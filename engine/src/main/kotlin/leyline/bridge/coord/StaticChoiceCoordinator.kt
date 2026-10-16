@@ -161,7 +161,7 @@ class StaticChoiceCoordinator(
         return colorChoices[idx].colorMask
     }
 
-    /** Returns only supported color qualities, preserving Forge's offered strings and order. */
+    /** Returns the selected protection quality, preserving Forge's offered strings and order. */
     fun chooseProtectionType(
         sa: SpellAbility,
         choices: List<String>,
@@ -172,9 +172,10 @@ class StaticChoiceCoordinator(
                 if (choice.equals("colorless", ignoreCase = true)) {
                     0
                 } else {
-                    StaticChoiceIds.colorIdForName(choice) ?: return null
+                    StaticChoiceIds.colorIdForName(choice)
                 }
             }
+        val colorOnly = ids.all { it != null }
         val selected =
             requestChoice(
                 PromptRequest(
@@ -184,10 +185,10 @@ class StaticChoiceCoordinator(
                     min = 1,
                     max = 1,
                     defaultIndex = 0,
-                    route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
+                    route = PromptRouteResolver.resolve(if (colorOnly) PromptSemantic.StaticColorChoice else PromptSemantic.NamedChoice),
                     sourceEntityId = sourceEntityId(sa),
-                    staticList = StaticList.CardColors,
-                    staticOptionIds = ids,
+                    staticList = StaticList.CardColors.takeIf { colorOnly },
+                    staticOptionIds = if (colorOnly) ids.filterNotNull() else choices.indices.map { it + 1 },
                 ),
             ).firstOrNull()
         return choices.getOrNull(selected ?: 0)
