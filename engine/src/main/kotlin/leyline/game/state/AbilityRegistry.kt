@@ -35,6 +35,7 @@ class AbilityRegistry private constructor(
     private val hiddenAbilityIds: List<Pair<Int, Int>> = emptyList(),
     val sourceCardGrpId: Int,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
+    private val grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
 ) {
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
     fun forSpellAbility(ability: SpellAbility): Int? =
@@ -43,7 +44,7 @@ class AbilityRegistry private constructor(
         } else if (ability.grantorStatic != null) {
             grantedAbilityGrpId(ability)
         } else {
-            forSpellAbility(ability.definitionId)
+            grantedKeywordAbilityGrpId(ability) ?: forSpellAbility(ability.definitionId)
         }
 
     /** SpellAbility definition ID → abilityGrpId (mana + activated). */
@@ -213,10 +214,23 @@ class AbilityRegistry private constructor(
         fun build(
             card: Card,
             cardData: CardData,
+            grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
         ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
+            val grantedKeywordIds =
+                card.spellAbilities
+                    .mapNotNull { ability ->
+                        grantedKeywordAbilityGrpId(ability)?.let { ability.definitionId to it }
+                    }.toMap()
             if (abilityIds.isEmpty()) {
-                return AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), emptyMap(), sourceCardGrpId = cardData.grpId)
+                return AbilityRegistry(
+                    grantedKeywordIds,
+                    emptyMap(),
+                    emptyMap(),
+                    emptyMap(),
+                    sourceCardGrpId = cardData.grpId,
+                    grantedKeywordAbilityGrpId = grantedKeywordAbilityGrpId,
+                )
             }
 
             val fallbackGrpId = abilityIds[0].first
@@ -269,6 +283,7 @@ class AbilityRegistry private constructor(
             mapUnclaimedIntrinsicStatics(card, cardData, abilityIds, keywordCount, staticMap)
             mapUnclaimedLegacyStatics(card, cardData, abilityIds, keywordCount, staticMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
+            saMap.putAll(grantedKeywordIds)
 
             // Derive SlotLayout from the same data — single source of truth.
             // Use cardData.abilityKinds when available so triggers/statics interleaved
@@ -281,7 +296,16 @@ class AbilityRegistry private constructor(
                 } + virtualSlots
             val layout = SlotLayout(keywordCount, activatedCount, slots)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap, keywordFamilies, cardData.hiddenAbilityIds, cardData.grpId, layout)
+            return AbilityRegistry(
+                saMap,
+                staticMap,
+                triggerMap,
+                keywordFamilies,
+                cardData.hiddenAbilityIds,
+                cardData.grpId,
+                layout,
+                grantedKeywordAbilityGrpId,
+            )
         }
 
         /**

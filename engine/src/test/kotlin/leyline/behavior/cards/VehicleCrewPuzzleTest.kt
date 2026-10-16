@@ -7,8 +7,12 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
+import leyline.game.data.grantedKeywordAbilityGrpId
+import leyline.game.mapping.ActionMapper
+import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.after
 import leyline.testkit.allAnnotations
@@ -31,6 +35,66 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  */
 class VehicleCrewPuzzleTest :
     SessionTest({
+
+        session(
+            "granted crew refreshes its identity through arrival payment and departure",
+            fullControl = true,
+            puzzle =
+                """
+                [metadata]
+                Name:Granted crew
+                Goal:Survive
+                Turns:2
+                Difficulty:Easy
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Kotori, Pilot Prodigy;Unsummon
+                humanbattlefield=Shorikai, Genesis Engine;Colossal Dreadmaw;Island;Island;Island;Plains
+                humanlibrary=Island;Island;Island
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+        ) {
+            assertSoftly {
+                val vehicle = human.battlefield.card("Shorikai, Genesis Engine")
+                val vehicleData = bridge.cardRepository.findByGrpId(bridge.cardRepository.findGrpIdByName(vehicle.name)!!)
+                bridge.abilityRegistryFor(vehicle, vehicleData).shouldNotBeNull()
+                castSpellByName("Kotori, Pilot Prodigy").shouldBeTrue()
+                passUntil(
+                    maxPasses = 4,
+                ) { human.getZone(ZoneType.Battlefield).cards.any { it.name == "Kotori, Pilot Prodigy" } }.shouldBeTrue()
+                val pilot = human.battlefield.card("Kotori, Pilot Prodigy")
+                val helper = human.battlefield.card("Colossal Dreadmaw")
+                val projection = ActionMapper.buildProjectionFromSnapshot(1, GsmSnapshot.capture(game(), bridge, "test", 0), bridge)
+                val crewOffers =
+                    projection.offers.filter {
+                        val command = it.command as? PlayerAction.ActivateAbility
+                        command?.ability?.isCrew == true
+                    }
+                crewOffers.size shouldBe 2
+                val granted = crewOffers.single { (it.command as PlayerAction.ActivateAbility).ability!!.keyword?.isIntrinsic == false }
+                val ability = (granted.command as PlayerAction.ActivateAbility).ability!!
+                val expectedIdentity = bridge.cardRepository.grantedKeywordAbilityGrpId(ability).shouldNotBeNull()
+                granted.action.abilityGrpId shouldBe expectedIdentity
+                val payment = after { submitAction(granted.action) }.expectOnePayCostsReq()
+                payment.effectCostReq.costSelection.minSel shouldBe 2
+                respondToEffectCost(listOf(human.battlefield.iid(pilot)))
+                passUntil(maxPasses = 4) { vehicle.isCreature }.shouldBeTrue()
+                assertSoftly {
+                    pilot.isTapped.shouldBeTrue()
+                    helper.isTapped shouldBe false
+                    vehicle.isCreature.shouldBeTrue()
+                }
+                castSpellByName("Unsummon").shouldBeTrue()
+                selectTargets(listOf(human.battlefield.iid(pilot)))
+                passUntil(maxPasses = 4) { human.getZone(ZoneType.Hand).cards.any { it.name == "Kotori, Pilot Prodigy" } }.shouldBeTrue()
+                val remaining = ActionMapper.buildProjectionFromSnapshot(1, GsmSnapshot.capture(game(), bridge, "test", 0), bridge)
+                remaining.offers.any { it.action.abilityGrpId == expectedIdentity } shouldBe false
+            }
+        }
 
         session(
             "crew vehicle and attack for lethal",
