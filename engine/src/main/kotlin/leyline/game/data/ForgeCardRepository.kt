@@ -499,7 +499,7 @@ class ForgeCardRepository private constructor(
         face.abilities.forEach { raw ->
             val parsed = parseParams(raw)
             val activated = parsed.containsKey("AB")
-            val mana = parsed["AB"] in listOf("Mana", "ManaReflected")
+            val mana = parsed["AB"] in listOf("Mana", "ManaReflected") && !parsed.containsKey("Planeswalker")
             addRow(
                 raw,
                 if (activated) 1 else 4,

@@ -5,10 +5,21 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.game.codes.SlotKind
 
 class ForgeCardRepositoryTest :
     FunSpec({
         tags(UnitTag)
+
+        test("mana-producing loyalty rows stay activated while ordinary mana rows stay mana") {
+            val repo = ForgeCardRepository.open()
+            val ugin = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Ugin, Eye of the Storms"))))
+            val ring = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Sol Ring"))))
+            assertSoftly {
+                ugin.abilityKinds.take(3) shouldBe List(3) { SlotKind.Activated }
+                ring.abilityKinds.single() shouldBe SlotKind.Mana
+            }
+        }
 
         test("recipient-dependent granted costs resolve from cold catalogs in either lookup order") {
             val grants =
