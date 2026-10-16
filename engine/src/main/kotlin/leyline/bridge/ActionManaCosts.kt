@@ -41,10 +41,59 @@ internal object ActionManaCosts {
                             canPayEquipForLegalTarget(sa, player)
                     }
                 } ||
-                    canPayOrTwoGenericManaCost(sa, player)
+                    canPayOrTwoGenericManaCost(sa, player) ||
+                    canPayPhyrexianManaCost(sa, player)
             },
-            fallback = { canPayOrTwoGenericManaCost(sa, player) },
+            fallback = { canPayOrTwoGenericManaCost(sa, player) || canPayPhyrexianManaCost(sa, player) },
         )
+
+    private fun canPayPhyrexianManaCost(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean {
+        // Mana-first probing can spend sources needed by generic costs before choosing life.
+        val cost = computeEffectiveCost(sa, player) ?: return false
+        val phyrexian =
+            cost
+                .filter { it.isPhyrexian }
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .toList()
+        if (phyrexian.isEmpty()) return false
+
+        fun payable(
+            index: Int,
+            remaining: ManaCostBeingPaid,
+            life: Int,
+        ): Boolean {
+            if (!player.canPayLife(life, false, sa)) return false
+            if (index == phyrexian.size) {
+                return preservingPaymentProbeState(sa, player) {
+                    val priorPolicy = sa.getParam("AIPhyrexianPayment")
+                    sa.putParam("AIPhyrexianPayment", "Never")
+                    try {
+                        NonInteractiveScope.bestEffort {
+                            affordabilityProbe(
+                                probe = { ComputerUtilMana.canPayManaCost(remaining, sa, player, false) },
+                                fallback = { false },
+                            )
+                        }
+                    } finally {
+                        if (priorPolicy == null) sa.removeParam("AIPhyrexianPayment") else sa.putParam("AIPhyrexianPayment", priorPolicy)
+                    }
+                }
+            }
+            val (shard, count) = phyrexian[index]
+            return (0..count).any { paidWithLife ->
+                val candidate = ManaCostBeingPaid(remaining)
+                candidate.decreaseShard(shard, paidWithLife)
+                payable(index + 1, candidate, life + paidWithLife * 2)
+            }
+        }
+
+        return payable(0, ManaCostBeingPaid(cost), 0)
+    }
 
     private fun canPayEquipForLegalTarget(
         sa: SpellAbility,
@@ -160,6 +209,13 @@ internal object ActionManaCosts {
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
         val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
+        if (hybridColors.isEmpty() ||
+            cost.any {
+                ManaColorMapping.fromOrTwoGenericShard(it) == null && ManaColorMapping.fromShard(it) == null
+            }
+        ) {
+            return false
+        }
 
         val coloredRequirements =
             cost.mapNotNull { shard ->
