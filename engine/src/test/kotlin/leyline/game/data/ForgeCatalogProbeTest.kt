@@ -5,6 +5,7 @@ import forge.ImageKeys
 import forge.StaticData
 import forge.card.GamePieceType
 import forge.game.card.Card
+import forge.game.card.CounterEnumType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -85,6 +86,39 @@ class ForgeCatalogProbeTest :
             check(modal.childGrpIds.all { !repo.findAbilityLocalization(it)?.text.isNullOrBlank() })
             val inspector = requireNotNull(repo.findGrpIdByName("Thraben Inspector"))
             repo.lookupModalOptions(inspector) shouldBe null
+        }
+
+        test("granted combat trigger exposes its nested counter choices") {
+            val repo = ForgeCardRepository.open()
+            val cardId = requireNotNull(repo.findGrpIdByName("Inspirit, Flagship Vessel"))
+            val choices = requireNotNull(repo.lookupModalOptions(cardId))
+            choices.childGrpIds.map { repo.findAbilityLocalization(it)?.text } shouldBe
+                listOf("Put a +1/+1 counter on target artifact.", "Put two charge counters on target artifact.")
+        }
+
+        for ((index, counter) in listOf(CounterEnumType.P1P1, CounterEnumType.CHARGE).withIndex()) {
+            test("granted combat trigger resolves its $counter counter choice") {
+                forgeCatalogProbe(
+                    "granted-combat-choice-$index",
+                    "humanbattlefield=Inspirit, Flagship Vessel|Counters:CHARGE=1;Ornithopter",
+                ) { repo ->
+                    val target = human.battlefield.card("Ornithopter")
+                    passUntil(5) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+                    selectTargets(listOf(human.battlefield.iid("Ornithopter")))
+                    passUntil(5) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
+                    val modal =
+                        allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
+                            .getCastingTimeOptionReq(0).modalReq
+                    val cardId = requireNotNull(repo.findGrpIdByName("Inspirit, Flagship Vessel"))
+                    modal.modalOptionsList.map { it.grpId } shouldBe repo.lookupModalOptions(cardId)?.childGrpIds
+                    respondModalChoice(listOf(modal.getModalOptions(index).grpId))
+                    val expected = if (counter == CounterEnumType.P1P1) 1 else 2
+                    passUntil(5) { target.getCounters(counter) == expected }.shouldBeTrue()
+                    target.getCounters(counter) shouldBe expected
+                    advanceToCombat()
+                    allMessages.last { it.hasDeclareAttackersReq() }.declareAttackersReq.canSubmitAttackers.shouldBeTrue()
+                }
+            }
         }
 
         test("replacement effect mode choice keeps Outpost Siege match playable") {
