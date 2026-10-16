@@ -107,8 +107,11 @@ class ForgeCatalogProbeTest :
                     selectTargets(listOf(human.battlefield.iid("Ornithopter")))
                     passUntil(5) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
                     val modal =
-                        allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
-                            .getCastingTimeOptionReq(0).modalReq
+                        allMessages
+                            .last { it.hasCastingTimeOptionsReq() }
+                            .castingTimeOptionsReq
+                            .getCastingTimeOptionReq(0)
+                            .modalReq
                     val cardId = requireNotNull(repo.findGrpIdByName("Inspirit, Flagship Vessel"))
                     modal.modalOptionsList.map { it.grpId } shouldBe repo.lookupModalOptions(cardId)?.childGrpIds
                     respondModalChoice(listOf(modal.getModalOptions(index).grpId))
@@ -116,7 +119,11 @@ class ForgeCatalogProbeTest :
                     passUntil(5) { target.getCounters(counter) == expected }.shouldBeTrue()
                     target.getCounters(counter) shouldBe expected
                     advanceToCombat()
-                    allMessages.last { it.hasDeclareAttackersReq() }.declareAttackersReq.canSubmitAttackers.shouldBeTrue()
+                    allMessages
+                        .last { it.hasDeclareAttackersReq() }
+                        .declareAttackersReq
+                        .canSubmitAttackers
+                        .shouldBeTrue()
                 }
             }
         }
