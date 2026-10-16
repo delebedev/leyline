@@ -3,7 +3,6 @@ package leyline.bridge.forge
 import forge.LobbyPlayer
 import forge.deck.CardPool
 import forge.game.GameEntityView
-import forge.game.GameState
 import forge.game.GameView
 import forge.game.ability.ApiType
 import forge.game.card.CardView
@@ -26,6 +25,7 @@ import forge.item.PaperCard
 import forge.localinstance.skin.FSkinProp
 import forge.player.PlayerZoneUpdate
 import forge.trackable.TrackableCollection
+import forge.trackable.TrackableObject
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.DevCheck
@@ -921,8 +921,6 @@ class ClientGuiGame(
 
     override fun refreshField() {}
 
-    override fun getGamestate(): GameState? = null
-
     override fun updateManaPool(manaPoolUpdate: Iterable<PlayerView>) {}
 
     override fun updateLives(livesUpdate: Iterable<PlayerView>) {}
@@ -947,7 +945,7 @@ class ClientGuiGame(
     ) {}
 
     override fun setHighlighted(
-        entities: Iterable<GameEntityView>,
+        entities: Iterable<TrackableObject>,
         b: Boolean,
     ) {}
 
@@ -1006,11 +1004,6 @@ class ClientGuiGame(
     // toggles and don't apply to the headless server path.
 
     override fun setCurrentPlayer(player: PlayerView) {}
-
-    override fun showWaitingTimer(
-        forPlayer: PlayerView,
-        waitingForPlayerName: String,
-    ) {}
 
     override fun isNetGame(): Boolean = false
 
