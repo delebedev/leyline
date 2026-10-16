@@ -9,6 +9,75 @@ import leyline.testkit.BoardTest
 
 class ActionManaCostsBoardTest :
     BoardTest({
+        for ((life, payable) in listOf(20 to true, 5 to false)) {
+            test("Phyrexian life payment with four mana and $life life is $payable") {
+                val board =
+                    startWithBoard { _, player, _ ->
+                        player.setLife(life, null)
+                        addCard("K'rrik, Son of Yawgmoth", player, ZoneType.Hand)
+                        repeat(4) { addCard("Swamp", player, ZoneType.Battlefield) }
+                    }
+                val spell =
+                    board.human.hand
+                        .card("K'rrik, Son of Yawgmoth")
+                        .firstSpellAbility
+                spell.activatingPlayer = board.human
+                assertSoftly {
+                    ActionManaCosts.canPayManaCost(spell, board.human) shouldBe payable
+                    board.human.life shouldBe life
+                    spell.hasParam("AIPhyrexianPayment") shouldBe false
+                }
+            }
+        }
+
+        test("mixed Phyrexian colors can spend life on the color without a source") {
+            val board =
+                startWithBoard { _, player, _ ->
+                    player.setLife(2, null)
+                    addCard("Standing Troops", player, ZoneType.Hand)
+                    addCard("Swamp", player, ZoneType.Battlefield)
+                }
+            val spell =
+                board.human.hand
+                    .card("Standing Troops")
+                    .firstSpellAbility
+            spell.activatingPlayer = board.human
+            spell.payCosts = Cost("B/P R/P", false)
+            ActionManaCosts.canPayManaCost(spell, board.human) shouldBe true
+            board.human.life shouldBe 2
+        }
+
+        test("mixed Phyrexian colors share one life budget") {
+            val board =
+                startWithBoard { _, player, _ ->
+                    player.setLife(3, null)
+                    addCard("Standing Troops", player, ZoneType.Hand)
+                }
+            val spell =
+                board.human.hand
+                    .card("Standing Troops")
+                    .firstSpellAbility
+            spell.activatingPlayer = board.human
+            spell.payCosts = Cost("B/P R/P", false)
+            ActionManaCosts.canPayManaCost(spell, board.human) shouldBe false
+            board.human.life shouldBe 3
+        }
+
+        test("Phyrexian life payment preserves the complete generic cost") {
+            val board =
+                startWithBoard { _, player, _ ->
+                    addCard("Standing Troops", player, ZoneType.Hand)
+                    repeat(5) { addCard("Swamp", player, ZoneType.Battlefield) }
+                }
+            val spell =
+                board.human.hand
+                    .card("Standing Troops")
+                    .firstSpellAbility
+            spell.activatingPlayer = board.human
+            spell.payCosts = Cost("6 B/P B/P B/P", false)
+            ActionManaCosts.canPayManaCost(spell, board.human) shouldBe false
+        }
+
         for ((cardName, lands) in listOf(
             "Spiteful Visions" to listOf("Swamp", "Island", "Island", "Island"),
             "Creakwood Liege" to listOf("Swamp", "Forest", "Island", "Island"),
