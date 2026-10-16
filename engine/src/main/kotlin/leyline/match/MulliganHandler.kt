@@ -98,7 +98,6 @@ class MulliganHandler(
                     deliverTemplate(s, bridge, "mulligan_tuck")
                     return
                 }
-                MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
                 s.onMulliganKeep()
             }
             MulliganOption.Mulligan,
@@ -140,7 +139,6 @@ class MulliganHandler(
         }
         val tuckCards = tuckIds.map { eligible.getValue(it) }
         if (!bridge.submitTuck(seatId, tuckCards)) return
-        MatchReceiveProbe.inPhase(MatchReceivePhase.CoordinatorWait) { bridge.awaitPriority() }
         s.onMulliganKeep()
     }
 
