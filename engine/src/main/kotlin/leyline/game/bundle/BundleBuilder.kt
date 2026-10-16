@@ -1801,7 +1801,15 @@ class BundleBuilder(
                 emptyList()
             }
         val frame =
-            prepareViewerPromptProjection(game, counter, routes, ViewerProjectionIntent.of(supplements = supplements))
+            prepareViewerPromptProjection(
+                game,
+                counter,
+                routes,
+                ViewerProjectionIntent.of(
+                    supplements = supplements,
+                    privateCardPrompt = PrivateCardPromptProjection.of(emptyList(), window.sourceForgeCardId),
+                ),
+            )
         return finishSettledPrompt(
             frame,
             counter,
