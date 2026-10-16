@@ -29,6 +29,48 @@ class StateProjectionCompilerVisibilityTest :
     FunSpec({
         tags(UnitTag)
 
+        test("prompt source identity survives admission without a synthetic stack object") {
+            val source = ForgeCardId(42)
+            val beforeEntry = GsmSnapshot.forTest()
+            val pending =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(beforeEntry),
+                    ProjectionState.initial(),
+                    ViewerProjectionIntent.of(privateCardPrompt = PrivateCardPromptProjection.of(emptyList(), source)),
+                )
+            val sourceId =
+                pending.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(source)
+            assertSoftly {
+                pending.projectionSnapshot.stack.entries shouldBe emptyList()
+                pending.gsm.gameObjectsList.any { it.instanceId == sourceId.value } shouldBe false
+            }
+            val entered =
+                GsmSnapshot.forTest(
+                    objects = mapOf(source to CardSnapshot(source, "Entering Token", 9001, SeatId(1), SeatId(1))),
+                    zones =
+                        mapOf(
+                            ZoneIds.BATTLEFIELD to
+                                ZoneSnapshot(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, null, Visibility.Public, listOf(source)),
+                        ),
+                )
+            val admitted =
+                StateProjectionCompiler.compileOneViewer(
+                    compilerEnvironment(),
+                    compilerInput(entered, beforeEntry),
+                    pending.transition.nextState,
+                )
+            assertSoftly {
+                admitted.transition.nextState.identities.forgeIdToInstanceId
+                    .getValue(source) shouldBe sourceId
+                admitted.gsm.gameObjectsList
+                    .single { it.instanceId == sourceId.value }
+                    .zoneId shouldBe ZoneIds.BATTLEFIELD
+                admitted.projectionSnapshot.stack.entries shouldBe emptyList()
+            }
+        }
+
         test("foretold exile keeps its owner identity and exposes only a public card back to the opponent") {
             val foretoldId = ForgeCardId(10)
             val publicId = ForgeCardId(20)
