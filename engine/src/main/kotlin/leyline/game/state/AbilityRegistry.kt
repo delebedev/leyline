@@ -379,9 +379,17 @@ class AbilityRegistry private constructor(
             activatedSlotIndices: List<Int>,
             saMap: MutableMap<Int, Int>,
         ) {
+            val candidates = activationCandidates(card)
+            // Some catalogs classify a mana-producing chain by its non-mana root.
+            // Use those activated rows only when the complete candidate layout agrees.
+            val includesDeferredMana =
+                activatedSlotIndices.size ==
+                    candidates.count {
+                        it.isActivatedAbility && !isReconfigureUnattach(it) && (!it.isManaAbility() || it.manaPart == null)
+                    }
             var idx = 0
-            for (sa in nonManaActivatedAbilities(card)) {
-                if (!sa.isActivatedAbility || sa.isManaAbility()) continue
+            for (sa in candidates) {
+                if (!sa.isActivatedAbility || (sa.isManaAbility() && !(includesDeferredMana && sa.manaPart == null))) continue
                 if (isReconfigureUnattach(sa)) {
                     saMap[sa.definitionId] = KeywordAbilityIds.RECONFIGURE_UNATTACH
                     continue
@@ -396,12 +404,12 @@ class AbilityRegistry private constructor(
             }
         }
 
-        private fun nonManaActivatedAbilities(card: Card): List<SpellAbility> {
+        private fun activationCandidates(card: Card): List<SpellAbility> {
             val abilities = card.spellAbilities.toMutableList()
             val seen = abilities.map { it.definitionId }.toMutableSet()
             for (sa in card.allSpellAbilities.orEmpty()) {
                 if (sa.definitionId in seen) continue
-                if (sa.isActivatedAbility && !sa.isManaAbility()) {
+                if (sa.isActivatedAbility && (!sa.isManaAbility() || sa.manaPart == null)) {
                     abilities.add(sa)
                     seen.add(sa.definitionId)
                 }
@@ -429,6 +437,7 @@ class AbilityRegistry private constructor(
             var idx = 0
             for (sa in card.manaAbilities ?: emptyList()) {
                 if (!sa.isManaAbility() || !sa.isIntrinsic) continue
+                if (sa.manaPart == null && sa.definitionId in saMap) continue
                 val generatedGrpId = BasicLandAbilities.byTypeDerivedManaAbility(card, sa)
                 if (generatedGrpId != null) {
                     saMap.putIfAbsent(sa.definitionId, generatedGrpId)

@@ -68,7 +68,7 @@ Enlist callbacks consume their own selections on the engine thread before
 Forge pays optional attack costs. Selecting a normal attack declines those
 costs without opening another choice.
 
-Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Visible resolution choices use a neutral selection instruction. Hidden-library look-and-pick choices keep their dedicated instruction. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback.
+Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Visible resolution choices use a neutral selection instruction. Hidden-library look-and-pick choices keep their dedicated instruction. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback. Complete player-only choices use the compatibility selection runtime with exact player handles.
 
 ## 3. SpellAbility Is A Chain
 
@@ -204,7 +204,7 @@ For land color production:
 Manual mana activation remains a player decision when its source has non-mana
 costs. Pay those costs through the active controller's
 `getCostDecisionMaker(...)` and `CostPayment.payCost(...)` so sacrifice and
-other choices reach the frontend. Reserve `AiCostDecision` and
+other choices reach the frontend. Resolve the original root with `AbilityUtils.resolve(...)` after payment so deferred mana effects and cleanup run together. Deferred output has no predictive mana selection and cannot be batched. Reserve `AiCostDecision` and
 `payComputerCosts(...)` for automatic AI payment paths.
 
 ## 7. Cost Payment Decisions

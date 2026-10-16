@@ -438,6 +438,54 @@ class ActionMapperSnapshotTest :
             }
         }
 
+        for (name in listOf("Metalworker", "Victory Chimes", "Nykthos, Shrine to Nyx")) {
+            test("chained mana ability retains its complete root action: $name") {
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard(name, human, ZoneType.Battlefield).setSickness(false)
+                        addCard("Swamp", human, ZoneType.Battlefield)
+                        addCard("Swamp", human, ZoneType.Battlefield)
+                        addCard("Walking Corpse", human, ZoneType.Battlefield)
+                    }
+                val (bridge, game, _) = board
+                val source = board.human.battlefield.card(name)
+                val root = source.manaAbilities.single { it.manaPart == null && it.subAbility != null }
+                val iid = bridge.instanceId(source)
+                val offers =
+                    ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, bridge, "test", 0), bridge).offers
+                val offered =
+                    offers
+                        .filter { it.action.actionType == ActionType.ActivateMana && it.action.instanceId == iid }
+                        .map { it.command.shouldBeInstanceOf<PlayerAction.ActivateMana>().ability }
+                offered.any { it === root }.shouldBeTrue()
+                val action = offers.single { (it.command as? PlayerAction.ActivateMana)?.ability === root }.action
+                assertSoftly {
+                    action.isBatchable.shouldBeFalse()
+                    action.manaPaymentOptionsCount shouldBe 0
+                    action.manaSelectionsCount shouldBe 0
+                    val sourceActions =
+                        offers
+                            .filter { it.action.instanceId == iid && it.action.actionType == ActionType.ActivateMana }
+                            .map { it.action }
+
+                    fun viewIdentity(value: Action) =
+                        listOf(
+                            value.actionTypeValue,
+                            value.instanceId,
+                            value.grpId,
+                            value.facetId,
+                            value.abilityGrpId,
+                            value.uniqueAbilityId,
+                            value.sourceId,
+                            value.alternativeGrpId,
+                            value.alternativeSourceZcid,
+                        )
+                    sourceActions.map(::viewIdentity).distinct().size shouldBe sourceActions.size
+                    sourceActions.first { viewIdentity(it) == viewIdentity(action) } shouldBe action
+                }
+            }
+        }
+
         test("type-granted mana preserves abilities with distinct costs and amounts") {
             var towerForgeId = 0
             val (b, game, _) =

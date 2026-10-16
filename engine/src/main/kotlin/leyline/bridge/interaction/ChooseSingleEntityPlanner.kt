@@ -47,6 +47,9 @@ object ChooseSingleEntityPlanner {
         val allOptionsAreCards =
             context.candidateRefs.size == context.optionCount &&
                 context.candidateRefs.all { it.kind == PromptCandidateKind.Card }
+        val allOptionsArePlayers =
+            context.candidateRefs.size == context.optionCount &&
+                context.candidateRefs.all { it.kind == PromptCandidateKind.Player }
         val resolutionInput =
             resolutionRouteInput(
                 context.candidateRefs,
@@ -63,6 +66,7 @@ object ChooseSingleEntityPlanner {
                 isLearn -> PromptSemantic.LearnLesson
                 isSearch -> PromptSemantic.Search
                 context.sa?.api == ApiType.ManifestDread -> PromptSemantic.ManifestDread
+                allOptionsArePlayers -> PromptSemantic.Generic
                 else -> PromptSemantic.SelectNResolution
             }
         val route =

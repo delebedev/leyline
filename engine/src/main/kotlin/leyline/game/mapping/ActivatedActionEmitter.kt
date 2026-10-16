@@ -167,7 +167,8 @@ internal object ActivatedActionEmitter {
             val identity = AbilityRegistry.resolveActivated(card, sa, cardDataLookup, abilityRegistryLookup, basicLandAbilityGrpId)
             val abilityGrpId = identity.abilityGrpId
             val colors = producedManaColors(sa)
-            if (colors.isEmpty()) return@mapNotNull null
+            val hasDeferredMana = sa.manaPart == null && sa.allManaParts.isNotEmpty()
+            if (colors.isEmpty() && !hasDeferredMana) return@mapNotNull null
 
             val actionBuilder =
                 Action
@@ -176,7 +177,7 @@ internal object ActivatedActionEmitter {
                     .setInstanceId(instanceId)
                     .setGrpId(grpId)
                     .setFacetId(instanceId)
-                    .setIsBatchable(true)
+                    .setIsBatchable(!hasDeferredMana)
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             identity.uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
 
@@ -198,24 +199,26 @@ internal object ActivatedActionEmitter {
                 )
             }
 
-            val selection =
-                ManaSelection
-                    .newBuilder()
-                    .setInstanceId(instanceId)
-                    .setAbilityGrpId(abilityGrpId)
-                    .setSelectionCount(1)
-                    .setValidationType(SelectionValidationType.NonRepeatable)
-            for (manaColor in colors) {
-                selection.addOptions(
-                    ManaSelectionOption
+            if (colors.isNotEmpty()) {
+                val selection =
+                    ManaSelection
                         .newBuilder()
-                        .setSelectedColor(manaColor)
-                        .addMana(
-                            ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
-                        ),
-                )
+                        .setInstanceId(instanceId)
+                        .setAbilityGrpId(abilityGrpId)
+                        .setSelectionCount(1)
+                        .setValidationType(SelectionValidationType.NonRepeatable)
+                for (manaColor in colors) {
+                    selection.addOptions(
+                        ManaSelectionOption
+                            .newBuilder()
+                            .setSelectedColor(manaColor)
+                            .addMana(
+                                ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
+                            ),
+                    )
+                }
+                actionBuilder.addManaSelections(selection)
             }
-            actionBuilder.addManaSelections(selection)
 
             ManaAction(actionBuilder.build(), abilityIndex, sa)
         }
