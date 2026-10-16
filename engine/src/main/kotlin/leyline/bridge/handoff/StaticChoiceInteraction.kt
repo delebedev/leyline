@@ -6,6 +6,7 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 data class StaticChoiceOptionValue(
     val originalOptionIndex: Int,
     val protocolValue: Int,
+    val label: String? = null,
 )
 
 /** Immutable materialization input for one static enum SelectN window. */

@@ -855,6 +855,9 @@ enum class PromptSemantic {
     /** Learn's exact Lesson/discard card picker. */
     LearnLesson,
 
+    /** Exact named options represented by prompt-parameter indices. */
+    NamedChoice,
+
     /** Static enum choice over a color domain. */
     StaticColorChoice,
 

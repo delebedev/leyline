@@ -863,7 +863,7 @@ class PlayerController(
 
     /**
      * Inherited protection choices silently default through GUI input. The engine thread
-     * awaits a color choice while unsupported qualities retain the inherited path.
+     * awaits the complete offered domain, using named choices for mixed qualities.
      */
     override fun chooseProtectionType(
         sa: SpellAbility,

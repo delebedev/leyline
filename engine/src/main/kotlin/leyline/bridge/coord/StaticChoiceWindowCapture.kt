@@ -14,13 +14,16 @@ internal object StaticChoiceWindowCapture {
         val route = request.route as? ResolvedPromptRoute.StaticChoice ?: error("StaticChoice route required")
         val allowedLists =
             when (route.descriptor.kind) {
-                StaticChoiceKind.Dungeon, StaticChoiceKind.DungeonRoom -> setOf(null)
+                StaticChoiceKind.Named, StaticChoiceKind.Dungeon, StaticChoiceKind.DungeonRoom -> setOf(null)
                 StaticChoiceKind.Color -> setOf(StaticList.Colors, StaticList.CardColors)
                 StaticChoiceKind.Subtype -> setOf(StaticList.SubTypes)
                 StaticChoiceKind.CardType -> setOf(StaticList.CardTypes)
                 StaticChoiceKind.Parity -> setOf(StaticList.Parities)
             }
         check(request.staticList in allowedLists) { "StaticChoice domain does not match its route" }
+        if (route.descriptor.kind == StaticChoiceKind.Named) {
+            check(request.staticOptionIds == request.options.indices.map { it + 1 }) { "Named choices require aligned prompt indices" }
+        }
         check(request.staticOptionIds.size == request.options.size) { "StaticChoice values must match options" }
         check(request.staticOptionIds.distinct().size == request.staticOptionIds.size) { "StaticChoice values must be distinct" }
         check(request.min in 0..request.max && request.max <= request.options.size) { "Invalid StaticChoice cardinality" }
@@ -31,7 +34,7 @@ internal object StaticChoiceWindowCapture {
             sourceForgeAbilityId = request.forgeAbilityId,
             options =
                 request.staticOptionIds.mapIndexed { index, value ->
-                    StaticChoiceOptionValue(index, value)
+                    StaticChoiceOptionValue(index, value, request.options[index].takeIf { route.descriptor.kind == StaticChoiceKind.Named })
                 },
             sourceForgeCardId = request.sourceEntityId?.let(::ForgeCardId),
             min = request.min,
