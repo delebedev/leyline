@@ -991,14 +991,18 @@ class PlayerController(
 
     // -- Pay cost to prevent effect ----------------------------------------
 
+    /**
+     * Inherited single-mana payment auto-pays without consent. The engine thread
+     * awaits the optional decision before Forge calculates and pays ordinary costs.
+     */
     override fun payCostToPreventEffect(
         cost: Cost,
         sa: SpellAbility,
         alreadyPaid: Boolean,
         allPayers: FCollectionView<Player>,
     ): Boolean {
-        // Single-part costs route to coordinator helpers; everything else
-        // (echo and multi-part costs) falls through to PCHuman.
+        // Specialized costs retain their payment routes; ordinary mana costs
+        // retain Forge calculation and payment after consent.
         cost.costParts.singleOrNull().let { single ->
             if (single is CostPayLife) {
                 val isEtbLandReplacement =
@@ -1013,6 +1017,15 @@ class PlayerController(
             }
             if (single is CostPartMana && sa.isKeyword(Keyword.CUMULATIVE_UPKEEP)) {
                 return costPaymentCoordinator.payOptionalManaCost(cost, sa, "cumulative-upkeep")
+            }
+            if (single is CostPartMana && !single.mana.isZero) {
+                val accepted =
+                    optionalActionGate.await(
+                        hostCard = sa.hostCard,
+                        defaultOnTimeout = false,
+                        logContext = "payCostToPreventEffect:mana",
+                    )
+                if (!accepted) return false
             }
         }
         return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
