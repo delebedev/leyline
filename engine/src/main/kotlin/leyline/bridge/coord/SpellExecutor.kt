@@ -2,6 +2,7 @@ package leyline.bridge.coord
 
 import forge.game.Game
 import forge.game.GameObject
+import forge.game.ability.AbilityUtils
 import forge.game.cost.CostPayment
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
@@ -144,9 +145,9 @@ class SpellExecutor(
         try {
             val controller = player.controller as? PlayerController
             if (controller != null) {
-                controller.withManaColorChoice(selectedColor) { manaAbility.resolve() }
+                controller.withManaColorChoice(selectedColor) { AbilityUtils.resolve(manaAbility) }
             } else {
-                manaAbility.resolve()
+                AbilityUtils.resolve(manaAbility)
             }
         } catch (ex: Exception) {
             log.error("activateMana: resolve() failed for {}: {}", card.name, ex.message, ex)

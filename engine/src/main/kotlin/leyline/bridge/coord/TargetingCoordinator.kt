@@ -174,6 +174,9 @@ class TargetingCoordinator(
                 @Suppress("UNCHECKED_CAST")
                 (bridge.requestCardSelect(request, cards).handles.firstOrNull() as? T)
                     ?: if (isOptional) null else optionList.getFirst()
+            } else if (request.route is ResolvedPromptRoute.CompatibilityCostSelection) {
+                val selected = bridge.requestCompatibilityCostSelection(request, optionList.toList())
+                selected.handles.firstOrNull()?.let { handle -> optionList.first { it === handle } }
             } else {
                 val idx = bridge.requestChoice(request).firstOrNull()
                 if (idx != null && idx in 0 until optionList.size) {

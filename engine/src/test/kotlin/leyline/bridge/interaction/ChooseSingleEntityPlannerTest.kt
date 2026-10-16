@@ -118,6 +118,19 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("complete player choices use selectable compatibility refs") {
+            val players = listOf(0, 1).map { PromptCandidateRefDto(it, PromptCandidateKind.Player, it + 1) }
+            val plan = planFor(genericSa(), candidateRefs = players)
+            assertSoftly(plan) {
+                routePolicy shouldBe ChooseSingleEntityRoutePolicy.Prompt
+                semantic shouldBe PromptSemantic.Generic
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                candidateRefsPolicy.candidateRefs(players) shouldBe players
+                resolutionRouteInput shouldBe null
+                planFor(genericSa(), optionCount = 3, candidateRefs = players).semantic shouldBe PromptSemantic.SelectNResolution
+            }
+        }
+
         test("regular prompted paths include candidate refs") {
             val plan = planFor(genericSa())
 
