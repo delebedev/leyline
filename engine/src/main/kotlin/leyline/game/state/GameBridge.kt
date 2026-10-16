@@ -53,6 +53,7 @@ import leyline.game.data.CardData
 import leyline.game.data.CardProtoBuilder
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.GameEventCollector
@@ -1297,7 +1298,8 @@ class GameBridge(
     ): AbilityRegistry? {
         if (cardData == null) return null
         return abilityRegistries.compute(card.id) { _, cached ->
-            cached?.takeIf { it.sourceCardGrpId == cardData.grpId } ?: AbilityRegistry.build(card, cardData)
+            cached?.takeIf { it.sourceCardGrpId == cardData.grpId }
+                ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
         }
     }
 
@@ -1320,7 +1322,7 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         registry.resolve(definition)?.let { return it }
-        val refreshed = AbilityRegistry.build(card, cardData)
+        val refreshed = AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
         abilityRegistries[card.id] = refreshed
         return refreshed.resolve(definition)
             ?: ability.trigger
@@ -1364,7 +1366,7 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
-            ?: AbilityRegistry.build(card, cardData).let { refreshed ->
+            ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId).let { refreshed ->
                 abilityRegistries[card.id] = refreshed
                 refreshed.resolve(definition)
             }
