@@ -7,6 +7,7 @@ object PromptIds {
     const val PASS_PRIORITY = 2
     const val DECLARE_ATTACKERS = 6
     const val ORDER_BLOCKERS = 7
+    const val INSUFFICIENT_BLOCKERS = 117
     const val ASSIGN_DAMAGE = 8
     const val SELECT_TARGETS = 10
     const val TARGET_CREATURE_YOU_CONTROL = 152
