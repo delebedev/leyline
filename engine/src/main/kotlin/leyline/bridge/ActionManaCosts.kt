@@ -160,6 +160,13 @@ internal object ActionManaCosts {
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
         val hybridColors = cost.mapNotNull { ManaColorMapping.fromOrTwoGenericShard(it) }
+        if (hybridColors.isEmpty() ||
+            cost.any {
+                ManaColorMapping.fromOrTwoGenericShard(it) == null && ManaColorMapping.fromShard(it) == null
+            }
+        ) {
+            return false
+        }
 
         val coloredRequirements =
             cost.mapNotNull { shard ->
