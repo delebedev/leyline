@@ -25,7 +25,7 @@ internal class SearchWindowMaterializer(
         context: SettledPromptMaterializationContext,
         window: SearchWindowValue,
     ): SettledPromptMaterialization {
-        val libraryIds = window.libraryCardIds.map { context.requiredInstanceId(it, "Search card") }
+        val searchIds = (window.libraryCardIds + window.graveyardCardIds).map { context.requiredInstanceId(it, "Search card") }
         val validIds = window.candidateCardIdsByOption.values.map { context.requiredInstanceId(it, "Search card") }
         val hostId = window.source?.hostCardId?.let { context.requiredInstanceId(it, "Search card") } ?: 0
         val sourceId =
@@ -74,14 +74,18 @@ internal class SearchWindowMaterializer(
             } else {
                 context.message(GREMessageType.SearchReq_695e) {
                     it.searchReq =
-                        RequestBuilder.buildSearchRequest(
-                            sourceInstanceId = sourceId,
-                            libraryZoneId = ZoneIds.libraryOf(window.searchedSeatId),
-                            allLibraryIds = libraryIds,
-                            validTargetIds = validIds,
-                            maxFind = window.maxFind,
-                            allowFailToFind = window.minFind == 0,
-                        )
+                        RequestBuilder
+                            .buildSearchRequest(
+                                sourceInstanceId = sourceId,
+                                libraryZoneId = ZoneIds.libraryOf(window.searchedSeatId),
+                                allLibraryIds = searchIds,
+                                validTargetIds = validIds,
+                                maxFind = window.maxFind,
+                                allowFailToFind = window.minFind == 0,
+                            ).toBuilder()
+                            .apply {
+                                if (window.graveyardCardIds.isNotEmpty()) addZonesToSearch(ZoneIds.graveyardOf(window.searchedSeatId))
+                            }.build()
                     it.allowCancel = AllowCancel.No_a526
                     it.prompt =
                         Prompt

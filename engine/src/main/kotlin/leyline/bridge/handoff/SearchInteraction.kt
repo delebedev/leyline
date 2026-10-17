@@ -35,8 +35,10 @@ data class SearchWindowValue(
     val defaultIndex: Int,
     val source: SearchSourceValue?,
     val groups: List<SearchGroupValue> = emptyList(),
+    val graveyardCardIds: List<ForgeCardId> = emptyList(),
 ) {
     init {
+        require(graveyardCardIds.isEmpty() || groups.isEmpty()) { "Grouped search requires library-only candidates" }
         require(groups.map { it.groupId }.distinct().size == groups.size) { "Search group ids must be unique" }
         val groupedOptions = groups.flatMap { it.candidateCardIdsByOption.keys }
         require(groupedOptions.distinct().size == groupedOptions.size) { "Search candidates must belong to one group" }

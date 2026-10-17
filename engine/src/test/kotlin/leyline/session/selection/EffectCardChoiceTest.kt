@@ -17,6 +17,62 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EffectCardChoiceTest :
     SessionTest({
+        for (chosenZone in listOf("Hand", "GraveyardNonland", "GraveyardLand")) {
+            session(
+                "Agonizing Remorse selects legal hand and graveyard cards: $chosenZone",
+                puzzle = """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Agonizing Remorse
+                    humanbattlefield=Swamp;Swamp
+                    humanlibrary=Island;Island;Island
+                    aihand=Grizzly Bears;Forest
+                    aigraveyard=Lightning Bolt;Mountain
+                    ailibrary=Island;Island;Island
+                """,
+                fullControl = true,
+            ) {
+                val req =
+                    castSpellUntilSelectNReq("Agonizing Remorse") {
+                        selectTargets(listOf(2))
+                        passUntil { allMessages.any { it.hasSelectNReq() } }
+                    }
+                val hand = ai.hand.iid("Grizzly Bears")
+                val graveyard = ai.graveyard.iid("Lightning Bolt")
+                val graveyardLand = ai.graveyard.iid("Mountain")
+                assertSoftly {
+                    req.idsList.toSet() shouldBe setOf(hand, graveyard, graveyardLand)
+                    req.unfilteredIdsList.toSet() shouldBe setOf(hand, graveyard, graveyardLand, ai.hand.iid("Forest"))
+                    req.minSel shouldBe 1
+                    req.maxSel shouldBe 1
+                }
+                val chosen =
+                    when (chosenZone) {
+                        "GraveyardNonland" -> graveyard
+                        "GraveyardLand" -> graveyardLand
+                        else -> hand
+                    }
+                val chosenName =
+                    when (chosenZone) {
+                        "GraveyardNonland" -> "Lightning Bolt"
+                        "GraveyardLand" -> "Mountain"
+                        else -> "Grizzly Bears"
+                    }
+                respondToSelectN(listOf(chosen))
+                passUntilResolved()
+                assertSoftly {
+                    chosenName should beInZoneOf(ZoneType.Exile, ai)
+                    "Forest" should beInZoneOf(ZoneType.Hand, ai)
+                    if (chosenZone != "Hand") "Grizzly Bears" should beInZoneOf(ZoneType.Hand, ai)
+                    if (chosenZone != "GraveyardNonland") "Lightning Bolt" should beInZoneOf(ZoneType.Graveyard, ai)
+                    if (chosenZone != "GraveyardLand") "Mountain" should beInZoneOf(ZoneType.Graveyard, ai)
+                    human.life shouldBe 19
+                }
+            }
+        }
+
         for (accept in listOf(false, true)) {
             session(
                 "Dragon's Disciple optional singleton accept=$accept preserves the chosen outcome",

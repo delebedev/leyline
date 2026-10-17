@@ -41,6 +41,21 @@ class ChooseSingleEntityPlannerTest :
             }
         }
 
+        test("delayed reveal does not turn a graveyard choice into library search") {
+            val graveyardRefs = refs.map { it.copy(zone = "Graveyard") }
+            val plan = planFor(changeZoneSa(), candidateRefs = graveyardRefs, hasDelayedReveal = true)
+            assertSoftly {
+                plan.semantic shouldBe PromptSemantic.SelectNResolution
+                plan.isSearch shouldBe false
+                planFor(changeZoneSa(), candidateRefs = libraryRefs, hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
+                val mixedRefs = listOf(libraryRefs[0], graveyardRefs[1])
+                val mixedSearch = abilitySub(ApiType.ChangeZone, mapOf("Origin" to "Library,Graveyard"))
+                planFor(mixedSearch, candidateRefs = mixedRefs, hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
+                planFor(mixedSearch, candidateRefs = graveyardRefs, hasDelayedReveal = true).semantic shouldBe PromptSemantic.Search
+                planFor(mixedSearch, candidateRefs = refs, hasDelayedReveal = true).semantic shouldBe PromptSemantic.SelectNResolution
+            }
+        }
+
         test("mutate uses special route") {
             val plan = planFor(mutateSa())
 
@@ -184,4 +199,7 @@ private fun genericSa(): SpellAbility = abilitySub(ApiType.ChooseCard)
 
 private fun digSa(): SpellAbility = abilitySub(ApiType.Dig)
 
-private fun abilitySub(api: ApiType): AbilitySub = AbilitySub(api, Card(7, null).also { it.name = "Host" }, null, emptyMap())
+private fun abilitySub(
+    api: ApiType,
+    params: Map<String, String> = emptyMap(),
+): AbilitySub = AbilitySub(api, Card(7, null).also { it.name = "Host" }, null, params)

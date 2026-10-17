@@ -90,6 +90,36 @@ class SearchWindowCaptureTest :
             }
         }
 
+        test("mixed search preserves the public graveyard and rejects another owner's cards") {
+            val board =
+                startPuzzleAtMain1(
+                    puzzle.replace("ailibrary=Forest", "ailibrary=Forest\nhumangraveyard=Lightning Bolt;Island\naigraveyard=Mountain"),
+                )
+            val ours = request(board)
+            val graveyard = board.human.graveyard.card("Lightning Bolt")
+            val mixed =
+                ours.copy(
+                    options = ours.options + graveyard.name,
+                    candidateRefs = ours.candidateRefs + PromptCandidateRefDto(2, PromptCandidateKind.Card, graveyard.id, "Graveyard"),
+                )
+            val value = SearchWindowCapture(board.bridge.cutCoordinator).capture(mixed)
+            value.graveyardCardIds shouldContainExactly
+                board.human
+                    .getZone(ZoneType.Graveyard)
+                    .cards
+                    .map { ForgeCardId(it.id) }
+            value.candidateCardIdsByOption.getValue(2) shouldBe ForgeCardId(graveyard.id)
+            val theirs = board.ai.graveyard.card("Mountain")
+            shouldThrow<IllegalStateException> {
+                SearchWindowCapture(board.bridge.cutCoordinator).capture(
+                    mixed.copy(
+                        candidateRefs =
+                            ours.candidateRefs + PromptCandidateRefDto(2, PromptCandidateKind.Card, theirs.id, "Graveyard"),
+                    ),
+                )
+            }
+        }
+
         test("empty search preserves an explicit library owner without inferring the chooser") {
             val board = startPuzzleAtMain1(puzzle)
             val empty = request(board, min = 0).copy(options = emptyList(), candidateRefs = emptyList(), searchedSeatId = SeatId(2))
@@ -137,9 +167,12 @@ class SearchWindowCaptureTest :
             }
         }
 
-        listOf(false, true).forEach { grouped ->
-            test("opponent library search projects only to its chooser and retires visibility (grouped=$grouped)") {
-                val board = startPuzzleAtMain1(puzzle.replace("ailibrary=Forest", "ailibrary=Centaur Courser;Forest;Forest"))
+        listOf(false to false, true to false, false to true).forEach { (grouped, mixed) ->
+            test("opponent search projects only to its chooser and retires visibility (grouped=$grouped, mixed=$mixed)") {
+                val board =
+                    startPuzzleAtMain1(
+                        puzzle.replace("ailibrary=Forest", "ailibrary=Centaur Courser;Forest;Forest\naigraveyard=Lightning Bolt"),
+                    )
                 val coordinator = board.bridge.cutCoordinator
                 coordinator.registerViewer(SeatId(2))
                 coordinator.registerViewer(SeatId(3), ProjectionViewerRole.Observer)
@@ -149,10 +182,14 @@ class SearchWindowCaptureTest :
                         .getZone(ZoneType.Library)
                         .cards
                         .first { it.name == "Centaur Courser" }
+                val candidates = if (mixed) listOf(creature, board.ai.graveyard.card("Lightning Bolt")) else listOf(creature)
                 val search =
                     request(board).copy(
-                        options = listOf(creature.name),
-                        candidateRefs = listOf(PromptCandidateRefDto(0, PromptCandidateKind.Card, creature.id, "Library")),
+                        options = candidates.map { it.name },
+                        candidateRefs =
+                            candidates.mapIndexed { index, card ->
+                                PromptCandidateRefDto(index, PromptCandidateKind.Card, card.id, card.zone.zoneType.name)
+                            },
                         searchedSeatId = SeatId(2),
                         searchGroupOptionIndices = if (grouped) listOf(listOf(0)) else emptyList(),
                     )
@@ -179,13 +216,17 @@ class SearchWindowCaptureTest :
                             .idsList
                             .single()
                     } else {
-                        req.searchReq.itemsSoughtList.single()
+                        req.searchReq.itemsSoughtList.first()
                     }
                 if (grouped) {
                     req.searchFromGroupsReq.zonesToSearchList shouldContainExactly listOf(zone)
                 } else {
-                    req.searchReq.zonesToSearchList shouldContainExactly listOf(zone)
-                    req.searchReq.itemsToSearchList.shouldHaveSize(3)
+                    assertSoftly {
+                        req.searchReq.zonesToSearchList shouldContainExactly
+                            (if (mixed) listOf(zone, ZoneIds.P2_GRAVEYARD) else listOf(zone))
+                        req.searchReq.itemsToSearchList.shouldHaveSize(if (mixed) 4 else 3)
+                        req.searchReq.itemsSoughtList.shouldHaveSize(if (mixed) 2 else 1)
+                    }
                 }
                 listOf(SeatId(2), SeatId(3)).forEach { viewer ->
                     coordinator
