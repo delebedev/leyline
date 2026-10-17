@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.game.card.Card
+import forge.game.zone.ZoneType
 import leyline.bridge.handoff.PromptJournal
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -41,7 +42,9 @@ internal object RevealChoiceWindowCapture {
         check(candidates.map { it.forgeCardId }.distinct().size == candidates.size) {
             "RevealChoice candidates must be distinct cards"
         }
-        check(candidates.all { it.forgeCardId in fullRevealCardIds }) { "RevealChoice candidates must belong to the exact reveal" }
+        check(candidateHandles.all { ForgeCardId(it.id) in fullRevealCardIds || it.isInZone(ZoneType.Graveyard) }) {
+            "RevealChoice candidates must belong to the exact reveal or a public graveyard"
+        }
         check(request.min in 0..request.max && request.max <= candidates.size) { "Invalid RevealChoice cardinality" }
         check(candidates.isEmpty() || request.defaultIndex in candidates.indices) { "Invalid RevealChoice default option" }
         check(candidates.isNotEmpty() || (request.min == 0 && request.max == 0)) {

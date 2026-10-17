@@ -1501,10 +1501,8 @@ class PlayerController(
     // -- Seam 6: chooseNumber (NumericInputReq) ------------------------------
     // PCHuman routes all three overloads through Swing-backed `getGui()` calls
     // (`ClientGuiGame.getInteger` / `.one`), which silently auto-respond in
-    // headless mode and don't emit a wire prompt. Override the two range-style
-    // overloads to route through the numeric-input gate so the client gets a
-    // real `NumericInputReq` (ChooseX). The list-of-values overload is rarer
-    // and a different shape; throw to surface the call site if it ever fires.
+    // headless mode and don't emit a wire prompt. Ranges use the numeric-input
+    // gate; finite lists retain their exact domain through named choices.
 
     override fun chooseNumber(
         sa: SpellAbility,
@@ -1550,17 +1548,13 @@ class PlayerController(
         )
     }
 
+    /** Engine-thread replacement for PCHuman's GUI list chooser; preserves sparse offered values. */
     override fun chooseNumber(
         sa: SpellAbility,
         title: String,
         values: MutableList<Int>,
         relatedPlayer: Player?,
-    ): Int =
-        error(
-            "chooseNumber(sa, title, values, relatedPlayer) not yet implemented for headless bridge — " +
-                "list-of-values shape needs a separate emit path (likely SelectN-of-1). " +
-                "sa.hostCard=${sa.hostCard?.name}, values=$values",
-        )
+    ): Int = staticChoiceCoordinator.chooseNumber(sa, title, values)
 
     /**
      * Forge's `PCHuman.announceRequirements` only routes through `chooseNumber` when

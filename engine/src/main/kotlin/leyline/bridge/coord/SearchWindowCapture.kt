@@ -20,13 +20,17 @@ internal class SearchWindowCapture(
             request.candidateRefs
                 .filter { it.kind == PromptCandidateKind.Card }
                 .associate { it.index to ForgeCardId(it.entityId) }
+        var includesGraveyard = false
         val candidateSeats =
             candidateIds.values
                 .map { id ->
                     val card = owner.bridge.findCard(id) ?: error("Search candidate unavailable")
                     val zone = card.zone ?: error("Search candidate zone unavailable")
-                    require(zone.zoneType == ZoneType.Library) { "Search candidates must be in a library" }
-                    owner.bridge.seatOf(zone.player) ?: error("Search library owner unavailable")
+                    require(zone.zoneType == ZoneType.Library || zone.zoneType == ZoneType.Graveyard) {
+                        "Search candidates must be in a library or public graveyard"
+                    }
+                    if (zone.zoneType == ZoneType.Graveyard) includesGraveyard = true
+                    owner.bridge.seatOf(zone.player) ?: error("Search owner unavailable")
                 }.distinct()
         val searchedSeat =
             request.searchedSeatId ?: candidateSeats.singleOrNull()
@@ -37,6 +41,8 @@ internal class SearchWindowCapture(
             searchedSeatId = searchedSeat,
             libraryCardIds = player.getZone(ZoneType.Library).cards.map { ForgeCardId(it.id) },
             candidateCardIdsByOption = candidateIds,
+            graveyardCardIds =
+                if (includesGraveyard) player.getZone(ZoneType.Graveyard).cards.map { ForgeCardId(it.id) } else emptyList(),
             optionCount = request.options.size,
             minFind = request.min,
             maxFind = request.max,

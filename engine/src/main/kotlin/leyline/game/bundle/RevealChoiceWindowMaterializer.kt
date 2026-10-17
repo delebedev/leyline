@@ -58,8 +58,11 @@ internal class RevealChoiceWindowMaterializer {
             .setMaxWeight(Int.MAX_VALUE)
             .setIdType(IdType.InstanceId_ab2c)
             .addAllIds(window.candidates.map { context.requiredInstanceId(it.forgeCardId, "RevealChoice card") })
-            .addAllUnfilteredIds(window.fullRevealCardIds.map { context.requiredInstanceId(it, "RevealChoice card") })
-            .setPrompt(Prompt.newBuilder().setPromptId(promptId(window)))
+            .addAllUnfilteredIds(
+                (window.fullRevealCardIds + window.candidates.map { it.forgeCardId })
+                    .distinct()
+                    .map { context.requiredInstanceId(it, "RevealChoice card") },
+            ).setPrompt(Prompt.newBuilder().setPromptId(promptId(window)))
             .apply {
                 if (window.candidates.isNotEmpty()) {
                     minSel = if (isPrivateExileChoice(window)) 1 else window.min

@@ -2,6 +2,8 @@ package leyline.session.targeting
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.game.mapping.ZoneIds
@@ -11,6 +13,47 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 class SearchPromptSessionTest :
     SessionTest({
+        for (chooseGraveyard in listOf(false, true)) {
+            session(
+                "Verdant Crescendo retains both search zones: choose graveyard=$chooseGraveyard",
+                puzzle = """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Verdant Crescendo
+                    humanbattlefield=Forest;Forest;Forest;Forest
+                    humangraveyard=Nissa, Nature's Artisan
+                    humanlibrary=Forest;Nissa, Nature's Artisan;Island
+                    ailibrary=Island;Island;Island
+                """,
+                fullControl = true,
+            ) {
+                val graveyardNissa = human.graveyard.iid("Nissa, Nature's Artisan")
+                val land = castSpellUntilSearchReq("Verdant Crescendo")
+                respondToSearch(listOf(land.itemsSoughtList.first()))
+                passUntil { allMessages.count { it.hasSearchReq() } == 2 }.shouldBeTrue()
+                val search = allMessages.last { it.hasSearchReq() }.searchReq
+                assertSoftly {
+                    search.itemsSoughtCount shouldBe 2
+                    search.itemsSoughtList shouldContain graveyardNissa
+                    search.itemsToSearchList shouldContainAll search.itemsSoughtList
+                    search.zonesToSearchList.toSet() shouldBe setOf(ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD)
+                }
+                val chosen = if (chooseGraveyard) graveyardNissa else search.itemsSoughtList.single { it != graveyardNissa }
+                respondToSearch(listOf(chosen))
+                passUntilResolved()
+                assertSoftly {
+                    human.hand.card("Nissa, Nature's Artisan").name shouldBe "Nissa, Nature's Artisan"
+                    if (chooseGraveyard) {
+                        human.library.card("Nissa, Nature's Artisan").name shouldBe "Nissa, Nature's Artisan"
+                    } else {
+                        human.graveyard.card("Nissa, Nature's Artisan").name shouldBe "Nissa, Nature's Artisan"
+                    }
+                }
+            }
+        }
+
         session(
             "Opposition Agent controls an opponent search and exiles the chosen card",
             puzzle = """

@@ -4,8 +4,8 @@ import forge.game.card.Card
 import leyline.bridge.types.ForgeCardId
 
 /**
- * Publishes coordinator-owned numeric interactions for the three
- * `chooseNumber` override sites that share it (range, range+params, list-overload).
+ * Publishes coordinator-owned numeric interactions for integer ranges,
+ * announced amounts, and repeatable keyword costs.
  *
  * Mirrors [OptionalActionGate] — a `Cost$ X` triggered/activated ability lands in
  * Forge's `PlayerController.chooseNumber`, the override publishes the value and blocks

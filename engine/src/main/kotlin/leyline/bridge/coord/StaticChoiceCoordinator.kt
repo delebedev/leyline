@@ -19,6 +19,27 @@ import wotc.mtgo.gre.external.messaging.Messages.StaticList
 class StaticChoiceCoordinator(
     private val bridge: InteractivePromptBridge,
 ) {
+    fun chooseNumber(
+        sa: SpellAbility,
+        title: String,
+        values: List<Int>,
+    ): Int {
+        require(values.isNotEmpty()) { "Number choice requires an offered value" }
+        if (values.size == 1) return values.single()
+        val selected =
+            bridge.requestStaticChoice(
+                PromptRequest(
+                    promptType = "choose_one",
+                    message = title,
+                    options = values.map(Int::toString),
+                    route = PromptRouteResolver.resolve(PromptSemantic.NamedChoice),
+                    sourceEntityId = sourceEntityId(sa),
+                    staticOptionIds = values.indices.map { it + 1 },
+                ),
+            )
+        return values[selected.single()]
+    }
+
     fun chooseDungeon(
         faces: List<ICardFace>,
         sa: SpellAbility,

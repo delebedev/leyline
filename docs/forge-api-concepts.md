@@ -40,6 +40,12 @@ Use this decision rule:
 - Yes/no optional-action style prompts use `OptionalActionGate` when the session must observe a pending prompt outside the normal prompt queue.
 - Numeric prompts use `NumericInputGate`.
 
+Finite integer choices retain the complete offered order through named
+prompt-parameter choices. Their selected indices map back to the original
+integers, including sparse domains after previous choices are excluded.
+These mandatory choices reject cancellation and default to the first offered
+value on timeout. Singleton domains resolve directly.
+
 Local Commander games configure one free first mulligan in `GameBootstrap`; generic two-player Commander rules do not imply one. Forge's `GameRules` supplies the effective policy to both mulligan execution and the advertised `freeMulliganCount`. `MulliganReq.mulliganCount` reports all redraws taken, while the Forge prompt count determines how many cards to bottom. Each London redraw deals seven cards, and keeping requires one bottom choice per paid mulligan.
 
 The engine thread blocks in these calls. Never block on session-owned state from an override; post a pending request and let the session complete the future.
@@ -69,6 +75,12 @@ Forge pays optional attack costs. Selecting a normal attack declines those
 costs without opening another choice.
 
 Multiple-card effect and reveal-from-hand callbacks use the resolution card-selection route when every candidate has a chooser-visible card identity. Visible resolution choices use a neutral selection instruction. Hidden-library look-and-pick choices keep their dedicated instruction. Choices return the selected original Forge handles. Mandatory singleton choices resolve directly, while incomplete or hidden candidate domains retain their fallback. Complete player-only choices use the compatibility selection runtime with exact player handles.
+
+Flat library searches retain same-owner graveyard cards when Forge offers both
+zones. The full library remains private to the chooser, while the graveyard
+retains its public visibility. A reveal-backed choice may similarly retain
+public graveyard candidates alongside the exact revealed hand. Neither route
+admits unrevealed hand cards or invents additional legal candidates.
 
 ## 3. SpellAbility Is A Chain
 
