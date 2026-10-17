@@ -167,8 +167,8 @@ class PriorityActionCandidatesTest :
                 }
             }
         }
-        for (spell in listOf("Rumbling Baloth", "Forest")) {
-            test("Glarb offers a permitted top library card: $spell") {
+        for ((spell, expectedOffers) in listOf("Rumbling Baloth" to 1, "Forest" to 1, "Grizzly Bears" to 0, "Stonecoil Serpent" to 1)) {
+            test("Glarb offers only a permitted top library card: $spell") {
                 val board =
                     startPuzzleAtMain1(
                         """
@@ -197,7 +197,13 @@ class PriorityActionCandidatesTest :
                         candidates,
                     )
                 val actionType = if (spell == "Forest") ActionType.Play_add3 else ActionType.Cast
-                projection.actions.ofType(actionType).shouldHaveSize(1)
+                projection.actions.ofType(actionType).shouldHaveSize(expectedOffers)
+                if (expectedOffers == 0) {
+                    candidates.forCard(board.human.library.card(spell)).casts.shouldHaveSize(0)
+                    projection.actions.inactiveActionsList
+                        .filter { it.actionType == ActionType.Cast }
+                        .shouldHaveSize(0)
+                }
                 candidates
                     .forCard(
                         board.human
@@ -206,6 +212,94 @@ class PriorityActionCandidatesTest :
                             .get(1),
                     ).casts
                     .shouldHaveSize(0)
+            }
+        }
+        test("Glarb retains intrinsic mana value for an alternate payment") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Library alternate payment
+                    Goal:Win
+                    Turns:4
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Glarb, Calamity's Augur;Mountain;Mountain
+                    humanlibrary=Fireblast;Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                )
+            val source = board.human.library.card("Fireblast")
+            val candidates = PriorityActionCandidates.query(board.game, board.human)
+            assertSoftly {
+                candidates.forCard(source).casts.any { it.payCosts.totalMana.isZero } shouldBe true
+                source.isInZone(ZoneType.Library) shouldBe true
+                source.manaCost.cmc shouldBe 6
+            }
+        }
+        for ((spell, expectedManaValue) in listOf("Boom // Bust" to 6, "Beanstalk Giant" to 7)) {
+            test("Glarb checks the selected spell face: $spell") {
+                val board =
+                    startPuzzleAtMain1(
+                        """
+                        [metadata]
+                        Name:Library spell face permission
+                        Goal:Win
+                        Turns:4
+                        [state]
+                        ActivePlayer=Human
+                        ActivePhase=Main1
+                        HumanLife=20
+                        AILife=20
+                        humanbattlefield=Glarb, Calamity's Augur
+                        humanlibrary=$spell;Forest
+                        ailibrary=Mountain
+                        """.trimIndent(),
+                    )
+                val source = board.human.library.card(spell)
+                val originalState = source.currentStateName
+                val casts = PriorityActionCandidates.query(board.game, board.human).forCard(source).casts
+                assertSoftly {
+                    casts.shouldHaveSize(1)
+                    casts
+                        .single()
+                        .payCosts.totalMana.cmc shouldBe expectedManaValue
+                    source.currentStateName shouldBe originalState
+                    source.isInZone(ZoneType.Library) shouldBe true
+                }
+            }
+        }
+        test("Glarb rejects an ineligible modal front face") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Library modal front face permission
+                    Goal:Win
+                    Turns:4
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanbattlefield=Glarb, Calamity's Augur
+                    humanlibrary=Valki, God of Lies;Forest
+                    ailibrary=Mountain
+                    """.trimIndent(),
+                )
+            val source = board.human.library.card("Valki, God of Lies")
+            val originalState = source.currentStateName
+            assertSoftly {
+                PriorityActionCandidates
+                    .query(board.game, board.human)
+                    .forCard(source)
+                    .casts
+                    .shouldHaveSize(0)
+                source.currentStateName shouldBe originalState
+                source.isInZone(ZoneType.Library) shouldBe true
             }
         }
         test("library land permission obeys the normal land limit") {

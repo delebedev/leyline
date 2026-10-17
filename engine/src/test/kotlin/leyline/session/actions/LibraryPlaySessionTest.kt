@@ -35,6 +35,35 @@ class LibraryPlaySessionTest :
                 human.landsPlayedThisTurn shouldBe 1
             }
         }
+        for (chosenX in listOf(3, 4)) {
+            session(
+                "Glarb validates the chosen top-library spell mana value: X=$chosenX",
+                puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Glarb, Calamity's Augur;Forest;Forest;Island;Swamp
+                humanlibrary=Stonecoil Serpent;Mountain;Island
+                ailibrary=Mountain
+                """,
+            ) {
+                val top = human.library.iid("Stonecoil Serpent")
+                val offered =
+                    allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                        it.actionType == ActionType.Cast && it.instanceId == top
+                    }
+                holdNextNumericInput()
+                submitAction(offered)
+                respondToNumericInput(chosenX)
+                passUntilResolved()
+                if (chosenX >= 4) {
+                    human.battlefield.card("Stonecoil Serpent").netPower shouldBe chosenX
+                } else {
+                    human.library.card("Stonecoil Serpent").name shouldBe "Stonecoil Serpent"
+                }
+            }
+        }
         session(
             "Glarb leaving withdraws the top-library cast action",
             puzzle = """

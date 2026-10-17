@@ -5,6 +5,7 @@ import forge.game.GameActionUtil
 import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardCopyService
 import forge.game.combat.CombatUtil
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
@@ -143,7 +144,19 @@ fun getAllCastableAbilities(
     appendRoomDoorSAs(card, player, expanded)
 
     if (!checkTiming) return expanded
-    return expanded.filter { it.canPlay() && it.canCastTiming(player) }
+    return expanded.filter { it.canPlay() && it.canCastTiming(player) && permitsFixedCostSpell(it) }
+}
+
+private fun permitsFixedCostSpell(ability: SpellAbility): Boolean {
+    if (!ability.hasParam("ValidAfterStack")) return true
+    val card = ability.hostCard
+    // X-dependent permissions remain with Forge's final validation after the player chooses X.
+    if (card.manaCost.countX() > 0 || ability.costHasManaX()) return true
+    // Stack mana value belongs to the selected face, independently of its payment cost.
+    val host = CardCopyService.getLKICopy(ability.getAlternateHost(card) ?: card)
+    host.setLKICMC(-1)
+    host.setLastKnownZone(card.game.stackZone)
+    return ability.copy(host, true).isLegalAfterStack
 }
 
 private fun secondaryFaceSpellAbilities(card: Card): List<SpellAbility> {
