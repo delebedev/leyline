@@ -64,12 +64,8 @@ object InstanceIdRegistry {
         }
 
         fun realloc(forgeCardId: ForgeCardId): IdReallocation {
-            val old = forward[forgeCardId]
-            if (old == null) return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
-            val new = reserve()
-            forward[forgeCardId] = new
-            reverse[new] = forgeCardId
-            return IdReallocation(old, new)
+            if (forgeCardId !in forward) return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
+            return reallocTo(forgeCardId, reserve())
         }
 
         fun retire(forgeCardIds: Set<ForgeCardId>): List<InstanceId> {
@@ -85,7 +81,8 @@ object InstanceIdRegistry {
             val old = getOrAlloc(forgeCardId)
             check(reverse[new] == null || reverse[new] == forgeCardId) { "Reserved instance id belongs to another card" }
             nextInstanceId = maxOf(nextInstanceId, new.value + 1)
-            forward[forgeCardId] = new
+            // Aliases identify one lifetime; advancing only one key leaves staging on a retired identity.
+            forward.replaceAll { _, current -> if (current == old) new else current }
             reverse[new] = forgeCardId
             return IdReallocation(old, new)
         }
