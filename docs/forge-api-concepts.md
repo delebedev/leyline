@@ -144,7 +144,14 @@ Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit
 special actions such as turning a face-down card face up retain their own lookup.
 Intrinsic keyword slots follow the active face's declared keyword order, including
-the declaration source of copied states. Generated triggers without a direct
+the declaration source of copied states. Repeated intrinsic keywords bind one live
+occurrence per declaration slot. Exact definitions bind before any unambiguous
+keyword-family fallback, so one declaration cannot consume a sibling's identity.
+Repeated catalog rows retain their declaration-local `uniqueAbilityId` only while
+the resolved row still matches that declaration. Derived action overrides use
+their own catalog lookup rather than aliasing the declaration's object row. The
+selected action still executes its retained Forge ability.
+Generated triggers without a direct
 definition binding use cleanup and pending identities before falling back to
 their spawning ability's identity during targeting and stack resolution.
 
