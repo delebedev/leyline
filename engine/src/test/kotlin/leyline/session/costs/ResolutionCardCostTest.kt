@@ -54,9 +54,12 @@ class ResolutionCardCostTest :
                         token.hasKeyword(Keyword.LIFELINK).shouldBeTrue()
                     }
                 }
-                playLand("Forest").shouldBeTrue()
-                human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 3
-                game().isGameOver shouldBe false
+                val continued = playLand("Forest")
+                assertSoftly {
+                    continued.shouldBeTrue()
+                    human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 3
+                    game().isGameOver shouldBe false
+                }
             }
         }
     })
