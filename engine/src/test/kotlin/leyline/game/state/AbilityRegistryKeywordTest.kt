@@ -2,6 +2,7 @@ package leyline.game.state
 
 import forge.card.CardRarity
 import forge.card.CardRules
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardFactory
 import forge.game.keyword.Keyword
@@ -21,6 +22,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.game.codes.SlotKind
 import leyline.game.data.CardData
 import leyline.game.data.ForgeCardRepository
+import leyline.game.data.KeywordAbilityIds
 import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.ActionMapper
 import leyline.game.mapping.ActivatedActionEmitter
@@ -31,6 +33,34 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionsAvailableReq
 
 class AbilityRegistryKeywordTest :
     BoardTest({
+
+        test("attached reconfigure override never aliases the printed attach object row") {
+            val board =
+                startWithBoard { game, human, _ ->
+                    val bearer = addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                    val equipment = addCard("Lizard Blades", human, ZoneType.Battlefield)
+                    val attach = equipment.spellAbilities.single { it.api == ApiType.Attach }
+                    attach.activatingPlayer = human
+                    equipment.attachToEntity(bearer, attach, true)
+                    repeat(3) { addCard("Plains", human, ZoneType.Battlefield) }
+                    game.action.checkStaticAbilities(false)
+                }
+            val (bridge, game, _) = board
+            val card = board.human.battlefield.card("Lizard Blades")
+            val iid = bridge.instanceId(card)
+            val projection = ActionMapper.buildProjectionFromSnapshot(1, SnapshotCapture.run(game, bridge, "test", 0), bridge)
+            val offers = projection.offers.filter { it.action.instanceId == iid && it.action.actionType == ActionType.Activate_add3 }
+            val objectRows = handshakeFull(game, bridge, 1).gameObjectsList.single { it.instanceId == iid }.uniqueAbilitiesList
+            val unattach = offers.single { (it.command as PlayerAction.ActivateAbility).ability?.api == ApiType.Unattach }
+            assertSoftly {
+                unattach.action.abilityGrpId shouldBe KeywordAbilityIds.RECONFIGURE_UNATTACH
+                unattach.action.uniqueAbilityId shouldBe 0
+                for (offer in offers.filter { it.action.uniqueAbilityId != 0 }) {
+                    objectRows.single { it.id == offer.action.uniqueAbilityId }.grpId shouldBe offer.action.abilityGrpId
+                }
+            }
+        }
+
         fun equipment(
             declarations: List<String>,
             sharedRow: Boolean = false,

@@ -157,6 +157,7 @@ class AbilityRegistry private constructor(
                         ?.takeIf { abilityGrpId != 0 }
                         ?.keywordSlotIndices
                         ?.get(original.definitionId)
+                        ?.takeIf { cardData?.abilityIds?.getOrNull(it)?.first == abilityGrpId }
                         ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
                         ?: uniqueAbilityIdFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
                 }
