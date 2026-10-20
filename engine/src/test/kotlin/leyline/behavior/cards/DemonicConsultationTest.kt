@@ -4,6 +4,7 @@ import forge.game.player.GameLossReason
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.testkit.SessionTest
 import leyline.tooling.headless.clientMessage
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -92,6 +93,55 @@ class DemonicConsultationTest :
                         human.outcome.lossState shouldBe GameLossReason.Milled
                     }
                 }
+            }
+        }
+
+        session("Puzzle opening and ordinary-priority reconnect retain playable actions", puzzle = puzzle, fullControl = true) {
+            val opening = allMessages.last { it.hasActionsAvailableReq() }
+            reconnectLocalSeat()
+            val current = allMessages.last { it.hasActionsAvailableReq() }
+            assertSoftly {
+                current.msgId shouldNotBe opening.msgId
+                current.gameStateId shouldNotBe opening.gameStateId
+                allMessages.count { it.hasStringInputReq() } shouldBe 0
+                human.getZone(ZoneType.Hand).cards.map { it.name } shouldBe listOf("Demonic Consultation", "Forest")
+            }
+            assertSoftly {
+                playLand("Forest") shouldBe true
+                human.battlefield.card("Forest").name shouldBe "Forest"
+            }
+        }
+
+        session("Reconnect retains the pending name attempt and never replays a consumed name", puzzle = puzzle, fullControl = true) {
+            castSpellByName("Demonic Consultation") shouldBe true
+            passUntil(maxPasses = 4) { allMessages.any { it.hasStringInputReq() } } shouldBe true
+            val stale = allMessages.last { it.hasStringInputReq() }
+            val original = checkNotNull(bridge.cutCoordinator.currentBlockingInteraction())
+            reconnectLocalSeat()
+            val current = allMessages.last { it.hasStringInputReq() }
+            assertSoftly {
+                current.msgId shouldNotBe stale.msgId
+                current.gameStateId shouldNotBe stale.gameStateId
+                bridge.cutCoordinator.currentBlockingInteraction()?.interactionId shouldBe original.interactionId
+            }
+            send(
+                clientMessage(ClientMessageType.StringInputResp_097b) {
+                    systemSeatId = 1
+                    gameStateId = stale.gameStateId
+                    respId = stale.msgId
+                    setStringInputResp(StringInputResp.newBuilder().setInputValue("Island"))
+                },
+            )
+            drainSink()
+            human.getZone(ZoneType.Library).size() shouldBe 10
+            respondToCardName("Grizzly Bears")
+            passUntilResolved()
+            val nameRequests = allMessages.count { it.hasStringInputReq() }
+            reconnectLocalSeat()
+            assertSoftly {
+                allMessages.count { it.hasStringInputReq() } shouldBe nameRequests
+                human.hand.card("Grizzly Bears").name shouldBe "Grizzly Bears"
+                human.getZone(ZoneType.Library).size() shouldBe 2
             }
         }
 

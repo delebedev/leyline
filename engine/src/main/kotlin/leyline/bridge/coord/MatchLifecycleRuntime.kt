@@ -33,6 +33,9 @@ internal class MatchLifecycleRuntime(
     )
 
     private var initialPublication: InitialPublication? = null
+
+    fun hasInitialPublication(): Boolean = synchronized(owner.feedLock) { initialPublication != null }
+
     private var familiarStartupClaimed = false
     private var currentKeepRequest: GREToClientMessage? = null
     private var currentMulliganBatch: List<GREToClientMessage>? = null
@@ -189,6 +192,7 @@ internal class MatchLifecycleRuntime(
                 .firstOrNull { it.zoneId == ZoneIds.handOf(seatId.value) }
                 ?.objectInstanceIdsList
                 .orEmpty()
+        val nameInput = owner.interactions.cardNameReconnectHorizon(seatId)
         val horizonMessage =
             mulliganPrompt?.let {
                 LifecycleMessageMaterializer.mulliganRequest(
@@ -200,7 +204,7 @@ internal class MatchLifecycleRuntime(
                     handInstanceIds = handInstanceIds,
                     keepRequest = currentKeepRequest,
                 )
-            } ?: horizon?.decisionMessage
+            } ?: nameInput?.decisionMessage ?: horizon?.decisionMessage
         val gsm =
             horizonMessage?.takeIf { it.hasActionsAvailableReq() }?.let {
                 GsmBuilder.embedActions(rebasedFull, it.actionsAvailableReq, GsmFrame.from(rebasedSnapshot), seatId.value)
@@ -242,13 +246,15 @@ internal class MatchLifecycleRuntime(
             feed,
             PreparedCut.prepare(prior, planner, messages, transition, closesPlaybackFrame = false),
             replaces =
-                horizon
-                    ?.publishedBatch
-                    ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
+                nameInput?.publishedBatch?.takeIf { batch -> feed.queue.any { it.messages === batch } }
+                    ?: horizon
+                        ?.publishedBatch
+                        ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
                     ?: currentMulliganBatch
                         ?.takeIf { batch -> feed.queue.any { it.messages === batch } }
                         .orEmpty(),
             onInstalled = {
+                nameInput?.let { owner.interactions.bindCardNameReconnect(it, gameStateId, messages) }
                 horizon?.let { owner.actions.bindReconnectHorizon(it, gameStateId, messages) }
                 if (mulliganPrompt != null) {
                     currentMulliganBatch = messages
@@ -388,7 +394,18 @@ internal class MatchLifecycleRuntime(
                 prepared.messages,
                 prepared.replaces.orEmpty(),
                 actionId.takeIf { prepared.replaces != null },
+                initialActionId = actionId.takeIf { prepared.kind == PendingActionKind.PRIORITY },
             )
+            if (initialPublication == null) {
+                initialPublication =
+                    InitialPublication(
+                        gameStateId,
+                        owner.bridge
+                            .projectionStateSnapshot()
+                            .sequence.committedOutputOrdinal,
+                        listOf(PreparedViewerOutput(seatId, listOf(prepared.messages.messages))),
+                    )
+            }
             PuzzleInitialPublication(
                 gameStateId = gameStateId,
                 kind = prepared.kind,
@@ -470,6 +487,7 @@ internal class MatchLifecycleRuntime(
         replaces: List<GREToClientMessage> = emptyList(),
         synchronizationActionId: String? = null,
         hooks: CutInstallHooks = CutInstallHooks(),
+        initialActionId: String? = null,
     ) {
         planner.setMsgId(prepared.nextMsgId)
         owner.cutInstaller.install(
@@ -479,6 +497,7 @@ internal class MatchLifecycleRuntime(
             replaces = replaces,
             onInstalled = {
                 synchronizationActionId?.let { owner.actions.markSynchronizationPublished(seatId, it, prepared.messages) }
+                initialActionId?.let { owner.actions.bindInitialPublication(it, prepared.messages) }
             },
             onFailure = owner::fail,
         )

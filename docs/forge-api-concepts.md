@@ -45,6 +45,8 @@ Use this decision rule:
   one callback deadline. Timeout terminates the interaction without a default name.
   Forge retains its final card-validity check and exact face semantics. The list
   overload retains the separate dungeon-choice route.
+  Reconnect republishes a pending name attempt with fresh response identifiers,
+  retaining its original future and deadline. Consumed names are not replayed.
 
 `RearrangeTopOfLibrary` with `MayShuffle` preserves its post-order shuffle
 decision through `OptionalActionGate`. Decline retains the chosen library order.

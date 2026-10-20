@@ -343,6 +343,12 @@ class MatchFlowHarness(
             beforePuzzleRuntimeStart = beforePuzzleRuntimeStart,
         )
 
+    /** Re-enter the real local-seat handshake without recreating the running match. */
+    fun reconnectLocalSeat() {
+        authenticateAndConnect(localConnection, seatId.value, "headless-player")
+        drainSink()
+    }
+
     private fun authenticateAndConnect(
         connection: MatchConnection,
         systemSeatId: Int,
