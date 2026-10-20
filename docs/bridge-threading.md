@@ -67,6 +67,16 @@ Forge controller slot. The caller checks the prompt identity again after the
 consult and returns an unavailable proposal if it changed. This path never
 holds `feedLock` and never submits a response.
 
+## Initial handoff readiness
+
+Match startup with mulligans enabled must reach the actual `WaitingKeep` handoff
+before returning to initial-hand and mulligan-request publication. Engine-loop
+failure or expiry of the readiness deadline aborts startup; neither is a successful
+ready state.
+`Match` owns cleanup of a failed start even before registry insertion. Its
+idempotent close releases the started loop and listeners, preserves the startup
+exception, and restores caller interruption after cleanup.
+
 ## Publication transaction
 
 When the engine blocks for a visible decision, the delivery signal means the
