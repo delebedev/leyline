@@ -36,6 +36,7 @@ class AbilityRegistry private constructor(
     val sourceCardGrpId: Int,
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
     private val grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
+    private val keywordSlotIndices: Map<Int, Int> = emptyMap(),
 ) {
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
     fun forSpellAbility(ability: SpellAbility): Int? =
@@ -147,11 +148,17 @@ class AbilityRegistry private constructor(
                         .singleOrNull {
                             it.value.first.definitionId == ability.definitionId && it.value.first.grantorStatic == ability.grantorStatic
                         }?.index
+            val original = generateSequence(ability) { it.originalAbility }.last()
             val uniqueAbilityId =
                 if (abilityGrpId != 0 && cardData != null && grantIndex != null) {
                     INITIAL_UNIQUE_ABILITY_ID + cardData.abilityIds.size + grantIndex
                 } else {
-                    uniqueAbilityIdFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
+                    registryLookup(card, cardData)
+                        ?.takeIf { abilityGrpId != 0 }
+                        ?.keywordSlotIndices
+                        ?.get(original.definitionId)
+                        ?.let { INITIAL_UNIQUE_ABILITY_ID + it }
+                        ?: uniqueAbilityIdFor(cardData, abilityGrpId, abilityGrpId == fallbackAbilityGrpId)
                 }
             val grant =
                 grantIndex?.let { index ->
@@ -170,7 +177,6 @@ class AbilityRegistry private constructor(
                         )
                     }
                 }
-            val original = generateSequence(ability) { it.originalAbility }.last()
             return ActivatedIdentity(AbilityDefinitionRef.SpellAbility(original.definitionId), abilityGrpId, uniqueAbilityId, grant)
         }
 
@@ -238,6 +244,7 @@ class AbilityRegistry private constructor(
             val staticMap = mutableMapOf<Int, Int>()
             val triggerMap = mutableMapOf<Int, Int>()
             val keywordFamilies = mutableMapOf<AbilityDefinitionRef, AbilityKeywordFamily>()
+            val keywordSlotIndices = mutableMapOf<Int, Int>()
 
             val keywordCount =
                 if (card.type.isDungeon) {
@@ -245,7 +252,7 @@ class AbilityRegistry private constructor(
                     card.triggers.zip(abilityIds).forEach { (trigger, row) -> triggerMap[trigger.definitionId] = row.first }
                     0
                 } else {
-                    mapKeywords(card, abilityIds, saMap, staticMap, triggerMap, keywordFamilies)
+                    mapKeywords(card, abilityIds, saMap, staticMap, triggerMap, keywordFamilies, keywordSlotIndices)
                 }
             val slotKinds =
                 abilityIds.mapIndexed { i, _ ->
@@ -305,6 +312,7 @@ class AbilityRegistry private constructor(
                 cardData.grpId,
                 layout,
                 grantedKeywordAbilityGrpId,
+                keywordSlotIndices,
             )
         }
 
@@ -340,6 +348,7 @@ class AbilityRegistry private constructor(
             staticMap: MutableMap<Int, Int>,
             triggerMap: MutableMap<Int, Int>,
             keywordFamilies: MutableMap<AbilityDefinitionRef, AbilityKeywordFamily>,
+            keywordSlotIndices: MutableMap<Int, Int>,
         ): Int {
             val declarationCards =
                 listOfNotNull(
@@ -358,34 +367,52 @@ class AbilityRegistry private constructor(
                     .firstOrNull { it.name == card.currentState.name }
                     ?: card.rules?.mainPart
             val keywordStrings = declaredFace?.keywords?.toList().orEmpty()
-            val liveKeywords = card.getKeywords() ?: emptyList()
-            val claimed = mutableSetOf<KeywordInterface>()
+            val bindings = bindKeywordDeclarations(keywordStrings.take(abilityIds.size), card.getKeywords().orEmpty())
 
-            for ((slotIdx, kwText) in keywordStrings.withIndex()) {
-                if (slotIdx >= abilityIds.size) break
+            for ((slotIdx, kw) in bindings) {
                 val grpId = abilityIds[slotIdx].first
-                val matching =
-                    liveKeywords.filter { kw ->
-                        kw !in claimed && kw.isIntrinsic && matchesKeywordText(kw, kwText)
-                    }
-                for (kw in matching) {
-                    claimed.add(kw)
-                    val family = keywordFamily(kw)
-                    for (sa in kw.abilities) {
-                        saMap[sa.definitionId] = grpId
-                        family?.let { keywordFamilies[AbilityDefinitionRef.SpellAbility(sa.definitionId)] = it }
-                    }
-                    for (trig in kw.triggers) {
-                        triggerMap[trig.definitionId] = grpId
-                        family?.let { keywordFamilies[AbilityDefinitionRef.Trigger(trig.definitionId)] = it }
-                    }
-                    for (st in kw.staticAbilities) {
-                        staticMap[st.definitionId] = grpId
-                        family?.let { keywordFamilies[AbilityDefinitionRef.StaticAbility(st.definitionId)] = it }
-                    }
+                val family = keywordFamily(kw)
+                for (sa in kw.abilities) {
+                    saMap[sa.definitionId] = grpId
+                    keywordSlotIndices[sa.definitionId] = slotIdx
+                    family?.let { keywordFamilies[AbilityDefinitionRef.SpellAbility(sa.definitionId)] = it }
+                }
+                for (trig in kw.triggers) {
+                    triggerMap[trig.definitionId] = grpId
+                    family?.let { keywordFamilies[AbilityDefinitionRef.Trigger(trig.definitionId)] = it }
+                }
+                for (st in kw.staticAbilities) {
+                    staticMap[st.definitionId] = grpId
+                    family?.let { keywordFamilies[AbilityDefinitionRef.StaticAbility(st.definitionId)] = it }
                 }
             }
             return keywordStrings.size
+        }
+
+        private fun bindKeywordDeclarations(
+            declarations: List<String>,
+            liveKeywords: Iterable<KeywordInterface>,
+        ): Map<Int, KeywordInterface> {
+            val remaining = liveKeywords.filter { it.isIntrinsic }.toMutableList()
+            val bindings = mutableMapOf<Int, KeywordInterface>()
+            // Identical declarations pair by occurrence order before any normalized family matching.
+            for ((text, slots) in declarations.withIndex().groupBy { it.value.lowercase() }) {
+                val exact = remaining.filter { it.original.equals(text, ignoreCase = true) }
+                for ((slot, keyword) in slots.zip(exact)) {
+                    bindings[slot.index] = keyword
+                    remaining.remove(keyword)
+                }
+            }
+            // Calculated keywords may change their original text; only an unambiguous remaining pair can bind.
+            for ((slot, text) in declarations.withIndex()) {
+                if (slot in bindings) continue
+                val keyword = remaining.singleOrNull { matchesKeywordText(it, text) } ?: continue
+                val matchingSlots = declarations.indices.filter { it !in bindings && matchesKeywordText(keyword, declarations[it]) }
+                if (matchingSlots.size != 1) continue
+                bindings[slot] = keyword
+                remaining.remove(keyword)
+            }
+            return bindings
         }
 
         /**
