@@ -245,9 +245,10 @@ Use the existing cost-decision path when the engine is paying a cost and asks fo
 
 Resolution-time card costs also use Forge's `PlaySpellAbility.payCostPart(...)`
 through `payCostToPreventEffect(...)`. An empty or incomplete selection leaves a
-positive cost unpaid, so an `UnlessCost` effect still resolves. A calculated
-zero-card cost can be paid with an empty selection. Forge owns that payment
-result rather than inferring consent from a non-null selection.
+positive cost unpaid. Forge then applies `UnlessCost` and `UnlessSwitched` to
+determine resolution. A calculated zero-card cost can be paid with an empty
+selection. Forge owns that payment result rather than inferring consent from a
+non-null selection.
 
 Optional additional costs should be selected before `PlaySpellAbility.playAbility(...)` runs, then fed back into Forge through `GameActionUtil.addOptionalCosts(...)`.
 When no casting-time choice is stored, decline optional additional costs. This
