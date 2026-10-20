@@ -31,6 +31,10 @@ internal class MatchBlockingInteractionRuntime(
 ) : BlockingInteractionRuntime,
     PromptTerminalCutOwner {
     private sealed interface Answer {
+        data class CardName(
+            val value: String,
+        ) : Answer
+
         data class Optional(
             val accepted: Boolean,
         ) : Answer
@@ -64,8 +68,8 @@ internal class MatchBlockingInteractionRuntime(
     )
 
     private data class Window(
-        val published: PublishedBlockingInteraction,
-        val cut: PendingPromptCut<BlockingInteraction>,
+        var published: PublishedBlockingInteraction,
+        var cut: PendingPromptCut<BlockingInteraction>,
         val future: CompletableFuture<Answer>,
         val damageCards: Map<ForgeCardId, Card> = emptyMap(),
         val damageAssigners: List<PublishedDamageAssigner> = emptyList(),
@@ -104,6 +108,21 @@ internal class MatchBlockingInteractionRuntime(
             (await(pending, timeoutMs ?: 45_000L) as Answer.Optional).accepted
         } catch (_: TimeoutException) {
             defaultOnTimeout
+        } finally {
+            clear(pending)
+        }
+    }
+
+    override fun awaitCardName(
+        interaction: BlockingInteraction.CardName,
+        timeoutMs: Long,
+    ): String {
+        if (timeoutMs <= 0) owner.fail(IllegalStateException("Card-name input timed out"))
+        val pending = publish(interaction) { feed, _, planner -> feed.builder.cardNameInteractionBundle(planner, interaction) }
+        return try {
+            (await(pending, timeoutMs) as Answer.CardName).value
+        } catch (timeout: TimeoutException) {
+            owner.fail(IllegalStateException("Card-name input timed out", timeout))
         } finally {
             clear(pending)
         }
@@ -172,6 +191,37 @@ internal class MatchBlockingInteractionRuntime(
     override fun current(): PublishedBlockingInteraction? =
         synchronized(owner.feedLock) { window?.takeUnless { it.future.isDone }?.published }
 
+    data class CardNameReconnectHorizon(
+        val interactionId: String,
+        val decisionMessage: wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage,
+        val publishedBatch: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+    )
+
+    fun cardNameReconnectHorizon(seatId: leyline.bridge.types.SeatId): CardNameReconnectHorizon? =
+        synchronized(owner.feedLock) {
+            if (seatId != owner.humanSeat) return null
+            val pending = window?.takeUnless { it.future.isDone } ?: return null
+            if (pending.published.interaction !is BlockingInteraction.CardName) return null
+            CardNameReconnectHorizon(
+                pending.published.interactionId,
+                pending.cut.messages.single { it.hasStringInputReq() },
+                pending.cut.messages,
+            )
+        }
+
+    fun bindCardNameReconnect(
+        horizon: CardNameReconnectHorizon,
+        gameStateId: Int,
+        messages: List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>,
+    ) {
+        synchronized(owner.feedLock) {
+            val pending = checkNotNull(window) { "Card-name window is unavailable" }
+            check(!pending.future.isDone && pending.published.interactionId == horizon.interactionId)
+            pending.published = pending.published.copy(gameStateId = gameStateId)
+            pending.cut = pending.cut.copy(gameStateId = gameStateId, messages = messages, transition = null)
+        }
+    }
+
     override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? =
         window
             ?.takeUnless { it.future.isDone }
@@ -214,6 +264,17 @@ internal class MatchBlockingInteractionRuntime(
                 ) { ex -> owner.fail(ex) }
             }
             pending.future.complete(Answer.Optional(accepted))
+        }
+
+    fun submitCardName(
+        interactionId: String,
+        gameStateId: Int,
+        value: String,
+    ): Boolean =
+        synchronized(owner.feedLock) {
+            val pending = matching(interactionId, gameStateId) ?: return false
+            if (pending.published.interaction !is BlockingInteraction.CardName) return false
+            pending.future.complete(Answer.CardName(value))
         }
 
     fun submitNumeric(

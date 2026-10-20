@@ -84,6 +84,7 @@ object AcceptanceSuiteLoader {
             "modal_choice" -> parseModalChoice(value, "$context.modal_choice")
             "group_keep" -> GroupKeepStep
             "numeric_input" -> NumericInputStep(value.asInt("$context.numeric_input"))
+            "name_card" -> NameCardStep(value.asString("$context.name_card"))
             "static_choice" -> parseStaticChoice(value, "$context.static_choice")
             "optional_action" -> parseOptionalAction(value, "$context.optional_action")
             "cancel_action" -> CancelActionStep

@@ -360,6 +360,17 @@ internal class MatchActionWindowRuntime(
             window.actions
         }
 
+    fun bindInitialPublication(
+        actionId: String,
+        publishedBatch: List<GREToClientMessage>,
+    ) {
+        synchronized(owner.feedLock) {
+            val window = checkNotNull(actionWindows[actionId]) { "No action window $actionId" }
+            check(window.status == ActionWindowStatus.Published && window.publishedBatch.isEmpty())
+            actionWindows[actionId] = window.copy(publishedBatch = publishedBatch)
+        }
+    }
+
     fun replaceWithPhaseTransition(
         actionId: String,
         includePriorityPrompt: Boolean = true,

@@ -38,6 +38,7 @@ val PROMPT_GRE_TYPES: Set<GREMessageType> =
         GREMessageType.OptionalActionMessage_695e,
         GREMessageType.AssignDamageReq_695e,
         GREMessageType.NumericInputReq_695e,
+        GREMessageType.StringInputReq_695e,
         GREMessageType.MulliganReq_aa0d,
         GREMessageType.ChooseStartingPlayerReq_695e,
     )

@@ -68,6 +68,7 @@ import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
+import leyline.bridge.handoff.CardNameInputGate
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.GameActionBridge
@@ -222,6 +223,7 @@ class PlayerController(
     OwnerContext {
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
     private val numericInputGate = NumericInputGate(actionBridge, interactionRuntime)
+    private val cardNameInputGate = CardNameInputGate(actionBridge, interactionRuntime)
     private val spellExecutor = SpellExecutor(game, player, bridge)
     private val targetingCoordinator =
         TargetingCoordinator(
@@ -1745,6 +1747,25 @@ class PlayerController(
         num: Int,
         params: MutableMap<String, Any>?,
     ): List<SpellAbility> = chooseModeForAbility(sa, spells.map { it as AbilitySub }.toMutableList(), num, num, false)
+
+    /** Retain Forge's final card-validity loop under one engine-thread input deadline. */
+    override fun chooseCardName(
+        sa: SpellAbility,
+        cpp: Predicate<ICardFace>,
+        valid: String,
+        message: String,
+    ): String = cardNameInputGate.withChoiceDeadline { super.chooseCardName(sa, cpp, valid, message) }
+
+    /**
+     * Inherited unrestricted input materializes the catalog and defaults through the GUI.
+     * The engine thread awaits one name and lazily validates its exact face instead.
+     */
+    override fun chooseSingleCardFace(
+        sa: SpellAbility,
+        message: String,
+        cpp: Predicate<ICardFace>,
+        name: String,
+    ): ICardFace = cardNameInputGate.await(sa, message, cpp)
 
     /** Inherited card-face choices default through the GUI; the engine thread awaits an exact dungeon ID. */
     override fun chooseSingleCardFace(

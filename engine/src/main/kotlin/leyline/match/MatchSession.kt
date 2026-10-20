@@ -95,6 +95,7 @@ class MatchSession(
         NumericInputHandler(
             ctx = ctx,
         )
+    private val stringInputHandler = StringInputHandler(ctx, seatId)
     internal val actionPerformer =
         ActionPerformer(
             sink = this,
@@ -262,6 +263,18 @@ class MatchSession(
     override fun onOptionalActionResp(greMsg: ClientToGREMessage) =
         withValidResponse(greMsg) { completedActionId ->
             if (optionalActionHandler.onOptionalActionResp(greMsg)) runtimeContinuation.awaitHorizon(completedActionId)
+        }
+
+    override fun onStringInputResp(greMsg: ClientToGREMessage) =
+        withValidResponse(greMsg) { completedActionId ->
+            if (stringInputHandler.onStringInputResp(
+                    greMsg,
+                )
+            ) {
+                runtimeContinuation.awaitHorizon(completedActionId)
+            } else {
+                drainCoordinatorFeed()
+            }
         }
 
     /** Handle NumericInputResp — delegates to [NumericInputHandler]. */

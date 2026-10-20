@@ -86,6 +86,12 @@ data class NumericInputStep(
     override val label: String = "numeric_input $value"
 }
 
+data class NameCardStep(
+    val name: String,
+) : AcceptanceStep {
+    override val label: String = "name_card $name"
+}
+
 data class StaticChoiceStep(
     val id: Int,
 ) : AcceptanceStep {

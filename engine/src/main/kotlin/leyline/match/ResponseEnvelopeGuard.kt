@@ -23,6 +23,7 @@ internal val CORRELATED_CLIENT_MESSAGE_TYPES: Set<ClientMessageType> =
         ClientMessageType.AssignDamageResp_097b,
         ClientMessageType.OptionalActionResp,
         ClientMessageType.NumericInputResp_097b,
+        ClientMessageType.StringInputResp_097b,
         ClientMessageType.MulliganResp_097b,
         ClientMessageType.ChooseStartingPlayerResp_097b,
     )

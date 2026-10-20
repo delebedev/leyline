@@ -1,0 +1,40 @@
+name: card-name
+description: Resolve an explicit card name through a finite library and regain playable priority.
+scenarios:
+  - id: consultation-finds-named-card
+    puzzle: consultation-name
+    native: { skip: Card-name input compatibility is intended for embedding clients. }
+    headless: { full_control: true }
+    run: name Grizzly Bears after casting Demonic Consultation and then play Forest
+    expect: Bears is found after seven exiled cards and play continues
+    steps:
+      - cast: Demonic Consultation
+      - pass_until: { prompt: StringInputReq, max_passes: 4 }
+      - name_card: Grizzly Bears
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Demonic Consultation }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
+  - id: consultation-absent-name
+    puzzle: consultation-name
+    native: { skip: Card-name input compatibility is intended for embedding clients. }
+    headless: { full_control: true }
+    run: name the absent Island and then play Forest
+    expect: the library is exiled without an immediate loss or a stalled resolution
+    steps:
+      - cast: Demonic Consultation
+      - pass_until: { prompt: StringInputReq, max_passes: 4 }
+      - name_card: Island
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: ours, zone: hand, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: exile, card: Grizzly Bears }
+            - zone_contains: { side: ours, zone: graveyard, card: Demonic Consultation }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }

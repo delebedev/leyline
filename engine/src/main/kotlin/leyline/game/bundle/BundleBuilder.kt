@@ -1037,6 +1037,12 @@ class BundleBuilder(
         )
     }
 
+    internal fun cardNameInteractionBundle(
+        counter: LogicalSequencePlanner,
+        interaction: BlockingInteraction.CardName,
+    ): BlockingInteractionMaterializer.Prepared =
+        CardNameInteractionMaterializer.prepare(seatId, bridge.projectionStateSnapshot(), counter, interaction)
+
     internal fun numericInteractionBundle(
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Numeric,
