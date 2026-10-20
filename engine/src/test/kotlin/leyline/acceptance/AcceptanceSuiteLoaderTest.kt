@@ -12,6 +12,12 @@ class AcceptanceSuiteLoaderTest :
     FunSpec({
         tags(UnitTag)
 
+        test("card-name scenarios enable headless full control") {
+            val scenarios = AcceptanceSuiteLoader.load("card-name").scenarios
+            scenarios shouldHaveSize 2
+            scenarios.forEach { scenario -> scenario.fullControl shouldBe true }
+        }
+
         test("numeric input keeps zero and explicit repeat counts") {
             val suite =
                 AcceptanceSuiteLoader.loadFromText(
