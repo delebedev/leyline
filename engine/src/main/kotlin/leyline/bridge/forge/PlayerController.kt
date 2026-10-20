@@ -559,6 +559,18 @@ class PlayerController(
             )
         }
 
+        // Forge asks after ordering, on the resolving subability's engine thread.
+        // Keep its optional shuffle pending instead of the generic Yes default.
+        if (sa?.api == ApiType.RearrangeTopOfLibrary && sa.hasParam("MayShuffle")) {
+            return optionalActionGate.await(
+                hostCard = hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "confirmAction:MayShuffle",
+                customPromptId = PromptIds.OPTIONAL_SHUFFLE,
+            )
+        }
+
         val displayMessage = message ?: "Confirm action?"
         val displayOptions =
             if (options.isNullOrEmpty()) {

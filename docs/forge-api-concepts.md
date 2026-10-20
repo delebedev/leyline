@@ -40,6 +40,11 @@ Use this decision rule:
 - Yes/no optional-action style prompts use `OptionalActionGate` when the session must observe a pending prompt outside the normal prompt queue.
 - Numeric prompts use `NumericInputGate`.
 
+`RearrangeTopOfLibrary` with `MayShuffle` preserves its post-order shuffle
+decision through `OptionalActionGate`. Decline retains the chosen library order.
+Acceptance lets Forge shuffle before any chained draw. A timed-out decision
+declines the optional shuffle.
+
 Finite integer choices retain the complete offered order through named
 prompt-parameter choices. Their selected indices map back to the original
 integers, including sparse domains after previous choices are excluded.
