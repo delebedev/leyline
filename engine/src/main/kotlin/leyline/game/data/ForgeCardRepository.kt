@@ -662,7 +662,7 @@ class ForgeCardRepository private constructor(
 
     override fun findAllGrpIds(): List<Int> = primaryIds.toList()
 
-    private fun lookupKey(name: String): String = name.lowercase()
+    private fun lookupKey(name: String): String = name.lowercase().replace('\u2019', '\'')
 
     @Synchronized
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = rows.lookupModalOptions(cardGrpId)

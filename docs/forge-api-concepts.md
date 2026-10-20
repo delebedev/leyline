@@ -82,6 +82,16 @@ retains its public visibility. A reveal-backed choice may similarly retain
 public graveyard candidates alongside the exact revealed hand. Neither route
 admits unrevealed hand cards or invents additional legal candidates.
 
+### Combat damage assignment
+
+The blocking interaction validator accepts any nonnegative split of an assigner's
+total damage among its published creature recipients. Recipient order is an
+identity/response contract, not a requirement to assign lethal damage before
+another creature receives damage. A published defender slot may receive damage
+only after every blocking creature receives its lethal threshold. The emitted
+`minDamage` thresholds retain deathtouch semantics for that trample check; total
+damage, recipient identities, and positive slot maxima remain authoritative.
+
 ## 3. SpellAbility Is A Chain
 
 A spell or ability is often an SA chain, not one `SpellAbility`. Wrapper APIs such as `Charm`, `Effect`, `Repeat`, and `RepeatEach` can put meaningful work in sub-abilities that run after choices are made.

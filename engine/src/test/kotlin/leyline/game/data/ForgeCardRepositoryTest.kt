@@ -11,6 +11,23 @@ class ForgeCardRepositoryTest :
     FunSpec({
         tags(UnitTag)
 
+        test("deck entry resolves typographic apostrophes without discarding punctuation") {
+            val repo = ForgeCardRepository.open()
+            assertSoftly {
+                listOf("Commander's Plate", "Arcum's Astrolabe", "Urza's Saga").forEach { name ->
+                    val canonical = requireNotNull(repo.findGrpIdByName(name))
+                    repo.findDeckGrpIdByName(name.replace('\'', '\u2019')) shouldBe canonical
+                    repo.findDeckGrpIdByNameAndSet(name.lowercase().replace('\'', '\u2019'), "") shouldBe canonical
+                    repo.findDeckGrpIdByName(name.replace("'", "")) shouldBe null
+                }
+                val galleon = requireNotNull(repo.findGrpIdByName("Conqueror's Galleon"))
+                repo.findDeckGrpIdByName("Conqueror\u2019s Foothold") shouldBe galleon
+                repo.findDeckGrpIdByName("Conqueror\u2019s Galleon // Conqueror\u2019s Foothold") shouldBe galleon
+                repo.findDeckGrpIdByName("Conqueror\u2019s Galleon // Urza\u2019s Saga") shouldBe null
+                repo.findDeckGrpIdByName("Unknown\u2019s Unprinted Card") shouldBe null
+            }
+        }
+
         test("mana-producing loyalty rows stay activated while ordinary mana rows stay mana") {
             val repo = ForgeCardRepository.open()
             val ugin = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Ugin, Eye of the Storms"))))

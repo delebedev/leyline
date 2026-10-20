@@ -247,9 +247,10 @@ internal class MatchBlockingInteractionRuntime(
                     if (published.slots.zip(amounts).any { (slot, amount) -> slot.maxDamage > 0 && amount > slot.maxDamage }) {
                         return false
                     }
-                    if (published.slots.indices.any { index ->
-                            amounts.drop(index + 1).any { it > 0 } && amounts[index] < published.slots[index].minDamage
-                        }
+                    val assigned = published.slots.zip(amounts)
+                    // Creature recipients have no damage order; defender damage still requires lethal on every blocker.
+                    if (assigned.any { (slot, amount) -> slot.targetId == null && amount > 0 } &&
+                        assigned.any { (slot, amount) -> slot.targetId != null && amount < slot.minDamage }
                     ) {
                         return false
                     }
