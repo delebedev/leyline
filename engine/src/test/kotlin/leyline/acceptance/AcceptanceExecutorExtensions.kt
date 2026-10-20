@@ -36,6 +36,7 @@ private val PROMPT_TYPES: List<Pair<String, GREToClientMessage.() -> Boolean>> =
         "DistributionReq" to GREToClientMessage::hasDistributionReq,
         "GroupReq" to GREToClientMessage::hasGroupReq,
         "NumericInputReq" to GREToClientMessage::hasNumericInputReq,
+        "StringInputReq" to GREToClientMessage::hasStringInputReq,
         "OptionalActionMessage" to GREToClientMessage::hasOptionalActionMessage,
         "OrderReq" to GREToClientMessage::hasOrderReq,
         "PayCostsReq" to GREToClientMessage::hasPayCostsReq,

@@ -1,0 +1,18 @@
+# Design: a finite library distinguishes a chosen name after the initial six from an absent name.
+# Bears is eighth, leaving two Mountains after it is found. Island is a valid absent name.
+# Forest provides a legal continuation. The opponent needs no decision or battlefield action.
+[metadata]
+Name:Consultation name choice
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Name a card, resolve Demonic Consultation, then play Forest.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Swamp
+humanhand=Demonic Consultation;Forest
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Grizzly Bears;Mountain;Mountain
+ailibrary=Plains;Plains;Plains;Plains;Plains

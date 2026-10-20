@@ -12,6 +12,7 @@ import leyline.match.NumericInputHandler
 import leyline.match.OptionalActionHandler
 import leyline.match.PuzzleHandler
 import leyline.match.SessionOps
+import leyline.match.StringInputHandler
 import leyline.match.TargetingHandler
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
@@ -46,6 +47,7 @@ class HandlerConstructorContractTest :
                 CombatHandler::class,
                 OptionalActionHandler::class,
                 NumericInputHandler::class,
+                StringInputHandler::class,
                 DeferredCastCostInteractionHandler::class,
                 ActionPerformer::class,
                 PuzzleHandler::class,

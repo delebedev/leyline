@@ -57,6 +57,7 @@ class PlayerControllerStructureTest :
                 "choosePlayerToAssistPayment",
                 "chooseSingleEntityForEffect",
                 "chooseSingleCardFace",
+                "chooseCardName",
                 "chooseSingleSpellForEffect",
                 "chooseSingleStaticAbility",
                 "chooseSomeType",
@@ -115,9 +116,10 @@ class PlayerControllerStructureTest :
             overridingMethods.map { it.name }.toSet() shouldBe expectedOverrides
             // chooseNumber has three overloads (range, range+params, list-of-values),
             // chooseCardsToDiscardFrom has two overloads (with/without visible cards),
-            // and reveal has two overloads (CardCollectionView and List<CardView>),
-            // so the (name, paramTypes) count exceeds the unique-name count by 4.
-            overridingMethods.size shouldBe expectedOverrides.size + 4
+            // reveal has two overloads (CardCollectionView and List<CardView>),
+            // and chooseSingleCardFace has predicate and finite-list overloads.
+            // The (name, paramTypes) count exceeds the unique-name count by 5.
+            overridingMethods.size shouldBe expectedOverrides.size + 5
         }
     })
 

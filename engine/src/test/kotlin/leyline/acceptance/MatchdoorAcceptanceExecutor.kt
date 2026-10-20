@@ -37,7 +37,7 @@ class MatchdoorAcceptanceExecutor(
                 opponentDeckList = scenario.opponentDeckList,
                 fullControl = scenario.fullControl,
                 responseMode =
-                    if (scenario.steps.any { it is OptionalActionStep || it is NumericInputStep }) {
+                    if (scenario.steps.any { it is OptionalActionStep || it is NumericInputStep || it is NameCardStep }) {
                         HeadlessResponseMode.PolicyVisible
                     } else {
                         HeadlessResponseMode.AutoForTests
@@ -161,6 +161,10 @@ private class ScenarioRun(
             is NumericInputStep -> {
                 check(latestPromptMessage()?.hasNumericInputReq() == true) { "$context requires a numeric prompt" }
                 harness.respondToNumericInput(step.value)
+            }
+            is NameCardStep -> {
+                check(latestPromptMessage()?.hasStringInputReq() == true) { "$context requires a card-name prompt" }
+                harness.respondToCardName(step.name)
             }
             GroupKeepStep -> {
                 val req = checkNotNull(latestPromptMessage()?.takeIf { it.hasGroupReq() }?.groupReq)

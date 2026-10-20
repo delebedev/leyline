@@ -6,6 +6,11 @@ import forge.game.card.CardCollectionView
 
 /** Shell runtime; live handles remain engine-side and never cross the session boundary. */
 interface BlockingInteractionRuntime {
+    fun awaitCardName(
+        interaction: BlockingInteraction.CardName,
+        timeoutMs: Long,
+    ): String = error("Card-name input requires an interactive runtime")
+
     fun awaitOptional(
         interaction: BlockingInteraction.Optional,
         timeoutMs: Long?,

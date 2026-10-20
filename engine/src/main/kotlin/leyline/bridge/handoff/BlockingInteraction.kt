@@ -5,6 +5,12 @@ import kotlin.ConsistentCopyVisibility
 
 /** Immutable engine-thread request presented before a blocking interaction waits. */
 sealed interface BlockingInteraction {
+    data class CardName(
+        val sourceId: ForgeCardId,
+        val instruction: String,
+        val validationMessage: String? = null,
+    ) : BlockingInteraction
+
     data class Optional(
         val sourceId: ForgeCardId?,
         val forceSnapshotBeforePrompt: Boolean,

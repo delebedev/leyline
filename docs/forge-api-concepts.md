@@ -39,6 +39,12 @@ Use this decision rule:
 - Mulligan decisions go through `MulliganBridge`.
 - Yes/no optional-action style prompts use `OptionalActionGate` when the session must observe a pending prompt outside the normal prompt queue.
 - Numeric prompts use `NumericInputGate`.
+- Unrestricted card-name callbacks use `CardNameInputGate`. The source-bound mandatory
+  string interaction resolves only the submitted face through the lazy catalog.
+  Unknown or predicate-disallowed names re-prompt with validation feedback under
+  one callback deadline. Timeout terminates the interaction without a default name.
+  Forge retains its final card-validity check and exact face semantics. The list
+  overload retains the separate dungeon-choice route.
 
 `RearrangeTopOfLibrary` with `MayShuffle` preserves its post-order shuffle
 decision through `OptionalActionGate`. Decline retains the chosen library order.

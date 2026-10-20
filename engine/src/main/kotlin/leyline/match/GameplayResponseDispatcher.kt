@@ -36,5 +36,6 @@ private fun gameplayResponseHandler(type: ClientMessageType): GameplayResponseHa
         ClientMessageType.AssignDamageResp_097b -> ActionReceiver::onAssignDamage
         ClientMessageType.OptionalActionResp -> ActionReceiver::onOptionalActionResp
         ClientMessageType.NumericInputResp_097b -> ActionReceiver::onNumericInputResp
+        ClientMessageType.StringInputResp_097b -> ActionReceiver::onStringInputResp
         else -> null
     }

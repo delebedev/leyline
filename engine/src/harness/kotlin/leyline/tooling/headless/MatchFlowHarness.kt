@@ -2001,10 +2001,20 @@ class MatchFlowHarness(
         holdNextNumericInputResponse = true
     }
 
-    /**
-     * Respond to a NumericInputReq with [value] explicitly.
-     * For tests that need direct control over the numeric pick.
-     */
+    /** Submit the named card through the currently published text-input envelope. */
+    fun respondToCardName(name: String) {
+        val prompt = checkNotNull(allMessages.lastOrNull { it.hasStringInputReq() }) { "No card-name prompt" }
+        val response =
+            clientMessage(ClientMessageType.StringInputResp_097b) {
+                systemSeatId = 1
+                gameStateId = prompt.gameStateId
+                respId = prompt.msgId
+                setStringInputResp(StringInputResp.newBuilder().setInputValue(name))
+            }
+        submitAndAwaitClientResult(response, "card-name response")
+    }
+
+    /** Respond to a NumericInputReq with [value] explicitly. */
     fun respondToNumericInput(value: Int) {
         holdNextNumericInputResponse = false
         val msg = allMessages.lastOrNull { it.type == GREMessageType.NumericInputReq_695e }

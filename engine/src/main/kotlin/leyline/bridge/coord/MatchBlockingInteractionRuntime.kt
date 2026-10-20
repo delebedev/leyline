@@ -31,6 +31,10 @@ internal class MatchBlockingInteractionRuntime(
 ) : BlockingInteractionRuntime,
     PromptTerminalCutOwner {
     private sealed interface Answer {
+        data class CardName(
+            val value: String,
+        ) : Answer
+
         data class Optional(
             val accepted: Boolean,
         ) : Answer
@@ -104,6 +108,21 @@ internal class MatchBlockingInteractionRuntime(
             (await(pending, timeoutMs ?: 45_000L) as Answer.Optional).accepted
         } catch (_: TimeoutException) {
             defaultOnTimeout
+        } finally {
+            clear(pending)
+        }
+    }
+
+    override fun awaitCardName(
+        interaction: BlockingInteraction.CardName,
+        timeoutMs: Long,
+    ): String {
+        if (timeoutMs <= 0) owner.fail(IllegalStateException("Card-name input timed out"))
+        val pending = publish(interaction) { feed, _, planner -> feed.builder.cardNameInteractionBundle(planner, interaction) }
+        return try {
+            (await(pending, timeoutMs) as Answer.CardName).value
+        } catch (timeout: TimeoutException) {
+            owner.fail(IllegalStateException("Card-name input timed out", timeout))
         } finally {
             clear(pending)
         }
@@ -214,6 +233,17 @@ internal class MatchBlockingInteractionRuntime(
                 ) { ex -> owner.fail(ex) }
             }
             pending.future.complete(Answer.Optional(accepted))
+        }
+
+    fun submitCardName(
+        interactionId: String,
+        gameStateId: Int,
+        value: String,
+    ): Boolean =
+        synchronized(owner.feedLock) {
+            val pending = matching(interactionId, gameStateId) ?: return false
+            if (pending.published.interaction !is BlockingInteraction.CardName) return false
+            pending.future.complete(Answer.CardName(value))
         }
 
     fun submitNumeric(

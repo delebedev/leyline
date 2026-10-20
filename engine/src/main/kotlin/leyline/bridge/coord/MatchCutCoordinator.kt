@@ -266,6 +266,17 @@ internal class MatchCutCoordinator(
         defaultOnTimeout: Boolean,
     ): Boolean = interactions.awaitOptional(interaction, sourceCard, timeoutMs, defaultOnTimeout)
 
+    override fun awaitCardName(
+        interaction: BlockingInteraction.CardName,
+        timeoutMs: Long,
+    ): String = interactions.awaitCardName(interaction, timeoutMs)
+
+    fun submitCardNameAnswer(
+        interactionId: String,
+        gameStateId: Int,
+        value: String,
+    ): Boolean = interactions.submitCardName(interactionId, gameStateId, value)
+
     override fun awaitNumeric(
         interaction: BlockingInteraction.Numeric,
         timeoutMs: Long?,

@@ -73,6 +73,10 @@ Numeric responses use `numeric_input: 2`, including `numeric_input: 0` for an
 optional payment of zero. Scenarios with explicit numeric steps retain the prompt
 until the corresponding step submits its correlated response.
 
+Card naming uses `name_card: Grizzly Bears`. The mandatory text request stays
+pending until that semantic step answers it. The `card-name` suite covers found
+and absent names in a finite library.
+
 Modal responses accept
 `modal_choice: { index: 0 }` for one mode or `modal_choice: { indices: [0, 1] }`
 for multiple modes in one response.
