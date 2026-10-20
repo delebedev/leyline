@@ -253,6 +253,10 @@ Stack membership interleaves spell cards and abilities in Forge's top-first
 order. Pending cast and targeting entries appear above admitted entries, while
 lingering spell entries cannot restore cards that left the Stack zone.
 Embedding heads retain this order so the first item is next to resolve.
+Staged and admitted Forge ability handles can alias one client lifetime.
+Reallocation advances every alias of that lifetime together, while retaining
+reverse lookup history for old instance IDs. Independent lifetimes remain
+distinct.
 
 Each seat's `DungeonSnapshot` freezes the current dungeon, room identity, and
 completion history; the persistent player feed retains one `DungeonStatus` row
