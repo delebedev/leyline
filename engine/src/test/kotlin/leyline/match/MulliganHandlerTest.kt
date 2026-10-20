@@ -6,11 +6,15 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.MulliganPhase
 import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.infra.ListMessageSink
@@ -24,6 +28,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import kotlin.time.Duration.Companion.seconds
 
 class MulliganHandlerTest :
     BoardTest({
@@ -59,11 +67,20 @@ class MulliganHandlerTest :
             seatId: SeatId,
             session: MatchSession,
             registry: MatchRegistry = session.registry,
+            onKeep: (() -> Unit)? = null,
         ): MulliganHandler =
             MulliganHandler(
                 EngineSettings(),
                 registry,
-                sessionProvider = { session },
+                sessionProvider = {
+                    if (onKeep == null) {
+                        session
+                    } else {
+                        object : GameOps by session {
+                            override fun onMulliganKeep() = onKeep()
+                        }
+                    }
+                },
                 matchIdProvider = { session.matchId },
                 seatIdProvider = { seatId },
             )
@@ -126,6 +143,78 @@ class MulliganHandlerTest :
                     .prompt
                     .parametersList
                     .map { it.numberValue } shouldContain 6
+            }
+        }
+
+        test("expired readiness cannot advertise a keep decision without a pending prompt") {
+            val (bridge, _, _) = startWithBoard { _, _, _ -> }
+            val registry = MatchRegistry()
+            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
+            var keeps = 0
+            val mulligan = handler(SeatId(1), session, registry) { keeps++ }
+            val handoff = bridge.mulliganBridge(SeatId(1))
+            var now = 0L
+            var polls = 0
+
+            handoff.pendingPrompt().shouldBeNull()
+            shouldThrow<TimeoutException> {
+                bridge.awaitMulliganReady(
+                    nowMillis = { now },
+                    awaitNextPoll = {
+                        check(++polls == 1) { "Readiness must stop at the controlled deadline" }
+                        now = bridge.engineSettings.mulliganWaitMs
+                    },
+                )
+                mulligan.sendMulliganReq()
+            }
+            mulligan.onMulliganResp(mulliganResp(MulliganOption.AcceptHand))
+
+            assertSoftly {
+                polls shouldBe 1
+                keeps shouldBe 0
+                handoff.pendingPrompt().shouldBeNull()
+                sink.messages.shouldBeEmpty()
+            }
+        }
+
+        test("ready keep prompt is advertised and its response completes the handoff once") {
+            val (bridge, human, _) = startWithBoard { _, _, _ -> }
+            val registry = MatchRegistry()
+            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
+            var keeps = 0
+            val mulligan = handler(SeatId(1), session, registry) { keeps++ }
+            val handoff = bridge.mulliganBridge(SeatId(1))
+            val executor = Executors.newSingleThreadExecutor()
+            val result = executor.submit<Boolean> { handoff.awaitKeepDecision(human.id, 0) }
+
+            try {
+                eventually(2.seconds) {
+                    handoff.pendingPrompt().shouldNotBeNull().phase shouldBe MulliganPhase.WaitingKeep
+                }
+                bridge.awaitMulliganReady(
+                    nowMillis = { 0L },
+                    awaitNextPoll = { error("A ready handoff must not poll") },
+                )
+                mulligan.sendMulliganReq()
+                val request = sink.messages.single { it.type == GREMessageType.MulliganReq_aa0d }
+                val response =
+                    mulliganResp(MulliganOption.AcceptHand)
+                        .toBuilder()
+                        .setSystemSeatId(1)
+                        .setGameStateId(request.gameStateId)
+                        .setRespId(request.msgId)
+                        .build()
+                mulligan.onMulliganResp(response)
+                result.get(2, TimeUnit.SECONDS) shouldBe true
+                handoff.pendingPrompt().shouldBeNull()
+                mulligan.onMulliganResp(response)
+
+                keeps shouldBe 1
+                sink.messages.count { it.type == GREMessageType.MulliganReq_aa0d } shouldBe 1
+            } finally {
+                handoff.cancelPending()
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
             }
         }
 

@@ -31,7 +31,7 @@ class Match(
         deckList1: String? = null,
         deckList2: String? = null,
         variant: String? = null,
-    ) {
+    ) = startOwned {
         bridge.start(seed, deckList, deckList1, deckList2, variant)
         markStarted()
     }
@@ -41,9 +41,37 @@ class Match(
         deck1: DeckSource,
         deck2: DeckSource,
         variant: String? = null,
-    ) {
+    ) = startOwned {
         bridge.start(seed, deck1, deck2, variant)
         markStarted()
+    }
+
+    /** Startup can fail before the registry owns this match. */
+    private inline fun startOwned(start: () -> Unit) {
+        if (stateRef.get() != MatchState.WAITING) return
+        try {
+            start()
+        } catch (failure: InterruptedException) {
+            Thread.interrupted()
+            closeFailedStart(failure, interrupted = true)
+            throw failure
+        } catch (failure: Throwable) {
+            closeFailedStart(failure, interrupted = Thread.interrupted())
+            throw failure
+        }
+    }
+
+    private fun closeFailedStart(
+        failure: Throwable,
+        interrupted: Boolean,
+    ) {
+        try {
+            close()
+        } catch (cleanupFailure: Throwable) {
+            if (cleanupFailure !== failure) failure.addSuppressed(cleanupFailure)
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt()
+        }
     }
 
     @Synchronized

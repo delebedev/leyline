@@ -71,6 +71,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 import forge.game.player.PlayerController as ForgePlayerController
 import leyline.bridge.forge.PlayerController as BridgedPlayerController
 
@@ -2302,12 +2303,18 @@ class GameBridge(
      * Poll until seat 1's mulligan bridge is in "waiting_keep" state,
      * meaning the engine has dealt the hand and is blocking.
      */
-    private fun awaitMulliganReady() {
-        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
-        while (System.currentTimeMillis() < deadline) {
+    @VisibleForTesting
+    internal fun awaitMulliganReady(
+        nowMillis: () -> Long = System::currentTimeMillis,
+        awaitNextPoll: () -> Unit = { Thread.sleep(POLL_INTERVAL_MS) },
+    ) {
+        val deadline = nowMillis() + engineSettings.mulliganWaitMs
+        while (nowMillis() < deadline) {
+            throwIfGameLoopFailed()
             if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingKeep) return
-            Thread.sleep(POLL_INTERVAL_MS)
+            awaitNextPoll()
         }
-        log.warn("GameBridge: timed out waiting for engine to reach mulligan")
+        throwIfGameLoopFailed()
+        throw TimeoutException("Engine did not reach the initial mulligan handoff before its readiness deadline")
     }
 }
