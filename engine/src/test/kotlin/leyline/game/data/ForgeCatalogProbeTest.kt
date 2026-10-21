@@ -86,6 +86,13 @@ class ForgeCatalogProbeTest :
             check(modal.childGrpIds.all { !repo.findAbilityLocalization(it)?.text.isNullOrBlank() })
             val inspector = requireNotNull(repo.findGrpIdByName("Thraben Inspector"))
             repo.lookupModalOptions(inspector) shouldBe null
+            val audience = requireNotNull(repo.findGrpIdByName("Captive Audience"))
+            val audienceChoices = requireNotNull(repo.lookupModalOptions(audience))
+            audienceChoices.childGrpIds.map { repo.findAbilityLocalization(it)?.text } shouldBe
+                listOf("Your life total becomes 4.", "Discard your hand.", "Each opponent creates five 2/2 black Zombie creature tokens.")
+            repo.catalogIdentityIds.keys
+                .none { it.startsWith("Captive Audience:face:") && it.endsWith(":Player.Opponent") }
+                .shouldBeTrue()
         }
 
         test("granted combat trigger exposes its nested counter choices") {

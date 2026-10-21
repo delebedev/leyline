@@ -76,6 +76,12 @@ retain their named `Choices` subabilities through the same modal bridge.
 The selected handles return to Forge for effect resolution. These resolution
 choices reject cancellation and do not offer undo.
 
+Catalog modal discovery follows `ReplaceWith` references as well as trigger and
+execution references. Draw replacements such as Abundance retain their named
+Land and Nonland choices through the same resolution-time bridge.
+Only named modal APIs contribute option identities; `Choices` validity filters
+on effects such as `ChoosePlayer` do not replace a card's modal metadata.
+
 `chooseSomeType` retains the offered card-type strings and order in an explicit
 CardTypes subset. If any offered card type has no enum mapping, the whole choice
 keeps its default policy instead of publishing a partial subset. Optional
