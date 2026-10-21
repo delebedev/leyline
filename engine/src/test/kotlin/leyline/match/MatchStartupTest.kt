@@ -32,6 +32,50 @@ class MatchStartupTest :
 
         fun newBridge() = GameBridge(cardRepository = TestCardRegistry.repo, engineSettings = EngineSettings(mulliganWaitMs = 2_000L))
 
+        listOf(false, true).forEach { withCompanion ->
+            test("Commander initial publication reaches mulligan and releases its loop with companion=$withCompanion") {
+                val deck = "[Commander]\n1 Ayli, Eternal Pilgrim\n[Deck]\n99 Plains"
+                val playerDeck = if (withCompanion) "$deck\n[Sideboard]\n1 Lurrus of the Dream-Den" else deck
+                TestCardRegistry.ensureDeckRegistered(playerDeck)
+                val bridge = newBridge()
+                val match = Match("commander-start-$withCompanion", bridge)
+                var thread: Thread? = null
+                try {
+                    match.start(seed = 42L, deckList1 = playerDeck, deckList2 = deck, variant = "commander")
+                    thread =
+                        bridge
+                            .gameLoopControllerForTest()
+                            .shouldNotBeNull()
+                            .getEngineThread()
+                            .shouldNotBeNull()
+                    val coordinator = bridge.cutCoordinator
+                    coordinator.registerViewer(SeatId(1))
+                    val gameStateId = coordinator.lifecycle.publishInitial(SeatId(1), includeStartingPlayerPrompt = true)
+                    val initial = coordinator.drain(SeatId(1)).single()
+                    val snapshot = bridge.viewerProjectionCursor().previousSnapshot.shouldNotBeNull()
+                    assertSoftly {
+                        match.state shouldBe MatchState.RUNNING
+                        initial.last().gameStateId shouldBe gameStateId
+                        bridge
+                            .mulliganBridge(SeatId(1))
+                            .pendingPrompt()
+                            .shouldNotBeNull()
+                            .phase shouldBe MulliganPhase.WaitingKeep
+                        (snapshot.seats.single { it.seatId == SeatId(1) }.companion != null) shouldBe withCompanion
+                    }
+                } finally {
+                    match.close()
+                }
+                assertSoftly {
+                    thread.shouldNotBeNull().isAlive shouldBe false
+                    bridge.gameLoopControllerForTest().shouldBeNull()
+                    bridge.getGame().shouldBeNull()
+                    bridge.mulliganBridge(SeatId(1)).pendingPrompt().shouldBeNull()
+                    match.state shouldBe MatchState.FINISHED
+                }
+            }
+        }
+
         test("failed construction closes its started loop once and permits a fresh match") {
             val registry = MatchRegistry()
             val bridge = newBridge()

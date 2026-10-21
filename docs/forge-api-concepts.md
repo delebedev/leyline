@@ -356,6 +356,12 @@ consume the bound route rather than maintaining semantic lookup tables.
 
 Forge card IDs are engine identity. Client instance IDs are protocol identity. Keep them separate.
 
+Snapshot identity reads use the active projection workspace during tentative
+compilation. A chosen companion can receive its first instance ID in the initial
+publication, before that allocation is committed. Its designation retains the
+oldest instance ID, including after later reallocations; discarded compilation
+must not publish the tentative allocation.
+
 Event-layer types should carry Forge IDs. Resolve Forge IDs to instance IDs at mapping time, when the current frame has the right allocation and zone-transfer context.
 
 When a prompt records target or source identity while a spell is still on the stack, freeze the instance ID if later resolution would move the source and change the normal lookup result.
