@@ -89,6 +89,11 @@ identifiers are scoped to its `catalogVersion`. The version covers the Forge car
 definitions and identity scheme; persisted identifiers must be bound to that
 exact version before use.
 
+Token identity follows the token actually created, including tokens from granted
+abilities. A source's linked token is usable only when its name matches the live
+token. A mismatch falls through to the token's script or name lookup rather than
+borrowing an unrelated native token identity from the ability's host.
+
 Embedding hosts may generate the complete identity index with
 `ForgeCardRepository.writeCatalogIndex` during their asset build, then open that
 index with the matching resource archive SHA-256. The host verifies the archive

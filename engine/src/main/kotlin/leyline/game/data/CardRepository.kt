@@ -152,7 +152,9 @@ interface CardRepository {
 
     /**
      * Token grpId produced by [sourceGrpId].
-     * Single token -> returns directly. Multiple -> matches by [tokenName].
+     * Named lookups require a matching token even when the source has only one
+     * linked token. Granted abilities may create a different token kind.
+     * Unnamed lookups resolve only a single unambiguous link.
      */
     fun tokenGrpIdForCard(
         sourceGrpId: Int,
@@ -161,8 +163,7 @@ interface CardRepository {
         val data = findByGrpId(sourceGrpId) ?: return null
         val tokens = data.tokenGrpIds
         if (tokens.isEmpty()) return null
-        if (tokens.size == 1) return tokens.values.first()
-        if (tokenName == null) return null
+        if (tokenName == null) return tokens.values.singleOrNull()
         // Forge names tokens "Rat Token", client DB uses "Rat" — try both
         val normalized = tokenName.removeSuffix(" Token")
         for ((_, tokenGrpId) in tokens) {
