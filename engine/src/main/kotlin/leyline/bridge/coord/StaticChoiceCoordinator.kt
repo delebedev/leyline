@@ -11,6 +11,7 @@ import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
 import leyline.bridge.handoff.PromptSemantic
 import leyline.bridge.handoff.ResolvedPromptRoute
+import leyline.bridge.interaction.ConfirmActionPlan
 import leyline.bridge.types.StaticChoiceIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.StaticList
@@ -82,31 +83,21 @@ class StaticChoiceCoordinator(
     }
 
     fun confirmAction(
+        plan: ConfirmActionPlan.Choice,
         message: String,
-        options: List<String>,
-        sourceEntityId: Int?,
     ): Boolean {
-        val parityIds = parityOptionIds(options)
+        val parityIds = (plan as? ConfirmActionPlan.Choice.Parity)?.optionIds
         val result =
             requestChoice(
                 PromptRequest(
                     promptType = "confirm",
                     message = message,
-                    options = options,
+                    options = plan.options,
                     min = 1,
                     max = 1,
                     defaultIndex = 0,
-                    route =
-                        PromptRouteResolver.resolve(
-                            if (parityIds !=
-                                null
-                            ) {
-                                PromptSemantic.StaticParityChoice
-                            } else {
-                                PromptSemantic.Generic
-                            },
-                        ),
-                    sourceEntityId = sourceEntityId?.takeIf { it > 0 },
+                    route = plan.route,
+                    sourceEntityId = plan.sourceEntityId,
                     staticList = if (parityIds != null) StaticList.Parities else null,
                     staticOptionIds = parityIds.orEmpty(),
                 ),
@@ -121,7 +112,7 @@ class StaticChoiceCoordinator(
         defaultVal: Boolean?,
     ): Boolean {
         val labels = binaryLabels(kindOfChoice)
-        val parityIds = parityOptionIds(labels)
+        val parityIds = StaticChoiceIds.parityIdsForNames(labels)
         val result =
             requestChoice(
                 PromptRequest(
@@ -324,12 +315,6 @@ class StaticChoiceCoordinator(
             BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
             else -> listOf("Yes", "No")
         }
-
-    private fun parityOptionIds(labels: List<String>): List<Int>? {
-        if (labels.size != 2) return null
-        val ids = labels.map { StaticChoiceIds.parityIdForName(it) ?: return null }
-        return ids.takeIf { it.toSet().size == 2 }
-    }
 
     private fun sourceEntityId(sa: SpellAbility?): Int? = sa?.hostCard?.id?.takeIf { it > 0 }
 

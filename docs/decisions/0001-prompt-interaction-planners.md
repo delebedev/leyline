@@ -162,10 +162,16 @@ What stayed in `TargetingCoordinator`:
 
 Cost decision migration is intentionally partial: planners classify cost-card prompt semantics and convoke/improvise prompt policy, while `CostDecision` and `CostPaymentCoordinator` still build requests, translate responses, and own prompt-journal side effects.
 
+`ConfirmActionPlanner` owns confirmation precedence (Paradigm, Commander return,
+Endure, optional copy, optional post-order shuffle, parity, then the affirmative
+synchronous default). `PlayerController` executes the chosen plan through the
+existing optional gate or static-choice coordinator. The coordinator only
+materializes the planned request, retaining bridge call history and priority signaling
+even for a synchronous default. Forge still owns payment and effect resolution.
+
 What did not migrate yet:
 
-- Static choice prompts.
-- Confirm-action prompts.
+- Other static choice prompts and confirmation callbacks.
 - Request construction and side-effect execution for cost prompts.
 - A universal `InteractionIntent` model.
 - A route registry or prompt-routing DSL.
