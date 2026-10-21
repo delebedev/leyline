@@ -40,7 +40,7 @@ class ForgeCatalogIndexTest :
                 path,
                 Files.readString(path).replace(
                     ForgeCatalogIndex.IDENTITY_SCHEME,
-                    "forge-card-catalog-v10-granted-trigger-modes",
+                    "forge-card-catalog-v11-loyalty-activations",
                 ),
             )
             shouldThrow<IllegalArgumentException> { ForgeCardRepository.open(path, archiveHash) }
