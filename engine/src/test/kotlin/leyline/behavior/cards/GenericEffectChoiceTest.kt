@@ -11,7 +11,11 @@ import leyline.testkit.beInGraveyardOf
 import leyline.testkit.beInHandOf
 import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.cancelActionReq
+import leyline.testkit.gameStateMessages
+import leyline.testkit.haveManaCost
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class GenericEffectChoiceTest :
     SessionTest({
@@ -49,6 +53,70 @@ class GenericEffectChoiceTest :
                 "Grizzly Bears" should beInGraveyardOf(human)
                 human.life shouldBe 20
                 "Forest" should beOnBattlefieldOf(human)
+            }
+        }
+        session(
+            "granted affinity offers and payment survive a catalog-owned draw replacement",
+            forgeCatalog = true,
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Abundance;Mycosynth Golem;Ornithopter;Island;Island;Island
+                humanhand=Reach Through Mists;Juggernaut
+                humanlibrary=Grizzly Bears;Forest;Mountain
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 3,
+        ) {
+            val handId = human.hand.iid("Juggernaut")
+            val before =
+                allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                    it.actionType == ActionType.Cast && it.instanceId == handId
+                }
+            before should haveManaCost(generic = 2)
+            val drawCast = castSpellByName("Reach Through Mists")
+            drawCast.shouldBeTrue()
+            passUntil(maxPasses = 6) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
+            val modal =
+                allMessages
+                    .last { it.hasCastingTimeOptionsReq() }
+                    .castingTimeOptionsReq
+                    .getCastingTimeOptionReq(0)
+                    .modalReq
+            modal.modalOptionsList.map { bridge.cardRepository.findAbilityLocalization(it.grpId)?.text } shouldBe
+                listOf("Land", "Nonland")
+            respondModalChoice(listOf(modal.getModalOptions(0).grpId))
+            passUntilResolved()
+            val after =
+                allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                    it.actionType == ActionType.Cast && it.instanceId == handId
+                }
+            assertSoftly {
+                after should haveManaCost(generic = 2)
+                "Forest" should beInHandOf(human)
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Mountain", "Grizzly Bears")
+            }
+            val start = messageSnapshot()
+            val castAccepted = castSpellByName("Juggernaut")
+            passUntilResolved()
+            val spellId = human.battlefield.iid("Juggernaut")
+            val paid =
+                messagesSince(start).gameStateMessages().flatMap { it.annotationsList }.filter {
+                    AnnotationType.ManaPaid in it.typeList && spellId in it.affectedIdsList
+                }
+            val continued = playLand("Forest")
+            assertSoftly {
+                castAccepted.shouldBeTrue()
+                paid.size shouldBe 2
+                paid.map { it.affectorId }.distinct().size shouldBe 2
+                human.getCardsIn(ZoneType.Battlefield).count { it.name == "Island" && it.isTapped } shouldBe 3
+                "Juggernaut" should beOnBattlefieldOf(human)
+                continued.shouldBeTrue()
+                "Forest" should beOnBattlefieldOf(human)
+                game().stack.isEmpty shouldBe true
             }
         }
         for ((index, scenario) in listOf(

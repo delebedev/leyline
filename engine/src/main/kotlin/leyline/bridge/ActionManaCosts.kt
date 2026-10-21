@@ -4,11 +4,13 @@ import forge.ai.ComputerUtilMana
 import forge.card.mana.ManaCost
 import forge.game.card.Card
 import forge.game.card.CardCollection
+import forge.game.card.CardCopyService
 import forge.game.cost.CostAdjustment
 import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
 import forge.game.spellability.TargetChoices
+import forge.game.staticability.StaticAbilityLayer
 import leyline.bridge.handoff.StrictPromptRefusalException
 import leyline.bridge.types.ManaColorMapping
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -26,6 +28,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 internal object ActionManaCosts {
     fun canPayManaCost(
+        sa: SpellAbility,
+        player: Player,
+    ): Boolean = withStackCostAbility(sa, player) { canPayManaCostInContext(it, player) }
+
+    private fun canPayManaCostInContext(
         sa: SpellAbility,
         player: Player,
     ): Boolean =
@@ -305,6 +312,11 @@ internal object ActionManaCosts {
     fun computeEffectiveCost(
         sa: SpellAbility,
         player: Player,
+    ): ManaCost? = withStackCostAbility(sa, player) { computeEffectiveCostInContext(it, player) }
+
+    private fun computeEffectiveCostInContext(
+        sa: SpellAbility,
+        player: Player,
     ): ManaCost? {
         val baseCost = sa.payCosts ?: return null
         val hostCard = sa.hostCard
@@ -335,6 +347,41 @@ internal object ActionManaCosts {
         } finally {
             if (seededCastFrom) hostCard.setCastFrom(originalCastFrom)
             if (originalActivator == null) sa.setActivatingPlayer(null)
+        }
+    }
+
+    private fun <T> withStackCostAbility(
+        sa: SpellAbility,
+        player: Player,
+        probe: (SpellAbility) -> T,
+    ): T {
+        val host = sa.hostCard
+        val game = player.game
+        if (!sa.isSpell ||
+            host.isInZone(ForgeZoneType.Stack) ||
+            !game.action.hasStaticAbilityAffectingZone(ForgeZoneType.Stack, StaticAbilityLayer.ABILITIES)
+        ) {
+            return probe(sa)
+        }
+
+        // Stack-only keyword grants must exist before projecting their cost and affordability.
+        val preview = CardCopyService.getLKICopy(sa.getAlternateHost(host) ?: host)
+        val previewAbility = sa.copy(preview, true)
+        previewAbility.setActivatingPlayer(player)
+        preview.setLastKnownZone(game.stackZone)
+        preview.setCastFrom(host.castFrom ?: host.zone)
+        preview.setCastSA(previewAbility)
+        preview.clearStaticChangedCardKeywords(false)
+        game.tracker.freeze()
+        try {
+            game.action.checkStaticAbilities(false, mutableSetOf(preview), CardCollection(preview))
+            return probe(previewAbility)
+        } finally {
+            try {
+                game.action.checkStaticAbilities(false)
+            } finally {
+                game.tracker.unfreeze()
+            }
         }
     }
 
