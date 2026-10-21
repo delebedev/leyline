@@ -265,6 +265,9 @@ costs. Pay those costs through the active controller's
 other choices reach the frontend. Resolve the original root with `AbilityUtils.resolve(...)` after payment so deferred mana effects and cleanup run together. Deferred output has no predictive mana selection and cannot be batched. Reserve `AiCostDecision` and
 `payComputerCosts(...)` for automatic AI payment paths.
 
+`Special` mana output is also deferred: offer the playable root ability without
+predictive color choices and let Forge compute all produced colors at resolution.
+
 ## 7. Cost Payment Decisions
 
 Forge cost payment uses visitor-style cost parts. `CostDecision` is the bridge point for interactive non-mana cost decisions.
