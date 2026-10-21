@@ -11,6 +11,19 @@ class ForgeCardRepositoryTest :
     FunSpec({
         tags(UnitTag)
 
+        test("Flying identity comes from its keyword declaration without changing printed text or other rows") {
+            val repo = ForgeCardRepository.open()
+            val data = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Atraxa, Praetors' Voice"))))
+            val rows = data.abilityIds.map { requireNotNull(repo.findAbilityLocalization(it.first)) }
+            assertSoftly {
+                rows.first().keyword shouldBe "Flying"
+                rows.first().text shouldBe "Flying"
+                data.abilityKinds.first() shouldBe SlotKind.Keyword
+                rows.drop(1).all { it.keyword == null } shouldBe true
+                data.keywordNames.containsAll(listOf("Flying", "Vigilance", "Deathtouch", "Lifelink")) shouldBe true
+            }
+        }
+
         test("deck entry resolves typographic apostrophes without discarding punctuation") {
             val repo = ForgeCardRepository.open()
             assertSoftly {
