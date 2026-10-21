@@ -5,6 +5,7 @@ import forge.card.GamePieceType
 import forge.game.ability.SpellAbilityEffect
 import forge.game.card.Card
 import forge.game.card.CardFactory
+import forge.game.player.Player
 import forge.game.trigger.TriggerHandler
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -207,6 +208,52 @@ class SnapshotCaptureTest :
             assertSoftly {
                 tentative.tokenGrpIds.keys shouldBe setOf(tokenIid)
                 bridge.projectionStateSnapshot() shouldBe before
+            }
+        }
+
+        test("tentative companion capture uses its allocated identity without committing it") {
+            val board = startWithBoard { _, _, _ -> }
+            val companion = addCard("Lurrus of the Dream-Den", board.human, ZoneType.Command)
+            board.human.getZone(ZoneType.Command).add(Player.createCompanionEffect(companion))
+            val forgeId = ForgeCardId(companion.id)
+            val prior = board.bridge.projectionStateSnapshot()
+
+            val (snapshot, tentative) =
+                board.bridge.editProjection(prior) {
+                    SnapshotCapture.run(board.game, board.bridge, "test", 1)
+                }
+            val companionSnapshot = snapshot.seats.single { it.seatId.value == 1 }.companion!!
+            assertSoftly {
+                companionSnapshot.originalInstanceId shouldBe
+                    tentative.identities.forgeIdToInstanceId
+                        .getValue(forgeId)
+                        .value
+                companionSnapshot.available shouldBe true
+                board.bridge.projectionStateSnapshot() shouldBe prior
+                board.bridge.peekInstanceId(forgeId) shouldBe null
+            }
+        }
+
+        test("companion snapshot retains original identity after tentative reallocation") {
+            val board = startWithBoard { _, _, _ -> }
+            val companion = addCard("Lurrus of the Dream-Den", board.human, ZoneType.Command)
+            board.human.getZone(ZoneType.Command).add(Player.createCompanionEffect(companion))
+            val forgeId = ForgeCardId(companion.id)
+            val original = board.bridge.getOrAllocInstanceId(forgeId)
+            val prior = board.bridge.projectionStateSnapshot()
+
+            val (snapshot, tentative) =
+                board.bridge.editProjection(prior) {
+                    board.bridge.reallocInstanceId(forgeId)
+                    SnapshotCapture.run(board.game, board.bridge, "test", 1)
+                }
+            assertSoftly {
+                snapshot.seats
+                    .single { it.seatId.value == 1 }
+                    .companion!!
+                    .originalInstanceId shouldBe original.value
+                tentative.identities.forgeIdToInstanceId.getValue(forgeId) shouldNotBe original
+                board.bridge.projectionStateSnapshot() shouldBe prior
             }
         }
     })

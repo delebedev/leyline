@@ -59,7 +59,8 @@ object SnapshotCapture {
                                 card = captureBoundCard(source, game, bridge),
                                 originalInstanceId =
                                     bridge
-                                        .getInstanceIdMap()
+                                        .projectionIdentities()
+                                        .instanceIdToForgeId
                                         .filterValues { it == fid }
                                         .keys
                                         .minOf { it.value },
