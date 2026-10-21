@@ -231,6 +231,8 @@ private val promptTypes =
         "OrderReq",
         "ActionsAvailableReq",
         "IntermissionReq",
+        "MulliganReq",
+        "GroupReq",
     )
 private val enumSuffix = Regex("_[0-9a-f]{4}$")
 

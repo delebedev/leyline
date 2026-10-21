@@ -75,7 +75,9 @@ class MulliganHandler(
     }
 
     /** Handle MulliganResp — keep or mulligan decision. */
-    fun onMulliganResp(greMsg: ClientToGREMessage) {
+    fun onMulliganResp(greMsg: ClientToGREMessage) = completeHandoff { handleMulliganResp(greMsg) }
+
+    private fun handleMulliganResp(greMsg: ClientToGREMessage) {
         val s = session ?: return
         val bridge = s.gameBridge
         if (bridge.isPuzzle) {
@@ -93,7 +95,6 @@ class MulliganHandler(
                 if (!bridge.submitKeep(seatId)) return
                 if (cardsToTuck > 0) {
                     bridge.awaitTuckReady()
-                    if (bridge.getTuckCount() == 0) return
                     bridge.cutCoordinator.lifecycle.publishMulliganTuck(seatId)
                     deliverTemplate(s, bridge, "mulligan_tuck")
                     return
@@ -117,7 +118,9 @@ class MulliganHandler(
     }
 
     /** Handle GroupResp — London tuck. */
-    fun onGroupResp(greMsg: ClientToGREMessage) {
+    fun onGroupResp(greMsg: ClientToGREMessage) = completeHandoff { handleGroupResp(greMsg) }
+
+    private fun handleGroupResp(greMsg: ClientToGREMessage) {
         val s = session ?: return
         val bridge = s.gameBridge
         if (seatId != bridge.seating.humanSeat) return
@@ -140,6 +143,35 @@ class MulliganHandler(
         val tuckCards = tuckIds.map { eligible.getValue(it) }
         if (!bridge.submitTuck(seatId, tuckCards)) return
         s.onMulliganKeep()
+    }
+
+    /** Failed pre-game completion releases the existing match owner, outside sessionLock. */
+    private inline fun completeHandoff(block: () -> Unit) {
+        val bridge = session?.gameBridge ?: return
+        try {
+            block()
+        } catch (failure: InterruptedException) {
+            Thread.interrupted()
+            failHandoff(bridge, failure, interrupted = true)
+        } catch (failure: Throwable) {
+            failHandoff(bridge, failure, interrupted = Thread.interrupted())
+        }
+    }
+
+    private fun failHandoff(
+        bridge: GameBridge,
+        failure: Throwable,
+        interrupted: Boolean,
+    ): Nothing {
+        try {
+            bridge.cutCoordinator.shutdown(failure)
+            registry.teardownMatch(matchId, MatchTeardownReason.Exception, seatId, fallbackBridge = bridge)
+        } catch (cleanupFailure: Throwable) {
+            if (cleanupFailure !== failure) failure.addSuppressed(cleanupFailure)
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt()
+        }
+        throw failure
     }
 
     // --- Senders ---

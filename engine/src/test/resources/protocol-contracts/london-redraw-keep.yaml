@@ -1,0 +1,58 @@
+name: Normal MatchDoor London redraw and keep
+scenario: {suite: matchdoor, id: london-redraw-keep}
+frames:
+  - id: redraw
+    events:
+      - id: redraw
+        type: MulliganReq
+        lane: prompt
+        fields:
+          raw.mulliganReq.mulliganType: London
+          raw.mulliganReq.mulliganCount: 1
+          raw.prompt.promptId: 34
+          raw.prompt.parameters[0].parameterName: NumberOfCards
+          raw.prompt.parameters[0].numberValue: 7
+  - id: partition
+    events:
+      - id: partition
+        type: GroupReq
+        lane: prompt
+        fields:
+          raw.groupReq.context: LondonMulligan
+          raw.groupReq.groupType: Ordered
+          raw.groupReq.sourceId: 1
+          raw.groupReq.instanceIds.length: 7
+          raw.groupReq.groupSpecs.length: 2
+          raw.groupReq.groupSpecs[0].lowerBound: 6
+          raw.groupReq.groupSpecs[0].upperBound: 6
+          raw.groupReq.groupSpecs[0].zoneType: Hand
+          raw.groupReq.groupSpecs[0].subZoneType: Top
+          raw.groupReq.groupSpecs[1].lowerBound: 1
+          raw.groupReq.groupSpecs[1].upperBound: 1
+          raw.groupReq.groupSpecs[1].zoneType: Library
+          raw.groupReq.groupSpecs[1].subZoneType: Bottom
+          raw.allowCancel: "No"
+  - id: bottom
+    events:
+      - id: changed
+        type: ObjectIdChanged
+        lane: transient
+        keys: [orig_id, new_id]
+      - id: put
+        type: ZoneTransfer
+        lane: transient
+        keys: [zone_src, zone_dest, category]
+        fields: {details.zone_src: [31], details.zone_dest: [32], details.category: [Put]}
+        equals: {affectedIds: changed.details.new_id}
+  - id: playable
+    events:
+      - {id: playable, type: ActionsAvailableReq, lane: prompt}
+counts:
+  - match: {type: MulliganReq, lane: prompt}
+    exactly: 1
+  - match: {type: GroupReq, lane: prompt}
+    exactly: 1
+  - match: {type: ObjectIdChanged, lane: transient, equals: {details.orig_id: changed.details.orig_id}}
+    exactly: 1
+  - match: {type: ZoneTransfer, lane: transient, equals: {affectedIds: changed.details.new_id}, fields: {details.category: [Put]}}
+    exactly: 1

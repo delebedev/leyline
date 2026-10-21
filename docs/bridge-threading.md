@@ -77,6 +77,21 @@ ready state.
 idempotent close releases the started loop and listeners, preserves the startup
 exception, and restores caller interruption after cleanup.
 
+Initial, accepted-redraw and keep-to-tuck readiness share one monotonic deadline
+policy in `GameBridge`. Rejected answers return without entering a readiness
+wait. Accepted redraws require a newer prompt sequence, including the forced
+final tuck; a kept paid mulligan requires `WaitingTuck`. Expiry, interruption,
+engine failure or coordinator teardown throws instead of returning a rejected
+answer or allowing an unpublished transition to disappear. A readiness failure
+terminalizes the existing coordinator before any later cut can publish.
+
+`MulliganHandler` completes the accepted response through coordinator publication
+and delivery, or tears down the registered match through `MatchRegistry` and
+`Match.close`. Cleanup preserves the original exception and suppresses a cleanup
+failure; interruption is restored after resource release. This pre-game boundary
+does not acquire `sessionLock`. A successful final keep or tuck delegates once
+to `MatchSession.onMulliganKeep`, the sole post-keep horizon waiter and drainer.
+
 ## Publication transaction
 
 When the engine blocks for a visible decision, the delivery signal means the

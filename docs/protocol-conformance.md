@@ -85,6 +85,16 @@ Paid Evoke and ordinary combat trade lifecycle checks share their acceptance sce
 This suite proves the listed interactions, not catalog-wide identity parity or
 live-client presentation.
 
+The existing normal `MatchDoorMulliganFlowTest` workload also calls
+`ProtocolContract.verify` with its test-resource London redraw/keep contract.
+It verifies the seven-card redraw request, ordered Hand/Top and Library/Bottom
+partition, ordered identity reallocation and Put transfer, and following playable
+horizon. Its missing, duplicate, reversed and wrong-identity stream mutations
+exercise the same matcher. Selected card membership and response correlation stay
+with that workload. This is not a discoverable acceptance scenario: the canonical
+scenario driver still starts by automatic keep or puzzle setup. Readiness,
+competing waiters, interruption and cleanup remain separate mechanism tests.
+
 Checker regression coverage is separate from the conformance driver.
 [`ProtocolContractTest`](../engine/src/test/kotlin/leyline/testkit/ProtocolContractTest.kt)
 runs pure parsing and matching regressions in the unit lane.
@@ -165,7 +175,7 @@ windows:
 ```
 
 The prompt lane supports `DeclareAttackersReq`, `DeclareBlockersReq`, `SelectTargetsReq`, `OptionalActionMessage`, `SelectNReq`,
-`OrderReq`, `ActionsAvailableReq`, and `IntermissionReq`. Their full protobuf payload remains
+`OrderReq`, `ActionsAvailableReq`, `IntermissionReq`, `MulliganReq`, and `GroupReq`. Their full protobuf payload remains
 available through `raw` selectors. The `state` selector exposes the GSM payload
 only on events from that message. It is absent from prompt events; `gameStateId`
 binds their reference to the corresponding state publication. The `Action` type uses `lane: action` and
