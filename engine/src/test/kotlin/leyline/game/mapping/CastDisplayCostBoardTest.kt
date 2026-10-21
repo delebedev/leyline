@@ -1,6 +1,7 @@
 package leyline.game.mapping
 
 import forge.card.MagicColor
+import forge.game.keyword.Keyword
 import forge.game.mana.Mana
 import forge.game.spellability.AlternativeCost
 import forge.game.zone.ZoneType
@@ -153,6 +154,93 @@ class CastDisplayCostBoardTest :
             val (active, inactive) = castOffers(b, game, "Thoughtcast")
             active.single() should haveManaCost(generic = 1, blue = 1)
             inactive shouldHaveSize 0
+        }
+
+        test("Mycosynth Golem grants affinity to another artifact creature offer") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Juggernaut", human, ZoneType.Hand)
+                    addCard("Mycosynth Golem", human)
+                    addCard("Ornithopter", human)
+                    repeat(2) { addCard("Island", human) }
+                }
+            val (active, inactive) = castOffers(b, game, "Juggernaut")
+            active.single() should haveManaCost(generic = 2)
+            inactive shouldHaveSize 0
+        }
+
+        test("two artifacts without Mycosynth Golem do not reduce an artifact creature offer") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Juggernaut", human, ZoneType.Hand)
+                    repeat(2) { addCard("Ornithopter", human) }
+                    repeat(2) { addCard("Island", human) }
+                }
+            val (active, inactive) = castOffers(b, game, "Juggernaut")
+            active shouldHaveSize 0
+            inactive.single() should haveManaCost(generic = 4)
+        }
+
+        test("opponent Mycosynth Golem does not grant affinity to another player's spell") {
+            val (b, game, _) =
+                startWithBoard { _, human, ai ->
+                    addCard("Juggernaut", human, ZoneType.Hand)
+                    addCard("Mycosynth Golem", ai)
+                    repeat(2) { addCard("Ornithopter", human) }
+                    repeat(2) { addCard("Island", human) }
+                }
+            val (active, inactive) = castOffers(b, game, "Juggernaut")
+            active shouldHaveSize 0
+            inactive.single() should haveManaCost(generic = 4)
+        }
+
+        test("multiple granted affinity instances each apply to an artifact creature offer") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Juggernaut", human, ZoneType.Hand)
+                    repeat(2) { addCard("Mycosynth Golem", human) }
+                }
+            val (active, inactive) = castOffers(b, game, "Juggernaut")
+            active.single() should haveManaCost(generic = 0)
+            inactive shouldHaveSize 0
+        }
+
+        test("stack cost previews restore hand state and retain queued player view changes") {
+            val (b, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Juggernaut", human, ZoneType.Hand)
+                    addCard("Mycosynth Golem", human)
+                    addCard("Ornithopter", human)
+                    repeat(2) { addCard("Island", human) }
+                }
+            val card = game.humanPlayerCard("Juggernaut")
+            val human = card.controller
+            val ability = card.getSpells().first()
+            val castFrom = card.castFrom
+            val castAbility = card.castSA
+            game.tracker.freeze()
+            try {
+                human.setLife(17, null)
+                repeat(3) {
+                    ActionManaCosts.computeEffectiveCost(ability, human)?.genericCost shouldBe 2
+                    ActionManaCosts.canPayManaCost(ability, human) shouldBe true
+                }
+                game.tracker.isFrozen shouldBe true
+            } finally {
+                game.tracker.unfreeze()
+            }
+            assertSoftly {
+                human.life shouldBe 17
+                human.view.life shouldBe 17
+                card.zone.zoneType shouldBe ZoneType.Hand
+                card.castFrom shouldBe castFrom
+                card.castSA shouldBe castAbility
+                card.hasKeyword(Keyword.AFFINITY) shouldBe false
+                b
+                    .seat(SeatId(1))
+                    .prompt.history
+                    .shouldBeEmpty()
+            }
         }
 
         test("static reducer shows on a plain spell") {

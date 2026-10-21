@@ -199,16 +199,18 @@ It checks timing, zone restrictions, activator restrictions, activation limits, 
 For mana affordability, call:
 
 ```kotlin
-ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+ActionManaCosts.canPayManaCost(sa, player)
 ```
 
-Wrap it defensively. Some exotic costs can throw; an exception should mean "not currently payable" at action-emission time.
+The bridge helper wraps Forge's mana planner and restores payment-probe state.
+Some exotic costs can throw; an ordinary probe exception means "not currently
+payable", while strict prompt refusals still propagate.
 
 Normal action building pattern:
 
 1. Set `activatingPlayer`.
 2. Check `canPlay()`.
-3. Check `ComputerUtilMana.canPayManaCost(...)`.
+3. Check `ActionManaCosts.canPayManaCost(...)`.
 4. Emit active or inactive action with the right cost fields.
 
 Shared priority visibility and player controls are described in
@@ -218,6 +220,13 @@ they do not require a visible priority decision.
 ## 6. Mana And Costs
 
 For cast actions, use the effective Forge cost, not printed card data, whenever a live `SpellAbility` exists. Effective cost applies raises and reductions through Forge's `CostAdjustment` pipeline.
+
+Stack-only keyword grants must be present for both displayed cost and affordability.
+`ActionManaCosts` evaluates a prospective stack copy with the selected spell ability
+and cast-from/player context, then restores the real static state. This lets Forge
+apply granted affinity without changing the original hand card or consuming a
+payment choice. The view-tracker scope preserves changes already queued by its
+caller. Actual casting and payment remain Forge-owned.
 
 For activated abilities, use `SpellAbility.payCosts.totalMana` unless the mechanic has a specific reason to use the cast-cost pipeline.
 
