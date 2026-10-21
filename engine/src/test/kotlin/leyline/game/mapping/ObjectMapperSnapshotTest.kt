@@ -26,6 +26,42 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 class ObjectMapperSnapshotTest :
     BoardTest({
 
+        test("effective Flying filters after grants while retaining nonkeyword row IDs and parallel origins") {
+            val (b, game, _) = startWithBoard { _, human, _ -> addCard("Grizzly Bears", human, ZoneType.Battlefield) }
+            val card = game.humanPlayer.battlefield.card("Grizzly Bears")
+            val fid = ForgeCardId(card.id)
+            val iid = b.getOrAllocInstanceId(fid).value
+            val base =
+                SnapshotCapture.run(game, b, "test", 0).objects.getValue(fid).copy(
+                    isMergedPermanent = true,
+                    mergedComponentAbilityGrpIds = listOf(80001, 80002),
+                    mergedComponentAbilityOriginalCardGrpIds = listOf(90001, 90002),
+                )
+            val grants =
+                mapOf(
+                    iid to
+                        listOf(
+                            EffectTracker.KeywordEntry(1L, 2L, "Haste", abilityGrpId = 7),
+                            EffectTracker.KeywordEntry(1L, 3L, "Flying", abilityGrpId = 8),
+                        ),
+                )
+
+            fun project(snapshot: leyline.game.snapshot.CardSnapshot) =
+                ObjectMapper.buildFromSnapshot(snapshot, iid, ZoneIds.BATTLEFIELD, 1, b.cardProto, keywordSnapshot = grants)
+            val native = project(base)
+            val effective = project(base.copy(effectiveFlying = false, flyingAbilityGrpIds = setOf(8, 80001)))
+            val keep = native.uniqueAbilitiesList.indices.filter { native.getUniqueAbilities(it).grpId !in setOf(8, 80001) }
+            assertSoftly {
+                effective.uniqueAbilitiesList shouldBe keep.map(native::getUniqueAbilities)
+                effective.abilityOriginalCardGrpIdsList shouldBe keep.map(native::getAbilityOriginalCardGrpIds)
+                project(base.copy(effectiveFlying = true)).toByteArray().toList() shouldBe native.toByteArray().toList()
+                project(base.copy(flyingAbilityGrpIds = setOf(8))).toByteArray().toList() shouldBe native.toByteArray().toList()
+                val partial = base.copy(mergedComponentAbilityOriginalCardGrpIds = listOf(90001))
+                project(partial.copy(effectiveFlying = false, flyingAbilityGrpIds = setOf(8))).toByteArray().toList() shouldBe
+                    project(partial).toByteArray().toList()
+            }
+        }
+
         test("off-battlefield hand card: snapshot fields are correct") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->

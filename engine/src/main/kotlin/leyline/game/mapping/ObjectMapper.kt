@@ -115,7 +115,11 @@ object ObjectMapper {
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
         parentLinkage: ParentLinkage? = null,
+        abilitySource: GameObjectInfo? = null,
     ): GameObjectInfo {
+        require(
+            cardSnap.effectiveFlying == null || abilitySource != null,
+        ) { "Effective combat echoes need a qualified committed ability source" }
         val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy && !isStackCopySpell) {
@@ -135,7 +139,13 @@ object ObjectMapper {
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
             .applyFieldsFromSnapshot(cardSnap, parentLinkage) // echo objects carry no combat state
-            .build()
+            .apply {
+                if (abilitySource != null) {
+                    clearUniqueAbilities().addAllUniqueAbilities(abilitySource.uniqueAbilitiesList)
+                    clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(abilitySource.abilityOriginalCardGrpIdsList)
+                }
+                reconcileFlying(cardSnap)
+            }.build()
     }
 
     /**
@@ -289,7 +299,21 @@ object ObjectMapper {
                     cardSnap.mergedComponentAbilityOriginalCardGrpIds,
             )
         }
+        builder.reconcileFlying(cardSnap)
         return builder.build()
+    }
+
+    /** Filter aligned rows once, retaining surviving recipient-local IDs and source origins. */
+    private fun GameObjectInfo.Builder.reconcileFlying(snapshot: CardSnapshot) {
+        if (snapshot.effectiveFlying != false) return
+        val abilities = uniqueAbilitiesList.toList()
+        val origins = abilityOriginalCardGrpIdsList.toList()
+        // Sparse origins do not establish index association. Keep the legacy row rather than invent a pairing.
+        if (origins.isNotEmpty() && origins.size != abilities.size) return
+        val kept = abilities.indices.filter { abilities[it].grpId !in snapshot.flyingAbilityGrpIds }
+        if (kept.size == abilities.size) return
+        clearUniqueAbilities().addAllUniqueAbilities(kept.map(abilities::get))
+        if (origins.isNotEmpty()) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))
     }
 
     fun buildDisturbBackObject(
