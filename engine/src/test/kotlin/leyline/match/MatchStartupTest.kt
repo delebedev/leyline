@@ -40,6 +40,133 @@ class MatchStartupTest :
 
         fun newBridge() = GameBridge(cardRepository = TestCardRegistry.repo, engineSettings = EngineSettings(mulliganWaitMs = 2_000L))
 
+        listOf("disconnect", "eviction").forEach { removal ->
+            test("late redraw failure after $removal preserves replacement matches and connections") {
+                val registry = MatchRegistry()
+                val waiting = CountDownLatch(1)
+                val resumeFailure = CountDownLatch(1)
+                var controlled = false
+                lateinit var pause: RedrawPause
+                val bridge =
+                    GameBridge(
+                        cardRepository = TestCardRegistry.repo,
+                        mulliganNowMillis = { 0L },
+                        awaitMulliganPoll = {
+                            if (controlled) {
+                                check(pause.entered.await(2, TimeUnit.SECONDS))
+                                waiting.countDown()
+                                check(resumeFailure.await(5, TimeUnit.SECONDS))
+                            } else {
+                                Thread.yield()
+                            }
+                        },
+                    )
+                val id = "generation-$removal"
+                val original = registry.getOrCreateMatch(id) { Match(id, bridge).also { it.start(deckList = "60 Forest") } }
+                val originalEngine =
+                    bridge
+                        .gameLoopControllerForTest()
+                        .shouldNotBeNull()
+                        .getEngineThread()
+                        .shouldNotBeNull()
+                var originalCloses = 0
+                original.onStateChanged = { if (it == MatchState.FINISHED) originalCloses++ }
+                val channels = mutableListOf<io.netty.channel.embedded.EmbeddedChannel>()
+
+                fun attach(match: Match): Pair<MatchConnection, MatchSession> {
+                    val session =
+                        MatchSession(ConnectionState(SeatId(1), match.matchId, ListMessageSink(), registry), match.bridge, paceDelayMs = 0)
+                    val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+                    channels.add(
+                        io.netty.channel.embedded
+                            .EmbeddedChannel(handler),
+                    )
+                    val connection = handler.connection
+                    connection.receive(
+                        ClientToMatchServiceMessage
+                            .newBuilder()
+                            .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487)
+                            .setPayload(
+                                ClientToMatchDoorConnectRequest
+                                    .newBuilder()
+                                    .setMatchId(match.matchId)
+                                    .build()
+                                    .toByteString(),
+                            ).build(),
+                    )
+                    connection.session = session
+                    registry.registerSession(match.matchId, SeatId(1), session)
+                    registry.registerConnection(match.matchId, SeatId(1), connection)
+                    return connection to session
+                }
+                val (connection, _) = attach(original)
+                bridge.cutCoordinator.registerViewer(SeatId(1))
+                connection.mulliganHandler.sendMulliganReq()
+                pause = RedrawPause(bridge.getPlayer(SeatId(1)).shouldNotBeNull().id)
+                bridge.getGame().shouldNotBeNull().subscribeToEvents(pause)
+                controlled = true
+                val executor = Executors.newSingleThreadExecutor()
+                try {
+                    val oldResponse =
+                        executor.submit<Throwable> {
+                            shouldThrow<Exception> {
+                                connection.mulliganHandler.onMulliganResp(
+                                    ClientToGREMessage
+                                        .newBuilder()
+                                        .setType(ClientMessageType.MulliganResp_097b)
+                                        .setMulliganResp(MulliganResp.newBuilder().setDecision(MulliganOption.Mulligan))
+                                        .build(),
+                                )
+                            }
+                        }
+                    waiting.await(2, TimeUnit.SECONDS) shouldBe true
+                    if (removal == "disconnect") connection.disconnected() else registry.evictStale("another-match")
+                    val originalFailure = bridge.cutCoordinator.failure().shouldNotBeNull()
+                    connection.session.shouldBeNull()
+                    originalEngine.isAlive shouldBe false
+                    val replacement = registry.getOrCreateMatch(id) { Match(id, newBridge()).also { it.start(deckList = "60 Forest") } }
+                    val (replacementConnection, replacementSession) = attach(replacement)
+                    val defaultId = "forge-match-1"
+                    val unrelated =
+                        registry.getOrCreateMatch(
+                            defaultId,
+                        ) { Match(defaultId, newBridge()).also { it.start(deckList = "60 Forest") } }
+                    val (unrelatedConnection, unrelatedSession) = attach(unrelated)
+                    resumeFailure.countDown()
+                    oldResponse.get(5, TimeUnit.SECONDS) shouldBeSameInstanceAs originalFailure
+                    assertSoftly {
+                        originalCloses shouldBe 1
+                        original.state shouldBe MatchState.FINISHED
+                        originalEngine.isAlive shouldBe false
+                        bridge.getGame().shouldBeNull()
+                        registry.getMatch(id) shouldBeSameInstanceAs replacement
+                        registry.getConnection(id, SeatId(1)) shouldBeSameInstanceAs replacementConnection
+                        replacementConnection.session shouldBeSameInstanceAs replacementSession
+                        replacement.state shouldBe MatchState.RUNNING
+                        replacement.bridge
+                            .gameLoopControllerForTest()
+                            .shouldNotBeNull()
+                            .getEngineThread()
+                            .shouldNotBeNull()
+                            .isAlive shouldBe
+                            true
+                        registry.getMatch(defaultId) shouldBeSameInstanceAs unrelated
+                        registry.getConnection(defaultId, SeatId(1)) shouldBeSameInstanceAs unrelatedConnection
+                        unrelatedConnection.session shouldBeSameInstanceAs unrelatedSession
+                        unrelated.state shouldBe MatchState.RUNNING
+                    }
+                } finally {
+                    resumeFailure.countDown()
+                    pause.release.countDown()
+                    executor.shutdownNow()
+                    executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                    registry.teardownMatch(id, MatchTeardownReason.Disconnect, fallbackBridge = bridge)
+                    registry.teardownMatch("forge-match-1", MatchTeardownReason.Disconnect)
+                    channels.forEach { it.close() }
+                }
+            }
+        }
+
         listOf("deadline", "interruption", "engine failure", "publication failure").forEach { disposition ->
             test("accepted redraw $disposition fails and closes the registered match once") {
                 val registry = MatchRegistry()

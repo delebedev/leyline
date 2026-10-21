@@ -75,10 +75,12 @@ class MulliganHandler(
     }
 
     /** Handle MulliganResp — keep or mulligan decision. */
-    fun onMulliganResp(greMsg: ClientToGREMessage) = completeHandoff { handleMulliganResp(greMsg) }
+    fun onMulliganResp(greMsg: ClientToGREMessage) = completeHandoff { handleMulliganResp(it, greMsg) }
 
-    private fun handleMulliganResp(greMsg: ClientToGREMessage) {
-        val s = session ?: return
+    private fun handleMulliganResp(
+        s: GameOps,
+        greMsg: ClientToGREMessage,
+    ) {
         val bridge = s.gameBridge
         if (bridge.isPuzzle) {
             log.info("Match Door GRE: ignoring MulliganResp for puzzle")
@@ -118,10 +120,12 @@ class MulliganHandler(
     }
 
     /** Handle GroupResp — London tuck. */
-    fun onGroupResp(greMsg: ClientToGREMessage) = completeHandoff { handleGroupResp(greMsg) }
+    fun onGroupResp(greMsg: ClientToGREMessage) = completeHandoff { handleGroupResp(it, greMsg) }
 
-    private fun handleGroupResp(greMsg: ClientToGREMessage) {
-        val s = session ?: return
+    private fun handleGroupResp(
+        s: GameOps,
+        greMsg: ClientToGREMessage,
+    ) {
         val bridge = s.gameBridge
         if (seatId != bridge.seating.humanSeat) return
 
@@ -146,26 +150,31 @@ class MulliganHandler(
     }
 
     /** Failed pre-game completion releases the existing match owner, outside sessionLock. */
-    private inline fun completeHandoff(block: () -> Unit) {
-        val bridge = session?.gameBridge ?: return
+    private inline fun completeHandoff(block: (GameOps) -> Unit) {
+        val original = session ?: return
+        val bridge = original.gameBridge
+        val originalMatchId = original.matchId
+        val originalSeatId = original.seatId
         try {
-            block()
+            block(original)
         } catch (failure: InterruptedException) {
             Thread.interrupted()
-            failHandoff(bridge, failure, interrupted = true)
+            failHandoff(bridge, originalMatchId, originalSeatId, failure, interrupted = true)
         } catch (failure: Throwable) {
-            failHandoff(bridge, failure, interrupted = Thread.interrupted())
+            failHandoff(bridge, originalMatchId, originalSeatId, failure, interrupted = Thread.interrupted())
         }
     }
 
     private fun failHandoff(
         bridge: GameBridge,
+        matchId: String,
+        seatId: SeatId,
         failure: Throwable,
         interrupted: Boolean,
     ): Nothing {
         try {
             bridge.cutCoordinator.shutdown(failure)
-            registry.teardownMatch(matchId, MatchTeardownReason.Exception, seatId, fallbackBridge = bridge)
+            registry.teardownMatch(matchId, MatchTeardownReason.Exception, seatId, fallbackBridge = bridge, expectedBridge = bridge)
         } catch (cleanupFailure: Throwable) {
             if (cleanupFailure !== failure) failure.addSuppressed(cleanupFailure)
         } finally {

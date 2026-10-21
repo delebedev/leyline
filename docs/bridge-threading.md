@@ -92,6 +92,13 @@ failure; interruption is restored after resource release. This pre-game boundary
 does not acquire `sessionLock`. A successful final keep or tuck delegates once
 to `MatchSession.onMulliganKeep`, the sole post-keep horizon waiter and drainer.
 
+The response boundary retains its original session identity and bridge before
+waiting. Failure teardown conditionally detaches registrations under the existing
+match-key creation operation only if that bridge is still current. A concurrent
+disconnect, eviction or same-ID replacement cannot redirect the old completion
+to a new match or its connections. Resource closure runs outside the key-scoped
+registry operation; a superseded completion can close only its original bridge.
+
 ## Publication transaction
 
 When the engine blocks for a visible decision, the delivery signal means the
