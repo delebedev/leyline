@@ -167,7 +167,9 @@ internal object ActivatedActionEmitter {
             val identity = AbilityRegistry.resolveActivated(card, sa, cardDataLookup, abilityRegistryLookup, basicLandAbilityGrpId)
             val abilityGrpId = identity.abilityGrpId
             val colors = producedManaColors(sa)
-            val hasDeferredMana = sa.manaPart == null && sa.allManaParts.isNotEmpty()
+            val hasDeferredMana =
+                sa.manaPart?.isSpecialMana == true ||
+                    (sa.manaPart == null && sa.allManaParts.isNotEmpty())
             if (colors.isEmpty() && !hasDeferredMana) return@mapNotNull null
 
             val actionBuilder =
