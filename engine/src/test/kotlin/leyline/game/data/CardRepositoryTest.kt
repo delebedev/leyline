@@ -154,6 +154,12 @@ class CardRepositoryTest :
             )
             val result = repo.tokenGrpIdForCard(1000)
             result shouldBe 94161
+            repo.register(94161, "Soldier")
+            assertSoftly {
+                repo.tokenGrpIdForCard(1000, "Soldier") shouldBe 94161
+                repo.tokenGrpIdForCard(1000, "Soldier Token") shouldBe 94161
+                repo.tokenGrpIdForCard(1000, "Treasure Token").shouldBeNull()
+            }
         }
 
         test("token grp id for card multiple tokens match by name") {
