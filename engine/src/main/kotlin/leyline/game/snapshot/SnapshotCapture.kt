@@ -8,8 +8,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
+import leyline.config.KeywordProjection
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
+import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardRepository
 import leyline.game.data.grantedKeywordAbilityGrpId
@@ -533,6 +535,24 @@ object SnapshotCapture {
             }
 
         val emblem = EmblemSnapshot.capture(card, bridge)
+        val observeFlying =
+            bridge.engineSettings.keywordProjection == KeywordProjection.WebEffectiveFlying &&
+                onBf &&
+                !card.isFaceDown
+        val flyingAbilityGrpIds =
+            if (observeFlying) {
+                (
+                    bridge.cardRepository
+                        .findByGrpId(grpId)
+                        ?.abilityIds
+                        .orEmpty()
+                        .map { it.first } +
+                        mergedState.componentAbilityGrpIds
+                ).filterTo(mutableSetOf()) { bridge.cardRepository.findAbilityLocalization(it)?.keyword == "Flying" }
+                    .apply { add(checkNotNull(KeywordGrpIds.forKeyword("Flying"))) }
+            } else {
+                emptySet()
+            }
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
             name = resolvedName,
@@ -563,6 +583,8 @@ object SnapshotCapture {
             chosenColorIds = chosenColorIds,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
+            effectiveFlying = if (observeFlying) card.hasKeyword("Flying") else null,
+            flyingAbilityGrpIds = flyingAbilityGrpIds,
             isPhasedOut = card.isPhasedOut,
             // P/T captured for all creatures so off-battlefield object shape stays stable.
             netPower = if (type.isCreature) card.netPower else null,

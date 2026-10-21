@@ -38,6 +38,36 @@ class ProjectionComputeBoundaryTest :
             )
         val computePattern = named(computeTypes)
 
+        test("combat echo ability qualification reads committed values without live engine access") {
+            val owner = classes.single { it.name == "leyline.game.bundle.BundleBuilder" }
+            val qualifier = owner.methods.single { it.name == "combatAbilitySource" }
+            val valueOwners =
+                setOf(
+                    "leyline.game.state.ViewerProjectionCursor",
+                    "leyline.game.state.InstanceIdRegistry\$State",
+                    "leyline.game.snapshot.CardSnapshot",
+                )
+
+            fun allowed(name: String): Boolean =
+                name in valueOwners ||
+                    name == "int" ||
+                    name.startsWith("java.") ||
+                    name.startsWith("kotlin.") ||
+                    name.startsWith("leyline.bridge.types.") ||
+                    name.startsWith("wotc.mtgo.gre.external.messaging.Messages\$")
+            assertSoftly {
+                qualifier.rawParameterTypes
+                    .map { it.name }
+                    .filterNot(::allowed)
+                    .shouldBeEmpty()
+                qualifier.callsFromSelf.filterNot { allowed(it.target.owner.name) }.shouldBeEmpty()
+                qualifier.fieldAccesses
+                    .filterNot {
+                        allowed(it.target.owner.name) || (it.target.owner == owner && it.target.name == "seatId")
+                    }.shouldBeEmpty()
+            }
+        }
+
         test("state projection compute has no GameBridge dependency") {
             noClasses()
                 .that()

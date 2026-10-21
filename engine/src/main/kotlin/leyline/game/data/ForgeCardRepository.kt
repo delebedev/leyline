@@ -3,6 +3,7 @@ package leyline.game.data
 import forge.StaticData
 import forge.card.CardRules
 import forge.card.ICardFace
+import forge.game.keyword.Keyword
 import forge.localinstance.properties.ForgeConstants
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.types.ManaColorMapping
@@ -478,7 +479,9 @@ class ForgeCardRepository private constructor(
             categories += category
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
-            rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana))
+            val keyword =
+                if (kind == SlotKind.Keyword && Keyword.getInstance(raw).keyword == Keyword.FLYING) "Flying" else null
+            rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana, keyword))
             val effect = modalEffect(raw, variables)
             effect["Choices"]
                 ?.split(",")

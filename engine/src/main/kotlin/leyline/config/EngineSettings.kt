@@ -2,6 +2,7 @@ package leyline.config
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * Engine behavior settings: match timing, new-match defaults, draft policy,
@@ -49,6 +50,9 @@ data class EngineSettings(
     /** Alternate additional-cost GRE labels. All connections to a match share this setting. */
     @SerialName("cost_choice_presentation")
     val costChoicePresentation: CostChoicePresentation = CostChoicePresentation.Native,
+    /** Embedding-host opt-in; native configuration and wire defaults stay unchanged. */
+    @Transient
+    val keywordProjection: KeywordProjection = KeywordProjection.Native,
 ) {
     /**
      * AI delay multiplier derived from [aiSpeed].
