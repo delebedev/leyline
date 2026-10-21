@@ -85,6 +85,8 @@ import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.RuntimeHorizonMode
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.interaction.ChooseSingleEntityPlanner
+import leyline.bridge.interaction.ConfirmActionPlan
+import leyline.bridge.interaction.ConfirmActionPlanner
 import leyline.bridge.interaction.SpellAbilityShapes
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -521,7 +523,8 @@ class PlayerController(
     // random targets, and auto-target for single-candidate triggers.
 
     // -- Confirm -----------------------------------------------------------
-    // PCHuman uses InputConfirm (desktop-only)
+    // PCHuman uses desktop InputConfirm; the engine thread executes the callback-local
+    // plan through the existing optional gate or static-choice bridge.
 
     override fun confirmAction(
         sa: SpellAbility?,
@@ -530,58 +533,20 @@ class PlayerController(
         options: MutableList<String>?,
         cardToShow: Card?,
         params: MutableMap<String, Any>?,
-    ): Boolean {
-        if (isParadigmCopyCast(sa) || isParadigmCopyCard(cardToShow)) return true
-
-        val hostCard = cardToShow ?: sa?.hostCard
-        if (mode == PlayerActionConfirmMode.ChangeZoneToAltDestination && hostCard?.isRealCommander == true) {
-            return awaitCommanderReturn(hostCard, sa, "confirmAction:Commander")
+    ): Boolean =
+        when (val plan = ConfirmActionPlanner.plan(sa, mode, options, cardToShow)) {
+            ConfirmActionPlan.Accept -> true
+            is ConfirmActionPlan.CommanderReturn -> awaitCommanderReturn(plan.hostCard, sa, "confirmAction:Commander")
+            is ConfirmActionPlan.OptionalAction ->
+                optionalActionGate.await(
+                    hostCard = plan.hostCard,
+                    forceSnapshotBeforePrompt = plan.forceSnapshotBeforePrompt,
+                    defaultOnTimeout = plan.defaultOnTimeout,
+                    logContext = plan.logContext,
+                    customPromptId = plan.customPromptId,
+                )
+            is ConfirmActionPlan.Choice -> staticChoiceCoordinator.confirmAction(plan, message ?: "Confirm action?")
         }
-
-        // Endure: binary mode pick at trigger resolution. Yes → +1/+1 counters
-        // (engine adds counters when confirmAction returns true); No → Spirit
-        // token (engine creates the token in the else branch). Rides the same
-        // OptionalActionMessage gate as confirmTrigger, with a counters-flavoured
-        // promptId so the client renders a Yes/No prompt over the source creature.
-        if (sa?.api == ApiType.Endure) {
-            return optionalActionGate.await(
-                hostCard = hostCard,
-                defaultOnTimeout = true,
-                logContext = "confirmAction:Endure",
-                customPromptId = PromptIds.ENDURE_PUT_COUNTERS,
-            )
-        }
-
-        if (sa?.api == ApiType.CopySpellAbility && sa.hasParam("Optional")) {
-            return optionalActionGate.await(
-                hostCard = hostCard,
-                forceSnapshotBeforePrompt = true,
-                defaultOnTimeout = false,
-                logContext = "confirmAction:Optional",
-            )
-        }
-
-        // Forge asks after ordering, on the resolving subability's engine thread.
-        // Keep its optional shuffle pending instead of the generic Yes default.
-        if (sa?.api == ApiType.RearrangeTopOfLibrary && sa.hasParam("MayShuffle")) {
-            return optionalActionGate.await(
-                hostCard = hostCard,
-                forceSnapshotBeforePrompt = true,
-                defaultOnTimeout = false,
-                logContext = "confirmAction:MayShuffle",
-                customPromptId = PromptIds.OPTIONAL_SHUFFLE,
-            )
-        }
-
-        val displayMessage = message ?: "Confirm action?"
-        val displayOptions =
-            if (options.isNullOrEmpty()) {
-                listOf("Yes", "No")
-            } else {
-                options.toList()
-            }
-        return staticChoiceCoordinator.confirmAction(displayMessage, displayOptions, (cardToShow ?: sa?.hostCard)?.id)
-    }
 
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
         if (wrapper.isMandatory) return true
@@ -608,7 +573,7 @@ class PlayerController(
      *
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
-        if (isParadigmCopyCast(tgtSA)) {
+        if (SpellAbilityShapes.isParadigmCopyCast(tgtSA)) {
             return withModalCastCancellation(tgtSA) { super.playSaFromPlayEffect(tgtSA) }
         }
 
@@ -678,13 +643,6 @@ class PlayerController(
     private fun isParadigmDelayedTrigger(wrapper: WrappedAbility): Boolean =
         wrapper.trigger?.getParam("Execute") == "ParadigmCopy" &&
             wrapper.hostCard?.effectSource?.hasKeyword("Paradigm") == true
-
-    private fun isParadigmCopyCast(sa: SpellAbility?): Boolean =
-        sa?.isCastFromPlayEffect == true &&
-            sa.hasParam("WithoutManaCost") &&
-            isParadigmCopyCard(sa.hostCard)
-
-    private fun isParadigmCopyCard(card: Card?): Boolean = card?.isToken == true && card.copiedPermanent?.hasKeyword("Paradigm") == true
 
     override fun confirmPayment(
         costPart: CostPart?,

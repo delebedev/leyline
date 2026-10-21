@@ -2,6 +2,7 @@ package leyline.match
 
 import com.google.protobuf.ByteString
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -9,6 +10,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
@@ -21,6 +23,7 @@ import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DeckSource
 import leyline.domain.service.MatchCoordinator
 import leyline.game.mapping.ZoneIds
+import leyline.testkit.ProtocolContract
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -889,6 +892,7 @@ class MatchDoorMulliganFlowTest :
                         postTuck.map { it.type } shouldContain GREMessageType.GameStateMessage_695e
                         postTuck.map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
                     }
+                    if (mulligans == 1) verifyLondonContract(firstRedrawPrompt + postKeep + postTuck)
                 } finally {
                     local.close()
                     familiar.close()
@@ -896,6 +900,98 @@ class MatchDoorMulliganFlowTest :
             }
         }
     })
+
+/** The normal startup workload owns execution; this contract is not scenario discovery. */
+private fun verifyLondonContract(messages: List<GREToClientMessage>) {
+    val contract =
+        ProtocolContract.parse(
+            checkNotNull(ProtocolContract::class.java.getResourceAsStream("/protocol-contracts/london-redraw-keep.yaml"))
+                .bufferedReader()
+                .use { it.readText() },
+        )
+    contract.verify(messages)
+    val grouping = messages.single { it.hasGroupReq() }
+    val partitionIndex = messages.indexOf(grouping)
+    val redrawIndex = messages.indexOfFirst { it.hasMulliganReq() }
+    val transferIndex =
+        messages.indexOfFirst { message ->
+            message.hasGameStateMessage() &&
+                message.gameStateMessage.annotationsList.any {
+                    AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                        it.detailsList.any { detail -> detail.valueStringList == listOf("Put") }
+                }
+        }
+    val transferMessage = messages[transferIndex]
+    val annotations = transferMessage.gameStateMessage.annotationsList
+    val changed = annotations.single { AnnotationType.ObjectIdChanged in it.typeList }
+    val put = annotations.single { AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailInt("zone_src") == ZoneIds.P1_HAND }
+
+    fun withAnnotations(replacement: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>): List<GREToClientMessage> =
+        messages.toMutableList().apply {
+            this[transferIndex] =
+                transferMessage
+                    .toBuilder()
+                    .setGameStateMessage(
+                        transferMessage.gameStateMessage
+                            .toBuilder()
+                            .clearAnnotations()
+                            .addAllAnnotations(replacement),
+                    ).build()
+        }
+
+    val mutations =
+        listOf(
+            messages.filterNot { it.hasGroupReq() },
+            messages.toMutableList().apply { add(partitionIndex, grouping) },
+            messages.toMutableList().apply {
+                removeAt(partitionIndex)
+                add(redrawIndex, grouping)
+            },
+            withAnnotations(annotations.filterNot { it === changed }),
+            withAnnotations(annotations + put),
+            withAnnotations(
+                annotations.map {
+                    if (it ===
+                        put
+                    ) {
+                        it
+                            .toBuilder()
+                            .clearAffectedIds()
+                            .addAffectedIds(Int.MAX_VALUE)
+                            .build()
+                    } else {
+                        it
+                    }
+                },
+            ),
+            withAnnotations(
+                annotations.map {
+                    if (it === changed) {
+                        put
+                    } else if (it === put) {
+                        changed
+                    } else {
+                        it
+                    }
+                },
+            ),
+            messages.filterNot { it.hasActionsAvailableReq() },
+        )
+    val obligations =
+        listOf(
+            "required event partition",
+            "exact count for {type=GroupReq",
+            "required event partition",
+            "required event changed",
+            "exact count for {type=ZoneTransfer",
+            "put has contradictory fields or identity",
+            "required event put",
+            "required event playable",
+        )
+    mutations.zip(obligations).forEach { (altered, obligation) ->
+        shouldThrow<AssertionError> { contract.verify(altered) }.message.orEmpty() shouldContain obligation
+    }
+}
 
 private fun verifyFinalRedrawTuck(): Int {
     val registry = MatchRegistry()

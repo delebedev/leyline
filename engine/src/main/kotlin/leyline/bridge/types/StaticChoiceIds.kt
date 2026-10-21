@@ -34,6 +34,12 @@ object StaticChoiceIds {
             else -> null
         }
 
+    fun parityIdsForNames(labels: List<String>): List<Int>? {
+        if (labels.size != 2) return null
+        val ids = labels.map { parityIdForName(it) ?: return null }
+        return ids.takeIf { it.toSet().size == 2 }
+    }
+
     fun subtypeIdFor(typeName: String): Int? = subtypeByKey[normalize(typeName)]
 
     fun cardTypeIdFor(typeName: String): Int? = cardTypeByKey[normalize(typeName)]

@@ -1,10 +1,16 @@
 package leyline.bridge.interaction
 
 import forge.game.ability.ApiType
+import forge.game.card.Card
 import forge.game.spellability.AlternativeCost
 import forge.game.spellability.SpellAbility
 
 object SpellAbilityShapes {
+    fun isParadigmCopyCast(sa: SpellAbility?): Boolean =
+        sa?.isCastFromPlayEffect == true && sa.hasParam("WithoutManaCost") && isParadigmCopyCard(sa.hostCard)
+
+    fun isParadigmCopyCard(card: Card?): Boolean = card?.isToken == true && card.copiedPermanent?.hasKeyword("Paradigm") == true
+
     fun isPrivateHandLook(sa: SpellAbility?): Boolean {
         val ability = (sa as? forge.game.trigger.WrappedAbility)?.wrappedAbility ?: sa
         return ability?.api == ApiType.RevealHand && ability.hasParam("Look")
