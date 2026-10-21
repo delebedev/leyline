@@ -3,6 +3,7 @@ package leyline.behavior.cards
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.coord.acceptSettled
@@ -13,6 +14,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.cancelActionReq
 import leyline.testkit.gameStateMessages
 import leyline.testkit.haveManaCost
+import leyline.testkit.optionalActionResp
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -77,8 +79,15 @@ class GenericEffectChoiceTest :
                     it.actionType == ActionType.Cast && it.instanceId == handId
                 }
             before should haveManaCost(generic = 2)
+            holdNextOptionalAction()
             val drawCast = castSpellByName("Reach Through Mists")
-            drawCast.shouldBeTrue()
+            val offered = passUntil(maxPasses = 6) { allMessages.any { it.hasOptionalActionMessage() } }
+            assertSoftly {
+                drawCast.shouldBeTrue()
+                offered.shouldBeTrue()
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+            }
+            respondToOptionalAction(accept = true)
             passUntil(maxPasses = 6) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
             val modal =
                 allMessages
@@ -119,6 +128,171 @@ class GenericEffectChoiceTest :
                 game().stack.isEmpty shouldBe true
             }
         }
+        session(
+            "Abundance decline draws the ordinary top card without offering replacement modes",
+            forgeCatalog = true,
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Abundance;Island;Forest;Forest
+                humanhand=Reach Through Mists
+                humanlibrary=Forest;Grizzly Bears;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 3,
+        ) {
+            val drawnBefore = human.numDrawnThisTurn
+            holdNextOptionalAction()
+            val cast = castSpellByName("Reach Through Mists")
+            val offered =
+                passUntil(maxPasses = 6) {
+                    allMessages.any { it.hasOptionalActionMessage() || it.hasCastingTimeOptionsReq() }
+                }
+            assertSoftly {
+                cast.shouldBeTrue()
+                offered.shouldBeTrue()
+                allMessages.count { it.hasOptionalActionMessage() } shouldBe 1
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Forest", "Grizzly Bears", "Mountain")
+                human.getCardsIn(ZoneType.Hand).shouldBeEmpty()
+                bridge.hasPendingNonActionInteraction().shouldBeTrue()
+            }
+            val consent = allMessages.single { it.hasOptionalActionMessage() }
+            consent.optionalActionMessage.sourceId shouldBe human.battlefield.iid("Abundance")
+            respondToOptionalAction(accept = false)
+            passUntilResolved()
+            assertSoftly {
+                "Forest" should beInHandOf(human)
+                human.numDrawnThisTurn shouldBe drawnBefore + 1
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Grizzly Bears", "Mountain")
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                bridge.hasPendingNonActionInteraction() shouldBe false
+            }
+            val continued = playLand("Forest")
+            assertSoftly {
+                continued.shouldBeTrue()
+                "Forest" should beOnBattlefieldOf(human, 3)
+            }
+        }
+        session(
+            "an opponent-controlled draw replacement asks the affected player and binds the replacement source",
+            forgeCatalog = true,
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Island;Forest;Forest
+                aibattlefield=Abundance
+                humanhand=Reach Through Mists
+                humanlibrary=Forest;Grizzly Bears;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 3,
+        ) {
+            val replacement =
+                ai.battlefield
+                    .card("Abundance")
+                    .replacementEffects
+                    .single()
+            replacement.putParam("ValidPlayer", "Opponent")
+            holdNextOptionalAction()
+            castSpellByName("Reach Through Mists").shouldBeTrue()
+            passUntil(maxPasses = 6) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
+            val consent = allMessages.single { it.hasOptionalActionMessage() }
+            val sourceId = ai.battlefield.iid("Abundance")
+            assertSoftly {
+                consent.optionalActionMessage.sourceId shouldBe sourceId
+                consent.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue shouldBe sourceId
+                consent.allowCancel shouldBe AllowCancel.No_a526
+                allMessages.takeWhile { it != consent }.gameStateMessages().any { gsm ->
+                    gsm.gameObjectsList.any { it.instanceId == sourceId && it.grpId > 0 }
+                } shouldBe true
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Forest", "Grizzly Bears", "Mountain")
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+            }
+            respondToOptionalAction(accept = false)
+            passUntilResolved()
+            assertSoftly {
+                "Forest" should beInHandOf(human)
+                ai.getCardsIn(ZoneType.Hand).shouldBeEmpty()
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+            }
+            playLand("Forest").shouldBeTrue()
+        }
+        session(
+            "a consumed replacement answer cannot answer the next draw's consent",
+            forgeCatalog = true,
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanbattlefield=Abundance;Island;Island;Forest
+                humanhand=Reach Through Mists;Reach Through Mists
+                humanlibrary=Forest;Mountain;Grizzly Bears
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 3,
+        ) {
+            holdNextOptionalAction()
+            castSpellByName("Reach Through Mists").shouldBeTrue()
+            passUntil(maxPasses = 6) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
+            val first = allMessages.single { it.hasOptionalActionMessage() }
+            respondToOptionalAction(accept = false)
+            passUntilResolved()
+            holdNextOptionalAction()
+            castSpellByName("Reach Through Mists").shouldBeTrue()
+            passUntil(maxPasses = 6) { allMessages.count { it.hasOptionalActionMessage() } == 2 }.shouldBeTrue()
+            val pending = bridge.cutCoordinator.currentBlockingInteraction()
+            val current = allMessages.last { it.hasOptionalActionMessage() }
+            send(
+                optionalActionResp(accept = true)
+                    .toBuilder()
+                    .setGameStateId(first.gameStateId)
+                    .setRespId(first.msgId)
+                    .build(),
+            )
+            drainSink()
+            send(
+                optionalActionResp(accept = true)
+                    .toBuilder()
+                    .setGameStateId(current.gameStateId)
+                    .setRespId(first.msgId)
+                    .build(),
+            )
+            drainSink()
+            send(
+                cancelActionReq()
+                    .toBuilder()
+                    .setGameStateId(current.gameStateId)
+                    .setRespId(current.msgId)
+                    .build(),
+            )
+            drainSink()
+            assertSoftly {
+                bridge.cutCoordinator.currentBlockingInteraction() shouldBe pending
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Mountain", "Grizzly Bears")
+                "Forest" should beInHandOf(human)
+            }
+            respondToOptionalAction(accept = false)
+            passUntilResolved()
+            assertSoftly {
+                human.getCardsIn(ZoneType.Hand).map { it.name }.sorted() shouldBe listOf("Forest", "Mountain")
+                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe listOf("Grizzly Bears")
+                allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                bridge.hasPendingNonActionInteraction() shouldBe false
+            }
+            playLand("Forest").shouldBeTrue()
+        }
         for ((index, scenario) in listOf(
             Triple("Land", "Grizzly Bears;Forest;Mountain", "Forest"),
             Triple("Nonland", "Forest;Grizzly Bears;Mountain", "Grizzly Bears"),
@@ -139,7 +313,24 @@ class GenericEffectChoiceTest :
                     """.trimIndent(),
                 turns = 3,
             ) {
-                castSpellByName("Reach Through Mists").shouldBeTrue()
+                val drawnBefore = human.numDrawnThisTurn
+                holdNextOptionalAction()
+                val cast = castSpellByName("Reach Through Mists")
+                val offered =
+                    passUntil(maxPasses = 6) {
+                        allMessages.any { it.hasOptionalActionMessage() || it.hasCastingTimeOptionsReq() }
+                    }
+                assertSoftly {
+                    cast.shouldBeTrue()
+                    offered.shouldBeTrue()
+                    allMessages.count { it.hasOptionalActionMessage() } shouldBe 1
+                    allMessages.none { it.hasCastingTimeOptionsReq() } shouldBe true
+                    human.getCardsIn(ZoneType.Library).map { it.name } shouldBe library.split(';')
+                    human.getCardsIn(ZoneType.Hand).shouldBeEmpty()
+                }
+                val consent = allMessages.single { it.hasOptionalActionMessage() }
+                consent.optionalActionMessage.sourceId shouldBe human.battlefield.iid("Abundance")
+                respondToOptionalAction(accept = true)
                 passUntil(maxPasses = 6) { allMessages.any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
                 val modal =
                     allMessages
@@ -151,9 +342,14 @@ class GenericEffectChoiceTest :
                     listOf("Land", "Nonland")
                 respondModalChoice(listOf(modal.getModalOptions(index).grpId))
                 passUntilResolved()
-                selected should beInHandOf(human)
-                human.getCardsIn(ZoneType.Library).map { it.name } shouldBe
-                    listOf("Mountain", if (kind == "Land") "Grizzly Bears" else "Forest")
+                assertSoftly {
+                    selected should beInHandOf(human)
+                    human.numDrawnThisTurn shouldBe drawnBefore
+                    human.getCardsIn(ZoneType.Library).map { it.name } shouldBe
+                        listOf("Mountain", if (kind == "Land") "Grizzly Bears" else "Forest")
+                    (human.getCardsIn(ZoneType.Hand) + human.getCardsIn(ZoneType.Library)).map { it.name }.sorted() shouldBe
+                        library.split(';').sorted()
+                }
                 if (kind == "Land") {
                     playLand(selected).shouldBeTrue()
                 } else {

@@ -82,6 +82,14 @@ Land and Nonland choices through the same resolution-time bridge.
 Only named modal APIs contribute option identities; `Choices` validity filters
 on effects such as `ChoosePlayer` do not replace a card's modal metadata.
 
+Optional replacement effects retain Forge's selected decision controller through
+`confirmReplacementEffect`. The general callback publishes consent through
+`OptionalActionGate`, identifying the replacement's source card rather than the
+affected player or card. Decline and timeout return false to Forge before the
+replacement ability runs. Acceptance continues to any replacement-mode choice.
+Commander return and optional battlefield-copy replacements retain their dedicated
+source selection and presentation.
+
 `chooseSomeType` retains the offered card-type strings and order in an explicit
 CardTypes subset. If any offered card type has no enum mapping, the whole choice
 keeps its default policy instead of publishing a partial subset. Optional

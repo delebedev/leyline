@@ -7,6 +7,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.CommanderReturnPromptContext
@@ -45,6 +46,30 @@ class MatchBlockingInteractionViewerCutTest :
             humanlibrary=Forest
             ailibrary=Forest
             """.trimIndent()
+
+        test("optional timeout declines after publishing its source and retires the window") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val source = board.human.battlefield.card("Forest")
+            val projectedSource =
+                board.bridge
+                    .projectionStateSnapshot()
+                    .identities.forgeIdToInstanceId[ForgeCardId(source.id)]
+            val interaction = BlockingInteraction.Optional(ForgeCardId(source.id), true, null, null)
+
+            val accepted = coordinator.awaitOptional(interaction, timeoutMs = 1, defaultOnTimeout = false)
+            val output = coordinator.drain(SeatId(1)).flatten()
+            val prompt = output.single { it.hasOptionalActionMessage() }
+            val sourceId = prompt.optionalActionMessage.sourceId
+
+            assertSoftly {
+                accepted shouldBe false
+                coordinator.currentBlockingInteraction() shouldBe null
+                sourceId shouldBe projectedSource.shouldNotBeNull().value
+                output.takeWhile { it != prompt }.any { it.hasGameStateMessage() && it.gameStateId == prompt.gameStateId } shouldBe true
+            }
+        }
 
         test("snapshot blocking prompts keep Player output and project state only to observers") {
             data class Publication(
