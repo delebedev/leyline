@@ -82,23 +82,48 @@ class MatchRegistry {
 
     fun removeMatch(matchId: String): Match? = matches.remove(matchId)
 
+    /** An expected bridge limits registry detachment to that exact match generation. */
     fun teardownMatch(
         matchId: String,
         reason: MatchTeardownReason,
         seatId: SeatId? = null,
         fallbackBridge: GameBridge? = null,
+        expectedBridge: GameBridge? = null,
     ) {
-        val matchConnections = connections.remove(matchId)?.values.orEmpty()
-        val removedSessions = sessions.remove(matchId)?.values.orEmpty()
+        var matchConnections: List<MatchConnection> = emptyList()
+        var removedSessions: List<SessionOps> = emptyList()
+        var match: Match? = null
+        // Generation admission and detachment share the match key's existing creation lock.
+        // Resource cleanup stays outside it and cannot remove a replacement's registrations.
+        matches.compute(matchId) { _, current ->
+            if (expectedBridge != null && current?.bridge !== expectedBridge) {
+                current
+            } else {
+                matchConnections =
+                    connections
+                        .remove(matchId)
+                        ?.values
+                        ?.toList()
+                        .orEmpty()
+                removedSessions =
+                    sessions
+                        .remove(matchId)
+                        ?.values
+                        ?.toList()
+                        .orEmpty()
+                match = current
+                null
+            }
+        }
         val sessionsRemoved = removedSessions.size
-        val match = matches.remove(matchId)
+        val removedMatch = match
 
         removedSessions.filterIsInstance<MatchSession>().forEach { it.close() }
         removedSessions.filterIsInstance<SpectatorSession>().forEach { it.close() }
         matchConnections.forEach { it.detachAfterTeardown() }
 
-        if (match != null) {
-            match.close()
+        if (removedMatch != null) {
+            removedMatch.close()
         } else {
             fallbackBridge?.shutdown()
         }
@@ -113,7 +138,7 @@ class MatchRegistry {
             .addKeyValue("reason", reason.name)
             .addKeyValue("sessions_removed", sessionsRemoved)
             .addKeyValue("connections_removed", matchConnections.size)
-            .addKeyValue("match_closed", match != null || fallbackBridge != null)
+            .addKeyValue("match_closed", removedMatch != null || fallbackBridge != null)
             .log("Match torn down")
     }
 }

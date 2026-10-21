@@ -28,6 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MulliganOption
 import wotc.mtgo.gre.external.messaging.Messages.MulliganResp
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -174,6 +175,109 @@ class MulliganHandlerTest :
                 keeps shouldBe 0
                 handoff.pendingPrompt().shouldBeNull()
                 sink.messages.shouldBeEmpty()
+            }
+        }
+
+        test("accepted redraw expiry is a failure rather than rejected input") {
+            val bridge =
+                leyline.game.state.GameBridge(
+                    cardRepository = leyline.testkit.TestCardRegistry.repo,
+                    engineSettings = EngineSettings(mulliganWaitMs = 0L),
+                )
+            bridge.wrapGame(
+                leyline.bridge.bootstrap.GameBootstrap
+                    .createGame(),
+            )
+            val handoff = bridge.mulliganBridge(SeatId(1))
+            val executor = Executors.newSingleThreadExecutor()
+            val answer = executor.submit<Boolean> { handoff.awaitKeepDecision(1, 0) }
+            try {
+                eventually(2.seconds) { handoff.pendingPrompt().shouldNotBeNull() }
+                shouldThrow<TimeoutException> { bridge.submitMull(SeatId(1)) }
+                assertSoftly {
+                    answer.get(2, TimeUnit.SECONDS) shouldBe false
+                    handoff.redrawCount shouldBe 1
+                    bridge.submitMull(SeatId(1)) shouldBe false
+                }
+            } finally {
+                handoff.cancelPending()
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                bridge.shutdown()
+            }
+        }
+
+        test("unreached tuck handoff expiry cannot return normally") {
+            val bridge =
+                leyline.game.state.GameBridge(
+                    cardRepository = leyline.testkit.TestCardRegistry.repo,
+                    engineSettings = EngineSettings(mulliganWaitMs = 0L),
+                )
+            try {
+                shouldThrow<TimeoutException> { bridge.awaitTuckReady() }
+            } finally {
+                bridge.shutdown()
+            }
+        }
+
+        test("accepted keep with a delayed tuck fails without publishing a group or continuing") {
+            val registry = MatchRegistry()
+            val accepted = CountDownLatch(1)
+            val releaseTuck = CountDownLatch(1)
+            var now = 0L
+            val bridge =
+                leyline.game.state.GameBridge(
+                    cardRepository = leyline.testkit.TestCardRegistry.repo,
+                    engineSettings = EngineSettings(mulliganWaitMs = 100L),
+                    mulliganNowMillis = { now },
+                    awaitMulliganPoll = {
+                        accepted.await(2, TimeUnit.SECONDS) shouldBe true
+                        now = 100L
+                    },
+                )
+            bridge.wrapGame(
+                leyline.bridge.bootstrap.GameBootstrap
+                    .createGame(),
+            )
+            val match = registry.getOrCreateMatch("mulligan-handler-test") { Match("mulligan-handler-test", bridge) }
+            var closes = 0
+            match.onStateChanged = { if (it == MatchState.FINISHED) closes++ }
+            val (session, sink) = sessionFor(SeatId(1), registry, bridge)
+            var continuations = 0
+            val handler = handler(SeatId(1), session, registry) { continuations++ }
+            val handoff = bridge.mulliganBridge(SeatId(1))
+            val executor = Executors.newSingleThreadExecutor()
+            val engine =
+                executor.submit {
+                    handoff.awaitKeepDecision(1, 1) shouldBe true
+                    accepted.countDown()
+                    check(releaseTuck.await(5, TimeUnit.SECONDS))
+                    handoff.awaitTuckDecision(1, 1, forge.game.card.CardCollection())
+                }
+            try {
+                eventually(2.seconds) { handoff.pendingPrompt().shouldNotBeNull() }
+                val failure = shouldThrow<TimeoutException> { handler.onMulliganResp(mulliganResp(MulliganOption.AcceptHand)) }
+                assertSoftly {
+                    accepted.count shouldBe 0L
+                    now shouldBe 100L
+                    continuations shouldBe 0
+                    sink.messages.shouldBeEmpty()
+                    bridge.cutCoordinator
+                        .failure()
+                        .shouldNotBeNull()
+                        .cause shouldBe failure
+                    registry.getMatch(match.matchId).shouldBeNull()
+                    match.state shouldBe MatchState.FINISHED
+                    closes shouldBe 1
+                }
+                handler.onMulliganResp(mulliganResp(MulliganOption.AcceptHand))
+                closes shouldBe 1
+            } finally {
+                engine.cancel(true)
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                handoff.cancelPending()
+                match.close()
             }
         }
 

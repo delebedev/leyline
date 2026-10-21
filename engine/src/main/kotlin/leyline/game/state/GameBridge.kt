@@ -108,6 +108,9 @@ class GameBridge(
     val cardRepository: CardRepository,
     /** Proto builder for GameObjectInfo — uses [cardRepository] for static card data. */
     val cardProto: CardProtoBuilder = CardProtoBuilder(cardRepository),
+    /** Monotonic deadline and bounded poll for pre-game handoff completion. */
+    private val mulliganNowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val awaitMulliganPoll: () -> Unit = { Thread.sleep(POLL_INTERVAL_MS) },
 ) : IdMapping,
     PlayerLookup,
     RuntimePriorityView,
@@ -1551,16 +1554,8 @@ class GameBridge(
                 log.debug("ignored stale mulligan for seat {}", seatId.value)
                 return false
             }
-            val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
-            while (System.currentTimeMillis() < deadline) {
-                val prompt = bridge.pendingPromptAfter(seqBefore)
-                if (prompt != null) {
-                    log.info("GameBridge: engine re-dealt hand after mulligan")
-                    return true
-                }
-                Thread.sleep(POLL_INTERVAL_MS)
-            }
-            log.warn("GameBridge: timed out waiting for new mulligan decision")
+            awaitMulliganHandoff("redraw", afterSequence = seqBefore)
+            return true
         }
         return false
     }
@@ -1570,14 +1565,7 @@ class GameBridge(
      * The engine calls [MulliganBridge.awaitTuckDecision] on the game thread,
      * publishing a [MulliganPhase.WaitingTuck] prompt.
      */
-    fun awaitTuckReady() {
-        val deadline = System.currentTimeMillis() + engineSettings.mulliganWaitMs
-        while (System.currentTimeMillis() < deadline) {
-            if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingTuck) return
-            Thread.sleep(POLL_INTERVAL_MS)
-        }
-        log.warn("GameBridge: timed out waiting for engine to reach tuck phase")
-    }
+    fun awaitTuckReady() = awaitMulliganHandoff("tuck", phase = MulliganPhase.WaitingTuck)
 
     // TODO: parameterize by seatId for paired-flow mulligan support
 
@@ -2305,16 +2293,38 @@ class GameBridge(
      */
     @VisibleForTesting
     internal fun awaitMulliganReady(
-        nowMillis: () -> Long = System::currentTimeMillis,
-        awaitNextPoll: () -> Unit = { Thread.sleep(POLL_INTERVAL_MS) },
+        nowMillis: () -> Long = mulliganNowMillis,
+        awaitNextPoll: () -> Unit = awaitMulliganPoll,
+    ) = awaitMulliganHandoff("initial", phase = MulliganPhase.WaitingKeep, nowMillis = nowMillis, awaitNextPoll = awaitNextPoll)
+
+    /** Rejected answers never enter this wait. An accepted transition cannot expire silently. */
+    private fun awaitMulliganHandoff(
+        transition: String,
+        afterSequence: Int = -1,
+        phase: MulliganPhase? = null,
+        nowMillis: () -> Long = mulliganNowMillis,
+        awaitNextPoll: () -> Unit = awaitMulliganPoll,
     ) {
-        val deadline = nowMillis() + engineSettings.mulliganWaitMs
-        while (nowMillis() < deadline) {
-            throwIfGameLoopFailed()
-            if (mulliganBridge(SeatId(1)).pendingPrompt()?.phase == MulliganPhase.WaitingKeep) return
-            awaitNextPoll()
+        val started = nowMillis()
+        try {
+            while (true) {
+                checkMulliganHandoff()
+                if (nowMillis() - started >= engineSettings.mulliganWaitMs) {
+                    throw TimeoutException("Engine did not reach the $transition mulligan handoff before its readiness deadline")
+                }
+                val prompt = mulliganBridge(seating.humanSeat).pendingPromptAfter(afterSequence)
+                if (prompt != null && (phase == null || prompt.phase == phase)) return
+                awaitNextPoll()
+            }
+        } catch (failure: Throwable) {
+            cutCoordinator.shutdown(failure)
+            throw failure
         }
+    }
+
+    private fun checkMulliganHandoff() {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Interrupted during mulligan handoff")
         throwIfGameLoopFailed()
-        throw TimeoutException("Engine did not reach the initial mulligan handoff before its readiness deadline")
+        cutCoordinator.failure()?.let { throw it }
     }
 }

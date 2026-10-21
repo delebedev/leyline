@@ -88,18 +88,7 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
                         rows[id]?.let { addAll(it.events(position, "persistent", "delete")) }
                     }
                 }
-                val prompt =
-                    when {
-                        message.hasDeclareAttackersReq() -> "DeclareAttackersReq"
-                        message.hasDeclareBlockersReq() -> "DeclareBlockersReq"
-                        message.hasSelectTargetsReq() -> "SelectTargetsReq"
-                        message.hasOptionalActionMessage() -> "OptionalActionMessage"
-                        message.hasSelectNReq() -> "SelectNReq"
-                        message.hasOrderReq() -> "OrderReq"
-                        message.hasActionsAvailableReq() -> "ActionsAvailableReq"
-                        message.hasIntermissionReq() -> "IntermissionReq"
-                        else -> null
-                    }
+                val prompt = message.contractPromptType()
                 if (prompt !=
                     null
                 ) {
@@ -124,6 +113,21 @@ internal fun projectContract(messages: List<GREToClientMessage>): ContractProjec
         }
     return ContractProjection(correlated, removals)
 }
+
+private fun GREToClientMessage.contractPromptType(): String? =
+    when {
+        hasDeclareAttackersReq() -> "DeclareAttackersReq"
+        hasDeclareBlockersReq() -> "DeclareBlockersReq"
+        hasSelectTargetsReq() -> "SelectTargetsReq"
+        hasOptionalActionMessage() -> "OptionalActionMessage"
+        hasSelectNReq() -> "SelectNReq"
+        hasOrderReq() -> "OrderReq"
+        hasActionsAvailableReq() -> "ActionsAvailableReq"
+        hasIntermissionReq() -> "IntermissionReq"
+        hasMulliganReq() -> "MulliganReq"
+        hasGroupReq() -> "GroupReq"
+        else -> null
+    }
 
 private fun AnnotationInfo.events(
     position: ContractPosition,
