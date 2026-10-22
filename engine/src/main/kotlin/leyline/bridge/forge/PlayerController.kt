@@ -697,18 +697,12 @@ class PlayerController(
             )
         }
 
-        // PCHuman uses GuiBase + InputConfirm
-        val request =
-            PromptRequest(
-                promptType = "confirm",
-                message = prompt ?: replacementEffect.toString(),
-                options = listOf("Yes", "No"),
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-            )
-        val result = bridge.requestChoice(request)
-        return result.firstOrNull() == 0
+        return optionalActionGate.await(
+            hostCard = checkNotNull(replacementEffect.hostCard),
+            forceSnapshotBeforePrompt = true,
+            defaultOnTimeout = false,
+            logContext = "confirmReplacementEffect",
+        )
     }
 
     override fun chooseSingleReplacementEffect(possibleReplacers: List<ReplacementEffect>): ReplacementEffect {
