@@ -24,8 +24,12 @@ import leyline.match.MatchSession
 import leyline.match.MatchState
 import leyline.match.MatchTeardownReason
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.AuthenticateRequest
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchDoorConnectRequest
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -49,6 +53,43 @@ class MatchRegistryTest :
             match: Match,
         ): MatchSession =
             MatchSession(ConnectionState(SeatId(1), match.matchId, ListMessageSink(), registry), match.bridge, paceDelayMs = 0)
+
+        fun reauthenticate(
+            connection: MatchConnection,
+            tentativeMatchId: String? = null,
+        ) {
+            connection.receive(
+                ClientToMatchServiceMessage
+                    .newBuilder()
+                    .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.AuthenticateRequest_f487)
+                    .setPayload(
+                        AuthenticateRequest
+                            .newBuilder()
+                            .setClientId("reauth-player")
+                            .build()
+                            .toByteString(),
+                    ).build(),
+            )
+            if (tentativeMatchId == null) return
+            connection.receive(
+                ClientToMatchServiceMessage
+                    .newBuilder()
+                    .setClientToMatchServiceMessageType(ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487)
+                    .setPayload(
+                        ClientToMatchDoorConnectRequest
+                            .newBuilder()
+                            .setMatchId(tentativeMatchId)
+                            .setClientToGreMessageBytes(
+                                ClientToGREMessage
+                                    .newBuilder()
+                                    .setSystemSeatId(2)
+                                    .build()
+                                    .toByteString(),
+                            ).build()
+                            .toByteString(),
+                    ).build(),
+            )
+        }
 
         test("one registration publishes a replacement to both registry and connection observers") {
             val registry = MatchRegistry()
@@ -86,44 +127,97 @@ class MatchRegistryTest :
             channel.close()
         }
 
-        test("fresh attachment never redirects an old connection or admits its replacement and teardown") {
-            val registry = MatchRegistry()
-            val match = registry.getOrCreateMatch("reconnect") { Match("reconnect", stubBridge()) }
-            val original = session(registry, match)
-            val oldHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
-            val oldChannel = EmbeddedChannel(oldHandler)
-            val oldConnection = oldHandler.connection
-            val oldRegistration = registry.registerSession(match.matchId, SeatId(1), original, oldConnection)
-            val replacement = session(registry, match)
-            val newHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
-            val newChannel = EmbeddedChannel(newHandler)
-            val newConnection = newHandler.connection
-            val newRegistration = registry.registerSession(match.matchId, SeatId(1), replacement, newConnection)
-            var rebuilt = false
+        listOf("disconnect", "failure").forEach { cleanup ->
+            listOf("attached", "reauthenticated", "retargeted").forEach { phase ->
+                test("fresh attachment survives obsolete $cleanup while the old connection is $phase") {
+                    val registry = MatchRegistry()
+                    val match = registry.getOrCreateMatch("reconnect") { Match("reconnect", stubBridge()) }
+                    val original = session(registry, match)
+                    val oldHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+                    val oldChannel = EmbeddedChannel(oldHandler)
+                    val oldConnection = oldHandler.connection
+                    val oldRegistration = registry.registerSession(match.matchId, SeatId(1), original, oldConnection)
+                    val unrelated = registry.getOrCreateMatch("tentative") { Match("tentative", stubBridge()) }
+                    val unrelatedSession = FamiliarSession(SeatId(2), unrelated.matchId, ListMessageSink())
+                    registry.registerSession(unrelated.matchId, SeatId(2), unrelatedSession)
+                    if (phase != "attached") {
+                        reauthenticate(oldConnection, unrelated.matchId.takeIf { phase == "retargeted" })
+                    }
+                    val replacement = session(registry, match)
+                    val newHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+                    val newChannel = EmbeddedChannel(newHandler)
+                    val newConnection = newHandler.connection
+                    val newRegistration = registry.registerSession(match.matchId, SeatId(1), replacement, newConnection)
+                    var rebuilt = false
 
-            shouldThrow<IllegalStateException> {
-                registry.replaceSession(original, {
-                    rebuilt = true
-                    original
-                }) { it }
-            }
-            oldConnection.submitGREMessage(ClientToGREMessage.newBuilder().setType(ClientMessageType.ConcedeReq_097b).build())
-            oldConnection.disconnected()
+                    shouldThrow<IllegalStateException> {
+                        registry.replaceSession(original, {
+                            rebuilt = true
+                            original
+                        }) { it }
+                    }
+                    oldConnection.submitGREMessage(ClientToGREMessage.newBuilder().setType(ClientMessageType.ConcedeReq_097b).build())
+                    if (cleanup == "disconnect") {
+                        oldConnection.disconnected()
+                    } else {
+                        oldConnection.failed(IllegalStateException("Authored obsolete failure"))
+                    }
 
-            assertSoftly {
-                rebuilt shouldBe false
-                registry.isCurrent(oldRegistration) shouldBe false
-                registry.isCurrent(newRegistration) shouldBe true
-                oldConnection.session shouldBeSameInstanceAs original
-                newConnection.session shouldBeSameInstanceAs replacement
-                registry.activeHumanSession() shouldBeSameInstanceAs replacement
-                registry.getConnection(match.matchId, SeatId(1)) shouldBeSameInstanceAs newConnection
-                registry.getMatch(match.matchId) shouldBeSameInstanceAs match
-                match.state shouldBe MatchState.WAITING
+                    assertSoftly {
+                        rebuilt shouldBe false
+                        registry.isCurrent(oldRegistration) shouldBe false
+                        registry.isCurrent(newRegistration) shouldBe true
+                        if (phase == "attached") {
+                            oldConnection.session shouldBeSameInstanceAs original
+                        } else {
+                            oldConnection.session.shouldBeNull()
+                        }
+                        newConnection.session shouldBeSameInstanceAs replacement
+                        registry.activeHumanSession() shouldBeSameInstanceAs replacement
+                        registry.getConnection(match.matchId, SeatId(1)) shouldBeSameInstanceAs newConnection
+                        registry.getMatch(match.matchId) shouldBeSameInstanceAs match
+                        match.state shouldBe MatchState.WAITING
+                        registry.getMatch(unrelated.matchId) shouldBeSameInstanceAs unrelated
+                        registry.getPeer(unrelated.matchId, SeatId(1)) shouldBeSameInstanceAs unrelatedSession
+                        unrelated.state shouldBe MatchState.WAITING
+                    }
+                    registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+                    registry.teardownMatch(unrelated.matchId, MatchTeardownReason.Disconnect)
+                    oldChannel.close()
+                    newChannel.close()
+                }
             }
-            registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
-            oldChannel.close()
-            newChannel.close()
+
+            test("retargeted $cleanup closes its original attachment without touching tentative identity") {
+                val registry = MatchRegistry()
+                val match = registry.getOrCreateMatch("original") { Match("original", stubBridge()) }
+                val original = session(registry, match)
+                val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+                val channel = EmbeddedChannel(handler)
+                val registration = registry.registerSession(match.matchId, SeatId(1), original, handler.connection)
+                val unrelated = registry.getOrCreateMatch("tentative") { Match("tentative", stubBridge()) }
+                val unrelatedSession = FamiliarSession(SeatId(2), unrelated.matchId, ListMessageSink())
+                registry.registerSession(unrelated.matchId, SeatId(2), unrelatedSession)
+                reauthenticate(handler.connection, unrelated.matchId)
+
+                if (cleanup == "disconnect") {
+                    handler.connection.disconnected()
+                } else {
+                    handler.connection.failed(IllegalStateException("Authored reconnect failure"))
+                }
+
+                assertSoftly {
+                    registry.getMatch(match.matchId).shouldBeNull()
+                    registry.isCurrent(registration) shouldBe false
+                    registry.getConnection(match.matchId, SeatId(1)).shouldBeNull()
+                    match.state shouldBe MatchState.FINISHED
+                    registry.getMatch(unrelated.matchId) shouldBeSameInstanceAs unrelated
+                    registry.getPeer(unrelated.matchId, SeatId(1)) shouldBeSameInstanceAs unrelatedSession
+                    unrelated.state shouldBe MatchState.WAITING
+                }
+                registry.teardownMatch(unrelated.matchId, MatchTeardownReason.Disconnect)
+                channel.close()
+            }
         }
 
         test("teardown waits for admitted reconstruction and detaches the installed session") {

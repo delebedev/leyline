@@ -78,6 +78,14 @@ class MatchConnection(
     private val connected: MatchHandlerState.Connected?
         get() = state as? MatchHandlerState.Connected
 
+    /** Cleanup retains the last attachment while tentative reconnect identity changes. */
+    private val cleanupAttachment: MatchHandlerState.Connected?
+        get() =
+            when (val s = state) {
+                is MatchHandlerState.Handshaking -> s.previousAttachment
+                is MatchHandlerState.Connected -> s
+            }
+
     private val matchId: String
         get() =
             when (val s = state) {
@@ -164,7 +172,9 @@ class MatchConnection(
 
     private fun resolveRuntimeMatchConfig(): RuntimeMatchConfig? = runtimeMatchConfigs?.get(matchId)
 
-    private fun isSpectatorMode(): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: engineSettings.spectatorMode
+    private fun isSpectatorMode(): Boolean = isSpectatorMode(matchId)
+
+    private fun isSpectatorMode(matchId: String): Boolean = runtimeMatchConfigs?.get(matchId)?.spectatorMode ?: engineSettings.spectatorMode
 
     fun opened() {
         log.info("Match connection opened")
@@ -271,7 +281,7 @@ class MatchConnection(
         stopRuntimeDeliveryObserver()
         (prior.registration.session as? MatchSession)?.close()
         val reopened =
-            MatchHandlerState.Handshaking().also {
+            MatchHandlerState.Handshaking(previousAttachment = prior).also {
                 it.matchId = prior.matchId
                 it.clientId = prior.clientId
                 it.seatId = prior.seatId
@@ -515,16 +525,18 @@ class MatchConnection(
         seatedEvent.log("Match client disconnected")
         stopRuntimeDeliveryObserver()
         if (detachedAfterTeardown) return
-        if (isSpectatorMode() && isFamiliar) {
+        val attachment = cleanupAttachment
+        val cleanupMatchId = attachment?.matchId ?: matchId
+        if (isSpectatorMode(cleanupMatchId) && (attachment?.isFamiliar ?: isFamiliar)) {
             log.info("Match Door: spectator familiar disconnected, leaving AI match active")
             return
         }
         registry.teardownMatch(
-            matchId = matchId,
+            matchId = cleanupMatchId,
             reason = MatchTeardownReason.Disconnect,
-            seatId = SeatId(seatId),
-            fallbackBridge = (session as? GameOps)?.gameBridge,
-            expectedRegistration = connected?.registration,
+            seatId = SeatId(attachment?.seatId ?: seatId),
+            fallbackBridge = (attachment?.registration?.session as? GameOps)?.gameBridge,
+            expectedRegistration = attachment?.registration,
         )
     }
 
@@ -538,18 +550,19 @@ class MatchConnection(
             output.close()
             return
         }
+        val attachment = cleanupAttachment
         registry.teardownMatch(
-            matchId = matchId,
+            matchId = attachment?.matchId ?: matchId,
             reason = MatchTeardownReason.Exception,
-            seatId = SeatId(seatId),
-            fallbackBridge = (session as? GameOps)?.gameBridge,
-            expectedRegistration = connected?.registration,
+            seatId = SeatId(attachment?.seatId ?: seatId),
+            fallbackBridge = (attachment?.registration?.session as? GameOps)?.gameBridge,
+            expectedRegistration = attachment?.registration,
         )
         output.close()
     }
 
     internal fun detachAfterTeardown(expected: MatchRegistry.Registration) {
-        if (connected?.registration !== expected) return
+        if (cleanupAttachment?.registration !== expected) return
         // Connection is gone — drop session/ctx by reverting to a fresh handshake state.
         stopRuntimeDeliveryObserver()
         detachedAfterTeardown = true
@@ -568,7 +581,9 @@ class MatchConnection(
      * the resolved values.
      */
     private sealed class MatchHandlerState {
-        class Handshaking : MatchHandlerState() {
+        class Handshaking(
+            val previousAttachment: Connected? = null,
+        ) : MatchHandlerState() {
             /** Tentative until ClientToMatchDoorConnectRequest carries a non-empty matchId. */
             var matchId: String = "forge-match-1"
 
