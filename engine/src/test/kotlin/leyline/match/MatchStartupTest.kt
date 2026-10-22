@@ -94,32 +94,39 @@ class MatchStartupTest :
                                     .toByteString(),
                             ).build(),
                     )
-                    connection.session = session
-                    registry.registerSession(match.matchId, SeatId(1), session)
-                    registry.registerConnection(match.matchId, SeatId(1), connection)
+                    registry.registerSession(match.matchId, SeatId(1), session, connection)
                     return connection to session
                 }
-                val (connection, _) = attach(original)
+                val (connection, originalSession) = attach(original)
                 bridge.cutCoordinator.registerViewer(SeatId(1))
                 connection.mulliganHandler.sendMulliganReq()
                 pause = RedrawPause(bridge.getPlayer(SeatId(1)).shouldNotBeNull().id)
                 bridge.getGame().shouldNotBeNull().subscribeToEvents(pause)
                 controlled = true
-                val executor = Executors.newSingleThreadExecutor()
+                val executor = Executors.newFixedThreadPool(2)
                 try {
                     val oldResponse =
                         executor.submit<Throwable> {
                             shouldThrow<Exception> {
-                                connection.mulliganHandler.onMulliganResp(
+                                val prompt = bridge.committedSequence()
+                                connection.submitGREMessage(
                                     ClientToGREMessage
                                         .newBuilder()
                                         .setType(ClientMessageType.MulliganResp_097b)
+                                        .setSystemSeatId(1)
+                                        .setGameStateId(prompt.lastPromptGsId)
+                                        .setRespId(prompt.lastPromptMsgId)
                                         .setMulliganResp(MulliganResp.newBuilder().setDecision(MulliganOption.Mulligan))
                                         .build(),
                                 )
                             }
                         }
                     waiting.await(2, TimeUnit.SECONDS) shouldBe true
+                    // The admitted redraw waits outside the gameplay session lock.
+                    executor
+                        .submit<Boolean> {
+                            synchronized(originalSession.connection.sessionLock) { true }
+                        }.get(2, TimeUnit.SECONDS) shouldBe true
                     if (removal == "disconnect") connection.disconnected() else registry.evictStale("another-match")
                     val originalFailure = bridge.cutCoordinator.failure().shouldNotBeNull()
                     connection.session.shouldBeNull()

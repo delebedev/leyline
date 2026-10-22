@@ -176,20 +176,18 @@ class MatchSession(
      */
     fun replaceForPuzzle(puzzle: forge.gamemodes.puzzle.Puzzle): PuzzleReplacementResult =
         synchronized(sessionLock) {
-            val matchConnection = registry.getConnection(matchId, seatId)
-            matchConnection?.stopRuntimeDeliveryObserver()
-            close()
-            val deletedIds = gameBridge.resetForPuzzle(puzzle)
-            val replacement = MatchSession(connection, gameBridge, paceDelayMs)
-            registry.registerSession(matchId, seatId, replacement)
-            // Update the per-channel handler so future inbound GRE messages dispatch
-            // to the new session. Without this, MatchHandler keeps a stale reference
-            // and the next PerformActionResp builds a Diff against unrelated game
-            // state, producing spurious diffDeletedInstanceIds.
-            matchConnection?.session = replacement
-            replacement.publishPuzzleReplacement(deletedIds).also {
-                matchConnection?.armRuntimeDeliveryObserver()
-            }
+            var deletedIds: List<Int> = emptyList()
+            registry.replaceSession(
+                expected = this,
+                create = {
+                    close()
+                    deletedIds = gameBridge.resetForPuzzle(puzzle)
+                    MatchSession(connection, gameBridge, paceDelayMs)
+                },
+                publish = { replacement ->
+                    replacement.publishPuzzleReplacement(deletedIds)
+                },
+            )
         }
 
     /** Commit and deliver the replacement puzzle's initial state and action horizon. */

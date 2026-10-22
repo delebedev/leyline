@@ -24,6 +24,11 @@ import leyline.match.MatchSession
 import leyline.match.MatchState
 import leyline.match.MatchTeardownReason
 import leyline.testkit.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class MatchRegistryTest :
     FunSpec({
@@ -38,6 +43,187 @@ class MatchRegistryTest :
             GameBridge(cardRepository = InMemoryCardRepository()).also {
                 it.wrapGame(GameBootstrap.createGame())
             }
+
+        fun session(
+            registry: MatchRegistry,
+            match: Match,
+        ): MatchSession =
+            MatchSession(ConnectionState(SeatId(1), match.matchId, ListMessageSink(), registry), match.bridge, paceDelayMs = 0)
+
+        test("one registration publishes a replacement to both registry and connection observers") {
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("registration") { Match("registration", stubBridge()) }
+            val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val channel = EmbeddedChannel(handler)
+            val original = session(registry, match)
+            val registration = registry.registerSession(match.matchId, SeatId(1), original, handler.connection)
+            val replacement = MatchSession(original.connection, match.bridge, paceDelayMs = 0)
+
+            registry.replaceSession(original, { replacement }) { installed ->
+                assertSoftly {
+                    installed shouldBeSameInstanceAs replacement
+                    registration.session shouldBeSameInstanceAs replacement
+                    registry.activeHumanSession() shouldBeSameInstanceAs replacement
+                    registry.getPeer(match.matchId, SeatId(2)) shouldBeSameInstanceAs replacement
+                    handler.connection.session shouldBeSameInstanceAs replacement
+                    registry.getConnection(match.matchId, SeatId(1)) shouldBeSameInstanceAs handler.connection
+                }
+                installed
+            } shouldBeSameInstanceAs replacement
+
+            var rebuilt = false
+            shouldThrow<IllegalStateException> {
+                registry.replaceSession(original, {
+                    rebuilt = true
+                    original
+                }) { it }
+            }
+            assertSoftly {
+                rebuilt shouldBe false
+                registration.session shouldBeSameInstanceAs replacement
+            }
+            registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+            channel.close()
+        }
+
+        test("fresh attachment never redirects an old connection or admits its replacement and teardown") {
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("reconnect") { Match("reconnect", stubBridge()) }
+            val original = session(registry, match)
+            val oldHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val oldChannel = EmbeddedChannel(oldHandler)
+            val oldConnection = oldHandler.connection
+            val oldRegistration = registry.registerSession(match.matchId, SeatId(1), original, oldConnection)
+            val replacement = session(registry, match)
+            val newHandler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val newChannel = EmbeddedChannel(newHandler)
+            val newConnection = newHandler.connection
+            val newRegistration = registry.registerSession(match.matchId, SeatId(1), replacement, newConnection)
+            var rebuilt = false
+
+            shouldThrow<IllegalStateException> {
+                registry.replaceSession(original, {
+                    rebuilt = true
+                    original
+                }) { it }
+            }
+            oldConnection.submitGREMessage(ClientToGREMessage.newBuilder().setType(ClientMessageType.ConcedeReq_097b).build())
+            oldConnection.disconnected()
+
+            assertSoftly {
+                rebuilt shouldBe false
+                registry.isCurrent(oldRegistration) shouldBe false
+                registry.isCurrent(newRegistration) shouldBe true
+                oldConnection.session shouldBeSameInstanceAs original
+                newConnection.session shouldBeSameInstanceAs replacement
+                registry.activeHumanSession() shouldBeSameInstanceAs replacement
+                registry.getConnection(match.matchId, SeatId(1)) shouldBeSameInstanceAs newConnection
+                registry.getMatch(match.matchId) shouldBeSameInstanceAs match
+                match.state shouldBe MatchState.WAITING
+            }
+            registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+            oldChannel.close()
+            newChannel.close()
+        }
+
+        test("teardown waits for admitted reconstruction and detaches the installed session") {
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("replacement-race") { Match("replacement-race", stubBridge()) }
+            val original = session(registry, match)
+            val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val channel = EmbeddedChannel(handler)
+            val registration = registry.registerSession(match.matchId, SeatId(1), original, handler.connection)
+            val creating = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            val tearingDown = CountDownLatch(1)
+            val executor = Executors.newFixedThreadPool(2)
+            try {
+                val replacement =
+                    executor.submit<MatchSession> {
+                        registry.replaceSession(
+                            original,
+                            create = {
+                                creating.countDown()
+                                check(release.await(5, TimeUnit.SECONDS))
+                                MatchSession(original.connection, match.bridge, paceDelayMs = 0)
+                            },
+                            publish = { it },
+                        )
+                    }
+                creating.await(2, TimeUnit.SECONDS) shouldBe true
+                val teardown =
+                    executor.submit {
+                        tearingDown.countDown()
+                        registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+                    }
+                tearingDown.await(2, TimeUnit.SECONDS) shouldBe true
+                release.countDown()
+                val installed = replacement.get(5, TimeUnit.SECONDS)
+                teardown.get(5, TimeUnit.SECONDS)
+                assertSoftly {
+                    registration.session shouldBeSameInstanceAs installed
+                    registry.isCurrent(registration) shouldBe false
+                    registry.activeHumanSession().shouldBeNull()
+                    handler.connection.session.shouldBeNull()
+                    match.state shouldBe MatchState.FINISHED
+                }
+            } finally {
+                release.countDown()
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+                channel.close()
+            }
+        }
+
+        test("detached generation cannot replace or clear a connection rebound during resource cleanup") {
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("cleanup-race") { Match("cleanup-race", stubBridge()) }
+            val original = session(registry, match)
+            val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
+            val channel = EmbeddedChannel(handler)
+            registry.registerSession(match.matchId, SeatId(1), original, handler.connection)
+            val closing = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            match.onStateChanged = {
+                if (it == MatchState.FINISHED) {
+                    closing.countDown()
+                    check(release.await(5, TimeUnit.SECONDS))
+                }
+            }
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val teardown = executor.submit { registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect) }
+                closing.await(2, TimeUnit.SECONDS) shouldBe true
+                handler.connection.session.shouldBeNull()
+                val nextMatch = registry.getOrCreateMatch(match.matchId) { Match(match.matchId, stubBridge()) }
+                val next = session(registry, nextMatch)
+                registry.registerSession(next.matchId, next.seatId, next, handler.connection)
+                var rebuilt = false
+                shouldThrow<IllegalStateException> {
+                    registry.replaceSession(original, {
+                        rebuilt = true
+                        original
+                    }) { it }
+                }
+                release.countDown()
+                teardown.get(5, TimeUnit.SECONDS)
+                assertSoftly {
+                    rebuilt shouldBe false
+                    registry.getMatch(match.matchId) shouldBeSameInstanceAs nextMatch
+                    registry.activeHumanSession() shouldBeSameInstanceAs next
+                    handler.connection.session shouldBeSameInstanceAs next
+                    registry.getConnection(match.matchId, SeatId(1)) shouldBeSameInstanceAs handler.connection
+                    nextMatch.state shouldBe MatchState.WAITING
+                }
+            } finally {
+                release.countDown()
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                registry.teardownMatch(match.matchId, MatchTeardownReason.Disconnect)
+                channel.close()
+            }
+        }
 
         test("getOrCreateMatch creates on first call, reuses on second") {
             val registry = MatchRegistry()
@@ -259,9 +445,7 @@ class MatchRegistryTest :
 
             val handler = MatchHandler(registry = registry, cardRepository = TestCardRegistry.repo)
             val channel = EmbeddedChannel(handler)
-            handler.connection.session = session
-            registry.registerSession(matchId, SeatId(1), session)
-            registry.registerConnection(matchId, SeatId(1), handler.connection)
+            registry.registerSession(matchId, SeatId(1), session, handler.connection)
 
             channel.close()
 

@@ -2,16 +2,25 @@ package leyline.match
 
 import com.google.protobuf.ByteString
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.bridge.types.SeatId
 import leyline.config.EngineSettings
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.config.RuntimeMatchConfigRegistry
+import leyline.game.generator.PuzzleLibrary
+import leyline.game.generator.PuzzleSource
+import leyline.infra.ListMessageSink
+import leyline.infra.MatchOutput
 import leyline.testkit.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -27,6 +36,10 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.PerformActionResp
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Drives a puzzle match through [MatchHandler] the same way the web GRE relay
@@ -155,6 +168,89 @@ class PuzzleMatchDoorFlowTest :
                 )
             }
 
+        test("puzzle replacement publishes outside the registry key and routes the next action to its new game") {
+            val registry = MatchRegistry()
+            val configs = RuntimeMatchConfigRegistry()
+            val matchId = "puzzle-registration-owner"
+            val temp = tempPuzzleFile()
+            val frames = CopyOnWriteArrayList<MatchServiceToClientMessage>()
+            val registerFamiliarOnFrame = AtomicBoolean(false)
+            val executor = Executors.newSingleThreadExecutor()
+            val familiar = FamiliarSession(SeatId(2), matchId, ListMessageSink())
+            val output =
+                object : MatchOutput {
+                    override fun send(message: MatchServiceToClientMessage) {
+                        frames.add(message)
+                        if (registerFamiliarOnFrame.compareAndSet(true, false)) {
+                            // A synchronous host output callback may wait for another
+                            // thread's registry work on the same match key.
+                            executor.submit { registry.registerSession(matchId, SeatId(2), familiar) }.get(5, TimeUnit.SECONDS)
+                        }
+                    }
+
+                    override fun close() {}
+                }
+            val connection =
+                MatchConnection(
+                    registry,
+                    output,
+                    EngineSettings(),
+                    PuzzleLibrary(temp.parentFile),
+                    cardRepository = TestCardRegistry.repo,
+                    runtimeMatchConfigs = configs,
+                )
+            try {
+                configs.put(RuntimeMatchConfig(matchId, puzzleDefinition = PuzzleDefinition(temp.nameWithoutExtension, temp.readText())))
+                connection.receive(auth("puzzle-player", 1))
+                connection.receive(connect(matchId, seatId = 1, requestId = 2))
+                val original = registry.activeHumanSession().shouldNotBeNull()
+                val originalGame = original.gameBridge.getGame().shouldNotBeNull()
+                temp.writeText(temp.readText().replace("humanhand=Lightning Bolt", "humanhand=Mountain"))
+                val puzzle = PuzzleSource.load(PuzzleLibrary(temp.parentFile).require(temp.nameWithoutExtension))
+                registerFamiliarOnFrame.set(true)
+
+                original.replaceForPuzzle(puzzle)
+
+                val replacement = registry.activeHumanSession().shouldNotBeNull()
+                val replacementGame = replacement.gameBridge.getGame().shouldNotBeNull()
+                val sequence = replacement.gameBridge.committedSequence()
+                shouldThrow<IllegalStateException> { original.replaceForPuzzle(puzzle) }
+                assertSoftly {
+                    replacement shouldNotBeSameInstanceAs original
+                    replacementGame shouldNotBeSameInstanceAs originalGame
+                    replacement.connection shouldBeSameInstanceAs original.connection
+                    connection.session shouldBeSameInstanceAs replacement
+                    registry.getPeer(matchId, SeatId(2)) shouldBeSameInstanceAs replacement
+                    registry.getPeer(matchId, SeatId(1)) shouldBeSameInstanceAs familiar
+                    registry.getConnection(matchId, SeatId(1)) shouldBeSameInstanceAs connection
+                    replacement.gameBridge.getGame() shouldBeSameInstanceAs replacementGame
+                    replacement.gameBridge.committedSequence() shouldBe sequence
+                    registerFamiliarOnFrame.get() shouldBe false
+                }
+                val prompt = frames.flatMap { it.greToClientEvent.greToClientMessagesList }.last { it.hasActionsAvailableReq() }
+                val land = prompt.actionsAvailableReq.actionsList.single { it.actionType == ActionType.Play_add3 }
+                connection.submitGREMessage(
+                    greMessage(1, ClientMessageType.PerformActionResp_097b) {
+                        setGameStateId(prompt.gameStateId)
+                        setRespId(prompt.msgId)
+                        setPerformActionResp(PerformActionResp.newBuilder().addActions(land))
+                    },
+                )
+                assertSoftly {
+                    replacement.gameBridge.getHandGrpIds(SeatId(1)) shouldBe emptyList()
+                    replacement.ctx.game shouldBeSameInstanceAs replacementGame
+                    frames
+                        .flatMap { it.greToClientEvent.greToClientMessagesList }
+                        .none { it.type == GREMessageType.IllegalRequest } shouldBe true
+                }
+            } finally {
+                registry.teardownMatch(matchId, MatchTeardownReason.Disconnect)
+                executor.shutdownNow()
+                executor.awaitTermination(2, TimeUnit.SECONDS) shouldBe true
+                temp.delete()
+            }
+        }
+
         test("puzzle match over a single web-shaped EmbeddedChannel: connect sends bundle, Pass advances the loop") {
             val registry = MatchRegistry()
             val runtimeMatchConfigs = RuntimeMatchConfigRegistry()
@@ -277,6 +373,7 @@ class PuzzleMatchDoorFlowTest :
                 channel.writeInbound(connect(matchId, seatId = 1, requestId = 2))
                 val firstConnectMessages = greOutbound(channel)
                 val firstConnectTypes = firstConnectMessages.map { it.type }
+                val firstSession = registry.activeHumanSession().shouldNotBeNull()
 
                 // A reconnect (page reload, retried websocket, duplicate attach) replays
                 // the handshake on the SAME shared engine instance.
@@ -287,6 +384,7 @@ class PuzzleMatchDoorFlowTest :
                 channel.writeInbound(connect(matchId, seatId = 1, requestId = 4))
                 val reconnectConnectMessages = greOutbound(channel)
                 val reconnectConnectTypes = reconnectConnectMessages.map { it.type }
+                val reconnectedSession = registry.activeHumanSession().shouldNotBeNull()
 
                 channel.writeInbound(
                     greServiceMessage(
@@ -305,6 +403,10 @@ class PuzzleMatchDoorFlowTest :
                     // The engine still works after the resync — Pass keeps driving the loop.
                     postReconnectTypes shouldContain GREMessageType.GameStateMessage_695e
                     channel.isActive shouldBe true
+                    reconnectedSession shouldNotBeSameInstanceAs firstSession
+                    handler.connection.session shouldBeSameInstanceAs reconnectedSession
+                    registry.getPeer(matchId, SeatId(2)) shouldBeSameInstanceAs reconnectedSession
+                    registry.getConnection(matchId, SeatId(1)) shouldBeSameInstanceAs handler.connection
                 }
             } finally {
                 temp.delete()
