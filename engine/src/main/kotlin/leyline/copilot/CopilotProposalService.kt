@@ -63,15 +63,11 @@ class CopilotProposalService(
             stampPrompt(proposal, prompt)
         }
 
-    // GREMessageType is a large proto enum; only these families are decoded and
-    // the else fallthrough to `unrealizable` is intentional, not a gap.
-    @Suppress("CyclomaticComplexMethod", "ElseCaseInsteadOfExhaustiveWhen")
+    // The advisor owns ordinary prompt support; only Copilot host strategy and
+    // incremental delivery differ here.
+    @Suppress("ElseCaseInsteadOfExhaustiveWhen")
     private fun route(prompt: GREToClientMessage): CopilotProposal =
         when (prompt.type) {
-            // Opening-hand keep. Scripted skip-mulligan puzzles never emit this,
-            // so it only fires on the live-client path.
-            GREMessageType.MulliganReq_aa0d -> advisedProposal(prompt)
-
             GREMessageType.ChooseStartingPlayerReq_695e -> startingPlayerProposal(prompt)
 
             GREMessageType.ActionsAvailableReq_695e -> aarProposal(prompt)
@@ -83,46 +79,20 @@ class CopilotProposalService(
             // so an already-satisfied committed set stands as the desired set.
             GREMessageType.SelectTargetsReq_695e -> targetProposal(prompt)
 
-            GREMessageType.SelectNreq -> advisedProposal(prompt)
-
-            GREMessageType.CastingTimeOptionsReq_695e -> advisedProposal(prompt)
-
-            GREMessageType.OrderReq_695e -> advisedProposal(prompt)
-
-            GREMessageType.SearchReq_695e -> advisedProposal(prompt)
-
-            GREMessageType.SearchFromGroupsReq_695e -> advisedProposal(prompt)
-
-            GREMessageType.SelectReplacementReq_695e -> advisedProposal(prompt)
-
-            GREMessageType.NumericInputReq_695e -> advisedProposal(prompt)
-
+            // Copilot supplies an allocation even when the prompt leaves a strategic choice.
             GREMessageType.DistributionReq_695e -> proposalFor(DefaultDecisions.distribution(prompt), prompt)
-
-            GREMessageType.PayCostsReq_695e ->
-                advisedProposal(prompt)
-
-            // Scry/surveil ordering: keep everything on top (always legal, moves
-            // nothing) — enough to never stall the loop on this family.
-            GREMessageType.GroupReq_695e -> advisedProposal(prompt)
 
             // Two-round-trip declaration: diff the prompt's committed set
             // against the AI's desired set — one toggle per consult, Submit
             // (stamped with this prompt's msgId) once they match.
             GREMessageType.DeclareAttackersReq_695e -> attackersProposal(prompt)
 
-            // Combat damage assignment: echo the engine's pre-filled per-blocker
-            // lethal (+ trample overflow to the player) so the attack resolves.
-            GREMessageType.AssignDamageReq_695e -> advisedProposal(prompt)
-
             // Send the complete blocker plan once. A re-prompt carrying any
             // committed assignment is the accepted echo and submits without
             // consulting the AI against its own intermediate declaration.
             GREMessageType.DeclareBlockersReq_695e -> blockersProposal(prompt)
 
-            GREMessageType.OptionalActionMessage_695e -> advisedProposal(prompt)
-
-            else -> CopilotProposalRealizer.unrealizable(prompt.type, seatId.value, "prompt type ${prompt.type} has no copilot decoder")
+            else -> advisedProposal(prompt)
         }
 
     private fun advisedProposal(prompt: GREToClientMessage): CopilotProposal =
@@ -211,7 +181,11 @@ class CopilotProposalService(
             ?: CopilotProposalRealizer.unrealizable(
                 prompt.type,
                 seatId.value,
-                "advisor unavailable: ${result.reason.name}: ${result.detail}",
+                if (result.reason == PromptUnavailableReason.UnsupportedPrompt) {
+                    "prompt type ${prompt.type} has no copilot decoder"
+                } else {
+                    "advisor unavailable: ${result.reason.name}: ${result.detail}"
+                },
             )
     }
 
