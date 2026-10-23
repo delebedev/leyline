@@ -128,6 +128,14 @@ blocks in controller callbacks when a human answer is required. Native, host,
 timer, and test entrants call the transport-neutral match surface. Interactive
 session entry is serialized separately from publication and projection commit.
 
+`MatchRegistry.Registration` owns the current session for one seat attachment.
+The registry and `MatchConnection` retain the same registration, so puzzle
+replacement updates one session reference for peer lookup, advice and inbound
+dispatch. A reconnect installs a fresh registration rather than redirecting an
+old connection. The optional connection lives on that registration; standalone
+sessions need no separate connection entry. Familiar and spectator seats retain
+their own registrations.
+
 ```mermaid
 flowchart LR
     H["Protocol head"] -->|"parsed message or answer"| S["MatchSession"]

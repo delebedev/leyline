@@ -206,6 +206,7 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
+                registry.registerSession(session.matchId, session.seatId, session)
                 handler.sendPuzzleInitialBundle(session, "puzzle-replacement", 1)
                 val initialMessageCount = sink.messages.size
 
@@ -256,6 +257,7 @@ class PuzzleHandlerTest :
                         gameBridge = bridge,
                         paceDelayMs = 0,
                     )
+                registry.registerSession(session.matchId, session.seatId, session)
                 handler.sendPuzzleInitialBundle(session, "puzzle-sequence-replacement", 1)
                 val prior = bridge.projectionStateSnapshot()
                 bridge.replaceProjectionStateForTest(

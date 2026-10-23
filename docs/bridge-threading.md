@@ -36,6 +36,7 @@ callback can run inside a larger mutation burst.
 | Interaction correlation, committed viewer feeds, and terminal failure | `MatchCutCoordinator` and its family runtimes under `feedLock` |
 | Client-facing identities, cursors, annotations, and logical output | One committed `ProjectionState` behind `GameBridge.projectionLock` |
 | Per-connection admission and delivery | `ConnectionState.sessionLock` |
+| Current session per attachment | `MatchRegistry.Registration`; private volatile reference, written under the registry match-key operation |
 
 Session handlers parse client messages into immutable values. They do not read
 the live Forge graph to reconstruct an action, combat declaration, prompt
@@ -219,6 +220,26 @@ together through one coordinator lifecycle cut.
 
 ## Teardown
 
+Registry attachment, replacement installation and detachment use the existing
+match-key operation. Puzzle reconstruction runs there with the connection's
+`sessionLock` already held, so a reconnect cannot construct handlers against the
+game being replaced. This operation may wait for engine shutdown and initial
+priority readiness. Those engine paths do not enter the registry or call host
+output. Registry reads remain lock-free. No key operation acquires `sessionLock`.
+
+Replacement output publication runs **after** leaving the match-key operation.
+A synchronous host output callback can therefore wait for another thread's
+registry work without retaining the key. Observer rearming then checks the exact
+registration and installed session under the key; a detached or reconnected
+attachment cannot rearm a newer connection. Teardown can interrupt publication
+and does not wait for `sessionLock`.
+
+Post-handshake dispatch takes the surviving `sessionLock` before reading the
+registration's current session, so an entrant queued during replacement cannot
+retain old game-bound handlers. Mulligan and London-tuck entry retain their
+pre-game execution-domain exception. Superseded connections cannot dispatch or
+tear down a newer registration.
+
 Connection teardown stops and invalidates its delivery observer before the
 connection can be rebound. Puzzle replacement invalidates the old generation,
 publishes and delivers the replacement's initial horizon under `sessionLock`,
@@ -229,6 +250,11 @@ workers, detaches connection state, and closes the match. Bridge shutdown
 terminalizes coordinator waiters, rejects later cuts, wakes delivery and engine
 waiters, stops the game loop, and discards registered viewer feeds including any
 committed but undrained batches.
+
+Registry detachment clears connection binding and invalidates its delivery
+observer under the match key. Observer stop only invalidates its generation and
+signals the delivery notification; it does not join a worker or acquire
+`sessionLock`. Session worker closure and bridge shutdown run outside the key.
 
 ## Safe points and event subscribers
 
