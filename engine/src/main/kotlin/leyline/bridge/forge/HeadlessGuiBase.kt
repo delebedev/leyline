@@ -43,6 +43,8 @@ class HeadlessGuiBase(
 
     override fun getCurrentVersion(): String = "web"
 
+    override fun getUserAgent(): String = "Forge/$currentVersion (headless)"
+
     override fun getAssetsDir(): String = ensureTrailingSlash(assetsDir)
 
     override fun getImageFetcher(): ImageFetcher = imageFetcher

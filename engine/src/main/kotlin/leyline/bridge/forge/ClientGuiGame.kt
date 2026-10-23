@@ -17,15 +17,16 @@ import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbility
 import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
+import forge.gamemodes.match.Selection
 import forge.gamemodes.match.YieldUpdate
 import forge.gui.control.PlaybackSpeed
 import forge.gui.interfaces.IGuiGame
 import forge.interfaces.IGameController
+import forge.interfaces.IMacroSystem
 import forge.item.PaperCard
 import forge.localinstance.skin.FSkinProp
 import forge.player.PlayerZoneUpdate
 import forge.trackable.TrackableCollection
-import forge.trackable.TrackableObject
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
 import leyline.DevCheck
@@ -944,16 +945,7 @@ class ClientGuiGame(
         players: Map<PlayerView, Any>,
     ) {}
 
-    override fun setHighlighted(
-        entities: Iterable<TrackableObject>,
-        b: Boolean,
-    ) {}
-
-    override fun setSelectables(
-        cards: Iterable<CardView>,
-        min: Int,
-        max: Int,
-    ) {}
+    override fun setSelection(selection: Selection) {}
 
     override fun setWeaklySelectable(cards: Iterable<CardView>) {}
 
@@ -961,7 +953,7 @@ class ClientGuiGame(
 
     override fun applyDelta(packet: forge.gamemodes.net.DeltaPacket) {}
 
-    override fun clearSelectables() {}
+    override fun applyMacroState(state: IMacroSystem.State) {}
 
     override fun isSelecting(): Boolean = false
 
