@@ -29,7 +29,7 @@ object ObjectMapper {
         val occurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>,
     )
 
-    /** Allocate alternative occurrences only after all ordinary source rows are present. */
+    /** Complete variant occurrence handles only after all ordinary source rows are present. */
     fun planActivationOccurrences(
         objects: List<GameObjectInfo>,
         sources: Map<Int, CardSnapshot>,
@@ -46,18 +46,28 @@ object ObjectMapper {
                 val origins = source.abilityOriginalCardGrpIdsList
                 val plan =
                     snapshot.activationOccurrences.toSortedMap(compareBy { it.value }).mapValues { (_, occurrences) ->
+                        val variantDefinitions = occurrences.filter { it.isAlternative }.map { it.definitionId to it.abilityGrpId }.toSet()
                         occurrences.map occurrence@{ occurrence ->
-                            if (!occurrence.isAlternative) return@occurrence occurrence
+                            if (!occurrence.isAlternative &&
+                                (
+                                    occurrence.uniqueAbilityId != null ||
+                                        occurrence.definitionId to occurrence.abilityGrpId !in variantDefinitions
+                                )
+                            ) {
+                                return@occurrence occurrence
+                            }
+                            require(occurrence.abilityGrpId != 0) { "Activation occurrence requires a resolved ability definition" }
                             val original =
-                                rows.withIndex().single { (_, row) ->
+                                rows.withIndex().singleOrNull { (_, row) ->
                                     row.id == occurrence.uniqueAbilityId && row.grpId == occurrence.abilityGrpId
                                 }
+                            if (occurrence.uniqueAbilityId != null) requireNotNull(original)
                             while (nextId in occupied) nextId++
                             val id = nextId++
                             occupied.add(id)
                             builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(id).setGrpId(occurrence.abilityGrpId))
-                            if (origins.isNotEmpty()) {
-                                require(origins.size == rows.size) { "Alternative activation requires aligned ability origins" }
+                            // Sparse effect origins do not establish positional associations.
+                            if (original != null && origins.isNotEmpty() && origins.size == rows.size) {
                                 builder.addAbilityOriginalCardGrpIds(origins[original.index])
                             }
                             occurrence.copy(uniqueAbilityId = id)

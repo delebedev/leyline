@@ -454,7 +454,7 @@ object SnapshotCapture {
                                 identity.definition.definitionId,
                                 identity.abilityGrpId,
                                 identity.uniqueAbilityId,
-                                isAlternative = !ability.isBasicSpell && !first && identity.uniqueAbilityId != null,
+                                isAlternative = !ability.isBasicSpell && !first,
                             )
                         }
                     if (occurrences.none { it.isAlternative }) null else seat to occurrences

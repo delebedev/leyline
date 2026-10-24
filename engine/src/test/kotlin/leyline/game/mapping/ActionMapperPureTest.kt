@@ -4,9 +4,12 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.types.SeatId
 import leyline.game.data.CardData
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.AbilityRegistry
 import leyline.testkit.BoardTest
@@ -28,6 +31,47 @@ class ActionMapperPureTest :
             bridge: leyline.game.state.GameBridge,
             game: forge.game.Game,
         ): ActionsAvailableReq = ActionMapper.buildNaiveActionsFromSnapshot(1, SnapshotCapture.run(game, bridge, "test", 0), bridge)
+
+        test("earthbent cycling land keeps sparse effect origins while unplayable alternatives receive backed handles") {
+            val (bridge, game, _) =
+                startWithBoard { _, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Remote Isle", human, ZoneType.Battlefield)
+                }
+            val snapshot = SnapshotCapture.run(game, bridge, "test", 1)
+            val land = snapshot.objects.values.single { it.name == "Remote Isle" }
+            land.activationOccurrences.getValue(SeatId(1)).count { it.isAlternative } shouldBe 1
+            val source =
+                ObjectMapper.buildFromSnapshot(
+                    land,
+                    199,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    bridge.cardProto,
+                    Visibility.Public,
+                    earthbend = EarthbendProjection(97490, 9, 203),
+                )
+            source.uniqueAbilitiesCount shouldBeGreaterThan source.abilityOriginalCardGrpIdsCount
+            source.abilityOriginalCardGrpIdsList shouldBe listOf(97490)
+            val projected = ObjectMapper.planActivationOccurrences(listOf(source), mapOf(199 to land))
+            val aliases =
+                projected.occurrences
+                    .getValue(land.forgeCardId)
+                    .getValue(SeatId(1))
+                    .filter { it.isAlternative }
+            assertSoftly {
+                projected.objects.single().abilityOriginalCardGrpIdsList shouldBe source.abilityOriginalCardGrpIdsList
+                projected.objects
+                    .single()
+                    .uniqueAbilitiesList
+                    .take(source.uniqueAbilitiesCount) shouldBe source.uniqueAbilitiesList
+                aliases.forEach { occurrence ->
+                    projected.objects.single().uniqueAbilitiesList.count {
+                        it.id == occurrence.uniqueAbilityId && it.grpId == occurrence.abilityGrpId
+                    } shouldBe 1
+                }
+            }
+        }
 
         // -----------------------------------------------------------------------
         // Naive list (opponent-turn embedding): Pass always present
@@ -322,5 +366,44 @@ class ActionMapperPureTest :
 
             s.actionType shouldBe ActionType.Pass
             s.instanceId shouldBe 0
+        }
+
+        test("embedded activation alternatives keep supplied handles without minting absent or zero handles") {
+            val base =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Activate_add3)
+                    .setInstanceId(100)
+                    .setAbilityGrpId(300)
+                    .setGrpId(200)
+                    .setFacetId(100)
+                    .setShouldStop(true)
+                    .setAutoTapSolution(AutoTapSolution.getDefaultInstance())
+                    .build()
+            val variants = listOf(50, 52).map { base.toBuilder().setUniqueAbilityId(it).build() }
+            val stripped = variants.map(ActionMapper::stripActionForGsm)
+            assertSoftly {
+                stripped.map { it.uniqueAbilityId } shouldBe listOf(50, 52)
+                stripped.map { it.abilityGrpId } shouldBe listOf(300, 300)
+                stripped.forEach {
+                    it.instanceId shouldBe 100
+                    it.grpId shouldBe 0
+                    it.facetId shouldBe 0
+                    it.shouldStop shouldBe false
+                    it.hasAutoTapSolution() shouldBe false
+                }
+                ActionMapper.stripActionForGsm(base).uniqueAbilityId shouldBe 0
+                ActionMapper.stripActionForGsm(base.toBuilder().setUniqueAbilityId(0).build()).uniqueAbilityId shouldBe 0
+                listOf(ActionType.ActivateMana, ActionType.Cast, ActionType.Special_add3).forEach { type ->
+                    ActionMapper
+                        .stripActionForGsm(
+                            base
+                                .toBuilder()
+                                .setActionType(type)
+                                .setUniqueAbilityId(50)
+                                .build(),
+                        ).uniqueAbilityId shouldBe 0
+                }
+            }
         }
     })

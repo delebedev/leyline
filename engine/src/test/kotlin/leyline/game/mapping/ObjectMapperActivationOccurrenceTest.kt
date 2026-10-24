@@ -120,4 +120,37 @@ class ObjectMapperActivationOccurrenceTest :
             result.objects shouldBe listOf(hidden)
             result.occurrences shouldBe emptyMap()
         }
+
+        test("unbound variant families get backed handles without borrowing same-group rows or repairing unrelated nulls") {
+            val unbound = base.copy(uniqueAbilityId = null)
+            val other = base.copy(abilityIndex = 2, definitionId = 13, abilityGrpId = 0, uniqueAbilityId = null)
+            val snapshot =
+                card.copy(
+                    activationOccurrences =
+                        mapOf(
+                            SeatId(1) to
+                                listOf(
+                                    unbound,
+                                    unbound.copy(abilityIndex = 1, isAlternative = true),
+                                    other,
+                                ),
+                        ),
+                )
+            val result = ObjectMapper.planActivationOccurrences(listOf(source), mapOf(101 to snapshot))
+            val plan = result.occurrences.getValue(card.forgeCardId).getValue(SeatId(1))
+            assertSoftly {
+                plan.map { it.uniqueAbilityId } shouldBe listOf(89, 90, null)
+                result.objects
+                    .single()
+                    .uniqueAbilitiesList
+                    .take(source.uniqueAbilitiesCount) shouldBe source.uniqueAbilitiesList
+                result.objects.single().abilityOriginalCardGrpIdsList shouldBe source.abilityOriginalCardGrpIdsList
+                result.objects
+                    .single()
+                    .uniqueAbilitiesList
+                    .drop(source.uniqueAbilitiesCount)
+                    .map { it.id to it.grpId } shouldBe
+                    listOf(89 to 300, 90 to 300)
+            }
+        }
     })

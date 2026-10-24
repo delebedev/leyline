@@ -265,6 +265,49 @@ class CyclingPuzzleTest :
             passUntilResolved()
         }
 
+        listOf(false, true).forEach { paid ->
+            session(
+                "granted cycling ${if (paid) "paid" else "free"} variant pays its retained cost and continues priority",
+                puzzle =
+                    """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Mountain;Ornithopter
+                    humanbattlefield=Tectonic Reformation;Gavi, Nest Warden;Mountain
+                    humanlibrary=Forest;Plains;Island;Forest
+                    ailibrary=Mountain;Mountain;Mountain
+                    """.trimIndent(),
+            ) {
+                val iid = human.hand.iid("Mountain")
+                val actions =
+                    allMessages
+                        .last { it.hasActionsAvailableReq() }
+                        .actionsAvailableReq.actionsList
+                        .filter { it.instanceId == iid && it.actionType == ActionType.Activate_add3 }
+                actions.size shouldBe 2
+                actions.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                val chosen = actions.single { (it.manaCostCount > 0) == paid }
+                submitAction(
+                    chosen
+                        .toBuilder()
+                        .clearManaCost()
+                        .clearAutoTapSolution()
+                        .build(),
+                )
+                passUntilResolved()
+                assertSoftly {
+                    "Mountain" should beInGraveyardOf(human)
+                    "Forest" should beInHandOf(human)
+                    human.getCardsIn(ZoneType.Battlefield).count { it.isLand && it.isTapped } shouldBe if (paid) 1 else 0
+                    human.numDrawnThisTurn shouldBe 1
+                }
+                castSpellByName("Ornithopter").shouldBeTrue()
+                passUntilResolved()
+            }
+        }
+
         session(
             "cycling without a replacement cost remains unavailable when its mana cannot be paid",
             puzzle =

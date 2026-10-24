@@ -195,7 +195,8 @@ object ActionMapper {
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
-    ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge).actions
+        activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>> = emptyMap(),
+    ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge, activationOccurrences = activationOccurrences).actions
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
     fun buildProjectionFromSnapshot(
@@ -1613,7 +1614,7 @@ object ActionMapper {
      * - Cast/CastAdventure/CastMdfc: instanceId + manaCost + cast-variant identity fields
      * - Play/PlayMdfc: instanceId
      * - ActivateMana: instanceId + abilityGrpId
-     * - Activate: instanceId + abilityGrpId + manaCost
+     * - Activate: instanceId + abilityGrpId + manaCost + supplied nonzero uniqueAbilityId
      * - Pass/FloatMana: empty
      *
      * No grpId, facetId, shouldStop, or autoTapSolution.
@@ -1636,6 +1637,9 @@ object ActionMapper {
         } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            if (action.actionType == ActionType.Activate_add3 && action.uniqueAbilityId != 0) {
+                b.setUniqueAbilityId(action.uniqueAbilityId)
+            }
             if (action.actionType == ActionType.Activate_add3) b.addAllManaCost(action.manaCostList)
         } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3 || action.actionType == ActionType.Special_add3) {
             b.setInstanceId(action.instanceId)

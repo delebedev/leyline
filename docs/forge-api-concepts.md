@@ -189,6 +189,11 @@ the handles after ordinary and granted object rows exist, and passes the same
 plan through `ProjectionOutput` to action publication. Each alternative has a
 matching source `uniqueAbilities` row. Responses identify the retained ability
 without using displayed costs to distinguish siblings.
+For a granted variant family without a printed occurrence handle, the same plan
+adds backed base and alternative handles using the resolved catalog definition.
+Embedded GSM activation actions retain supplied nonzero occurrence handles while
+still omitting execution-only fields. This compatibility shape does not allocate
+handles for actions that have none.
 
 Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit

@@ -963,7 +963,7 @@ class BundleBuilder(
         val player =
             interaction.commanderReturn?.let { context ->
                 commanderOptionalInteractionBundle(
-                    game,
+                    playerResult,
                     counter,
                     interaction,
                     context,
@@ -992,7 +992,7 @@ class BundleBuilder(
         blockingInteractions.generalOptional(bridge.projectionStateSnapshot(), counter, interaction)
 
     private fun commanderOptionalInteractionBundle(
-        game: Game,
+        compiled: StateProjectionCompiler.Result,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         context: CommanderReturnPromptContext,
@@ -1003,8 +1003,8 @@ class BundleBuilder(
         val link = counter.nextGameStateLink()
         val (bundle, next) =
             bridge.editProjection(tentative) { editor ->
-                val snap = GsmSnapshot.capture(game, bridge, matchId, link.gsId)
-                val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+                val snap = compiled.projectionSnapshot.withGameStateId(link.gsId)
+                val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, compiled.output.activationOccurrences)
                 blockingInteractions.commanderOptional(
                     stateMessages,
                     snap,
