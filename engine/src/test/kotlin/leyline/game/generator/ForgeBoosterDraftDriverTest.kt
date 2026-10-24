@@ -14,6 +14,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.domain.service.DraftService
 import leyline.testkit.SyntheticNameLookup
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -103,10 +104,10 @@ class ForgeBoosterDraftDriverTest :
             }
         }
 
-        test("draft completes after consuming all packs; pod result has 7 bot decks") {
-            val driver = ForgeBoosterDraftDriver(SyntheticNameLookup()::findGrpIdByName)
+        test("domain driver completes all packs and returns a pod with 7 bot decks") {
+            val driver: DraftService.Driver = ForgeBoosterDraftDriver(SyntheticNameLookup()::findGrpIdByName)
             var pack = driver.start("session-2", "FDN")
-            var lastResult: PickResult? = null
+            var lastResult: DraftService.PickOutcome? = null
             var requestPickNumber = 0
             var picks = 0
 
@@ -139,7 +140,7 @@ class ForgeBoosterDraftDriverTest :
             var pack = driver.start("session-3", "FDN")
             val pack0Size = pack.size
 
-            var result: PickResult
+            var result: DraftService.PickOutcome
             do {
                 result = driver.pick("session-3", pack.first())
                 pack = result.nextPack
