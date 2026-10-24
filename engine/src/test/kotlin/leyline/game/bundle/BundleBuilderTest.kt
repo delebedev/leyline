@@ -95,6 +95,118 @@ class BundleBuilderTest :
 
         // --- Unit tests (pure proto, no game) ---
 
+        test("null phase fallback publishes compiled backing rows before distinct alternative activation offers") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                }
+            val prepared = bundleBuilder(board.bridge).preparePhaseTransitionDiff(board.game, board.counter)
+            val messages = prepared.bundle.messages
+            val requestIndex = messages.indexOfFirst { it.hasActionsAvailableReq() }
+            val activations =
+                messages[requestIndex]
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val source =
+                messages
+                    .take(requestIndex)
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .last { it.instanceId == activations.first().instanceId }
+            assertSoftly {
+                activations.size shouldBe 2
+                activations.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                activations.forEach { action ->
+                    source.uniqueAbilitiesList.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
+                prepared.bundle.actionOffers.count { it.action.actionType == Messages.ActionType.Activate_add3 } shouldBe 2
+                messages.first().gameStateMessage.gameObjectsCount shouldBeGreaterThan 0
+                val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+                gsms.zipWithNext().forEach { (previous, next) -> next.prevGameStateId shouldBe previous.gameStateId }
+            }
+            board.bridge.commitProjection(checkNotNull(prepared.transition))
+        }
+
+        test("explicit empty phase synchronization keeps its phase-only presentation") {
+            val board = startWithBoard { _, human, _ -> addCard("Miscalculation", human, ZoneType.Hand) }
+            val prepared =
+                bundleBuilder(board.bridge).preparePhaseTransitionDiff(
+                    board.game,
+                    board.counter,
+                    priorityActions = Messages.ActionsAvailableReq.getDefaultInstance(),
+                    includePriorityPrompt = false,
+                )
+            assertSoftly {
+                prepared.bundle.messages
+                    .none { it.hasActionsAvailableReq() }
+                    .shouldBeTrue()
+                prepared.bundle.messages.filter { it.hasGameStateMessage() }.forEach {
+                    it.gameStateMessage.gameObjectsCount shouldBe 0
+                }
+                prepared.bundle.actionOffers.shouldHaveSize(0)
+            }
+        }
+
+        test("full reprojection keeps alternative handles private and removal refreshes the unchanged source") {
+            lateinit var gavi: forge.game.card.Card
+            lateinit var opponentGavi: forge.game.card.Card
+            val board =
+                startWithBoard { _, human, ai ->
+                    gavi = addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    opponentGavi = addCard("Gavi, Nest Warden", ai, ZoneType.Battlefield)
+                    addCard("Miscalculation", ai, ZoneType.Hand)
+                }
+            val builder = bundleBuilder(board.bridge)
+            val first = builder.prepareFullState(board.game, board.counter.nextGsId())
+            val actions =
+                first.result.actions.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val iid = actions.first().instanceId
+            val rows =
+                first.result.gsm.gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList
+            board.bridge.commitProjection(first.transition)
+            val repeat = builder.prepareFullState(board.game, board.counter.nextGsId())
+            assertSoftly {
+                actions.size shouldBe 2
+                repeat.result.gsm.gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList shouldBe rows
+                repeat.result.actions.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 } shouldBe actions
+                repeat.result.gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P2_HAND }.forEach {
+                    it.uniqueAbilitiesCount shouldBe 0
+                    it.grpId shouldBe 0
+                }
+            }
+            board.bridge.commitProjection(repeat.transition)
+            board.game.action.moveToGraveyard(gavi, null)
+            board.game.action.moveToGraveyard(opponentGavi, null)
+            board.game.action.checkStateEffects(true)
+            val diff = board.postAction()
+            val refreshed = diff.messages.flatMap { it.gameStateMessage.gameObjectsList }.last { it.instanceId == iid }
+            val remaining =
+                diff.messages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.instanceId == iid && it.actionType == Messages.ActionType.Activate_add3 }
+            assertSoftly {
+                remaining.size shouldBe 1
+                remaining.single().uniqueAbilityId shouldBe actions.first().uniqueAbilityId
+                val baseRows =
+                    rows.filterNot { row ->
+                        row.grpId == actions.first().abilityGrpId && row.id != actions.first().uniqueAbilityId
+                    }
+                refreshed.uniqueAbilitiesList shouldBe baseRows
+            }
+        }
+
         test("queuedGameState wraps GSM with type 51") {
             val gs =
                 Messages.GameStateMessage

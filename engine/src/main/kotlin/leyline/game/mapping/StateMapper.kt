@@ -613,6 +613,13 @@ object StateMapper {
                 )
         }
 
+        val activationProjection =
+            ObjectMapper.planActivationOccurrences(
+                transferResult.patchedObjects,
+                snap.objects.values.associateBy { editor.identities.getOrAlloc(it.forgeCardId).value },
+            )
+        transferResult = transferResult.copy(patchedObjects = activationProjection.objects)
+
         // ═══ ASSEMBLE: build the GSM proto ═══
         val built =
             assembleGsm(
@@ -673,6 +680,7 @@ object StateMapper {
                         .map(::InstanceId),
                 consumedEarthbendResolutionVersions = earthbendResolutions.mapTo(mutableSetOf()) { it.version },
                 priorPersistentAnnotations = persistSnapshot,
+                activationOccurrences = activationProjection.occurrences,
             )
 
         return Draft(
@@ -683,7 +691,16 @@ object StateMapper {
             idResolver = frameIds,
             objectRefreshInstanceIds =
                 (
-                    keywordDiff.created.map { it.cardInstanceId } +
+                    snap.objects.values
+                        .filter {
+                            it.activationOccurrences.isNotEmpty() ||
+                                prev
+                                    ?.objects
+                                    ?.get(it.forgeCardId)
+                                    ?.activationOccurrences
+                                    ?.isNotEmpty() == true
+                        }.map { editor.identities.getOrAlloc(it.forgeCardId).value } +
+                        keywordDiff.created.map { it.cardInstanceId } +
                         keywordDiff.destroyed.map { it.cardInstanceId } +
                         grantedAbilityDiff.created.map { it.cardInstanceId } +
                         grantedAbilityDiff.destroyed.map { it.cardInstanceId }

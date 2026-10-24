@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
 import leyline.bridge.CompanionAction
+import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
@@ -13,11 +14,13 @@ import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.BasicLandAbilities
+import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
+import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -413,6 +416,54 @@ object SnapshotCapture {
         return cards
     }
 
+    private fun captureActivationOccurrences(
+        card: Card,
+        bridge: GameBridge,
+    ): Map<SeatId, List<ActivatedAbilityOccurrence>> {
+        if (card.isFaceDown || card.spellAbilities.none { it.isActivatedAbility && !it.isManaAbility() }) return emptyMap()
+        val originalPlayers = card.allSpellAbilities.associateWith { it.activatingPlayer }
+        val registries = mutableMapOf<Int, AbilityRegistry>()
+        val dataLookup: (Card) -> CardData? = { source ->
+            bridge.cardRepository.findByGrpId(bridge.resolveGrpId(source, bridge.instanceId(source)))
+        }
+        val registryLookup: (Card, CardData?) -> AbilityRegistry? = { source, data ->
+            data?.let {
+                registries.getOrPut(source.id) {
+                    AbilityRegistry.build(source, it, bridge.cardRepository::grantedKeywordAbilityGrpId)
+                }
+            }
+        }
+        try {
+            return card.game.players
+                .mapNotNull { player ->
+                    val seat = bridge.seatOf(player) ?: return@mapNotNull null
+                    if (card.isInZone(ForgeZoneType.Library) &&
+                        card.game.players.none { card in it.getZone(ForgeZoneType.Library).getCardsPlayerCanActivate(player) }
+                    ) {
+                        return@mapNotNull null
+                    }
+                    val abilities = getNonManaActivatedAbilities(card, player)
+                    if (abilities.none { !it.isBasicSpell }) return@mapNotNull null
+                    val seen = mutableSetOf<Pair<Int, Int?>>()
+                    val occurrences =
+                        abilities.mapIndexed { index, ability ->
+                            val identity = AbilityRegistry.resolveActivated(card, ability, dataLookup, registryLookup)
+                            val first = seen.add(identity.abilityGrpId to identity.uniqueAbilityId)
+                            ActivatedAbilityOccurrence(
+                                index,
+                                identity.definition.definitionId,
+                                identity.abilityGrpId,
+                                identity.uniqueAbilityId,
+                                isAlternative = !ability.isBasicSpell && !first && identity.uniqueAbilityId != null,
+                            )
+                        }
+                    if (occurrences.none { it.isAlternative }) null else seat to occurrences
+                }.toMap()
+        } finally {
+            originalPlayers.forEach { (ability, player) -> ability.setActivatingPlayer(player) }
+        }
+    }
+
     /**
      * Read all live Forge [Card] fields and pack them into an immutable [CardSnapshot].
      *
@@ -556,6 +607,7 @@ object SnapshotCapture {
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
             name = resolvedName,
+            activationOccurrences = captureActivationOccurrences(card, bridge),
             grpId = grpId,
             owner = ownerSeat,
             controller = controllerSeat,

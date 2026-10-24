@@ -5,8 +5,8 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
+import leyline.game.mapping.ActionMapper
 import leyline.testkit.BoardTest
-import leyline.testkit.BundleBuilderTestSupport
 import leyline.testkit.ValidatingMessageSink
 import leyline.testkit.gsm
 import leyline.testkit.humanPlayer
@@ -54,7 +54,12 @@ class GsIdChainTest :
                 }
 
             val result =
-                BundleBuilderTestSupport.phaseTransition(bundleBuilder(board.bridge), board.bridge, board.game, board.counter)
+                bundleBuilder(board.bridge)
+                    .preparePhaseTransitionDiff(
+                        board.game,
+                        board.counter,
+                        priorityActions = ActionMapper.passOnlyActions(),
+                    ).bundle
             result.messages.size shouldBe 5
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }

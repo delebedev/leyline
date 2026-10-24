@@ -1,7 +1,10 @@
 package leyline.game.mapping
 
 import forge.game.card.Card
+import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.data.CardProtoBuilder
+import leyline.game.snapshot.ActivatedAbilityOccurrence
 import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.EarthbendProjection
@@ -21,6 +24,51 @@ import forge.card.CardType.CoreType as ForgeCoreType
  * sickness, damage, loyalty, combat state, and attachment info.
  */
 object ObjectMapper {
+    data class ActivationProjection(
+        val objects: List<GameObjectInfo>,
+        val occurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>,
+    )
+
+    /** Allocate alternative occurrences only after all ordinary source rows are present. */
+    fun planActivationOccurrences(
+        objects: List<GameObjectInfo>,
+        sources: Map<Int, CardSnapshot>,
+    ): ActivationProjection {
+        val plans = mutableMapOf<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>()
+        val projected =
+            objects.map { source ->
+                val snapshot = sources[source.instanceId] ?: return@map source
+                if (snapshot.activationOccurrences.isEmpty() || source.isFacedown) return@map source
+                val rows = source.uniqueAbilitiesList
+                val occupied = rows.mapTo(mutableSetOf()) { it.id }
+                var nextId = (occupied.maxOrNull() ?: 0) + 1
+                val builder = source.toBuilder()
+                val origins = source.abilityOriginalCardGrpIdsList
+                val plan =
+                    snapshot.activationOccurrences.toSortedMap(compareBy { it.value }).mapValues { (_, occurrences) ->
+                        occurrences.map occurrence@{ occurrence ->
+                            if (!occurrence.isAlternative) return@occurrence occurrence
+                            val original =
+                                rows.withIndex().single { (_, row) ->
+                                    row.id == occurrence.uniqueAbilityId && row.grpId == occurrence.abilityGrpId
+                                }
+                            while (nextId in occupied) nextId++
+                            val id = nextId++
+                            occupied.add(id)
+                            builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(id).setGrpId(occurrence.abilityGrpId))
+                            if (origins.isNotEmpty()) {
+                                require(origins.size == rows.size) { "Alternative activation requires aligned ability origins" }
+                                builder.addAbilityOriginalCardGrpIds(origins[original.index])
+                            }
+                            occurrence.copy(uniqueAbilityId = id)
+                        }
+                    }
+                plans[snapshot.forgeCardId] = plan
+                builder.build()
+            }
+        return ActivationProjection(projected, plans)
+    }
+
     /**
      * Build a [GameObjectInfo] for an ability on the stack.
      *

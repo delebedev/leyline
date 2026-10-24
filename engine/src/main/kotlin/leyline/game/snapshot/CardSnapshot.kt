@@ -3,6 +3,15 @@ package leyline.game.snapshot
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 
+/** One position in the full, unfiltered activation domain for a particular seat. */
+data class ActivatedAbilityOccurrence(
+    val abilityIndex: Int,
+    val definitionId: Int,
+    val abilityGrpId: Int,
+    val uniqueAbilityId: Int?,
+    val isAlternative: Boolean,
+)
+
 /**
  * Immutable snapshot of one card's observable state. Fields grow as mappers migrate
  * — identity, zone, object attributes (p/t, tapped, counters, combat state), action
@@ -52,6 +61,7 @@ data class CardSnapshot(
      * Needed to know whether to iterate spellAbilities during action enumeration.
      */
     val hasNonManaActivatedAbilities: Boolean = false,
+    val activationOccurrences: Map<SeatId, List<ActivatedAbilityOccurrence>> = emptyMap(),
     // --- ObjectMapper live state ---
     /** True when the card is in the Battlefield zone. */
     val isOnBattlefield: Boolean = false,
