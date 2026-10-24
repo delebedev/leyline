@@ -14,6 +14,7 @@ import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.getPlayableManaAbilities
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
+import leyline.game.snapshot.ActivatedAbilityOccurrence
 import leyline.game.state.AbilityRegistry
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -68,6 +69,7 @@ internal object ActivatedActionEmitter {
         skipSpecialTurnFaceUp: Boolean = false,
         onActive: (Action, Int, SpellAbility, Int) -> Unit = { _, _, _, _ -> },
         abilities: List<SpellAbility> = getNonManaActivatedAbilities(card, player),
+        occurrences: List<ActivatedAbilityOccurrence> = emptyList(),
     ) {
         for ((abilityIndex, ability) in abilities.withIndex()) {
             if (!ability.canPlay()) continue
@@ -82,20 +84,31 @@ internal object ActivatedActionEmitter {
                 }
             val actionInstanceId = instanceId()
             val actionGrpId = grpId(card)
-            val identity =
-                AbilityRegistry.resolveActivated(
-                    card,
-                    ability,
-                    { cardData(grpId(it)) },
-                    abilityRegistryLookup,
+            val occurrence = occurrences.getOrNull(abilityIndex)
+            if (occurrence != null) {
+                require(
+                    occurrence.abilityIndex == abilityIndex &&
+                        occurrence.definitionId == generateSequence(ability) { it.originalAbility }.last().definitionId,
                 )
-            val abilityGrpId = identity.abilityGrpId
+            }
+            val identity =
+                if (occurrence == null) {
+                    AbilityRegistry.resolveActivated(
+                        card,
+                        ability,
+                        { cardData(grpId(it)) },
+                        abilityRegistryLookup,
+                    )
+                } else {
+                    null
+                }
+            val abilityGrpId = occurrence?.abilityGrpId ?: checkNotNull(identity).abilityGrpId
             emitActivatedAbilityAction(
                 builder = builder,
                 instanceId = actionInstanceId,
                 grpId = actionGrpId,
                 abilityGrpId = abilityGrpId,
-                uniqueAbilityId = identity.uniqueAbilityId,
+                uniqueAbilityId = occurrence?.uniqueAbilityId ?: identity?.uniqueAbilityId,
                 abilityCost = abilityCost,
                 autoTapSolution = autoTap,
                 canPay = canPay,

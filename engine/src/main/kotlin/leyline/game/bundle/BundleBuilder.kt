@@ -238,7 +238,12 @@ class BundleBuilder(
         val tentative = transition.nextState.copy(revision = transition.expectedRevision)
         val (actions, next) =
             bridge.editProjection(tentative) {
-                ActionMapper.buildProjectionFromSnapshot(seatId, snapshot, bridge)
+                ActionMapper.buildProjectionFromSnapshot(
+                    seatId,
+                    snapshot,
+                    bridge,
+                    activationOccurrences = result.output.activationOccurrences,
+                )
             }
         return PreparedFullState(
             result =
@@ -356,7 +361,13 @@ class BundleBuilder(
         val tentative = compiled.transition.nextState.copy(revision = compiled.transition.expectedRevision)
         val (projection, next) =
             bridge.editProjection(tentative) {
-                ActionMapper.buildProjectionFromSnapshot(seatId, compiled.projectionSnapshot, bridge, priorityCandidates)
+                ActionMapper.buildProjectionFromSnapshot(
+                    seatId,
+                    compiled.projectionSnapshot,
+                    bridge,
+                    priorityCandidates,
+                    compiled.output.activationOccurrences,
+                )
             }
         val diff =
             FrameDiff(
@@ -480,7 +491,13 @@ class BundleBuilder(
         val player = frame.fold.viewers[frame.playerIndex].result
         val (projection, projectionNext) =
             bridge.editProjection(tentative) {
-                ActionMapper.buildProjectionFromSnapshot(playerSeatId, player.projectionSnapshot, bridge, priorityCandidates)
+                ActionMapper.buildProjectionFromSnapshot(
+                    playerSeatId,
+                    player.projectionSnapshot,
+                    bridge,
+                    priorityCandidates,
+                    player.output.activationOccurrences,
+                )
             }
         val actions = projection.actions
         val gs =
@@ -946,7 +963,7 @@ class BundleBuilder(
         val player =
             interaction.commanderReturn?.let { context ->
                 commanderOptionalInteractionBundle(
-                    game,
+                    playerResult,
                     counter,
                     interaction,
                     context,
@@ -975,7 +992,7 @@ class BundleBuilder(
         blockingInteractions.generalOptional(bridge.projectionStateSnapshot(), counter, interaction)
 
     private fun commanderOptionalInteractionBundle(
-        game: Game,
+        compiled: StateProjectionCompiler.Result,
         counter: LogicalSequencePlanner,
         interaction: BlockingInteraction.Optional,
         context: CommanderReturnPromptContext,
@@ -986,8 +1003,8 @@ class BundleBuilder(
         val link = counter.nextGameStateLink()
         val (bundle, next) =
             bridge.editProjection(tentative) { editor ->
-                val snap = GsmSnapshot.capture(game, bridge, matchId, link.gsId)
-                val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge)
+                val snap = compiled.projectionSnapshot.withGameStateId(link.gsId)
+                val actions = ActionMapper.buildFromSnapshot(seatId, snap, bridge, compiled.output.activationOccurrences)
                 blockingInteractions.commanderOptional(
                     stateMessages,
                     snap,
@@ -1067,9 +1084,42 @@ class BundleBuilder(
         includePriorityPrompt: Boolean = true,
         priorProjection: ProjectionState = bridge.projectionStateSnapshot(),
     ): ActionWindowPrepared {
+        val compiled =
+            if (priorityActions == null) {
+                val input =
+                    frameInput(
+                        game,
+                        counter,
+                        revealForSeat = null,
+                        eventsOverride = FrameEventLog.EMPTY,
+                        priorProjectionOverride = priorProjection,
+                    ) { _, _ -> GameStateUpdate.SendAndRecord }
+                compileFrame(input)
+            } else {
+                null
+            }
+        val sourceMessages =
+            compiled
+                ?.let {
+                    listOf(
+                        makeGRE(GREMessageType.GameStateMessage_695e, it.gsm.gameStateId, counter.nextMsgId()) { message ->
+                            message.gameStateMessage = it.gsm
+                        },
+                    )
+                }.orEmpty()
+        val tentative = compiled?.transition?.let { it.nextState.copy(revision = it.expectedRevision) } ?: priorProjection
         val (result, next) =
-            bridge.editProjection(priorProjection) {
-                buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt)
+            bridge.editProjection(tentative) {
+                val fallback =
+                    compiled?.let {
+                        ActionMapper.buildProjectionFromSnapshot(
+                            seatId,
+                            it.projectionSnapshot,
+                            bridge,
+                            activationOccurrences = it.output.activationOccurrences,
+                        )
+                    }
+                buildPhaseTransitionDiff(game, counter, priorityActions, includePriorityPrompt, fallback, compiled?.projectionSnapshot)
             }
         val viewerSeatId = SeatId(seatId)
         val priorCursor = next.viewerCursors[viewerSeatId] ?: ViewerProjectionCursor()
@@ -1085,9 +1135,10 @@ class BundleBuilder(
                     .build()
             }
         return ActionWindowPrepared(
-            result.bundle,
+            result.bundle.copy(messages = sourceMessages + result.bundle.messages),
             ProjectionTransition(
                 expectedRevision = priorProjection.revision,
+                acknowledgements = compiled?.transition?.acknowledgements ?: ProjectionAcknowledgements(),
                 nextState =
                     next.copy(
                         viewerCursors =
@@ -1114,21 +1165,18 @@ class BundleBuilder(
         counter: LogicalSequencePlanner,
         priorityActions: ActionsAvailableReq?,
         includePriorityPrompt: Boolean,
+        fallback: ActionMapper.ActionProjection? = null,
+        snapshot: GsmSnapshot? = null,
     ): PhaseTransitionResult {
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
-        val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+        val snap = snapshot?.withGameStateId(nextGs) ?: GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
         val frame = GsmFrame.from(snap)
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Client expects Cast/Play actions embedded regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
-        val priorityProjection =
-            if (priorityActions == null) {
-                ActionMapper.buildProjectionFromSnapshot(seatId, snap, bridge)
-            } else {
-                null
-            }
+        val priorityProjection = fallback
         val projectedPriority = priorityActions ?: checkNotNull(priorityProjection).actions
         val actions = priorityActions ?: ActionMapper.buildNaiveActionsFromSnapshot(seatId, snap, bridge)
         val actionOffers = priorityProjection?.offers ?: emptyList()

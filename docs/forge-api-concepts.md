@@ -182,6 +182,19 @@ alternative-cost variants. Those variants keep their own complete payment costs
 and restrictions, including discard and per-turn conditions. Offers retain the
 selected Forge ability rather than reconstructing it from a catalog identity.
 
+Generated activation alternatives share their original catalog definition but
+receive distinct per-source `uniqueAbilityId` handles. Snapshots retain
+the unfiltered occurrence order for each seat. Shared state projection assigns
+the handles after ordinary and granted object rows exist, and passes the same
+plan through `ProjectionOutput` to action publication. Each alternative has a
+matching source `uniqueAbilities` row. Responses identify the retained ability
+without using displayed costs to distinguish siblings.
+For a granted variant family without a printed occurrence handle, the same plan
+adds backed base and alternative handles using the resolved catalog definition.
+Embedded GSM activation actions retain supplied nonzero occurrence handles while
+still omitting execution-only fields. This compatibility shape does not allocate
+handles for actions that have none.
+
 Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit
 special actions such as turning a face-down card face up retain their own lookup.

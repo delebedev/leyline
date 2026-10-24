@@ -23,6 +23,7 @@ import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.data.grantedKeywordAbilityGrpId
+import leyline.game.snapshot.ActivatedAbilityOccurrence
 import leyline.game.snapshot.AltCostBinding
 import leyline.game.snapshot.BoundCard
 import leyline.game.snapshot.GsmSnapshot
@@ -194,7 +195,8 @@ object ActionMapper {
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
-    ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge).actions
+        activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>> = emptyMap(),
+    ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge, activationOccurrences = activationOccurrences).actions
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
     fun buildProjectionFromSnapshot(
@@ -202,6 +204,7 @@ object ActionMapper {
         snap: GsmSnapshot,
         bridge: GameBridge,
         priorityCandidates: PriorityActionCandidates? = null,
+        activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>> = emptyMap(),
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()
@@ -326,6 +329,7 @@ object ActionMapper {
                     autoTapSolution = { cost -> autoTapForCost(player, cost) },
                     skipSpecialTurnFaceUp = true,
                     abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
+                    occurrences = activationOccurrences[fid]?.get(SeatId(seatId)).orEmpty(),
                     onActive = { action, abilityIndex, ability, abilityGrpId ->
                         bindOffer(
                             action,
@@ -630,6 +634,7 @@ object ActionMapper {
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                 autoTapSolution = { cost -> autoTapForCost(player, cost) },
                 abilities = candidates?.forCard(forgeCard)?.activations ?: emptyList(),
+                occurrences = activationOccurrences[fid]?.get(SeatId(seatId)).orEmpty(),
                 onActive = { action, abilityIndex, ability, abilityGrpId ->
                     bindOffer(
                         action,
@@ -653,7 +658,7 @@ object ActionMapper {
         )
 
         // --- Graveyard: activated abilities (Unearth, Embalm, Eternalize) ---
-        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, ::bindOffer)
+        addGraveyardActivatedActionsFromSnap(seatId, snap, builder, bridge, candidates, activationOccurrences, ::bindOffer)
 
         val companion = snap.seats.firstOrNull { it.seatId.value == seatId }?.companion
         if (player != null && companion?.available == true) {
@@ -896,6 +901,7 @@ object ActionMapper {
         builder: ActionsAvailableReq.Builder,
         bridge: GameBridge,
         candidates: PriorityActionCandidates?,
+        activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>,
         addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
     ) {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return
@@ -915,6 +921,7 @@ object ActionMapper {
                 if (!ability.canPlay()) continue
                 val canPay = canExecute(ability, player)
                 val instanceId = bridge.getOrAllocInstanceId(fid).value
+                val occurrence = activationOccurrences[fid]?.get(SeatId(seatId))?.getOrNull(abilityIndex)
                 val identity =
                     AbilityRegistry.resolveActivated(
                         forgeCard,
@@ -922,13 +929,13 @@ object ActionMapper {
                         { if (it === forgeCard) cardData else bridge.cardRepository.findByGrpId(bridge.resolveGrpId(it)) },
                         bridge::abilityRegistryFor,
                     )
-                val abilityGrpId = identity.abilityGrpId
+                val abilityGrpId = occurrence?.abilityGrpId ?: identity.abilityGrpId
                 ActivatedActionEmitter.emitActivatedAbilityAction(
                     builder = builder,
                     instanceId = instanceId,
                     grpId = cardSnap.grpId,
                     abilityGrpId = abilityGrpId,
-                    uniqueAbilityId = identity.uniqueAbilityId,
+                    uniqueAbilityId = occurrence?.uniqueAbilityId ?: identity.uniqueAbilityId,
                     abilityCost = CastDisplayCost.of(ability, player) ?: ability.payCosts?.totalMana,
                     canPay = canPay,
                     envelope = ActivatedActionEmitter.Envelope.ABILITY_ONLY,
@@ -1607,7 +1614,7 @@ object ActionMapper {
      * - Cast/CastAdventure/CastMdfc: instanceId + manaCost + cast-variant identity fields
      * - Play/PlayMdfc: instanceId
      * - ActivateMana: instanceId + abilityGrpId
-     * - Activate: instanceId + abilityGrpId + manaCost
+     * - Activate: instanceId + abilityGrpId + manaCost + supplied nonzero uniqueAbilityId
      * - Pass/FloatMana: empty
      *
      * No grpId, facetId, shouldStop, or autoTapSolution.
@@ -1630,6 +1637,9 @@ object ActionMapper {
         } else if (action.actionType == ActionType.ActivateMana || action.actionType == ActionType.Activate_add3) {
             b.setInstanceId(action.instanceId)
             if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            if (action.actionType == ActionType.Activate_add3 && action.uniqueAbilityId != 0) {
+                b.setUniqueAbilityId(action.uniqueAbilityId)
+            }
             if (action.actionType == ActionType.Activate_add3) b.addAllManaCost(action.manaCostList)
         } else if (action.actionType == ActionType.SpecialTurnFaceUp_add3 || action.actionType == ActionType.Special_add3) {
             b.setInstanceId(action.instanceId)

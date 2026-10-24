@@ -592,7 +592,7 @@ object LifecycleMessageMaterializer {
         val tentative = transition.nextState.copy(revision = transition.expectedRevision)
         val (actions, nextProjection) =
             bridge.editProjection(tentative) {
-                ActionMapper.buildFromSnapshot(seatId.value, snap, bridge)
+                ActionMapper.buildFromSnapshot(seatId.value, snap, bridge, fullResult.output.activationOccurrences)
             }
         val preparedTransition = transition.copy(nextState = nextProjection)
         val gsm = GsmBuilder.embedActions(fullResult.gsm, actions, GsmFrame.from(snap), recipientSeatId = seatId.value)

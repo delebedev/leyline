@@ -12,7 +12,14 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import leyline.bridge.coord.resolveActionOffer
+import leyline.bridge.handoff.ActionResponseKey
+import leyline.bridge.handoff.BlockingInteraction
+import leyline.bridge.handoff.CommanderReturnPromptContext
+import leyline.bridge.handoff.CommanderZone
 import leyline.bridge.handoff.DeferredCastCostPlan.OptionalCostEntry
+import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
@@ -27,6 +34,8 @@ import leyline.game.bundle.BundleBuilder
 import leyline.game.bundle.CastingTimeOptionsBuilder.ModalOptionSpec
 import leyline.game.bundle.LogicalSequencePlanner
 import leyline.game.bundle.RequestBuilder
+import leyline.game.data.ForgeCardRepository
+import leyline.game.data.grantedKeywordAbilityGrpId
 import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -94,6 +103,275 @@ class BundleBuilderTest :
             )
 
         // --- Unit tests (pure proto, no game) ---
+
+        test("granted cycling alternatives retain their occurrence domain and distinct backed handles without printed slots") {
+            val game =
+                leyline.bridge.bootstrap.GameBootstrap
+                    .createGame()
+            val bridge = GameBridge(cardRepository = ForgeCardRepository.open())
+            bridge.wrapGame(game)
+            val human = game.humanPlayer
+            addCard("Tectonic Reformation", human, ZoneType.Battlefield)
+            addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+            addCard("Mountain", human, ZoneType.Hand)
+            addCard("Mountain", human, ZoneType.Battlefield)
+            game.action.checkStateEffects(true)
+            for (player in game.players) {
+                for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand)) {
+                    player.getCardsIn(zone).forEach { bridge.instance(it) }
+                }
+            }
+            val prepared = bundleBuilder(bridge).prepareFullState(game, 1)
+            val actions =
+                prepared.result.actions.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val land =
+                prepared.result.snapshot.objects.values
+                    .single { it.name == "Mountain" && !it.isOnBattlefield }
+            val occurrences = land.activationOccurrences.getValue(SeatId(1))
+            val source =
+                prepared.result.gsm.gameObjectsList
+                    .single { it.instanceId == actions.first().instanceId }
+            val offers = prepared.result.actionOffers.filter { it.command is PlayerAction.ActivateAbility }
+            val abilities = offers.map { checkNotNull((it.command as PlayerAction.ActivateAbility).ability) }
+            val grantedGrpId = checkNotNull(bridge.cardRepository.grantedKeywordAbilityGrpId(abilities.first()))
+            val printedRows =
+                bridge.cardProto
+                    .buildObjectInfo(land.grpId)
+                    .uniqueAbilitiesList
+            val catalog =
+                offers
+                    .mapIndexed { index, offer -> index.toLong() to offer }
+                    .groupBy { ActionResponseKey.from(it.second.action) }
+            assertSoftly {
+                occurrences.size shouldBe 2
+                occurrences.first().uniqueAbilityId shouldBe null
+                occurrences.count { it.isAlternative } shouldBe 1
+                actions.size shouldBe 2
+                actions.map { it.abilityGrpId } shouldBe listOf(grantedGrpId, grantedGrpId)
+                actions.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                actions
+                    .map {
+                        listOf(
+                            it.actionType.number,
+                            it.instanceId,
+                            it.grpId,
+                            it.facetId,
+                            it.abilityGrpId,
+                            it.uniqueAbilityId,
+                            it.sourceId,
+                            it.alternativeGrpId,
+                            it.alternativeSourceZcid,
+                        )
+                    }.distinct()
+                    .size shouldBe 2
+                printedRows.shouldHaveSize(1)
+                source.uniqueAbilitiesList.take(printedRows.size) shouldBe printedRows
+                abilities.map { it.payCosts.totalMana.toString() } shouldBe listOf("{R}", "{0}")
+                abilities.all { it.payCosts.costParts.any { cost -> cost is forge.game.cost.CostDiscard } } shouldBe true
+                offers.forEach { offer ->
+                    val response =
+                        offer.action
+                            .toBuilder()
+                            .clearManaCost()
+                            .clearAutoTapSolution()
+                            .build()
+                    val selected = checkNotNull(resolveActionOffer(catalog, response)).second
+                    val selectedAbility = (selected.command as PlayerAction.ActivateAbility).ability
+                    (selectedAbility === (offer.command as PlayerAction.ActivateAbility).ability) shouldBe true
+                }
+                actions.forEach { action ->
+                    action.uniqueAbilityId shouldNotBe 0
+                    source.uniqueAbilitiesList.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
+            }
+        }
+
+        test("puzzle initial Full embeds distinct activation alternatives backed by its own source rows") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                }
+            val prepared = LifecycleMessageMaterializer.puzzleInitialBundle(SeatId(1), "test", 1, 1, board.bridge)
+            val gsm = prepared.messages.single { it.hasGameStateMessage() }.gameStateMessage
+            val actions = gsm.actionsList.map { it.action }.filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val source = gsm.gameObjectsList.single { it.instanceId == actions.first().instanceId }
+            assertSoftly {
+                actions.size shouldBe 2
+                actions.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                actions.forEach { action ->
+                    source.uniqueAbilitiesList.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
+            }
+        }
+
+        test("commander optional presentation embeds activation alternatives from the same compiled identity plan") {
+            lateinit var commander: forge.game.card.Card
+            val board =
+                startWithBoard { _, human, _ ->
+                    commander = addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                }
+            val builder = bundleBuilder(board.bridge)
+            val sourceId = ForgeCardId(commander.id)
+            val interaction =
+                BlockingInteraction.Optional(
+                    sourceId = sourceId,
+                    forceSnapshotBeforePrompt = true,
+                    customPromptId = null,
+                    commanderReturn =
+                        CommanderReturnPromptContext(
+                            board.bridge.getOrAllocInstanceId(sourceId).value,
+                            board.bridge.reserveInstanceId().value,
+                            CommanderZone.Battlefield,
+                            CommanderZone.Graveyard,
+                            1,
+                            "Destroy",
+                        ),
+                )
+            val prepared =
+                builder.optionalInteractionBundle(
+                    board.game,
+                    board.counter,
+                    interaction,
+                    listOf(BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(1), ProjectionViewerRole.Player), builder)),
+                    sourceCard = commander,
+                )
+            val gsms =
+                prepared.player.bundle.messages
+                    .filter { it.hasGameStateMessage() }
+                    .map { it.gameStateMessage }
+            val actions =
+                gsms
+                    .flatMap { it.actionsList }
+                    .map { it.action }
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val source = gsms.flatMap { it.gameObjectsList }.last { it.instanceId == actions.first().instanceId }
+            assertSoftly {
+                actions.size shouldBe 2
+                actions.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                actions.forEach { action ->
+                    source.uniqueAbilitiesList.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
+            }
+        }
+
+        test("null phase fallback publishes compiled backing rows before distinct alternative activation offers") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                }
+            val prepared = bundleBuilder(board.bridge).preparePhaseTransitionDiff(board.game, board.counter)
+            val messages = prepared.bundle.messages
+            val requestIndex = messages.indexOfFirst { it.hasActionsAvailableReq() }
+            val activations =
+                messages[requestIndex]
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val source =
+                messages
+                    .take(requestIndex)
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .last { it.instanceId == activations.first().instanceId }
+            assertSoftly {
+                activations.size shouldBe 2
+                activations.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                activations.forEach { action ->
+                    source.uniqueAbilitiesList.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
+                prepared.bundle.actionOffers.count { it.action.actionType == Messages.ActionType.Activate_add3 } shouldBe 2
+                messages.first().gameStateMessage.gameObjectsCount shouldBeGreaterThan 0
+                val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+                gsms.zipWithNext().forEach { (previous, next) -> next.prevGameStateId shouldBe previous.gameStateId }
+            }
+            board.bridge.commitProjection(checkNotNull(prepared.transition))
+        }
+
+        test("explicit empty phase synchronization keeps its phase-only presentation") {
+            val board = startWithBoard { _, human, _ -> addCard("Miscalculation", human, ZoneType.Hand) }
+            val prepared =
+                bundleBuilder(board.bridge).preparePhaseTransitionDiff(
+                    board.game,
+                    board.counter,
+                    priorityActions = Messages.ActionsAvailableReq.getDefaultInstance(),
+                    includePriorityPrompt = false,
+                )
+            assertSoftly {
+                prepared.bundle.messages
+                    .none { it.hasActionsAvailableReq() }
+                    .shouldBeTrue()
+                prepared.bundle.messages.filter { it.hasGameStateMessage() }.forEach {
+                    it.gameStateMessage.gameObjectsCount shouldBe 0
+                }
+                prepared.bundle.actionOffers.shouldHaveSize(0)
+            }
+        }
+
+        test("full reprojection keeps alternative handles private and removal refreshes the unchanged source") {
+            lateinit var gavi: forge.game.card.Card
+            lateinit var opponentGavi: forge.game.card.Card
+            val board =
+                startWithBoard { _, human, ai ->
+                    gavi = addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    addCard("Miscalculation", human, ZoneType.Hand)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    addCard("Island", human, ZoneType.Battlefield)
+                    opponentGavi = addCard("Gavi, Nest Warden", ai, ZoneType.Battlefield)
+                    addCard("Miscalculation", ai, ZoneType.Hand)
+                }
+            val builder = bundleBuilder(board.bridge)
+            val first = builder.prepareFullState(board.game, board.counter.nextGsId())
+            val actions =
+                first.result.actions.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 }
+            val iid = actions.first().instanceId
+            val rows =
+                first.result.gsm.gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList
+            board.bridge.commitProjection(first.transition)
+            val repeat = builder.prepareFullState(board.game, board.counter.nextGsId())
+            assertSoftly {
+                actions.size shouldBe 2
+                repeat.result.gsm.gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList shouldBe rows
+                repeat.result.actions.actionsList
+                    .filter { it.actionType == Messages.ActionType.Activate_add3 } shouldBe actions
+                repeat.result.gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P2_HAND }.forEach {
+                    it.uniqueAbilitiesCount shouldBe 0
+                    it.grpId shouldBe 0
+                }
+            }
+            board.bridge.commitProjection(repeat.transition)
+            board.game.action.moveToGraveyard(gavi, null)
+            board.game.action.moveToGraveyard(opponentGavi, null)
+            board.game.action.checkStateEffects(true)
+            val diff = board.postAction()
+            val refreshed = diff.messages.flatMap { it.gameStateMessage.gameObjectsList }.last { it.instanceId == iid }
+            val remaining =
+                diff.messages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.instanceId == iid && it.actionType == Messages.ActionType.Activate_add3 }
+            assertSoftly {
+                remaining.size shouldBe 1
+                remaining.single().uniqueAbilityId shouldBe actions.first().uniqueAbilityId
+                val baseRows =
+                    rows.filterNot { row ->
+                        row.grpId == actions.first().abilityGrpId && row.id != actions.first().uniqueAbilityId
+                    }
+                refreshed.uniqueAbilitiesList shouldBe baseRows
+            }
+        }
 
         test("queuedGameState wraps GSM with type 51") {
             val gs =

@@ -6,6 +6,8 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.coord.resolveActionOffer
+import leyline.bridge.handoff.ActionResponseKey
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.SeatId
 import leyline.game.bundle.StateFrameInputCapture
@@ -133,17 +135,63 @@ class CyclingPuzzleTest :
                 bridge.cutCoordinator.actions
                     .actionOffersForTest(window)
                     .filter { it.action.instanceId == firstIid && it.command is PlayerAction.ActivateAbility }
+            val sourceRows =
+                allMessages
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .last { it.instanceId == firstIid }
+                    .uniqueAbilitiesList
             assertSoftly {
                 firstOffers.size shouldBe 2
                 firstOffers.count { it.manaCostCount == 0 } shouldBe 1
                 firstOffers.count { it.manaCostCount > 0 } shouldBe 1
+                firstOffers
+                    .map { action ->
+                        listOf(
+                            action.actionType.number,
+                            action.instanceId,
+                            action.grpId,
+                            action.facetId,
+                            action.abilityGrpId,
+                            action.uniqueAbilityId,
+                            action.sourceId,
+                            action.alternativeGrpId,
+                            action.alternativeSourceZcid,
+                        )
+                    }.distinct()
+                    .size shouldBe 2
                 retained.size shouldBe 2
+                firstOffers.forEach { action ->
+                    sourceRows.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
+                }
                 val abilities = retained.map { checkNotNull((it.command as PlayerAction.ActivateAbility).ability) }
                 (abilities[0] === abilities[1]) shouldBe false
                 abilities.map { it.payCosts.totalMana.toString() }.distinct().size shouldBe 2
                 abilities.all { it.payCosts.costParts.any { part -> part is forge.game.cost.CostDiscard } } shouldBe true
+                val catalog =
+                    retained
+                        .mapIndexed { index, offer -> index.toLong() to offer }
+                        .groupBy { ActionResponseKey.from(it.second.action) }
+                retained.forEach { offer ->
+                    val response =
+                        offer.action
+                            .toBuilder()
+                            .clearManaCost()
+                            .clearAutoTapSolution()
+                            .build()
+                    val selected = checkNotNull(resolveActionOffer(catalog, response)).second
+                    val selectedAbility = (selected.command as PlayerAction.ActivateAbility).ability
+                    val offeredAbility = (offer.command as PlayerAction.ActivateAbility).ability
+                    (selectedAbility === offeredAbility) shouldBe true
+                }
             }
-            submitAction(firstOffers.single { it.manaCostCount == 0 })
+            submitAction(
+                firstOffers
+                    .single { it.manaCostCount == 0 }
+                    .toBuilder()
+                    .clearManaCost()
+                    .clearAutoTapSolution()
+                    .build(),
+            )
             passUntilResolved()
             assertSoftly {
                 "Miscalculation" should beInGraveyardOf(human)
@@ -170,6 +218,94 @@ class CyclingPuzzleTest :
             }
             castSpellByName("Ornithopter").shouldBeTrue()
             passUntilResolved()
+        }
+
+        session(
+            "the paid first cycling variant executes its own cost when a free sibling is also offered",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Miscalculation;Remote Isle;Ornithopter
+                humanbattlefield=Gavi, Nest Warden;Island;Island
+                humanlibrary=Forest;Mountain;Plains;Forest;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+        ) {
+            val iid = human.hand.iid("Miscalculation")
+            val offers =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == iid }
+            offers.size shouldBe 2
+            val paid = offers.single { it.manaCostCount > 0 }
+            submitAction(
+                paid
+                    .toBuilder()
+                    .clearManaCost()
+                    .clearAutoTapSolution()
+                    .build(),
+            )
+            passUntilResolved()
+            assertSoftly {
+                "Miscalculation" should beInGraveyardOf(human)
+                "Forest" should beInHandOf(human)
+                human.getCardsIn(ZoneType.Battlefield).count { it.isLand && it.isTapped } shouldBe 2
+                human.numDrawnThisTurn shouldBe 1
+            }
+            val secondIid = human.hand.iid("Remote Isle")
+            allMessages
+                .last { it.hasActionsAvailableReq() }
+                .actionsAvailableReq.actionsList
+                .count { it.actionType == ActionType.Activate_add3 && it.instanceId == secondIid } shouldBe 0
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        listOf(false, true).forEach { paid ->
+            session(
+                "granted cycling ${if (paid) "paid" else "free"} variant pays its retained cost and continues priority",
+                puzzle =
+                    """
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=20
+                    AILife=20
+                    humanhand=Mountain;Ornithopter
+                    humanbattlefield=Tectonic Reformation;Gavi, Nest Warden;Mountain
+                    humanlibrary=Forest;Plains;Island;Forest
+                    ailibrary=Mountain;Mountain;Mountain
+                    """.trimIndent(),
+            ) {
+                val iid = human.hand.iid("Mountain")
+                val actions =
+                    allMessages
+                        .last { it.hasActionsAvailableReq() }
+                        .actionsAvailableReq.actionsList
+                        .filter { it.instanceId == iid && it.actionType == ActionType.Activate_add3 }
+                actions.size shouldBe 2
+                actions.map { it.uniqueAbilityId }.distinct().size shouldBe 2
+                val chosen = actions.single { (it.manaCostCount > 0) == paid }
+                submitAction(
+                    chosen
+                        .toBuilder()
+                        .clearManaCost()
+                        .clearAutoTapSolution()
+                        .build(),
+                )
+                passUntilResolved()
+                assertSoftly {
+                    "Mountain" should beInGraveyardOf(human)
+                    "Forest" should beInHandOf(human)
+                    human.getCardsIn(ZoneType.Battlefield).count { it.isLand && it.isTapped } shouldBe if (paid) 1 else 0
+                    human.numDrawnThisTurn shouldBe 1
+                }
+                castSpellByName("Ornithopter").shouldBeTrue()
+                passUntilResolved()
+            }
         }
 
         session(

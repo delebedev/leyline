@@ -48,6 +48,7 @@ import leyline.testkit.StateMapperShell as StateMapper
  *
  * Requires card DB init (~2-3s first run, cached after).
  */
+@Suppress("LargeClass") // Bridge lifecycle and publication contracts share one engine-thread fixture.
 class GameBridgeTest :
     FunSpec({
 
@@ -391,9 +392,17 @@ class GameBridgeTest :
                     game,
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
-            val messages = result.messages
+            val compiled = result.messages.first().gameStateMessage
+            val messages = result.messages.drop(1)
+            assertSoftly {
+                result.messages.size shouldBe 6
+                compiled.update shouldBe Messages.GameStateUpdate.SendAndRecord
+                result.messages.first().type shouldBe Messages.GREMessageType.GameStateMessage_695e
+                compiled.gameStateId shouldBe 11
+                messages.first().gameStateMessage.prevGameStateId shouldBe compiled.gameStateId
+            }
 
-            // Bundle has exactly 5 GRE messages
+            // The compiled source state precedes the five-message phase presentation.
             messages.size shouldBe 5
 
             // GRE 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
@@ -508,7 +517,7 @@ class GameBridgeTest :
 
         // --- Double-diff tests ---
 
-        test("phase transition emits five message pattern") {
+        test("phase transition fallback emits compiled state before the five message pattern") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b
             b.start(seed = 42L)
@@ -524,31 +533,38 @@ class GameBridgeTest :
                     LogicalSequencePlanner(initialGsId = 10, initialMsgId = 0),
                 )
 
+            result.messages.size shouldBe 6
+            val compiled = result.messages.first().gameStateMessage
+            val messages = result.messages.drop(1)
             assertSoftly {
-                result.messages.size shouldBe 5
+                compiled.update shouldBe Messages.GameStateUpdate.SendAndRecord
+                result.messages.first().type shouldBe Messages.GREMessageType.GameStateMessage_695e
+                compiled.gameStateId shouldBe 11
+                messages.size shouldBe 5
+                messages.first().gameStateMessage.prevGameStateId shouldBe compiled.gameStateId
 
                 // Message 1: SendHiFi with PhaseOrStepModified annotations
-                val gs1 = result.messages[0].gameStateMessage
+                val gs1 = messages[0].gameStateMessage
                 gs1.update shouldBe Messages.GameStateUpdate.SendHiFi
                 gs1.type shouldBe Messages.GameStateType.Diff
 
                 // Message 2: SendHiFi echo
-                val gs2 = result.messages[1].gameStateMessage
+                val gs2 = messages[1].gameStateMessage
                 gs2.update shouldBe Messages.GameStateUpdate.SendHiFi
                 gs2.type shouldBe Messages.GameStateType.Diff
 
                 // Message 3: SendAndRecord with PhaseOrStepModified
-                val gs3 = result.messages[2].gameStateMessage
+                val gs3 = messages[2].gameStateMessage
                 gs3.update shouldBe Messages.GameStateUpdate.SendAndRecord
                 gs3.type shouldBe Messages.GameStateType.Diff
 
                 // Message 4: PromptReq (promptId=37)
-                result.messages[3].type shouldBe Messages.GREMessageType.PromptReq
-                result.messages[3].prompt.promptId shouldBe 37
+                messages[3].type shouldBe Messages.GREMessageType.PromptReq
+                messages[3].prompt.promptId shouldBe 37
 
                 // Message 5: ActionsAvailableReq (promptId=2)
-                result.messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
-                result.messages[4].prompt.promptId shouldBe 2
+                messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
+                messages[4].prompt.promptId shouldBe 2
             }
 
             // gsIds should be ascending across GSM messages
