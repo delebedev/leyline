@@ -82,6 +82,11 @@ Within `engine`, responsibilities follow the execution boundary:
 
 Module-local ownership and dependency rules live in the nearest `AGENTS.md`.
 
+`domain` owns `DraftService.Driver` and its `PickOutcome` and `PodOutcome` values.
+`ForgeBoosterDraftDriver` implements that contract directly; native composition
+passes it to `DraftService` without result translation. Forge pack state, bot
+selection and concrete `discardAll` cleanup remain owned by the engine driver.
+
 `CardRepository` is the card-metadata seam shared by projection and embedding
 hosts. The native composition root uses `SqliteCardRepository` for native-client
 identifiers. A Web embedding host can use `ForgeCardRepository`, whose generated
