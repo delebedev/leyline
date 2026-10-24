@@ -4,12 +4,17 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
+import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.types.SeatId
 import leyline.game.bundle.StateFrameInputCapture
 import leyline.game.event.FrameEventLog
 import leyline.testkit.SessionTest
 import leyline.testkit.allGameObjects
 import leyline.testkit.annotationsOfType
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beInHandOf
 import leyline.testkit.detailInt
 import leyline.testkit.hand
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -39,6 +44,159 @@ private val CYCLE_MISCALCULATION_PUZZLE =
 @Suppress("MissingAssertSoftly") // intentional fail-fast — passUntil depends on activation succeeding first
 class CyclingPuzzleTest :
     SessionTest({
+        session(
+            "first cycling with Gavi is offered without mana and pays discard before drawing",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Miscalculation;Remote Isle;Ornithopter
+                humanbattlefield=Gavi, Nest Warden
+                humanlibrary=Forest;Island;Mountain;Forest;Island;Mountain
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 4,
+        ) {
+            val cardIid = human.hand.iid("Miscalculation")
+            val offers =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == cardIid }
+            offers.size shouldBe 1
+            val offer = offers.single()
+            offer.manaCostCount shouldBe 0
+            submitAction(offer)
+            passUntilResolved()
+            assertSoftly {
+                "Miscalculation" should beInGraveyardOf(human)
+                "Forest" should beInHandOf(human)
+                "Ornithopter" should beInHandOf(human)
+                human.numDrawnThisTurn shouldBe 1
+            }
+            val secondIid = human.hand.iid("Remote Isle")
+            assertSoftly {
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .count { it.actionType == ActionType.Activate_add3 && it.instanceId == secondIid } shouldBe 0
+                "Remote Isle" should beInHandOf(human)
+            }
+            passUntil(maxPasses = 80) {
+                game().phaseHandler.turn >= 3 &&
+                    allMessages
+                        .last { it.hasActionsAvailableReq() }
+                        .actionsAvailableReq.actionsList
+                        .any { it.actionType == ActionType.Activate_add3 && it.instanceId == secondIid && it.manaCostCount == 0 }
+            }.shouldBeTrue()
+            game().phaseHandler.turn shouldBe 3
+            val resetOffer =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Activate_add3 && it.instanceId == secondIid }
+            submitAction(resetOffer)
+            passUntilResolved()
+            assertSoftly {
+                "Remote Isle" should beInGraveyardOf(human)
+                human.numDrawnThisTurn shouldBe 2
+                human.getCardsIn(ZoneType.Graveyard).size shouldBe 2
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        session(
+            "free and paid cycling retain distinct offered costs and the second activation pays normally",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Miscalculation;Remote Isle;Ornithopter
+                humanbattlefield=Gavi, Nest Warden;Island;Island
+                humanlibrary=Forest;Mountain;Plains;Forest;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+        ) {
+            val firstIid = human.hand.iid("Miscalculation")
+            val firstOffers =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == firstIid }
+            val window = checkNotNull(bridge.actionBridge(SeatId(1)).getPending()).actionId
+            val retained =
+                bridge.cutCoordinator.actions
+                    .actionOffersForTest(window)
+                    .filter { it.action.instanceId == firstIid && it.command is PlayerAction.ActivateAbility }
+            assertSoftly {
+                firstOffers.size shouldBe 2
+                firstOffers.count { it.manaCostCount == 0 } shouldBe 1
+                firstOffers.count { it.manaCostCount > 0 } shouldBe 1
+                retained.size shouldBe 2
+                val abilities = retained.map { checkNotNull((it.command as PlayerAction.ActivateAbility).ability) }
+                (abilities[0] === abilities[1]) shouldBe false
+                abilities.map { it.payCosts.totalMana.toString() }.distinct().size shouldBe 2
+                abilities.all { it.payCosts.costParts.any { part -> part is forge.game.cost.CostDiscard } } shouldBe true
+            }
+            submitAction(firstOffers.single { it.manaCostCount == 0 })
+            passUntilResolved()
+            assertSoftly {
+                "Miscalculation" should beInGraveyardOf(human)
+                "Forest" should beInHandOf(human)
+                human.getCardsIn(ZoneType.Battlefield).count { it.isLand && it.isTapped } shouldBe 0
+            }
+            val secondIid = human.hand.iid("Remote Isle")
+            val secondOffers =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == ActionType.Activate_add3 && it.instanceId == secondIid }
+            assertSoftly {
+                secondOffers.size shouldBe 1
+                secondOffers.single().manaCostCount shouldBeGreaterThan 0
+            }
+            submitAction(secondOffers.single())
+            passUntilResolved()
+            assertSoftly {
+                "Remote Isle" should beInGraveyardOf(human)
+                "Mountain" should beInHandOf(human)
+                human.getCardsIn(ZoneType.Battlefield).count { it.isLand && it.isTapped } shouldBe 2
+                human.numDrawnThisTurn shouldBe 2
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
+        session(
+            "cycling without a replacement cost remains unavailable when its mana cannot be paid",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Miscalculation;Ornithopter
+                humanlibrary=Forest;Island;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+        ) {
+            val iid = human.hand.iid("Miscalculation")
+            val actions = allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq
+            assertSoftly {
+                actions.actionsList.count { it.actionType == ActionType.Activate_add3 && it.instanceId == iid } shouldBe 0
+                actions.inactiveActionsList.count { it.actionType == ActionType.Activate_add3 && it.instanceId == iid } shouldBe 1
+                "Miscalculation" should beInHandOf(human)
+                human.numDrawnThisTurn shouldBe 0
+            }
+            castSpellByName("Ornithopter").shouldBeTrue()
+            passUntilResolved()
+        }
+
         session(
             "Miscalculation cycle from hand draws + discards",
             puzzle = CYCLE_MISCALCULATION_PUZZLE,
