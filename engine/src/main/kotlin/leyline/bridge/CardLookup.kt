@@ -272,6 +272,7 @@ fun getNonManaActivatedAbilities(
         if (isReconfigureAttach(ability) && card.isAttachedToEntity) continue
         if (isReconfigureUnattach(ability) && !card.isAttachedToEntity) continue
         abilities.add(ability)
+        abilities.addAll(GameActionUtil.getAlternativeCosts(ability, player, false))
     }
     return abilities
 }

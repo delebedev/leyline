@@ -177,6 +177,11 @@ constructing its effective keyword.
 
 Use `getNonManaActivatedAbilities(card, player)` and `getPlayableManaAbilities(card, player)` for ability lookup. Both set the activating player before legality-sensitive checks.
 
+Non-mana activation lookup retains each base ability followed by Forge's
+alternative-cost variants. Those variants keep their own complete payment costs
+and restrictions, including discard and per-turn conditions. Offers retain the
+selected Forge ability rather than reconstructing it from a catalog identity.
+
 Activated abilities come from the card's current state. An ability on another
 transforming face is neither active nor inactive on the current face. Explicit
 special actions such as turning a face-down card face up retain their own lookup.
