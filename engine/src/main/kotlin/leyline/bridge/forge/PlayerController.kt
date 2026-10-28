@@ -234,18 +234,19 @@ class PlayerController(
             viewerSeatId = viewerSeatId,
             currentSourceEntityId = ::currentSourceEntityId,
             isCastingSpell = { activeSourceIsSpell },
-            currentStackAbilityId = { callbackAbility ->
-                game.stack
-                    .firstOrNull()
-                    ?.takeIf { it.isAbility }
-                    ?.spellAbility
-                    ?.takeIf { stackAbility ->
-                        val effect = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
-                        callbackAbility == null || callbackAbility.rootAbility === effect || callbackAbility.rootAbility === stackAbility
-                    }?.id
-            },
+            currentStackAbilityId = ::currentStackAbilityId,
         )
     private val costPaymentCoordinator = CostPaymentCoordinator(bridge, player, optionalActionGate)
+
+    private fun currentStackAbilityId(callbackAbility: SpellAbility?): Int? =
+        game.stack
+            .firstOrNull()
+            ?.takeIf { it.isAbility }
+            ?.spellAbility
+            ?.takeIf { stackAbility ->
+                val effect = (stackAbility as? WrappedAbility)?.wrappedAbility ?: stackAbility
+                callbackAbility == null || callbackAbility.rootAbility === effect || callbackAbility.rootAbility === stackAbility
+            }?.id
 
     fun forControlledPlayer(controlledPlayer: Player): PlayerController =
         PlayerController(
@@ -1222,7 +1223,7 @@ class PlayerController(
         isOptional: Boolean,
         prompt: String,
     ): CardCollectionView {
-        val tapPayment = TapPaymentPolicy.exact(cpl, amount, sa)
+        val tapPayment = TapPaymentPolicy.exact(cpl, amount, sa, bridge::resolveAbilityIdentity, currentStackAbilityId(sa) ?: sa.id)
         val semantic =
             when (cpl) {
                 is CostDiscard -> PromptSemantic.SelectNDiscard
@@ -1376,7 +1377,15 @@ class PlayerController(
         totalPowerNeeded: Int?,
         prompt: String,
     ): CardCollectionView {
-        val tapPayment = totalPowerNeeded?.let { TapPaymentPolicy.totalPower(it, sa) }
+        val tapPayment =
+            totalPowerNeeded?.let {
+                TapPaymentPolicy.totalPower(
+                    it,
+                    sa,
+                    bridge::resolveAbilityIdentity,
+                    currentStackAbilityId(sa) ?: sa.id,
+                )
+            }
         val semantic =
             when {
                 sa.isKeyword(Keyword.STATION) -> PromptSemantic.StationTapCost

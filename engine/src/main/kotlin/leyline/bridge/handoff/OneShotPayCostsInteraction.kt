@@ -1,13 +1,14 @@
 package leyline.bridge.handoff
 
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ResolvedAbilityIdentity
 
 /** Exact callback source that capture must freeze before a PayCosts prompt is materialized. */
 sealed interface PayCostsPromptSourceInput {
     data class StackAbility(
         val forgeAbilityId: Int,
         val sourceForgeCardId: ForgeCardId,
-        val abilityDefinitionId: Int,
+        val abilityIdentity: ResolvedAbilityIdentity,
         val targetForgeCardIds: List<ForgeCardId>,
     ) : PayCostsPromptSourceInput
 

@@ -9,7 +9,6 @@ import leyline.bridge.handoff.PayCostsRouteKind
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TapPaymentKind
-import leyline.bridge.types.AbilityDefinitionRef
 import leyline.bridge.types.ForgeCardId
 
 /** Engine-thread freezing for the seven non-iterative PayCosts routes. */
@@ -146,15 +145,10 @@ internal class OneShotPayCostsWindowCapture(
         when (input) {
             is PayCostsPromptSourceInput.StackAbility -> {
                 val source = owner.bridge.findCard(input.sourceForgeCardId) ?: error("PayCosts ability source is unavailable")
-                val identity =
-                    owner.bridge.resolveAbilityIdentity(
-                        source,
-                        AbilityDefinitionRef.SpellAbility(input.abilityDefinitionId),
-                    ) ?: error("PayCosts ability identity is unavailable")
                 PayCostsPromptSourceValue.StackAbility(
                     forgeAbilityId = input.forgeAbilityId,
                     sourceForgeCardId = input.sourceForgeCardId,
-                    abilityGrpId = identity.abilityGrpId,
+                    abilityGrpId = input.abilityIdentity.abilityGrpId,
                     sourceCardGrpId =
                         owner.bridge.cardGrpId(input.sourceForgeCardId) ?: error("PayCosts source card identity is unavailable"),
                     ownerSeatId = owner.bridge.seatOf(source.owner)?.value ?: error("PayCosts source owner is unavailable"),

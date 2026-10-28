@@ -231,6 +231,11 @@ class GameEndTest :
             submitAttackers()
             passThroughCombat(startTurn)
 
+            // Forge's terminal flag can precede the observer's committed result delivery.
+            if (allMessages.none { it.hasIntermissionReq() }) {
+                awaitNextClientOutput("poison game-over delivery") { it.hasIntermissionReq() }
+            }
+
             assertSoftly {
                 isGameOver().shouldBeTrue()
                 ai.life shouldBe 10
