@@ -73,7 +73,10 @@ class CostDecision(
                     PayCostsPromptSourceInput.StackAbility(
                         forgeAbilityId = ability.id,
                         sourceForgeCardId = ForgeCardId(root.hostCard.id),
-                        abilityDefinitionId = root.definitionId,
+                        abilityIdentity =
+                            checkNotNull(
+                                bridge.resolveAbilityIdentity(root),
+                            ) { "GatherCounters ability identity is unavailable" },
                         targetForgeCardIds =
                             root.targets
                                 ?.targetCards

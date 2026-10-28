@@ -12,6 +12,7 @@ import leyline.bridge.handoff.PayCostsPromptSourceInput
 import leyline.bridge.handoff.TapPaymentDescriptor
 import leyline.bridge.handoff.TapPaymentKind
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ResolvedAbilityIdentity
 import org.slf4j.LoggerFactory
 
 /** Grounded tap-payment routing facts derived from one exact Forge callback. */
@@ -25,6 +26,8 @@ internal object TapPaymentPolicy {
         cost: CostPart,
         required: Int,
         ability: SpellAbility,
+        resolveIdentity: (SpellAbility) -> ResolvedAbilityIdentity?,
+        forgeAbilityId: Int,
     ): Plan? {
         if (cost is CostTapType && ability.isKeyword(Keyword.STATION)) return null
         val kind =
@@ -33,15 +36,17 @@ internal object TapPaymentPolicy {
                 is CostUntapType -> TapPaymentKind.UntapExact
                 else -> return null
             }
-        return grounded(kind, required, ability)
+        return grounded(kind, required, ability, resolveIdentity, forgeAbilityId)
     }
 
     fun totalPower(
         required: Int,
         ability: SpellAbility,
+        resolveIdentity: (SpellAbility) -> ResolvedAbilityIdentity?,
+        forgeAbilityId: Int,
     ): Plan? {
         if (ability.isKeyword(Keyword.STATION)) return null
-        return grounded(TapPaymentKind.TotalPower, required, ability)
+        return grounded(TapPaymentKind.TotalPower, required, ability, resolveIdentity, forgeAbilityId)
     }
 
     fun totalPowerWeights(
@@ -53,6 +58,8 @@ internal object TapPaymentPolicy {
         kind: TapPaymentKind,
         required: Int,
         ability: SpellAbility,
+        resolveIdentity: (SpellAbility) -> ResolvedAbilityIdentity?,
+        forgeAbilityId: Int,
     ): Plan? {
         val descriptor =
             TapPaymentDescriptor.grounded(kind, required)
@@ -63,9 +70,9 @@ internal object TapPaymentPolicy {
                 PayCostsPromptSourceInput.StackCard(ForgeCardId(root.hostCard.id))
             } else {
                 PayCostsPromptSourceInput.StackAbility(
-                    forgeAbilityId = ability.id,
+                    forgeAbilityId = forgeAbilityId,
                     sourceForgeCardId = ForgeCardId(root.hostCard.id),
-                    abilityDefinitionId = root.definitionId,
+                    abilityIdentity = checkNotNull(resolveIdentity(root)) { "Tap payment ability identity is unavailable" },
                     targetForgeCardIds =
                         root.targets
                             ?.targetCards

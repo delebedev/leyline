@@ -61,7 +61,7 @@ class GatherCountersRuntimeFailureTest :
                     PayCostsPromptSourceInput.StackAbility(
                         ability.id,
                         ForgeCardId(source.id),
-                        root.definitionId,
+                        checkNotNull(board.bridge.resolveAbilityIdentity(source, root)),
                         root.targets
                             ?.targetCards
                             .orEmpty()

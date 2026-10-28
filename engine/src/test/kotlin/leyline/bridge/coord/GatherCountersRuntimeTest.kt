@@ -64,7 +64,7 @@ class GatherCountersRuntimeTest :
                         PayCostsPromptSourceInput.StackAbility(
                             ability.id,
                             ForgeCardId(source.id),
-                            ability.rootAbility.definitionId,
+                            checkNotNull(board.bridge.resolveAbilityIdentity(source, ability.rootAbility)),
                             emptyList(),
                         ),
                         creatures.map { GatherCountersSourceValue(ForgeCardId(it.id), 1) },
@@ -137,7 +137,7 @@ class GatherCountersRuntimeTest :
                         PayCostsPromptSourceInput.StackAbility(
                             forgeAbilityId = ability.id,
                             sourceForgeCardId = ForgeCardId(source.id),
-                            abilityDefinitionId = root.definitionId,
+                            abilityIdentity = checkNotNull(board.bridge.resolveAbilityIdentity(source, root)),
                             targetForgeCardIds =
                                 root.targets
                                     ?.targetCards
@@ -236,7 +236,7 @@ class GatherCountersRuntimeTest :
                     PayCostsPromptSourceInput.StackAbility(
                         ability.id,
                         ForgeCardId(source.id),
-                        ability.rootAbility.definitionId,
+                        checkNotNull(board.bridge.resolveAbilityIdentity(source, ability.rootAbility)),
                         emptyList(),
                     ),
                     creatures.map { GatherCountersSourceValue(ForgeCardId(it.id), 1) },
@@ -319,7 +319,7 @@ class GatherCountersRuntimeTest :
                     PayCostsPromptSourceInput.StackAbility(
                         ability.id,
                         ForgeCardId(source.id),
-                        ability.rootAbility.definitionId,
+                        checkNotNull(board.bridge.resolveAbilityIdentity(source, ability.rootAbility)),
                         emptyList(),
                     ),
                     creatures.map { GatherCountersSourceValue(ForgeCardId(it.id), 1) },
@@ -391,7 +391,7 @@ class GatherCountersRuntimeTest :
                     PayCostsPromptSourceInput.StackAbility(
                         ability.id,
                         ForgeCardId(source.id),
-                        ability.rootAbility.definitionId,
+                        checkNotNull(board.bridge.resolveAbilityIdentity(source, ability.rootAbility)),
                         emptyList(),
                     ),
                     creatures.map { GatherCountersSourceValue(ForgeCardId(it.id), 1) },

@@ -1,5 +1,6 @@
 package leyline.mechanics.cost
 
+import forge.game.keyword.Keyword
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -20,6 +21,93 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 
 class OrdinaryTapCostLifecycleTest :
     SessionTest({
+        val kittPuzzle =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            removesummoningsickness=true
+            humanhand=Ornithopter
+            humanbattlefield=Kitt Kanto, Mayhem Diva;Grizzly Bears;Walking Corpse;Coral Merfolk
+            humanlibrary=Island;Island;Island
+            ailibrary=Mountain;Mountain;Mountain
+            """.trimIndent()
+        session(
+            "triggered exact-count tap cost publishes its ability source after acceptance",
+            puzzle = kittPuzzle,
+        ) {
+            holdNextOptionalAction()
+            passUntil(maxPasses = 8) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
+            val kittIid = human.battlefield.iid("Kitt Kanto, Mayhem Diva")
+            val trigger = allMessages.allGameObjects().last { it.type == GameObjectType.Ability && it.parentId == kittIid }
+            val payment = after { respondToOptionalAction(accept = true) }
+            val request = payment.messages.single { it.hasPayCostsReq() }
+            val selection = request.payCostsReq.effectCostReq.costSelection
+            val sourceIid =
+                request.prompt.parametersList
+                    .single { it.parameterName == "CardId" }
+                    .numberValue
+            val source = payment.messages.allGameObjects().last { it.instanceId == sourceIid }
+            val bear = human.battlefield.card("Grizzly Bears")
+            val corpse = human.battlefield.card("Walking Corpse")
+            val merfolk = human.battlefield.card("Coral Merfolk")
+            assertSoftly {
+                selection.minSel shouldBe 2
+                selection.maxSel shouldBe 2
+                selection.idsCount shouldBe 4
+                source.type shouldBe GameObjectType.Ability
+                source.zoneId shouldBe ZoneIds.STACK
+                source.parentId shouldBe kittIid
+                sourceIid shouldNotBe kittIid
+                sourceIid shouldBe trigger.instanceId
+                source.grpId shouldBe trigger.grpId
+            }
+            respondToEffectCost(listOf(human.battlefield.iid("Grizzly Bears"), human.battlefield.iid("Walking Corpse")))
+            passUntil(maxPasses = 4) { allMessages.any { it.hasSelectTargetsReq() } }.shouldBeTrue()
+            selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
+            passUntilResolved(maxPasses = 4)
+            assertSoftly {
+                bear.isTapped shouldBe true
+                corpse.isTapped shouldBe true
+                merfolk.isTapped shouldBe false
+                human.battlefield.card("Kitt Kanto, Mayhem Diva").isTapped shouldBe false
+                bear.netPower shouldBe 4
+                bear.netToughness shouldBe 4
+                bear.hasKeyword(Keyword.TRAMPLE) shouldBe true
+                bear.isGoaded shouldBe true
+                bear.goaded shouldContain human
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceCreated).count { sourceIid in it.affectedIdsList } shouldBe 1
+                allMessages.annotationsOfType(AnnotationType.AbilityInstanceDeleted).count { sourceIid in it.affectedIdsList } shouldBe 1
+            }
+        }
+
+        for (insufficient in listOf(false, true)) {
+            session(
+                if (insufficient) {
+                    "insufficient creatures cannot pay a triggered tap cost"
+                } else {
+                    "declining a triggered tap cost leaves creatures unchanged"
+                },
+                puzzle = if (insufficient) kittPuzzle.replace(";Grizzly Bears;Walking Corpse;Coral Merfolk", "") else kittPuzzle,
+            ) {
+                holdNextOptionalAction()
+                passUntil(maxPasses = 8) {
+                    allMessages.any { it.hasOptionalActionMessage() || it.hasDeclareAttackersReq() }
+                }.shouldBeTrue()
+                if (allMessages.any { it.hasOptionalActionMessage() }) respondToOptionalAction(accept = insufficient)
+                passUntil(maxPasses = 8) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+                assertSoftly {
+                    allMessages.any { it.hasPayCostsReq() } shouldBe false
+                    allMessages.any { it.hasSelectTargetsReq() } shouldBe false
+                    human.battlefield.card("Kitt Kanto, Mayhem Diva").isTapped shouldBe false
+                    human.battlefield.card("Kitt Kanto, Mayhem Diva").netPower shouldBe 3
+                    human.battlefield.card("Kitt Kanto, Mayhem Diva").isGoaded shouldBe false
+                    game().isGameOver shouldBe false
+                }
+            }
+        }
+
         session(
             "spell tap-cost prompt uses the same-cut stack card identity",
             puzzle =
