@@ -17,6 +17,60 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 class PriorityActionCandidatesTest :
     BoardTest({
+        for (permitted in listOf(false, true)) {
+            test("face-down exile casting retains only the permitted player's original spell: $permitted") {
+                lateinit var exiled: forge.game.card.Card
+                val board =
+                    startWithBoard { _, human, ai ->
+                        val source = addCard("Thief of Sanity", human, ZoneType.Battlefield)
+                        exiled = addCard("Centaur Courser", ai, ZoneType.Exile)
+                        if (permitted) {
+                            source.addRemembered(exiled)
+                            source.addStaticAbility(
+                                "Mode\$ Continuous | MayPlay\$ True | MayPlayIgnoreType\$ True | " +
+                                    "Affected\$ Card.IsRemembered+nonLand | AffectedZone\$ Exile",
+                            )
+                        }
+                        repeat(3) { addCard("Swamp", human, ZoneType.Battlefield) }
+                    }
+                exiled.turnFaceDown(true)
+                exiled.addMayLookFaceDownExile(board.human)
+                board.game.action.checkStaticAbilities()
+                val candidates = PriorityActionCandidates.query(board.game, board.human)
+                val casts = candidates.forCard(exiled).casts
+                val projection =
+                    ActionMapper.buildProjectionFromSnapshot(
+                        1,
+                        SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                        board.bridge,
+                        candidates,
+                    )
+                assertSoftly {
+                    exiled.isFaceDown.shouldBeTrue()
+                    exiled.mayPlay(board.human).isNotEmpty() shouldBe permitted
+                    casts.shouldHaveSize(if (permitted) 1 else 0)
+                    casts.all { it.hostCard === exiled }.shouldBeTrue()
+                    projection.actions.ofType(ActionType.Cast).shouldHaveSize(if (permitted) 1 else 0)
+                    projection.actions.inactiveActionsList
+                        .filter { it.actionType == ActionType.Cast }
+                        .shouldHaveSize(0)
+                    PriorityActionCandidates
+                        .query(board.game, board.ai)
+                        .forCard(exiled)
+                        .casts
+                        .shouldHaveSize(0)
+                    val ownerActions =
+                        ActionMapper.buildFromSnapshot(
+                            2,
+                            SnapshotCapture.run(board.game, board.bridge, "test", 0),
+                            board.bridge,
+                        )
+                    ownerActions.ofType(ActionType.Cast).shouldHaveSize(0)
+                    ownerActions.inactiveActionsList.filter { it.actionType == ActionType.Cast }.shouldHaveSize(0)
+                    exiled.isFaceDown.shouldBeTrue()
+                }
+            }
+        }
         test("legal but unaffordable cast stays inactive without holding priority") {
             val board =
                 startWithBoard { _, human, _ ->

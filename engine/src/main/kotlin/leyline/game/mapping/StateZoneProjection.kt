@@ -114,11 +114,12 @@ object StateZoneProjection {
                     grantedAbilitySnapshot = grantedAbilitySnapshot,
                 )
             gameObjects +=
-                if (arenaZoneId == ZoneIds.EXILE && card.isForetold) {
+                if (arenaZoneId == ZoneIds.EXILE && card.isFaceDownInExile) {
                     obj
                         .toBuilder()
                         .setVisibility(Visibility.Private)
-                        .addViewers(card.owner.value)
+                        .clearViewers()
+                        .addAllViewers(card.mayLookSeatIds.map { it.value }.sorted())
                         .setIsFacedown(true)
                         .setOverlayGrpId(3)
                         .build()

@@ -5,6 +5,7 @@ import forge.game.card.CardCollectionView
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.should
@@ -13,10 +14,55 @@ import leyline.game.mapping.PromptIds
 import leyline.testkit.SessionTest
 import leyline.testkit.beInZoneOf
 import leyline.testkit.beMissingFrom
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EffectCardChoiceTest :
     SessionTest({
+        session(
+            "Gonti's face-down spell permission survives its source and pays with off-color mana",
+            puzzle = """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+                humanhand=Gonti, Lord of Luxury;Unsummon
+                humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Island
+                humanlibrary=Island;Island;Island
+                ailibrary=Centaur Courser;Centaur Courser;Centaur Courser;Centaur Courser;Forest
+            """,
+            fullControl = true,
+        ) {
+            castSpellUntilSelectTargetsReq("Gonti, Lord of Luxury")
+            selectTargets(listOf(2))
+            passUntil { allMessages.any { it.hasSelectNReq() } }
+            val req = lastSelectNReq()
+            respondToSelectN(listOf(req.idsList.first()))
+            passUntilResolved()
+            val exiled = ai.getZone(ZoneType.Exile).cards.single()
+            exiled.isFaceDown.shouldBeTrue()
+            castSpellUntilSelectTargetsReq("Unsummon")
+            selectTargets(listOf(human.battlefield.iid("Gonti, Lord of Luxury")))
+            passUntilResolved()
+            "Gonti, Lord of Luxury" should beInZoneOf(ZoneType.Hand, human)
+            exiled.isFaceDown.shouldBeTrue()
+            val cast =
+                allMessages.last { it.hasActionsAvailableReq() }.actionsAvailableReq.actionsList.single {
+                    it.actionType == ActionType.Cast
+                }
+            submitAction(cast)
+            passUntilResolved()
+            val resolved = human.battlefield.card("Centaur Courser")
+            assertSoftly {
+                resolved.owner shouldBe ai
+                resolved.controller shouldBe human
+                resolved.netPower shouldBe 3
+                resolved.netToughness shouldBe 3
+                resolved.isFaceDown shouldBe false
+                resolved.mayPlay(human).shouldBeEmpty()
+                ai.getZone(ZoneType.Exile).cards.shouldBeEmpty()
+            }
+        }
         for (chosenZone in listOf("Hand", "GraveyardNonland", "GraveyardLand")) {
             session(
                 "Agonizing Remorse selects legal hand and graveyard cards: $chosenZone",
