@@ -168,13 +168,14 @@ data class CardSnapshot(
     val isSolved: Boolean = false,
     /**
      * True when the card is currently in Exile with the foretold state.
-     * Drives the face-down exile rendering (FaceDown +
-     * SuppressedPowerAndToughness annotations + visibility=Private). Foretell
+     * Drives the Foretell FaceDown and SuppressedPowerAndToughness annotations. Foretell
      * is single-state — None or Foretold — so a Boolean is enough; no Role
      * hierarchy needed (compare PlottedRole / PreparedRole which carry
      * additional structural variants).
      */
     val isForetold: Boolean = false,
+    /** Actual face-down exile state; inspection permission is independent of ownership. */
+    val isFaceDownInExile: Boolean = false,
     /** Supported face-down battlefield/stack mechanic, when present. */
     val faceDownKind: FaceDownKind? = null,
     /** True when this card is one of its owner's commanders. */

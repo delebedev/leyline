@@ -255,6 +255,12 @@ baselines, annotation lifecycles, prompt facts, and logical output advance only
 when that transition installs. The projection core receives immutable inputs;
 it does not query the live Forge graph.
 
+Face-down exile snapshots retain original display characteristics and Forge's
+explicit inspection grants. Viewer projection shows other seats a card back,
+including the owner when only an opponent has permission to inspect it. Linked
+faces inherit the same inspection grants. Cast discovery recovers the original
+spell while Forge still owns permission, timing, and payment validation.
+
 `ZoneHandoffProjection` applies already allocated card handoffs to a private
 object/zone patch set. Ordered same-frame chains retain every retired lifetime
 and record only the final destination. Hidden-object observations and vanished

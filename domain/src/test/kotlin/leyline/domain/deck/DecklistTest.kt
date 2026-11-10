@@ -78,6 +78,95 @@ class DecklistTest :
                 listOf(DecklistSection.Commander, DecklistSection.Main, DecklistSection.Sideboard)
         }
 
+        test("accepts common mainboard labels and trailing colons") {
+            for (header in listOf("Mainboard", "MAINBOARD:", "[Mainboard]", "[Mainboard]:")) {
+                val decklist = parseDecklist("Commander:\n1 Empress Galina\n$header\n2 Island\n[Sideboard]:\n3 Negate")
+
+                decklist.entries shouldBe
+                    listOf(
+                        DecklistEntry(DecklistSection.Commander, 1, "Empress Galina"),
+                        DecklistEntry(DecklistSection.Main, 2, "Island"),
+                        DecklistEntry(DecklistSection.Sideboard, 3, "Negate"),
+                    )
+            }
+        }
+
+        test("known card type categories preserve the current section") {
+            val categories =
+                listOf(
+                    "Artifact",
+                    "Artifacts",
+                    "Battle",
+                    "Battles",
+                    "Creature",
+                    "Creatures",
+                    "Enchantment",
+                    "Enchantments",
+                    "Instant",
+                    "Instants",
+                    "Land",
+                    "Lands",
+                    "Planeswalker",
+                    "Planeswalkers",
+                    "Sorcery",
+                    "Sorceries",
+                )
+            for (section in listOf(DecklistSection.Sideboard, DecklistSection.Commander, DecklistSection.Companion)) {
+                val text = "${section.name}\n" + categories.joinToString("\n") { "[$it]:\n2 Island" }
+                val entries = parseDecklist(text).entries
+
+                assertSoftly {
+                    entries shouldHaveSize categories.size
+                    entries.all { it.section == section && it.quantity == 2 } shouldBe true
+                }
+            }
+            parseDecklist("Creatures\n1 Grizzly Bears").entries.single().section shouldBe DecklistSection.Main
+        }
+
+        test("maybeboard cards are excluded without changing later sections") {
+            val decklist =
+                parseDecklist(
+                    """
+                    Commander
+                    1 Empress Galina
+                    Mainboard
+                    Artifacts
+                    2 Sol Ring
+                    Maybeboard:
+                    [Creatures]
+                    1 Not In Catalog
+                    Sideboard
+                    Instants:
+                    3 Negate
+                    Main
+                    Lands
+                    4 Island
+                    """.trimIndent(),
+                )
+            val names = mutableListOf<String>()
+            val cards =
+                decklist.resolveCards { name, _ ->
+                    names.add(name)
+                    names.size
+                }
+
+            assertSoftly {
+                names shouldBe listOf("Empress Galina", "Sol Ring", "Negate", "Island")
+                cards.commandZone.map { it.grpId to it.quantity } shouldBe listOf(1 to 1)
+                cards.mainDeck.map { it.grpId to it.quantity } shouldBe listOf(2 to 2, 4 to 4)
+                cards.sideboard.map { it.grpId to it.quantity } shouldBe listOf(3 to 3)
+            }
+        }
+
+        test("excluded sections still reject unknown headings and invalid quantities") {
+            for (line in listOf("[Collection]", "Mainbaord", "[Mainboard", "Mainboard::", "0 Island", "-1 Island", "999999999999 Island")) {
+                val ex = shouldThrow<DecklistException> { parseDecklist("1 Forest\nMaybeboard\n$line") }
+
+                ex.errors shouldHaveSize 1
+            }
+            shouldThrow<DecklistException> { parseDecklist("[Maybeboard]\n1 Island") }
+        }
+
         test("parses a representative bundled deck header sequence") {
             // Matches the real data/decks/*.txt shape: bare `Deck`, main-deck lines with
             // an Arena export suffix, then bare `Sideboard`.
@@ -121,7 +210,7 @@ class DecklistTest :
         }
 
         test("rejects an unknown bracket header instead of silently routing to Main") {
-            val ex = shouldThrow<DecklistException> { parseDecklist("[Maybeboard]\n4 Lightning Bolt") }
+            val ex = shouldThrow<DecklistException> { parseDecklist("[Collection]\n4 Lightning Bolt") }
 
             ex.errors shouldHaveSize 1
         }

@@ -71,13 +71,10 @@ fun getAllCastableAbilities(
     player: Player,
     checkTiming: Boolean = true,
 ): List<SpellAbility> {
-    // Foretold cards in exile are face-down — card.getSpells() reads from the
-    // current state (face-down) which has no spells. Reach into the original
-    // state to recover the underlying castable SA, then let
-    // GameActionUtil.getAlternativeCosts attach the AlternativeCost.Foretold
-    // wrapper. Without this, foretold cards never surface a cast action.
+    // Face-down exile has no current spells; original abilities retain Forge's
+    // player-specific cast permissions and alternative costs without revealing the card.
     val baseAbilities =
-        if (card.isForetold && card.isInZone(forge.game.zone.ZoneType.Exile) && card.getSpells().isEmpty()) {
+        if (card.isFaceDown && card.isInZone(ZoneType.Exile) && card.getSpells().isEmpty()) {
             card.getOriginalState(forge.card.CardStateName.Original)?.nonManaAbilities?.filter { it.isSpell }
                 ?: emptyList()
         } else {

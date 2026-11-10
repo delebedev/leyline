@@ -63,6 +63,12 @@ Local Commander games configure one free first mulligan in `GameBootstrap`; gene
 
 The engine thread blocks in these calls. Never block on session-owned state from an override; post a pending request and let the session complete the future.
 
+One-shot ability payments resolve their catalog identity while the live callback
+still exposes trigger and original-ability provenance. The immutable payment
+input keeps that identity separate from the Forge runtime ability id. A payment
+inside a wrapped stack ability retains the exact wrapper's runtime id, so its
+prompt uses the existing stack object rather than a second pre-stack activation.
+
 Named `Choices` votes block in `PlayerController.vote` and retain the exact
 option handles through the modal choice lifecycle. The compatibility request
 carries `Prompt.parameters[choiceKind] = "vote"`, a `NonLocalizedString`, so
