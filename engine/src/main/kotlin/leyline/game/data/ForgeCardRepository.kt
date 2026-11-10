@@ -244,7 +244,7 @@ class ForgeCardRepository private constructor(
             }
             val visited = mutableSetOf<String>()
             while (!effect.containsKey("Choices")) {
-                val variable = effect["Execute"] ?: effect["AddTrigger"] ?: effect["ReplaceWith"] ?: break
+                val variable = effect["Execute"] ?: effect["AddTrigger"] ?: effect["ReplaceWith"] ?: effect["SubAbility"] ?: break
                 if (!visited.add(variable)) break
                 effect = variables[variable]?.let(::parseParams) ?: break
             }

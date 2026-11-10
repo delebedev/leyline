@@ -103,7 +103,7 @@ selects eager loading by default; a host opting into lazy loading must do so on
 the first initialization and reuse the same resource catalog for that JVM.
 The no-index repository path deliberately materializes the full catalog.
 
-Modal option identities follow nested `Execute`, `AddTrigger`, and `ReplaceWith`
+Modal option identities follow nested `Execute`, `AddTrigger`, `ReplaceWith`, and `SubAbility`
 references, so their selectable effects share the catalog's stable identity and
 localization path.
 
@@ -182,6 +182,9 @@ or generic fallback.
 `ForgeText` adds a `Cost` / `NonLocalizedString` parameter to the optional CTO
 row prompt. Native rows and the Done terminator retain their existing shape.
 Costs without a formatted description retain catalog or option-type presentation.
+
+Optional repeated effects publish the completed iteration before requesting
+another iteration through the existing source-bound optional-action gate.
 
 Native alternate-cost labels distinguish sacrificing one unrestricted artifact
 and discarding one unrestricted card. The bridge classifies these from Forge

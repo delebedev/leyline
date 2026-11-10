@@ -71,6 +71,8 @@ object ConfirmActionPlanner {
                 return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:Optional")
             sa?.api == ApiType.RearrangeTopOfLibrary && sa.hasParam("MayShuffle") ->
                 return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:MayShuffle", PromptIds.OPTIONAL_SHUFFLE)
+            sa?.api == ApiType.Repeat && sa.hasParam("RepeatOptional") ->
+                return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:RepeatOptional")
         }
         val labels = options?.takeIf { it.isNotEmpty() }?.toList() ?: listOf("Yes", "No")
         val sourceEntityId = hostCard?.id?.takeIf { it > 0 }
