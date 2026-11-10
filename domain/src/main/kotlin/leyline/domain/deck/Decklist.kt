@@ -66,15 +66,19 @@ class DecklistException(
 private val LINE_REGEX = Regex("""^(\d+)x?\s+(.+)$""", RegexOption.IGNORE_CASE)
 private val SET_PAREN_REGEX = Regex("""\s*\([A-Za-z0-9]+\)(?:\s+[A-Za-z0-9]+)?\s*$""")
 private val SECTION_LABEL_REGEX =
-    Regex("""^(?:\[(Deck|Main|Sideboard|Commander|Companion)]|(Deck|Main|Sideboard|Commander|Companion))\s*$""", RegexOption.IGNORE_CASE)
+    Regex("""^(Deck|Main|Mainboard|Sideboard|Commander|Companion|Maybeboard)$""", RegexOption.IGNORE_CASE)
+private val CATEGORY_LABEL_REGEX =
+    Regex("""^(Artifacts?|Battles?|Creatures?|Enchantments?|Instants?|Lands?|Planeswalkers?|Sorcery|Sorceries)$""", RegexOption.IGNORE_CASE)
 private val COMMENT_REGEX = Regex("""^[#;]|^//""")
 private val SET_CODE_REGEX = Regex("""\(([A-Za-z0-9]+)\)""")
 
 /**
  * Parse bundled and Web-import decklist text into sectioned, unresolved entries.
  * Grammar: `N Name` or `Nx Name`, optional `(SET)` and collector-number suffixes,
- * bare or bracketed `Deck`/`Main`/`Sideboard`/`Commander`/`Companion` headers, and
- * `#`/`;`/`//` comments. No pipe set-code suffix or quantity-less card lines —
+ * bare or bracketed `Deck`/`Main`/`Mainboard`/`Sideboard`/`Commander`/`Companion`
+ * headers with optional trailing colons, and `#`/`;`/`//` comments. Card-type
+ * category headers preserve the current section. `Maybeboard` entries are
+ * syntax-checked but excluded. No pipe set-code suffix or quantity-less card lines —
  * Forge/runtime text already goes through
  * [leyline.bridge.bootstrap.DeckLoader]'s own [forge.deck.DeckRecognizer] grammar.
  * Rejects the whole input on any unrecognized line, a malformed quantity, or an
@@ -84,16 +88,26 @@ fun parseDecklist(text: String): Decklist {
     val entries = mutableListOf<DecklistEntry>()
     val errors = mutableListOf<String>()
     var section = DecklistSection.Main
+    var excluded = false
 
     for (rawLine in text.lines()) {
         val line = rawLine.trim()
         if (line.isBlank() || COMMENT_REGEX.containsMatchIn(line)) continue
 
-        val label = SECTION_LABEL_REGEX.matchEntire(line)
+        val header =
+            line
+                .removeSuffix(":")
+                .trim()
+                .removeSurrounding("[", "]")
+                .trim()
+        val label = SECTION_LABEL_REGEX.matchEntire(header)
         if (label != null) {
-            section = sectionFor(label.groupValues.drop(1).first { it.isNotEmpty() })
+            val name = label.groupValues[1]
+            excluded = name.equals("maybeboard", ignoreCase = true)
+            if (!excluded) section = sectionFor(name)
             continue
         }
+        if (CATEGORY_LABEL_REGEX.matches(header)) continue
 
         val match = LINE_REGEX.matchEntire(line)
         if (match == null) {
@@ -113,7 +127,7 @@ fun parseDecklist(text: String): Decklist {
         }
 
         val setCode = SET_CODE_REGEX.find(rawName)?.groupValues?.get(1)
-        entries += DecklistEntry(section, quantity, cleaned, setCode)
+        if (!excluded) entries += DecklistEntry(section, quantity, cleaned, setCode)
     }
 
     if (errors.isNotEmpty()) throw DecklistException(errors)
@@ -126,7 +140,7 @@ private fun sectionFor(label: String): DecklistSection =
         "sideboard" -> DecklistSection.Sideboard
         "commander" -> DecklistSection.Commander
         "companion" -> DecklistSection.Companion
-        else -> DecklistSection.Main // "deck", "main"
+        else -> DecklistSection.Main // "deck", "main", "mainboard"
     }
 
 /**
