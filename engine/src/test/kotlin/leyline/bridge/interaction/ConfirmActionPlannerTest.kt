@@ -47,6 +47,8 @@ class ConfirmActionPlannerTest :
                     Case(ApiType.Endure, emptyMap(), true, false, PromptIds.ENDURE_PUT_COUNTERS),
                     Case(ApiType.CopySpellAbility, mapOf("Optional" to "True"), false, true, null),
                     Case(ApiType.RearrangeTopOfLibrary, mapOf("MayShuffle" to "True"), false, true, PromptIds.OPTIONAL_SHUFFLE),
+                    Case(ApiType.Repeat, mapOf("RepeatOptional" to "True"), false, true, null),
+                    Case(ApiType.Repeat, mapOf("RepeatOptional" to "False"), false, true, null),
                 )
             for (case in cases) {
                 val sa = confirmAbility(case.api, case.params)
@@ -70,6 +72,7 @@ class ConfirmActionPlannerTest :
                 confirmAbility(ApiType.Endure),
                 confirmAbility(ApiType.CopySpellAbility, mapOf("Optional" to "True")),
                 confirmAbility(ApiType.RearrangeTopOfLibrary, mapOf("MayShuffle" to "True")),
+                confirmAbility(ApiType.Repeat, mapOf("RepeatOptional" to "True")),
             )) {
                 ConfirmActionPlanner.plan(sa, PlayerActionConfirmMode.ChangeZoneToAltDestination, listOf("Odd", "Even"), commander) shouldBe
                     ConfirmActionPlan.CommanderReturn(commander)
@@ -121,6 +124,8 @@ class ConfirmActionPlannerTest :
                     confirmAbility(ApiType.Draw, mapOf("Optional" to "True", "MayShuffle" to "True")),
                     confirmAbility(ApiType.CopySpellAbility),
                     confirmAbility(ApiType.RearrangeTopOfLibrary),
+                    confirmAbility(ApiType.Repeat),
+                    confirmAbility(ApiType.Draw, mapOf("RepeatOptional" to "True")),
                 )
             for (sa in cases) {
                 val plan =
@@ -137,15 +142,19 @@ class ConfirmActionPlannerTest :
         }
 
         test("classification uses the callback subability rather than promoting an enclosing effect") {
-            val callback = confirmAbility(ApiType.RearrangeTopOfLibrary, mapOf("MayShuffle" to "True"))
-            val wrapper = confirmAbility(ApiType.Draw).also { it.subAbility = callback }
-            ConfirmActionPlanner
-                .plan(wrapper, null, null, null)
-                .shouldBeInstanceOf<ConfirmActionPlan.Choice.AffirmativeDefault>()
-            ConfirmActionPlanner
-                .plan(callback, null, null, null)
-                .shouldBeInstanceOf<ConfirmActionPlan.OptionalAction>()
-                .customPromptId shouldBe PromptIds.OPTIONAL_SHUFFLE
+            for ((callback, promptId) in listOf(
+                confirmAbility(ApiType.RearrangeTopOfLibrary, mapOf("MayShuffle" to "True")) to PromptIds.OPTIONAL_SHUFFLE,
+                confirmAbility(ApiType.Repeat, mapOf("RepeatOptional" to "True")) to null,
+            )) {
+                val wrapper = confirmAbility(ApiType.Draw).also { it.subAbility = callback }
+                ConfirmActionPlanner
+                    .plan(wrapper, null, null, null)
+                    .shouldBeInstanceOf<ConfirmActionPlan.Choice.AffirmativeDefault>()
+                ConfirmActionPlanner
+                    .plan(callback, null, null, null)
+                    .shouldBeInstanceOf<ConfirmActionPlan.OptionalAction>()
+                    .customPromptId shouldBe promptId
+            }
         }
 
         test("parity preserves offered order and rejects incomplete duplicate and oversized domains") {

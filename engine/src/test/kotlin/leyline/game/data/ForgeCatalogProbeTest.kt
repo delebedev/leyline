@@ -22,6 +22,7 @@ import leyline.testkit.detailInt
 import leyline.testkit.exile
 import leyline.testkit.graveyard
 import leyline.testkit.hand
+import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.headless.TestCardRegistry
 import leyline.tooling.headless.dumpDiagnostics
@@ -656,10 +657,11 @@ internal fun forgeCatalogProbe(
     name: String,
     board: String = "",
     puzzleFile: String? = null,
+    responseMode: HeadlessResponseMode = HeadlessResponseMode.AutoForTests,
     block: MatchFlowHarness.(ForgeCardRepository) -> Unit,
 ) {
     val repo = ForgeCardRepository.open()
-    val harness = MatchFlowHarness(cardRepositoryOverride = repo)
+    val harness = MatchFlowHarness(cardRepositoryOverride = repo, responseMode = responseMode)
     val puzzle =
         if (puzzleFile != null) {
             val path = puzzleFile
