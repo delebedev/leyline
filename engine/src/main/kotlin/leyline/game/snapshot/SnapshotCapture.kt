@@ -485,14 +485,11 @@ object SnapshotCapture {
         preparedLinkage: PreparedLinkage,
     ): CardSnapshot {
         val onBf = card.isInZone(ForgeZoneType.Battlefield)
-        // Foretold cards are face-down — `card.type` reads from the FaceDown state
-        // (Creature 2/2). Owner-perspective output must show the Original state
-        // (Instant for Demon Bolt, etc.) so MTGA renders the real card and offers
-        // the foretell-cast UX. (Forge's FaceDown defaults are appropriate for
-        // morph / disguise on the battlefield, not for face-down-in-exile.)
-        val isForetoldCard = Foretell.isForetold(card)
+        // Exile inspection uses original characteristics; viewer projection hides
+        // that identity from seats without Forge's inspection permission.
+        val isFaceDownInExile = card.isFaceDown && card.isInZone(ForgeZoneType.Exile)
         val originalState =
-            if (isForetoldCard) card.getOriginalState(forge.card.CardStateName.Original) else null
+            if (isFaceDownInExile) card.getOriginalState(forge.card.CardStateName.Original) else null
         val type = originalState?.type ?: card.type
         val resolvedName = originalState?.name?.takeIf { it.isNotEmpty() } ?: card.name
 
@@ -638,9 +635,9 @@ object SnapshotCapture {
             effectiveFlying = if (observeFlying) card.hasKeyword("Flying") else null,
             flyingAbilityGrpIds = flyingAbilityGrpIds,
             isPhasedOut = card.isPhasedOut,
-            // P/T captured for all creatures so off-battlefield object shape stays stable.
-            netPower = if (type.isCreature) card.netPower else null,
-            netToughness = if (type.isCreature) card.netToughness else null,
+            // Face-down exile inspection retains catalog P/T instead of the live 2/2 stencil.
+            netPower = if (type.isCreature && !isFaceDownInExile) card.netPower else null,
+            netToughness = if (type.isCreature && !isFaceDownInExile) card.netToughness else null,
             tapped = if (onBf) card.isTapped else false,
             hasSickness = onBf && type.isCreature && card.hasSickness(),
             damage = if (onBf && type.isCreature) card.damage else 0,
@@ -668,6 +665,7 @@ object SnapshotCapture {
             isSuspected = onBf && card.isSuspected,
             isSolved = onBf && card.isSolved,
             isForetold = Foretell.isForetold(card),
+            isFaceDownInExile = isFaceDownInExile,
             faceDownKind = FaceDown.kind(card),
             isCommander = card.isCommander,
             commanderTax = commanderTax(card),

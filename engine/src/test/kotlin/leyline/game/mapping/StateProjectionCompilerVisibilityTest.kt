@@ -82,7 +82,17 @@ class StateProjectionCompilerVisibilityTest :
                     seats = listOf(SeatSnapshot(SeatId(1), 20, 20, 7), SeatSnapshot(SeatId(2), 20, 20, 7)),
                     objects =
                         mapOf(
-                            foretoldId to CardSnapshot(foretoldId, "Foretold card", 101, SeatId(1), SeatId(2), isForetold = true),
+                            foretoldId to
+                                CardSnapshot(
+                                    foretoldId,
+                                    "Foretold card",
+                                    101,
+                                    SeatId(1),
+                                    SeatId(2),
+                                    isForetold = true,
+                                    isFaceDownInExile = true,
+                                    mayLookSeatIds = setOf(SeatId(1)),
+                                ),
                             publicId to CardSnapshot(publicId, "Public exile card", 202, SeatId(2), SeatId(2)),
                             handId to CardSnapshot(handId, "Private hand card", 303, SeatId(1), SeatId(1)),
                         ),
@@ -147,7 +157,9 @@ class StateProjectionCompilerVisibilityTest :
                     matchId = snapshot.matchId,
                     gameStateId = 1,
                     seats = snapshot.seats,
-                    objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
+                    objects =
+                        snapshot.objects +
+                            (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false, isFaceDownInExile = false)),
                     zones =
                         snapshot.zones +
                             mapOf(
@@ -210,7 +222,9 @@ class StateProjectionCompilerVisibilityTest :
                     matchId = snapshot.matchId,
                     gameStateId = 3,
                     seats = snapshot.seats,
-                    objects = snapshot.objects + (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false)),
+                    objects =
+                        snapshot.objects +
+                            (foretoldId to snapshot.objects.getValue(foretoldId).copy(isForetold = false, isFaceDownInExile = false)),
                     zones =
                         snapshot.zones +
                             mapOf(

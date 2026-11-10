@@ -399,6 +399,10 @@ object StateProjectionCompiler {
                 .filter { it.zoneId in handZones }
                 .flatMapTo(mutableSetOf()) { it.objectInstanceIdsList }
         val priorObjects = priorFullState.gameObjectsList.associateBy { it.instanceId }
+        val privateExileParents =
+            neutralState.gameObjectsList
+                .filter { it.zoneId == ZoneIds.EXILE && it.isFacedown && it.visibility == Visibility.Private }
+                .mapTo(mutableSetOf()) { it.instanceId }
         val emittedIds = gsm.gameObjectsList.mapTo(mutableSetOf()) { it.instanceId }
         val changedHandVisibility =
             fullState.gameObjectsList.filter { current ->
@@ -430,6 +434,10 @@ object StateProjectionCompiler {
                                 it.visibility == Visibility.Private &&
                                     it.parentId != 0 &&
                                     it.zoneId in setOf(ZoneIds.P1_LIBRARY, ZoneIds.P2_LIBRARY)
+                            ) ||
+                            (
+                                it.zoneId == ZoneIds.EXILE &&
+                                    it.parentId in privateExileParents
                             )
                     ) &&
                         it.instanceId !in currentIds

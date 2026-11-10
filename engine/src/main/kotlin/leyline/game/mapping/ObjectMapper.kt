@@ -413,7 +413,9 @@ object ObjectMapper {
             .setParentId(parent.instanceId)
             .addAllViewers(
                 parent.viewersList.ifEmpty {
-                    listOf(parent.ownerSeatId).takeIf { parent.visibility == Visibility.Private }.orEmpty()
+                    listOf(parent.ownerSeatId)
+                        .takeIf { parent.visibility == Visibility.Private && !(parent.isFacedown && parent.zoneId == ZoneIds.EXILE) }
+                        .orEmpty()
                 },
             ).build()
 
