@@ -31,6 +31,7 @@ import forge.game.cost.CostPart
 import forge.game.cost.CostPartMana
 import forge.game.cost.CostPartWithList
 import forge.game.cost.CostPayLife
+import forge.game.cost.CostPutCounter
 import forge.game.cost.CostReturn
 import forge.game.cost.CostSacrifice
 import forge.game.cost.CostTapType
@@ -662,6 +663,16 @@ class PlayerController(
             activeCost.payment.ability === sa
         ) {
             return true
+        }
+
+        // Forge asks before paying source-counter unless costs on the engine thread.
+        if (costPart is CostPutCounter && costPart.payCostFromSource() && sa.hasParam("UnlessCost")) {
+            return optionalActionGate.await(
+                hostCard = sa.hostCard,
+                forceSnapshotBeforePrompt = true,
+                defaultOnTimeout = false,
+                logContext = "confirmPayment:source-counter",
+            )
         }
 
         // PCHuman's version uses InputConfirm (desktop-only). Route through bridge.
