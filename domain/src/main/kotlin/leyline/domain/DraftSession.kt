@@ -4,7 +4,7 @@ package leyline.domain
  * Draft session state — tracks pick-by-pick progress through 3 packs.
  *
  * Quick Draft lifecycle: `PickNext -> ... -> Completed`.
- * Pack contents come from a `BoosterDraftDriver` one pack at a time; the session
+ * Pack contents come from [leyline.domain.service.DraftService.Driver] one pack at a time; the session
  * only carries the pack the player is currently choosing from. The driver
  * internally drives 7 bot picks between human picks.
  *

@@ -5,11 +5,12 @@ import forge.item.PaperCard
 import forge.model.FModel
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.DraftSettings
+import leyline.domain.service.DraftService
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * [BoosterDraftDriver] backed by Forge's `BoosterDraft` engine.
+ * [DraftService.Driver] backed by Forge's `BoosterDraft` engine.
  *
  * Holds one [HeadlessBoosterDraft] per active session. Translates between
  * Forge `PaperCard` and Arena `grpId` via a name-to-grpId lookup.
@@ -27,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 class ForgeBoosterDraftDriver(
     private val findGrpIdByName: (String) -> Int?,
     private val draftSettings: DraftSettings = DraftSettings(),
-) : BoosterDraftDriver {
+) : DraftService.Driver {
     private val log = LoggerFactory.getLogger(ForgeBoosterDraftDriver::class.java)
 
     init {
@@ -67,7 +68,7 @@ class ForgeBoosterDraftDriver(
     override fun pick(
         sessionKey: String,
         grpId: Int,
-    ): PickResult {
+    ): DraftService.PickOutcome {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
         val pack = draft.currentPackPaperCards()
@@ -96,7 +97,7 @@ class ForgeBoosterDraftDriver(
         active.packIndex = nextPackIndex
         active.pickIndex = nextPickIndex
 
-        return PickResult(
+        return DraftService.PickOutcome(
             packNumber = nextPackIndex,
             pickNumber = nextPickIndex,
             nextPack = packToGrpIds(nextPack),
@@ -105,7 +106,7 @@ class ForgeBoosterDraftDriver(
     }
 
     @Synchronized
-    override fun complete(sessionKey: String): PodResult {
+    override fun complete(sessionKey: String): DraftService.PodOutcome {
         val active = sessions[sessionKey] ?: error("No active draft session: $sessionKey")
         val draft = active.draft
         val playerPool = packToGrpIds(draft.localPlayerPool())
@@ -129,11 +130,11 @@ class ForgeBoosterDraftDriver(
                 grpIds.toList()
             }
         sessions.remove(sessionKey)
-        return PodResult(playerPool = playerPool, botDecks = botDecks)
+        return DraftService.PodOutcome(playerPool = playerPool, botDecks = botDecks)
     }
 
     @Synchronized
-    override fun discardAll() {
+    fun discardAll() {
         sessions.clear()
     }
 
