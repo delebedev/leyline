@@ -4,6 +4,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 
 data class StackSnapshot(
+    /** Spell cards and abilities in Forge's top-first resolution order. */
     val entries: List<StackEntry>,
     /** Exact stack item currently executing, retained across blocking effect choices. */
     val resolvingEntry: StackEntry? = null,

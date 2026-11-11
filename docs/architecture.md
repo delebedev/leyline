@@ -13,28 +13,6 @@ owns the system shape and module boundaries. Durable rationale lives in
 [`docs/decisions/`](decisions/); cross-thread constraints live in
 [`bridge-threading.md`](bridge-threading.md).
 
-## Snapshot consultation
-
-Snapshot consultation is a fresh, one-shot advisory path. One serialized game
-state is imported into one disposable Forge place, consulted, and torn down.
-A persistent twin of a running match is not part of the architecture.
-
-The import is one atomic mutation boundary inside Forge puzzle application.
-Base objects, zones, identities, visible types, relationships, counters,
-recognized survival grants, current characteristics, tap state, marked damage,
-combat, and phase are established before Forge performs one final settled-state
-check. Triggers, autonomous runtime, and advisors cannot observe the place
-between those mutations.
-
-`PromptDecisionAdvisor` owns the desired prompt decision for both active and
-reconstructed games. Copilot owns incremental native realization and response
-encoding. Simclient owns whole-decision submission, retry and fallback policy,
-and telemetry. Snapshot fidelity reports delivery validity separately from
-strategy confidence so only findings relevant to the pending prompt can prevent
-a response. A cast offer whose permission cannot be reconstructed from card
-identity is an explicit prompt-scoped missing feature, so strategic consultation
-falls back to the host instead of choosing around that offer.
-
 ## System shape
 
 ```mermaid
@@ -82,10 +60,9 @@ Within `engine`, responsibilities follow the execution boundary:
 
 Module-local ownership and dependency rules live in the nearest `AGENTS.md`.
 
-`domain` owns `DraftService.Driver` and its `PickOutcome` and `PodOutcome` values.
-`ForgeBoosterDraftDriver` implements that contract directly; native composition
-passes it to `DraftService` without result translation. Forge pack state, bot
-selection and concrete `discardAll` cleanup remain owned by the engine driver.
+`domain` owns the draft driver contract and result values. The engine's
+`ForgeBoosterDraftDriver` owns Forge pack state, bot selection, and cleanup;
+native composition supplies that driver to `DraftService`.
 
 `CardRepository` is the card-metadata seam shared by projection and embedding
 hosts. The native composition root uses `SqliteCardRepository` for native-client
@@ -93,38 +70,6 @@ identifiers. A Web embedding host can use `ForgeCardRepository`, whose generated
 identifiers are scoped to its `catalogVersion`. The version covers the Forge card
 definitions and identity scheme; persisted identifiers must be bound to that
 exact version before use.
-
-Token identity follows the token actually created, including tokens from granted
-abilities. A source's linked token is usable only when its name matches the live
-token. A mismatch falls through to the token's script or name lookup rather than
-borrowing an unrelated native token identity from the ability's host.
-
-Embedding hosts may generate the complete identity index with
-`ForgeCardRepository.writeCatalogIndex` during their asset build, then open that
-index with the matching resource archive SHA-256. The host verifies the archive
-bytes before passing that digest. This preserves catalog-wide identities while
-Forge materializes definitions on demand. `GameBootstrap.initializeCardDatabase`
-selects eager loading by default; a host opting into lazy loading must do so on
-the first initialization and reuse the same resource catalog for that JVM.
-The no-index repository path deliberately materializes the full catalog.
-
-Modal option identities follow nested `Execute`, `AddTrigger`, `ReplaceWith`, and `SubAbility`
-references, so their selectable effects share the catalog's stable identity and
-localization path.
-
-Combined Split and Room cards expose one parent identity with ordered face
-identities. Specialize cards expose the base identity with five form identities.
-Normal name lookup maps Split faces and Specialize forms back to the deck-legal
-parent, while live objects use the selected face identity. Split casting
-currently offers either half through the generic cast action; fused casting is
-not exposed. Deck-entry lookup treats the typographic apostrophe (`’`) as the
-straight apostrophe (`'`) in primary, linked-face, and combined names, alongside
-case-insensitive matching. It does not remove punctuation or accept mismatched
-combined faces.
-
-Run `./gradlew :engine:testForgeCatalog` for the Forge catalog classification,
-identity, and gameplay checks. This isolated lane supplies an invalid card-database
-path to verify that the adapter has no native card-database dependency.
 
 ## Match runtime
 
@@ -134,12 +79,8 @@ timer, and test entrants call the transport-neutral match surface. Interactive
 session entry is serialized separately from publication and projection commit.
 
 `MatchRegistry.Registration` owns the current session for one seat attachment.
-The registry and `MatchConnection` retain the same registration, so puzzle
-replacement updates one session reference for peer lookup, advice and inbound
-dispatch. A reconnect installs a fresh registration rather than redirecting an
-old connection. The optional connection lives on that registration; standalone
-sessions need no separate connection entry. Familiar and spectator seats retain
-their own registrations.
+Connections observe that registration rather than retaining independent session
+ownership. A reconnect installs a fresh registration.
 
 ```mermaid
 flowchart LR
@@ -173,39 +114,6 @@ Forge-confinement and value-boundary rationale.
 [`bridge-threading.md`](bridge-threading.md) is authoritative for execution
 domains, mutable-state ownership, lock order, delivery limits, teardown, and the
 bounded initial-publication replay used by reconnect.
-
-Cast-cost presentation is selected through
-`EngineSettings.costChoicePresentation`. `Native` is the default and retains the
-supported numeric prompt bindings. An embedding host may select `ForgeText` to
-receive one `NonLocalizedString` GRE parameter per offered branch. Both normal
-and puzzle matches retain the host setting for their lifetime.
-
-For optional costs, the bridge freezes Forge's formatted cost description.
-Binary keyword costs also use Forge's keyword title when the keyword supplies
-a cost formatter, including offspring. Other keyword costs keep their catalog
-or generic fallback.
-`ForgeText` adds a `Cost` / `NonLocalizedString` parameter to the optional CTO
-row prompt. Native rows and the Done terminator retain their existing shape.
-Costs without a formatted description retain catalog or option-type presentation.
-
-Optional repeated effects publish the completed iteration before requesting
-another iteration through the existing source-bound optional-action gate.
-Source-counter unless costs retain the same explicit consent boundary. Forge
-applies the counters only after acceptance; decline or timeout leaves the unless
-effect to resolve without paying that cost.
-
-Native alternate-cost labels distinguish sacrificing one unrestricted artifact
-and discarding one unrestricted card. The bridge classifies these from Forge
-cost parts, including amount and selector, rather than parsing the description.
-
-The bridge freezes Forge's full branch description while retaining the original
-ability behind an opaque token. The description includes printed additional
-cost text and may repeat the spell effect. It is not a current total-mana quote.
-GRE construction resolves labels before cut installation; delivery does not
-rewrite them. Shared selected-cost facts carry meaning rather than localization
-numbers, which annotation construction resolves separately. This seam currently
-covers alternate additional costs only. Native mapping gaps remain explicit,
-and text presentation does not establish native renderer compatibility.
 
 ## Interaction cuts
 
@@ -263,44 +171,9 @@ baselines, annotation lifecycles, prompt facts, and logical output advance only
 when that transition installs. The projection core receives immutable inputs;
 it does not query the live Forge graph.
 
-Face-down exile snapshots retain original display characteristics and Forge's
-explicit inspection grants. Viewer projection shows other seats a card back,
-including the owner when only an opponent has permission to inspect it. Linked
-faces inherit the same inspection grants. Cast discovery recovers the original
-spell while Forge still owns permission, timing, and payment validation.
-
-`ZoneHandoffProjection` applies already allocated card handoffs to a private
-object/zone patch set. Ordered same-frame chains retain every retired lifetime
-and record only the final destination. Hidden-object observations and vanished
-ability retirements remain distinct operations. Its immutable
-`ZoneProjectionLifecycle` is applied to the tentative editor after ordinary
-frame assembly. Synthetic library ordering uses the same application and
-`TransferAnnotations` recipe before its prompt is presented, while per-view
-rendering reuses the planned allocations. Allocation and committed ownership
-remain in `ProjectionState`.
-
-Stack membership interleaves spell cards and abilities in Forge's top-first
-order. Pending cast and targeting entries appear above admitted entries, while
-lingering spell entries cannot restore cards that left the Stack zone.
-Embedding heads retain this order so the first item is next to resolve.
-Staged and admitted Forge ability handles can alias one client lifetime.
-Reallocation advances every alias of that lifetime together, while retaining
-reverse lookup history for old instance IDs. Independent lifetimes remain
-distinct.
-
-Each seat's `DungeonSnapshot` freezes the current dungeon, room identity, and
-completion history; the persistent player feed retains one `DungeonStatus` row
-across room changes, completion, and reentry. Forge owns room resolution.
-
 A viewer cut installs one transition and output ordinal across its feeds. A
 stale or failed pre-install attempt publishes nothing and consumes no logical
 identifier.
-
-Phasing preserves a permanent's instance identity and battlefield membership.
-Its object uses `zoneId=12` while phased out and returns to battlefield zone 28
-on phase-in. No zone-12 container or zone-transfer event is emitted. Embedding
-heads must exclude that object from active battlefield views while this status
-is present. The `phasing` acceptance suite exercises the full return cycle.
 
 ## Output and delivery
 
@@ -311,8 +184,7 @@ batch. When code needs delivery awareness, it tracks that fact explicitly.
 
 Direct `GameBridge` identity, cursor, and zone edits are engine-shell projection
 state changes. They allocate no logical sequence or output and are not
-publication. Detailed ordering is documented in
-[`bridge-threading.md`](bridge-threading.md).
+publication.
 
 ### Spectator perspectives
 
@@ -320,3 +192,14 @@ AI-vs-AI sessions use a seat observer: private cards are visible only for the
 chosen seat, while the other hand retains membership without card identities.
 Seat observers receive no player decision prompts or legal-action windows.
 The public observer role continues to redact both seats’ private objects.
+
+## Advisory execution
+
+Snapshot consultation imports one serialized state into a disposable Forge game,
+answers a pending prompt, and tears the game down. It is not a persistent twin of
+an active match.
+
+`PromptDecisionAdvisor` owns desired decisions for active and reconstructed
+games. Copilot owns native response realization; simclient owns whole-decision
+submission, retries, fallback policy, and telemetry. Execution hosts retain those
+responsibilities rather than transferring them to the advisor.

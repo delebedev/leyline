@@ -25,9 +25,9 @@ import org.slf4j.LoggerFactory
  *    - Prepared-spell exile copy ([PreparedSpell.isCopy]) — TOKEN-piece-typed but
  *      represents a normal castable spell; resolve by current-state name.
  *    - `card.copiedPermanent != null` — copy permanent uses source's grpId.
- *    - Standard token via `tokenSpawningAbility.hostCard`'s
- *      `AbilityIdToLinkedTokenGrpId` mapping.
- *    - Token-name fallback for generated tokens whose source mapping is gone.
+ *    - Source-linked token identity only when it names the live token; a granted
+ *      ability can create a different token from its host's linked identity.
+ *    - Token-script or name fallback when the source mapping is absent or mismatched.
  * 3. Face-down alternate-state cards (Foretell / Disguise) — `card.name` is
  *    empty while face-down. Resolve via the Original state's name.
  * 4. Standard non-token — `findGrpIdByName` (primary) → `findGrpIdByNameAnyFace`
