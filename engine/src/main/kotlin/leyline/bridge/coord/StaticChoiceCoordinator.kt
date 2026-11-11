@@ -256,12 +256,29 @@ class StaticChoiceCoordinator(
                     defaultIndex = 0,
                     route = PromptRouteResolver.resolve(PromptSemantic.StaticColorChoice),
                     sourceEntityId = sourceEntityId(sa),
-                    staticList = StaticList.Colors,
+                    staticList = if (options.isAllColors) StaticList.Colors else StaticList.CardColors,
                     staticOptionIds = colorChoices.mapNotNull { StaticChoiceIds.colorIdForMask(it.colorMask) },
                 ),
             )
         val mask = indices.fold(0) { acc, idx -> acc or (colorChoices.getOrNull(idx)?.colorMask?.toInt() ?: 0) }
         return ColorSet.fromMask(mask)
+    }
+
+    /** Each mana unit gets a correlated static-color choice; counts retain repeated colors. */
+    fun specifyManaCombo(
+        sa: SpellAbility,
+        colors: ColorSet,
+        amount: Int,
+        different: Boolean,
+    ): Map<Byte, Int> {
+        val allocation = linkedMapOf<Byte, Int>()
+        var available = colors
+        repeat(amount) { index ->
+            val selected = chooseColors("Choose mana (${index + 1} of $amount)", sa, 1, 1, available).color
+            allocation[selected] = (allocation[selected] ?: 0) + 1
+            if (different) available = ColorSet.fromMask(available.color.toInt() and selected.toInt().inv())
+        }
+        return allocation
     }
 
     fun chooseSomeType(

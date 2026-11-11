@@ -856,6 +856,23 @@ class PlayerController(
         options: ColorSet,
     ): ColorSet = staticChoiceCoordinator.chooseColors(message, sa, min, max, options)
 
+    /**
+     * Inherited combo allocation uses GUI amount assignment, which defaults without input.
+     * The engine thread awaits one existing static-color window per mana unit instead.
+     * A single-unit callback retains the color already selected in the published action.
+     */
+    override fun specifyManaCombo(
+        sa: SpellAbility,
+        colorSet: ColorSet,
+        manaAmount: Int,
+        different: Boolean,
+    ): Map<Byte, Int> =
+        if (manaAmount == 1) {
+            mapOf(chooseColor("Choose mana", sa, colorSet) to 1)
+        } else {
+            staticChoiceCoordinator.specifyManaCombo(sa, colorSet, manaAmount, different)
+        }
+
     override fun chooseSomeType(
         kindOfType: String,
         sa: SpellAbility?,
