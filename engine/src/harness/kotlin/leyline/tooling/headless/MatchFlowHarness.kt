@@ -481,27 +481,20 @@ class MatchFlowHarness(
         return true
     }
 
-    /** Activate a battlefield mana ability and drain the resulting state update. */
+    /** Activate a published mana ability and drain the resulting state update. */
     fun activateMana(
         cardName: String,
         abilityIndex: Int = 0,
         selectedColor: ManaColor? = null,
     ): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
-        val card =
-            player
-                .getZone(ZoneType.Battlefield)
-                .cards
-                .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
         val pending = bridge.actionBridge(seatId).getPending()?.takeIf { it.state.kind == PendingActionKind.PRIORITY } ?: return false
-        val iid = bridge.instanceId(card)
         val offer =
             allMessages
                 .asReversed()
                 .firstOrNull { it.hasActionsAvailableReq() && it.gameStateId == pending.promptGameStateId }
                 ?.actionsAvailableReq
                 ?.actionsList
-                ?.filter { it.actionType == ActionType.ActivateMana && it.instanceId == iid }
+                ?.filter { it.actionType == ActionType.ActivateMana && cardByIid(it.instanceId)?.name.equals(cardName, ignoreCase = true) }
                 ?.getOrNull(abilityIndex) ?: return false
         val action =
             if (selectedColor == null) {
