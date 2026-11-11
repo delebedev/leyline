@@ -185,6 +185,9 @@ Costs without a formatted description retain catalog or option-type presentation
 
 Optional repeated effects publish the completed iteration before requesting
 another iteration through the existing source-bound optional-action gate.
+Source-counter unless costs retain the same explicit consent boundary. Forge
+applies the counters only after acceptance; decline or timeout leaves the unless
+effect to resolve without paying that cost.
 
 Native alternate-cost labels distinguish sacrificing one unrestricted artifact
 and discarding one unrestricted card. The bridge classifies these from Forge

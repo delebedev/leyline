@@ -16,6 +16,7 @@ import forge.game.cost.CostMill
 import forge.game.cost.CostPayLife
 import forge.game.cost.CostPayment
 import forge.game.cost.CostPutCardToLib
+import forge.game.cost.CostPutCounter
 import forge.game.cost.CostRemoveCounter
 import forge.game.cost.CostReveal
 import forge.game.cost.CostSacrifice
@@ -186,6 +187,21 @@ class CostDecisionTest :
                 .history
                 .single()
                 .message shouldBe "pay unless cost?"
+        }
+
+        for ((type, unless) in listOf("CARDNAME" to false, "Creature" to true)) {
+            test("counter confirmation for $type with unless=$unless retains its default policy") {
+                val fx = fixture()
+                if (unless) fx.ability.putParam("UnlessCost", "AddCounter<1/P1P1>")
+                val cost = CostPutCounter("1", CounterType.getType("P1P1"), type, null)
+
+                fx.controller.confirmPayment(cost, "put counter?", fx.ability) shouldBe true
+                fx.bridge
+                    .promptBridge(SeatId(1))
+                    .history
+                    .single()
+                    .message shouldBe "put counter?"
+            }
         }
 
         test("inherited mill visitor returns numeric payment when confirm defaults yes") {
