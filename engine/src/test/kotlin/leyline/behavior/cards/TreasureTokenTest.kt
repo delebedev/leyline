@@ -1,5 +1,6 @@
 package leyline.behavior.cards
 
+import forge.card.MagicColor
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -24,6 +25,7 @@ import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.gsm
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import leyline.testkit.StateMapperShell as StateMapper
 
 /**
@@ -104,9 +106,20 @@ class TreasureTokenTest :
                     leyline.bridge.coord.hasAmbiguousActionCatalog(projection.offers) shouldBe false
                 }
                 val selected = grants[grantedChoice].action
-                val response = selected.toBuilder()
-                response.getManaPaymentOptionsBuilder(0).getManaBuilder(0).color =
-                    wotc.mtgo.gre.external.messaging.Messages.ManaColor.Red_afc9
+                val published =
+                    accumulator.actions!!.actionsList.single {
+                        it.actionType == ActionType.ActivateMana &&
+                            it.instanceId == selected.instanceId &&
+                            it.uniqueAbilityId == selected.uniqueAbilityId
+                    }
+                published shouldBe selected
+                val redPayment = published.manaPaymentOptionsList.single { it.manaList.single().color == ManaColor.Red_afc9 }
+                published.manaSelectionsList
+                    .single()
+                    .optionsList
+                    .any { it.selectedColor == ManaColor.Red_afc9 }
+                    .shouldBeTrue()
+                val response = published.toBuilder().clearManaPaymentOptions().addManaPaymentOptions(redPayment)
                 val catalog =
                     grants
                         .mapIndexed { index, offer -> index.toLong() to offer }
@@ -116,6 +129,7 @@ class TreasureTokenTest :
                 submitAction(response.build())
                 assertSoftly {
                     human.manaPool.totalMana() shouldBe 2
+                    human.manaPool.getAmountOfColor(MagicColor.RED) shouldBe 2
                     human
                         .getZone(ZoneType.Battlefield)
                         .cards
