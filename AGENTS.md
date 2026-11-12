@@ -80,7 +80,7 @@ Kotest FunSpec (JUnit Platform). Engine test guidance lives in
 ## Documentation
 
 - **Read selectively.** Run `just docs` from the repository root to list all docs with summaries, or `just docs <filter>` to search by path/summary. Use it before setup or debugging work; read files whose `read_when` frontmatter matches your current task. `docs/index.md` has curated navigation.
-- **Update docs in the same PR.** If your PR changes public behavior, architecture, or setup, update the relevant doc in the same commit — never a follow-up.
+- **Update stale authorities in the same PR.** Put local contracts in owning KDoc. Change `architecture.md` when boundaries, ownership, or major flows change; a behavior fix alone does not require an architecture edit. Choose the affected authority using `docs/principles-documentation.md`.
 - **Principles:** `docs/principles-design.md` (code structure), `docs/principles-documentation.md` (how to document).
 - **Integrity before merge on doc-heavy PRs:** `just docs-lint` (verify cross-references) and `just docs-orphans` (find unlinked files).
 

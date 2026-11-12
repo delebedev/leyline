@@ -646,6 +646,12 @@ class PlayerController(
         wrapper.trigger?.getParam("Execute") == "ParadigmCopy" &&
             wrapper.hostCard?.effectSource?.hasKeyword("Paradigm") == true
 
+    /**
+     * Replaces PCHuman's desktop-only InputConfirm on the engine thread.
+     * Source-counter unless costs publish the source before awaiting explicit consent;
+     * acceptance lets Forge apply the cost, while decline or timeout leaves it unpaid.
+     * Other payment confirmations retain their existing routes.
+     */
     override fun confirmPayment(
         costPart: CostPart?,
         question: String,
@@ -665,7 +671,6 @@ class PlayerController(
             return true
         }
 
-        // Forge asks before paying source-counter unless costs on the engine thread.
         if (costPart is CostPutCounter && costPart.payCostFromSource() && sa.hasParam("UnlessCost")) {
             return optionalActionGate.await(
                 hostCard = sa.hostCard,

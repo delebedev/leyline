@@ -4,6 +4,10 @@ import kotlinx.serialization.Serializable
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
+/**
+ * Strategy confidence ([grade]) is distinct from response validity ([delivery]).
+ * [forPrompt] limits delivery blockers to findings relevant to the pending decision.
+ */
 @Serializable
 data class SnapshotFidelityReport(
     val grade: String,

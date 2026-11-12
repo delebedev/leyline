@@ -301,6 +301,11 @@ object GameBootstrap {
         ensureLocalization()
     }
 
+    /**
+     * Initializes the JVM-wide catalog. The first call selects the resource catalog
+     * and eager/lazy loading policy; later calls reuse it. A host requiring lazy
+     * loading must opt in before another caller initializes the database.
+     */
     fun initializeCardDatabase(
         quiet: Boolean = false,
         lazyCards: Boolean = false,

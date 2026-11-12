@@ -94,7 +94,11 @@ class ForgeCardRepository private constructor(
         /** Materializes the complete catalog before deriving its identity set. */
         fun open(): ForgeCardRepository = create(descriptor)
 
-        /** Reads a generated identity index after the host initializes its Forge catalog. */
+        /**
+         * Reads a generated identity index after the host initializes its Forge catalog.
+         * The host must hash the actual packaged resource bytes for [resourceSha256].
+         * This method checks the index's stored digest, not the archive bytes.
+         */
         fun open(
             indexPath: Path,
             resourceSha256: String,

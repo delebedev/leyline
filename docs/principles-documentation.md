@@ -23,6 +23,12 @@ A class header explaining why a runtime owns mutable policy state is a decision 
 
 Every fact has one authoritative home. Other layers cross-reference it; they never restate it.
 
+Update an authority when the change makes its existing contract inaccurate or
+reveals an important undocumented constraint. A behavior fix does not by itself
+require new prose. Architecture describes boundaries, ownership, and major flows,
+not a running inventory of supported mechanics. Prefer deleting a redundant
+description to moving it into another document.
+
 | Layer | Authority |
 |---|---|
 | Engine behaviour | Engine source (e.g. `forge/.../PhaseHandler.java`) |
