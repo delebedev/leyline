@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.PriorityActionCandidates
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 class SacrificeManaPriorityTest :
@@ -21,6 +22,14 @@ class SacrificeManaPriorityTest :
                 game().stack.isEmpty shouldBe false
                 PriorityActionCandidates.query(game(), human).hasLegalNonManaAction(human, false) shouldBe true
                 for (color in listOf(ManaColor.Black_afc9, ManaColor.Green_afc9)) {
+                    val offered =
+                        accumulator.actions!!.actionsList.single {
+                            it.actionType == ActionType.ActivateMana && it.instanceId == human.battlefield.iid("Utopia Mycon")
+                        }
+                    assertSoftly {
+                        offered.manaSelectionsList.flatMap { it.optionsList }.any { it.selectedColor == color } shouldBe true
+                        offered.manaPaymentOptionsList.any { option -> option.manaList.any { it.color == color } } shouldBe true
+                    }
                     activateMana("Utopia Mycon", selectedColor = color) shouldBe true
                     respondToEffectCost(listOf(human.battlefield.iid("Saproling")))
                 }

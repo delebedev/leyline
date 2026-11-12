@@ -332,6 +332,7 @@ internal object ActivatedActionEmitter {
 
     private fun Map<String, String>.withoutSecondaryMarker(): Map<String, String> = this - "Secondary"
 
+    /** An unrestricted color choice publishes five colors, never generic or colorless mana. */
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {
         if (sa.api == ApiType.ManaReflected) {
             return CardUtil
@@ -341,6 +342,9 @@ internal object ActivatedActionEmitter {
                 .distinct()
         }
         val mana = sa.manaPart ?: return emptyList()
+        if (mana.origProduced == "Any") {
+            return listOf(ManaColor.White_afc9, ManaColor.Blue_afc9, ManaColor.Black_afc9, ManaColor.Red_afc9, ManaColor.Green_afc9)
+        }
         val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
         return produced.split(" ").mapNotNull { ActionManaCosts.producedToManaColor(it) }.distinct()
     }
