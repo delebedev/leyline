@@ -1,0 +1,30 @@
+# Design Narrative
+# Mechanic: Preserve the optional take decision after each card exiled by Tainted Pact.
+# Forcing: The ordered library has three distinct choices followed by a duplicate Forest.
+# AI behavior: The opponent has no hand or battlefield and makes no relevant decision.
+# Failure modes:
+#   WIN = the scripted acceptance line observes its chosen hand/exile result and continued play.
+#   LOSE = a card is taken without consent or duplicate-name termination is ignored.
+#   TIMEOUT = the optional decision or subsequent priority cannot advance.
+# Card roles:
+#   Tainted Pact supplies the repeated optional transfer.
+#   Forest, Island, Mountain, Forest supply the exact choice and duplicate sequence.
+#   Swamps pay for the spell; Ornithopter proves the next cast; Plains keeps a land play available.
+# Protocol path: Cast, OptionalActionMessage/Resp for each distinct card, then ordinary priority.
+
+[metadata]
+Name:Tainted Pact Optional Take
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Take the first card, decline twice and take Mountain, or decline until the duplicate Forest stops the effect.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Swamp;Swamp
+humanhand=Tainted Pact;Ornithopter;Plains
+humanlibrary=Forest;Island;Mountain;Forest;Plains
+ailibrary=Mountain;Mountain;Mountain

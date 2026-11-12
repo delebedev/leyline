@@ -87,6 +87,23 @@ class ConfirmActionPlannerTest :
                 ConfirmActionPlan.Accept
         }
 
+        test("optional zone transfer confirmation retains agency only in its resolving callback") {
+            val move = confirmAbility(ApiType.ChangeZone, mapOf("Optional" to "True"))
+            val plan =
+                ConfirmActionPlanner
+                    .plan(move, PlayerActionConfirmMode.ChangeZoneGeneral, null, null)
+                    .shouldBeInstanceOf<ConfirmActionPlan.OptionalAction>()
+            assertSoftly {
+                plan.hostCard shouldBe move.hostCard
+                plan.defaultOnTimeout shouldBe false
+                plan.forceSnapshotBeforePrompt shouldBe true
+                ConfirmActionPlanner.plan(move, null, null, null).shouldBeInstanceOf<ConfirmActionPlan.OptionalAction>()
+                ConfirmActionPlanner
+                    .plan(confirmAbility(ApiType.ChangeZone), PlayerActionConfirmMode.ChangeZoneGeneral, null, null)
+                    .shouldBeInstanceOf<ConfirmActionPlan.Choice.AffirmativeDefault>()
+            }
+        }
+
         test("shown card owns commander classification instead of an unrelated ability host") {
             val commander = confirmCard(1).also { it.setCommander(true) }
             val sa = AbilitySub(ApiType.Draw, commander, null, emptyMap())
