@@ -2,6 +2,7 @@ package leyline.game.mapping
 
 import forge.card.MagicColor
 import forge.card.mana.ManaCost
+import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardUtil
@@ -179,10 +180,17 @@ internal object ActivatedActionEmitter {
             val basicLandAbilityGrpId = basicLandAbilityGrpId(card, sa)
             val identity = AbilityRegistry.resolveActivated(card, sa, cardDataLookup, abilityRegistryLookup, basicLandAbilityGrpId)
             val abilityGrpId = identity.abilityGrpId
-            val colors = producedManaColors(sa)
+            // A one-color prediction cannot represent an allocation across multiple mana units.
+            // Forge requests those colors during resolution through specifyManaCombo.
+            val allocatesMana =
+                sa.manaPart?.isComboMana == true &&
+                    !sa.hasParam("Each") &&
+                    AbilityUtils.calculateAmount(sa.hostCard, sa.getParamOrDefault("Amount", "1"), sa) > 1
             val hasDeferredMana =
                 sa.manaPart?.isSpecialMana == true ||
-                    (sa.manaPart == null && sa.allManaParts.isNotEmpty())
+                    (sa.manaPart == null && sa.allManaParts.isNotEmpty()) ||
+                    allocatesMana
+            val colors = if (hasDeferredMana) emptyList() else producedManaColors(sa)
             if (colors.isEmpty() && !hasDeferredMana) return@mapNotNull null
 
             val actionBuilder =

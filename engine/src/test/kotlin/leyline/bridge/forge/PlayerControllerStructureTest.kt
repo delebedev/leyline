@@ -89,6 +89,7 @@ class PlayerControllerStructureTest :
                 "playTrigger",
                 "reveal",
                 "selectTargetsInteractively",
+                "specifyManaCombo",
                 "tuckCardsViaMulligan",
                 "vote",
                 "willPutCardOnTop",
