@@ -408,6 +408,7 @@ class GameBridge(
 
     /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
     private val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
+    private val grantedAbilityIds = ConcurrentHashMap<Int, GrantedAbilityIds>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -1303,12 +1304,15 @@ class GameBridge(
         if (cardData == null) return null
         return abilityRegistries.compute(card.id) { _, cached ->
             cached?.takeIf { it.sourceCardGrpId == cardData.grpId }
-                ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
+                ?: buildAbilityRegistry(card, cardData)
         }
     }
 
     @VisibleForTesting
     internal fun cachedAbilityRegistryCardIds(): Set<ForgeCardId> = abilityRegistries.keys.mapTo(linkedSetOf(), ::ForgeCardId)
+
+    @VisibleForTesting
+    internal fun grantedAbilityIdentityCardIds(): Set<ForgeCardId> = grantedAbilityIds.keys.mapTo(linkedSetOf(), ::ForgeCardId)
 
     @VisibleForTesting
     internal fun clearAbilityRegistryCacheForTesting() {
@@ -1326,7 +1330,7 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         registry.resolve(definition)?.let { return it }
-        val refreshed = AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
+        val refreshed = buildAbilityRegistry(card, cardData)
         abilityRegistries[card.id] = refreshed
         return refreshed.resolve(definition)
             ?: ability.trigger
@@ -1370,11 +1374,24 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
-            ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId).let { refreshed ->
+            ?: buildAbilityRegistry(card, cardData).let { refreshed ->
                 abilityRegistries[card.id] = refreshed
                 refreshed.resolve(definition)
             }
     }
+
+    private fun buildAbilityRegistry(
+        card: Card,
+        cardData: CardData,
+    ): AbilityRegistry =
+        AbilityRegistry.build(
+            card,
+            cardData,
+            cardRepository::grantedKeywordAbilityGrpId,
+            grantedAbilityIds.computeIfAbsent(card.id) {
+                GrantedAbilityIds()
+            },
+        )
 
     private fun abilityCardData(card: Card): CardData? =
         if (card.isEmblem) {
@@ -1392,7 +1409,10 @@ class GameBridge(
     /** Shell-side cache invalidation for normalized state-frame facts. */
     fun invalidateAbilityRegistries(events: List<GameEvent>) {
         events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
-        events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
+        events.filterIsInstance<GameEvent.ZoneChanged>().forEach {
+            evictAbilityRegistry(it.cardId.value)
+            if (it.from != it.to) grantedAbilityIds[it.cardId.value]?.retain(emptySet())
+        }
     }
 
     /** Build identities that may execute before the next client action projection. */
@@ -1838,6 +1858,8 @@ class GameBridge(
         teardownResources()
         game = null
         players.clear()
+        abilityRegistries.clear()
+        grantedAbilityIds.clear()
     }
 
     // --- Puzzle internals ---
