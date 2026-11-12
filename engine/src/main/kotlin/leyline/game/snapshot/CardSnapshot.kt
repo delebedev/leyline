@@ -112,6 +112,8 @@ data class CardSnapshot(
      * Stored as proto [CardType] ordinal integers for easy comparison.
      */
     val liveCardTypeNumbers: List<Int> = emptyList(),
+    /** Public live subtypes for the concealed-object projection, not the printed face. */
+    val liveSubtypeNumbers: List<Int> = emptyList(),
     /** True when the card is double-faced (has an Backside/Original alternate state). */
     val isDoubleFaced: Boolean = false,
     /**
@@ -178,6 +180,8 @@ data class CardSnapshot(
     val isFaceDownInExile: Boolean = false,
     /** Supported face-down battlefield/stack mechanic, when present. */
     val faceDownKind: FaceDownKind? = null,
+    /** Actual face-down state is independent of recognized mechanic identities. */
+    val isFaceDown: Boolean = false,
     /** True when this card is one of its owner's commanders. */
     val isCommander: Boolean = false,
     /** Commander tax currently exposed to the client, in generic mana. */

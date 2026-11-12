@@ -282,13 +282,13 @@ object ObjectMapper {
                 ).build()
         }
         val extrinsicKws = keywordSnapshot[instanceId]?.mapNotNull { it.resolvedAbilityGrpId } ?: emptyList()
-        // Face-down creatures conceal printed identity while retaining
+        // Face-down objects conceal printed identity while retaining
         // mechanic-specific intrinsic abilities and established keyword grants.
-        if (cardSnap.faceDownKind != null) {
+        if (cardSnap.faceDownKind != null || cardSnap.isFaceDown && (cardSnap.isOnBattlefield || zoneId == ZoneIds.STACK)) {
             val hasIntrinsicWard =
                 when (cardSnap.faceDownKind) {
                     leyline.game.snapshot.FaceDownKind.Cloak, leyline.game.snapshot.FaceDownKind.Disguise -> true
-                    leyline.game.snapshot.FaceDownKind.ManifestDread -> false
+                    leyline.game.snapshot.FaceDownKind.ManifestDread, null -> false
                 }
             return cardProto
                 .buildFaceDownObjectInfo(cardSnap.grpId, hasIntrinsicWard, extrinsicKws)
@@ -300,6 +300,9 @@ object ObjectMapper {
                 .setControllerSeatId(cardSnap.controller.value)
                 .addViewers(cardSnap.controller.value)
                 .apply {
+                    applyFaceDownCharacteristics(cardSnap)
+                    cardSnap.combatRole?.let { applyCombatFromSnapshot(it) }
+                    applyGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty())
                     if (cardSnap.isOnBattlefield) {
                         setIsTapped(cardSnap.tapped)
                         setHasSummoningSickness(cardSnap.hasSickness)
@@ -340,16 +343,7 @@ object ObjectMapper {
             }
             builder.addAbilityOriginalCardGrpIds(earthbend.sourceCardGrpId)
         }
-        grantedAbilitySnapshot[instanceId].orEmpty().forEach { granted ->
-            if (builder.uniqueAbilitiesList.none { it.id == granted.uniqueAbilityId }) {
-                builder.addUniqueAbilities(
-                    UniqueAbilityInfo
-                        .newBuilder()
-                        .setId(granted.uniqueAbilityId)
-                        .setGrpId(granted.abilityGrpId),
-                )
-            }
-        }
+        builder.applyGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty())
         if (cardSnap.isMergedPermanent) {
             builder.addAllAbilityOriginalCardGrpIds(
                 cardProto.staticAbilityGrpIds(cardSnap.grpId).map { cardSnap.grpId } +
@@ -359,6 +353,14 @@ object ObjectMapper {
         }
         builder.reconcileFlying(cardSnap)
         return builder.build()
+    }
+
+    private fun GameObjectInfo.Builder.applyGrantedAbilities(grants: List<EffectTracker.TrackedGrantedAbility>) {
+        grants.forEach { granted ->
+            if (uniqueAbilitiesList.none { it.id == granted.uniqueAbilityId }) {
+                addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(granted.uniqueAbilityId).setGrpId(granted.abilityGrpId))
+            }
+        }
     }
 
     /** Filter aligned rows once, retaining surviving recipient-local IDs and source origins. */
@@ -509,6 +511,18 @@ object ObjectMapper {
                     )
                 }
             }
+        }
+    }
+
+    private fun GameObjectInfo.Builder.applyFaceDownCharacteristics(cardSnap: CardSnapshot) {
+        overlayCardTypesFromSnapshot(cardSnap)
+        cardSnap.liveSubtypeNumbers.forEach { number -> CardProtoBuilder.subtypesByNumber[number]?.let { addSubtypes(it) } }
+        clearPower()
+        clearToughness()
+        cardSnap.netPower?.let { setPower(Int32Value.newBuilder().setValue(it)) }
+        cardSnap.netToughness?.let { setToughness(Int32Value.newBuilder().setValue(it)) }
+        if (cardSnap.basicLandManaAbilityGrpId != 0) {
+            addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(50 + uniqueAbilitiesCount).setGrpId(cardSnap.basicLandManaAbilityGrpId))
         }
     }
 

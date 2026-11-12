@@ -332,7 +332,17 @@ class StateProjectionCompilerVisibilityTest :
 
                     val up = snapshot(1, printed)
                     val faceUp = project(up, ProjectionState.initial())
-                    val down = snapshot(2, printed.copy(faceDownKind = kind))
+                    val down =
+                        snapshot(
+                            2,
+                            printed.copy(
+                                faceDownKind = kind,
+                                isFaceDown = true,
+                                liveCardTypeNumbers = listOf(CardType.Creature.number),
+                                netPower = 2,
+                                netToughness = 2,
+                            ),
+                        )
                     val faceDown = project(down, faceUp.transition.nextState, up)
                     val fullDown = project(down, ProjectionState.initial())
                     for (result in listOf(faceDown, fullDown)) {

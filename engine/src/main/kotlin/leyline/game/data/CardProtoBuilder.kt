@@ -15,7 +15,7 @@ class CardProtoBuilder(
 ) {
     companion object {
         // Avoid the large generated switch in browser JVM card projection.
-        private val subtypesByNumber = SubType.values().filter { it != SubType.UNRECOGNIZED }.associateBy { it.number }
+        internal val subtypesByNumber = SubType.values().filter { it != SubType.UNRECOGNIZED }.associateBy { it.number }
     }
 
     /**
@@ -48,7 +48,8 @@ class CardProtoBuilder(
      * subtypes, color, the per-card abilities) and substitutes the
      * universal face-down stencil, 2/2 P/T, and `Creature` card type.
      * Intrinsic Ward {2} is included when the caller's mechanic provides it.
-     * Independently granted keyword abilities remain visible.
+     * Independently granted keyword abilities remain visible. The mapper overlays
+     * live public types and P/T: an effect can create a face-down noncreature.
      *
      * The [grpId] of the underlying card is still set on the proto so the
      * per-seat filter can preserve it for the controller and substitute

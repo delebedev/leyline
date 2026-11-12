@@ -9,6 +9,7 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.seedDiffBaseline
+import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.EffectTracker
 import leyline.testkit.Board
@@ -16,6 +17,8 @@ import leyline.testkit.BoardTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
@@ -25,6 +28,78 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  */
 class ObjectMapperSnapshotTest :
     BoardTest({
+
+        test("ordinary face-down creatures retain attacking and blocking assignments") {
+            val (bridge, game, _) = startWithBoard { _, human, _ -> addCard("Serra Angel", human, ZoneType.Battlefield) }
+            val card = game.humanPlayer.battlefield.card("Serra Angel")
+            card.turnFaceDown() shouldBe true
+            val snapshot = SnapshotCapture.run(game, bridge, "test", 1).objects.getValue(ForgeCardId(card.id))
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            snapshot.faceDownKind shouldBe null
+            for (blocked in listOf(false, true)) {
+                val attacker =
+                    ObjectMapper.buildFromSnapshot(
+                        snapshot.copy(combatRole = CombatRole.Attacker(2, blocked)),
+                        iid,
+                        ZoneIds.BATTLEFIELD,
+                        1,
+                        bridge.cardProto,
+                    )
+                assertSoftly {
+                    attacker.isFacedown shouldBe true
+                    attacker.attackState shouldBe AttackState.Attacking
+                    attacker.attackInfo.targetId shouldBe 2
+                    attacker.blockState shouldBe if (blocked) BlockState.Blocked else BlockState.Unblocked
+                    attacker.uniqueAbilitiesCount shouldBe 0
+                }
+            }
+            val blocker =
+                ObjectMapper.buildFromSnapshot(
+                    snapshot.copy(combatRole = CombatRole.Blocker(listOf(301, 302))),
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    bridge.cardProto,
+                )
+            assertSoftly {
+                blocker.isFacedown shouldBe true
+                blocker.blockState shouldBe BlockState.Blocking
+                blocker.blockInfo.attackerIdsList shouldBe listOf(301, 302)
+                blocker.uniqueAbilitiesCount shouldBe 0
+            }
+        }
+
+        test("face-down projection retains explicit granted abilities without revealing printed abilities") {
+            val (bridge, game, _) = startWithBoard { _, human, _ -> addCard("Serra Angel", human, ZoneType.Battlefield) }
+            val card = game.humanPlayer.battlefield.card("Serra Angel")
+            card.turnFaceDown() shouldBe true
+            val snapshot = SnapshotCapture.run(game, bridge, "test", 1).objects.getValue(ForgeCardId(card.id))
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            val grant =
+                EffectTracker.TrackedGrantedAbility(
+                    syntheticId = 901,
+                    fingerprint = EffectTracker.GrantedAbilityFingerprint(iid, 1L, 2L, 90001, null, 902),
+                    abilityGrpId = 90001,
+                    uniqueAbilityId = 902,
+                )
+            val projected =
+                ObjectMapper.buildFromSnapshot(
+                    snapshot,
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    bridge.cardProto,
+                    grantedAbilitySnapshot =
+                        mapOf(
+                            iid to listOf(grant),
+                        ),
+                )
+            assertSoftly {
+                projected.isFacedown shouldBe true
+                projected.name shouldBe 0
+                projected.uniqueAbilitiesList.map { it.id to it.grpId } shouldBe listOf(902 to 90001)
+            }
+        }
 
         test("effective Flying filters after grants while retaining nonkeyword row IDs and parallel origins") {
             val (b, game, _) = startWithBoard { _, human, _ -> addCard("Grizzly Bears", human, ZoneType.Battlefield) }
