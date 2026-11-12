@@ -20,6 +20,13 @@ class TaintedPactTest :
                 castSpellByName("Tainted Pact") shouldBe true
                 passUntil(maxPasses = 2) { allMessages.any { it.hasOptionalActionMessage() } }
                 allMessages.count { it.hasOptionalActionMessage() } shouldBe 1
+                val firstPrompt = allMessages.first { it.hasOptionalActionMessage() }
+                val exiled = human.exile.iid("Forest")
+                allMessages
+                    .take(allMessages.indexOf(firstPrompt))
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .any { it.instanceId == exiled && it.grpId > 0 } shouldBe true
                 for ((index, answer) in answers.withIndex()) {
                     val count = allMessages.count { it.hasOptionalActionMessage() }
                     if (!answer) holdNextOptionalAction()
