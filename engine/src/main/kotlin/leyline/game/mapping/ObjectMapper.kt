@@ -282,13 +282,13 @@ object ObjectMapper {
                 ).build()
         }
         val extrinsicKws = keywordSnapshot[instanceId]?.mapNotNull { it.resolvedAbilityGrpId } ?: emptyList()
-        // Face-down creatures conceal printed identity while retaining
+        // Face-down objects conceal printed identity while retaining
         // mechanic-specific intrinsic abilities and established keyword grants.
-        if (cardSnap.faceDownKind != null) {
+        if (cardSnap.faceDownKind != null || cardSnap.isFaceDown && (cardSnap.isOnBattlefield || zoneId == ZoneIds.STACK)) {
             val hasIntrinsicWard =
                 when (cardSnap.faceDownKind) {
                     leyline.game.snapshot.FaceDownKind.Cloak, leyline.game.snapshot.FaceDownKind.Disguise -> true
-                    leyline.game.snapshot.FaceDownKind.ManifestDread -> false
+                    leyline.game.snapshot.FaceDownKind.ManifestDread, null -> false
                 }
             return cardProto
                 .buildFaceDownObjectInfo(cardSnap.grpId, hasIntrinsicWard, extrinsicKws)
@@ -300,6 +300,7 @@ object ObjectMapper {
                 .setControllerSeatId(cardSnap.controller.value)
                 .addViewers(cardSnap.controller.value)
                 .apply {
+                    applyFaceDownCharacteristics(cardSnap)
                     if (cardSnap.isOnBattlefield) {
                         setIsTapped(cardSnap.tapped)
                         setHasSummoningSickness(cardSnap.hasSickness)
@@ -509,6 +510,18 @@ object ObjectMapper {
                     )
                 }
             }
+        }
+    }
+
+    private fun GameObjectInfo.Builder.applyFaceDownCharacteristics(cardSnap: CardSnapshot) {
+        overlayCardTypesFromSnapshot(cardSnap)
+        cardSnap.liveSubtypeNumbers.forEach { number -> CardProtoBuilder.subtypesByNumber[number]?.let { addSubtypes(it) } }
+        clearPower()
+        clearToughness()
+        cardSnap.netPower?.let { setPower(Int32Value.newBuilder().setValue(it)) }
+        cardSnap.netToughness?.let { setToughness(Int32Value.newBuilder().setValue(it)) }
+        if (cardSnap.basicLandManaAbilityGrpId != 0) {
+            addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(50 + uniqueAbilitiesCount).setGrpId(cardSnap.basicLandManaAbilityGrpId))
         }
     }
 
