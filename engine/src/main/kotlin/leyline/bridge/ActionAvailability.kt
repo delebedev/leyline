@@ -27,8 +27,38 @@ internal object ActionAvailability {
         )
 
     fun hasLegalTargetsAndModes(sa: SpellAbility): Boolean =
-        ComputerUtilAbility.isFullyTargetable(sa) &&
+        (ComputerUtilAbility.isFullyTargetable(sa) || hasSequentialSingleTargets(sa)) &&
             (sa.api != ApiType.Charm || CharmEffect.makePossibleOptions(sa).isNotEmpty())
+
+    /**
+     * Independent candidate counts can reject a child whose controller depends on an
+     * unchosen parent target. Retry single-target chains in order on an untracked copy;
+     * the offered ability must stay unselected. Other cardinalities retain Forge's probe.
+     */
+    private fun hasSequentialSingleTargets(sa: SpellAbility): Boolean {
+        val chain = generateSequence(sa) { it.subAbility }.filter { it.usesTargeting() }.toList()
+        if (chain.isEmpty() ||
+            chain.any {
+                !it.targets.isEmpty() || it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1
+            }
+        ) {
+            return false
+        }
+        return selectSingleTargets(sa.copy(sa.hostCard, sa.activatingPlayer, true))
+    }
+
+    private fun selectSingleTargets(sa: SpellAbility?): Boolean {
+        if (sa == null) return true
+        if (!sa.usesTargeting()) return selectSingleTargets(sa.subAbility)
+        return sa.targetRestrictions.getAllCandidates(sa).any { candidate ->
+            sa.targets.add(candidate)
+            try {
+                selectSingleTargets(sa.subAbility)
+            } finally {
+                sa.resetTargets()
+            }
+        }
+    }
 
     private fun canPayMana(
         sa: SpellAbility,
