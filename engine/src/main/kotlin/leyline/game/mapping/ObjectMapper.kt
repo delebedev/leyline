@@ -301,6 +301,8 @@ object ObjectMapper {
                 .addViewers(cardSnap.controller.value)
                 .apply {
                     applyFaceDownCharacteristics(cardSnap)
+                    cardSnap.combatRole?.let { applyCombatFromSnapshot(it) }
+                    applyGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty())
                     if (cardSnap.isOnBattlefield) {
                         setIsTapped(cardSnap.tapped)
                         setHasSummoningSickness(cardSnap.hasSickness)
@@ -341,16 +343,7 @@ object ObjectMapper {
             }
             builder.addAbilityOriginalCardGrpIds(earthbend.sourceCardGrpId)
         }
-        grantedAbilitySnapshot[instanceId].orEmpty().forEach { granted ->
-            if (builder.uniqueAbilitiesList.none { it.id == granted.uniqueAbilityId }) {
-                builder.addUniqueAbilities(
-                    UniqueAbilityInfo
-                        .newBuilder()
-                        .setId(granted.uniqueAbilityId)
-                        .setGrpId(granted.abilityGrpId),
-                )
-            }
-        }
+        builder.applyGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty())
         if (cardSnap.isMergedPermanent) {
             builder.addAllAbilityOriginalCardGrpIds(
                 cardProto.staticAbilityGrpIds(cardSnap.grpId).map { cardSnap.grpId } +
@@ -360,6 +353,14 @@ object ObjectMapper {
         }
         builder.reconcileFlying(cardSnap)
         return builder.build()
+    }
+
+    private fun GameObjectInfo.Builder.applyGrantedAbilities(grants: List<EffectTracker.TrackedGrantedAbility>) {
+        grants.forEach { granted ->
+            if (uniqueAbilitiesList.none { it.id == granted.uniqueAbilityId }) {
+                addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(granted.uniqueAbilityId).setGrpId(granted.abilityGrpId))
+            }
+        }
     }
 
     /** Filter aligned rows once, retaining surviving recipient-local IDs and source origins. */
