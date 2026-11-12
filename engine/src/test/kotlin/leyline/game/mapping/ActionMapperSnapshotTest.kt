@@ -520,7 +520,7 @@ class ActionMapperSnapshotTest :
                 startWithBoard { _, human, _ ->
                     addCard("Island", human, ZoneType.Battlefield)
                         .also { islandForgeId = it.id }
-                        .tap(true, true, null, null)
+                        .tap(true, null, null)
                 }
 
             val fromSnap = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
