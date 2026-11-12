@@ -923,7 +923,11 @@ private fun verifyLondonContract(messages: List<GREToClientMessage>) {
         }
     val transferMessage = messages[transferIndex]
     val annotations = transferMessage.gameStateMessage.annotationsList
-    val changed = annotations.single { AnnotationType.ObjectIdChanged in it.typeList }
+    val changed =
+        annotations.single {
+            AnnotationType.ObjectIdChanged in it.typeList &&
+                it.detailInt("orig_id") == grouping.groupReq.instanceIdsList.last()
+        }
     val put = annotations.single { AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailInt("zone_src") == ZoneIds.P1_HAND }
 
     fun withAnnotations(replacement: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>): List<GREToClientMessage> =
