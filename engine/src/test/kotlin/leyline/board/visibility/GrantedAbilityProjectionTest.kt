@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.SeatId
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
@@ -102,6 +103,49 @@ class GrantedAbilityProjectionTest :
                     obj.uniqueAbilitiesList.single { it.grpId == 97312 }.id shouldBe
                         grantOffers(board, cards.single { board.instanceId(it.id) == obj.instanceId }).single().action.uniqueAbilityId
                 }
+            }
+        }
+
+        test("alternative activation snapshots retain the recipient grant identity after replacement") {
+            lateinit var recipient: Card
+            lateinit var aura: Card
+            val board =
+                startWithBoard { game, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    recipient = addCard("Greater Sandwurm", human, ZoneType.Battlefield)
+                    aura = addCard("Presence of Gond", human, ZoneType.Battlefield)
+                    aura.attachToEntity(recipient, null, true)
+                    game.action.checkStaticAbilities(false)
+                }
+            val iid = board.instanceId(recipient.id)
+            val old =
+                opponentGrantProjection(board).gameObjectsList.single { it.instanceId == iid }.uniqueAbilitiesList.single {
+                    it.grpId ==
+                        97312
+                }
+            aura.unattachFromEntity(recipient, null)
+            board.game.action.checkStaticAbilities(false)
+            opponentGrantProjection(board)
+            aura.attachToEntity(recipient, null, true)
+            board.game.action.checkStaticAbilities(false)
+            val gsm = opponentGrantProjection(board)
+            val snapshot = GsmSnapshot.capture(board.game, board.bridge, "test", 2)
+            val occurrences =
+                snapshot.objects
+                    .getValue(ForgeCardId(recipient.id))
+                    .activationOccurrences
+                    .getValue(SeatId(1))
+            val current =
+                gsm.gameObjectsList
+                    .single { it.instanceId == iid }
+                    .uniqueAbilitiesList
+                    .single { it.grpId == 97312 }
+            val offered = grantOffers(board, recipient).single { it.action.abilityGrpId == 97312 }.action
+            assertSoftly {
+                occurrences.count { it.isAlternative } shouldBe 1
+                current.id shouldNotBe old.id
+                occurrences.single { it.abilityGrpId == 97312 }.uniqueAbilityId shouldBe current.id
+                offered.uniqueAbilityId shouldBe current.id
             }
         }
 
