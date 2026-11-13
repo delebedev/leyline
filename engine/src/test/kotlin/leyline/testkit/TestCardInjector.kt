@@ -68,7 +68,7 @@ object TestCardInjector {
         player.getZone(zone).add(card)
 
         if (zone == ZoneType.Battlefield) {
-            if (tapped) card.tap(true, true, null, null)
+            if (tapped) card.tap(true, null, null)
             if (!sick) card.setSickness(false)
         }
 

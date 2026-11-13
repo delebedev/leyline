@@ -13,7 +13,16 @@ object SpellAbilityShapes {
 
     fun isPrivateHandLook(sa: SpellAbility?): Boolean {
         val ability = (sa as? forge.game.trigger.WrappedAbility)?.wrappedAbility ?: sa
-        return ability?.api == ApiType.RevealHand && ability.hasParam("Look")
+        return ability != null &&
+            (
+                (ability.api == ApiType.RevealHand && ability.hasParam("Look")) ||
+                    (
+                        ability.api == ApiType.ChangeZone &&
+                            ability.hasParamValue("Origin", "Hand") &&
+                            ability.hasParamValue("Destination", "Exile") &&
+                            ability.hasParamValue("Chooser", "You")
+                    )
+            )
     }
 
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =
