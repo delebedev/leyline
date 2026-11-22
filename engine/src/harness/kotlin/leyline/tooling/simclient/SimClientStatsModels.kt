@@ -61,6 +61,7 @@ data class GameStats(
     val promptRequestsByKind: Map<String, Int> = emptyMap(),
     val promptRequestSamplesByKind: Map<String, String> = emptyMap(),
     val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
+    val unnamedDefaultAnswers: List<UnnamedDefaultAnswer> = emptyList(),
     val simFindings: List<SimClientFinding> = emptyList(),
     val promptProgressSamples: List<PromptProgressSample> = emptyList(),
     /** Active offers built on uncertain affordability, by card. */
@@ -79,6 +80,16 @@ data class PromptRouteFinding(
     val emittedCount: Int,
     val outcomeCounts: Map<String, Int>,
     val sampleMessage: String,
+)
+
+/** Seat-1 decisions with two or more options answered by policy without a named rule. */
+data class UnnamedDefaultAnswer(
+    val askedBy: String,
+    val promptType: String,
+    val semantic: String,
+    val count: Int,
+    val sampleMessage: String,
+    val sampleOptions: List<String>,
 )
 
 data class SimClientFinding(

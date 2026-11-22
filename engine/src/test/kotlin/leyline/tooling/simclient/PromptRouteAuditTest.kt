@@ -142,6 +142,67 @@ class PromptRouteAuditTest :
             audit.findings.map { it.bucket }.toSet() shouldBe setOf(PromptRouteAuditor.SAME_GRE_ROUTE_UNVERIFIED)
             failureClass(statsWithFindings(audit.findings)) shouldBe "natural"
         }
+
+        test("groups unnamed default answers by the Forge effect that asked") {
+            val explore = listOf("PlayerControllerHuman#confirmAction:10", "ExploreEffect#resolve:57", "SpellAbilityEffect#x:1")
+            val sacrifice = listOf("SacrificeEffect#resolve:80", "AbilityUtils#resolve:2")
+            val audit =
+                PromptRouteAuditor.audit(
+                    history = emptyList(),
+                    promptHistogram = emptyMap(),
+                    defaults =
+                        listOf(
+                            promptRecord("confirm", outcome = PromptCallStatus.DEFAULTED_POLICY, callerFrames = explore),
+                            promptRecord(
+                                "confirm",
+                                outcome = PromptCallStatus.DEFAULTED_POLICY,
+                                callerFrames = explore.map { it.replace(":57", ":61") },
+                            ),
+                            promptRecord("confirm", outcome = PromptCallStatus.DEFAULTED_POLICY, callerFrames = sacrifice),
+                            promptRecord(
+                                "confirm",
+                                outcome = PromptCallStatus.DEFAULTED_POLICY,
+                                callerFrames = sacrifice,
+                                options = listOf("Yes"),
+                            ),
+                        ),
+                )
+
+            audit.unnamedDefaultAnswers.map { it.askedBy to it.count } shouldBe
+                listOf("ExploreEffect#resolve" to 2, "SacrificeEffect#resolve" to 1)
+        }
+
+        test("evicted defaults are reported so a strict run cannot pass an incomplete audit") {
+            val audit =
+                PromptRouteAuditor.audit(
+                    history = emptyList(),
+                    promptHistogram = emptyMap(),
+                    defaults = emptyList(),
+                    droppedDefaults = 3,
+                )
+
+            audit.unnamedDefaultAnswers.map { it.askedBy to it.count } shouldBe listOf(PromptRouteAuditor.DROPPED_DEFAULTS to 3)
+            isStrictFailure(statsWithFindings(emptyList()).copy(unnamedDefaultAnswers = audit.unnamedDefaultAnswers)) shouldBe true
+        }
+
+        test("names cost and handler callers when no effect frame is present") {
+            PromptRouteAuditor.askedBy(listOf("PlayerControllerHuman#x:1", "HumanCostDecision#visit:4")) shouldBe
+                "HumanCostDecision#visit"
+            PromptRouteAuditor.askedBy(listOf("GameAction#moveTo:9")) shouldBe "GameAction#moveTo"
+            PromptRouteAuditor.askedBy(emptyList()) shouldBe "unknown"
+        }
+
+        test("an unnamed default answer fails a strict run without changing the failure class") {
+            val answers =
+                PromptRouteAuditor.unnamedDefaultAnswers(
+                    listOf(promptRecord("confirm", outcome = PromptCallStatus.DEFAULTED_POLICY)),
+                )
+            val stats = statsWithFindings(emptyList()).copy(unnamedDefaultAnswers = answers)
+
+            failureClass(stats) shouldBe "natural"
+            isStrictFailure(stats) shouldBe true
+            isStrictFailure(statsWithFindings(emptyList())) shouldBe false
+        }
     })
 
 private fun statsWithFindings(findings: List<PromptRouteFinding>): GameStats =
@@ -162,16 +223,18 @@ private fun promptRecord(
     route: ResolvedPromptRoute = PromptRouteResolver.resolve(semantic),
     message: String = "choose cards",
     outcome: PromptCallStatus,
+    callerFrames: List<String> = emptyList(),
+    options: List<String> = listOf("A", "B"),
 ): PromptRecord =
     PromptRecord(
         promptType = promptType,
         route = route,
         message = message,
-        options = listOf("A", "B"),
+        options = options,
         min = 1,
         max = 1,
         candidateCount = 0,
         outcome = outcome,
         result = listOf(0),
-        callerFrames = emptyList(),
+        callerFrames = callerFrames,
     )

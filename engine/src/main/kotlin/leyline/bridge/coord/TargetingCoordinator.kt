@@ -160,7 +160,7 @@ class TargetingCoordinator(
                 searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
         val residual =
-            UnclassifiedEntityChoicePolicy.decide(
+            unclassifiedDefault(
                 request,
                 optional = isOptional,
                 allCandidatesProjectable = allCandidatesProjectable(optionList),
@@ -327,7 +327,7 @@ class TargetingCoordinator(
                 searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
         val residual =
-            UnclassifiedEntityChoicePolicy.decide(
+            unclassifiedDefault(
                 request,
                 optional = plan.effectiveMin == 0,
                 allCandidatesProjectable = allCandidatesProjectable(optionList),
@@ -1114,7 +1114,7 @@ class TargetingCoordinator(
                 searchGroupOptionIndices = searchGroupOptionIndices,
             )
         val residual =
-            UnclassifiedEntityChoicePolicy.decide(
+            unclassifiedDefault(
                 request,
                 optional = effectiveMin == 0,
                 allCandidatesProjectable = allCandidatesProjectable(cards),
@@ -1196,6 +1196,16 @@ class TargetingCoordinator(
             (sa.hasParamValue("Duration", "UntilHostLeavesPlay") || sa.hasParam("IsCurse"))
 
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> = entities.toCandidateRefs()
+
+    /** Applies the unclassified-domain policy and records its answer as a policy default. */
+    private fun unclassifiedDefault(
+        request: PromptRequest,
+        optional: Boolean,
+        allCandidatesProjectable: Boolean,
+    ): UnclassifiedEntityChoicePolicy.Decision? =
+        UnclassifiedEntityChoicePolicy
+            .decide(request, optional, allCandidatesProjectable)
+            ?.also { bridge.recordPolicyDefault(request, it.indices) }
 
     private fun allCandidatesProjectable(entities: Iterable<GameEntity>): Boolean {
         val values = entities.toList()
