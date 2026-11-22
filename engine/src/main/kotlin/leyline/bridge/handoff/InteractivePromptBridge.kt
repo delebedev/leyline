@@ -174,6 +174,18 @@ class InteractivePromptBridge(
     /** Immutable snapshot of recent prompt calls (oldest first, capped at [HISTORY_CAP]). */
     val history: List<PromptRecord> get() = promptHistory.snapshot
 
+    /** Policy defaults kept apart from [history] so routine prompts cannot evict them. */
+    val defaultHistory: List<PromptRecord> get() = promptHistory.defaults
+
+    /** Policy defaults evicted from [defaultHistory] by its cap. */
+    val droppedDefaultCount: Int get() = promptHistory.droppedDefaults
+
+    /** Record an answer a coordinator chose without publishing [request]. */
+    fun recordPolicyDefault(
+        request: PromptRequest,
+        indices: List<Int>,
+    ) = record(request, PromptCallStatus.DEFAULTED_POLICY, indices)
+
     private fun record(
         request: PromptRequest,
         outcome: PromptCallStatus,

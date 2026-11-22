@@ -288,34 +288,38 @@ class StaticChoiceCoordinator(
         isOptional: Boolean,
     ): String? {
         val isCardType = kindOfType == "Card"
+
+        fun request(choices: List<Pair<String, Int>>) =
+            PromptRequest(
+                promptType = "choose_type",
+                message = "Choose a ${kindOfType.lowercase()} type",
+                options = choices.map { it.first },
+                min = if (isOptional) 0 else 1,
+                max = 1,
+                defaultIndex = 0,
+                route =
+                    PromptRouteResolver.resolve(
+                        if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
+                    ),
+                sourceEntityId = sourceEntityId(sa),
+                staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
+                staticOptionIds = choices.map { it.second },
+            )
+
+        fun unasked(): String? {
+            val answer = if (isOptional) null else validTypes.firstOrNull()
+            bridge.recordPolicyDefault(request(validTypes.map { it to 0 }), listOfNotNull(answer?.let { 0 }))
+            return answer
+        }
         val choices =
             if (isCardType) {
-                validTypes.map { type ->
-                    type to (StaticChoiceIds.cardTypeIdFor(type) ?: return if (isOptional) null else validTypes.firstOrNull())
-                }
+                validTypes.map { type -> type to (StaticChoiceIds.cardTypeIdFor(type) ?: return unasked()) }
             } else {
                 validTypes.sorted().mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { type to it } }
             }
-        if (choices.isEmpty()) return if (isOptional) null else validTypes.firstOrNull()
+        if (choices.isEmpty()) return unasked()
 
-        val idx =
-            requestChoice(
-                PromptRequest(
-                    promptType = "choose_type",
-                    message = "Choose a ${kindOfType.lowercase()} type",
-                    options = choices.map { it.first },
-                    min = if (isOptional) 0 else 1,
-                    max = 1,
-                    defaultIndex = 0,
-                    route =
-                        PromptRouteResolver.resolve(
-                            if (isCardType) PromptSemantic.StaticCardTypeChoice else PromptSemantic.StaticSubtypeChoice,
-                        ),
-                    sourceEntityId = sourceEntityId(sa),
-                    staticList = if (isCardType) StaticList.CardTypes else StaticList.SubTypes,
-                    staticOptionIds = choices.map { it.second },
-                ),
-            ).firstOrNull()
+        val idx = requestChoice(request(choices)).firstOrNull()
         return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first
     }
 

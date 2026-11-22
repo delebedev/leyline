@@ -50,6 +50,7 @@ fun statsToJson(
         append("\"promptRequestsByKind\":${mapToJson(stats.promptRequestsByKind)},")
         append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
         append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
+        append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(stats.unnamedDefaultAnswers)},")
         append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
         append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
         append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
@@ -202,6 +203,20 @@ private fun routeFindingsToJson(values: List<PromptRouteFinding>): String =
             append("\"emittedCount\":${finding.emittedCount},")
             append("\"outcomeCounts\":${mapToJson(finding.outcomeCounts)},")
             append("\"sampleMessage\":${simJsonString(finding.sampleMessage)}")
+            append('}')
+        }
+    }
+
+internal fun unnamedDefaultAnswersToJson(values: List<UnnamedDefaultAnswer>): String =
+    values.joinToString(",", "[", "]") { answer ->
+        buildString {
+            append('{')
+            append("\"askedBy\":${simJsonString(answer.askedBy)},")
+            append("\"promptType\":${simJsonString(answer.promptType)},")
+            append("\"semantic\":${simJsonString(answer.semantic)},")
+            append("\"count\":${answer.count},")
+            append("\"sampleMessage\":${simJsonString(answer.sampleMessage)},")
+            append("\"sampleOptions\":${stringsToJson(answer.sampleOptions)}")
             append('}')
         }
     }

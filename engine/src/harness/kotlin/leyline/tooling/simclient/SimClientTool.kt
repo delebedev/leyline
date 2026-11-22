@@ -352,7 +352,22 @@ class SimClientRunner internal constructor(
         println("offeredWhileUnsure: ${affordability.offeredWhileUnsure.values.sum()}")
         println("offeredThenPaymentFailed: ${affordability.offeredThenPaymentFailed.values.sum()}")
         affordability.offeredThenPaymentFailed.forEach { (card, count) -> println("  $card = $count") }
+        val unnamed = unnamedDefaultTotals(rows)
+        println(
+            "unnamedDefaultAnswers: ${unnamed.sumOf { it.count }} in ${rows.count { it.stats.unnamedDefaultAnswers.isNotEmpty() }} row(s)",
+        )
+        unnamed.forEach { answer ->
+            println("  ${answer.count} ${answer.askedBy} ${answer.promptType}/${answer.semantic} \"${answer.sampleMessage}\"")
+        }
     }
+
+    /** Run-wide unnamed defaults per asking site; samples come from the first row that hit each site. */
+    private fun unnamedDefaultTotals(rows: List<SimClientRowResult>): List<UnnamedDefaultAnswer> =
+        rows
+            .flatMap { it.stats.unnamedDefaultAnswers }
+            .groupBy { Triple(it.askedBy, it.promptType, it.semantic) }
+            .map { (_, answers) -> answers.first().copy(count = answers.sumOf { it.count }) }
+            .sortedWith(compareByDescending<UnnamedDefaultAnswer> { it.count }.thenBy { it.askedBy })
 
     private fun writeSummary(result: SimClientRunResult) {
         val path = config.summaryJson ?: File(config.outDir, "summary.json")
@@ -367,6 +382,7 @@ class SimClientRunner internal constructor(
                 append("\"strictFailures\":${result.rows.count { isStrictFailure(it.stats) }},")
                 append("\"failureClasses\":${mapToJson(failures)},")
                 append("\"affordability\":${AffordabilityTotals.of(result.rows.map { it.stats }).toJson()},")
+                append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(unnamedDefaultTotals(result.rows))},")
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')
             }

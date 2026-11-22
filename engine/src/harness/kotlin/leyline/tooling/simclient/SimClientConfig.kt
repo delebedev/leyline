@@ -230,7 +230,8 @@ data class SimClientRunResult(
         }
 }
 
-fun isStrictFailure(stats: GameStats): Boolean = failureClass(stats) in strictFailureClasses
+/** A strict run also fails on any unnamed default answer, whatever the row's failure class. */
+fun isStrictFailure(stats: GameStats): Boolean = failureClass(stats) in strictFailureClasses || stats.unnamedDefaultAnswers.isNotEmpty()
 
 private val strictFailureClasses = setOf("exception", "wall-timeout", "validation", "log-error")
 

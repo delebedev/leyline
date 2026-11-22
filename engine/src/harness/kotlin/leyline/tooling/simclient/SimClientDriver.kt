@@ -155,7 +155,7 @@ class SimClientDriver(
                 .filter { isSimPrompt(it) }
                 .groupingBy { it.type }
                 .eachCount()
-        val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
+        val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram, promptDefaults(), droppedPromptDefaults())
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val logs = tap.stopAndDrain()
         val policyTelemetry =
@@ -248,6 +248,7 @@ class SimClientDriver(
             promptRequestsByKind = promptRouteAudit.requestsByKind,
             promptRequestSamplesByKind = promptRouteAudit.samplesByKind,
             promptRouteFindings = promptRouteAudit.findings,
+            unnamedDefaultAnswers = promptRouteAudit.unnamedDefaultAnswers,
             simFindings = simFindings,
             promptProgressSamples = promptProgress.snapshot(),
             offeredWhileUnsureByCard = affordability.offeredWhileUnsureByCard,
@@ -266,6 +267,11 @@ class SimClientDriver(
 
     private fun promptHistory(): List<leyline.bridge.handoff.PromptRecord> =
         runCatching { harness.bridge.promptBridge(SeatId(1)).history }.getOrDefault(emptyList())
+
+    private fun promptDefaults(): List<leyline.bridge.handoff.PromptRecord> =
+        runCatching { harness.bridge.promptBridge(SeatId(1)).defaultHistory }.getOrDefault(emptyList())
+
+    private fun droppedPromptDefaults(): Int = runCatching { harness.bridge.promptBridge(SeatId(1)).droppedDefaultCount }.getOrDefault(0)
 
     private data class FinalOutcome(
         val winnerSeat: Int?,

@@ -11,6 +11,7 @@ data class PromptRouteAudit(
     val requestsByKind: Map<String, Int>,
     val samplesByKind: Map<String, String>,
     val findings: List<PromptRouteFinding>,
+    val unnamedDefaultAnswers: List<UnnamedDefaultAnswer> = emptyList(),
 ) {
     companion object {
         val Empty = PromptRouteAudit(emptyMap(), emptyMap(), emptyList())
@@ -19,12 +20,21 @@ data class PromptRouteAudit(
 
 object PromptRouteAuditor {
     const val SAME_GRE_ROUTE_UNVERIFIED = "same_gre_route_unverified"
+    const val DROPPED_DEFAULTS = "DefaultHistoryOverflow"
 
+    /**
+     * @param defaults every policy default of the game; [history] may be capped and
+     *   miss early ones.
+     * @param droppedDefaults defaults evicted from [defaults] by its own cap
+     */
     fun audit(
         history: List<PromptRecord>,
         promptHistogram: Map<GREMessageType, Int>,
+        defaults: List<PromptRecord> = history.filter { it.outcome == PromptCallStatus.DEFAULTED_POLICY },
+        droppedDefaults: Int = 0,
     ): PromptRouteAudit {
-        if (history.isEmpty()) return PromptRouteAudit.Empty
+        val unnamedDefaultAnswers = unnamedDefaultAnswers(defaults) + listOfNotNull(droppedDefaultsEntry(droppedDefaults))
+        if (history.isEmpty()) return PromptRouteAudit.Empty.copy(unnamedDefaultAnswers = unnamedDefaultAnswers)
 
         val requestsByKind = history.groupingBy { it.kindKey() }.eachCount().toSortedMap()
         val samplesByKind =
@@ -68,7 +78,67 @@ object PromptRouteAuditor {
                         sampleMessage = records.first().message.compactSample(),
                     )
                 }.sortedWith(compareBy<PromptRouteFinding> { it.bucket }.thenBy { it.routeKey })
-        return PromptRouteAudit(requestsByKind, samplesByKind, findings)
+        return PromptRouteAudit(requestsByKind, samplesByKind, findings, unnamedDefaultAnswers)
+    }
+
+    /**
+     * Decisions with two or more options that no player was asked about, grouped by
+     * the Forge code that asked. Any entry fails a strict run.
+     */
+    fun unnamedDefaultAnswers(defaults: List<PromptRecord>): List<UnnamedDefaultAnswer> =
+        defaults
+            .filter { it.outcome == PromptCallStatus.DEFAULTED_POLICY && it.options.size >= 2 }
+            .groupBy { Triple(askedBy(it.callerFrames), it.promptType, it.semantic.name) }
+            .map { (key, records) ->
+                UnnamedDefaultAnswer(
+                    askedBy = key.first,
+                    promptType = key.second,
+                    semantic = key.third,
+                    count = records.size,
+                    sampleMessage = records.first().message.compactSample(),
+                    sampleOptions =
+                        records
+                            .first()
+                            .options
+                            .take(MAX_SAMPLE_OPTIONS)
+                            .map { it.compactSample() },
+                )
+            }.sortedWith(compareByDescending<UnnamedDefaultAnswer> { it.count }.thenBy { it.askedBy })
+
+    /**
+     * Defaults evicted before the audit may include unnamed ones, so the audit is
+     * incomplete. The entry makes a strict run fail instead of passing unchecked.
+     */
+    internal fun droppedDefaultsEntry(dropped: Int): UnnamedDefaultAnswer? =
+        if (dropped <= 0) {
+            null
+        } else {
+            UnnamedDefaultAnswer(
+                askedBy = DROPPED_DEFAULTS,
+                promptType = "",
+                semantic = "",
+                count = dropped,
+                sampleMessage = "policy defaults evicted before the audit; earlier unnamed defaults may be missing",
+                sampleOptions = emptyList(),
+            )
+        }
+
+    /**
+     * Names the Forge effect, cost or handler that asked, from frames recorded nearest
+     * first. Line numbers are dropped so one call site groups across Forge revisions.
+     */
+    internal fun askedBy(callerFrames: List<String>): String {
+        val frames = callerFrames.map { it.substringBeforeLast(':') }
+
+        fun className(frame: String) = frame.substringBefore('#')
+        return frames.firstOrNull { frame ->
+            val name = className(frame)
+            name.endsWith("Effect") && name != "SpellAbilityEffect"
+        } ?: frames.firstOrNull { frame ->
+            val name = className(frame)
+            name.startsWith("Cost") || name.endsWith("CostDecision") || name.endsWith("Handler")
+        } ?: frames.firstOrNull()
+            ?: "unknown"
     }
 
     private fun PromptRecord.expectedRoute(): ExpectedRoute? {
@@ -138,4 +208,5 @@ object PromptRouteAuditor {
     )
 
     private val ENUM_TAG_SUFFIX = Regex("_[a-f0-9]{4}$")
+    private const val MAX_SAMPLE_OPTIONS = 4
 }

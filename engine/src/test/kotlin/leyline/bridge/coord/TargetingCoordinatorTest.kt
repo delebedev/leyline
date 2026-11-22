@@ -296,7 +296,7 @@ class TargetingCoordinatorTest :
                 )
 
             chosen shouldBe null
-            bridge.history.shouldBeEmpty()
+            bridge.history.map { it.outcome to it.result } shouldBe listOf(PromptCallStatus.DEFAULTED_POLICY to emptyList())
         }
 
         test("empty target candidates complete only a zero-target ability") {
