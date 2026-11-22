@@ -73,6 +73,11 @@ object ConfirmActionPlanner {
                 return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:MayShuffle", PromptIds.OPTIONAL_SHUFFLE)
             sa?.api == ApiType.Repeat && sa.hasParam("RepeatOptional") ->
                 return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:RepeatOptional")
+            // A resolving optional transfer must expose its current zones before consent.
+            sa?.api == ApiType.ChangeZone &&
+                sa.hasParam("Optional") &&
+                (mode == null || mode == PlayerActionConfirmMode.ChangeZoneGeneral) ->
+                return ConfirmActionPlan.OptionalAction(hostCard, false, true, "confirmAction:OptionalZoneChange")
         }
         val labels = options?.takeIf { it.isNotEmpty() }?.toList() ?: listOf("Yes", "No")
         val sourceEntityId = hostCard?.id?.takeIf { it > 0 }
