@@ -3,6 +3,7 @@ package leyline.copilot
 import forge.ai.simulation.GameStateEvaluator
 import forge.game.ability.ApiType
 import forge.game.card.CounterEnumType
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -11,6 +12,7 @@ import leyline.bridge.types.InstanceId
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
+import leyline.testkit.planeswalkerDamageRecipient
 import leyline.tooling.headless.cardIn
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -1016,7 +1018,70 @@ class SnapshotHydrationTest :
                 hydrated.teardownResources()
             }
         }
+
+        // Boards whose shape is reached in play; the static boards live in CarriedCardStateRoundTripTest.
+        // Full control keeps the board in place; auto-pass would advance or end the game first.
+        for (board in roundTripBoards) {
+            session("round trip preserves carried card state: ${board.name}", puzzle = board.puzzle, fullControl = true) {
+                board.reach(this)
+                assertRoundTripPreservesCarriedState(bridge)
+            }
+        }
     })
+
+private val roundTripBoards =
+    listOf(
+        RoundTripBoard(
+            "Reconfigure equipment and aura on one creature",
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanbattlefield=Mountain;Grizzly Bears|Id:101;Rabbit Battery|Id:102;Pacifism|Id:103|AttachedTo:101
+            humanlibrary=Mountain;Mountain;Mountain
+            ailibrary=Forest;Forest;Forest
+            """,
+            // Forge's puzzle importer cannot attach a Reconfigure creature, so attach it in play.
+            reach = {
+                activateAbility("Rabbit Battery", abilityIndex = 0).shouldBeTrue()
+                selectTargets(listOf(human.battlefield.iid("Grizzly Bears")))
+                // An activated ability rides Forge's stack, not its stack zone, so pass until that stack resolves.
+                val game = bridge.getGame().shouldNotBeNull()
+                repeat(3) { if (!game.stack.isEmpty) passPriority() }
+                cardIn(game.players[0], ForgeZoneType.Battlefield, "Rabbit Battery").isAttachedToEntity.shouldBeTrue()
+            },
+        ),
+        RoundTripBoard(
+            "attacker on a planeswalker beside mana-sensitive permanents",
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanbattlefield=Raging Goblin|Id:101;Llanowar Elves|Id:102;Temple Garden|Id:103
+            aibattlefield=Chandra, Torch of Defiance|Id:201|Counters:LOYALTY=4
+            humanlibrary=Forest;Forest;Forest
+            ailibrary=Forest;Forest;Forest
+            """,
+            // The puzzle format resolves an attack target only when the defender is listed first.
+            reach = {
+                passUntil(maxPasses = 5) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+                val goblin = human.battlefield.iid("Raging Goblin")
+                declareAttackers(
+                    listOf(goblin),
+                    mapOf(
+                        goblin to planeswalkerDamageRecipient(ai.battlefield.iid("Chandra, Torch of Defiance")),
+                    ),
+                )
+                val game = bridge.getGame().shouldNotBeNull()
+                game.combat
+                    .shouldNotBeNull()
+                    .getDefenderByAttacker(cardIn(game.players[0], ForgeZoneType.Battlefield, "Raging Goblin"))
+                    .name shouldBe "Chandra, Torch of Defiance"
+            },
+        ),
+    )
 
 private fun battlefieldGsm(zoneId: Int = 7): GameStateMessage.Builder =
     GameStateMessage
