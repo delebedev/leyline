@@ -530,7 +530,7 @@ class TargetingCoordinator(
         val visible = revealedHand?.toList().orEmpty()
         if (visible.isEmpty()) return null
         val visibleIds = visible.map { ForgeCardId(it.id) }
-        if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
+        // The effect discloses exactly these cards to the chooser, even when it discloses only part of the hand.
         val ownerSeat = discarder.ownerSeat()
         TargetingCoordinator.startReveal(bridge, visibleIds, ownerSeat, lookOnly)
         return bridge.journal.activeRevealEntry()
