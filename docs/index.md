@@ -75,3 +75,4 @@ All ADRs remain part of the decision history, including superseded decisions.
   decisions from proof execution
 - [`0018`](decisions/0018-runtime-embedding-boundary.md) — ownership around one
   embedded Leyline runtime
+
