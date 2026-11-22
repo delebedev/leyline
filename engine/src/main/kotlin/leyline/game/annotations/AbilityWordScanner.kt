@@ -314,7 +314,13 @@ object AbilityWordScanner {
                 staticAbility.getParam("Station")?.trim()?.toIntOrNull()
                     ?: staticAbility
                         .getParam("Affected")
-                        ?.let { STATION_THRESHOLD.find(it)?.groupValues?.get(1)?.toIntOrNull() }
+                        .let { affected ->
+                            affected
+                                ?.let { STATION_THRESHOLD.find(it) }
+                                ?.groupValues
+                                ?.get(1)
+                                ?.toIntOrNull()
+                        }
                     ?: return@mapNotNull null
             AbilityWordEntry(
                 instanceId = iid,
