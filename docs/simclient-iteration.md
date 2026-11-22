@@ -220,6 +220,7 @@ Start with these fields in `*.stats.json`:
 - `simFindings`: derived warnings such as repeated target-choice replay suspects.
 - `stalledPrompt`, `stalledFingerprint`: last repeated client-visible prompt.
 - `warnsByLogger`, `errorsByType`, `validationViolationsByCheck`: direct failure signals.
+- `aiTimeoutsByDecision`: Forge AI searches that ran past their time limit, by decision.
 - `exceptionMessage`, `exceptionStackTop`: root cause when scout mode converted a crash into a stats row.
 - `deckOverlay`, `opponentDeckOverlay`: in-memory quarantine applied to a deck row.
 
