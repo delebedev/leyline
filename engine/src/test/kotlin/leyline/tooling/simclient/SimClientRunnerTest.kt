@@ -6,6 +6,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import leyline.SimClientTag
 import leyline.tooling.headless.TestCardRegistry
 import java.nio.file.Files
@@ -127,13 +129,18 @@ class SimClientRunnerTest :
                     stats,
                     SimClientPolicyMode.ForgeAi,
                 )
+            val affordability = Json.parseToJsonElement(summary).jsonObject.getValue("affordability")
+            val rowJson = Json.parseToJsonElement(row).jsonObject
             assertSoftly {
-                summary shouldContain
-                    "\"affordability\":{\"offeredWhileUnsure\":6,\"offeredThenPaymentFailed\":2," +
-                    "\"offeredWhileUnsureByCard\":{\"Chord of Calling\":6}," +
-                    "\"offeredThenPaymentFailedByCard\":{\"Savannah Lions (unsure)\":2}}"
-                row shouldContain "\"offeredWhileUnsureByCard\":{\"Chord of Calling\":3}"
-                row shouldContain "\"offeredThenPaymentFailedByCard\":{\"Savannah Lions (unsure)\":1}"
+                affordability shouldBe
+                    Json.parseToJsonElement(
+                        "{\"offeredWhileUnsure\":6,\"offeredThenPaymentFailed\":2," +
+                            "\"offeredWhileUnsureByCard\":{\"Chord of Calling\":6}," +
+                            "\"offeredThenPaymentFailedByCard\":{\"Savannah Lions (unsure)\":2}}",
+                    )
+                rowJson.getValue("offeredWhileUnsureByCard") shouldBe Json.parseToJsonElement("{\"Chord of Calling\":3}")
+                rowJson.getValue("offeredThenPaymentFailedByCard") shouldBe
+                    Json.parseToJsonElement("{\"Savannah Lions (unsure)\":1}")
             }
         }
     })
