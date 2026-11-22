@@ -2,6 +2,7 @@ package leyline.board.visibility
 
 import forge.card.CardStateName
 import forge.card.CardType
+import forge.game.ability.AbilityKey
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -10,7 +11,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.StateFrameInputCapture
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.event.FrameEventLog
 import leyline.game.event.GameEvent
 import leyline.game.event.Zone
 import leyline.game.mapping.ActionMapper
@@ -146,6 +149,59 @@ class GrantedAbilityProjectionTest :
                 current.id shouldNotBe old.id
                 occurrences.single { it.abilityGrpId == 97312 }.uniqueAbilityId shouldBe current.id
                 offered.uniqueAbilityId shouldBe current.id
+            }
+        }
+
+        test("a grant that survives a zone change keeps one identity in the frame") {
+            lateinit var recipient: Card
+            lateinit var aura: Card
+            val board =
+                startWithBoard { game, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    recipient = addCard("Greater Sandwurm", human, ZoneType.Battlefield)
+                    aura = addCard("Presence of Gond", human, ZoneType.Battlefield)
+                    aura.attachToEntity(recipient, null, true)
+                    game.action.checkStaticAbilities(false)
+                }
+            val fid = ForgeCardId(recipient.id)
+            val before = grantOffers(board, recipient).single { it.action.abilityGrpId == 97312 }.action
+
+            // Leave and re-enter the battlefield within one frame; the aura re-applies the same grant.
+            board.game.action.moveToHand(recipient, null)
+            board.game.action.checkStaticAbilities(false)
+            board.game.action.moveToPlay(recipient, null, AbilityKey.newMap())
+            aura.attachToEntity(recipient, null, true)
+            board.game.action.checkStaticAbilities(false)
+
+            val observation =
+                StateFrameInputCapture(board.bridge, "test", 1).captureNeutral(
+                    game = board.game,
+                    gameStateId = 2,
+                    revealForSeat = null,
+                    events =
+                        StateFrameInputCapture.Events.Supplied(
+                            FrameEventLog(
+                                listOf(
+                                    GameEvent.ZoneChanged(fid, Zone.Battlefield, Zone.Hand),
+                                    GameEvent.ZoneChanged(fid, Zone.Hand, Zone.Battlefield),
+                                ),
+                            ),
+                        ),
+                )
+            val occurrences =
+                observation.frame.snapshot.objects
+                    .getValue(fid)
+                    .activationOccurrences
+                    .getValue(SeatId(1))
+            val entry =
+                observation.frame.effectFacts.grantedAbilityEntries
+                    .single { it.forgeCardId == fid }
+            val occurrence = occurrences.single { it.abilityGrpId == 97312 }
+            assertSoftly {
+                occurrences.count { it.isAlternative } shouldBe 1
+                occurrence.uniqueAbilityId shouldNotBe null
+                occurrence.uniqueAbilityId shouldNotBe before.uniqueAbilityId
+                occurrence.uniqueAbilityId shouldBe entry.uniqueAbilityId
             }
         }
 

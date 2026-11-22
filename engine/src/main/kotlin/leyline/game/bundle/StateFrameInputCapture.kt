@@ -105,16 +105,18 @@ internal class StateFrameInputCapture(
         effectFactsOverride: EffectProjectionFacts? = null,
     ): Observation {
         val priorProjection = priorProjectionOverride ?: bridge.projectionStateSnapshot()
-        val (snapshot, projectionBaseline) =
-            bridge.editProjection(priorProjection) {
-                GsmSnapshot.capture(game, bridge, matchId, gameStateId)
-            }
         val closedEvents =
             when (events) {
                 Events.CloseBundleFrame -> bridge.closeBundleFrame(viewingSeatId)
                 is Events.Supplied -> events.log
             }
+        // Invalidate before reading state so the snapshot's grant identities and the
+        // effect facts materialized below come from the same allocator generation.
         bridge.invalidateAbilityRegistries(closedEvents.events)
+        val (snapshot, projectionBaseline) =
+            bridge.editProjection(priorProjection) {
+                GsmSnapshot.capture(game, bridge, matchId, gameStateId)
+            }
         bridge.prewarmAbilityRegistries(snapshot)
         val effectFacts = effectFactsOverride ?: bridge.materializeEffectProjectionFacts()
         val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, closedEvents.events)
