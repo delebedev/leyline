@@ -3,6 +3,7 @@ package leyline.game.bundle
 import leyline.bridge.handoff.DeferredCastCostPlan
 import leyline.bridge.handoff.ManaRequirementSpec
 import leyline.config.CostChoicePresentation
+import leyline.config.EngineSettings
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -97,6 +98,22 @@ object CastingTimeOptionsBuilder {
                     .addColor(color)
                     .setCount(count),
             ).build()
+
+    /** Build optional-cost options with the label policy the host selected in [settings]. */
+    internal fun buildOptionalCostCastingTimeOptionsReq(
+        instanceId: Int,
+        optionalCosts: List<DeferredCastCostPlan.OptionalCostEntry>,
+        playerIdToPrompt: Int,
+        baseManaCost: List<Pair<ManaColor, Int>>,
+        settings: EngineSettings,
+    ): Pair<CastingTimeOptionsReq, List<Int>> =
+        buildOptionalCostCastingTimeOptionsReq(
+            instanceId = instanceId,
+            optionalCosts = optionalCosts,
+            playerIdToPrompt = playerIdToPrompt,
+            baseManaCost = baseManaCost,
+            presentation = settings.costChoicePresentation,
+        )
 
     /**
      * Build a [CastingTimeOptionsReq] for optional costs.
@@ -207,6 +224,22 @@ object CastingTimeOptionsBuilder {
             .setCount(count)
             .setObjectId(objectId)
             .build()
+
+    /** Build alternate-cost options with the label policy the host selected in [settings]. */
+    internal fun buildChooseOrCostCastingTimeOptionsReq(
+        instanceId: Int,
+        grpId: Int,
+        playerIdToPrompt: Int,
+        choices: List<DeferredCastCostPlan.AlternateCostChoice>,
+        settings: EngineSettings,
+    ): Pair<CastingTimeOptionsReq, List<Int>> =
+        buildChooseOrCostCastingTimeOptionsReq(
+            instanceId = instanceId,
+            grpId = grpId,
+            playerIdToPrompt = playerIdToPrompt,
+            choices = choices,
+            presentation = settings.costChoicePresentation,
+        )
 
     /** Resolve labels from frozen choices before the coordinator commits the request. */
     internal fun buildChooseOrCostCastingTimeOptionsReq(
