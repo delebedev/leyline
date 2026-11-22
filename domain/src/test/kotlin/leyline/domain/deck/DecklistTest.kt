@@ -167,6 +167,78 @@ class DecklistTest :
             shouldThrow<DecklistException> { parseDecklist("[Maybeboard]\n1 Island") }
         }
 
+        test("strips a trailing foil or etched marker") {
+            val entries = parseDecklist("1 The Ur-Dragon (SLD) 11 *F*\n1 Sol Ring (SLD) 142 *E*").entries
+
+            assertSoftly {
+                entries[0] shouldBe DecklistEntry(DecklistSection.Main, 1, "The Ur-Dragon", "SLD")
+                entries[1] shouldBe DecklistEntry(DecklistSection.Main, 1, "Sol Ring", "SLD")
+            }
+        }
+
+        test("strips star collector numbers") {
+            val entries = parseDecklist("1 Arcane Signet (SLD) 1492★\n1 Necron Deathmark (40K) 42★").entries
+
+            assertSoftly {
+                entries[0] shouldBe DecklistEntry(DecklistSection.Main, 1, "Arcane Signet", "SLD")
+                entries[1] shouldBe DecklistEntry(DecklistSection.Main, 1, "Necron Deathmark", "40K")
+            }
+        }
+
+        test("strips hyphenated collector numbers and upper-cases the set code") {
+            val entries = parseDecklist("1 Skullclamp (PLST) C17-222\n1 Kaya's Ghostform (plst) WAR-94").entries
+
+            assertSoftly {
+                entries[0] shouldBe DecklistEntry(DecklistSection.Main, 1, "Skullclamp", "PLST")
+                entries[1] shouldBe DecklistEntry(DecklistSection.Main, 1, "Kaya's Ghostform", "PLST")
+            }
+        }
+
+        test("strips a collector number written without a space after the set code") {
+            val entry = parseDecklist("1 Etali, Primal Conqueror / Etali, Primal Sickness (MOM)137").entries.single()
+
+            assertSoftly {
+                entry.name shouldBe "Etali, Primal Conqueror / Etali, Primal Sickness"
+                entry.setCode shouldBe "MOM"
+            }
+        }
+
+        test("parses a Forge .dck file with metadata and pipe printing details") {
+            val decklist =
+                parseDecklist(
+                    """
+                    [metadata]
+                    Name=Import Fixture
+                    Deck Type=Constructed
+                    Format=Commander
+
+                    [Commander]
+                    1 Atraxa, Praetors' Voice|2XM|219
+
+                    [Main]
+                    1 Sol Ring|C21|263
+                    1 Arcane Signet|SLD|1492★
+
+                    [Sideboard]
+                    1 Negate|M10|55
+                    """.trimIndent(),
+                )
+
+            decklist.entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Commander, 1, "Atraxa, Praetors' Voice", "2XM"),
+                    DecklistEntry(DecklistSection.Main, 1, "Sol Ring", "C21"),
+                    DecklistEntry(DecklistSection.Main, 1, "Arcane Signet", "SLD"),
+                    DecklistEntry(DecklistSection.Sideboard, 1, "Negate", "M10"),
+                )
+        }
+
+        test("rejects non metadata lines inside a [metadata] block") {
+            val ex = shouldThrow<DecklistException> { parseDecklist("[metadata]\nName=\n1 Sol Ring") }
+
+            ex.errors shouldBe listOf("Unrecognized line: 1 Sol Ring")
+        }
+
         test("parses a representative bundled deck header sequence") {
             // Matches the real data/decks/*.txt shape: bare `Deck`, main-deck lines with
             // an Arena export suffix, then bare `Sideboard`.
