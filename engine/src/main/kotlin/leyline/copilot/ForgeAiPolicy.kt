@@ -485,7 +485,7 @@ class ForgeAiPolicy(
         val validCards = CardCollection(candidates)
         val chosen =
             askAi("chooseCardsToDiscardFrom") {
-                aiController.chooseCardsToDiscardFrom(targetPlayer, sourceSa, validCards, count, count, validCards)
+                aiController.chooseCardsToDiscardFrom(targetPlayer, sourceSa, validCards, count, count, null)
             } ?: return null
         val chosenIds = chosen.map { instanceIdForCard(it) }.filter { it != 0 }
         return chosenIds.takeIf { it.size >= count }?.take(count)

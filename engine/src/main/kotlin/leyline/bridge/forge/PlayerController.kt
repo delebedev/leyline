@@ -428,8 +428,8 @@ class PlayerController(
         validCards: CardCollection,
         min: Int,
         max: Int,
-        visibleToChooser: CardCollectionView,
-    ): CardCollectionView = targetingCoordinator.chooseCardsToDiscardFrom(p, sa, validCards, min, max, visibleToChooser)
+        delayedReveal: DelayedReveal?,
+    ): CardCollection = targetingCoordinator.chooseCardsToDiscardFrom(p, sa, validCards, min, max, delayedReveal?.cards)
 
     override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection =
         targetingCoordinator.chooseCardsToDiscardToMaximumHandSize(nDiscard, player.getZone(ZoneType.Hand).cards)
