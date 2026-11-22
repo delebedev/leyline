@@ -4,6 +4,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.AlternativeCost
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
@@ -13,6 +14,30 @@ class SpellAbilityShapesTest :
     FunSpec({
         tags(UnitTag)
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
+
+        test("hand-to-exile choices follow the card text, not the transfer parameters") {
+            val params = mapOf("Origin" to "Hand", "Destination" to "Exile", "Chooser" to "You")
+
+            fun abilityFor(
+                text: String,
+                extra: Map<String, String> = emptyMap(),
+            ): AbilitySub {
+                val card = Card(7, null).apply { oracleText = text }
+                return AbilitySub(ApiType.ChangeZone, card, null, params + extra)
+            }
+
+            assertSoftly {
+                SpellAbilityShapes.isPrivateHandLook(
+                    abilityFor("When this creature enters, look at target opponent's hand. You may exile a nonland card from it."),
+                ) shouldBe true
+                SpellAbilityShapes.isPrivateHandLook(
+                    abilityFor("When this creature enters, target opponent reveals their hand and you choose a nonland card from it."),
+                ) shouldBe false
+                SpellAbilityShapes.isPrivateHandLook(
+                    abilityFor("look at target opponent's hand.", mapOf("Origin" to "Library")),
+                ) shouldBe false
+            }
+        }
 
         test("paid cost alternatives do not grant a casting permission") {
             for (cost in listOf(AlternativeCost.Evoke, AlternativeCost.Warp, AlternativeCost.Foretold)) {

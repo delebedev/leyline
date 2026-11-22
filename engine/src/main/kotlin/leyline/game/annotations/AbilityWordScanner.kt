@@ -309,13 +309,18 @@ object AbilityWordScanner {
         if (chargeCount <= 0) return emptyList()
 
         return card.staticAbilities.orEmpty().mapNotNull { staticAbility ->
-            val affected = staticAbility.getParam("Affected") ?: return@mapNotNull null
+            // upstream writes the station level as `Station$ N`; older scripts put it in the affected filter
             val threshold =
-                STATION_THRESHOLD
-                    .find(affected)
-                    ?.groupValues
-                    ?.get(1)
-                    ?.toIntOrNull()
+                staticAbility.getParam("Station")?.trim()?.toIntOrNull()
+                    ?: staticAbility
+                        .getParam("Affected")
+                        .let { affected ->
+                            affected
+                                ?.let { STATION_THRESHOLD.find(it) }
+                                ?.groupValues
+                                ?.get(1)
+                                ?.toIntOrNull()
+                        }
                     ?: return@mapNotNull null
             AbilityWordEntry(
                 instanceId = iid,

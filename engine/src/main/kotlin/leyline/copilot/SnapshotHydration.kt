@@ -134,7 +134,6 @@ object SnapshotHydration {
     ) {
         val game = checkNotNull(bridge.getGame())
         game.triggerHandler.setSuppressAllTriggers(true)
-        game.stack.setResolving(true)
         try {
             rebindInstanceIds(puzzle, bridge)
             reconcileVisibleTypes(gsm, puzzle)
@@ -146,7 +145,6 @@ object SnapshotHydration {
             restoreMarkedDamage(gsm, puzzle)
             restoreCombatState(gsm, puzzle, bridge, consultSeat)
         } finally {
-            game.stack.setResolving(false)
             game.triggerHandler.setSuppressAllTriggers(false)
         }
     }
