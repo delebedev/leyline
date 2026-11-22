@@ -621,6 +621,7 @@ private class ScenarioRun(
         val actionMessageStart = postActionMessageStart ?: harness.messageSnapshot()
         postActionMessageStart = null
         repeat(12) { index ->
+            harness.awaitDeliveredStop()
             if (harness.isGameOver()) return
             val pending =
                 harness.bridge
@@ -637,12 +638,10 @@ private class ScenarioRun(
                     postActionHorizonPublished,
                 )
             ) {
-                pending?.takeUnless { it.state.kind == PendingActionKind.SYNC_ONLY }?.let {
-                    harness.awaitPendingActionHorizon(it, actionMessageStart)
-                }
                 return
             }
             harness.advance()
+            harness.awaitDeliveredStop()
             if (harness.isGameOver()) return
             if (harness.bridge.cutCoordinator
                     .currentBlockingInteraction()
@@ -651,16 +650,7 @@ private class ScenarioRun(
             ) {
                 return
             }
-            val nextPending =
-                harness.bridge
-                    .actionBridge(OUR_SEAT)
-                    .getPending()
-            if (harness.game().stack.isEmpty && nextPending?.state?.kind != PendingActionKind.SYNC_ONLY) {
-                nextPending?.takeUnless { it.state.kind == PendingActionKind.SYNC_ONLY }?.let {
-                    harness.awaitPendingActionHorizon(it, actionMessageStart)
-                }
-                return
-            }
+            if (harness.game().stack.isEmpty) return
         }
         error(
             "$context did not resolve stack; stack size=${harness.game().stack.size()}",

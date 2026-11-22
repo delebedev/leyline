@@ -198,11 +198,14 @@ drain path. The observer consumes only the coordinator delivery notification; it
 does not submit actions or choose progression policy.
 
 In-process harness callers may wait for named sink output, but do not wait on an
-engine horizon or consume the observer notification. Player, Familiar, and
-spectator sessions are delivery-only at the terminal horizon: they drain and
-deliver their own committed viewer feed and do not derive terminal state from
-Forge. Raw match completion is connection-local and follows the committed
-terminal drain. PvP transport is outside this fixed-roster delivery model.
+engine horizon or consume the observer notification. Pass-driven harness helpers
+return only after the seat's committed feed is empty under `sessionLock` and the
+current horizon is in delivered output, because a response may return before the
+observer delivers a later horizon. Player, Familiar, and spectator sessions are
+delivery-only at the terminal horizon: they drain and deliver their own
+committed viewer feed and do not derive terminal state from Forge. Raw match
+completion is connection-local and follows the committed terminal drain. PvP
+transport is outside this fixed-roster delivery model.
 
 ### Reconnect publication
 
