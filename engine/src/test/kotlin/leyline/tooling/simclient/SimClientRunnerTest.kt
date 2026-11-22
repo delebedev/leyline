@@ -100,6 +100,42 @@ class SimClientRunnerTest :
                 summary shouldNotContain "promptHistogram"
             }
         }
+
+        test("summary sums affordability diagnostics by card across rows") {
+            val stats =
+                failureStats().copy(
+                    errorsByType = emptyMap(),
+                    completionReason = "max-turns",
+                    offeredWhileUnsureByCard = mapOf("Chord of Calling" to 3),
+                    offeredThenPaymentFailedByCard = mapOf("Savannah Lions (unsure)" to 1),
+                )
+            val outDir = Files.createTempDirectory("simclient-runner-affordability").toFile()
+            SimClientMain.run(listOf("--decks", "forest-only", "--seeds", "1..2", "--out-dir", outDir.path), emptyMap()) { config ->
+                SimClientRunner(config, TestCardRegistry.repo) { stats }
+            }
+
+            val summary = outDir.resolve("summary.json").readText()
+            val row =
+                statsToJson(
+                    DeckSimClientRow(
+                        name = "forest-only",
+                        deckList = "60 Forest\n",
+                        opponentName = null,
+                        opponentDeckList = null,
+                        seed = 1,
+                    ),
+                    stats,
+                    SimClientPolicyMode.ForgeAi,
+                )
+            assertSoftly {
+                summary shouldContain
+                    "\"affordability\":{\"offeredWhileUnsure\":6,\"offeredThenPaymentFailed\":2," +
+                    "\"offeredWhileUnsureByCard\":{\"Chord of Calling\":6}," +
+                    "\"offeredThenPaymentFailedByCard\":{\"Savannah Lions (unsure)\":2}}"
+                row shouldContain "\"offeredWhileUnsureByCard\":{\"Chord of Calling\":3}"
+                row shouldContain "\"offeredThenPaymentFailedByCard\":{\"Savannah Lions (unsure)\":1}"
+            }
+        }
     })
 
 private fun registerRunnerCards() {

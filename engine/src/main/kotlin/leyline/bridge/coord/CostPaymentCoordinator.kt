@@ -62,16 +62,21 @@ class CostPaymentCoordinator(
     private val log = LoggerFactory.getLogger(CostPaymentCoordinator::class.java)
 
     private var cancelledManaPayment = false
+    private var manaPaymentFailed = false
 
+    /** Runs one mana payment; a refusal the player did not cancel is kept for [consumeManaPaymentFailure]. */
     fun withManaPayment(block: () -> Boolean): Boolean {
         val previous = cancelledManaPayment
         cancelledManaPayment = false
         return try {
-            block()
+            block().also { paid -> if (!paid && !cancelledManaPayment) manaPaymentFailed = true }
         } finally {
             cancelledManaPayment = previous
         }
     }
+
+    /** Whether a mana payment failed since the last call. */
+    fun consumeManaPaymentFailure(): Boolean = manaPaymentFailed.also { manaPaymentFailed = false }
 
     /** Return exact cards to Forge; successful mana payment owns their exile. */
     fun chooseCardsToDelve(

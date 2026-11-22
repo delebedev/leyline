@@ -342,6 +342,10 @@ class SimClientRunner internal constructor(
             .forEach { (klass, count) ->
                 println("  $klass = $count")
             }
+        val affordability = AffordabilityTotals.of(rows.map { it.stats })
+        println("offeredWhileUnsure: ${affordability.offeredWhileUnsure.values.sum()}")
+        println("offeredThenPaymentFailed: ${affordability.offeredThenPaymentFailed.values.sum()}")
+        affordability.offeredThenPaymentFailed.forEach { (card, count) -> println("  $card = $count") }
     }
 
     private fun writeSummary(result: SimClientRunResult) {
@@ -356,6 +360,7 @@ class SimClientRunner internal constructor(
                 append("\"rowsSkipped\":${result.skipped},")
                 append("\"strictFailures\":${result.rows.count { isStrictFailure(it.stats) }},")
                 append("\"failureClasses\":${mapToJson(failures)},")
+                append("\"affordability\":${AffordabilityTotals.of(result.rows.map { it.stats }).toJson()},")
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')
             }

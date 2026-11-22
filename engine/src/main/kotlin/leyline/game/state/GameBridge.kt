@@ -17,6 +17,7 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.DevCheck
+import leyline.bridge.AffordabilityDiagnostics
 import leyline.bridge.CompanionAction
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap
@@ -132,6 +133,9 @@ class GameBridge(
 
     /** Match-scoped owner of mutable priority policy and client settings. */
     val priorityPolicy = PriorityPolicyRuntime(matchId = matchId)
+
+    /** Offers made on uncertain affordability and offered actions whose payment failed. */
+    val affordabilityDiagnostics = AffordabilityDiagnostics()
 
     /** Puzzle application uses inert choices before journal/feed ownership starts. */
     private val setupBlockingInteractionRuntime =
@@ -1053,6 +1057,7 @@ class GameBridge(
                 runtimeHorizonMode = runtimeHorizonMode,
                 interactionRuntime = cutCoordinator,
                 onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
+                affordabilityDiagnostics = affordabilityDiagnostics,
             )
         humanController = controller
         human.dangerouslySetController(controller)
@@ -1729,6 +1734,7 @@ class GameBridge(
                     runtimeHorizonMode = runtimeHorizonMode,
                     interactionRuntime = cutCoordinator,
                     onCompanionToHand = { eventCollector?.recordCompanionToHand(it) },
+                    affordabilityDiagnostics = affordabilityDiagnostics,
                 )
             humanController = controller
             human.dangerouslySetController(controller)

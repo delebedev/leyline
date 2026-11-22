@@ -63,6 +63,10 @@ data class GameStats(
     val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
     val simFindings: List<SimClientFinding> = emptyList(),
     val promptProgressSamples: List<PromptProgressSample> = emptyList(),
+    /** Active offers built on uncertain affordability, by card. */
+    val offeredWhileUnsureByCard: Map<String, Int> = emptyMap(),
+    /** Offered actions whose mana payment failed, by card and offering verdict. */
+    val offeredThenPaymentFailedByCard: Map<String, Int> = emptyMap(),
 )
 
 data class PromptRouteFinding(

@@ -64,6 +64,8 @@ fun statsToJson(
         append("\"actionAttemptsByType\":${mapToJson(stats.actionAttemptsByType)},")
         append("\"noPendingByDecision\":${mapToJson(stats.noPendingByDecision)},")
         append("\"skippedAlreadyTried\":${stats.skippedAlreadyTried},")
+        append("\"offeredWhileUnsureByCard\":${mapToJson(stats.offeredWhileUnsureByCard)},")
+        append("\"offeredThenPaymentFailedByCard\":${mapToJson(stats.offeredThenPaymentFailedByCard)},")
         append("\"connectMs\":${stats.connectMs},")
         append("\"stepTotalMs\":${stats.stepTotalMs},")
         append("\"stepMaxMs\":${stats.stepMaxMs},")
@@ -215,3 +217,34 @@ private fun simFindingsToJson(values: List<SimClientFinding>): String =
             append('}')
         }
     }
+
+/** Run-wide affordability diagnostics, summed by card across rows. */
+internal data class AffordabilityTotals(
+    val offeredWhileUnsure: Map<String, Int>,
+    val offeredThenPaymentFailed: Map<String, Int>,
+) {
+    fun toJson(): String =
+        buildString {
+            append('{')
+            append("\"offeredWhileUnsure\":${offeredWhileUnsure.values.sum()},")
+            append("\"offeredThenPaymentFailed\":${offeredThenPaymentFailed.values.sum()},")
+            append("\"offeredWhileUnsureByCard\":${mapToJson(offeredWhileUnsure)},")
+            append("\"offeredThenPaymentFailedByCard\":${mapToJson(offeredThenPaymentFailed)}")
+            append('}')
+        }
+
+    companion object {
+        fun of(stats: List<GameStats>): AffordabilityTotals =
+            AffordabilityTotals(
+                sumByKey(stats.map { it.offeredWhileUnsureByCard }),
+                sumByKey(stats.map { it.offeredThenPaymentFailedByCard }),
+            )
+
+        private fun sumByKey(maps: List<Map<String, Int>>): Map<String, Int> =
+            maps
+                .flatMap { it.entries }
+                .groupingBy { it.key }
+                .fold(0) { total, entry -> total + entry.value }
+                .toSortedMap()
+    }
+}

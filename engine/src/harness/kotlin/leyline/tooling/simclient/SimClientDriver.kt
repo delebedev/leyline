@@ -166,6 +166,7 @@ class SimClientDriver(
         val promptStats = promptLedger.stats()
         val attemptStats = attemptLedger.stats()
         val outcome = finalOutcome()
+        val affordability = harness.bridge.affordabilityDiagnostics.snapshot()
         snapshotProbe?.logSummary("turn=${currentTurnOrNull() ?: lastTurn},reason=$completionReason")
         val semanticAgreement =
             snapshotProbe
@@ -249,6 +250,8 @@ class SimClientDriver(
             promptRouteFindings = promptRouteAudit.findings,
             simFindings = simFindings,
             promptProgressSamples = promptProgress.snapshot(),
+            offeredWhileUnsureByCard = affordability.offeredWhileUnsureByCard,
+            offeredThenPaymentFailedByCard = affordability.offeredThenPaymentFailedByCard,
         )
     }
 
