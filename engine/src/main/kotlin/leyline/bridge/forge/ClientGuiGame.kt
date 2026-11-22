@@ -916,8 +916,6 @@ class ClientGuiGame(
 
     override fun updateCards(cards: Iterable<CardView>) {}
 
-    override fun updateRevealedCards(collection: TrackableCollection<CardView>) {}
-
     override fun refreshCardDetails(cards: Iterable<CardView>) {}
 
     override fun refreshField() {}
@@ -946,10 +944,6 @@ class ClientGuiGame(
     ) {}
 
     override fun setSelection(selection: Selection) {}
-
-    override fun setWeaklySelectable(cards: Iterable<CardView>) {}
-
-    override fun clearWeaklySelectable() {}
 
     override fun applyDelta(packet: forge.gamemodes.net.DeltaPacket) {}
 

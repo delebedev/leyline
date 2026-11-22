@@ -37,10 +37,12 @@ frames:
       - id: changed
         type: ObjectIdChanged
         lane: transient
+        where: {equals: {"details.orig_id[0]": "partition.raw.groupReq.instanceIds[6]"}}
         keys: [orig_id, new_id]
       - id: put
         type: ZoneTransfer
         lane: transient
+        where: {fields: {details.zone_src: [31]}}
         keys: [zone_src, zone_dest, category]
         fields: {details.zone_src: [31], details.zone_dest: [32], details.category: [Put]}
         equals: {affectedIds: changed.details.new_id}

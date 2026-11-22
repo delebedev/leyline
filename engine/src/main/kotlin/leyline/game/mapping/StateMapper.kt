@@ -261,7 +261,17 @@ object StateMapper {
         // Classify a stale reveal from materialized prompt facts. Its compare-and-clear
         // intent returns with this draft and runs only after an accepted commit.
         val (activeReveal, staleReveals) = detectActiveReveal(promptFacts, editor.revealProxies.isEmpty())
-        val revealedHandSeat = activeReveal?.ownerSeatId?.value
+        // Only a reveal of the whole hand makes the hand zone public; a subset travels as reveal proxies,
+        // so the unrevealed cards keep their identity.
+        val revealedHandSeat = activeReveal?.takeIf { it.revealsWholeHand(snap) }?.ownerSeatId?.value
+        // Cards a partial reveal offers to the chooser; they keep their real instance ids so the
+        // reveal-choice prompt can address them, and no other card of the hand is emitted.
+        val partiallyRevealedCards =
+            activeReveal
+                ?.takeUnless { it.revealsWholeHand(snap) }
+                ?.allHandCardIds
+                ?.toSet()
+                .orEmpty()
 
         // Player 1 zones
         if (StateZoneProjection.hasSeat(snap, SeatId(1))) {
@@ -280,6 +290,7 @@ object StateMapper {
                 revealForSeat,
                 revealHand = revealedHandSeat == 1,
                 lookHand = activeReveal?.lookOnly == true,
+                revealedCardIds = partiallyRevealedCards,
                 previousSnapshot = prev,
             )
         }
@@ -301,6 +312,7 @@ object StateMapper {
                 revealForSeat,
                 revealHand = revealedHandSeat == 2,
                 lookHand = activeReveal?.lookOnly == true,
+                revealedCardIds = partiallyRevealedCards,
                 previousSnapshot = prev,
             )
         }
@@ -1743,6 +1755,23 @@ object StateMapper {
                 ?.mapNotNull { iid -> identities.getForgeCardId(InstanceId(iid)) }
                 ?.any { it !in battlefieldCards } == true
         }
+    }
+
+    /** Whether the reveal covers every card currently in the owner's hand. */
+    private fun RevealStarted.revealsWholeHand(snap: GsmSnapshot): Boolean {
+        val handZone =
+            when (ownerSeatId.value) {
+                1 -> ZoneIds.P1_HAND
+                2 -> ZoneIds.P2_HAND
+                else -> return false
+            }
+        val hand =
+            snap.zones[handZone]
+                ?.contents
+                ?.map { it.value }
+                ?.toSet()
+                .orEmpty()
+        return hand.isNotEmpty() && allHandCardIds.map { it.value }.toSet() == hand
     }
 
     /** Classify stale reveal state without touching the prompt journal. */

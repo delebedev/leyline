@@ -8,6 +8,9 @@ docs-lint:
     repo_root="$(git rev-parse --show-toplevel)"
     cd "$repo_root"
 
+    # The scans below treat rg failure as "no matches", so a missing rg would pass silently.
+    command -v rg >/dev/null || { echo "docs-lint requires ripgrep (rg)" >&2; exit 1; }
+
     # rg glob excludes
     rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/"
 
@@ -75,19 +78,24 @@ docs-lint:
             fi
             rest="${rest/"](${ref})"/ }"
         done
-    done < <(rg -n '\.md[)#]' --type md $rg_exclude 2>/dev/null || true)
+    done < <(rg -n '\.md[)#]' --type md $rg_exclude . 2>/dev/null || true)
 
     # --- Phase 2: path-shaped .md refs across all file types ---
     echo "Scanning path refs (.md, .yaml, .kt)..."
     path_pat='[a-zA-Z0-9_./-]+/[a-zA-Z0-9_./-]*\.md'
+    url_pat="https?://[^[:space:])>\"',]+"
     while IFS=: read -r file line_num content; do
         rest="$content"
+        # Remote URLs end in .md too; drop them so only local paths are checked.
+        while [[ "$rest" =~ $url_pat ]]; do
+            rest="${rest/"${BASH_REMATCH[0]}"/ }"
+        done
         while [[ "$rest" =~ $path_pat ]]; do
             ref="${BASH_REMATCH[0]}"
             check_ref "$file" "$ref" || report "$file" "$line_num" "$ref"
             rest="${rest#*${ref}}"
         done
-    done < <(rg -n "$path_pat" --type md --type yaml --type kotlin $rg_exclude 2>/dev/null || true)
+    done < <(rg -n "$path_pat" --type md --type yaml --type kotlin $rg_exclude . 2>/dev/null || true)
 
     if ((errors > 0)); then
         echo ""

@@ -48,6 +48,7 @@ object ZoneMapper {
         revealForSeat: Int? = null,
         revealHand: Boolean = false,
         lookHand: Boolean = false,
+        revealedCardIds: Set<ForgeCardId> = emptySet(),
         previousSnapshot: GsmSnapshot? = null,
     ) {
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId.value || revealHand
@@ -69,8 +70,11 @@ object ZoneMapper {
                     ?.mayLookSeatIds
                     .orEmpty()
                     .mapTo(linkedSetOf()) { it.value }
-            val permittedViewers = inspectionViewers + seatId.value + if (revealHand) setOf(seatId.opponent.value) else emptySet()
-            if (canSeeHand || viewingSeatId in inspectionViewers) {
+            // A partial reveal exposes only the supplied cards: the prompt addresses them by real
+            // instance id, so each choosable card needs an object while the rest of the hand stays hidden.
+            val revealViewers = if (revealHand || fid in revealedCardIds) setOf(seatId.opponent.value) else emptySet()
+            val permittedViewers = inspectionViewers + seatId.value + revealViewers
+            if (canSeeHand || viewingSeatId in inspectionViewers || fid in revealedCardIds) {
                 addPlayerCardObjects(
                     snap,
                     fid,

@@ -145,6 +145,10 @@ class DiscardInteractionTest :
                 req.minSel shouldBe 1
                 req.maxSel shouldBe 1
                 req.idsList shouldHaveSize 1
+                // every card the prompt addresses must have an object in the chooser's accumulated state
+                (req.idsList + req.unfilteredIdsList).forEach { id ->
+                    accumulator.objects.containsKey(id) shouldBe true
+                }
             }
 
             val response = after { respondToSelectN(listOf(divinationId)) }

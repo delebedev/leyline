@@ -6,6 +6,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.RevealZone
@@ -123,6 +124,58 @@ class HandVisibilityProjectionTest :
                         observerClosed.gsm,
                     ).forEach { checker.process(GREToClientMessage.newBuilder().setGameStateMessage(it).build()) }
                     checker.violations.shouldBeEmpty()
+                }
+            }
+        }
+
+        for (wholeHand in listOf(false, true)) {
+            test("only a whole-hand reveal makes the hand zone public to the opponent, whole: $wholeHand") {
+                val board =
+                    startWithBoard { _, _, ai ->
+                        addCard("Forest", ai, ZoneType.Hand)
+                        addCard("Mountain", ai, ZoneType.Hand)
+                    }
+                val hand = board.ai.getCardsIn(ZoneType.Hand).toList()
+                val revealed = if (wholeHand) hand else listOf(hand.first())
+                val revealedIds = revealed.map { ForgeCardId(it.id) }
+                val facts =
+                    PromptProjectionFacts(
+                        reveals =
+                            listOf(
+                                PromptProjectionFacts.RevealFact(
+                                    PromptFactKey(SeatId(1), 1),
+                                    RevealStarted(revealedIds, SeatId(2)),
+                                    hasPendingPrompt = true,
+                                ),
+                            ),
+                    )
+                val viewer =
+                    projectHand(
+                        board,
+                        handSnapshot(board, 1),
+                        1,
+                        promptFacts = facts,
+                        events =
+                            FrameEventLog(
+                                listOf(GameEvent.CardsRevealed(revealedIds, SeatId(2), SeatId(1), RevealZone.HAND)),
+                            ),
+                    )
+                val handZone = viewer.gsm.zonesList.single { it.zoneId == ZoneIds.P2_HAND }
+                val revealedZone =
+                    viewer.gsm.zonesList
+                        .filter { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Revealed }
+                        .flatMap { it.objectInstanceIdsList }
+                val handObjects = viewer.gsm.gameObjectsList.filter { it.instanceId in hand.map { card -> board.instanceId(card.id) } }
+                assertSoftly {
+                    handZone.viewersList.toSet() shouldBe
+                        if (wholeHand) setOf(1, 2) else setOf(2)
+                    handObjects.map { it.instanceId }.toSet() shouldBe
+                        if (wholeHand) hand.map { board.instanceId(it.id) }.toSet() else revealed.map { board.instanceId(it.id) }.toSet()
+                    handObjects.forEach {
+                        it.visibility shouldBe if (wholeHand) Visibility.Public else Visibility.Private
+                        it.viewersList.toSet() shouldBe setOf(1, 2)
+                    }
+                    if (!wholeHand) revealedZone.shouldNotBeEmpty()
                 }
             }
         }
