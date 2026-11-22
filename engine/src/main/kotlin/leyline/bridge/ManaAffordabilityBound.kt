@@ -28,9 +28,11 @@ import forge.game.zone.ZoneType
 internal object ManaAffordabilityBound {
     private const val ALL_TYPES = ManaAtom.ALL_MANA_TYPES.toInt()
 
+    /** [colored] is gross output for colour needs; [net] subtracts activation mana for the total. */
     private data class Source(
         val types: Int,
-        val amount: Int,
+        val colored: Int,
+        val net: Int = colored,
     )
 
     fun allows(
@@ -52,9 +54,9 @@ internal object ManaAffordabilityBound {
                 }
             }
         }
-        return required <= sources.sumOf { it.amount } &&
+        return required <= sources.sumOf { it.net } &&
             requiredByTypes.all { (types, count) ->
-                count <= sources.filter { it.types and types != 0 }.sumOf { maxOf(it.amount, 1) }
+                count <= sources.filter { it.types and types != 0 }.sumOf { it.colored }
             }
     }
 
@@ -102,7 +104,8 @@ internal object ManaAffordabilityBound {
                 (if (mana.isComboMana || mana.isAnyMana) 1 else produced.split(" ").count { it.isNotBlank() }) *
                     AbilityUtils.calculateAmount(card, ability.getParamOrDefault("Amount", "1"), ability)
             val activationMana = cost?.totalMana?.cmc ?: 0
-            Source(types, (perActivation - activationMana).coerceAtLeast(0) * activations(card, ability, player))
+            val count = activations(card, ability, player)
+            Source(types, colored = perActivation.coerceAtLeast(1) * count, net = (perActivation - activationMana).coerceAtLeast(0) * count)
         }
 
     /** Untapped repeatable sacrifice outlets may activate once per permanent they can sacrifice. */

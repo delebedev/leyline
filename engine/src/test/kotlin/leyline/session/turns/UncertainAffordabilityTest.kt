@@ -8,6 +8,7 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.bridge.ActionAvailability
 import leyline.bridge.Affordability
+import leyline.bridge.ManaAffordabilityBound
 import leyline.bridge.PriorityActionCandidates
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.SessionTest
@@ -110,6 +111,26 @@ class UncertainAffordabilityTest :
                 human.battlefield.card("Rumbling Baloth")
                 human.graveyard.card("Chord of Calling")
             }
+        }
+
+        session(
+            "the bound counts a paid filter's gross output toward colour needs",
+            puzzle =
+                """
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Swans of Bryn Argoll
+                humanbattlefield=Azorius Signet;Wastes;Wastes;Wastes
+                humanlibrary=Plains;Plains;Plains
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            turns = 3,
+        ) {
+            val swans = human.hand.card("Swans of Bryn Argoll")
+            ManaAffordabilityBound.allows(swans.firstSpellAbility, human) shouldBe true
         }
 
         session(
