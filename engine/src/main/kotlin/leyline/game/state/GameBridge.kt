@@ -1295,7 +1295,8 @@ class GameBridge(
      *
      * Pre-populated for puzzle cards via [registerPuzzleCards]. For all other
      * game types (constructed, tokens, zone transfers), built on first access
-     * from the live [card] + [cardData].
+     * from the live [card] + [cardData]. Rebuilt when Forge has regenerated the
+     * card's spell ability instances, which invalidates definition-id rows.
      */
     fun abilityRegistryFor(
         card: Card,
@@ -1303,7 +1304,7 @@ class GameBridge(
     ): AbilityRegistry? {
         if (cardData == null) return null
         return abilityRegistries.compute(card.id) { _, cached ->
-            cached?.takeIf { it.sourceCardGrpId == cardData.grpId }
+            cached?.takeIf { it.sourceCardGrpId == cardData.grpId && it.matchesLiveSpellAbilities(card) }
                 ?: buildAbilityRegistry(card, cardData)
         }
     }

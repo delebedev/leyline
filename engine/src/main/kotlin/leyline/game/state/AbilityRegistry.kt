@@ -38,7 +38,20 @@ class AbilityRegistry private constructor(
     private val grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
     private val keywordSlotIndices: Map<Int, Int> = emptyMap(),
     private val grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
+    private val builtSpellAbilityDefinitions: Set<Int> = emptySet(),
 ) {
+    /**
+     * True while [card] still exposes the spell ability definitions this registry was built from.
+     *
+     * Forge regenerates a card's [SpellAbility] instances on zone changes, so cached
+     * definition-id rows go stale even though the printed slots are unchanged.
+     */
+    fun matchesLiveSpellAbilities(card: Card): Boolean {
+        val live = card.spellAbilities
+        if (live.size != builtSpellAbilityDefinitions.size) return false
+        return live.all { it.definitionId in builtSpellAbilityDefinitions }
+    }
+
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
     fun forSpellAbility(ability: SpellAbility): Int? =
         if (ability.originalAbility != null) {
@@ -236,6 +249,7 @@ class AbilityRegistry private constructor(
             grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
         ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
+            val builtSpellAbilityDefinitions = card.spellAbilities.mapTo(mutableSetOf()) { it.definitionId }
             val grantedKeywordIds =
                 card.spellAbilities
                     .mapNotNull { ability ->
@@ -250,6 +264,7 @@ class AbilityRegistry private constructor(
                     sourceCardGrpId = cardData.grpId,
                     grantedKeywordAbilityGrpId = grantedKeywordAbilityGrpId,
                     grantedIds = grantedIds,
+                    builtSpellAbilityDefinitions = builtSpellAbilityDefinitions,
                 )
             }
 
@@ -328,6 +343,7 @@ class AbilityRegistry private constructor(
                 grantedKeywordAbilityGrpId,
                 keywordSlotIndices,
                 grantedIds,
+                builtSpellAbilityDefinitions,
             )
         }
 
