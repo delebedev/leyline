@@ -9,11 +9,16 @@ class TestActionWindowRuntime(
 ) : GameActionBridge.ActionWindowRuntime {
     @Volatile private var visibleActionId: String? = null
 
+    @Volatile private var publishedActionId: String? = null
+
     override fun publish(pending: GameActionBridge.PendingAction) {
         visibleActionId = pending.actionId
+        publishedActionId = pending.actionId
     }
 
     override fun isVisible(actionId: String): Boolean = visibleActionId == actionId
+
+    override fun isPublished(actionId: String): Boolean = publishedActionId == actionId
 
     override fun promptGameStateId(actionId: String): Int? = null
 

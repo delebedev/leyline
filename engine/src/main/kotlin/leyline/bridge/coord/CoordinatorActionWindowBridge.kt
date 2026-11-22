@@ -14,6 +14,8 @@ internal class CoordinatorActionWindowBridge(
 
     override fun isVisible(actionId: String): Boolean = runtime.isVisible(actionId)
 
+    override fun isPublished(actionId: String): Boolean = runtime.isPublished(actionId)
+
     override fun promptGameStateId(actionId: String): Int? = runtime.promptGameStateId(actionId)
 
     override fun resolve(
