@@ -179,7 +179,7 @@ internal class DeferredCastCostInteractionHandler(
                 optionalCosts = optional.entries,
                 playerIdToPrompt = counters.seatId.value,
                 baseManaCost = optional.baseManaCost,
-                presentation = ctx.bridge.engineSettings.costChoicePresentation,
+                settings = ctx.bridge.engineSettings,
             )
         return OptionalCostPrompt(ctoReq, costCtoIds)
     }
@@ -202,7 +202,7 @@ internal class DeferredCastCostInteractionHandler(
                 grpId = plan.grpId,
                 playerIdToPrompt = counters.seatId.value,
                 choices = alternate.choices,
-                presentation = ctx.bridge.engineSettings.costChoicePresentation,
+                settings = ctx.bridge.engineSettings,
             )
         ctx.bridge.cutCoordinator.deferredCast.publishAlternate(
             claim = actionClaim,
