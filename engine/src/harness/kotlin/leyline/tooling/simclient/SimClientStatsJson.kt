@@ -53,6 +53,7 @@ fun statsToJson(
         append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(stats.unnamedDefaultAnswers)},")
         append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
         append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
+        append("\"aiTimeoutsByDecision\":${mapToJson(stats.aiTimeoutsByDecision)},")
         append("\"warnsByLogger\":${mapToJson(stats.warnsByLogger)},")
         append("\"errorsByType\":${mapToJson(stats.errorsByType)},")
         append("\"logErrorSamples\":${stringsToJson(stats.logErrorSamples)},")

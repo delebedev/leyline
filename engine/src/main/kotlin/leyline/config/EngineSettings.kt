@@ -21,6 +21,12 @@ data class EngineSettings(
     /** How long the engine waits for the AI turn before suppressing action prompts (ms). */
     @SerialName("ai_turn_wait_ms")
     val aiTurnWaitMs: Long = 30_000L,
+    /**
+     * Seconds Forge AI may spend on one attack, block or spell-choice search.
+     * Null = Forge's default. Hosts that play against people keep the default.
+     */
+    @SerialName("ai_timeout_seconds")
+    val aiTimeoutSeconds: Int? = null,
     /** How long session entry waits for the engine to publish a mulligan phase (ms). */
     @SerialName("mulligan_wait_ms")
     val mulliganWaitMs: Long = 45_000L,
@@ -71,6 +77,7 @@ data class EngineSettings(
         bridgeTimeoutMs?.let { require(it > 0) { "engine.bridge_timeout_ms must be positive when set, got $it" } }
         promptFailsafeMs?.let { require(it > 0) { "engine.prompt_failsafe_ms must be positive when set, got $it" } }
         require(aiTurnWaitMs > 0) { "engine.ai_turn_wait_ms must be positive, got $aiTurnWaitMs" }
+        aiTimeoutSeconds?.let { require(it > 0) { "engine.ai_timeout_seconds must be positive when set, got $it" } }
         require(mulliganWaitMs > 0) { "engine.mulligan_wait_ms must be positive, got $mulliganWaitMs" }
         seed?.let { require(it >= 0) { "engine.seed must be non-negative, got $it" } }
         dieRollWinner?.let { require(it in 1..2) { "engine.die_roll_winner must be 1 or 2, got $it" } }

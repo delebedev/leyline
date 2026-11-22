@@ -49,17 +49,7 @@ class MatchFlowHarness(
     validating: Boolean = true,
     private val validation: InvariantSelection = defaultValidation(validating),
     private val validationStrict: Boolean = true,
-    private val engineSettings: EngineSettings =
-        EngineSettings(
-            aiSpeed = 0.0,
-            // Fail fast in tests. Local gameplay leaves the human bridge
-            // timeout disabled; here the engine
-            // Candidate projection can traverse a full action set under suite
-            // load; this remains short enough to surface a stalled game loop.
-            bridgeTimeoutMs = 30_000L,
-            aiTurnWaitMs = 2_000L,
-            mulliganWaitMs = 2_000L,
-        ),
+    private val engineSettings: EngineSettings = headlessEngineSettings(),
     private val variant: String? = null,
     /**
      * Bypass the YAML-fixture-backed [TestCardRegistry] when set. The harness
@@ -77,6 +67,34 @@ class MatchFlowHarness(
     costChoicePresentation: CostChoicePresentation = engineSettings.costChoicePresentation,
 ) {
     companion object {
+        /** Forge AI search limit for headless and simclient games. */
+        const val HEADLESS_AI_TIMEOUT_SECONDS = 60
+
+        /** Engine work around one AI search: state projection, prompt building, a loaded machine. */
+        private const val AI_WAIT_MARGIN_SECONDS = 15
+
+        /**
+         * Limit for a harness wait that can span a Forge AI decision. It outlasts
+         * [HEADLESS_AI_TIMEOUT_SECONDS], so a slow search is cut short by Forge
+         * rather than failing the wait.
+         */
+        const val GAMEPLAY_WAIT_MS = (HEADLESS_AI_TIMEOUT_SECONDS + AI_WAIT_MARGIN_SECONDS) * 1_000L
+
+        /** Engine settings for headless and simclient games. */
+        fun headlessEngineSettings(): EngineSettings =
+            EngineSettings(
+                aiSpeed = 0.0,
+                // Fail fast on a stalled game loop instead of waiting forever, as
+                // local gameplay does. The client's own decisions can run Forge
+                // AI, so the bridge outlasts one AI search.
+                bridgeTimeoutMs = GAMEPLAY_WAIT_MS,
+                aiTurnWaitMs = 2_000L,
+                mulliganWaitMs = 2_000L,
+                // A loaded machine must not cut AI searches short: a fixed seed
+                // should replay the same game at any load.
+                aiTimeoutSeconds = HEADLESS_AI_TIMEOUT_SECONDS,
+            )
+
         private const val DEFAULT_DECK = """
             20 Llanowar Elves
             4 Elvish Mystic
@@ -216,7 +234,7 @@ class MatchFlowHarness(
                 accumulator.turnInfo?.phase == Phase.Main1_a549
         }
         if (messagesSince(outputStart).none(humanMain1)) {
-            GameLoopPoller.awaitCondition(timeoutMs = 20_000L) {
+            GameLoopPoller.awaitCondition(timeoutMs = GAMEPLAY_WAIT_MS) {
                 drainSink()
                 val pending = bridge.actionBridge(seatId).getPending()
                 val humanMain1Pending =
@@ -769,7 +787,7 @@ class MatchFlowHarness(
         continueAfterSubmit: Boolean = false,
         autoRespond: Boolean = true,
     ): Boolean {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(GAMEPLAY_WAIT_MS)
         while (true) {
             collectSinkMessages()
             if (isGameOver()) return false
@@ -884,7 +902,7 @@ class MatchFlowHarness(
         description: String,
         predicate: (GREToClientMessage) -> Boolean,
     ) {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(GAMEPLAY_WAIT_MS)
         var deliveredEpoch = epoch
         collectSinkMessages()
         while (messagesSince(messageStart).none(predicate)) {

@@ -37,6 +37,11 @@ class EngineSettingsTest :
             shouldThrow<IllegalArgumentException> { EngineSettings(aiTurnWaitMs = 0).validate() }
         }
 
+        test("AI timeout keeps Forge's default unless set to a positive value") {
+            EngineSettings().aiTimeoutSeconds shouldBe null
+            shouldThrow<IllegalArgumentException> { EngineSettings(aiTimeoutSeconds = 0).validate() }
+        }
+
         test("die roll winner must be seat 1 or 2") {
             shouldThrow<IllegalArgumentException> { EngineSettings(dieRollWinner = 3).validate() }
         }

@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import forge.util.AITimeoutTracker
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -75,6 +76,37 @@ class SimClientE2ETest :
                     writer.close()
                     runCatching { harness.shutdown() }
                 }
+            }
+        }
+
+        test("headless rows run Forge AI with the raised limit and record its timeouts") {
+            val harness = MatchFlowHarness(seed = 42L, responseMode = HeadlessResponseMode.PolicyVisible)
+            val tempLog = Files.createTempFile("simclient-ai-timeout-", ".log").toFile()
+            val writer = tempLog.bufferedWriter()
+            val playerLog = SyntheticArtifactWriter(out = writer, matchId = "simclient-ai-timeout")
+            try {
+                val stats =
+                    SimClientDriver(
+                        harness = harness,
+                        log = playerLog,
+                        maxTurns = 1,
+                        connect = {
+                            harness.connectAndKeep()
+                            val game = harness.bridge.getGame()!!
+                            game.AI_TIMEOUT shouldBe MatchFlowHarness.HEADLESS_AI_TIMEOUT_SECONDS
+                            // an AI search that outlives its limit during the row; a zero
+                            // limit expires as soon as the session ends
+                            val key = AITimeoutTracker.key(game.id, 1)
+                            AITimeoutTracker.begin(key, 0L, AITimeoutTracker.Decision.ATTACK)
+                            AITimeoutTracker.end(key)
+                        },
+                    ).runOneGame()
+
+                stats.aiTimeoutsByDecision shouldBe mapOf("attack" to 1)
+            } finally {
+                writer.close()
+                runCatching { harness.shutdown() }
+                tempLog.delete()
             }
         }
 

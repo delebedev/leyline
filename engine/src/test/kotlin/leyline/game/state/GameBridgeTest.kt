@@ -122,6 +122,23 @@ class GameBridgeTest :
             seat2Hand.shouldNotBeEmpty()
         }
 
+        test("games keep Forge's AI limit unless engine settings raise it") {
+            val defaults = GameBridge(cardRepository = InMemoryCardRepository())
+            bridge = defaults
+            defaults.start()
+            defaults.getGame()!!.AI_TIMEOUT shouldBe 5
+            defaults.shutdown()
+
+            val raised =
+                GameBridge(
+                    cardRepository = InMemoryCardRepository(),
+                    engineSettings = EngineSettings(aiTimeoutSeconds = 60),
+                )
+            bridge = raised
+            raised.start()
+            raised.getGame()!!.AI_TIMEOUT shouldBe 60
+        }
+
         test("getHandGrpIds resolves") {
             val b = GameBridge(cardRepository = InMemoryCardRepository())
             bridge = b

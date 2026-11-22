@@ -48,6 +48,8 @@ class SimClientRunner internal constructor(
     /** Test-only seam; production runs resolve the selected catalog. */
     private val cardRepositoryOverride: CardRepository? = null,
     private val rowRunnerOverride: ((SimClientRow) -> GameStats)? = null,
+    /** Test-only seam: replaces the driver inside the row's timeout and failure handling. */
+    private val gameOverride: ((MatchFlowHarness) -> GameStats)? = null,
 ) {
     /** One shared card repository for every row in this run. */
     private val cardRepo: CardRepository by lazy {
@@ -110,7 +112,9 @@ class SimClientRunner internal constructor(
                         opponentDeckOverlay = (row as? DeckSimClientRow)?.opponentOverlay,
                     ),
                 createHarness = { createHarness(row) },
-                runGame = { harness, playerLog -> createDriver(row, harness, playerLog).runOneGame() },
+                runGame = { harness, playerLog, aiTimeouts ->
+                    gameOverride?.invoke(harness) ?: createDriver(row, harness, playerLog, aiTimeouts).runOneGame()
+                },
             )
         File(config.outDir, "${row.tag}.stats.json").writeText(statsToJson(row, stats, config.policy))
         return stats
@@ -143,6 +147,7 @@ class SimClientRunner internal constructor(
         row: SimClientRow,
         harness: MatchFlowHarness,
         playerLog: SyntheticArtifactSink,
+        aiTimeouts: AiTimeoutCounter,
     ): SimClientDriver {
         val forgeAi =
             if (config.policy == SimClientPolicyMode.ForgeAi || config.policy == SimClientPolicyMode.ShadowAi) {
@@ -161,6 +166,7 @@ class SimClientRunner internal constructor(
                     shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                     snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
                     snapshotConsult = config.policy == SimClientPolicyMode.Snapshot,
+                    aiTimeouts = aiTimeouts,
                 )
             is PuzzleSimClientRow ->
                 SimClientDriver(
@@ -173,6 +179,7 @@ class SimClientRunner internal constructor(
                     shadowAdvisor = config.policy == SimClientPolicyMode.ShadowAi,
                     snapshotShadow = config.policy == SimClientPolicyMode.SnapshotShadow,
                     snapshotConsult = config.policy == SimClientPolicyMode.Snapshot,
+                    aiTimeouts = aiTimeouts,
                 )
         }
     }
@@ -180,7 +187,7 @@ class SimClientRunner internal constructor(
     private fun runWithTimeout(
         run: TimedRunContext,
         createHarness: () -> MatchFlowHarness,
-        runGame: (MatchFlowHarness, SyntheticArtifactSink) -> GameStats,
+        runGame: (MatchFlowHarness, SyntheticArtifactSink, AiTimeoutCounter) -> GameStats,
     ): GameStats {
         val matchId = "simclient-${run.tag}"
         val identity =
@@ -197,6 +204,8 @@ class SimClientRunner internal constructor(
                         opponentDeck = run.opponentDeckOverlay?.toSyntheticArtifactSide(),
                     ).takeUnless { it.deck == null && it.opponentDeck == null },
             )
+        // owned here so failed and timed-out rows keep their AI timeout counts
+        val aiTimeouts = AiTimeoutCounter().apply { start() }
         val harnessRef = AtomicReference<MatchFlowHarness?>()
         val timeoutMs = config.gameTimeoutSeconds * 1_000
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "simclient-${run.tag}").apply { isDaemon = true } }
@@ -216,7 +225,7 @@ class SimClientRunner internal constructor(
                             },
                         )
                     try {
-                        runGame(harness, artifactRun)
+                        runGame(harness, artifactRun, aiTimeouts)
                     } finally {
                         runCatching {
                             artifactRun.finish(
@@ -238,16 +247,19 @@ class SimClientRunner internal constructor(
             try {
                 future.get(timeoutMs, TimeUnit.MILLISECONDS)
             } catch (_: TimeoutException) {
-                val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs)
+                val statsAtTimeout = timeoutStats(harnessRef.get(), timeoutMs).copy(aiTimeoutsByDecision = aiTimeouts.counts())
                 future.cancel(true)
                 runCatching { harnessRef.get()?.shutdown() }
                 statsAtTimeout
             } catch (e: ExecutionException) {
                 if (!config.continueOnException) throw e
-                val statsAtException = exceptionStats(harnessRef.get(), (System.nanoTime() - t0) / 1_000_000, e)
+                val statsAtException =
+                    exceptionStats(harnessRef.get(), (System.nanoTime() - t0) / 1_000_000, e)
+                        .copy(aiTimeoutsByDecision = aiTimeouts.counts())
                 runCatching { harnessRef.get()?.shutdown() }
                 statsAtException
             } finally {
+                aiTimeouts.stop()
                 executor.shutdownNow()
             }
         return stats
@@ -325,11 +337,14 @@ class SimClientRunner internal constructor(
         val errTotal = stats.errorsByType.values.sum()
         val validationTotal = stats.validationViolationsByCheck.values.sum()
         val aiSummary = if (stats.aiConsulted > 0) "ai=${stats.aiChose}/${stats.aiConsulted} aiMs=${stats.aiTotalMs} " else ""
+        val aiTimeoutTotal = stats.aiTimeoutsByDecision.values.sum()
+        val aiTimeoutSummary = if (aiTimeoutTotal > 0) "aiTimeouts=$aiTimeoutTotal " else ""
         println(
             "[${row.runLabel} s=${row.seed}] ${stats.durationMs}ms turn=${stats.turn} " +
                 "gameOver=${stats.gameOver} reason=${stats.completionReason} failure=${failureClass(stats)} " +
                 "iter=${stats.iterations} msgs=${stats.totalMessages} hitCap=${stats.hitIterCap} " +
-                "prompts=${stats.promptHistogram.size} ${aiSummary}warns=$warnTotal errs=$errTotal validation=$validationTotal",
+                "prompts=${stats.promptHistogram.size} ${aiSummary}$aiTimeoutSummary" +
+                "warns=$warnTotal errs=$errTotal validation=$validationTotal",
         )
     }
 
