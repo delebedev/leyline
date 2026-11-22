@@ -5,18 +5,14 @@ import forge.game.ability.ApiType
 import forge.game.card.CounterEnumType
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.InstanceId
-import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.GsmSnapshot
-import leyline.game.state.GameBridge
 import leyline.testkit.SessionTest
 import leyline.testkit.TestCardRegistry
 import leyline.testkit.planeswalkerDamageRecipient
-import leyline.tooling.headless.MatchFlowHarness
 import leyline.tooling.headless.cardIn
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -1023,100 +1019,18 @@ class SnapshotHydrationTest :
             }
         }
 
-        // Each board reproduces a shape whose hydration once diverged from its source game.
+        // Boards whose shape is reached in play; the static boards live in CarriedCardStateRoundTripTest.
         // Full control keeps the board in place; auto-pass would advance or end the game first.
         for (board in roundTripBoards) {
             session("round trip preserves carried card state: ${board.name}", puzzle = board.puzzle, fullControl = true) {
                 board.reach(this)
-                val sourceBridge = bridge
-                val source = carriedCardState(sourceBridge)
-                val gsm =
-                    StateMapper
-                        .buildFromSnapshot(source.snapshot, 0, "roundtrip", sourceBridge, viewingSeatId = CONSULT_SEAT)
-                        .gsm
-                val hydrated =
-                    SnapshotHydration.hydrateWithReport(
-                        gsm = gsm,
-                        consultSeat = CONSULT_SEAT,
-                        cardRepository = sourceBridge.cardRepository,
-                    )
-                try {
-                    source.cards.keys.shouldNotBeEmpty()
-                    carriedCardState(hydrated.bridge).cards shouldBe source.cards
-                } finally {
-                    hydrated.bridge.teardownResources()
-                }
+                assertRoundTripPreservesCarriedState(bridge)
             }
         }
     })
 
-private const val CONSULT_SEAT = 1
-
-/**
- * A board named for the shape it holds. Puzzle ids are local cross-references;
- * [reach] plays any step the puzzle format cannot express. Every board states
- * both life totals because a session puzzle without them ends before its first
- * priority window.
- */
-private class RoundTripBoard(
-    val name: String,
-    val puzzle: String,
-    val reach: suspend MatchFlowHarness.() -> Unit = {},
-)
-
 private val roundTripBoards =
     listOf(
-        RoundTripBoard(
-            "aura attached to a token creature",
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanbattlefield=Pacifism|Id:101|AttachedTo:201
-            aibattlefield=T:g_1_2_spider_reach|Id:201
-            humanlibrary=Forest;Forest;Forest
-            ailibrary=Forest;Forest;Forest
-            """,
-        ),
-        RoundTripBoard(
-            "Role token attached to a creature",
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanbattlefield=Grizzly Bears|Id:101;T:role_wicked|Id:102|AttachedTo:101
-            humanlibrary=Forest;Forest;Forest
-            ailibrary=Forest;Forest;Forest
-            """,
-        ),
-        RoundTripBoard(
-            "types and power changed by a resolved spell",
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanprecast=Turn to Frog->201
-            aibattlefield=Grizzly Bears|Id:201
-            humanlibrary=Island;Island;Island
-            ailibrary=Forest;Forest;Forest
-            """,
-        ),
-        RoundTripBoard(
-            "marked damage carried by temporary toughness",
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanprecast=Giant Growth->101
-            humanbattlefield=Grizzly Bears|Id:101|Damage:3
-            humanlibrary=Forest;Forest;Forest
-            ailibrary=Forest;Forest;Forest
-            """,
-        ),
         RoundTripBoard(
             "Reconfigure equipment and aura on one creature",
             """
@@ -1137,18 +1051,6 @@ private val roundTripBoards =
                 repeat(3) { if (!game.stack.isEmpty) passPriority() }
                 cardIn(game.players[0], ForgeZoneType.Battlefield, "Rabbit Battery").isAttachedToEntity.shouldBeTrue()
             },
-        ),
-        RoundTripBoard(
-            "Blood token with its draw ability",
-            """
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            humanbattlefield=T:c_a_blood_draw|Id:101
-            humanlibrary=Swamp;Swamp;Swamp
-            ailibrary=Forest;Forest;Forest
-            """,
         ),
         RoundTripBoard(
             "attacker on a planeswalker beside mana-sensitive permanents",
@@ -1180,78 +1082,6 @@ private val roundTripBoards =
             },
         ),
     )
-
-/**
- * Card state that hydration claims to carry, keyed by instance id. Libraries,
- * the opponent's hand and the stack are excluded because hydration replaces
- * or omits them by design.
- */
-private data class CarriedCardState(
-    val snapshot: GsmSnapshot,
-    val cards: Map<Int, CarriedCard>,
-)
-
-private data class CarriedCard(
-    val zone: ZoneType,
-    val name: String,
-    val grpId: Int,
-    val controller: Int,
-    val isToken: Boolean,
-    val tapped: Boolean,
-    val hasSickness: Boolean,
-    val damage: Int,
-    val netPower: Int?,
-    val netToughness: Int?,
-    val cardTypes: List<Int>,
-    val subtypes: List<Int>,
-    val counters: Map<String, Int>,
-    val attachedToInstanceId: Int?,
-    val combatRole: CombatRole?,
-    val hasManaAbilities: Boolean,
-    val hasNonManaActivatedAbilities: Boolean,
-)
-
-private fun carriedCardState(bridge: GameBridge): CarriedCardState {
-    val game = bridge.getGame().shouldNotBeNull()
-    val snapshot = GsmSnapshot.capture(game, bridge, "roundtrip", 0)
-    val cards =
-        snapshot.zones.values
-            .filter { zone ->
-                zone.type in setOf(ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile) ||
-                    (zone.type == ZoneType.Hand && zone.owner?.value == CONSULT_SEAT)
-            }.flatMap { zone -> zone.contents.map { zone.type to it } }
-            .associate { (zoneType, forgeCardId) ->
-                val card = snapshot.objects.getValue(forgeCardId)
-                val instanceId = bridge.peekInstanceId(forgeCardId).shouldNotBeNull().value
-                instanceId to
-                    CarriedCard(
-                        zone = zoneType,
-                        name = card.name,
-                        grpId = card.grpId,
-                        controller = card.controller.value,
-                        isToken = card.isToken,
-                        tapped = card.tapped,
-                        hasSickness = card.hasSickness,
-                        damage = card.damage,
-                        netPower = card.netPower,
-                        netToughness = card.netToughness,
-                        cardTypes = card.liveCardTypeNumbers.sorted(),
-                        subtypes = card.liveSubtypeNumbers.sorted(),
-                        counters =
-                            bridge
-                                .findCard(forgeCardId)
-                                ?.counters
-                                ?.entrySet()
-                                .orEmpty()
-                                .associate { it.element.name to it.count },
-                        attachedToInstanceId = card.attachedToInstanceId,
-                        combatRole = card.combatRole,
-                        hasManaAbilities = card.hasManaAbilities,
-                        hasNonManaActivatedAbilities = card.hasNonManaActivatedAbilities,
-                    )
-            }
-    return CarriedCardState(snapshot, cards)
-}
 
 private fun battlefieldGsm(zoneId: Int = 7): GameStateMessage.Builder =
     GameStateMessage
