@@ -325,16 +325,24 @@ Puzzle libraries are ordered. `humanlibrary=A;B;C` means the fixture can force t
 
 ## Fixed-Seed Comparisons
 
-A fixed seed replays the same game only on an otherwise idle machine. Under CPU
-load, the same deck, seed and policy can play a different game, including a
-different winner. The likely cause is decisions bounded by wall-clock time:
+A fixed seed replays the same game on an idle machine. Under CPU load, the
+same deck, seed and policy can still play a different game. These inputs
+depend on wall-clock time or thread scheduling:
 
 - Forge AI stops its attack, block and spell-choice searches after
-  `Game.AI_TIMEOUT` seconds and keeps what it decided so far. Leyline keeps
-  Forge's default of 5.
+  `Game.AI_TIMEOUT` seconds and keeps what it decided so far. Simclient and
+  other headless runs raise the limit to 60 seconds through
+  `EngineSettings.aiTimeoutSeconds`; hosts that play against people keep
+  Forge's default of 5. Each search that still runs out of time appears in the
+  row stats as `aiTimeoutsByDecision` and in the row summary as `aiTimeouts=`.
+  A row that differs between two runs without a recorded AI timeout points at
+  another load channel.
 - Harness waits such as `GameLoopPoller.awaitCondition` in `MatchFlowHarness`
   have fixed millisecond limits.
 - A bridge prompt that times out answers with its default option.
+
+Forge applies the AI's parallel forced-attack checks in attacker order and
+orders simultaneous triggers deterministically, so neither depends on load.
 
 For a before/after comparison:
 
@@ -347,15 +355,13 @@ For a before/after comparison:
 
 The same seed and inputs should play the same game at any machine load:
 
-1. Raise `Game.AI_TIMEOUT` for simclient and headless runs. Leyline can set it
-   when it creates the game. This makes AI cutoffs rare but does not remove them.
-2. Replace the AI's wall-clock limit with a work limit, such as a count of
+1. Replace the AI's wall-clock limit with a work limit, such as a count of
    evaluated options, so a decision does not depend on machine speed. This
    needs a change in the Forge fork.
-3. Make harness waits finish on engine progress: a pending prompt, a state
+2. Make harness waits finish on engine progress: a pending prompt, a state
    change or an idle game loop. Keep a wall-clock limit only as a stall guard,
    and record in the row stats when it fired.
-4. Add a check that runs the same seeds in two parallel sweeps and lists the
+3. Add a check that runs the same seeds in two parallel sweeps and lists the
    rows that differ.
 
 ## Fix Criteria

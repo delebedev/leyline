@@ -43,6 +43,10 @@
 # priority before giving up and suppressing action prompts (ms).
 # ai_turn_wait_ms = 30000
 
+# Forge AI search limit — seconds the AI may spend on one attack, block or
+# spell choice before keeping its best answer so far. Unset = Forge's default (5).
+# ai_timeout_seconds = 5
+
 # Mulligan transition wait — how long session entry waits for the engine to
 # publish a mulligan phase (ms).
 # mulligan_wait_ms = 45000

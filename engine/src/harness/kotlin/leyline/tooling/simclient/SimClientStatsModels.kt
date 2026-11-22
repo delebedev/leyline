@@ -31,6 +31,8 @@ data class GameStats(
     val snapshotDecisionSources: Map<String, Int> = emptyMap(),
     val snapshotSemanticAgreement: Map<String, Int> = emptyMap(),
     val snapshotSemanticMismatchSamples: Map<String, String> = emptyMap(),
+    /** Forge AI searches that ran past their time limit, keyed by decision. */
+    val aiTimeoutsByDecision: Map<String, Int> = emptyMap(),
     val warnsByLogger: Map<String, Int> = emptyMap(),
     val errorsByType: Map<String, Int> = emptyMap(),
     val logErrorSamples: List<String> = emptyList(),

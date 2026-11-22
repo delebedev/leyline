@@ -325,11 +325,13 @@ class SimClientRunner internal constructor(
         val errTotal = stats.errorsByType.values.sum()
         val validationTotal = stats.validationViolationsByCheck.values.sum()
         val aiSummary = if (stats.aiConsulted > 0) "ai=${stats.aiChose}/${stats.aiConsulted} aiMs=${stats.aiTotalMs} " else ""
+        val aiTimeoutTotal = stats.aiTimeoutsByDecision.values.sum()
+        val aiTimeoutSummary = if (aiTimeoutTotal > 0) "aiTimeouts=$aiTimeoutTotal " else ""
         println(
             "[${row.runLabel} s=${row.seed}] ${stats.durationMs}ms turn=${stats.turn} " +
                 "gameOver=${stats.gameOver} reason=${stats.completionReason} failure=${failureClass(stats)} " +
                 "iter=${stats.iterations} msgs=${stats.totalMessages} hitCap=${stats.hitIterCap} " +
-                "prompts=${stats.promptHistogram.size} ${aiSummary}warns=$warnTotal errs=$errTotal validation=$validationTotal",
+                "prompts=${stats.promptHistogram.size} ${aiSummary}${aiTimeoutSummary}warns=$warnTotal errs=$errTotal validation=$validationTotal",
         )
     }
 

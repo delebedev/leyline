@@ -76,6 +76,7 @@ class SimClientDriver(
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun runOneGame(): GameStats {
         val tap = GameLogCollector().apply { start() }
+        val aiTimeouts = AiTimeoutCounter().apply { start() }
         val t0 = System.nanoTime()
         val connectT0 = System.nanoTime()
         connect()
@@ -158,6 +159,7 @@ class SimClientDriver(
         val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val logs = tap.stopAndDrain()
+        val aiTimeoutsByDecision = aiTimeouts.stopAndDrain()
         val policyTelemetry =
             snapshotDriver?.telemetry()
                 ?: (promptPolicy as? ForgeAiPromptPolicy)?.telemetry()
@@ -212,6 +214,7 @@ class SimClientDriver(
             snapshotDecisionSources = snapshotDriver?.decisionSources() ?: snapshotProbe?.decisionSources().orEmpty(),
             snapshotSemanticAgreement = semanticAgreement,
             snapshotSemanticMismatchSamples = snapshotProbe?.mismatchSamples().orEmpty(),
+            aiTimeoutsByDecision = aiTimeoutsByDecision,
             warnsByLogger = logs.warnsByLogger,
             errorsByType = logs.errorsByType,
             logErrorSamples = logs.errorSamples,

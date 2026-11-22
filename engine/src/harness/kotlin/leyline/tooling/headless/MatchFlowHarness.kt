@@ -59,6 +59,9 @@ class MatchFlowHarness(
             bridgeTimeoutMs = 30_000L,
             aiTurnWaitMs = 2_000L,
             mulliganWaitMs = 2_000L,
+            // A loaded machine must not cut AI searches short: a fixed seed
+            // should replay the same game at any load.
+            aiTimeoutSeconds = HEADLESS_AI_TIMEOUT_SECONDS,
         ),
     private val variant: String? = null,
     /**
@@ -77,6 +80,9 @@ class MatchFlowHarness(
     costChoicePresentation: CostChoicePresentation = engineSettings.costChoicePresentation,
 ) {
     companion object {
+        /** Forge AI search limit for headless and simclient games. */
+        const val HEADLESS_AI_TIMEOUT_SECONDS = 60
+
         private const val DEFAULT_DECK = """
             20 Llanowar Elves
             4 Elvish Mystic

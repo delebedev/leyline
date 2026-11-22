@@ -1021,6 +1021,7 @@ class GameBridge(
      */
     fun wrapGame(g: Game) {
         game = g
+        applyAiTimeout(g)
         populateSeatMap(g)
         // Register the bridged controller exactly as the started-game paths
         // do — a wrapped game whose cost calculations reach the default
@@ -1029,6 +1030,10 @@ class GameBridge(
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
+    }
+
+    private fun applyAiTimeout(g: Game) {
+        engineSettings.aiTimeoutSeconds?.let { g.AI_TIMEOUT = it }
     }
 
     private fun seedRandom(seed: Long?) {
@@ -1130,6 +1135,7 @@ class GameBridge(
                 GameBootstrap.createConstructedGame(realizedDeck1, realizedDeck2)
             }
         game = g
+        applyAiTimeout(g)
 
         populateSeatMap(g)
 
@@ -1222,6 +1228,7 @@ class GameBridge(
                 GameBootstrap.createAiVsAiGame(realizedDeck1, realizedDeck2)
             }
         game = g
+        applyAiTimeout(g)
         populateSeatMap(g)
 
         g.players.forEachIndexed { index, player ->
@@ -1675,6 +1682,7 @@ class GameBridge(
 
         val g = GameBootstrap.createPuzzleGame(controlledSeat)
         game = g
+        applyAiTimeout(g)
         populateSeatMap(g)
         check(seating.humanSeat == controlledSeat) {
             "Puzzle controlled seat ${controlledSeat.value} resolved as human seat ${seating.humanSeat.value}"
