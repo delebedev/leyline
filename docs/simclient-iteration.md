@@ -338,8 +338,11 @@ depend on wall-clock time or thread scheduling:
   row stats as `aiTimeoutsByDecision` and in the row summary as `aiTimeouts=`.
   A row that differs between two runs without a recorded AI timeout points at
   another load channel.
-- Harness waits such as `GameLoopPoller.awaitCondition` in `MatchFlowHarness`
-  have fixed millisecond limits.
+- Harness waits in `MatchFlowHarness` and the bridge's action timeout have
+  fixed limits. Those that can span a Forge AI decision use
+  `MatchFlowHarness.GAMEPLAY_WAIT_MS`, the AI limit plus a margin, so a slow
+  search is cut short by Forge before the wait fails the row. A wait that runs
+  out still fails the row.
 - A bridge prompt that times out answers with its default option.
 
 Forge applies the AI's parallel forced-attack checks in attacker order and
@@ -360,8 +363,9 @@ The same seed and inputs should play the same game at any machine load:
    evaluated options, so a decision does not depend on machine speed. This
    needs a change in the Forge fork.
 2. Make harness waits finish on engine progress: a pending prompt, a state
-   change or an idle game loop. Keep a wall-clock limit only as a stall guard,
-   and record in the row stats when it fired.
+   change or an idle game loop, instead of a wall-clock limit sized to outlast
+   the AI. Keep a wall-clock limit only as a stall guard, and record in the
+   row stats when it fired.
 3. Add a check that runs the same seeds in two parallel sweeps and lists the
    rows that differ.
 

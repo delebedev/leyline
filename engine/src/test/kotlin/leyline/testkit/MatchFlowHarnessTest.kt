@@ -41,6 +41,16 @@ class MatchFlowHarnessTest :
             harness = null
         }
 
+        test("gameplay waits and the bridge outlast the headless AI limit") {
+            val aiLimitMs = MatchFlowHarness.HEADLESS_AI_TIMEOUT_SECONDS * 1_000L
+            val settings = MatchFlowHarness.headlessEngineSettings()
+            assertSoftly {
+                settings.aiTimeoutSeconds shouldBe MatchFlowHarness.HEADLESS_AI_TIMEOUT_SECONDS
+                MatchFlowHarness.GAMEPLAY_WAIT_MS shouldBeGreaterThan aiLimitMs
+                settings.bridgeTimeoutMs.shouldNotBeNull() shouldBeGreaterThan aiLimitMs
+            }
+        }
+
         test("harness can start game and reach Main1 with valid accumulated state") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
