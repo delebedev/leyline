@@ -35,8 +35,24 @@ jobs:
 
             if (context.eventName === 'pull_request') {
               const internal = context.payload.pull_request.head.repo.full_name === context.payload.repository.full_name
-              core.setOutput('run-heavy', String(internal))
-              core.info(internal ? 'Internal PR: run CI' : 'Fork PR: skip privileged CI')
+              if (!internal) {
+                core.setOutput('run-heavy', 'false')
+                core.info('Fork PR: skip privileged CI')
+                return
+              }
+
+              // Markdown is never read by builds or tests, so a Markdown-only diff
+              // cannot change any Gate or Extended result.
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100,
+              })
+              const docsOnly = files.length > 0 && files.every(f =>
+                f.filename.endsWith('.md') && (!f.previous_filename || f.previous_filename.endsWith('.md')))
+              core.setOutput('run-heavy', String(!docsOnly))
+              core.info(docsOnly ? `Markdown-only PR (${files.length} files): skip heavy CI` : 'Internal PR: run CI')
               return
             }
 
