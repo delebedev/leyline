@@ -17,8 +17,9 @@ import forge.game.zone.ZoneType
  *
  * Each colour requirement is compared with every source that could produce that
  * colour, and the same source may count toward several colours. Sources are
- * floating mana that may pay this ability, mana abilities on the battlefield and in hand (including paid
- * filters and sacrifice outlets), Convoke creatures and Improvise artifacts. The
+ * floating mana that may pay this ability, mana abilities on the battlefield
+ * and in hand (including paid filters and sacrifice outlets), Convoke creatures
+ * and Improvise artifacts. The
  * total requirement is compared with the net mana those sources add. X counts as
  * zero, and Phyrexian mana counts as payable when the player can pay 2 life.
  *
