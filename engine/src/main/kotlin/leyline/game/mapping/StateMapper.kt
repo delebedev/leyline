@@ -1747,8 +1747,6 @@ object StateMapper {
         }
     }
 
-    /** Classify stale reveal state without touching the prompt journal. */
-
     /** Whether the reveal covers every card currently in the owner's hand. */
     private fun RevealStarted.revealsWholeHand(snap: GsmSnapshot): Boolean {
         val handZone =
@@ -1766,6 +1764,7 @@ object StateMapper {
         return hand.isNotEmpty() && allHandCardIds.map { it.value }.toSet() == hand
     }
 
+    /** Classify stale reveal state without touching the prompt journal. */
     private fun detectActiveReveal(
         promptFacts: PromptProjectionFacts,
         revealProxiesEmpty: Boolean,
