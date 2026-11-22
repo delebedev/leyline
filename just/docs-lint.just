@@ -40,8 +40,6 @@ docs-lint:
         [[ "$ref" != *.md && "$ref" != *.MD ]] && return 0
         # Skip build artifact paths
         [[ "$ref" = .bundle-stage/* ]] && return 0
-        # Without a checked-out forge submodule, its targets cannot be resolved here.
-        [[ "$ref" = forge/* && ! -e "$repo_root/forge/.git" ]] && return 0
 
         # Resolve path
         local target
@@ -80,7 +78,7 @@ docs-lint:
             fi
             rest="${rest/"](${ref})"/ }"
         done
-    done < <(rg -n '\.md[)#]' --type md $rg_exclude 2>/dev/null || true)
+    done < <(rg -n '\.md[)#]' --type md $rg_exclude . 2>/dev/null || true)
 
     # --- Phase 2: path-shaped .md refs across all file types ---
     echo "Scanning path refs (.md, .yaml, .kt)..."
@@ -92,7 +90,7 @@ docs-lint:
             check_ref "$file" "$ref" || report "$file" "$line_num" "$ref"
             rest="${rest#*${ref}}"
         done
-    done < <(rg -n "$path_pat" --type md --type yaml --type kotlin $rg_exclude 2>/dev/null || true)
+    done < <(rg -n "$path_pat" --type md --type yaml --type kotlin $rg_exclude . 2>/dev/null || true)
 
     if ((errors > 0)); then
         echo ""
