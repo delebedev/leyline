@@ -104,7 +104,14 @@ class PriorityActionCandidates private constructor(
                 card = card,
                 casts = getAllCastableAbilities(card, player),
                 activations = getNonManaActivatedAbilities(card, player),
-                manaAbilities = if (card.id in battlefieldIds) getPlayableManaAbilities(card, player) else emptyList(),
+                manaAbilities =
+                    if (card.id in battlefieldIds ||
+                        card.id in handIds
+                    ) {
+                        getPlayableManaAbilities(card, player)
+                    } else {
+                        emptyList()
+                    },
                 landAbility = landAbility,
                 mdfcLandAbility = mdfcLandAbility,
             )

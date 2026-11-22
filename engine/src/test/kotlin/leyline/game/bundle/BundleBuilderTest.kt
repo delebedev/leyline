@@ -2,6 +2,7 @@ package leyline.game.bundle
 
 import forge.card.CardType
 import forge.card.RemoveType
+import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
@@ -1123,6 +1124,41 @@ class BundleBuilderTest :
                 cut.priorProjection.revision shouldBe prior.revision
                 b.projectionStateSnapshot() shouldBe afterMaterialize
                 counter.snapshot() shouldBe counterAfterMaterialize
+            }
+        }
+
+        test("playback frame keeps one grant identity when supplied effect facts predate retirement") {
+            lateinit var recipient: Card
+            lateinit var aura: Card
+            val (b, game, counter) =
+                startWithBoard { g, human, _ ->
+                    addCard("Gavi, Nest Warden", human, ZoneType.Battlefield)
+                    recipient = addCard("Greater Sandwurm", human, ZoneType.Battlefield)
+                    aura = addCard("Presence of Gond", human, ZoneType.Battlefield)
+                    aura.attachToEntity(recipient, null, true)
+                    g.action.checkStaticAbilities(false)
+                }
+            val fid = ForgeCardId(recipient.id)
+            val events =
+                FrameEventLog(
+                    listOf(
+                        GameEvent.ZoneChanged(fid, Zone.Battlefield, Zone.Hand),
+                        GameEvent.ZoneChanged(fid, Zone.Hand, Zone.Battlefield),
+                    ),
+                )
+
+            val cut = bundleBuilder(b).materializePlaybackCut(game, counter, turnStarted = false, events)
+
+            val frame = cut.frames.single().frame
+            val occurrences =
+                frame.snapshot.objects
+                    .getValue(fid)
+                    .activationOccurrences
+                    .getValue(SeatId(1))
+            val entry = frame.effectFacts.grantedAbilityEntries.single { it.forgeCardId == fid }
+            assertSoftly {
+                occurrences.count { it.isAlternative } shouldBe 1
+                occurrences.single { it.abilityGrpId == 97312 }.uniqueAbilityId shouldBe entry.uniqueAbilityId
             }
         }
 

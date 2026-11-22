@@ -1,0 +1,45 @@
+name: mana-allocation
+description: Repeated and mixed mana colors retain restricted spending and priority.
+scenarios:
+  - id: smokebraider-same-color
+    puzzle: smokebraider-mana-allocation
+    headless: { full_control: true }
+    run: choose green twice, cast Leafkin Druid, then cast Memnite
+    expect: restricted green mana casts the Elemental but not Grizzly Bears and priority continues
+    steps:
+      - activate_mana: { card: Smokebraider }
+      - static_choice: { id: 5, label: Green }
+      - static_choice: { id: 5, label: Green }
+      - expect:
+          all:
+            - action: { type: cast, card: Leafkin Druid }
+            - action_not_available: { type: cast, card: Grizzly Bears }
+      - cast: Leafkin Druid
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Leafkin Druid }
+      - cast: Memnite
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Memnite }
+  - id: smokebraider-mixed-colors
+    puzzle: smokebraider-mana-allocation
+    headless: { full_control: true }
+    run: choose green and red, cast Brushfire Elemental, then cast Memnite
+    expect: restricted mixed mana casts the Elemental but not Grizzly Bears and priority continues
+    steps:
+      - activate_mana: { card: Smokebraider }
+      - static_choice: { id: 5, label: Green }
+      - static_choice: { id: 4, label: Red }
+      - expect:
+          all:
+            - action: { type: cast, card: Brushfire Elemental }
+            - action_not_available: { type: cast, card: Grizzly Bears }
+      - cast: Brushfire Elemental
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Brushfire Elemental }
+      - cast: Memnite
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Memnite }

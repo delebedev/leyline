@@ -1,0 +1,58 @@
+name: optional-zone-transfer
+description: Optional take decisions retain repeated resolution and duplicate-name termination.
+scenarios:
+  - id: tainted-pact-first
+    puzzle: tainted-pact-choice
+    run: accept the first exiled card and cast Ornithopter
+    expect: Forest enters hand and priority continues
+    steps:
+      - cast: Tainted Pact
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: hand, card: Forest }
+      - cast: Ornithopter
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+  - id: tainted-pact-decline-twice
+    puzzle: tainted-pact-choice
+    run: decline Forest and Island, take Mountain, then cast Ornithopter
+    expect: only the selected Mountain enters hand and priority continues
+    steps:
+      - cast: Tainted Pact
+      - optional_action: { accept: false }
+      - optional_action: { accept: false }
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
+            - zone_contains: { side: ours, zone: exile, card: Forest }
+            - zone_contains: { side: ours, zone: exile, card: Island }
+      - cast: Ornithopter
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Ornithopter }
+  - id: tainted-pact-duplicate
+    puzzle: tainted-pact-choice
+    run: decline three distinct cards and stop at the second Forest, then cast Ornithopter
+    expect: the duplicate terminates exile without another decision or a card taken
+    steps:
+      - cast: Tainted Pact
+      - optional_action: { accept: false }
+      - optional_action: { accept: false }
+      - optional_action: { accept: false }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Forest }
+            - zone_contains: { side: ours, zone: exile, card: Island }
+            - zone_contains: { side: ours, zone: exile, card: Mountain }
+            - zone_not_contains: { side: ours, zone: hand, card: Forest }
+            - zone_not_contains: { side: ours, zone: hand, card: Island }
+            - zone_not_contains: { side: ours, zone: hand, card: Mountain }
+      - cast: Ornithopter
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Ornithopter }

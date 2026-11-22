@@ -23,6 +23,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.game.state.AbilityRegistry
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
+import wotc.mtgo.gre.external.messaging.Messages.SubType
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -37,6 +38,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 object SnapshotCapture {
     private val log = org.slf4j.LoggerFactory.getLogger(SnapshotCapture::class.java)
+    private val subtypeNumbers =
+        SubType
+            .values()
+            .filter { it != SubType.UNRECOGNIZED }
+            .associate { it.name.filter(Char::isLetterOrDigit).lowercase() to it.number }
 
     fun run(
         game: Game,
@@ -422,17 +428,10 @@ object SnapshotCapture {
     ): Map<SeatId, List<ActivatedAbilityOccurrence>> {
         if (card.isFaceDown || card.spellAbilities.none { it.isActivatedAbility && !it.isManaAbility() }) return emptyMap()
         val originalPlayers = card.allSpellAbilities.associateWith { it.activatingPlayer }
-        val registries = mutableMapOf<Int, AbilityRegistry>()
         val dataLookup: (Card) -> CardData? = { source ->
             bridge.cardRepository.findByGrpId(bridge.resolveGrpId(source, bridge.instanceId(source)))
         }
-        val registryLookup: (Card, CardData?) -> AbilityRegistry? = { source, data ->
-            data?.let {
-                registries.getOrPut(source.id) {
-                    AbilityRegistry.build(source, it, bridge.cardRepository::grantedKeywordAbilityGrpId)
-                }
-            }
-        }
+        val registryLookup: (Card, CardData?) -> AbilityRegistry? = bridge::abilityRegistryFor
         try {
             return card.game.players
                 .mapNotNull { player ->
@@ -655,6 +654,14 @@ object SnapshotCapture {
             attachedToInstanceId = attachedToInstanceId,
             preparedCopySourceInstanceId = preparedCopySourceInstanceId,
             liveCardTypeNumbers = liveTypeNumbers,
+            liveSubtypeNumbers =
+                if (card.isFaceDown) {
+                    type.subtypes.mapNotNull {
+                        subtypeNumbers[it.filter(Char::isLetterOrDigit).lowercase()]
+                    }
+                } else {
+                    emptyList()
+                },
             isDoubleFaced = card.isDoubleFaced,
             othersideGrpId = othersideGrpId,
             currentStateNameIsBackside = currentStateNameIsBackside,
@@ -667,6 +674,7 @@ object SnapshotCapture {
             isForetold = Foretell.isForetold(card),
             isFaceDownInExile = isFaceDownInExile,
             faceDownKind = FaceDown.kind(card),
+            isFaceDown = card.isFaceDown,
             isCommander = card.isCommander,
             commanderTax = commanderTax(card),
             commanderColorIdentity = commanderColorIdentity(card),
