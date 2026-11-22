@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+# Use the root REVIEW.md as review guidelines. Every other setting comes from
+# the CodeRabbit app settings through inheritance.
+inheritance: true
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - REVIEW.md
