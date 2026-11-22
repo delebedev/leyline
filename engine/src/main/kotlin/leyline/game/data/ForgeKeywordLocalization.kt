@@ -17,8 +17,21 @@ internal fun localizeGrantedKeyword(keyword: String): AbilityLocalization? {
             .substringBefore(':')
             .split(Regex("\\s+"))
             .mapNotNull(::manaTokenToPair)
-    if (definition !is KeywordWithCost || definition.costString != "ManaCost") {
+    // A `ManaCost` detail, or a granted keyword that states no cost at all, is
+    // paid with the host card's mana cost. Forge reads the live host card for
+    // that cost, and a catalog definition has none, so the definition's reminder
+    // template is formatted with "its mana cost" instead.
+    if (definition !is KeywordWithCost) {
         return AbilityLocalization(definition.reminderText, mana, definition.title)
+    }
+    val hostCostKeyword = definition.costString in HOST_COST_KEYWORDS
+    val symbolicCost = definition.costString == "ManaCost" || (hostCostKeyword && definition.keyword.reminderText.contains("%s"))
+    if (!symbolicCost) {
+        return AbilityLocalization(
+            definition.reminderText,
+            mana,
+            if (hostCostKeyword) definition.keyword.toString() else definition.title,
+        )
     }
 
     val name = definition.keyword.toString()
@@ -34,3 +47,6 @@ internal fun localizeGrantedKeyword(keyword: String): AbilityLocalization? {
     val reminder = definition.keyword.reminderText.replace("%s", "its mana cost")
     return AbilityLocalization("$reminder $costDescription", mana, name)
 }
+
+/** Costs a granted keyword takes from its host card instead of its own detail text. */
+private val HOST_COST_KEYWORDS = setOf("ManaCost", "")
