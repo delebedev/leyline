@@ -86,7 +86,7 @@ class OptionalManaTaxTest :
             }
         }
 
-        session("zero mana payment retains the existing confirmation path", puzzle = puzzle(), fullControl = true) {
+        session("zero mana payment is asked and accepting it pays nothing", puzzle = puzzle(), fullControl = true) {
             val tax =
                 ai.battlefield
                     .card("Smothering Tithe")
@@ -94,12 +94,14 @@ class OptionalManaTaxTest :
                     .single()
                     .ensureAbility()
             tax.putParam("UnlessCost", "0")
-            val startTurn = game().phaseHandler.turn
-            passUntil(maxPasses = 40) {
-                game().phaseHandler.turn > startTurn && phase() == "MAIN1" && !isAiTurn()
-            }.shouldBeTrue()
+            holdNextOptionalAction()
+            passUntil(maxPasses = 40) { allMessages.any { it.hasOptionalActionMessage() } }.shouldBeTrue()
+            allMessages.last { it.hasOptionalActionMessage() }.optionalActionMessage.sourceId shouldBe
+                ai.battlefield.iid("Smothering Tithe")
+            respondToOptionalAction(accept = true)
+            advanceToMain1()
             assertSoftly {
-                allMessages.count { it.hasOptionalActionMessage() } shouldBe 0
+                allMessages.count { it.hasOptionalActionMessage() } shouldBe 1
                 human.getZone(ZoneType.Battlefield).cards.count { it.isTapped } shouldBe 0
                 ai.getZone(ZoneType.Battlefield).cards.count { it.type.hasSubtype("Treasure") } shouldBe 0
             }

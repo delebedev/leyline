@@ -3,7 +3,6 @@ package leyline.bridge.coord
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.forge.PlayerController
-import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -138,21 +137,52 @@ class StaticChoiceCoordinatorTest :
             }
         }
 
-        test("generic confirmation defaults synchronously while retaining bridge history without a pending choice") {
-            val board = startPuzzleAtMain1(puzzle)
-            val controller = board.human.controller as PlayerController
-            val bridge = board.bridge.promptBridge(SeatId(1))
-            val before = bridge.history.size
-            controller.confirmAction(null, null, null, null, null, null) shouldBe true
-            val record = bridge.history.drop(before).single()
-            assertSoftly {
-                record.message shouldBe "Confirm action?"
-                record.options shouldBe listOf("Yes", "No")
-                record.result shouldBe listOf(0)
-                record.outcome shouldBe PromptCallStatus.DEFAULTED_POLICY
-                (record.route is ResolvedPromptRoute.AutoResolve) shouldBe true
-                board.bridge.cutCoordinator.staticChoices
-                    .current() shouldBe null
+        for ((selectedId, expected) in listOf(1 to true, 2 to false)) {
+            test("sourceless confirmation asks Yes or No as a named choice and returns option $selectedId") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.drain(SeatId(1))
+                val controller = board.human.controller as PlayerController
+                val result = AtomicReference<Boolean?>()
+                val failure = AtomicReference<Throwable?>()
+                val finished = CountDownLatch(1)
+                Thread {
+                    try {
+                        board.bridge.promptBridge(SeatId(1)).setDiagnosticContext(board.game, Thread.currentThread())
+                        result.set(controller.confirmAction(null, null, "Continue?", null, null, null))
+                    } catch (error: Throwable) {
+                        failure.set(error)
+                    } finally {
+                        finished.countDown()
+                    }
+                }.start()
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+                var published = coordinator.staticChoices.current()
+                while (published == null && System.nanoTime() < deadline) {
+                    Thread.onSpinWait()
+                    published = coordinator.staticChoices.current()
+                }
+                val interaction = checkNotNull(published)
+                val req =
+                    coordinator
+                        .drain(SeatId(1))
+                        .flatten()
+                        .single { it.hasSelectNReq() }
+                        .selectNReq
+                assertSoftly {
+                    req.prompt.parametersList.map { it.stringValue } shouldBe listOf("Yes", "No")
+                    req.idsList shouldBe listOf(1, 2)
+                    req.minSel shouldBe 1
+                    req.maxSel shouldBe 1
+                    coordinator.acceptSettled(selectNResp(listOf(selectedId)), interaction.gameStateId) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                    failure.get() shouldBe null
+                    result.get() shouldBe expected
+                    board.bridge
+                        .promptBridge(SeatId(1))
+                        .defaultHistory
+                        .none { it.route is ResolvedPromptRoute.AutoResolve } shouldBe true
+                }
             }
         }
 

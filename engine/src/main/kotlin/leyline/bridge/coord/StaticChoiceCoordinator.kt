@@ -99,7 +99,7 @@ class StaticChoiceCoordinator(
                     route = plan.route,
                     sourceEntityId = plan.sourceEntityId,
                     staticList = if (parityIds != null) StaticList.Parities else null,
-                    staticOptionIds = parityIds.orEmpty(),
+                    staticOptionIds = parityIds ?: plan.options.indices.map { it + 1 },
                 ),
             )
         return result.firstOrNull() == 0

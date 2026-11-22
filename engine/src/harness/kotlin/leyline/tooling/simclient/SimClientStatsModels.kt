@@ -62,6 +62,7 @@ data class GameStats(
     val promptRequestSamplesByKind: Map<String, String> = emptyMap(),
     val promptRouteFindings: List<PromptRouteFinding> = emptyList(),
     val unnamedDefaultAnswers: List<UnnamedDefaultAnswer> = emptyList(),
+    val automaticAnswersByRule: Map<String, Int> = emptyMap(),
     val simFindings: List<SimClientFinding> = emptyList(),
     val promptProgressSamples: List<PromptProgressSample> = emptyList(),
     /** Active offers built on uncertain affordability, by card. */
