@@ -63,9 +63,10 @@ valid review.
   pending interaction; a failure must not release or mutate another
   interaction's lifecycle. State that crosses engine, coordinator, session or
   transport follows `docs/bridge-threading.md`.
-- **Twins that drift.** One side of a matched pair changes without the other:
-  checked and permissive builders, fast and slow paths, encode and decode,
-  request and response, forward and inverse maps.
+- **Twins that drift.** A change breaks the contract a matched pair shares and
+  leaves the counterpart behind: checked and permissive builders, fast and slow
+  paths, encode and decode, request and response, forward and inverse maps. A
+  one-sided change that keeps or restores the shared contract is fine.
 - **Boundary breaks.** Dependencies against the module direction that
   `PackageLayeringTest` enforces. Transport identity inside the engine. Live
   Forge objects escaping the bridge instead of immutable projected values. Game
