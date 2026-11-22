@@ -78,9 +78,24 @@ jobs:
               if (runs.data.workflow_runs.length === 0) continue
 
               const tested = await github.rest.git.getCommit({ owner, repo, commit_sha: pull.head.sha })
-              if (tested.data.tree.sha === current.data.tree.sha) {
+              if (tested.data.tree.sha !== current.data.tree.sha) continue
+
+              // A successful run may have skipped the heavy jobs (fork or
+              // Markdown-only PR). Only a run whose Gate and Extended both
+              // succeeded proves the tree.
+              for (const run of runs.data.workflow_runs) {
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                  owner,
+                  repo,
+                  run_id: run.id,
+                  filter: 'latest',
+                  per_page: 100,
+                })
+                const passed = name => jobs.some(job => job.name.startsWith(name) && job.conclusion === 'success')
+                if (!passed('Gate') || !passed('Extended')) continue
+
                 core.setOutput('run-heavy', 'false')
-                core.info(`Tree already passed in PR #${pull.number}: ${current.data.tree.sha}`)
+                core.info(`Tree already passed in PR #${pull.number} run ${run.id}: ${current.data.tree.sha}`)
                 return
               }
             }
