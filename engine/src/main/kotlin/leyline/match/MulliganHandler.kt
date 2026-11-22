@@ -97,8 +97,7 @@ class MulliganHandler(
                 if (!bridge.submitKeep(seatId)) return
                 if (cardsToTuck > 0) {
                     bridge.awaitTuckReady()
-                    bridge.cutCoordinator.lifecycle.publishMulliganTuck(seatId)
-                    deliverTemplate(s, bridge, "mulligan_tuck")
+                    publishAndDeliver(s, bridge, "mulligan_tuck") { bridge.cutCoordinator.lifecycle.publishMulliganTuck(seatId) }
                     return
                 }
                 s.onMulliganKeep()
@@ -230,8 +229,7 @@ class MulliganHandler(
     private fun sendMulliganRedraw(facts: MulliganRedrawFacts) {
         val s = session ?: return
         val bridge = s.gameBridge
-        bridge.cutCoordinator.lifecycle.publishMulliganRedraw(seatId, facts)
-        deliverTemplate(s, bridge, "mulligan_redraw")
+        publishAndDeliver(s, bridge, "mulligan_redraw") { bridge.cutCoordinator.lifecycle.publishMulliganRedraw(seatId, facts) }
     }
 
     /** DealHand + MulliganReq bundled (for seat 2). */
@@ -240,6 +238,34 @@ class MulliganHandler(
         val bridge = s.gameBridge
         bridge.cutCoordinator.lifecycle.publishDealHandMulligan(seatId)
         deliverTemplate(s, bridge, "deal_hand_and_mulligan_request")
+    }
+
+    /**
+     * Publish a lifecycle cut answering this connection's response and deliver it
+     * before the response returns.
+     *
+     * A player connection's runtime delivery observer stays armed during
+     * mulligans so an engine auto-keep reaches the client. It drains under
+     * `sessionLock`; holding that lock from publication through delivery keeps the
+     * observer from taking this response's batch. Engine readiness waits stay
+     * outside the lock. Sessions without a player connection have no observer.
+     */
+    private inline fun publishAndDeliver(
+        s: SessionOps,
+        bridge: GameBridge,
+        template: String,
+        publish: () -> Unit,
+    ) {
+        val lock = (s as? MatchSession)?.connection?.sessionLock
+        if (lock == null) {
+            publish()
+            deliverTemplate(s, bridge, template)
+            return
+        }
+        synchronized(lock) {
+            publish()
+            deliverTemplate(s, bridge, template)
+        }
     }
 
     private fun deliverTemplate(

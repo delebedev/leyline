@@ -86,12 +86,16 @@ engine failure or coordinator teardown throws instead of returning a rejected
 answer or allowing an unpublished transition to disappear. A readiness failure
 terminalizes the existing coordinator before any later cut can publish.
 
-`MulliganHandler` completes the accepted response through coordinator publication
-and delivery, or tears down the registered match through `MatchRegistry` and
-`Match.close`. Cleanup preserves the original exception and suppresses a cleanup
-failure; interruption is restored after resource release. This pre-game boundary
-does not acquire `sessionLock`. A successful final keep or tuck delegates once
-to `MatchSession.onMulliganKeep`, the sole post-keep horizon waiter and drainer.
+`MulliganHandler` completes the accepted response through coordinator
+publication and delivery, or tears down the registered match through
+`MatchRegistry` and `Match.close`. Cleanup preserves the original exception and
+suppresses a cleanup failure; interruption is restored after resource release.
+Engine readiness waits at this pre-game boundary do not hold `sessionLock`.
+Publication and delivery of the accepted redraw or tuck cut do: the connection's
+delivery observer is armed from startup so an engine auto-keep still reaches the
+client, and it drains under that lock, so holding it keeps the response's batch
+on the response. A successful final keep or tuck delegates once to
+`MatchSession.onMulliganKeep`, the sole post-keep horizon waiter and drainer.
 
 The response boundary retains its original session identity and bridge before
 waiting. Failure teardown conditionally detaches registrations under the existing
