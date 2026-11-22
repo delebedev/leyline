@@ -94,10 +94,10 @@ class SimClientE2ETest :
                             harness.connectAndKeep()
                             val game = harness.bridge.getGame()!!
                             game.AI_TIMEOUT shouldBe MatchFlowHarness.HEADLESS_AI_TIMEOUT_SECONDS
-                            // an AI search that outlives its limit during the row
+                            // an AI search that outlives its limit during the row; a zero
+                            // limit expires as soon as the session ends
                             val key = AITimeoutTracker.key(game.id, 1)
-                            AITimeoutTracker.begin(key, 1L, AITimeoutTracker.Decision.ATTACK)
-                            Thread.sleep(2)
+                            AITimeoutTracker.begin(key, 0L, AITimeoutTracker.Decision.ATTACK)
                             AITimeoutTracker.end(key)
                         },
                     ).runOneGame()

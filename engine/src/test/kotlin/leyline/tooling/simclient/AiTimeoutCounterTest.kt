@@ -15,8 +15,8 @@ class AiTimeoutCounterTest :
             key: Long,
             decision: AITimeoutTracker.Decision,
         ) {
-            AITimeoutTracker.begin(key, TimeUnit.MILLISECONDS.toNanos(1), decision)
-            Thread.sleep(5)
+            // a zero limit expires as soon as the session ends
+            AITimeoutTracker.begin(key, 0L, decision)
             AITimeoutTracker.end(key)
         }
 
