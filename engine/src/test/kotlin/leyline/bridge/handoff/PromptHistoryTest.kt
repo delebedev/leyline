@@ -26,4 +26,17 @@ class PromptHistoryTest :
             history.clear()
             history.droppedDefaults shouldBe 0
         }
+
+        test("evicted named automatic answers do not count as dropped defaults") {
+            val history = PromptHistory(capacity = 4, defaultCapacity = 1)
+            val named =
+                request("named").copy(
+                    route = ResolvedPromptRoute.AutoResolve(PromptSemantic.Generic, AutomaticAnswerRule.CoinFlipCall),
+                )
+            history.record(named, PromptCallStatus.DEFAULTED_POLICY, listOf(0))
+            history.record(request("unnamed"), PromptCallStatus.DEFAULTED_POLICY, listOf(0))
+            history.droppedDefaults shouldBe 0
+            history.record(named, PromptCallStatus.DEFAULTED_POLICY, listOf(0))
+            history.droppedDefaults shouldBe 1
+        }
     })

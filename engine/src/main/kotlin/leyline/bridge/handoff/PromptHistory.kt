@@ -20,7 +20,7 @@ internal class PromptHistory(
     val defaults: List<PromptRecord>
         get() = synchronized(entries) { defaultEntries.toList() }
 
-    /** Policy defaults evicted from [defaults] by its cap; nonzero means [defaults] is incomplete. */
+    /** Unnamed policy defaults evicted from [defaults] by its cap; nonzero means the unnamed defaults in [defaults] are incomplete. */
     val droppedDefaults: Int
         get() = synchronized(entries) { droppedDefaultCount }
 
@@ -59,8 +59,7 @@ internal class PromptHistory(
             entries.addLast(record)
             if (outcome == PromptCallStatus.DEFAULTED_POLICY) {
                 if (defaultEntries.size >= defaultCapacity) {
-                    defaultEntries.removeFirst()
-                    droppedDefaultCount++
+                    if (defaultEntries.removeFirst().isUnnamedDefault()) droppedDefaultCount++
                 }
                 defaultEntries.addLast(record)
             }
@@ -75,3 +74,6 @@ internal class PromptHistory(
         }
     }
 }
+
+/** Named automatic answers also record as policy defaults; only the unnamed ones are audit findings. */
+private fun PromptRecord.isUnnamedDefault(): Boolean = (route as? ResolvedPromptRoute.AutoResolve)?.rule == null

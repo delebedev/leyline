@@ -1229,7 +1229,15 @@ class TargetingCoordinator(
                         unfilteredRefs = emptyList(),
                         route = ResolvedPromptRoute.CompatibilityCostSelection(request.route.semantic),
                     )
-                bridge.requestCompatibilityCostSelection(selection, entities).optionIndices.mapNotNull(shown::getOrNull)
+                val chosen =
+                    bridge
+                        .requestCompatibilityCostSelection(selection, entities)
+                        .optionIndices
+                        .mapNotNull(shown::getOrNull)
+                        .distinct()
+                // A timed-out or non-interactive prompt answers with one default index; a mandatory choice still needs its count.
+                val missing = if (optional) 0 else selection.min - chosen.size
+                if (missing <= 0) chosen else chosen + (shown - chosen.toSet()).take(missing)
             }
         }
     }

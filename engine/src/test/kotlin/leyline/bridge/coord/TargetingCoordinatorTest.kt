@@ -1,11 +1,13 @@
 package leyline.bridge.coord
 
+import forge.game.GameEntity
 import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import forge.util.collect.FCollection
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -273,6 +275,25 @@ class TargetingCoordinatorTest :
                 val chosen = coordinator.chooseCardsForEffect(cards, null, null, 1, 1, false)
                 chosen.single() shouldBeSameInstanceAs cards[0]
                 bridge.history.none { it.route is ResolvedPromptRoute.CardSelect } shouldBe true
+            }
+        }
+
+        test("a mandatory unclassified choice keeps its count when the compatibility prompt falls back") {
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Mountain", human, ZoneType.Battlefield)
+                }
+            val options = FCollection<GameEntity>(board.human.getZone(ZoneType.Battlefield).cards + board.ai)
+            val bridge = testPromptBridge()
+            val coordinator = TargetingCoordinator(bridge, testSeating)
+
+            val chosen = coordinator.chooseEntities(options, 2, 2, "Choose two", null)
+
+            assertSoftly {
+                chosen shouldHaveSize 2
+                chosen.distinct() shouldHaveSize 2
+                bridge.history.map { it.route::class } shouldBe listOf(ResolvedPromptRoute.CompatibilityCostSelection::class)
             }
         }
 
