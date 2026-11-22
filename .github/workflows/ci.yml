@@ -46,12 +46,21 @@ jobs:
               // cannot change any Gate or Extended result. The file listing stops
               // at 3,000 entries, so a list that reaches the cap is treated as
               // incomplete and runs CI.
-              const files = await github.paginate(github.rest.pulls.listFiles, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                per_page: 100,
-              })
+              // A failed listing must not skip Gate, so it runs the heavy path.
+              let files
+              try {
+                files = await github.paginate(github.rest.pulls.listFiles, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  per_page: 100,
+                })
+              } catch (error) {
+                core.warning(`Could not list PR files (${error.message}): run CI`)
+                core.setOutput('run-heavy', 'true')
+                core.setOutput('docs-only', 'false')
+                return
+              }
               const docsOnly = files.length > 0 && files.length < 3000 && files.every(f =>
                 f.filename.endsWith('.md') && (!f.previous_filename || f.previous_filename.endsWith('.md')))
               core.setOutput('run-heavy', String(!docsOnly))
