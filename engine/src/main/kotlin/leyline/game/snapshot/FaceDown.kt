@@ -11,8 +11,8 @@ enum class FaceDownKind {
 }
 
 /**
- * Classifies supported face-down card states before identity is suppressed in
- * the client projection.
+ * Classifies mechanic-specific face-down metadata. Identity concealment follows
+ * actual face-down state even when no mechanic identity is recognized here.
  *
  * Forge retains the originating ability on manifested cards, which separates
  * Manifest Dread from ordinary Manifest without relying on the hidden card's

@@ -620,9 +620,22 @@ object ActionMapper {
         // rail via [addHandAltCostCastActions] (mirroring Warp / Sneak).
         for (fid in hand) {
             val cardSnap = snap.objects[fid] ?: continue
-            if (!cardSnap.hasNonManaActivatedAbilities) continue
+            if (!cardSnap.hasNonManaActivatedAbilities && !cardSnap.hasManaAbilities) continue
             val player = bridge.getPlayer(SeatId(seatId)) ?: continue
             val forgeCard = bridge.findCard(fid) ?: continue
+            for (
+            manaAction in
+            ActivatedActionEmitter.buildActivateManaActions(
+                forgeCard,
+                bridge.getOrAllocInstanceId(fid).value,
+                cardSnap.grpId,
+                { c -> snap.boundCards[ForgeCardId(c.id)]?.data },
+                { c, d -> bridge.abilityRegistryFor(c, d) },
+                candidates?.forCard(forgeCard)?.manaAbilities ?: emptyList(),
+            )
+            ) {
+                addOffer(manaAction.action, PlayerAction.ActivateMana(fid, manaAction.abilityIndex, ability = manaAction.ability))
+            }
             ActivatedActionEmitter.emitPlayableNonManaActivatedAbilities(
                 builder = builder,
                 card = forgeCard,

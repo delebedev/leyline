@@ -148,7 +148,7 @@ class AbilityRegistryTest :
                 ability.grantorStatic.hostCard shouldBe card
                 registry.grantedAbilityGrpId(ability) shouldBe 179264
                 AbilityRegistry.resolveActivated(card, ability, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
-                    50 + data.abilityIds.size
+                    GrantedAbilityIds.FIRST_GRANTED_ID
             }
         }
 
@@ -191,9 +191,9 @@ class AbilityRegistryTest :
                 registry.forSpellAbility(second) shouldBe 179264
                 second.definitionId shouldBe first.definitionId
                 AbilityRegistry.resolveActivated(card, first, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
-                    50 + data.abilityIds.size
+                    GrantedAbilityIds.FIRST_GRANTED_ID
                 AbilityRegistry.resolveActivated(card, second, { data }, { _, _ -> registry }).uniqueAbilityId shouldBe
-                    51 + data.abilityIds.size
+                    GrantedAbilityIds.FIRST_GRANTED_ID + 1
             }
         }
 
