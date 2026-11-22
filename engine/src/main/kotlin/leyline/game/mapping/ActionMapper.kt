@@ -8,6 +8,7 @@ import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import leyline.bridge.ActionAvailability
 import leyline.bridge.ActionManaCosts
+import leyline.bridge.Affordability
 import leyline.bridge.CompanionAction
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.buildMdfcBackLandAbility
@@ -198,13 +199,41 @@ object ActionMapper {
         activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>> = emptyMap(),
     ): ActionsAvailableReq = buildProjectionFromSnapshot(seatId, snap, bridge, activationOccurrences = activationOccurrences).actions
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
+    /**
+     * Unsure verdicts reach the client as ordinary active actions; each one is
+     * recorded in [GameBridge.affordabilityDiagnostics].
+     */
     fun buildProjectionFromSnapshot(
         seatId: Int,
         snap: GsmSnapshot,
         bridge: GameBridge,
         priorityCandidates: PriorityActionCandidates? = null,
         activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>> = emptyMap(),
+    ): ActionProjection {
+        val unsure = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<SpellAbility, Boolean>())
+        val projection =
+            ActionAvailability.observing({ sa, verdict -> if (verdict == Affordability.Unsure) unsure += sa }) {
+                buildProjection(seatId, snap, bridge, priorityCandidates, activationOccurrences)
+            }
+        for (offer in projection.offers) {
+            val ability =
+                when (val command = offer.command) {
+                    is PlayerAction.CastSpell -> command.ability
+                    is PlayerAction.ActivateAbility -> command.ability
+                    else -> null
+                }
+            if (ability != null && ability in unsure) bridge.affordabilityDiagnostics.recordOfferedWhileUnsure(ability)
+        }
+        return projection
+    }
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "NoNameShadowing") // action families × zone-specific shapes.
+    private fun buildProjection(
+        seatId: Int,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        priorityCandidates: PriorityActionCandidates?,
+        activationOccurrences: Map<ForgeCardId, Map<SeatId, List<ActivatedAbilityOccurrence>>>,
     ): ActionProjection {
         val builder = ActionsAvailableReq.newBuilder()
         val offers = mutableListOf<ActionOffer>()

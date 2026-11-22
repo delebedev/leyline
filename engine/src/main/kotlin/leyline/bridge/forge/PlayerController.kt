@@ -59,6 +59,8 @@ import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.ActionAvailability
+import leyline.bridge.AffordabilityDiagnostics
 import leyline.bridge.CompanionAction
 import leyline.bridge.NonInteractiveScope
 import leyline.bridge.coord.CostPaymentCoordinator
@@ -222,6 +224,7 @@ class PlayerController(
     val smartPhaseSkip: Boolean = true,
     private val interactionRuntime: BlockingInteractionRuntime,
     private val viewerSeatId: SeatId = if (player.lobbyPlayer is LobbyPlayerAi) seating.familiarSeat else seating.humanSeat,
+    private val affordabilityDiagnostics: AffordabilityDiagnostics? = null,
 ) : PlayerControllerHuman(game, player, lobbyPlayer),
     OwnerContext {
     private val optionalActionGate = OptionalActionGate(actionBridge, interactionRuntime)
@@ -265,6 +268,7 @@ class PlayerController(
             smartPhaseSkip = smartPhaseSkip,
             interactionRuntime = interactionRuntime,
             viewerSeatId = viewerSeatId,
+            affordabilityDiagnostics = affordabilityDiagnostics,
         )
 
     /**
@@ -1653,13 +1657,21 @@ class PlayerController(
         // gate must protect is a pre-set outer-target supplied via the Cast
         // PerformAction — sa.targets.isEmpty() handles that.
         val needsTargeting = sa.targets.isEmpty()
+        costPaymentCoordinator.consumeManaPaymentFailure()
         return withActiveSpellSource(sa) {
             val req = PlaySpellAbility(this, sa)
             withModalCastCancellation(sa) { req.playAbility(needsTargeting, false, false) }
         }.also { success ->
             if (success && CompanionAction.matches(chosenSa)) onCompanionToHand?.invoke(chosenSa)
+            if (costPaymentCoordinator.consumeManaPaymentFailure() && !success) recordPaymentFailure(chosenSa)
             priorityLoopCoordinator?.actionCompleted(success)
         }
+    }
+
+    /** Forge has rolled the action back; re-probe the restored board for the verdict that offered it. */
+    private fun recordPaymentFailure(sa: SpellAbility) {
+        val diagnostics = affordabilityDiagnostics ?: return
+        diagnostics.recordPaymentFailed(sa, ActionAvailability.affordability(sa, player))
     }
 
     private fun withModalCastCancellation(

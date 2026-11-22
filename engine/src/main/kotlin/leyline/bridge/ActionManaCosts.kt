@@ -1,7 +1,9 @@
 package leyline.bridge
 
 import forge.ai.ComputerUtilMana
+import forge.card.MagicColor
 import forge.card.mana.ManaCost
+import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCopyService
@@ -143,7 +145,7 @@ internal object ActionManaCosts {
         creatures: Boolean,
     ): Boolean {
         val cost = computeEffectiveCost(sa, player) ?: return false
-        val sourceColors = availableManaSourceColors(player, sa).toMutableList()
+        val sourceColors = (floatingManaColors(player, sa) + availableManaSourceColors(player, sa)).toMutableList()
         val reducerColors =
             player
                 .getZone(ForgeZoneType.Battlefield)
@@ -167,11 +169,22 @@ internal object ActionManaCosts {
         }
 
         for (shard in cost) {
+            // X is chosen during payment; zero is always a legal choice here.
+            if (shard == ManaCostShard.X) continue
             val color = ManaColorMapping.fromShard(shard) ?: continue
             if (color != ManaColor.Generic && !canPayColor(color)) return false
         }
         return cost.genericCost <= sourceColors.size + reducerColors.size
     }
+
+    /** One single-colour source per floating mana; colourless mana pays generic only. */
+    private fun floatingManaColors(
+        player: Player,
+        payingAbility: SpellAbility,
+    ): List<Set<ManaColor>> =
+        player.manaPool.filter { it.meetsManaRestrictions(payingAbility) }.map { mana ->
+            ManaColorMapping.fromProduced(MagicColor.toShortString(mana.color))?.let(::setOf) ?: setOf(ManaColor.Colorless_afc9)
+        }
 
     private fun forge.card.ColorSet.toProtoManaColors(): Set<ManaColor> =
         buildSet {

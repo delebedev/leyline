@@ -274,6 +274,7 @@ class SimClientRunner internal constructor(
     ): GameStats {
         val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
         val histogram = messages.filter { isSimPrompt(it) }.groupingBy { it.type }.eachCount()
+        val affordability = runCatching { harness?.bridge?.affordabilityDiagnostics?.snapshot() }.getOrNull()
         return GameStats(
             turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
             gameOver = runCatching { harness?.isGameOver() ?: false }.getOrDefault(false),
@@ -284,6 +285,8 @@ class SimClientRunner internal constructor(
             durationMs = timeoutMs,
             errorsByType = mapOf(TimeoutException::class.qualifiedName.orEmpty() to 1),
             completionReason = "wall-timeout",
+            offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
+            offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
         )
     }
 
@@ -295,6 +298,7 @@ class SimClientRunner internal constructor(
         val cause = throwable.rootCause()
         val messages = runCatching { harness?.allMessages?.toList().orEmpty() }.getOrDefault(emptyList())
         val histogram = messages.filter { isSimPrompt(it) }.groupingBy { it.type }.eachCount()
+        val affordability = runCatching { harness?.bridge?.affordabilityDiagnostics?.snapshot() }.getOrNull()
         val stackTop = cause.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
         return GameStats(
             turn = runCatching { harness?.turn() ?: 0 }.getOrDefault(0),
@@ -308,6 +312,8 @@ class SimClientRunner internal constructor(
             exceptionMessage = "${cause::class.qualifiedName}: ${cause.message}",
             exceptionStackTop = stackTop,
             completionReason = "exception",
+            offeredWhileUnsureByCard = affordability?.offeredWhileUnsureByCard.orEmpty(),
+            offeredThenPaymentFailedByCard = affordability?.offeredThenPaymentFailedByCard.orEmpty(),
         )
     }
 
@@ -342,6 +348,10 @@ class SimClientRunner internal constructor(
             .forEach { (klass, count) ->
                 println("  $klass = $count")
             }
+        val affordability = AffordabilityTotals.of(rows.map { it.stats })
+        println("offeredWhileUnsure: ${affordability.offeredWhileUnsure.values.sum()}")
+        println("offeredThenPaymentFailed: ${affordability.offeredThenPaymentFailed.values.sum()}")
+        affordability.offeredThenPaymentFailed.forEach { (card, count) -> println("  $card = $count") }
     }
 
     private fun writeSummary(result: SimClientRunResult) {
@@ -356,6 +366,7 @@ class SimClientRunner internal constructor(
                 append("\"rowsSkipped\":${result.skipped},")
                 append("\"strictFailures\":${result.rows.count { isStrictFailure(it.stats) }},")
                 append("\"failureClasses\":${mapToJson(failures)},")
+                append("\"affordability\":${AffordabilityTotals.of(result.rows.map { it.stats }).toJson()},")
                 append("\"outDir\":${simJsonString(config.outDir.path)}")
                 append('}')
             }
