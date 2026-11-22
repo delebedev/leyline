@@ -2097,7 +2097,7 @@ class GameBridge(
         val currentGame = game ?: return EffectProjectionFacts(pendingEarthbendResolutions = pendingEarthbendResolutions.toList())
         val boosts = mutableListOf<EffectProjectionFacts.BoostEntry>()
         val keywords = mutableListOf<EffectProjectionFacts.KeywordEntry>()
-        val grantedAbilities = mutableListOf<EffectProjectionFacts.GrantedAbilityEntry>()
+        val grantedAbilities = materializeGrantedAbilityEntries(currentGame)
         val crew = mutableListOf<EffectProjectionFacts.CrewState>()
         val saddle = mutableListOf<EffectProjectionFacts.SaddleState>()
         val reconfigure = mutableListOf<EffectProjectionFacts.ReconfigureState>()
@@ -2149,8 +2149,6 @@ class GameBridge(
                     }
                 }
 
-                grantedAbilities += grantedAbilityEntries(card)
-
                 card.getCrewedByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
                     crew +=
                         EffectProjectionFacts.CrewState(
@@ -2188,7 +2186,7 @@ class GameBridge(
         return EffectProjectionFacts(
             boostEntries = boosts,
             keywordEntries = keywords,
-            grantedAbilityEntries = sortGrantedAbilityEntries(grantedAbilities),
+            grantedAbilityEntries = grantedAbilities,
             crewStates = crew,
             saddleStates = saddle,
             reconfigureStates = reconfigure,
@@ -2216,6 +2214,20 @@ class GameBridge(
                 { it.staticId },
                 { it.abilityGrpId },
             ),
+        )
+
+    /**
+     * Observe current battlefield grants. Identities follow the live allocator,
+     * so a caller that observes after retirement sees the resulting generation.
+     */
+    internal fun materializeGrantedAbilityEntries(): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        game?.let(::materializeGrantedAbilityEntries).orEmpty()
+
+    private fun materializeGrantedAbilityEntries(currentGame: Game): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        sortGrantedAbilityEntries(
+            currentGame.players
+                .flatMap { player -> player.getZone(ZoneType.Battlefield).cards }
+                .flatMap(::grantedAbilityEntries),
         )
 
     private fun grantedAbilityEntries(card: Card): List<EffectProjectionFacts.GrantedAbilityEntry> =

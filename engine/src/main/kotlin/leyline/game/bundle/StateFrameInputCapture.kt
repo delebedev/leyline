@@ -118,7 +118,12 @@ internal class StateFrameInputCapture(
                 GsmSnapshot.capture(game, bridge, matchId, gameStateId)
             }
         bridge.prewarmAbilityRegistries(snapshot)
-        val effectFacts = effectFactsOverride ?: bridge.materializeEffectProjectionFacts()
+        // A supplied observation was read before this frame's invalidation. Refresh its
+        // grant identities so they follow the same allocator generation as the snapshot.
+        val effectFacts =
+            effectFactsOverride
+                ?.withGrantedAbilityEntries(bridge.materializeGrantedAbilityEntries())
+                ?: bridge.materializeEffectProjectionFacts()
         val mechanicSourceFacts = MechanicSourceFactsCapture.capture(bridge, closedEvents.events)
         val abilityExhaustionFacts = AbilityExhaustionFactsCapture.capture(snapshot, bridge)
         val promptFacts = promptFactsOverride ?: bridge.materializePromptProjectionFacts()
@@ -146,4 +151,18 @@ internal class StateFrameInputCapture(
             closesPlaybackFrame = events is Events.CloseBundleFrame,
         )
     }
+
+    private fun EffectProjectionFacts.withGrantedAbilityEntries(
+        entries: List<EffectProjectionFacts.GrantedAbilityEntry>,
+    ): EffectProjectionFacts =
+        EffectProjectionFacts(
+            boostEntries = boostEntries,
+            keywordEntries = keywordEntries,
+            grantedAbilityEntries = entries,
+            crewStates = crewStates,
+            saddleStates = saddleStates,
+            reconfigureStates = reconfigureStates,
+            pendingEarthbendResolutions = pendingEarthbendResolutions,
+            battlefieldEarthbendSignatures = battlefieldEarthbendSignatures,
+        )
 }
