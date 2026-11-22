@@ -83,8 +83,13 @@ docs-lint:
     # --- Phase 2: path-shaped .md refs across all file types ---
     echo "Scanning path refs (.md, .yaml, .kt)..."
     path_pat='[a-zA-Z0-9_./-]+/[a-zA-Z0-9_./-]*\.md'
+    url_pat='https?://[^[:space:])>"]+'
     while IFS=: read -r file line_num content; do
         rest="$content"
+        # Remote URLs end in .md too; drop them so only local paths are checked.
+        while [[ "$rest" =~ $url_pat ]]; do
+            rest="${rest/"${BASH_REMATCH[0]}"/ }"
+        done
         while [[ "$rest" =~ $path_pat ]]; do
             ref="${BASH_REMATCH[0]}"
             check_ref "$file" "$ref" || report "$file" "$line_num" "$ref"
