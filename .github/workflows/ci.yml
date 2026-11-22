@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run-heavy: ${{ steps.decide.outputs.run-heavy }}
+      docs-only: ${{ steps.decide.outputs.docs-only }}
     steps:
       - name: Decide whether this tree needs CI
         id: decide
@@ -54,6 +55,7 @@ jobs:
               const docsOnly = files.length > 0 && files.length < 3000 && files.every(f =>
                 f.filename.endsWith('.md') && (!f.previous_filename || f.previous_filename.endsWith('.md')))
               core.setOutput('run-heavy', String(!docsOnly))
+              core.setOutput('docs-only', String(docsOnly))
               core.info(docsOnly ? `Markdown-only PR (${files.length} files): skip heavy CI` : 'Internal PR: run CI')
               return
             }
@@ -106,13 +108,15 @@ jobs:
   gate:
     name: Gate (fmt + unit + board + coverage)
     needs: plan
-    if: needs.plan.outputs.run-heavy == 'true'
+    # Markdown-only PRs run only docs-lint here, the one Gate check that reads Markdown.
+    if: needs.plan.outputs.run-heavy == 'true' || needs.plan.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04-arm
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
       LEYLINE_FORGE_M2_ROOT: ${{ github.workspace }}/.ci-forge-m2
     steps:
       - name: Generate app token
+        if: needs.plan.outputs.run-heavy == 'true'
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
@@ -121,21 +125,24 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          submodules: true
-          token: ${{ steps.app-token.outputs.token }}
+          submodules: ${{ needs.plan.outputs.run-heavy == 'true' }}
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - name: Setup Java
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
       - name: Setup Gradle
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
 
       - name: Setup Maven
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.9
@@ -144,26 +151,35 @@ jobs:
         uses: extractions/setup-just@v2
 
       - name: Read Forge revision
+        if: needs.plan.outputs.run-heavy == 'true'
         id: forge-revision
         run: echo "sha=$(git rev-parse HEAD:forge)" >> "$GITHUB_OUTPUT"
 
       - name: Restore Forge Maven repository
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: actions/cache@v4
         with:
           path: ${{ env.LEYLINE_FORGE_M2_ROOT }}
           key: forge-${{ runner.os }}-${{ runner.arch }}-java21-${{ steps.forge-revision.outputs.sha }}
 
       - name: Install forge JARs
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just install-forge
 
       - name: Build
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just build
 
       - name: Test (unit + board)
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just test-gate
 
+      - name: Docs lint
+        if: needs.plan.outputs.docs-only == 'true'
+        run: just docs-lint
+
       - name: Upload test results
-        if: always()
+        if: always() && needs.plan.outputs.run-heavy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: test-results-gate-attempt-${{ github.run_attempt }}
@@ -172,7 +188,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage
-        if: always()
+        if: always() && needs.plan.outputs.run-heavy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-gate-attempt-${{ github.run_attempt }}
