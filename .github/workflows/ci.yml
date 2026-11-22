@@ -109,6 +109,7 @@ jobs:
     name: Gate (fmt + unit + board + coverage)
     needs: plan
     # Markdown-only PRs run only docs-lint here, the one Gate check that reads Markdown.
+    # Forge is still checked out so forge/ references resolve as they do on main.
     if: needs.plan.outputs.run-heavy == 'true' || needs.plan.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04-arm
     env:
@@ -116,7 +117,6 @@ jobs:
       LEYLINE_FORGE_M2_ROOT: ${{ github.workspace }}/.ci-forge-m2
     steps:
       - name: Generate app token
-        if: needs.plan.outputs.run-heavy == 'true'
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
@@ -125,8 +125,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          submodules: ${{ needs.plan.outputs.run-heavy == 'true' }}
-          token: ${{ steps.app-token.outputs.token || github.token }}
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Java
         if: needs.plan.outputs.run-heavy == 'true'
