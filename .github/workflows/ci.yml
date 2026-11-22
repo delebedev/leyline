@@ -42,14 +42,16 @@ jobs:
               }
 
               // Markdown is never read by builds or tests, so a Markdown-only diff
-              // cannot change any Gate or Extended result.
+              // cannot change any Gate or Extended result. The file listing stops
+              // at 3,000 entries, so a list that reaches the cap is treated as
+              // incomplete and runs CI.
               const files = await github.paginate(github.rest.pulls.listFiles, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: context.payload.pull_request.number,
                 per_page: 100,
               })
-              const docsOnly = files.length > 0 && files.every(f =>
+              const docsOnly = files.length > 0 && files.length < 3000 && files.every(f =>
                 f.filename.endsWith('.md') && (!f.previous_filename || f.previous_filename.endsWith('.md')))
               core.setOutput('run-heavy', String(!docsOnly))
               core.info(docsOnly ? `Markdown-only PR (${files.length} files): skip heavy CI` : 'Internal PR: run CI')
