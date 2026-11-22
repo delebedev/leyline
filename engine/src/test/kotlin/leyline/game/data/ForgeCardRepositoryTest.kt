@@ -4,6 +4,7 @@ import forge.game.keyword.Keyword
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
 import leyline.game.codes.SlotKind
 
@@ -150,6 +151,30 @@ class ForgeCardRepositoryTest :
                     repo.findDeckGrpIdByNameAndSet("Skullclamp", setCode) shouldBe skullclamp
                 }
             }
+        }
+
+        test("granted keyword without its own cost stays symbolic instead of reading a host card") {
+            // "Beam me up" is granted with the host spell's mana cost, so the
+            // catalog entry has no cost detail of its own.
+            val localization = requireNotNull(localizeGrantedKeyword("Beam me up"))
+            assertSoftly {
+                localization.keyword shouldBe "Beam me up"
+                localization.text shouldBe
+                    "You may cast this card from your graveyard for its mana cost " +
+                    "if you also return a creature you control to its owner's hand. Then exile this spell. " +
+                    "Its beam me up cost is equal to its mana cost."
+                localization.manaCost shouldBe emptyList()
+            }
+        }
+
+        test("a card that grants a host-cost keyword registers without a live host card") {
+            val repo = ForgeCardRepository.open()
+            val cardId = requireNotNull(repo.findDeckGrpIdByName("Scotty, Miracle Worker"))
+            val card = requireNotNull(repo.findByGrpId(cardId))
+            val abilityId = requireNotNull(card.grantedKeywordAbilityIds["Beam me up"])
+            val localization = requireNotNull(repo.findAbilityLocalization(abilityId))
+            localization.keyword shouldBe "Beam me up"
+            localization.text.shouldContain("its mana cost")
         }
 
         test("calculated granted amounts remain symbolic in cold catalog lookup") {
