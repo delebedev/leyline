@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run-heavy: ${{ steps.decide.outputs.run-heavy }}
+      docs-only: ${{ steps.decide.outputs.docs-only }}
     steps:
       - name: Decide whether this tree needs CI
         id: decide
@@ -35,8 +36,36 @@ jobs:
 
             if (context.eventName === 'pull_request') {
               const internal = context.payload.pull_request.head.repo.full_name === context.payload.repository.full_name
-              core.setOutput('run-heavy', String(internal))
-              core.info(internal ? 'Internal PR: run CI' : 'Fork PR: skip privileged CI')
+              if (!internal) {
+                core.setOutput('run-heavy', 'false')
+                core.info('Fork PR: skip privileged CI')
+                return
+              }
+
+              // Markdown is never read by builds or tests, so a Markdown-only diff
+              // cannot change any Gate or Extended result. The file listing stops
+              // at 3,000 entries, so a list that reaches the cap is treated as
+              // incomplete and runs CI.
+              // A failed listing must not skip Gate, so it runs the heavy path.
+              let files
+              try {
+                files = await github.paginate(github.rest.pulls.listFiles, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  per_page: 100,
+                })
+              } catch (error) {
+                core.warning(`Could not list PR files (${error.message}): run CI`)
+                core.setOutput('run-heavy', 'true')
+                core.setOutput('docs-only', 'false')
+                return
+              }
+              const docsOnly = files.length > 0 && files.length < 3000 && files.every(f =>
+                f.filename.endsWith('.md') && (!f.previous_filename || f.previous_filename.endsWith('.md')))
+              core.setOutput('run-heavy', String(!docsOnly))
+              core.setOutput('docs-only', String(docsOnly))
+              core.info(docsOnly ? `Markdown-only PR (${files.length} files): skip heavy CI` : 'Internal PR: run CI')
               return
             }
 
@@ -60,9 +89,24 @@ jobs:
               if (runs.data.workflow_runs.length === 0) continue
 
               const tested = await github.rest.git.getCommit({ owner, repo, commit_sha: pull.head.sha })
-              if (tested.data.tree.sha === current.data.tree.sha) {
+              if (tested.data.tree.sha !== current.data.tree.sha) continue
+
+              // A successful run may have skipped the heavy jobs (fork or
+              // Markdown-only PR). Only a run whose Gate and Extended both
+              // succeeded proves the tree.
+              for (const run of runs.data.workflow_runs) {
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                  owner,
+                  repo,
+                  run_id: run.id,
+                  filter: 'latest',
+                  per_page: 100,
+                })
+                const passed = name => jobs.some(job => job.name.startsWith(name) && job.conclusion === 'success')
+                if (!passed('Gate') || !passed('Extended')) continue
+
                 core.setOutput('run-heavy', 'false')
-                core.info(`Tree already passed in PR #${pull.number}: ${current.data.tree.sha}`)
+                core.info(`Tree already passed in PR #${pull.number} run ${run.id}: ${current.data.tree.sha}`)
                 return
               }
             }
@@ -73,7 +117,9 @@ jobs:
   gate:
     name: Gate (fmt + unit + board + coverage)
     needs: plan
-    if: needs.plan.outputs.run-heavy == 'true'
+    # Markdown-only PRs run only docs-lint here, the one Gate check that reads Markdown.
+    # Forge is still checked out so forge/ references resolve as they do on main.
+    if: needs.plan.outputs.run-heavy == 'true' || needs.plan.outputs.docs-only == 'true'
     runs-on: ubuntu-24.04-arm
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.workers.max=2 -Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process
@@ -92,17 +138,20 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Java
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
       - name: Setup Gradle
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
 
       - name: Setup Maven
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.9
@@ -110,27 +159,39 @@ jobs:
       - name: Setup just
         uses: extractions/setup-just@v2
 
+      - name: Install ripgrep
+        run: command -v rg || { sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep; }
+
       - name: Read Forge revision
+        if: needs.plan.outputs.run-heavy == 'true'
         id: forge-revision
         run: echo "sha=$(git rev-parse HEAD:forge)" >> "$GITHUB_OUTPUT"
 
       - name: Restore Forge Maven repository
+        if: needs.plan.outputs.run-heavy == 'true'
         uses: actions/cache@v4
         with:
           path: ${{ env.LEYLINE_FORGE_M2_ROOT }}
           key: forge-${{ runner.os }}-${{ runner.arch }}-java21-${{ steps.forge-revision.outputs.sha }}
 
       - name: Install forge JARs
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just install-forge
 
       - name: Build
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just build
 
       - name: Test (unit + board)
+        if: needs.plan.outputs.run-heavy == 'true'
         run: just test-gate
 
+      - name: Docs lint
+        if: needs.plan.outputs.docs-only == 'true'
+        run: just docs-lint
+
       - name: Upload test results
-        if: always()
+        if: always() && needs.plan.outputs.run-heavy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: test-results-gate-attempt-${{ github.run_attempt }}
@@ -139,7 +200,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage
-        if: always()
+        if: always() && needs.plan.outputs.run-heavy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-gate-attempt-${{ github.run_attempt }}
