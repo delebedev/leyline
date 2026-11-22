@@ -13,16 +13,15 @@ object SpellAbilityShapes {
 
     fun isPrivateHandLook(sa: SpellAbility?): Boolean {
         val ability = (sa as? forge.game.trigger.WrappedAbility)?.wrappedAbility ?: sa
-        return ability != null &&
-            (
-                (ability.api == ApiType.RevealHand && ability.hasParam("Look")) ||
-                    (
-                        ability.api == ApiType.ChangeZone &&
-                            ability.hasParamValue("Origin", "Hand") &&
-                            ability.hasParamValue("Destination", "Exile") &&
-                            ability.hasParamValue("Chooser", "You")
-                    )
-            )
+        if (ability == null) return false
+        if (ability.api == ApiType.RevealHand && ability.hasParam("Look")) return true
+        // A hand-to-exile choice is private only when the card text looks instead of revealing:
+        // Deep-Cavern Bat looks at the hand, Tidehollow Sculler reveals it with the same parameters.
+        return ability.api == ApiType.ChangeZone &&
+            ability.hasParamValue("Origin", "Hand") &&
+            ability.hasParamValue("Destination", "Exile") &&
+            ability.hasParamValue("Chooser", "You") &&
+            ability.hostCard.oracleText.contains("look at", ignoreCase = true)
     }
 
     fun usesCostOnlyCastingOption(sa: SpellAbility?): Boolean =

@@ -14,12 +14,18 @@ class SpellAbilityShapesTest :
         tags(UnitTag)
         beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
-        test("direct hand exile choices retain private look semantics") {
+        test("hand-to-exile choices follow the card text, not the transfer parameters") {
             val params = mapOf("Origin" to "Hand", "Destination" to "Exile", "Chooser" to "You")
-            val ability = AbilitySub(ApiType.ChangeZone, Card(7, null), null, params)
-            SpellAbilityShapes.isPrivateHandLook(ability) shouldBe true
-            val library = AbilitySub(ApiType.ChangeZone, Card(7, null), null, params + ("Origin" to "Library"))
-            SpellAbilityShapes.isPrivateHandLook(library) shouldBe false
+            fun abilityFor(text: String, extra: Map<String, String> = emptyMap()): AbilitySub =
+                AbilitySub(ApiType.ChangeZone, Card(7, null).apply { oracleText = text }, null, params + extra)
+
+            SpellAbilityShapes.isPrivateHandLook(
+                abilityFor("When this creature enters, look at target opponent's hand. You may exile a nonland card from it."),
+            ) shouldBe true
+            SpellAbilityShapes.isPrivateHandLook(
+                abilityFor("When this creature enters, target opponent reveals their hand and you choose a nonland card from it."),
+            ) shouldBe false
+            SpellAbilityShapes.isPrivateHandLook(abilityFor("look at target opponent's hand.", mapOf("Origin" to "Library"))) shouldBe false
         }
 
         test("paid cost alternatives do not grant a casting permission") {

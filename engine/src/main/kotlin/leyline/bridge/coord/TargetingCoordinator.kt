@@ -505,7 +505,9 @@ class TargetingCoordinator(
         max: Int,
         revealedHand: Iterable<CardView>?,
     ): CardCollection {
-        val reveal = bridge.journal.activeRevealEntry() ?: revealFromVisibleHand(discarder, revealedHand)
+        val reveal =
+            bridge.journal.activeRevealEntry()
+                ?: revealFromVisibleHand(discarder, revealedHand, SpellAbilityShapes.isPrivateHandLook(sa))
         if (reveal != null) {
             return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
         }
@@ -523,13 +525,14 @@ class TargetingCoordinator(
     private fun revealFromVisibleHand(
         discarder: Player,
         revealedHand: Iterable<CardView>?,
+        lookOnly: Boolean,
     ): leyline.bridge.handoff.PromptJournal.RevealEntry? {
         val visible = revealedHand?.toList().orEmpty()
         if (visible.isEmpty()) return null
         val visibleIds = visible.map { ForgeCardId(it.id) }
         if (!revealsWholeCurrentHand(visibleIds, discarder)) return null
         val ownerSeat = discarder.ownerSeat()
-        TargetingCoordinator.startReveal(bridge, visibleIds, ownerSeat)
+        TargetingCoordinator.startReveal(bridge, visibleIds, ownerSeat, lookOnly)
         return bridge.journal.activeRevealEntry()
     }
 
