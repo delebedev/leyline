@@ -8,6 +8,9 @@ docs-lint:
     repo_root="$(git rev-parse --show-toplevel)"
     cd "$repo_root"
 
+    # The scans below treat rg failure as "no matches", so a missing rg would pass silently.
+    command -v rg >/dev/null || { echo "docs-lint requires ripgrep (rg)" >&2; exit 1; }
+
     # rg glob excludes
     rg_exclude="--glob=!forge/ --glob=!.gradle/ --glob=!build/ --glob=!proto/upstream/ --glob=!.github/ --glob=!.beads/ --glob=!node_modules/ --glob=!.agent/"
 
@@ -37,6 +40,8 @@ docs-lint:
         [[ "$ref" != *.md && "$ref" != *.MD ]] && return 0
         # Skip build artifact paths
         [[ "$ref" = .bundle-stage/* ]] && return 0
+        # Without a checked-out forge submodule, its targets cannot be resolved here.
+        [[ "$ref" = forge/* && ! -e "$repo_root/forge/.git" ]] && return 0
 
         # Resolve path
         local target
