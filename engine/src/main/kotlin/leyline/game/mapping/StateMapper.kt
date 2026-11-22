@@ -261,7 +261,9 @@ object StateMapper {
         // Classify a stale reveal from materialized prompt facts. Its compare-and-clear
         // intent returns with this draft and runs only after an accepted commit.
         val (activeReveal, staleReveals) = detectActiveReveal(promptFacts, editor.revealProxies.isEmpty())
-        val revealedHandSeat = activeReveal?.ownerSeatId?.value
+        // Only a reveal of the whole hand makes the hand zone public; a subset travels as reveal proxies,
+        // so the unrevealed cards keep their identity.
+        val revealedHandSeat = activeReveal?.takeIf { it.revealsWholeHand(snap) }?.ownerSeatId?.value
 
         // Player 1 zones
         if (StateZoneProjection.hasSeat(snap, SeatId(1))) {
@@ -1746,6 +1748,24 @@ object StateMapper {
     }
 
     /** Classify stale reveal state without touching the prompt journal. */
+
+    /** Whether the reveal covers every card currently in the owner's hand. */
+    private fun RevealStarted.revealsWholeHand(snap: GsmSnapshot): Boolean {
+        val handZone =
+            when (ownerSeatId.value) {
+                1 -> ZoneIds.P1_HAND
+                2 -> ZoneIds.P2_HAND
+                else -> return false
+            }
+        val hand =
+            snap.zones[handZone]
+                ?.contents
+                ?.map { it.value }
+                ?.toSet()
+                .orEmpty()
+        return hand.isNotEmpty() && allHandCardIds.map { it.value }.toSet() == hand
+    }
+
     private fun detectActiveReveal(
         promptFacts: PromptProjectionFacts,
         revealProxiesEmpty: Boolean,
