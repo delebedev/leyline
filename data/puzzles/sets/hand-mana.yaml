@@ -1,0 +1,44 @@
+name: hand-mana
+description: Published hand mana abilities retain costs, spell restrictions and priority.
+scenarios:
+  - id: spirit-guide-manual
+    puzzle: spirit-guide-hand-mana
+    headless: { full_control: true }
+    native:
+      xfail: Elvish Spirit Guide has no native client catalog identity.
+    run: activate Elvish Spirit Guide from hand, cast Fog, then play Forest
+    expect: the Guide is exiled and its mana pays for Fog without bypassing Codie
+    steps:
+      - expect:
+          action: { type: activate_mana, card: Elvish Spirit Guide }
+      - activate_mana: { card: Elvish Spirit Guide }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Elvish Spirit Guide }
+            - action: { type: cast, card: Fog }
+            - action_not_available: { type: activate_mana, card: Elvish Spirit Guide }
+            - stack_empty: true
+      - cast: Fog
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: graveyard, card: Fog }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
+  - id: spirit-guide-automatic
+    puzzle: spirit-guide-hand-mana
+    headless: { full_control: true }
+    native:
+      xfail: Elvish Spirit Guide has no native client catalog identity.
+    run: cast Fog directly, then play Forest
+    expect: automatic mana payment exiles the Guide and play continues
+    steps:
+      - cast: Fog
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Elvish Spirit Guide }
+            - zone_contains: { side: ours, zone: graveyard, card: Fog }
+      - play_land: Forest
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Forest }
