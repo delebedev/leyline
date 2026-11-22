@@ -65,7 +65,7 @@ class CloakSessionTest :
                 cloakedObject.isFacedown shouldBe true
                 cloakedObject.overlayGrpId shouldBe 3
                 cloakedObject.cardTypesList shouldContainExactly listOf(CardType.Creature)
-                cloakedObject.power.value shouldBe 2
+                cloakedObject.power.value shouldBe 3
                 cloakedObject.toughness.value shouldBe 2
                 cloakedObject.uniqueAbilitiesList.single().grpId shouldBe KeywordAbilityIds.WARD_TWO
                 coatObject.parentId shouldBe cloakedIid
