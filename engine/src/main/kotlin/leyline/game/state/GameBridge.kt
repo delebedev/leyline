@@ -408,6 +408,7 @@ class GameBridge(
 
     /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
     private val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
+    private val grantedAbilityIds = ConcurrentHashMap<Int, GrantedAbilityIds>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -1294,7 +1295,8 @@ class GameBridge(
      *
      * Pre-populated for puzzle cards via [registerPuzzleCards]. For all other
      * game types (constructed, tokens, zone transfers), built on first access
-     * from the live [card] + [cardData].
+     * from the live [card] + [cardData]. Rebuilt when Forge has regenerated the
+     * card's spell ability instances, which invalidates definition-id rows.
      */
     fun abilityRegistryFor(
         card: Card,
@@ -1302,13 +1304,16 @@ class GameBridge(
     ): AbilityRegistry? {
         if (cardData == null) return null
         return abilityRegistries.compute(card.id) { _, cached ->
-            cached?.takeIf { it.sourceCardGrpId == cardData.grpId }
-                ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
+            cached?.takeIf { it.sourceCardGrpId == cardData.grpId && it.matchesLiveSpellAbilities(card) }
+                ?: buildAbilityRegistry(card, cardData)
         }
     }
 
     @VisibleForTesting
     internal fun cachedAbilityRegistryCardIds(): Set<ForgeCardId> = abilityRegistries.keys.mapTo(linkedSetOf(), ::ForgeCardId)
+
+    @VisibleForTesting
+    internal fun grantedAbilityIdentityCardIds(): Set<ForgeCardId> = grantedAbilityIds.keys.mapTo(linkedSetOf(), ::ForgeCardId)
 
     @VisibleForTesting
     internal fun clearAbilityRegistryCacheForTesting() {
@@ -1326,7 +1331,7 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         registry.resolve(definition)?.let { return it }
-        val refreshed = AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId)
+        val refreshed = buildAbilityRegistry(card, cardData)
         abilityRegistries[card.id] = refreshed
         return refreshed.resolve(definition)
             ?: ability.trigger
@@ -1370,11 +1375,24 @@ class GameBridge(
         val cardData = abilityCardData(card) ?: return null
         val registry = abilityRegistryFor(card, cardData) ?: return null
         return registry.resolve(definition)
-            ?: AbilityRegistry.build(card, cardData, cardRepository::grantedKeywordAbilityGrpId).let { refreshed ->
+            ?: buildAbilityRegistry(card, cardData).let { refreshed ->
                 abilityRegistries[card.id] = refreshed
                 refreshed.resolve(definition)
             }
     }
+
+    private fun buildAbilityRegistry(
+        card: Card,
+        cardData: CardData,
+    ): AbilityRegistry =
+        AbilityRegistry.build(
+            card,
+            cardData,
+            cardRepository::grantedKeywordAbilityGrpId,
+            grantedAbilityIds.computeIfAbsent(card.id) {
+                GrantedAbilityIds()
+            },
+        )
 
     private fun abilityCardData(card: Card): CardData? =
         if (card.isEmblem) {
@@ -1392,7 +1410,10 @@ class GameBridge(
     /** Shell-side cache invalidation for normalized state-frame facts. */
     fun invalidateAbilityRegistries(events: List<GameEvent>) {
         events.filterIsInstance<GameEvent.CardTransformed>().forEach { evictAbilityRegistry(it.cardId.value) }
-        events.filterIsInstance<GameEvent.ZoneChanged>().forEach { evictAbilityRegistry(it.cardId.value) }
+        events.filterIsInstance<GameEvent.ZoneChanged>().forEach {
+            evictAbilityRegistry(it.cardId.value)
+            if (it.from != it.to) grantedAbilityIds[it.cardId.value]?.retain(emptySet())
+        }
     }
 
     /** Build identities that may execute before the next client action projection. */
@@ -1838,6 +1859,8 @@ class GameBridge(
         teardownResources()
         game = null
         players.clear()
+        abilityRegistries.clear()
+        grantedAbilityIds.clear()
     }
 
     // --- Puzzle internals ---
@@ -2074,7 +2097,7 @@ class GameBridge(
         val currentGame = game ?: return EffectProjectionFacts(pendingEarthbendResolutions = pendingEarthbendResolutions.toList())
         val boosts = mutableListOf<EffectProjectionFacts.BoostEntry>()
         val keywords = mutableListOf<EffectProjectionFacts.KeywordEntry>()
-        val grantedAbilities = mutableListOf<EffectProjectionFacts.GrantedAbilityEntry>()
+        val grantedAbilities = materializeGrantedAbilityEntries(currentGame)
         val crew = mutableListOf<EffectProjectionFacts.CrewState>()
         val saddle = mutableListOf<EffectProjectionFacts.SaddleState>()
         val reconfigure = mutableListOf<EffectProjectionFacts.ReconfigureState>()
@@ -2126,8 +2149,6 @@ class GameBridge(
                     }
                 }
 
-                grantedAbilities += grantedAbilityEntries(card)
-
                 card.getCrewedByThisTurn()?.takeIf { it.isNotEmpty() }?.let { sources ->
                     crew +=
                         EffectProjectionFacts.CrewState(
@@ -2165,7 +2186,7 @@ class GameBridge(
         return EffectProjectionFacts(
             boostEntries = boosts,
             keywordEntries = keywords,
-            grantedAbilityEntries = sortGrantedAbilityEntries(grantedAbilities),
+            grantedAbilityEntries = grantedAbilities,
             crewStates = crew,
             saddleStates = saddle,
             reconfigureStates = reconfigure,
@@ -2193,6 +2214,20 @@ class GameBridge(
                 { it.staticId },
                 { it.abilityGrpId },
             ),
+        )
+
+    /**
+     * Observe current battlefield grants. Identities follow the live allocator,
+     * so a caller that observes after retirement sees the resulting generation.
+     */
+    internal fun materializeGrantedAbilityEntries(): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        game?.let(::materializeGrantedAbilityEntries).orEmpty()
+
+    private fun materializeGrantedAbilityEntries(currentGame: Game): List<EffectProjectionFacts.GrantedAbilityEntry> =
+        sortGrantedAbilityEntries(
+            currentGame.players
+                .flatMap { player -> player.getZone(ZoneType.Battlefield).cards }
+                .flatMap(::grantedAbilityEntries),
         )
 
     private fun grantedAbilityEntries(card: Card): List<EffectProjectionFacts.GrantedAbilityEntry> =

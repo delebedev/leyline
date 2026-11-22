@@ -37,7 +37,21 @@ class AbilityRegistry private constructor(
     val slotLayout: SlotLayout = SlotLayout.Companion.EMPTY,
     private val grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
     private val keywordSlotIndices: Map<Int, Int> = emptyMap(),
+    private val grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
+    private val builtSpellAbilityDefinitions: Set<Int> = emptySet(),
 ) {
+    /**
+     * True while [card] still exposes the spell ability definitions this registry was built from.
+     *
+     * Forge regenerates a card's [SpellAbility] instances on zone changes, so cached
+     * definition-id rows go stale even though the printed slots are unchanged.
+     */
+    fun matchesLiveSpellAbilities(card: Card): Boolean {
+        val live = card.spellAbilities
+        if (live.size != builtSpellAbilityDefinitions.size) return false
+        return live.all { it.definitionId in builtSpellAbilityDefinitions }
+    }
+
     /** Resolve a live or copied SpellAbility through its stable definition identity. */
     fun forSpellAbility(ability: SpellAbility): Int? =
         if (ability.originalAbility != null) {
@@ -148,12 +162,18 @@ class AbilityRegistry private constructor(
                         .singleOrNull {
                             it.value.first.definitionId == ability.definitionId && it.value.first.grantorStatic == ability.grantorStatic
                         }?.index
+            val recipientRegistry = registryLookup(card, cardData)
+            val grantKeys =
+                grants.map { (granted, timestamp, staticId) ->
+                    GrantedAbilityIds.Key(timestamp, staticId, generateSequence(granted) { it.originalAbility }.last().definitionId)
+                }
+            recipientRegistry?.grantedIds?.retain(grantKeys.toSet())
             val original = generateSequence(ability) { it.originalAbility }.last()
             val uniqueAbilityId =
                 if (abilityGrpId != 0 && cardData != null && grantIndex != null) {
-                    INITIAL_UNIQUE_ABILITY_ID + cardData.abilityIds.size + grantIndex
+                    recipientRegistry?.grantedIds?.idFor(grantKeys[grantIndex])
                 } else {
-                    registryLookup(card, cardData)
+                    recipientRegistry
                         ?.takeIf { abilityGrpId != 0 }
                         ?.keywordSlotIndices
                         ?.get(original.definitionId)
@@ -186,14 +206,18 @@ class AbilityRegistry private constructor(
             card: Card,
             cardDataLookup: (Card) -> CardData?,
             registryLookup: (Card, CardData?) -> AbilityRegistry?,
-        ): List<EffectProjectionFacts.GrantedAbilityEntry> =
-            card.changedCardTraits.cellSet().flatMap { cell ->
-                (cell.value as? CardTraitChanges)
-                    ?.getAbilities()
-                    .orEmpty()
-                    .filter { it.isActivatedAbility && it.grantorStatic != null }
-                    .mapNotNull { resolveActivated(card, it, cardDataLookup, registryLookup).grant }
-            }
+        ): List<EffectProjectionFacts.GrantedAbilityEntry> {
+            val entries =
+                card.changedCardTraits.cellSet().flatMap { cell ->
+                    (cell.value as? CardTraitChanges)
+                        ?.getAbilities()
+                        .orEmpty()
+                        .filter { it.isActivatedAbility && it.grantorStatic != null }
+                        .mapNotNull { resolveActivated(card, it, cardDataLookup, registryLookup).grant }
+                }
+            if (entries.isEmpty()) registryLookup(card, cardDataLookup(card))?.grantedIds?.retain(emptySet())
+            return entries
+        }
 
         internal fun uniqueAbilityIdFor(
             cardData: CardData?,
@@ -222,8 +246,10 @@ class AbilityRegistry private constructor(
             card: Card,
             cardData: CardData,
             grantedKeywordAbilityGrpId: (SpellAbility) -> Int? = { null },
+            grantedIds: GrantedAbilityIds = GrantedAbilityIds(),
         ): AbilityRegistry {
             val abilityIds = cardData.abilityIds
+            val builtSpellAbilityDefinitions = card.spellAbilities.mapTo(mutableSetOf()) { it.definitionId }
             val grantedKeywordIds =
                 card.spellAbilities
                     .mapNotNull { ability ->
@@ -237,6 +263,8 @@ class AbilityRegistry private constructor(
                     emptyMap(),
                     sourceCardGrpId = cardData.grpId,
                     grantedKeywordAbilityGrpId = grantedKeywordAbilityGrpId,
+                    grantedIds = grantedIds,
+                    builtSpellAbilityDefinitions = builtSpellAbilityDefinitions,
                 )
             }
 
@@ -314,6 +342,8 @@ class AbilityRegistry private constructor(
                 layout,
                 grantedKeywordAbilityGrpId,
                 keywordSlotIndices,
+                grantedIds,
+                builtSpellAbilityDefinitions,
             )
         }
 

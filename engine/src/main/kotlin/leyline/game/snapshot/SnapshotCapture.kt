@@ -428,17 +428,10 @@ object SnapshotCapture {
     ): Map<SeatId, List<ActivatedAbilityOccurrence>> {
         if (card.isFaceDown || card.spellAbilities.none { it.isActivatedAbility && !it.isManaAbility() }) return emptyMap()
         val originalPlayers = card.allSpellAbilities.associateWith { it.activatingPlayer }
-        val registries = mutableMapOf<Int, AbilityRegistry>()
         val dataLookup: (Card) -> CardData? = { source ->
             bridge.cardRepository.findByGrpId(bridge.resolveGrpId(source, bridge.instanceId(source)))
         }
-        val registryLookup: (Card, CardData?) -> AbilityRegistry? = { source, data ->
-            data?.let {
-                registries.getOrPut(source.id) {
-                    AbilityRegistry.build(source, it, bridge.cardRepository::grantedKeywordAbilityGrpId)
-                }
-            }
-        }
+        val registryLookup: (Card, CardData?) -> AbilityRegistry? = bridge::abilityRegistryFor
         try {
             return card.game.players
                 .mapNotNull { player ->
