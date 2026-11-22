@@ -186,6 +186,13 @@ class InteractivePromptBridge(
         indices: List<Int>,
     ) = record(request, PromptCallStatus.DEFAULTED_POLICY, indices)
 
+    /** Record [indices] chosen for [request] under [rule] without publishing it. */
+    fun recordAutomaticAnswer(
+        request: PromptRequest,
+        rule: AutomaticAnswerRule,
+        indices: List<Int>,
+    ) = recordPolicyDefault(request.copy(route = ResolvedPromptRoute.AutoResolve(request.route.semantic, rule)), indices)
+
     /** Record a confirmation answered Yes under [rule] without publishing it. */
     fun recordAutomaticAnswer(
         rule: AutomaticAnswerRule,
@@ -292,6 +299,7 @@ class InteractivePromptBridge(
         request: PromptRequest,
         targetingSa: SpellAbility? = null,
     ): List<Int> {
+        askAsLabelChoice(request)?.let { return it }
         resolvePromptPolicyDefault(request) { indices ->
             record(request, PromptCallStatus.DEFAULTED_POLICY, indices)
             prioritySignal?.markPromptResolved()
@@ -334,6 +342,19 @@ class InteractivePromptBridge(
         val fallback = listOf(request.defaultIndex)
         record(request, PromptCallStatus.DEFAULTED_POLICY, fallback)
         return fallback
+    }
+
+    /** Asks an unnamed generic request through [UnnamedLabelChoice] inside an interactive window. */
+    private fun askAsLabelChoice(request: PromptRequest): List<Int>? {
+        if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) return null
+        return when (val plan = UnnamedLabelChoice.plan(request) ?: return null) {
+            is UnnamedLabelChoice.Plan.Automatic ->
+                plan.indices.also {
+                    recordAutomaticAnswer(request, AutomaticAnswerRule.NoChoiceAmongShownOptions, it)
+                    prioritySignal?.markPromptResolved()
+                }
+            is UnnamedLabelChoice.Plan.Ask -> requestStaticChoice(plan.request).mapNotNull(plan.shown::getOrNull)
+        }
     }
 
     /** Route one Forge modal choice through the match-scoped runtime. */
@@ -714,9 +735,9 @@ class InteractivePromptBridge(
         if (NonInteractiveScope.active != null || !isGameLoopThread() || timeoutMs == 0L) return null
         val runtime = checkNotNull(runtimeBindings.replacement) { "Replacement runtime is not registered" }
         return try {
+            // Null means no typed replacement window exists; the caller asks generically.
             val result = runtime.awaitReplacement(request, possibleReplacers, timeoutMs)
             if (result == null) {
-                record(request, PromptCallStatus.DEFAULTED_POLICY, emptyList())
                 null
             } else {
                 record(
