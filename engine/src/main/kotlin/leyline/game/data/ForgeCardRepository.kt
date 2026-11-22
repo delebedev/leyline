@@ -54,6 +54,7 @@ class ForgeCardRepository private constructor(
     companion object {
         private const val CARD_BASE = 200_000_000
         private const val DERIVED_ID_BASE = 300_000_000
+        private val MULTI_FACE_SEPARATOR_REGEX = Regex("""\s*//?\s*""")
         private val descriptor: ForgeCatalogDescriptor by lazy {
             GameBootstrap.initializeCardDatabase(quiet = true)
             StaticData.instance().ensureAllCardsLoaded()
@@ -309,20 +310,36 @@ class ForgeCardRepository private constructor(
     }
 
     @Synchronized
-    override fun findDeckGrpIdByName(name: String): Int? {
+    override fun findDeckGrpIdByName(name: String): Int? =
+        deckParentName(name)?.let { findGrpIdByName(it) }
+            ?: canonicalMultiFaceName(name)?.let { deckParentName(it) }?.let { findGrpIdByName(it) }
+
+    /**
+     * The catalog name a deck entry's name identifies. Faces, combined
+     * `A // B` names and single-face aliases all map to their deck-legal
+     * parent.
+     */
+    private fun deckParentName(name: String): String? {
         val key = lookupKey(name)
-        val parentName =
-            primaryNamesByLookup[key]?.singleOrNull()
-                ?: faceAliasesByLookup[key]?.map(FaceAlias::parentName)?.distinct()?.singleOrNull()
-                ?: combinedParentsByLookup[key]?.distinct()?.singleOrNull()
-                ?: StaticData
-                    .instance()
-                    .commonCards
-                    .getUniqueByName(name)
-                    ?.rules
-                    ?.name
-                ?: return null
-        return findGrpIdByName(parentName)
+        return primaryNamesByLookup[key]?.singleOrNull()
+            ?: faceAliasesByLookup[key]?.map(FaceAlias::parentName)?.distinct()?.singleOrNull()
+            ?: combinedParentsByLookup[key]?.distinct()?.singleOrNull()
+            ?: StaticData
+                .instance()
+                .commonCards
+                .getUniqueByName(name)
+                ?.rules
+                ?.name
+    }
+
+    /**
+     * Exports write a multi-face card's name with `A/B`, `A//B` or `A / B`;
+     * the catalog stores `A // B`. Only consulted after the name as written
+     * misses, so a card whose printed name contains `/` keeps its own lookup.
+     */
+    private fun canonicalMultiFaceName(name: String): String? {
+        if ('/' !in name) return null
+        return MULTI_FACE_SEPARATOR_REGEX.replace(name, " // ").trim().takeIf { it != name }
     }
 
     override fun findDeckGrpIdByNameAndSet(

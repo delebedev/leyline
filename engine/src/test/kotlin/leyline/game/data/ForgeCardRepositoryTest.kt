@@ -123,6 +123,35 @@ class ForgeCardRepositoryTest :
             }
         }
 
+        test("deck entry resolves multi-face names written with any separator") {
+            val repo = ForgeCardRepository.open()
+            val split = requireNotNull(repo.findGrpIdByName("Fire // Ice"))
+            val fellTheProfane = requireNotNull(repo.findGrpIdByName("Fell the Profane"))
+            val etali = requireNotNull(repo.findGrpIdByName("Etali, Primal Conqueror"))
+            val ojerKaslem = requireNotNull(repo.findGrpIdByName("Ojer Kaslem, Deepest Growth"))
+            assertSoftly {
+                listOf("Fire/Ice", "Fire//Ice", "Fire / Ice").forEach { name ->
+                    repo.findDeckGrpIdByName(name) shouldBe split
+                }
+                repo.findDeckGrpIdByName("Insult//Injury") shouldBe
+                    requireNotNull(repo.findGrpIdByName("Insult // Injury"))
+                repo.findDeckGrpIdByName("Fell the Profane / Fell Mire") shouldBe fellTheProfane
+                repo.findDeckGrpIdByName("Etali, Primal Conqueror / Etali, Primal Sickness") shouldBe etali
+                repo.findDeckGrpIdByName("Ojer Kaslem, Deepest Growth / Temple of Cultivation") shouldBe ojerKaslem
+                repo.findDeckGrpIdByName("Fell the Profane / Made Up Back Face") shouldBe null
+            }
+        }
+
+        test("unknown printing set codes resolve by name") {
+            val repo = ForgeCardRepository.open()
+            val skullclamp = requireNotNull(repo.findDeckGrpIdByName("Skullclamp"))
+            assertSoftly {
+                listOf("PLST", "SPG", "40K", "MOM", "sld").forEach { setCode ->
+                    repo.findDeckGrpIdByNameAndSet("Skullclamp", setCode) shouldBe skullclamp
+                }
+            }
+        }
+
         test("calculated granted amounts remain symbolic in cold catalog lookup") {
             val repo = ForgeCardRepository.open()
             val cardId = requireNotNull(repo.findDeckGrpIdByName("Kodama of the Center Tree"))
