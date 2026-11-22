@@ -39,6 +39,11 @@ class SimClientDriver(
     private val shadowAdvisor: Boolean = false,
     private val snapshotShadow: Boolean = false,
     private val snapshotConsult: Boolean = false,
+    /**
+     * Started counter owned by the caller, who reads it on any exit. When null,
+     * the driver counts this game itself.
+     */
+    private val aiTimeouts: AiTimeoutCounter? = null,
 ) {
     private val logger = LoggerFactory.getLogger(SimClientDriver::class.java)
     private val snapshotProbe: SnapshotShadowProbe? = if (snapshotShadow) SnapshotShadowProbe(harness) else null
@@ -73,10 +78,19 @@ class SimClientDriver(
         const val TURN_STALL_THRESHOLD = 200
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun runOneGame(): GameStats {
+        if (aiTimeouts != null) return runOneGame(aiTimeouts)
+        val owned = AiTimeoutCounter().apply { start() }
+        try {
+            return runOneGame(owned)
+        } finally {
+            owned.stop()
+        }
+    }
+
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    private fun runOneGame(aiTimeouts: AiTimeoutCounter): GameStats {
         val tap = GameLogCollector().apply { start() }
-        val aiTimeouts = AiTimeoutCounter().apply { start() }
         val t0 = System.nanoTime()
         val connectT0 = System.nanoTime()
         connect()
@@ -159,7 +173,7 @@ class SimClientDriver(
         val promptRouteAudit = PromptRouteAuditor.audit(promptHistory(), histogram)
         val durationMs = (System.nanoTime() - t0) / 1_000_000
         val logs = tap.stopAndDrain()
-        val aiTimeoutsByDecision = aiTimeouts.stopAndDrain()
+        val aiTimeoutsByDecision = aiTimeouts.counts()
         val policyTelemetry =
             snapshotDriver?.telemetry()
                 ?: (promptPolicy as? ForgeAiPromptPolicy)?.telemetry()

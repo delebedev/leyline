@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import forge.util.AITimeoutTracker
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -73,6 +74,36 @@ class SimClientRunnerTest :
                 row.runLabel shouldBe "bolt-face"
                 Files.readString(outDir.resolve("${row.tag}.meta.json").toPath()) shouldContain "\"puzzle:bolt-face\""
                 Files.exists(outDir.resolve("${row.tag}.stats.json").toPath()) shouldBe true
+            }
+        }
+
+        test("a row that throws keeps the AI timeouts recorded before the failure") {
+            registerRunnerCards()
+            val outDir = Files.createTempDirectory("simclient-runner-ai-timeout").toFile()
+            val result =
+                SimClientRunner(
+                    SimClientConfig(
+                        deckSpec = "forest-only",
+                        seedSpec = "42",
+                        maxTurns = 1,
+                        outDir = outDir,
+                        excludeCardsFile = null,
+                        continueOnException = true,
+                    ),
+                    TestCardRegistry.repo,
+                    gameOverride = {
+                        // a zero limit expires as soon as the session ends
+                        val key = AITimeoutTracker.key(9101, 2)
+                        AITimeoutTracker.begin(key, 0L, AITimeoutTracker.Decision.BLOCK)
+                        AITimeoutTracker.end(key)
+                        error("row failure after an AI timeout")
+                    },
+                ).run()
+
+            val stats = result.rows.single().stats
+            assertSoftly {
+                stats.completionReason shouldBe "exception"
+                stats.aiTimeoutsByDecision shouldBe mapOf("block" to 1)
             }
         }
 
