@@ -137,7 +137,6 @@ class HandVisibilityProjectionTest :
                     }
                 val hand = board.ai.getCardsIn(ZoneType.Hand).toList()
                 val revealed = if (wholeHand) hand else listOf(hand.first())
-                val concealed = hand.filter { it !in revealed }
                 val revealedIds = revealed.map { ForgeCardId(it.id) }
                 val facts =
                     PromptProjectionFacts(
@@ -166,23 +165,17 @@ class HandVisibilityProjectionTest :
                     viewer.gsm.zonesList
                         .filter { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Revealed }
                         .flatMap { it.objectInstanceIdsList }
+                val handObjects = viewer.gsm.gameObjectsList.filter { it.instanceId in hand.map { card -> board.instanceId(card.id) } }
                 assertSoftly {
                     handZone.viewersList.toSet() shouldBe
                         if (wholeHand) setOf(1, 2) else setOf(2)
-                    hand.forEach { card ->
-                        val present = viewer.gsm.gameObjectsList.any { it.instanceId == board.instanceId(card.id) }
-                        present shouldBe wholeHand
+                    handObjects.map { it.instanceId }.toSet() shouldBe
+                        if (wholeHand) hand.map { board.instanceId(it.id) }.toSet() else revealed.map { board.instanceId(it.id) }.toSet()
+                    handObjects.forEach {
+                        it.visibility shouldBe if (wholeHand) Visibility.Public else Visibility.Private
+                        it.viewersList.toSet() shouldBe setOf(1, 2)
                     }
-                    if (wholeHand) {
-                        viewer.gsm.gameObjectsList
-                            .filter { it.instanceId in hand.map { card -> board.instanceId(card.id) } }
-                            .forEach { it.visibility shouldBe Visibility.Public }
-                    } else {
-                        concealed.map { board.instanceId(it.id) }.forEach {
-                            (it in revealedZone).shouldBeFalse()
-                        }
-                        revealedZone.shouldNotBeEmpty()
-                    }
+                    if (!wholeHand) revealedZone.shouldNotBeEmpty()
                 }
             }
         }

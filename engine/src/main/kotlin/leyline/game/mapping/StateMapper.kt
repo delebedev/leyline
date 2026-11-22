@@ -264,6 +264,14 @@ object StateMapper {
         // Only a reveal of the whole hand makes the hand zone public; a subset travels as reveal proxies,
         // so the unrevealed cards keep their identity.
         val revealedHandSeat = activeReveal?.takeIf { it.revealsWholeHand(snap) }?.ownerSeatId?.value
+        // Cards a partial reveal offers to the chooser; they keep their real instance ids so the
+        // reveal-choice prompt can address them, and no other card of the hand is emitted.
+        val partiallyRevealedCards =
+            activeReveal
+                ?.takeUnless { it.revealsWholeHand(snap) }
+                ?.allHandCardIds
+                ?.toSet()
+                .orEmpty()
 
         // Player 1 zones
         if (StateZoneProjection.hasSeat(snap, SeatId(1))) {
@@ -282,6 +290,7 @@ object StateMapper {
                 revealForSeat,
                 revealHand = revealedHandSeat == 1,
                 lookHand = activeReveal?.lookOnly == true,
+                revealedCardIds = partiallyRevealedCards,
                 previousSnapshot = prev,
             )
         }
@@ -303,6 +312,7 @@ object StateMapper {
                 revealForSeat,
                 revealHand = revealedHandSeat == 2,
                 lookHand = activeReveal?.lookOnly == true,
+                revealedCardIds = partiallyRevealedCards,
                 previousSnapshot = prev,
             )
         }
