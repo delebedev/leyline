@@ -1,6 +1,6 @@
 # check that .md file references across docs/code actually exist
 [group('docs')]
-docs-lint:
+docs-lint: protocol-docs-lint
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -154,3 +154,139 @@ docs-orphans:
         echo ""
         echo "No orphans found."
     fi
+
+# check protocol reference statement IDs, citations and implementation-map owners
+[group('docs')]
+protocol-docs-lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    repo_root="$(git rev-parse --show-toplevel)"
+    cd "$repo_root"
+    command -v rg >/dev/null || { echo "protocol-docs-lint requires ripgrep (rg)" >&2; exit 1; }
+
+    ref_dir="docs/protocol"
+    map="$ref_dir/implementation.md"
+    [[ -d "$ref_dir" ]] || exit 0
+
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    errors=0
+    fail() { echo "  $1"; errors=$((errors + 1)); }
+
+    # Contract statement definitions and normative-keyword placement.
+    # Emits "def<TAB>ID<TAB>file:line" and "err<TAB>file:line<TAB>message".
+    scan_page='
+    function report(msg) { printf "err\t%s:%d\t%s\n", FILENAME, FNR, msg }
+    FNR == 1 { entity = ""; front = 0; fence = 0; contract = 0 }
+    FNR == 1 && /^---$/ { front = 1; next }
+    front && /^---$/ { front = 0; next }
+    front {
+        if ($0 ~ /^entity:[ \t]*/) { entity = $0; sub(/^entity:[ \t]*/, "", entity); sub(/^[a-z_]+\//, "", entity) }
+        next
+    }
+    /^[ \t]*```/ { fence = !fence; next }
+    fence { next }
+    /^#{1,2} / { contract = ($0 ~ /^## Contract[ \t]*$/) }
+    {
+        line = $0
+        while (match(line, /<a id="[^"]*"><\/a>/)) {
+            id = substr(line, RSTART + 7, RLENGTH - 13)
+            rest = substr(line, RSTART + RLENGTH)
+            line = rest
+            if (id !~ /^[A-Z][A-Za-z0-9_]*\.[a-z0-9-]+$/) { report("malformed statement ID: " id); continue }
+            if (!contract) report("statement ID outside a Contract section: " id)
+            if (entity == "") report("statement ID on a page without an entity key: " id)
+            else if (substr(id, 1, length(entity) + 1) != entity ".") report("statement ID " id " does not start with page entity " entity ".")
+            if (index(rest, "**" id ".**") != 1) report("statement ID " id " must be followed by **" id ".**")
+            printf "def\t%s\t%s:%d\n", id, FILENAME, FNR
+        }
+        if (!contract) {
+            prose = $0
+            gsub(/`[^`]*`/, "", prose)
+            if (match(prose, /(^|[^A-Za-z])(MUST|REQUIRED|SHALL|SHOULD|RECOMMENDED|MAY|OPTIONAL)([^A-Za-z]|$)/)) report("normative keyword outside a Contract section")
+        }
+    }'
+    find "$ref_dir" -name '*.md' -print0 | sort -z | xargs -0 awk "$scan_page" > "$work/scan"
+
+    echo "Checking protocol statement IDs..."
+    while IFS=$'\t' read -r kind where msg; do
+        [[ "$kind" == err ]] && fail "$where → $msg"
+    done < "$work/scan"
+    awk -F'\t' '$1 == "def" { print $2 "\t" $3 }' "$work/scan" | sort > "$work/defs"
+    cut -f1 "$work/defs" | uniq -d | while read -r id; do
+        echo "duplicate statement ID: $id ($(awk -F'\t' -v id="$id" '$1 == id { printf "%s ", $2 }' "$work/defs"))"
+    done > "$work/dups"
+    while read -r line; do fail "$line"; done < "$work/dups"
+
+    # Citations: "protocol: ID[, ID...]" anywhere, and Markdown links to a statement anchor.
+    echo "Checking protocol citations..."
+    id_pat='[A-Z][A-Za-z0-9_]*\.[a-z0-9-]+'
+    rg_exclude=(--glob '!forge/' --glob '!.gradle/' --glob '!**/build/' --glob '!proto/upstream/' --glob '!.git/' --glob '!node_modules/')
+    rg -n -o --no-heading "${rg_exclude[@]}" "protocol:[[:space:]]*${id_pat}([[:space:]]*,[[:space:]]*${id_pat})*" . 2>/dev/null \
+        | while IFS=: read -r file line_num marker; do
+            ids="${marker#protocol:}"
+            for id in ${ids//,/ }; do printf '%s\t%s:%s\n' "$id" "${file#./}" "$line_num"; done
+        done > "$work/cites" || true
+    while IFS=$'\t' read -r id where; do
+        cut -f1 "$work/defs" | grep -qxF "$id" || fail "$where → cited statement does not exist: $id"
+    done < "$work/cites"
+
+    rg -n -o --no-heading --type md "${rg_exclude[@]}" "\]\([^)#[:space:]]*\.md#${id_pat}\)" . 2>/dev/null \
+        | while IFS=: read -r file line_num link; do
+            target="${link#](}"; target="${target%)}"
+            printf '%s\t%s\t%s:%s\n' "${target#*#}" "$(dirname "$file")/${target%%#*}" "${file#./}" "$line_num"
+        done > "$work/links" || true
+    while IFS=$'\t' read -r id target where; do
+        resolved="$(cd "$(dirname "$target")" 2>/dev/null && echo "$(pwd -P)/$(basename "$target")")" || resolved=""
+        resolved="${resolved#"$(pwd -P)/"}"
+        awk -F'\t' -v id="$id" -v file="$resolved" '$1 == id && index($2, file ":") == 1 { found = 1 } END { exit !found }' "$work/defs" \
+            || fail "$where → link anchor is not a statement in its target: $target#$id"
+    done < "$work/links"
+
+    # Owner symbols in the implementation map: entity-table Owner column and "Owner:" lines.
+    if [[ -f "$map" ]]; then
+        echo "Checking implementation-map owners..."
+        awk '
+            /^## / { table = ($0 ~ /^## Entities/) }
+            table && /^\|/ && !/^\|[ \t]*(Entity|-)/ { n = split($0, col, "|"); print FNR "\t" col[3] }
+            /^[ \t]*- Owner:/ { print FNR "\t" $0 }
+        ' "$map" > "$work/owner-lines"
+        main_dirs=()
+        for d in */src/main; do [[ "$d" == buildSrc/* || "$d" == forge/* ]] || main_dirs+=("$d"); done
+        while IFS=$'\t' read -r line_num text; do
+            rest="$text"
+            while [[ "$rest" =~ \`([^\`]+)\` ]]; do
+                symbol="${BASH_REMATCH[1]}"
+                rest="${rest#*\`"$symbol"\`}"
+                if [[ ! "$symbol" =~ ^([A-Z][A-Za-z0-9]*)(\.([a-z][A-Za-z0-9]*))?$ ]]; then
+                    fail "$map:$line_num → malformed owner symbol: $symbol"; continue
+                fi
+                type="${BASH_REMATCH[1]}"; member="${BASH_REMATCH[3]}"
+                files="$(rg -l --type kotlin "\b(class|object|interface|typealias)[[:space:]]+${type}\b" "${main_dirs[@]}" 2>/dev/null || true)"
+                if [[ -z "$files" ]]; then fail "$map:$line_num → owner type not found in main code: $type"; continue; fi
+                if [[ -n "$member" ]] && ! rg -q "\b(fun|val|var)[[:space:]]+(<[^>]+>[[:space:]]+)?([A-Za-z0-9_.]+\.)?${member}\b" $files; then
+                    fail "$map:$line_num → owner member not found in $type: $member"
+                fi
+            done
+        done < "$work/owner-lines"
+    fi
+
+    # Informational: statements that no test or conformance contract cites.
+    awk -F'\t' '$2 ~ /(^|\/)src\/test\// || $2 ~ /^conformance\// { print $1 }' "$work/cites" | sort -u > "$work/proved"
+    uncovered="$(cut -f1 "$work/defs" | sort -u | comm -23 - "$work/proved")"
+    total="$(cut -f1 "$work/defs" | sort -u | grep -c . || true)"
+    echo ""
+    if [[ -n "$uncovered" ]]; then
+        echo "Statements without a citing test or conformance contract ($(grep -c . <<< "$uncovered") of $total; informational):"
+        sed 's/^/  /' <<< "$uncovered"
+    else
+        echo "Every statement ($total) has a citing test or conformance contract."
+    fi
+
+    if ((errors > 0)); then
+        echo ""
+        echo "Found $errors protocol reference error(s)."
+        exit 1
+    fi
+    echo "Protocol reference checks passed."
