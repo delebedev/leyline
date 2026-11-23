@@ -515,7 +515,16 @@ private class ScenarioRun(
             "$context expected latest prompt SelectNReq"
         }
         val req = prompt.selectNReq
-        require(req.listType == SelectionListType.Static || req.listType == SelectionListType.StaticSubset) {
+        // A named choice lists its labels as prompt parameters and identifies
+        // them by index, so it is dynamic with a parameter-index id type.
+        val namedParameterChoice =
+            req.listType == SelectionListType.Dynamic &&
+                req.idType == wotc.mtgo.gre.external.messaging.Messages.IdType.PromptParameterIndex
+        require(
+            req.listType == SelectionListType.Static ||
+                req.listType == SelectionListType.StaticSubset ||
+                namedParameterChoice,
+        ) {
             "$context expected static SelectNReq, got listType=${req.listType}"
         }
         require(req.idsList.isEmpty() || step.id in req.idsList) {

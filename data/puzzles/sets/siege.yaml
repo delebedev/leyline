@@ -7,6 +7,8 @@ scenarios:
     expect: Awakened Skyclave resolves as a 4/4 permanent with an empty stack
     steps:
       - cast: Invasion of Zendikar
+      - pass_until: { prompt: SelectNReq, max_passes: 12 }
+      - static_choice: { id: 1 }
       - pass_until: { prompt: SearchReq, max_passes: 12 }
       - search_cards: { side: ours, cards: [Forest, Island] }
       - resolve_stack: {}
