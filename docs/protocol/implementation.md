@@ -38,17 +38,29 @@ Exception kinds:
 
 ## Entities
 
+Rows are grouped by family and sorted by entity name.
+
+### Prompts
+
 | Entity | Owner | Status |
 |---|---|---|
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
+
+### Annotations
+
+| Entity | Owner | Status |
+|---|---|---|
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 
 ## Exceptions
 
 Each exception is written so it can be filed as an issue unchanged: what the
-contract says, what Leyline does, and the owner to change.
+contract says, what Leyline does, and the owner to change. Exceptions are
+grouped by family, then by entity.
 
-### SelectNReq
+### Prompt exceptions
+
+#### SelectNReq
 
 - **`absent`** — [SelectNReq.trigger-order](prompts/SelectNReq.md#SelectNReq.trigger-order),
   [SelectNReq.trigger-order-arbitrary](prompts/SelectNReq.md#SelectNReq.trigger-order-arbitrary)
@@ -68,7 +80,9 @@ contract says, what Leyline does, and the owner to change.
     Ground's additional mana.
   - Owner: `StaticChoiceWindowMaterializer.buildRequest`
 
-### ReplacementEffect
+### Annotation exceptions
+
+#### ReplacementEffect
 
 - **`absent`** — [Variants](annotations/ReplacementEffect.md#variants)
   - Contract: replacement events carry transient rows, and pending
