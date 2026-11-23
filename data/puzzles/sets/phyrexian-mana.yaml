@@ -71,3 +71,21 @@ scenarios:
           all:
             - our_life: 18
             - battlefield_stats: { side: ours, card: Skyclave Shade, power: 3, toughness: 1 }
+  - id: activated-ability-life-payment
+    puzzle: phyrexian-activation-life
+    run: activate Mite Overseer with four Plains untapped and pay the phyrexian symbol with life
+    expect: a Phyrexian Mite token resolves, the player has eighteen life and one Plains stays untapped
+    steps:
+      - activate: Mite Overseer
+      - expect:
+          prompt: CastingTimeOptionsReq
+      - mana_type_choices: [phyrexian]
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Phyrexian Mite Token }
+            - stack_empty: true
+          max_passes: 8
+      - expect:
+          all:
+            - our_life: 18
+            - zone_contains: { side: ours, zone: battlefield, card: Phyrexian Mite Token }
