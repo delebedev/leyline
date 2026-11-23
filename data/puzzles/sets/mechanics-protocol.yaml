@@ -1125,6 +1125,24 @@ scenarios:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: Railway Brawler }
             - stack_empty: true
+  - id: plot-cost-reduction-doc-aurlock
+    puzzle: plot-cost-reduction-doc-aurlock
+    run: plot Railway Brawler with Doc Aurlock's reduction, then cast Llanowar Elves with the remaining Forest
+    expect: plot costs {1}{G}, leaving one Forest to pay for Llanowar Elves
+    steps:
+      - expect:
+          action: { type: cast, card: Railway Brawler }
+      - cast: { card: Railway Brawler, alt_cost: plot }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Railway Brawler }
+            - action: { type: cast, card: Llanowar Elves }
+      - cast: Llanowar Elves
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+            - stack_empty: true
   - id: disguise-forum-familiar
     puzzle: disguise-forum-familiar
     web:

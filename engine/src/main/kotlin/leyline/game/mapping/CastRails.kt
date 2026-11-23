@@ -72,11 +72,11 @@ enum class AltCostKind(
 
 /**
  * How to disambiguate among an [AltCostBinding]s list when more than one row
- * could match. Cost-aware compares mana cost (Warp / Sneak share rows across
- * cards). Cost-agnostic returns the first row with the matching keyword —
- * Foretell needs this because the hand SA pays the constant {2} action cost
- * while the bound row carries the cast cost ({R} for Demon Bolt), so cost-
- * aware misses.
+ * could match. Cost-aware compares the ability's printed mana cost, before
+ * cost-adjusting statics (Warp / Sneak share rows across cards). Cost-agnostic
+ * returns the first row with the matching keyword — Foretell needs this
+ * because the hand SA pays the constant {2} action cost while the bound row
+ * carries the cast cost ({R} for Demon Bolt), so cost-aware misses.
  */
 enum class LookupMode {
     CostAware,

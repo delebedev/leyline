@@ -35,7 +35,7 @@ internal fun choosePromptCastOfferForAbility(
     sourceInstanceId: Int,
     sourceGrpId: Int,
 ): Action? {
-    val variant = expectedCastVariant(sa, sourceGrpId, player, cardRepository)
+    val variant = expectedCastVariant(sa, sourceGrpId, cardRepository)
     return choosePromptCastOffer(
         actions = actions,
         sourceInstanceId = sourceInstanceId,
@@ -49,10 +49,9 @@ internal fun choosePromptCastOfferForAbility(
 internal fun chooseCastVariant(
     sa: SpellAbility,
     sourceGrpId: Int,
-    player: Player,
     cardRepository: CardRepository,
     candidates: List<Action>,
-): Action? = chooseCastActionByVariant(candidates, expectedCastVariant(sa, sourceGrpId, player, cardRepository))
+): Action? = chooseCastActionByVariant(candidates, expectedCastVariant(sa, sourceGrpId, cardRepository))
 
 /**
  * Selects the prompt's original cast action for a Forge-chosen spell ability.
@@ -99,22 +98,16 @@ private fun List<ManaRequirement>.manaSignature(): List<String> =
 private fun expectedCastVariant(
     sa: SpellAbility,
     grpId: Int,
-    player: Player,
     cardRepository: CardRepository,
 ): ExpectedCastVariant {
     if (!sa.isSpell) return ExpectedCastVariant.Base
     val rails = CastRails.all.filter { it.saPredicate(sa) }
     if (rails.isEmpty()) return ExpectedCastVariant.Base
     val altCosts = BoundCard.bindAltCosts(cardRepository.findByGrpId(grpId), cardRepository)
-    val payCostPairs =
-        ActionMapper
-            .computeEffectiveCost(sa, player)
-            ?.takeIf { !it.isNoCost }
-            ?.let { ActionMapper.forgeManaCostToPairs(it) }
-            ?: emptyList()
+    val lookupPairs = ActionMapper.altCostLookupPairs(sa)
     val alternativeGrpId =
         cardRepository.grantedKeywordAbilityGrpId(sa) ?: rails.firstNotNullOfOrNull { rail ->
-            resolveAltGrpId(rail, altCosts, payCostPairs).takeIf { it > 0 }
+            resolveAltGrpId(rail, altCosts, lookupPairs).takeIf { it > 0 }
         }
     return alternativeGrpId?.let(ExpectedCastVariant::Alternative) ?: ExpectedCastVariant.UnresolvedAlternative
 }

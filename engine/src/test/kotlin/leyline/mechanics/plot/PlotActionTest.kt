@@ -16,6 +16,7 @@ import leyline.testkit.beAltCostOffer
 import leyline.testkit.humanPlayer
 import leyline.testkit.offerAltCost
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Plot hand-activation path (Hand → Exile face-up plotted).
@@ -137,6 +138,49 @@ class PlotActionTest :
             val actions = board.actions()
 
             actions shouldNot offerAltCost(plottedAbilityGrpId)
+        }
+
+        test("plot cost reduction makes plot affordable and the offer carries the reduced cost") {
+            // Doc Aurlock: plotting cards from your hand costs {2} less. Plot {3}{G} → {1}{G}.
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Doc Aurlock, Grizzled Genius", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Forest", human, ZoneType.Battlefield)
+                    addCard("Railway Brawler", human, ZoneType.Hand)
+                }
+            val b = board.bridge
+
+            val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
+            val plottedAbilityGrpId =
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
+
+            val plotOffer = board.actions().actionsList.firstOrNull { it.alternativeGrpId == plottedAbilityGrpId }
+            assertSoftly {
+                plotOffer should beAltCostOffer(plottedAbilityGrpId)
+                plotOffer!!.manaCostList.associate { it.colorList.single() to it.count } shouldBe
+                    mapOf(ManaColor.Green_afc9 to 1, ManaColor.Generic to 1)
+            }
+        }
+
+        test("plot reduction does not reduce the ordinary hand cast") {
+            // Four Forests pay reduced Plot {1}{G} but not the unreduced hand cast {3}{G}{G}.
+            val board =
+                startWithBoard { _, human, _ ->
+                    addCard("Doc Aurlock, Grizzled Genius", human, ZoneType.Battlefield)
+                    repeat(4) { addCard("Forest", human, ZoneType.Battlefield) }
+                    addCard("Railway Brawler", human, ZoneType.Hand)
+                }
+            val b = board.bridge
+
+            val brawlerGrpId = b.cardRepository.findGrpIdByName("Railway Brawler")!!
+            val plottedAbilityGrpId =
+                b.cardRepository.findKeywordAbilityGrpId(brawlerGrpId, KeywordAbilityIds.PLOT)!!
+
+            val castOffers = board.actions().actionsList.filter { it.actionType == ActionType.Cast && it.grpId == brawlerGrpId }
+            assertSoftly {
+                castOffers.map { it.alternativeGrpId } shouldBe listOf(plottedAbilityGrpId)
+            }
         }
 
         test("plot card only in graveyard → no Cast offer with alternativeGrpId=PLOTTED row") {
