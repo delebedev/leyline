@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
 import wotc.mtgo.gre.external.messaging.Messages.FailureReason
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -58,6 +59,18 @@ internal class SettledPromptOwner(
             } else {
                 admitResponseLocked(message)
             }
+        }
+
+    /**
+     * Sends the open request answered by a rejected [message] again under a fresh msgId.
+     *
+     * The window stays pending and only the re-sent msgId correlates; an answer to the
+     * superseded msgId is stale. Returns false when [message] answers no open request.
+     */
+    fun resendRejected(message: ClientToGREMessage): Boolean =
+        synchronized(owner.feedLock) {
+            owner.ensureOpen()
+            slots.singleOrNull { it.correlationLocked()?.requestMsgId == message.respId }?.resendLocked() == true
         }
 
     override fun current(): Any? = synchronized(owner.feedLock) { slots.firstNotNullOfOrNull(MountedSlot::currentLocked) }
@@ -114,6 +127,7 @@ internal class SettledPromptOwner(
     ) : MountedSlot where W : Window<R> {
         private var window: W? = null
         private var correlation: SettledPromptCorrelation? = null
+        private var awaitedRequest: GREToClientMessage? = null
 
         fun current(): W? = synchronized(owner.feedLock) { currentLocked() }
 
@@ -148,6 +162,9 @@ internal class SettledPromptOwner(
                     publishPrepared(prior, planner, publication)
                     window = publication.window
                     correlation = publication.correlation
+                    awaitedRequest =
+                        publication.window.cut.messages
+                            .single { it.msgId == publication.correlation.requestMsgId }
                     publication.window
                 }
             owner.bridge.prioritySignal.signal()
@@ -208,18 +225,37 @@ internal class SettledPromptOwner(
             return SettledPromptAdmission.Accepted(accepted.afterEngineResume)
         }
 
+        override fun resendLocked(): Boolean {
+            val pending = currentLocked() ?: return false
+            val exact = checkNotNull(correlation)
+            val request = checkNotNull(awaitedRequest)
+            val prior = owner.bridge.projectionStateSnapshot()
+            val planner = LogicalSequencePlanner(prior.sequence)
+            val resent = request.toBuilder().setMsgId(planner.nextMsgId()).build()
+            owner.cutInstaller.install(
+                owner.feed(owner.humanSeat),
+                PreparedCut.prepare(prior, planner, listOf(resent), projection = null, closesPlaybackFrame = false),
+            ) { ex -> publicationFailure(ex, pending) }
+            retireLocked()
+            correlation = exact.copy(requestMsgId = resent.msgId)
+            awaitedRequest = resent
+            return true
+        }
+
         override fun terminateLocked(cause: Throwable) {
             val pending = window
             onTerminateLocked(pending, cause)
             pending?.future?.completeExceptionally(cause)
             window = null
             correlation = null
+            awaitedRequest = null
         }
 
         override fun resetLocked() {
             onResetLocked(window)
             window = null
             correlation = null
+            awaitedRequest = null
         }
 
         override fun terminalCutCandidateLocked(): PromptTerminalCutCandidate? =
@@ -248,6 +284,7 @@ internal class SettledPromptOwner(
         private fun retireLocked() {
             correlation?.let { retired[it.requestMsgId] = RetiredCorrelation(it.gameStateId, cancelCapable) }
             correlation = null
+            awaitedRequest = null
         }
 
         private fun completedValue(pending: W): R =
@@ -268,6 +305,8 @@ internal class SettledPromptOwner(
         fun ownsLocked(message: ClientToGREMessage): Boolean
 
         fun admitLocked(message: ClientToGREMessage): SettledPromptAdmission
+
+        fun resendLocked(): Boolean
 
         fun terminateLocked(cause: Throwable)
 
