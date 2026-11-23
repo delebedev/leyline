@@ -129,27 +129,25 @@ internal object ActionAvailability {
      * Targets such as "mana value X" are checked with the unannounced X counted as zero.
      * X is announced before targets are chosen, so the action is offered when some X the
      * bound can cover gives it legal targets and its mana, X included, can be paid.
+     * Each X is set on an untracked copy; the offered ability keeps X unannounced.
      */
     private fun affordabilityWithAnnouncedX(
         sa: SpellAbility,
         player: Player,
     ): Affordability {
-        try {
-            var best = Affordability.Unaffordable
-            for (x in 1..MAX_PROBED_X) {
-                sa.xManaCostPaid = x
-                if (!ManaAffordabilityBound.allows(sa, player)) break
-                if (!hasLegalTargetsAndModes(sa)) continue
-                when (manaAffordability(sa, player)) {
-                    Affordability.Affordable -> return Affordability.Affordable
-                    Affordability.Unsure -> best = Affordability.Unsure
-                    Affordability.Unaffordable -> Unit
-                }
+        val probe = sa.copy(sa.hostCard, player, true)
+        var best = Affordability.Unaffordable
+        for (x in 1..MAX_PROBED_X) {
+            probe.xManaCostPaid = x
+            if (!ManaAffordabilityBound.allows(probe, player)) break
+            if (!hasLegalTargetsAndModes(probe)) continue
+            when (manaAffordability(probe, player)) {
+                Affordability.Affordable -> return Affordability.Affordable
+                Affordability.Unsure -> best = Affordability.Unsure
+                Affordability.Unaffordable -> Unit
             }
-            return best
-        } finally {
-            sa.xManaCostPaid = null
         }
+        return best
     }
 
     private const val MAX_PROBED_X = 99
