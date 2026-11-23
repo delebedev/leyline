@@ -1,3 +1,4 @@
+# protocol: TriggerHolder.shape, Ability.created, Ability.definition
 name: Warp delayed exile lifecycle
 scenario: {suite: mechanics-protocol, id: warp-quantum-riddler}
 frames:
@@ -23,7 +24,7 @@ frames:
         type: TriggerHolder
         lane: object
         op: create
-        fields: {raw.zoneId: 30, raw.grpId: 5, raw.uniqueAbilities.length: 1, "raw.uniqueAbilities[0].grpId": 372}
+        fields: {raw.zoneId: 30, raw.grpId: 5, raw.visibility: Public, raw.uniqueAbilities.length: 1, "raw.uniqueAbilities[0].grpId": 372}
         equals: {raw.parentId: source.affectorId, raw.objectSourceGrpId: source.raw.grpId}
       - id: pending
         type: DelayedTriggerAffectees

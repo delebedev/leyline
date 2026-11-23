@@ -51,6 +51,16 @@ Rows are grouped by family and sorted by entity name.
 | [Priority](stream/priority.md) | `PriorityPolicyRuntime`, `MatchCutCoordinator`, `MatchActionWindowRuntime` | `partial` |
 | [Timers](stream/timers.md) | `PlayerMapper.buildTimers`, `BundleBuilder.timerStart`, `BundleBuilder.timerStop` | `partial` |
 
+### Objects
+
+| Entity | Owner | Status |
+|---|---|---|
+| [Ability](object_types/Ability.md) | `ObjectMapper.buildAbilityObject`, `ZoneMapper.addStackAbilitiesFromSnapshot` | `partial` |
+| [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
+| [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
+| [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
+| [TriggerHolder](object_types/TriggerHolder.md) | `ObjectMapper.buildTriggerHolderObject`, `StateMapper` | `implemented` |
+
 ### Prompts
 
 | Entity | Owner | Status |
@@ -143,6 +153,27 @@ grouped by family, then by entity.
   - Leyline: never sends `TimeoutMessage` and sets none of `maxTimeoutCount`,
     `maxPipCount` or `timeoutDurationSec`.
   - Owner: `PlayerMapper.buildTimers`
+
+### Object exceptions
+
+#### Ability
+
+- **`absent`** — [Zone and visibility](object_types/Ability.md#zone-and-visibility), abilities in Pending
+  - Contract: abilities can wait in the Pending zone, for example triggers
+    the player is ordering.
+  - Leyline: places every `Ability` object on the Stack and never uses
+    Pending.
+  - Owner: `ZoneMapper.addStackAbilitiesFromSnapshot`
+
+#### RevealedCard
+
+- **`diverges`** — [RevealedCard.created](object_types/RevealedCard.md#RevealedCard.created)
+  - Contract: `RevealedCardCreated` carries the revealed card's instance ID as
+    both `affectorId` and `affectedIds`.
+  - Leyline: the reveal path for cards revealed to the opponent sets only
+    `affectedIds`. The path for a permanent bounced to its owner's hand sets
+    both.
+  - Owner: `RevealStateContributor`, `AnnotationBuilder.revealedCardCreated`
 
 ### Prompt exceptions
 

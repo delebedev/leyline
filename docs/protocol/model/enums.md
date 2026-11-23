@@ -57,7 +57,7 @@ and ordinary combat damage (CR 510.4).
 | 16 | `RoomRight` | card side |
 | 17 | `Omen` | card side |
 
-The families are described in the game object types overview.
+The families are described in [game object types](../object_types/README.md).
 
 ## Action types
 

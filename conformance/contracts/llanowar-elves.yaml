@@ -1,3 +1,4 @@
+# protocol: Ability.mana-no-object
 name: Llanowar Elves mana ability
 scenario: {suite: mechanics-protocol, id: llanowar-elves-mana}
 frames:
@@ -74,3 +75,5 @@ counts:
     exactly: 1
   - match: {type: AbilityInstanceDeleted, lane: transient, equals: {affectedIds: created.affectedIds}}
     exactly: 1
+  - match: {type: Ability, lane: object, op: create}
+    exactly: 0
