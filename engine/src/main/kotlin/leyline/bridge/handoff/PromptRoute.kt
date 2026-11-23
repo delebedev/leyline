@@ -86,8 +86,10 @@ sealed interface ResolvedPromptRoute {
         override val semantic: PromptSemantic,
     ) : ResolvedPromptRoute
 
+    /** Answered without publishing; [rule] names why when the answer is intended. */
     data class AutoResolve(
         override val semantic: PromptSemantic,
+        val rule: AutomaticAnswerRule? = null,
     ) : ResolvedPromptRoute
 }
 

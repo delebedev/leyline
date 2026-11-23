@@ -69,6 +69,7 @@ import leyline.bridge.coord.PriorityPolicyRuntime
 import leyline.bridge.coord.SpellExecutor
 import leyline.bridge.coord.StaticChoiceCoordinator
 import leyline.bridge.coord.TargetingCoordinator
+import leyline.bridge.handoff.AutomaticAnswerRule
 import leyline.bridge.handoff.BlockingInteraction
 import leyline.bridge.handoff.BlockingInteractionRuntime
 import leyline.bridge.handoff.CardNameInputGate
@@ -540,8 +541,16 @@ class PlayerController(
         cardToShow: Card?,
         params: MutableMap<String, Any>?,
     ): Boolean =
-        when (val plan = ConfirmActionPlanner.plan(sa, mode, options, cardToShow)) {
-            ConfirmActionPlan.Accept -> true
+        when (val plan = ConfirmActionPlanner.plan(sa, mode, message, options, cardToShow)) {
+            is ConfirmActionPlan.Automatic -> {
+                bridge.recordAutomaticAnswer(
+                    plan.rule,
+                    message ?: "Confirm action?",
+                    options?.takeIf { it.isNotEmpty() } ?: listOf("Yes", "No"),
+                    (cardToShow ?: sa?.hostCard)?.id?.takeIf { it > 0 },
+                )
+                true
+            }
             is ConfirmActionPlan.CommanderReturn -> awaitCommanderReturn(plan.hostCard, sa, "confirmAction:Commander")
             is ConfirmActionPlan.OptionalAction ->
                 optionalActionGate.await(
@@ -652,9 +661,9 @@ class PlayerController(
 
     /**
      * Replaces PCHuman's desktop-only InputConfirm on the engine thread.
-     * Source-counter unless costs publish the source before awaiting explicit consent;
-     * acceptance lets Forge apply the cost, while decline or timeout leaves it unpaid.
-     * Other payment confirmations retain their existing routes.
+     * Costs of the cast or activation being paid are accepted under
+     * [AutomaticAnswerRule.CommittedCastCost]. Every other payment asks through the
+     * optional-action gate; decline or timeout leaves it unpaid.
      */
     override fun confirmPayment(
         costPart: CostPart?,
@@ -672,7 +681,7 @@ class PlayerController(
             activeCost?.cost === costPart &&
             activeCost.payment.ability === sa
         ) {
-            return true
+            return acceptCommittedCost(question, sa)
         }
 
         if (costPart is CostPutCounter && costPart.payCostFromSource() && sa.hasParam("UnlessCost")) {
@@ -684,18 +693,33 @@ class PlayerController(
             )
         }
 
-        // PCHuman's version uses InputConfirm (desktop-only). Route through bridge.
-        val request =
-            PromptRequest(
-                promptType = "confirm",
-                message = question,
-                options = listOf("Yes", "No"),
-                min = 1,
-                max = 1,
-                defaultIndex = 0,
-            )
-        val result = bridge.requestChoice(request)
-        return result.firstOrNull() == 0
+        // A part of the cast or activation's own cost was committed with that action. The
+        // part may be an adjusted copy, so the payment of the ability's own cost also counts.
+        val ownPayment = activeCost?.payment?.ability === sa && activeCost.payment.cost === sa.payCosts
+        if (costPart != null && (ownPayment || sa.payCosts?.costParts?.any { it === costPart } == true)) {
+            return acceptCommittedCost(question, sa)
+        }
+
+        // Any other payment, such as a cost an effect offers, is the player's choice.
+        return optionalActionGate.await(
+            hostCard = sa.hostCard,
+            forceSnapshotBeforePrompt = true,
+            defaultOnTimeout = false,
+            logContext = "confirmPayment",
+        )
+    }
+
+    private fun acceptCommittedCost(
+        question: String,
+        sa: SpellAbility,
+    ): Boolean {
+        bridge.recordAutomaticAnswer(
+            AutomaticAnswerRule.CommittedCastCost,
+            question,
+            listOf("Yes", "No"),
+            sa.hostCard?.id?.takeIf { it > 0 },
+        )
+        return true
     }
 
     override fun confirmReplacementEffect(

@@ -1,5 +1,6 @@
 package leyline.tooling.simclient
 
+import leyline.bridge.handoff.AutomaticAnswerRule
 import leyline.bridge.handoff.PromptCallStatus
 import leyline.bridge.handoff.PromptRecord
 import leyline.bridge.handoff.PromptSemantic
@@ -12,6 +13,7 @@ data class PromptRouteAudit(
     val samplesByKind: Map<String, String>,
     val findings: List<PromptRouteFinding>,
     val unnamedDefaultAnswers: List<UnnamedDefaultAnswer> = emptyList(),
+    val automaticAnswersByRule: Map<String, Int> = emptyMap(),
 ) {
     companion object {
         val Empty = PromptRouteAudit(emptyMap(), emptyMap(), emptyList())
@@ -34,7 +36,18 @@ object PromptRouteAuditor {
         droppedDefaults: Int = 0,
     ): PromptRouteAudit {
         val unnamedDefaultAnswers = unnamedDefaultAnswers(defaults) + listOfNotNull(droppedDefaultsEntry(droppedDefaults))
-        if (history.isEmpty()) return PromptRouteAudit.Empty.copy(unnamedDefaultAnswers = unnamedDefaultAnswers)
+        val automaticAnswersByRule =
+            defaults
+                .mapNotNull { it.automaticRule()?.name }
+                .groupingBy { it }
+                .eachCount()
+                .toSortedMap()
+        if (history.isEmpty()) {
+            return PromptRouteAudit.Empty.copy(
+                unnamedDefaultAnswers = unnamedDefaultAnswers,
+                automaticAnswersByRule = automaticAnswersByRule,
+            )
+        }
 
         val requestsByKind = history.groupingBy { it.kindKey() }.eachCount().toSortedMap()
         val samplesByKind =
@@ -78,16 +91,17 @@ object PromptRouteAuditor {
                         sampleMessage = records.first().message.compactSample(),
                     )
                 }.sortedWith(compareBy<PromptRouteFinding> { it.bucket }.thenBy { it.routeKey })
-        return PromptRouteAudit(requestsByKind, samplesByKind, findings, unnamedDefaultAnswers)
+        return PromptRouteAudit(requestsByKind, samplesByKind, findings, unnamedDefaultAnswers, automaticAnswersByRule)
     }
 
     /**
-     * Decisions with two or more options that no player was asked about, grouped by
-     * the Forge code that asked. Any entry fails a strict run.
+     * Decisions with two or more options that no player was asked about and no
+     * [AutomaticAnswerRule] covers, grouped by the Forge code that asked. Any entry
+     * fails a strict run.
      */
     fun unnamedDefaultAnswers(defaults: List<PromptRecord>): List<UnnamedDefaultAnswer> =
         defaults
-            .filter { it.outcome == PromptCallStatus.DEFAULTED_POLICY && it.options.size >= 2 }
+            .filter { it.outcome == PromptCallStatus.DEFAULTED_POLICY && it.options.size >= 2 && it.automaticRule() == null }
             .groupBy { Triple(askedBy(it.callerFrames), it.promptType, it.semantic.name) }
             .map { (key, records) ->
                 UnnamedDefaultAnswer(
@@ -181,6 +195,8 @@ object PromptRouteAuditor {
                 "swallowed_auto_resolve"
             else -> "wrong_req"
         }
+
+    private fun PromptRecord.automaticRule(): AutomaticAnswerRule? = (route as? ResolvedPromptRoute.AutoResolve)?.rule
 
     private fun PromptRecord.kindKey(): String = "$promptType|${semantic.name}"
 

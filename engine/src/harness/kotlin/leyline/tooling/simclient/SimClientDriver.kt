@@ -266,6 +266,7 @@ class SimClientDriver(
             promptRequestSamplesByKind = promptRouteAudit.samplesByKind,
             promptRouteFindings = promptRouteAudit.findings,
             unnamedDefaultAnswers = promptRouteAudit.unnamedDefaultAnswers,
+            automaticAnswersByRule = promptRouteAudit.automaticAnswersByRule,
             simFindings = simFindings,
             promptProgressSamples = promptProgress.snapshot(),
             offeredWhileUnsureByCard = affordability.offeredWhileUnsureByCard,

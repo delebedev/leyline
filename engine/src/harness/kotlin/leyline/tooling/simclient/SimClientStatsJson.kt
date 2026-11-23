@@ -51,6 +51,7 @@ fun statsToJson(
         append("\"promptRequestSamplesByKind\":${stringMapToJson(stats.promptRequestSamplesByKind)},")
         append("\"promptRouteFindings\":${routeFindingsToJson(stats.promptRouteFindings)},")
         append("\"unnamedDefaultAnswers\":${unnamedDefaultAnswersToJson(stats.unnamedDefaultAnswers)},")
+        append("\"automaticAnswersByRule\":${mapToJson(stats.automaticAnswersByRule)},")
         append("\"simFindings\":${simFindingsToJson(stats.simFindings)},")
         append("\"promptProgressSamples\":${promptProgressToJson(stats.promptProgressSamples)},")
         append("\"aiTimeoutsByDecision\":${mapToJson(stats.aiTimeoutsByDecision)},")

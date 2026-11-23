@@ -186,6 +186,26 @@ class InteractivePromptBridge(
         indices: List<Int>,
     ) = record(request, PromptCallStatus.DEFAULTED_POLICY, indices)
 
+    /** Record a confirmation answered Yes under [rule] without publishing it. */
+    fun recordAutomaticAnswer(
+        rule: AutomaticAnswerRule,
+        message: String,
+        options: List<String>,
+        sourceEntityId: Int?,
+    ) = recordPolicyDefault(
+        PromptRequest(
+            promptType = "confirm",
+            message = message,
+            options = options,
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+            route = ResolvedPromptRoute.AutoResolve(PromptSemantic.Generic, rule),
+            sourceEntityId = sourceEntityId,
+        ),
+        listOf(0),
+    )
+
     private fun record(
         request: PromptRequest,
         outcome: PromptCallStatus,

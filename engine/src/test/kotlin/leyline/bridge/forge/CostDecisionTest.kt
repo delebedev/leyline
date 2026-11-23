@@ -37,7 +37,10 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.forge.CostDecision
+import leyline.bridge.handoff.AutomaticAnswerRule
+import leyline.bridge.handoff.PromptRecord
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.SeatId
 import leyline.game.generator.PuzzleSource
 import leyline.game.state.GameBridge
@@ -140,11 +143,18 @@ class CostDecisionTest :
             return method.invoke(decision, options, selected, amount) as Boolean
         }
 
-        test("visit pay life returns numeric payment when confirm defaults yes") {
+        test("visit pay life of the committed ability pays without asking under its named rule") {
             val fx = fixture()
-            val result = fx.decision.visit(CostPayLife("3", null))
+            val cost = Cost("PayLife<3>", false)
+            fx.ability.payCosts = cost
+            val result = fx.decision.visit(cost.costParts.single() as CostPayLife)
 
             result!!.c shouldBe 3
+            fx.bridge
+                .promptBridge(SeatId(1))
+                .history
+                .single()
+                .automaticRule() shouldBe AutomaticAnswerRule.CommittedCastCost
         }
 
         test("sacrificing the source as an activation cost does not ask for confirmation") {
@@ -172,42 +182,41 @@ class CostDecisionTest :
                     .costPaymentStack
                     .pop()
             }
-            fx.bridge.promptBridge(SeatId(1)).history shouldBe emptyList()
+            fx.bridge
+                .promptBridge(SeatId(1))
+                .history
+                .single()
+                .automaticRule() shouldBe AutomaticAnswerRule.CommittedCastCost
         }
 
-        test("sacrificing the source for an unless cost still asks for confirmation") {
+        // Outside a published window the optional gate declines, so an unanswered payment stays unpaid.
+        test("sacrificing the source for an unless cost is asked instead of paid by default") {
             val fx = fixture()
             val effectCost = Cost("Sac<1/CARDNAME>", true)
             val cost = effectCost.costParts.single() as CostSacrifice
             fx.ability.putParam("UnlessCost", "Sac<1/CARDNAME>")
 
-            fx.controller.confirmPayment(cost, "pay unless cost?", fx.ability) shouldBe true
-            fx.bridge
-                .promptBridge(SeatId(1))
-                .history
-                .single()
-                .message shouldBe "pay unless cost?"
+            fx.controller.confirmPayment(cost, "pay unless cost?", fx.ability) shouldBe false
+            fx.bridge.promptBridge(SeatId(1)).defaultHistory shouldBe emptyList()
         }
 
         for ((type, unless) in listOf("CARDNAME" to false, "Creature" to true)) {
-            test("counter confirmation for $type with unless=$unless retains its default policy") {
+            test("counter confirmation for $type with unless=$unless outside the ability's own cost is asked") {
                 val fx = fixture()
                 if (unless) fx.ability.putParam("UnlessCost", "AddCounter<1/P1P1>")
                 val cost = CostPutCounter("1", CounterType.getType("P1P1"), type, null)
 
-                fx.controller.confirmPayment(cost, "put counter?", fx.ability) shouldBe true
-                fx.bridge
-                    .promptBridge(SeatId(1))
-                    .history
-                    .single()
-                    .message shouldBe "put counter?"
+                fx.controller.confirmPayment(cost, "put counter?", fx.ability) shouldBe false
+                fx.bridge.promptBridge(SeatId(1)).defaultHistory shouldBe emptyList()
             }
         }
 
-        test("inherited mill visitor returns numeric payment when confirm defaults yes") {
+        test("inherited mill visitor pays the committed ability's mill cost") {
             val fx = fixture()
+            val cost = Cost("Mill<2>", false)
+            fx.ability.payCosts = cost
 
-            fx.decision.visit(CostMill("2"))!!.c shouldBe 2
+            fx.decision.visit(cost.costParts.single() as CostMill)!!.c shouldBe 2
         }
 
         test("inherited exert visitor refuses impossible payment") {
@@ -647,3 +656,5 @@ class CostDecisionTest :
             }
         }
     })
+
+private fun PromptRecord.automaticRule(): AutomaticAnswerRule? = (route as? ResolvedPromptRoute.AutoResolve)?.rule

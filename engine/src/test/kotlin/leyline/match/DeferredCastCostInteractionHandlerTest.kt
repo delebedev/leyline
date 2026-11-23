@@ -188,6 +188,8 @@ class DeferredCastCostInteractionHandlerTest :
                     }
                     passUntilResolved(maxPasses = 8)
                     assertSoftly {
+                        // The committed life payment is answered under its named rule, not asked again.
+                        allMessages.none { it.hasOptionalActionMessage() } shouldBe true
                         human.life shouldBe if (payLife) 17 else 20
                         "Bitter Triumph" should beInGraveyardOf(human)
                         "Centaur Courser" should beInGraveyardOf(ai)
