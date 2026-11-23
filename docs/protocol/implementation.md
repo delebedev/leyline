@@ -251,6 +251,47 @@ Shapes Leyline emits that no protocol page defines. They are normative for
 Leyline's heads only. A reviewer checks a change against the description here,
 not against a protocol page.
 
+### Forge-text cost labels
+
+A host can choose how cast-time cost choices are labelled for the whole
+match. The default, `Native`, uses the client's prompt IDs. `ForgeText`, used
+by the Web head, adds a `Cost` prompt parameter of type `NonLocalizedString`
+carrying Forge's description of the cost:
+
+- on each optional-cost row of a `CastingTimeOptionsReq`, such as kicker or
+  offspring, as the row's own `prompt`;
+- on a `ChooseOrCost` branch choice, as one `Cost` parameter per branch on
+  the inner `SelectNReq` prompt, aligned with its one-based `ids`, in place
+  of the `PromptId` parameters `Native` sends.
+
+The text is a label. It is not a recomputed total cost, and the row identity,
+`ctoId` and response handling are the same in both modes.
+
+- Owner: `CostChoicePresentation`, `CastingTimeOptionsBuilder`
+
+### Vote
+
+A vote is sent as a modal `CastingTimeOptionsReq`: one `Modal` option per
+choice, selected by its `grpId`, and an outer prompt with a
+`NonLocalizedString` parameter `choiceKind` set to `vote`. A vote has
+`allowCancel=No` and no undo, and records no selected-mode marker on the
+source. When abstaining is allowed the request's minimum is `0`, and an empty
+response, or a timeout, abstains.
+
+- Owner: `ModalChoiceWindowMaterializer`, `ModalChoiceWindowCapture`, `MatchModalChoiceRuntime`
+
+### Entity choice through SelectTargetsReq
+
+A Forge choice among game entities that is not targeting and has no client
+prompt, such as choosing permanents and players to proliferate, or a choice
+among creatures and players, is sent through the `SelectTargetsReq`
+lifecycle. Candidates are the shown, selectable permanents by instance ID and
+players by seat ID. An optional choice accepts an empty submission. Because
+nothing is being targeted, the state carries no `PlayerSelectingTargets` or
+`PlayerSubmittedTargets` rows.
+
+- Owner: `MatchCompatibilityCostSelectionRuntime`, `MatchTargetingInteractionRuntime`, `BundleBuilder`
+
 ### Named label choice
 
 A Forge choice between labels that has no client prompt, such as a named
