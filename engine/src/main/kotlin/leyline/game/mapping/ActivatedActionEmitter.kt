@@ -287,12 +287,13 @@ internal object ActivatedActionEmitter {
         }
     }
 
+    /** A granted mana ability is never the recipient's basic-land ability, whatever subtypes the recipient has. */
     fun basicLandAbilityGrpId(
         card: Card,
         ability: SpellAbility,
     ): Int =
         BasicLandAbilities.byTypeDerivedManaAbility(card, ability)
-            ?: BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes)
+            ?: BasicLandAbilities.byForgeSubtypeNames(card.type.subtypes)?.takeIf { ability.isIntrinsic }
             ?: 0
 
     private fun distinctManaAbilities(

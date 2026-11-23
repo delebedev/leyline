@@ -1,0 +1,39 @@
+name: resolution-granted-mana
+description: Mana abilities granted by a resolved effect stay distinct from the recipient's printed mana abilities.
+scenarios:
+  - id: printed-forest-mana
+    puzzle: resolution-granted-forest-mana
+    headless: { full_control: true }
+    run: cast Topsoil Turner, play the enhanced Snow-Covered Forest, tap it for its printed G, and cast Llanowar Elves
+    expect: the land play keeps priority and the printed ability pays a one-mana spell
+    steps:
+      - cast: Topsoil Turner
+      - resolve_stack: {}
+      - play_land: Snow-Covered Forest
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Snow-Covered Forest }
+            - action: { type: activate_mana, card: Snow-Covered Forest }
+      - activate_mana: { card: Snow-Covered Forest, ability_index: 0 }
+      - expect:
+          all:
+            - action: { type: cast, card: Llanowar Elves }
+            - action_not_available: { type: cast, card: Grizzly Bears }
+      - cast: Llanowar Elves
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Llanowar Elves }
+  - id: granted-forest-mana
+    puzzle: resolution-granted-forest-mana
+    headless: { full_control: true }
+    run: cast Topsoil Turner, play the enhanced Snow-Covered Forest, tap it for the granted GG, and cast Grizzly Bears
+    expect: the granted ability produces both green mana from the only untapped source
+    steps:
+      - cast: Topsoil Turner
+      - resolve_stack: {}
+      - play_land: Snow-Covered Forest
+      - activate_mana: { card: Snow-Covered Forest, ability_index: 1 }
+      - cast: Grizzly Bears
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }

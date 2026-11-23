@@ -194,6 +194,9 @@ class ForgeCardRepository private constructor(
                     add("granted-keyword:$keyword")
                 }
             }
+            resolutionGrantedAbilities(face).forEach { variable ->
+                add("$prefix:granted-ability:$variable")
+            }
             addRows(face.replacements)
             emblemAbilityDefinitions(face).forEach { (variable, _) ->
                 add("$prefix:emblem-ability:$variable")
@@ -221,6 +224,16 @@ class ForgeCardRepository private constructor(
             } else {
                 face.keywords.toList()
             }
+
+        /** Resolution-granted ability variables in name order, the order runtime identity resolves them in. */
+        private fun resolutionGrantedAbilities(face: ICardFace): List<String> {
+            val variables = face.variables.associate { it.key to it.value }
+            return (face.abilities + variables.values)
+                .flatMap { raw -> resolutionGrantedAbilityVariables(parseParams(raw)) }
+                .filter { it in variables }
+                .distinct()
+                .sorted()
+        }
 
         private fun emblemAbilityDefinitions(face: ICardFace): List<Pair<String, Int>> {
             val variables = face.variables.associate { it.key to it.value }
@@ -553,6 +566,7 @@ class ForgeCardRepository private constructor(
                 findGrantedKeywordAbilityGrpId(cardId, keyword)?.let { grantedKeywords[keyword] = it }
             }
         }
+        resolutionGrantedAbilities(face).mapNotNullTo(hiddenAbilities) { registerGrantedAbility(identityPrefix, it, variables) }
         face.replacements.forEach { raw -> addRow(raw, 3, SlotKind.Intrinsic) }
         hiddenAbilities += registerEmblemAbilities(face, identityPrefix, variables)
         if (face.type.isBasicLand) {
