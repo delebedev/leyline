@@ -11,6 +11,8 @@ import leyline.bridge.types.SeatId
 import leyline.testkit.MatchFlowHarness
 import leyline.testkit.ScriptedAction
 import leyline.testkit.SessionTest
+import wotc.mtgo.gre.external.messaging.Messages.AttackState
+import wotc.mtgo.gre.external.messaging.Messages.BlockState
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecType
 import wotc.mtgo.gre.external.messaging.Messages.DamageRecipient
 
@@ -77,7 +79,16 @@ class DelegatedCombatDeclarationTest :
             request.blockersList.map { it.blockerInstanceId } shouldContainExactly listOf(corpse)
             request.blockersList.single().attackerInstanceIdsList shouldContainExactly listOf(bears)
 
-            declareBlockers(mapOf(corpse to bears))
+            val provisionalBlock =
+                toggleBlockers(mapOf(corpse to bears))
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .single { it.instanceId == corpse }
+            assertSoftly {
+                provisionalBlock.blockState shouldBe BlockState.Declared_aa2d
+                provisionalBlock.blockInfo.attackerIdsList shouldContainExactly listOf(bears)
+            }
+            submitBlockers()
             passUntil(maxPasses = 40) {
                 human.getZone(ZoneType.Graveyard).cards.any { it.name == "Grizzly Bears" }
             }.shouldBeTrue()
@@ -124,7 +135,16 @@ class DelegatedCombatDeclarationTest :
                 .none { it.hasSelectedDamageRecipient() }
                 .shouldBeTrue()
 
-            declareAttackers(listOf(courser), mapOf(courser to playerRecipient(HUMAN_SEAT)))
+            val provisionalAttack =
+                toggleAttackers(listOf(courser), damageRecipients = mapOf(courser to playerRecipient(HUMAN_SEAT)))
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+                    .single { it.instanceId == courser }
+            assertSoftly {
+                provisionalAttack.attackState shouldBe AttackState.Declared_a3a9
+                provisionalAttack.attackInfo.targetId shouldBe HUMAN_SEAT
+            }
+            submitAttackers()
             passUntil(maxPasses = 40) { human.life == 17 }.shouldBeTrue()
             val bearsCard = human.getZone(ZoneType.Battlefield).cards.single { it.name == "Grizzly Bears" }
             assertSoftly {

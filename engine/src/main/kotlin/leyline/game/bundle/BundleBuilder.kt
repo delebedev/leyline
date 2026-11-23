@@ -1296,18 +1296,20 @@ class BundleBuilder(
         selectedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
         presentationActions: ActionsAvailableReq,
         combatant: ForgePlayerId? = null,
-    ): ActionWindowPrepared =
-        prepareCombatEcho(
+    ): ActionWindowPrepared {
+        val attacker = combatantPlayer(game, combatant)
+        return prepareCombatEcho(
             game,
             counter,
             allLegalAttackerIds,
             GREMessageType.DeclareAttackersReq_695e,
             presentationActions,
+            attacker,
             provisionalAttackTargets = selectedDamageRecipients.filterKeys { it in selectedAttackerIds },
         ) {
             val req =
                 RequestBuilder.buildDeclareAttackersReq(
-                    combatantPlayer(game, combatant),
+                    attacker,
                     bridge,
                     committedAttackerIds = selectedAttackerIds.toSet(),
                     committedAttackAlternatives = selectedAttackAlternatives,
@@ -1319,6 +1321,7 @@ class BundleBuilder(
             }
             configureRequest
         }
+    }
 
     internal fun prepareDeclareAttackers(
         game: Game,
@@ -1366,20 +1369,22 @@ class BundleBuilder(
         allLegalBlockerIds: Collection<Int>,
         presentationActions: ActionsAvailableReq,
         combatant: ForgePlayerId? = null,
-    ): ActionWindowPrepared =
-        prepareCombatEcho(
+    ): ActionWindowPrepared {
+        val defender = combatantPlayer(game, combatant)
+        return prepareCombatEcho(
             game,
             counter,
             allLegalBlockerIds,
             GREMessageType.DeclareBlockersReq_695e,
             presentationActions,
+            defender,
             provisionalBlockAssignments = blockAssignments,
         ) {
             // Re-prompt with assigned blockers' attackerInstanceIds cleared
             val req =
                 RequestBuilder.buildDeclareBlockersReq(
                     game,
-                    combatantPlayer(game, combatant),
+                    defender,
                     bridge,
                     blockerAssignments = blockAssignments,
                 )
@@ -1389,13 +1394,15 @@ class BundleBuilder(
             }
             configureRequest
         }
+    }
 
-    /** Select only this viewer's complete public row pair for the retained combat presentation. */
+    /** Select only the combatant's complete public row pair for the retained combat presentation. */
     private fun combatAbilitySource(
         cursor: ViewerProjectionCursor?,
         snapshot: CardSnapshot,
         identities: InstanceIdRegistry.State,
         instanceId: Int,
+        combatantSeatId: Int,
     ): GameObjectInfo? =
         cursor?.fullState?.gameObjectsList?.singleOrNull { it.instanceId == instanceId }?.takeIf { source ->
             identities.forgeIdToInstanceId[snapshot.forgeCardId]?.value == instanceId &&
@@ -1410,7 +1417,7 @@ class BundleBuilder(
                 source.grpId == snapshot.grpId &&
                 source.ownerSeatId == snapshot.owner.value &&
                 source.controllerSeatId == snapshot.controller.value &&
-                source.controllerSeatId == seatId &&
+                source.controllerSeatId == combatantSeatId &&
                 source.abilityOriginalCardGrpIdsCount == source.uniqueAbilitiesCount
         }
 
@@ -1420,13 +1427,12 @@ class BundleBuilder(
         includedInstanceIds: Collection<Int>,
         requestType: GREMessageType,
         presentationActions: ActionsAvailableReq,
+        combatant: Player,
         provisionalBlockAssignments: Map<Int, Int> = emptyMap(),
         provisionalAttackTargets: Map<Int, DamageRecipient> = emptyMap(),
         buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
     ): ActionWindowPrepared {
-        val player =
-            bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
-                .let(::ActionWindowPrepared)
+        val combatantSeatId = checkNotNull(bridge.seatOf(combatant)) { "No seat for combatant ${combatant.name}" }.value
         val prior = bridge.projectionStateSnapshot()
         val (bundle, next) =
             bridge.editProjection(prior) {
@@ -1438,7 +1444,7 @@ class BundleBuilder(
 
                 // Provisional combat objects reflect the selection before Forge accepts the declaration.
                 val objects = mutableListOf<GameObjectInfo>()
-                for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+                for (card in combatant.getZone(ForgeZoneType.Battlefield).cards) {
                     if (!card.isCreature) continue
                     val fid = ForgeCardId(card.id)
                     val iid =
@@ -1454,7 +1460,7 @@ class BundleBuilder(
                     val cardSnap = snap?.objects?.get(fid) ?: continue
                     val abilitySource =
                         if (effectiveEcho) {
-                            combatAbilitySource(cursor, cardSnap, prior.identities, iid) ?: continue
+                            combatAbilitySource(cursor, cardSnap, prior.identities, iid, combatantSeatId) ?: continue
                         } else {
                             null
                         }
@@ -1465,7 +1471,7 @@ class BundleBuilder(
                                 cardSnap,
                                 iid,
                                 ZoneIds.BATTLEFIELD,
-                                ownerSeatId = if (effectiveEcho) cardSnap.owner.value else seatId,
+                                ownerSeatId = if (effectiveEcho) cardSnap.owner.value else combatantSeatId,
                                 cardProto = bridge.cardProto,
                                 parentLinkage = snap.boundCards[fid]?.parentLinkage,
                                 abilitySource = abilitySource,
