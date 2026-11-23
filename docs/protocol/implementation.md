@@ -100,6 +100,7 @@ Rows are grouped by family and sorted by entity name.
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
+| [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
@@ -148,7 +149,6 @@ the table above when its page is written.
 | `HighlightReason` | — | `absent` |
 | `InstanceRevealedToOpponent` | `AnnotationBuilder.instanceRevealedToOpponent` | emitted |
 | `LayeredEffect` | `AnnotationBuilder.layeredEffect` | emitted |
-| `LayeredEffectCreated` | `AnnotationBuilder.layeredEffectCreated` | emitted |
 | `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
 | `LinkInfo` | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility` | emitted |
 | `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |

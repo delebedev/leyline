@@ -141,7 +141,7 @@ the type's page. Types without a page are described only by their row.
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
 | `LayeredEffect` | both | `effect_id` | An active continuous effect on an object. Usually shares its row with the specific modification type. |
-| `LayeredEffectCreated` | transient | none | A layered effect began; the row's identity matches the effect's `effect_id`. |
+| [LayeredEffectCreated](LayeredEffectCreated.md) | transient | none | A layered effect began; the row's identity matches the effect's `effect_id`. |
 | `LayeredEffectDestroyed` | transient | none | A layered effect ended, for example because its duration expired or its source left. |
 | `AddAbility` | persistent | `UniqueAbilityId`, `grpid`, `originalAbilityObjectZcid`, `effect_id` | A continuous effect grants an ability or keyword to an object. |
 | `RemoveAbility` | persistent | `effect_id` | A continuous effect removes abilities from an object. |
