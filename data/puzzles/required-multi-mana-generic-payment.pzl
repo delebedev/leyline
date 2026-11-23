@@ -1,0 +1,16 @@
+[metadata]
+Name:Required Multi-Mana Generic Payment
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Dragon's Hoard with automatic payment. Ancient Tomb is needed either way, so it and one other land pay {3} and the third land stays untapped.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Mountain;Terrain Generator;Ancient Tomb
+humanhand=Dragon's Hoard
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain
