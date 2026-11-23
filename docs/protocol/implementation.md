@@ -61,6 +61,14 @@ Rows are grouped by family and sorted by entity name.
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
 | [TriggerHolder](object_types/TriggerHolder.md) | `ObjectMapper.buildTriggerHolderObject`, `StateMapper` | `implemented` |
 
+### Actions
+
+| Entity | Owner | Status |
+|---|---|---|
+| [Activate_Mana](actions/Activate_Mana.md) | `ActivatedActionEmitter`, `ManaSourcePaymentMaterializer`, `ActionPerformer` | `partial` |
+| [Cast](actions/Cast.md) | `ActionMapper`, `CastDisplayCost`, `CastRails`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
+
 ### Prompts
 
 | Entity | Owner | Status |
@@ -174,6 +182,28 @@ grouped by family, then by entity.
     `affectedIds`. The path for a permanent bounced to its owner's hand sets
     both.
   - Owner: `RevealStateContributor`, `AnnotationBuilder.revealedCardCreated`
+
+### Action exceptions
+
+#### Activate_Mana
+
+- **`compat`** — [Open points](actions/Activate_Mana.md#open-points), `isBatchable` and single-color `manaSelections`
+  - Contract: when `isBatchable` is false, and whether a fixed-color ability
+    carries `manaSelections`, is not yet known.
+  - Leyline: sets `isBatchable` false only for abilities whose mana is
+    decided later, such as special mana; sends `manaSelections` for every
+    ability that names its colors, including single-color ones.
+  - Owner: `ActivatedActionEmitter`
+
+#### Special
+
+- **`diverges`** — [Special.foretell-plot](actions/Special.md#Special.foretell-plot)
+  - Contract: foretelling or plotting a card from the hand is offered as a
+    `Special` action carrying the foretell or plot ability.
+  - Leyline: offers both as a `Cast` with `alternativeGrpId`, then records
+    the accepted foretell as `UserActionTaken` `actionType` `7`. The offer and
+    the accepted row disagree on the action type.
+  - Owner: `ActionMapper`, `CastRails`
 
 ### Prompt exceptions
 

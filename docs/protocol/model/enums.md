@@ -88,7 +88,7 @@ The families are described in [game object types](../object_types/README.md).
 | 23 | `CastRightRoom` | Room right door. |
 | 24 | `CastOmen` | Omen face. |
 
-The offer and submission rules live in the actions overview.
+The offer and submission rules live in [actions](../actions/README.md).
 
 ## Game-state type and update
 

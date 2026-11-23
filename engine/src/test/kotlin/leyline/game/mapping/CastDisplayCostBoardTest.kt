@@ -33,6 +33,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 class CastDisplayCostBoardTest :
     BoardTest({
 
+        // protocol: Cast.payment-reduction
         test("Delve card in hand displays printed cost with a full graveyard, no prompt raised") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -54,6 +55,7 @@ class CastDisplayCostBoardTest :
             }
         }
 
+        // protocol: Cast.payment-reduction
         test("Convoke card displays printed cost despite untapped creatures") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -74,6 +76,7 @@ class CastDisplayCostBoardTest :
             }
         }
 
+        // protocol: Cast.static-reduction
         test("Convoke card displays a state-derived static reduction") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -243,6 +246,7 @@ class CastDisplayCostBoardTest :
             }
         }
 
+        // protocol: Cast.static-reduction
         test("static reducer shows on a plain spell") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
