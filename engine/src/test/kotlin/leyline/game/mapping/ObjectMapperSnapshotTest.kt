@@ -143,6 +143,18 @@ class ObjectMapperSnapshotTest :
                 removed.uniqueAbilitiesList.map { it.grpId } shouldBe listOf(8, 80002)
                 removed.abilityOriginalCardGrpIdsList shouldBe keep.map(native::getAbilityOriginalCardGrpIds)
                 project(base.copy(abilityRemovals = emptyList())).toByteArray().toList() shouldBe native.toByteArray().toList()
+                ObjectMapper
+                    .buildProvisionalCombatObject(
+                        base.copy(abilityRemovals = listOf(removal)),
+                        iid,
+                        ZoneIds.BATTLEFIELD,
+                        1,
+                        b.cardProto,
+                        keywordGrants = grants.getValue(iid),
+                    ).let { echo ->
+                        echo.uniqueAbilitiesList shouldBe removed.uniqueAbilitiesList
+                        echo.abilityOriginalCardGrpIdsList shouldBe removed.abilityOriginalCardGrpIdsList
+                    }
             }
         }
 
