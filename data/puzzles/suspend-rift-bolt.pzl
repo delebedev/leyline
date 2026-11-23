@@ -1,0 +1,17 @@
+[metadata]
+Name:Suspend Rift Bolt
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Suspend Rift Bolt for {R}; Shock keeps a priority stop after the special action. At your next upkeep its last time counter comes off; cast it without paying its mana cost and deal 3 damage to the opponent.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Rift Bolt;Shock
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

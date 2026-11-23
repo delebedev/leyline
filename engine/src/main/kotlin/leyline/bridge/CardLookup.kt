@@ -7,6 +7,7 @@ import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCopyService
 import forge.game.combat.CombatUtil
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.OptionalCost
@@ -82,7 +83,7 @@ fun getAllCastableAbilities(
         }
 
     // No early-return for empty baseAbilities: the keyword-handSA appendage
-    // (Plot/Foretell) and the Room unlock-SA appendage below add zone-specific
+    // (Plot/Foretell/Suspend) and the Room unlock-SA appendage below add zone-specific
     // SAs that aren't in `card.getSpells()`. Bailing here would drop those
     // entire categories.
     val expanded = mutableListOf<SpellAbility>()
@@ -114,8 +115,8 @@ fun getAllCastableAbilities(
         }
     }
 
-    // Plot and Foretell's hand SAs are added by Forge as KeywordInstance abilities
-    // (CardFactoryUtil K:Plot: / K:Foretell:) and aren't returned by card.getSpells()
+    // Plot, Foretell and Suspend's hand SAs are added by Forge as KeywordInstance abilities
+    // (CardFactoryUtil K:Plot: / K:Foretell: / K:Suspend:) and aren't returned by card.getSpells()
     // — append directly from card.spellAbilities so they're reachable through the
     // same index space the cast pathway uses (action emit, alt-cost resolution,
     // SpellExecutor.castSpell).
@@ -130,7 +131,7 @@ fun getAllCastableAbilities(
     // can propagate into the host card's intrinsic SA list), in which case
     // the SA appears once via `baseAbilities` and once via the keyword scan.
     // Without the `!in expanded` filter the cast offer surfaces twice.
-    appendKeywordHandSAs(card, expanded)
+    appendKeywordHandSAs(card, player, expanded)
     appendMdfcBackFaceSAs(card, player, expanded)
 
     // Room door-unlock SAs aren't in card.getSpells() — Forge stores them on
@@ -169,15 +170,20 @@ private fun secondaryFaceSpellAbilities(card: Card): List<SpellAbility> {
         .filter { it.isSpell && !(it.isAdventure && card.isOnAdventure) }
 }
 
+/** Suspend's special action from hand: the keyword's non-spell ability, not the spell it later casts. */
+internal fun isSuspendHandAction(sa: SpellAbility): Boolean = !sa.isSpell && !sa.isTrigger && sa.isKeyword(Keyword.SUSPEND)
+
 private fun appendKeywordHandSAs(
     card: Card,
+    player: Player,
     expanded: MutableList<SpellAbility>,
 ) {
     val keywordHandSAs =
         card.spellAbilities.filter {
-            (it.isPlotting || it.isForetelling || it.isCastFaceDown) &&
+            (it.isPlotting || it.isForetelling || isSuspendHandAction(it) || it.isCastFaceDown) &&
                 expanded.none { existing -> existing === it }
         }
+    keywordHandSAs.forEach { it.setActivatingPlayer(player) }
     expanded.addAll(keywordHandSAs)
 }
 

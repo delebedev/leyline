@@ -4,6 +4,7 @@ import forge.game.spellability.AlternativeCost
 import forge.game.spellability.OptionalCost
 import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
+import leyline.bridge.isSuspendHandAction
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.snapshot.AltCostBinding
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -16,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  *
  * Three rail buckets, keyed on source zone:
  *  - [HandWithAltCost] — cast offer originates from the player's hand. Warp,
- *    Sneak, Plot's hand SA, Foretell's hand SA, Impending.
+ *    Sneak, Plot's hand SA, Foretell's hand SA, Suspend's hand SA, Impending.
  *  - [FromExile] — cast offer originates from the exile zone. Plot's cast leg
  *    (universal-149) and Foretell's cast leg (per-card row).
  *  - [FromGraveyard] — cast offer originates from a graveyard zone. Flashback,
@@ -46,6 +47,7 @@ enum class AltCostKind(
 ) {
     GENERIC(0),
     PLOT(KeywordAbilityIds.PLOT),
+    SUSPEND(KeywordAbilityIds.SUSPEND),
     FORETELL(KeywordAbilityIds.FORETELL),
     FLASHBACK(KeywordAbilityIds.FLASHBACK),
     RETRACE(KeywordAbilityIds.RETRACE),
@@ -323,6 +325,13 @@ object CastRails {
             HandWithAltCost(
                 kind = AltCostKind.FORETELL,
                 saPredicate = { it.isForetelling },
+                lookupMode = LookupMode.CostAgnostic,
+            ),
+            // Suspend's hand special action is a keyword AbilityStatic; the
+            // printing carries one suspend row, so cost-agnostic lookup binds it.
+            HandWithAltCost(
+                kind = AltCostKind.SUSPEND,
+                saPredicate = ::isSuspendHandAction,
                 lookupMode = LookupMode.CostAgnostic,
             ),
             // Disguise's face-down hand cast is a Forge `Spell` with

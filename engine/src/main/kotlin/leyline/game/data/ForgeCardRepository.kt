@@ -497,6 +497,9 @@ class ForgeCardRepository private constructor(
         )
     }
 
+    /** Suspend's parameters are `count:cost`; other keyword costs lead. */
+    private fun keywordCost(parts: List<String>): String = parts.getOrElse(if (parts.first() == "Suspend") 2 else 1) { "" }
+
     private fun registerFace(
         face: ICardFace,
         cardId: Int,
@@ -549,7 +552,7 @@ class ForgeCardRepository private constructor(
                 return@forEach
             }
             val parts = keyword.split(":")
-            addRow(keyword, 8, SlotKind.Keyword, keywordBases[normalize(parts.first())] ?: 0, parts.getOrElse(1) { "" })
+            addRow(keyword, 8, SlotKind.Keyword, keywordBases[normalize(parts.first())] ?: 0, keywordCost(parts))
         }
         face.abilities.forEach { raw ->
             val parsed = parseParams(raw)
