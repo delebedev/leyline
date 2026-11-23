@@ -1,0 +1,20 @@
+# Mechanic: Phyrexian mana in an activated ability cost ({3}{W/P}).
+# Forcing: Four Plains can pay the whole cost, so paying 2 life is reachable only through the player's choice.
+# Failure modes: All four Plains tapped with no choice offered means the activation used automatic payment.
+# Card roles: Mite Overseer supplies the {W/P} activation. Libraries prevent draw losses.
+# Protocol path: Activate, CastingTimeOptionsReq ManaType, selected payment, Mite token on the battlefield.
+[metadata]
+Name:Phyrexian activation life payment
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Activate Mite Overseer and pay 2 life instead of {W}, leaving one Plains untapped.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Mite Overseer;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain
