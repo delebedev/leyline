@@ -85,9 +85,4 @@ private fun MatchFlowHarness.freeCastOffered(): Boolean =
     bridge.cutCoordinator.currentBlockingInteraction()?.interaction is BlockingInteraction.Optional &&
         allMessages.last().hasOptionalActionMessage()
 
-private fun MatchFlowHarness.timeCounters(cardName: String): Int =
-    human
-        .getZone(ZoneType.Exile)
-        .cards
-        .singleOrNull { it.name == cardName }
-        ?.getCounters(CounterEnumType.TIME) ?: 0
+private fun MatchFlowHarness.timeCounters(cardName: String): Int = human.exile.card(cardName).getCounters(CounterEnumType.TIME)
