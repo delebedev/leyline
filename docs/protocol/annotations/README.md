@@ -77,11 +77,11 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `UserActionTaken` | transient | `actionType`, `abilityGrpId` | A seat performed an action: cast, play, activate and similar. `actionType` names the kind; `abilityGrpId` the ability used. |
-| `AbilityInstanceCreated` | transient | `source_zone` | An ability instance was created from a source object, including mana abilities that never use the stack. |
-| `AbilityInstanceDeleted` | transient | none | An ability instance ended: it resolved, was countered or left the stack. |
-| `ResolutionStart` | transient | `grpid` | A spell or ability began resolving. |
-| `ResolutionComplete` | transient | `grpid` | A spell or ability finished resolving. |
+| [UserActionTaken](UserActionTaken.md) | transient | `actionType`, `abilityGrpId` | A seat performed an action: cast, play, activate and similar. `actionType` names the kind; `abilityGrpId` the ability used. |
+| [AbilityInstanceCreated](AbilityInstanceCreated.md) | transient | `source_zone` | An ability instance was created from a source object, including mana abilities that never use the stack. |
+| [AbilityInstanceDeleted](AbilityInstanceDeleted.md) | transient | none | An ability instance ended: it resolved, was countered or left the stack. |
+| [ResolutionStart](ResolutionStart.md) | transient | `grpid` | A spell or ability began resolving. |
+| [ResolutionComplete](ResolutionComplete.md) | transient | `grpid` | A spell or ability finished resolving. |
 | `TriggeringObject` | persistent | `source_zone` | Links a triggered ability instance to the object that triggered it. |
 | `DelayedTriggerAffectees` | persistent | `abilityGrpId` | The objects a delayed triggered ability will act on, such as a card exiled until it returns. |
 | `MultistepEffectStarted` | transient | `SubCategory` | A multi-step effect such as scry began; `SubCategory` names the effect kind. |

@@ -1,5 +1,7 @@
 # protocol: Activate_Mana.bracket, Activate_Mana.paid, Cast.accepted
 # protocol: Ability.mana-no-object
+# protocol: AbilityInstanceCreated.single-instance, AbilityInstanceDeleted.no-details, AbilityInstanceDeleted.matches-created
+# protocol: UserActionTaken.activate-mana, UserActionTaken.cast, UserActionTaken.seat-affector
 name: Llanowar Elves mana ability
 scenario: {suite: mechanics-protocol, id: llanowar-elves-mana}
 frames:

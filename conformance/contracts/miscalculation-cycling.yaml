@@ -1,3 +1,4 @@
+# protocol: ResolutionStart.grpid, UserActionTaken.activate
 name: Miscalculation cycling activation
 scenario: {suite: mechanics-warmup, id: cycling-activate}
 frames:

@@ -96,9 +96,14 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
+| [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
+| [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
+| [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
+| [UserActionTaken](annotations/UserActionTaken.md) | `AnnotationBuilder.userActionTaken`, `TransferAnnotations` | `implemented` |
 | [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
 
 ## Exceptions
@@ -507,6 +512,15 @@ grouped by family, then by entity.
   - Owner: `TargetingWindowMaterializer.rePrompt`, `TargetingWindowCapture`
 
 ### Annotation exceptions
+
+#### AbilityInstanceCreated
+
+- **`diverges`** — [AbilityInstanceCreated.mana-fresh-id](annotations/AbilityInstanceCreated.md#AbilityInstanceCreated.mana-fresh-id) *(provisional statement)*
+  - Contract: each mana ability activation names a new instance ID.
+  - Leyline: derives the mana ability instance from a surrogate keyed by the
+    source card, so every activation of one land or creature names the same
+    instance ID for the whole game.
+  - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
 
 #### EnteredZoneThisTurn
 
