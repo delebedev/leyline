@@ -73,6 +73,7 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 
 ### Annotations
@@ -239,6 +240,25 @@ grouped by family, then by entity.
   - Owner: `ActionMapper`, `CastRails`
 
 ### Prompt exceptions
+
+#### ActionsAvailableReq
+
+- **`diverges`** — [ActionsAvailableReq.pending-count](prompts/ActionsAvailableReq.md#ActionsAvailableReq.pending-count)
+  - Contract: the GSM before the request counts every message that follows
+    it in the batch, including a `PromptReq` placed before the request.
+  - Leyline: sets `pendingMessageCount=1` on that GSM when it also sends the
+    starting-player `PromptReq` (prompt `37`) or a coin-flip `PromptReq`
+    (prompt `46`) before the request, so the count is one short.
+  - Owner: `BundleBuilder`, `GsmBuilder.embedActions`
+- **`compat`** — [ActionsAvailableReq.permission-window](prompts/ActionsAvailableReq.md#ActionsAvailableReq.permission-window), permissions other than cascade and discover
+  - Contract: a cast-permission window, such as casting a card exiled by
+    madness, is an `ActionsAvailableReq` with a permission-specific prompt,
+    a `CardId` parameter, `allowCancel=No`, and the permitted `Cast` beside
+    `Pass`.
+  - Leyline: sends the window as a priority request with prompt `1134` only
+    for cascade and discover. Every other cast permission granted while an
+    effect resolves is an `OptionalActionMessage` sourced from the card.
+  - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
 
 #### SelectNReq
 

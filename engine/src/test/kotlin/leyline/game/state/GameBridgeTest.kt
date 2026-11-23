@@ -359,6 +359,7 @@ class GameBridgeTest :
             val actions = ActionMapper.buildFromSnapshot(1, GsmSnapshot.capture(game, b, "test", 0), b)
 
             assertSoftly {
+                // protocol: ActionsAvailableReq.pass-offered
                 actions.actionsList.count { it.actionType == Messages.ActionType.Pass } shouldBe 1
                 actions.actionsList.count { it.actionType == Messages.ActionType.Play_add3 } shouldBeGreaterThan 0
             }
@@ -579,6 +580,7 @@ class GameBridgeTest :
                 messages[3].type shouldBe Messages.GREMessageType.PromptReq
                 messages[3].prompt.promptId shouldBe 37
 
+                // protocol: ActionsAvailableReq.priority-prompt
                 // Message 5: ActionsAvailableReq (promptId=2)
                 messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
                 messages[4].prompt.promptId shouldBe 2

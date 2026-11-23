@@ -13,4 +13,5 @@ semantic discriminator; `promptId` selects instruction text.
 
 | Prompt | Role |
 |---|---|
+| [ActionsAvailableReq](ActionsAvailableReq.md) | Take a priority action or pass; also the cast-permission window. |
 | [SelectNReq](SelectNReq.md) | Choose values from a bounded domain: trigger order, discard, resolution choices, mana colors. |

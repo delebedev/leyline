@@ -159,6 +159,7 @@ class CascadeDiscoverProjectionTest :
                     it.zoneId == ZoneIds.STACK &&
                         it.objectInstanceIdsList.containsAll(listOf(cascadeEntry.instanceId, triggeringSource.instanceId))
                 }
+            // protocol: ActionsAvailableReq.permission-window, ActionsAvailableReq.permission-actions
             assertSoftly {
                 mixedStack.objectInstanceIdsList shouldContainExactly listOf(cascadeEntry.instanceId, triggeringSource.instanceId)
                 cascadeEntry.grpId shouldBe KeywordAbilityIds.CASCADE
@@ -255,6 +256,7 @@ class CascadeDiscoverProjectionTest :
                     it.grpId == bridge.cardRepository.findGrpIdByName("Forest") && it.zoneId == ZoneIds.EXILE
                 }
             val inactive = freeCastRequest.actionsAvailableReq.inactiveActionsList.single()
+            // protocol: ActionsAvailableReq.permission-window, ActionsAvailableReq.permission-actions
             assertSoftly {
                 projectedStates.flatMap { it.persistentAnnotationsList }.none {
                     AnnotationType.CastingTimeOption in it.typeList
