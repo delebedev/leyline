@@ -1,0 +1,21 @@
+# Mechanic: A mana ability added when an effect resolves keeps an identity distinct from the recipient's printed ability.
+# Forcing: The three Forests pay Topsoil Turner, leaving the enhanced Snow-Covered Forest as the only mana source.
+# AI behavior: No opponent hand or battlefield choices.
+# Failure modes: Catalog failure ends the game on land play; one shared identity routes both offers to the same ability.
+# Card roles: Topsoil Turner grants {T}: Add {G}{G}; Llanowar Elves spends one green; Grizzly Bears needs both.
+# Protocol path: Cast, enters trigger, perpetual grant, land play, two mana offers on one source, spell payment.
+[metadata]
+Name:Resolution-granted Forest mana
+Goal:Survive
+Turns:3
+Difficulty:Easy
+Description:Play the Forest that Topsoil Turner enhanced and tap it for either of its mana abilities.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest;Forest
+humanhand=Topsoil Turner;Snow-Covered Forest;Llanowar Elves;Grizzly Bears
+humanlibrary=Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest

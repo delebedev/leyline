@@ -4,6 +4,7 @@ import forge.game.ability.AbilityFactory
 import forge.game.ability.AbilityUtils
 import forge.game.ability.ApiType
 import forge.game.card.Card
+import forge.game.card.CardState
 import forge.game.card.CardTraitChanges
 import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
@@ -18,6 +19,7 @@ import leyline.game.codes.SlotLayout
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.KeywordAbilityIds
+import leyline.game.data.resolutionGrantedAbilityVariables
 
 /**
  * Maps stable Forge definition IDs (SpellAbility, Trigger, StaticAbility) to client
@@ -106,6 +108,33 @@ class AbilityRegistry private constructor(
         return matching.singleOrNull()?.let { hiddenAbilityIds[it.index].first }
     }
 
+    /**
+     * Resolve an ability that an Animate or AnimateAll effect defined on this card added when it resolved.
+     *
+     * Hidden rows list continuous `AddAbility` grants first, then resolution grants in variable-name order.
+     * A layout that does not match that shape resolves nothing rather than guessing a row.
+     */
+    private fun resolutionGrantedAbilityGrpId(ability: SpellAbility): Int? {
+        val state = resolutionGrantState(ability) ?: return null
+        val svars = state.sVars
+        val staticVariables =
+            state.staticAbilities
+                .flatMap { it.getParam("AddAbility")?.split(" & ").orEmpty() }
+                .distinct()
+        val resolutionVariables =
+            (state.intrinsicSpellAbilities.map { it.originalMapParams } + svars.values.map(AbilityFactory::getMapParams))
+                .flatMap(::resolutionGrantedAbilityVariables)
+                .filter { it in svars }
+                .distinct()
+                .sorted()
+        val variables = (staticVariables + resolutionVariables).distinct()
+        if (variables.size != hiddenAbilityIds.size) return null
+        val variable =
+            resolutionVariables.singleOrNull { AbilityFactory.getMapParams(svars.getValue(it)) == ability.originalMapParams }
+                ?: return null
+        return hiddenAbilityIds[variables.indexOf(variable)].first
+    }
+
     companion object {
         private const val INITIAL_UNIQUE_ABILITY_ID = 50
 
@@ -119,10 +148,15 @@ class AbilityRegistry private constructor(
             cardDataLookup: (Card) -> CardData?,
             registryLookup: (Card, CardData?) -> AbilityRegistry?,
         ): ResolvedAbilityIdentity? {
+            val original = generateSequence(ability) { it.originalAbility }.last()
+            resolutionGrantState(ability)?.card?.let { donor ->
+                registryLookup(donor, cardDataLookup(donor))?.resolutionGrantedAbilityGrpId(ability)?.let {
+                    return ResolvedAbilityIdentity(AbilityDefinitionRef.SpellAbility(original.definitionId), it)
+                }
+            }
             val source = identitySource(ability)
             val registry = registryLookup(source, cardDataLookup(source)) ?: return null
             val abilityGrpId = registry.forSpellAbility(ability) ?: return null
-            val original = generateSequence(ability) { it.originalAbility }.last()
             val definition = AbilityDefinitionRef.SpellAbility(original.definitionId)
             return registry.resolve(definition)?.takeIf { it.abilityGrpId == abilityGrpId }
                 ?: ResolvedAbilityIdentity(definition, abilityGrpId)
@@ -147,14 +181,7 @@ class AbilityRegistry private constructor(
             val resolved = resolveSpellAbility(ability, cardDataLookup, registryLookup)
             val abilityGrpId = resolved?.abilityGrpId ?: fallbackAbilityGrpId
             val cardData = cardDataLookup(card)
-            val grants =
-                card.changedCardTraits.cellSet().flatMap { cell ->
-                    (cell.value as? CardTraitChanges)
-                        ?.getAbilities()
-                        .orEmpty()
-                        .filter { it.isActivatedAbility && it.grantorStatic != null }
-                        .map { Triple(it, cell.rowKey, cell.columnKey) }
-                }
+            val grants = traitGrants(card)
             val grantIndex =
                 grants.indexOfFirst { it.first.id == ability.id }.takeIf { it >= 0 }
                     ?: grants
@@ -207,17 +234,32 @@ class AbilityRegistry private constructor(
             cardDataLookup: (Card) -> CardData?,
             registryLookup: (Card, CardData?) -> AbilityRegistry?,
         ): List<EffectProjectionFacts.GrantedAbilityEntry> {
-            val entries =
-                card.changedCardTraits.cellSet().flatMap { cell ->
-                    (cell.value as? CardTraitChanges)
-                        ?.getAbilities()
-                        .orEmpty()
-                        .filter { it.isActivatedAbility && it.grantorStatic != null }
-                        .mapNotNull { resolveActivated(card, it, cardDataLookup, registryLookup).grant }
-                }
-            if (entries.isEmpty()) registryLookup(card, cardDataLookup(card))?.grantedIds?.retain(emptySet())
-            return entries
+            val grants = traitGrants(card)
+            if (grants.isEmpty()) registryLookup(card, cardDataLookup(card))?.grantedIds?.retain(emptySet())
+            return grants.mapNotNull { (granted, _, _) -> resolveActivated(card, granted, cardDataLookup, registryLookup).grant }
         }
+
+        /**
+         * Activated abilities added to [card] by a continuous `AddAbility` effect or by a resolved Animate effect,
+         * with the trait timestamp and static id that own each grant's lifetime.
+         */
+        private fun traitGrants(card: Card): List<Triple<SpellAbility, Long, Long>> =
+            card.changedCardTraits.cellSet().flatMap { cell ->
+                (cell.value as? CardTraitChanges)
+                    ?.getAbilities()
+                    .orEmpty()
+                    .filter { it.isActivatedAbility && (it.grantorStatic != null || resolutionGrantState(it) != null) }
+                    .map { Triple(it, cell.rowKey, cell.columnKey) }
+            }
+
+        /**
+         * The defining card state of an ability that a resolved effect added, such as Animate's `Abilities`.
+         * Forge rebinds the host to the recipient but keeps the state whose variables define the ability.
+         */
+        private fun resolutionGrantState(ability: SpellAbility): CardState? =
+            ability.cardState?.takeIf {
+                !ability.isIntrinsic && ability.originalAbility == null && ability.grantorStatic == null && ability.keyword == null
+            }
 
         internal fun uniqueAbilityIdFor(
             cardData: CardData?,
