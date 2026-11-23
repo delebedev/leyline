@@ -21,7 +21,8 @@ import forge.game.zone.ZoneType
  * and in hand (including paid filters and sacrifice outlets), Convoke creatures
  * and Improvise artifacts. The
  * total requirement is compared with the net mana those sources add. X counts as
- * zero, and Phyrexian mana counts as payable when the player can pay 2 life.
+ * its announced value, or zero before it is announced, and Phyrexian mana counts
+ * as payable when the player can pay 2 life.
  *
  * A failed bound proves the cost unaffordable; a passing bound proves nothing.
  */
@@ -45,7 +46,7 @@ internal object ManaAffordabilityBound {
         val requiredByTypes = mutableMapOf<Int, Int>()
         for (shard in cost) {
             when {
-                shard == ManaCostShard.X -> Unit
+                shard == ManaCostShard.X -> required += sa.xManaCostPaid ?: 0
                 shard.isPhyrexian && player.canPayLife(2, false, sa) -> Unit
                 shard.isGeneric -> required++
                 else -> {

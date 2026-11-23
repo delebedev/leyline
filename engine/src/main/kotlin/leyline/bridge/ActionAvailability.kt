@@ -36,7 +36,8 @@ internal object ActionAvailability {
     ): Boolean = affordability(sa, player).offered
 
     /**
-     * Timing, non-mana costs, targets and modes must pass. Mana is affordable when
+     * Timing, non-mana costs, targets and modes must pass; targets that depend on an
+     * unannounced X may pass at any X the player could pay. Mana is affordable when
      * an exact estimate pays it and unaffordable only when the generous bound also
      * fails. A probe that throws is unsure.
      */
@@ -49,10 +50,9 @@ internal object ActionAvailability {
                 NonInteractiveScope.bestEffort {
                     sa.activatingPlayer = player
                     when {
-                        !sa.canPlay() || sa.payCosts?.canPay(sa, player, false) == false || !hasLegalTargetsAndModes(sa) ->
-                            Affordability.Unaffordable
-                        canPayMana(sa, player) -> Affordability.Affordable
-                        ManaAffordabilityBound.allows(sa, player) -> Affordability.Unsure
+                        !sa.canPlay() || sa.payCosts?.canPay(sa, player, false) == false -> Affordability.Unaffordable
+                        hasLegalTargetsAndModes(sa) -> manaAffordability(sa, player)
+                        hasUnannouncedManaX(sa) -> affordabilityWithAnnouncedX(sa, player)
                         else -> Affordability.Unaffordable
                     }
                 }
@@ -112,6 +112,47 @@ internal object ActionAvailability {
             }
         }
     }
+
+    private fun manaAffordability(
+        sa: SpellAbility,
+        player: Player,
+    ): Affordability =
+        when {
+            canPayMana(sa, player) -> Affordability.Affordable
+            ManaAffordabilityBound.allows(sa, player) -> Affordability.Unsure
+            else -> Affordability.Unaffordable
+        }
+
+    private fun hasUnannouncedManaX(sa: SpellAbility): Boolean = sa.costHasManaX() && sa.xManaCostPaid == null
+
+    /**
+     * Targets such as "mana value X" are checked with the unannounced X counted as zero.
+     * X is announced before targets are chosen, so the action is offered when some X the
+     * bound can cover gives it legal targets and its mana, X included, can be paid.
+     */
+    private fun affordabilityWithAnnouncedX(
+        sa: SpellAbility,
+        player: Player,
+    ): Affordability {
+        try {
+            var best = Affordability.Unaffordable
+            for (x in 1..MAX_PROBED_X) {
+                sa.xManaCostPaid = x
+                if (!ManaAffordabilityBound.allows(sa, player)) break
+                if (!hasLegalTargetsAndModes(sa)) continue
+                when (manaAffordability(sa, player)) {
+                    Affordability.Affordable -> return Affordability.Affordable
+                    Affordability.Unsure -> best = Affordability.Unsure
+                    Affordability.Unaffordable -> Unit
+                }
+            }
+            return best
+        } finally {
+            sa.xManaCostPaid = null
+        }
+    }
+
+    private const val MAX_PROBED_X = 99
 
     private fun canPayMana(
         sa: SpellAbility,

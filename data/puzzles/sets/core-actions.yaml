@@ -18,3 +18,21 @@ scenarios:
             - zone_contains: { side: ours, zone: graveyard, card: Counterspell }
             - zone_contains: { side: opponent, zone: graveyard, card: Lightning Bolt }
             - stack_empty: true
+  - id: x-dependent-target
+    puzzle: x-dependent-target
+    run: cast Repeal when only mana value 2 permanents can be targeted, announcing X=2
+    expect: Grizzly Bears returns to its owner's hand and Repeal draws a card
+    steps:
+      - cast: Repeal
+      - expect: { prompt: NumericInputReq }
+      - numeric_input: 2
+      - target: { side: opponent, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_not_contains: { side: opponent, zone: battlefield, card: Grizzly Bears }
+            - zone_count_at_least: { side: opponent, zone: hand, count: 1 }
+            - zone_contains: { side: opponent, zone: battlefield, card: Mind Stone }
+            - zone_contains: { side: ours, zone: graveyard, card: Repeal }
+            - zone_contains: { side: ours, zone: hand, card: Island }
+            - stack_empty: true
