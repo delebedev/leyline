@@ -4,7 +4,6 @@ import forge.game.combat.Combat
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
-import leyline.bridge.types.SeatId
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.BlockWarningType
 
@@ -26,7 +25,7 @@ class RequestBuilderTest :
                     .map { board.bridge.instanceId(board.human.battlefield.card(it)) }
             for (count in 0..3) {
                 val assignments = blockers.take(count).associateWith { attackerId }
-                val request = RequestBuilder.buildDeclareBlockersReq(board.game, SeatId(1), board.bridge, assignments)
+                val request = RequestBuilder.buildDeclareBlockersReq(board.game, board.human, board.bridge, assignments)
                 assertSoftly {
                     request.hasRestrictions shouldBe true
                     request.blockWarningsCount shouldBe if (count in 1..2) 1 else 0
@@ -48,7 +47,7 @@ class RequestBuilderTest :
                 }
             val blockerId = board.bridge.instanceId(board.human.battlefield.card("Walking Corpse"))
             val attackerId = board.bridge.instanceId(board.ai.battlefield.card("Centaur Courser"))
-            val request = RequestBuilder.buildDeclareBlockersReq(board.game, SeatId(1), board.bridge, mapOf(blockerId to attackerId))
+            val request = RequestBuilder.buildDeclareBlockersReq(board.game, board.human, board.bridge, mapOf(blockerId to attackerId))
             request.blockWarningsCount shouldBe 0
         }
     })

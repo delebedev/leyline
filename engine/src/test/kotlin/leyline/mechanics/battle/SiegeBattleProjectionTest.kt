@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import leyline.bridge.handoff.Target
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.ForgeCardId
-import leyline.bridge.types.SeatId
 import leyline.game.annotations.AnnotationConstants
 import leyline.game.bundle.RequestBuilder
 import leyline.testkit.BoardTest
@@ -28,7 +27,7 @@ class SiegeBattleProjectionTest :
                 }
             val ours = board.human.battlefield.card("Invasion of Zendikar")
             val theirs = board.ai.battlefield.card("Invasion of Zendikar")
-            val req = RequestBuilder.buildDeclareAttackersReq(SeatId(1), board.bridge)
+            val req = RequestBuilder.buildDeclareAttackersReq(board.human, board.bridge)
             val targets =
                 req.attackersList
                     .single()

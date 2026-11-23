@@ -6,7 +6,6 @@ import forge.game.combat.CombatUtil
 import forge.game.cost.CostExert
 import forge.game.player.Player
 import leyline.bridge.types.SeatId
-import leyline.bridge.types.opponent
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.mapping.PromptIds
 import leyline.game.state.GameBridge
@@ -57,7 +56,7 @@ object RequestBuilder {
         DamageRecipient
             .newBuilder()
             .setType(DamageRecType.Player_a0e5)
-            .setPlayerSystemSeatId(seatId.opponent.value)
+            .setPlayerSystemSeatId(seatId.value)
             .build()
 
     private fun planeswalkerDamageRecipient(
@@ -71,26 +70,19 @@ object RequestBuilder {
             .build()
 
     private fun legalAttackDamageRecipients(
-        player: Player,
+        attacker: Player,
         card: Card,
-        seatId: SeatId,
         bridge: GameBridge,
     ): List<DamageRecipient> =
         buildList {
-            for (defender in CombatUtil.getAllPossibleDefenders(player)) {
+            for (defender in CombatUtil.getAllPossibleDefenders(attacker)) {
                 if (!CombatUtil.canAttack(card, defender)) continue
                 when (defender) {
-                    is Player -> add(playerDamageRecipient(seatId))
+                    is Player -> bridge.seatOf(defender)?.let { add(playerDamageRecipient(it)) }
                     is Card -> add(planeswalkerDamageRecipient(defender, bridge))
                 }
             }
         }
-
-    private fun selectedAttackDamageRecipient(
-        instanceId: Int,
-        seatId: SeatId,
-        committedDamageRecipients: Map<Int, DamageRecipient>,
-    ): DamageRecipient = committedDamageRecipients[instanceId] ?: playerDamageRecipient(seatId)
 
     private fun buildAttackerOption(
         instanceId: Int,
@@ -106,8 +98,11 @@ object RequestBuilder {
             }
 
     /**
-     * Build [DeclareAttackersReq] listing all creatures that can legally attack.
+     * Build [DeclareAttackersReq] listing the [attacker]'s creatures that can legally attack.
      * Each attacker includes legal player and permanent damage recipients.
+     *
+     * @param attacker the attacking player. The seat receiving the request may be another
+     *   player who chooses this player's attackers.
      *
      * @param committedAttackerIds instanceIds of attackers already selected (echo-back).
      *   Committed attackers get [selectedDamageRecipient] set to their chosen recipient.
@@ -115,16 +110,15 @@ object RequestBuilder {
      *   Initial request passes empty set (no pre-selection).
      */
     fun buildDeclareAttackersReq(
-        seatId: SeatId,
+        attacker: Player,
         bridge: GameBridge,
         committedAttackerIds: Set<Int> = emptySet(),
         committedAttackAlternatives: Map<Int, Int> = emptyMap(),
         committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): DeclareAttackersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+        for (card in attacker.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
 
@@ -137,15 +131,16 @@ object RequestBuilder {
                 }
             val isCommitted = instanceId in committedAttackerIds
             val selectedAlternativeGrpId = committedAttackAlternatives[instanceId] ?: 0
-            val legalRecipients = legalAttackDamageRecipients(player, card, seatId, bridge)
+            val legalRecipients = legalAttackDamageRecipients(attacker, card, bridge)
             if (legalRecipients.isEmpty()) continue
+            val selectedRecipient = committedDamageRecipients[instanceId] ?: legalRecipients.first()
 
             for (alternative in alternatives) {
-                val attacker = buildAttackerOption(instanceId, legalRecipients, alternative)
+                val option = buildAttackerOption(instanceId, legalRecipients, alternative)
                 if (isCommitted && selectedAlternativeGrpId == alternative) {
-                    attacker.setSelectedDamageRecipient(selectedAttackDamageRecipient(instanceId, seatId, committedDamageRecipients))
+                    option.setSelectedDamageRecipient(selectedRecipient)
                 }
-                builder.addAttackers(attacker)
+                builder.addAttackers(option)
                 // Qualified options describe legality without echoing the selection.
                 builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, alternative))
             }
@@ -154,12 +149,20 @@ object RequestBuilder {
         // Conformance: client expects an empty manaCost entry entry.
         builder.addManaCost(ManaRequirement.getDefaultInstance())
 
-        log.info("buildDeclareAttackersReq: seat={} attackers={} committed={}", seatId, builder.attackersCount, committedAttackerIds.size)
+        log.info(
+            "buildDeclareAttackersReq: attacker={} attackers={} committed={}",
+            attacker.name,
+            builder.attackersCount,
+            committedAttackerIds.size,
+        )
         return builder.build()
     }
 
     /**
-     * Build [DeclareBlockersReq] listing all creatures that can legally block.
+     * Build [DeclareBlockersReq] listing the [defender]'s creatures that can legally block.
+     *
+     * @param defender the defending player. The seat receiving the request may be another
+     *   player who chooses how this player's creatures block.
      *
      * @param blockerAssignments committed blocker→attacker assignments (instanceIds).
      *   Committed blockers get `selectedAttackerInstanceIds` set and `attackerInstanceIds`
@@ -167,15 +170,14 @@ object RequestBuilder {
      */
     fun buildDeclareBlockersReq(
         game: Game,
-        seatId: SeatId,
+        defender: Player,
         bridge: GameBridge,
         blockerAssignments: Map<Int, Int> = emptyMap(),
     ): DeclareBlockersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
 
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+        for (card in defender.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canBlock(card, combat)) continue
 
@@ -202,7 +204,7 @@ object RequestBuilder {
         }
         val assignedCounts = blockerAssignments.values.groupingBy { it }.eachCount()
         for (attacker in combat.attackers) {
-            val minimum = CombatUtil.getMinNumBlockersForAttacker(attacker, player)
+            val minimum = CombatUtil.getMinNumBlockersForAttacker(attacker, defender)
             if (minimum <= 1) continue
             builder.setHasRestrictions(true)
             val instanceId = bridge.instanceId(attacker)
@@ -220,7 +222,12 @@ object RequestBuilder {
         // Conformance: client expects empty manaCost
         builder.addManaCost(ManaRequirement.getDefaultInstance())
 
-        log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, blockerAssignments.size)
+        log.info(
+            "buildDeclareBlockersReq: defender={} blockers={} assigned={}",
+            defender.name,
+            builder.blockersCount,
+            blockerAssignments.size,
+        )
         return builder.build()
     }
 }

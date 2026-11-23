@@ -40,6 +40,13 @@ data class PendingActionState(
     val activePlayerId: Int,
     val priorityPlayerId: Int,
     val kind: PendingActionKind = PendingActionKind.PRIORITY,
+    /**
+     * Player whose creatures a combat declaration covers: the attacking player for
+     * [PendingActionKind.DECLARE_ATTACKERS], the defending player for
+     * [PendingActionKind.DECLARE_BLOCKERS]. The seat answering the window is the
+     * chooser, which differs when another player declares those combatants.
+     */
+    val combatant: ForgePlayerId? = null,
     /** Frozen engine policy for the priority point following this synchronization barrier. */
     val synchronizationContinuation: SynchronizationContinuation = SynchronizationContinuation.Reevaluate,
     val synchronizationPresentation: SynchronizationPresentation = SynchronizationPresentation.StateOnly,
