@@ -33,10 +33,9 @@ flowchart LR
 
 The native head and embedding hosts submit through the same engine match
 surface. Embedding hosts own their transport and application policy. A host
-may select presentation settings, such as `CostChoicePresentation` and
-`KeywordProjection`. Only snapshot building, object mapping and bundle
-construction read them, so rules, offers and prompt decisions stay the same for
-every host. `engine`
+may select presentation settings, such as `CostChoicePresentation`. Only
+snapshot building, object mapping and bundle construction read them, so rules,
+offers and prompt decisions stay the same for every host. `engine`
 is the only Gradle module that depends on Forge. `gre-proto`
 (mapped to `proto/`) owns the generated GRE wire schema.
 

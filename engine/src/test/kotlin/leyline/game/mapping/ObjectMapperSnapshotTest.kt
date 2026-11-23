@@ -11,6 +11,7 @@ import leyline.game.codes.KeywordGrpIds
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.CombatRole
 import leyline.game.snapshot.SnapshotCapture
+import leyline.game.state.AbilityRemoval
 import leyline.game.state.EffectTracker
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
@@ -101,9 +102,9 @@ class ObjectMapperSnapshotTest :
             }
         }
 
-        test("lost keyword rows filter after grants while retaining nonkeyword row IDs and parallel origins") {
-            val (b, game, _) = startWithBoard { _, human, _ -> addCard("Grizzly Bears", human, ZoneType.Battlefield) }
-            val card = game.humanPlayer.battlefield.card("Grizzly Bears")
+        test("removed rows drop printed and component rows while keeping later grants and parallel origins") {
+            val (b, game, _) = startWithBoard { _, human, _ -> addCard("Serra Angel", human, ZoneType.Battlefield) }
+            val card = game.humanPlayer.battlefield.card("Serra Angel")
             val fid = ForgeCardId(card.id)
             val iid = b.getOrAllocInstanceId(fid).value
             val base =
@@ -116,23 +117,31 @@ class ObjectMapperSnapshotTest :
                 mapOf(
                     iid to
                         listOf(
-                            EffectTracker.KeywordEntry(1L, 2L, "Haste", abilityGrpId = 7),
-                            EffectTracker.KeywordEntry(1L, 3L, "Flying", abilityGrpId = 8),
+                            EffectTracker.KeywordEntry(1L, 2L, "Haste", abilityGrpId = 9),
+                            EffectTracker.KeywordEntry(20L, 3L, "Flying", abilityGrpId = 8),
                         ),
+                )
+            val removal =
+                AbilityRemoval(
+                    timestamp = 10L,
+                    staticId = 4L,
+                    scope = AbilityRemoval.Scope.All,
+                    removedAbilityGrpIds = b.cardProto.staticAbilityGrpIds(base.grpId) + 80001,
                 )
 
             fun project(snapshot: leyline.game.snapshot.CardSnapshot) =
                 ObjectMapper.buildFromSnapshot(snapshot, iid, ZoneIds.BATTLEFIELD, 1, b.cardProto, keywordSnapshot = grants)
             val native = project(base)
-            val effective = project(base.copy(lostKeywordAbilityGrpIds = setOf(8, 80001)))
-            val keep = native.uniqueAbilitiesList.indices.filter { native.getUniqueAbilities(it).grpId !in setOf(8, 80001) }
+            val removed = project(base.copy(abilityRemovals = listOf(removal)))
+            val printed = b.cardProto.staticAbilityGrpIds(base.grpId).size
+            val haste = printed
+            val component = printed + 2
+            val keep = native.uniqueAbilitiesList.indices.filter { it >= printed && it != haste && it != component }
             assertSoftly {
-                effective.uniqueAbilitiesList shouldBe keep.map(native::getUniqueAbilities)
-                effective.abilityOriginalCardGrpIdsList shouldBe keep.map(native::getAbilityOriginalCardGrpIds)
-                project(base.copy(lostKeywordAbilityGrpIds = emptySet())).toByteArray().toList() shouldBe native.toByteArray().toList()
-                val partial = base.copy(mergedComponentAbilityOriginalCardGrpIds = listOf(90001))
-                project(partial.copy(lostKeywordAbilityGrpIds = setOf(8))).toByteArray().toList() shouldBe
-                    project(partial).toByteArray().toList()
+                removed.uniqueAbilitiesList.map { it.grpId } shouldBe keep.map { native.getUniqueAbilities(it).grpId }
+                removed.uniqueAbilitiesList.map { it.grpId } shouldBe listOf(8, 80002)
+                removed.abilityOriginalCardGrpIdsList shouldBe keep.map(native::getAbilityOriginalCardGrpIds)
+                project(base.copy(abilityRemovals = emptyList())).toByteArray().toList() shouldBe native.toByteArray().toList()
             }
         }
 

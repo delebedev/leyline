@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
+import leyline.game.state.AbilityRemoval
 
 /** One position in the full, unfiltered activation domain for a particular seat. */
 data class ActivatedAbilityOccurrence(
@@ -65,11 +66,8 @@ data class CardSnapshot(
     // --- ObjectMapper live state ---
     /** True when the card is in the Battlefield zone. */
     val isOnBattlefield: Boolean = false,
-    /**
-     * Keyword ability rows (catalog, component and explicit grant identities) whose keyword Forge no longer
-     * reports on the card. Null means this host or identity does not supply effective keyword membership.
-     */
-    val lostKeywordAbilityGrpIds: Set<Int>? = null,
+    /** Continuous effects removing abilities from this battlefield permanent, in timestamp order. */
+    val abilityRemovals: List<AbilityRemoval> = emptyList(),
     /** Phasing status preserves battlefield membership and object identity. */
     val isPhasedOut: Boolean = false,
     /** Live net power from Forge (continuous effects/counters). Non-null only for creatures. */

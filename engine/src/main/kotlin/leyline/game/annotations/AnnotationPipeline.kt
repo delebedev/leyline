@@ -815,6 +815,22 @@ object AnnotationPipeline {
         }
     }
 
+    /** RemoveAbility rows; a static names its host, a resolving ability names its source card and ability. */
+    private fun abilityRemovalAnnotations(
+        removalDiff: EffectTracker.RemovalDiffResult,
+        events: List<GameEvent>,
+        frameIds: FrameIdResolver,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val lastResolved = events.filterIsInstance<GameEvent.SpellResolved>().lastOrNull()
+        return MechanicAnnotations.abilityRemovalAnnotations(removalDiff) { removal ->
+            removal.sourceForgeCardId?.let { frameIds.cardIid(it) to null }
+                ?: (
+                    lastResolved?.let { frameIds.cardIid(it.cardId) } to
+                        lastResolved?.abilityGrpId?.takeIf { it != 0 }?.let(::GrpId)
+                )
+        }
+    }
+
     /** Stages 4-5: mechanic + effect annotations and persistent computation. */
     @Suppress("LongParameterList", "LongMethod")
     internal fun computeRemainingAnnotations(
@@ -829,6 +845,7 @@ object AnnotationPipeline {
         keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
         grantedAbilityDiff: EffectTracker.GrantedAbilityDiffResult =
             EffectTracker.GrantedAbilityDiffResult(emptyList(), emptyList()),
+        removalDiff: EffectTracker.RemovalDiffResult = EffectTracker.RemovalDiffResult(emptyList(), emptyList()),
         combatResult: CombatAnnotationResult = CombatAnnotationResult(emptyList()),
         persistentFeeds: PersistentFeedSet = PersistentFeedSet(),
         convokePaymentsBySource: Map<ForgeCardId, List<TransferAnnotations.ConvokePaymentRecord>> = emptyMap(),
@@ -989,6 +1006,8 @@ object AnnotationPipeline {
                 },
             )
         annotations.addAll(effectTransient)
+        val (removalTransient, removalPersistent) = abilityRemovalAnnotations(removalDiff, events, frameIds)
+        annotations.addAll(removalTransient)
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
         val pendingTargetSpecs = ctx.promptFacts.targetSpecs
@@ -1038,11 +1057,12 @@ object AnnotationPipeline {
                 currentActive = persistSnapshot,
                 startPersistentId = startPersistentId,
                 frame = frameContext,
-                effectPersistent = effectPersistent + earthbend.effectPersistent,
+                effectPersistent = effectPersistent + removalPersistent + earthbend.effectPersistent,
                 effectDiff = storeEffectDiff,
                 destroyedEffectIds =
                     keywordDiff.destroyed.map { it.syntheticId } +
-                        grantedAbilityDiff.destroyed.map { it.syntheticId },
+                        grantedAbilityDiff.destroyed.map { it.syntheticId } +
+                        removalDiff.destroyed.map { it.syntheticId },
                 transferPersistent = transferPersistent,
                 mechanicResult = enrichedMechanicResult,
                 combatResult = combatResult,

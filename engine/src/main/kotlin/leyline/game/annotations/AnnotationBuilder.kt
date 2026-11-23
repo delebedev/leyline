@@ -1011,17 +1011,33 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
             .build()
 
-    /** Ability removed by effect. client type 23 (RemoveAbility). */
+    /**
+     * Abilities removed by a continuous effect. client type 23 (RemoveAbility), co-typed with LayeredEffect.
+     * The detail key is the affected instance ID; its value is `"all"` when [removedAbilityGrpIds] is null,
+     * otherwise the removed ability grpIds.
+     */
     fun removeAbility(
         instanceId: InstanceId,
         effectId: EffectId,
+        removedAbilityGrpIds: List<Int>? = null,
+        affectorId: InstanceId? = null,
+        sourceAbilityGrpId: GrpId? = null,
     ): AnnotationInfo =
         AnnotationInfo
             .newBuilder()
             .addType(AnnotationType.RemoveAbility)
+            .addType(AnnotationType.LayeredEffect)
             .addAffectedIds(instanceId.value)
+            .setOptionalAffector(affectorId)
+            .addDetails(
+                removedAbilityGrpIds?.let { int32ListDetail(instanceId.value.toString(), it) }
+                    ?: typedStringDetail(instanceId.value.toString(), REMOVE_ALL_ABILITIES),
+            ).apply { sourceAbilityGrpId?.let { addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, it.value)) } }
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId.value))
             .build()
+
+    /** RemoveAbility detail value for a permanent that loses all abilities. */
+    const val REMOVE_ALL_ABILITIES = "all"
 
     /** Per-ability use tracking. client type 82 (AbilityExhausted). */
     fun abilityExhausted(

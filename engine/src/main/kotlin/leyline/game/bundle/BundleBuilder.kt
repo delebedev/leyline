@@ -46,12 +46,10 @@ import leyline.game.mapping.StateProjectionCompiler
 import leyline.game.mapping.ViewerProjectionIntent
 import leyline.game.mapping.ZoneIds
 import leyline.game.snapshot.BoundCard
-import leyline.game.snapshot.CardSnapshot
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.EffectProjectionFacts
 import leyline.game.state.GameBridge
-import leyline.game.state.InstanceIdRegistry
 import leyline.game.state.PendingSubmittedTargets
 import leyline.game.state.ProjectionAcknowledgements
 import leyline.game.state.ProjectionState
@@ -1422,31 +1420,6 @@ class BundleBuilder(
             else -> this
         }
 
-    /** Select only the combatant's complete public row pair for the retained combat presentation. */
-    private fun combatAbilitySource(
-        cursor: ViewerProjectionCursor?,
-        snapshot: CardSnapshot,
-        identities: InstanceIdRegistry.State,
-        instanceId: Int,
-        combatantSeatId: Int,
-    ): GameObjectInfo? =
-        cursor?.fullState?.gameObjectsList?.singleOrNull { it.instanceId == instanceId }?.takeIf { source ->
-            identities.forgeIdToInstanceId[snapshot.forgeCardId]?.value == instanceId &&
-                identities.instanceIdToForgeId[InstanceId(instanceId)] == snapshot.forgeCardId &&
-                snapshot.lostKeywordAbilityGrpIds != null &&
-                snapshot.isOnBattlefield &&
-                snapshot.faceDownKind == null &&
-                source.visibility == Visibility.Public &&
-                !source.isFacedown &&
-                source.zoneId == ZoneIds.BATTLEFIELD &&
-                source.type in listOf(GameObjectType.Card, GameObjectType.Token) &&
-                source.grpId == snapshot.grpId &&
-                source.ownerSeatId == snapshot.owner.value &&
-                source.controllerSeatId == snapshot.controller.value &&
-                source.controllerSeatId == combatantSeatId &&
-                source.abilityOriginalCardGrpIdsCount == source.uniqueAbilitiesCount
-        }
-
     private fun prepareCombatEcho(
         game: Game,
         counter: LogicalSequencePlanner,
@@ -1458,40 +1431,22 @@ class BundleBuilder(
         provisionalAttackTargets: Map<Int, DamageRecipient> = emptyMap(),
         buildRequestConfig: () -> (GREToClientMessage.Builder) -> Unit,
     ): ActionWindowPrepared {
-        val combatantSeatId = checkNotNull(bridge.seatOf(combatant)) { "No seat for combatant ${combatant.name}" }.value
         val prior = bridge.projectionStateSnapshot()
         val (bundle, next) =
             bridge.editProjection(prior) {
                 val nextGs = counter.nextGsId()
-                val effectiveEcho = bridge.engineSettings.keywordProjection == leyline.config.KeywordProjection.WebEffectiveKeywords
-                val cursor = prior.viewerCursors[SeatId(seatId)]
-                // Selection does not wake Forge. Reuse this viewer's committed cut, never recapture live keywords on the response thread.
-                val snap = if (effectiveEcho) cursor?.previousSnapshot else GsmSnapshot.capture(game, bridge, matchId, nextGs)
+                val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
 
                 // Provisional combat objects reflect the selection before Forge accepts the declaration.
                 val objects = mutableListOf<GameObjectInfo>()
                 for (card in combatant.getZone(ForgeZoneType.Battlefield).cards) {
                     if (!card.isCreature) continue
                     val fid = ForgeCardId(card.id)
-                    val iid =
-                        if (effectiveEcho) {
-                            prior.identities.forgeIdToInstanceId[fid]?.value ?: continue
-                        } else {
-                            bridge
-                                .getOrAllocInstanceId(
-                                    fid,
-                                ).value
-                        }
+                    val iid = bridge.getOrAllocInstanceId(fid).value
                     if (iid !in includedInstanceIds) continue
-                    val cardSnap = snap?.objects?.get(fid) ?: continue
+                    val cardSnap = snap.objects[fid] ?: continue
                     // A provisional row is public and carries the printed identity; another player's face-down creature keeps no echo row.
                     if (cardSnap.isFaceDown && cardSnap.controller.value != seatId) continue
-                    val abilitySource =
-                        if (effectiveEcho) {
-                            combatAbilitySource(cursor, cardSnap, prior.identities, iid, combatantSeatId) ?: continue
-                        } else {
-                            null
-                        }
 
                     objects.add(
                         ObjectMapper
@@ -1502,7 +1457,6 @@ class BundleBuilder(
                                 ownerSeatId = cardSnap.owner.value,
                                 cardProto = bridge.cardProto,
                                 parentLinkage = snap.boundCards[fid]?.parentLinkage,
-                                abilitySource = abilitySource,
                             ).withProvisionalCombatState(provisionalBlockAssignments[iid], provisionalAttackTargets[iid]),
                     )
                 }

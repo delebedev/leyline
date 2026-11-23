@@ -2,7 +2,6 @@ package leyline.game.snapshot
 
 import forge.game.Game
 import forge.game.card.Card
-import forge.game.keyword.Keyword
 import forge.game.player.Player
 import leyline.bridge.CompanionAction
 import leyline.bridge.getNonManaActivatedAbilities
@@ -10,10 +9,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
-import leyline.config.KeywordProjection
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
-import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
@@ -22,6 +19,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.AbilityRegistry
+import leyline.game.state.AbilityRemoval
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 import wotc.mtgo.gre.external.messaging.Messages.SubType
@@ -583,29 +581,17 @@ object SnapshotCapture {
             }
 
         val emblem = EmblemSnapshot.capture(card, bridge)
-        val lostKeywordAbilityGrpIds =
-            if (bridge.engineSettings.keywordProjection == KeywordProjection.WebEffectiveKeywords && onBf && !card.isFaceDown) {
-                val catalogRows =
-                    (
-                        bridge.cardRepository
-                            .findByGrpId(grpId)
-                            ?.abilityIds
-                            .orEmpty()
-                            .map { it.first } +
-                            mergedState.componentAbilityGrpIds
-                    ).mapNotNull { id ->
-                        bridge.cardRepository
-                            .findAbilityLocalization(id)
-                            ?.keyword
-                            ?.let { it to id }
-                    }
-                (catalogRows + KeywordGrpIds.baseGrants.toList())
-                    .filter { (name, _) ->
-                        val keyword = Keyword.smartValueOf(name)
-                        keyword != Keyword.UNDEFINED && !card.hasKeyword(keyword)
-                    }.mapTo(mutableSetOf()) { it.second }
+        val abilityRemovals =
+            if (onBf && !card.isFaceDown) {
+                AbilityRemoval
+                    .read(card)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { removals ->
+                        val printedRows = bridge.cardProto.staticAbilityGrpIds(grpId) + mergedState.componentAbilityGrpIds
+                        removals.map { it.resolvedAgainst(printedRows, bridge.cardRepository) }
+                    }.orEmpty()
             } else {
-                null
+                emptyList()
             }
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
@@ -638,7 +624,7 @@ object SnapshotCapture {
             chosenColorIds = chosenColorIds,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
-            lostKeywordAbilityGrpIds = lostKeywordAbilityGrpIds,
+            abilityRemovals = abilityRemovals,
             isPhasedOut = card.isPhasedOut,
             // Face-down exile inspection retains catalog P/T instead of the live 2/2 stencil.
             netPower = if (type.isCreature && !isFaceDownInExile) card.netPower else null,

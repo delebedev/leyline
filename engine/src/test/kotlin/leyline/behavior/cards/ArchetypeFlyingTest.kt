@@ -36,7 +36,23 @@ class ArchetypeFlyingTest :
                     .getValue(atraxaIid)
                     .uniqueAbilitiesList
                     .map { it.grpId }
+            val flyingRow =
+                accumulator.objects.getValue(atraxaIid).grpId.let { grpId ->
+                    bridge.cardRepository
+                        .findByGrpId(grpId)!!
+                        .abilityIds
+                        .map { it.first }
+                        .single { bridge.cardRepository.findAbilityLocalization(it)?.keyword == "Flying" }
+                }
             assertSoftly {
+                (flyingRow in before).shouldBeFalse()
+                bridge
+                    .projectionStateSnapshot()
+                    .persistentAnnotations.activeAnnotations.values
+                    .single { AnnotationType.RemoveAbility in it.typeList && atraxaIid in it.affectedIdsList }
+                    .detailsList
+                    .first()
+                    .valueInt32List shouldBe listOf(flyingRow)
                 atraxa.hasKeyword("Flying").shouldBeFalse()
                 aminatou.hasKeyword("Flying").shouldBeTrue()
                 hawk.hasKeyword("Flying").shouldBeTrue()
@@ -64,7 +80,10 @@ class ArchetypeFlyingTest :
                     .shouldBeTrue()
             }
             println("ARCHETYPE_REMOVED effectiveAtraxaFlying=${atraxa.hasKeyword("Flying")} projectedAbilities=$after")
-            before shouldBe after
+            assertSoftly {
+                after.filterNot { it == flyingRow } shouldBe before
+                (flyingRow in after).shouldBeTrue()
+            }
             castSpellByName("Ornithopter").shouldBeTrue()
             passUntilResolved()
             human.battlefield.card("Ornithopter").name shouldBe "Ornithopter"
