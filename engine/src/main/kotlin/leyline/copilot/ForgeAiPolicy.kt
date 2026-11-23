@@ -361,8 +361,8 @@ class ForgeAiPolicy(
                         !isSkipped(it) &&
                         (it.grpId == grpId || it.instanceId == mappedInstanceId)
                 }
-            return chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId })
-                ?: chooseCastVariant(sa, grpId, seatPlayer, bridge.cardRepository, candidates)
+            return chooseCastVariant(sa, grpId, bridge.cardRepository, candidates.filter { it.instanceId == mappedInstanceId })
+                ?: chooseCastVariant(sa, grpId, bridge.cardRepository, candidates)
         }
 
         val hostCard = sa.hostCard ?: return null

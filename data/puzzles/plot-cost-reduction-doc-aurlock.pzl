@@ -1,0 +1,17 @@
+[metadata]
+Name:Plot Cost Reduction Doc Aurlock
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Doc Aurlock makes plotting cost {2} less. Plot Railway Brawler for {1}{G} with three Forests, then cast Llanowar Elves with the Forest left over.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Railway Brawler;Llanowar Elves
+humanbattlefield=Doc Aurlock, Grizzled Genius;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

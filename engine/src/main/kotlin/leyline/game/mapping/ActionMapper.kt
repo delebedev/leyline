@@ -1043,16 +1043,8 @@ object ActionMapper {
         val altSource = rail.altGrpIdSource
         val needsCostAware =
             altSource is AltGrpIdSource.FromBoundCard && altSource.lookupMode == LookupMode.CostAware
-        val payCostPairs: List<Pair<ManaColor, Int>> =
-            if (needsCostAware) {
-                computeEffectiveCost(sa, player)
-                    ?.takeIf { !it.isNoCost }
-                    ?.let { forgeManaCostToPairs(it) }
-                    ?: emptyList()
-            } else {
-                emptyList()
-            }
-        val altGrpId = resolveAltGrpId(rail, altCosts, payCostPairs)
+        val lookupPairs = if (needsCostAware) altCostLookupPairs(sa) else emptyList()
+        val altGrpId = resolveAltGrpId(rail, altCosts, lookupPairs)
         if (altGrpId > 0) actionBuilder.setAlternativeGrpId(altGrpId)
 
         val abilityGrpId =
@@ -1598,7 +1590,7 @@ object ActionMapper {
         }
         val effectiveCost = computeEffectiveCost(sa, player)
         val payCostPairs = effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-        return payCostPairs to resolveAltGrpId(rail, altCosts, payCostPairs)
+        return payCostPairs to resolveAltGrpId(rail, altCosts, altCostLookupPairs(sa))
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
@@ -1628,6 +1620,17 @@ object ActionMapper {
 
     internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> =
         ActionManaCosts.forgeManaCostToPairs(manaCost)
+
+    /**
+     * Key for [LookupMode.CostAware] alt-cost row lookup: the ability's printed mana cost.
+     * Bound rows carry printed costs, and cost-adjusting statics change only the amount paid.
+     */
+    internal fun altCostLookupPairs(sa: SpellAbility): List<Pair<ManaColor, Int>> =
+        sa.payCosts
+            ?.totalMana
+            ?.takeIf { !it.isNoCost }
+            ?.let(::forgeManaCostToPairs)
+            .orEmpty()
 
     /**
      * Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder.
