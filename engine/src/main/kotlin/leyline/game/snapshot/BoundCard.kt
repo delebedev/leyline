@@ -97,6 +97,7 @@ data class BoundCard(
                 KeywordAbilityIds.SURGE,
                 KeywordAbilityIds.HARMONIZE,
                 KeywordAbilityIds.PLOT,
+                KeywordAbilityIds.SUSPEND,
                 KeywordAbilityIds.MOBILIZE,
                 KeywordAbilityIds.WARP,
                 KeywordAbilityIds.SNEAK,

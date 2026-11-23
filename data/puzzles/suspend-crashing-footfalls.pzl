@@ -1,0 +1,17 @@
+[metadata]
+Name:Suspend Crashing Footfalls
+Goal:Survive
+Turns:10
+Difficulty:Easy
+Description:Suspend Crashing Footfalls for {G}; Llanowar Elves keeps a priority stop after the special action. Each of your upkeeps removes a time counter; when the last comes off, cast it without paying its mana cost and create two 4/4 Rhinos.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Crashing Footfalls;Llanowar Elves
+humanbattlefield=Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest

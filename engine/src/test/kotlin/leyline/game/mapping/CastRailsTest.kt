@@ -255,6 +255,7 @@ class CastRailsTest :
                         AltCostKind.MUTATE,
                         AltCostKind.PLOT,
                         AltCostKind.FORETELL,
+                        AltCostKind.SUSPEND,
                         AltCostKind.DISGUISE,
                         AltCostKind.CLEAVE,
                         AltCostKind.OVERLOAD,

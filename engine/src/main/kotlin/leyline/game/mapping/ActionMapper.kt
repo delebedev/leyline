@@ -16,6 +16,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.bridge.getNonManaActivatedAbilities
 import leyline.bridge.handoff.GameActionBridge.ActionOffer
 import leyline.bridge.handoff.PlayerAction
+import leyline.bridge.isSuspendHandAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.GrpId
 import leyline.bridge.types.InstanceId
@@ -515,7 +516,25 @@ object ActionMapper {
                 }
                 continue
             }
-            val sa = choosePrimaryHandCastAbility(forgeCard, castable) ?: continue
+            val sa = choosePrimaryHandCastAbility(forgeCard, castable)
+            if (sa == null) {
+                // Hand special actions remain available when the card itself
+                // cannot be cast, such as suspend on a card without a mana cost.
+                addHandAltCostCastActions(
+                    bridge = bridge,
+                    card = forgeCard,
+                    player = player,
+                    instanceId = bridge.getOrAllocInstanceId(fid).value,
+                    grpId = cardSnap.grpId,
+                    altCosts = snap.boundCards[fid]?.altCosts ?: emptyList(),
+                    builder = builder,
+                    castable = castable,
+                    onActive = { action, index, ability ->
+                        bindOffer(action, PlayerAction.CastSpell(fid, index, ability = ability))
+                    },
+                )
+                continue
+            }
             val abilityIndex = castable.indexOfFirst { it === sa }
             val canPay = canExecute(sa, player)
             val instanceId = bridge.getOrAllocInstanceId(fid).value
@@ -782,8 +801,10 @@ object ActionMapper {
      */
     private fun choosePrimaryHandCastAbility(
         card: Card,
-        castable: List<SpellAbility>,
+        allCastable: List<SpellAbility>,
     ): SpellAbility? {
+        // Hand special actions (suspend) are not casts of the card.
+        val castable = allCastable.filterNot(::isSuspendHandAction)
         castable.firstOrNull { it.hasParam("WithoutManaCost") }?.let { return it }
         if (card.keywords.none { it.original.startsWith("AlternateAdditionalCost") }) {
             return castable.firstOrNull()

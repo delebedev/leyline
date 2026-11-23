@@ -1,0 +1,50 @@
+name: suspend
+description: Suspend from hand, upkeep time-counter removal, and the free cast when the last counter comes off.
+scenarios:
+  - id: crashing-footfalls
+    puzzle: suspend-crashing-footfalls
+    run: suspend Crashing Footfalls, let four upkeeps remove its time counters, then accept the free cast
+    expect: Crashing Footfalls waits in exile, then resolves for free and creates two Rhinos
+    steps:
+      - expect:
+          action: { type: cast, card: Crashing Footfalls }
+      - cast: { card: Crashing Footfalls, alt_cost: suspend }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Crashing Footfalls }
+            - annotation_seen: CounterAdded
+            - stack_empty: true
+      - pass_until:
+          prompt: OptionalActionMessage
+          max_passes: 80
+      - optional_action: { accept: true }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_count_at_least: { side: ours, zone: battlefield, card: Rhino Token, count: 2 }
+            - zone_contains: { side: ours, zone: graveyard, card: Crashing Footfalls }
+            - stack_empty: true
+  - id: rift-bolt
+    puzzle: suspend-rift-bolt
+    native: { skip: Rift Bolt is unavailable in the native card catalog. }
+    run: suspend Rift Bolt for its red mana, then cast it for free at the opponent when its time counter comes off
+    expect: Rift Bolt deals 3 damage without a second mana payment
+    steps:
+      - expect:
+          action: { type: cast, card: Rift Bolt }
+      - cast: { card: Rift Bolt, alt_cost: suspend }
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: exile, card: Rift Bolt }
+            - stack_empty: true
+      - pass_until:
+          prompt: OptionalActionMessage
+          max_passes: 40
+      - optional_action: { accept: true }
+      - target: opponent
+      - resolve_stack: {}
+      - expect:
+          all:
+            - opponent_life: 17
+            - zone_contains: { side: ours, zone: graveyard, card: Rift Bolt }
+            - stack_empty: true

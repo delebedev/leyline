@@ -474,6 +474,7 @@ enum class AcceptanceAltCost(
     JumpStart("jump_start", KeywordAbilityIds.JUMP_START),
     Retrace("retrace", KeywordAbilityIds.RETRACE),
     Plot("plot", KeywordAbilityIds.PLOT),
+    Suspend("suspend", KeywordAbilityIds.SUSPEND),
     Warp("warp", KeywordAbilityIds.WARP),
     Sneak("sneak", KeywordAbilityIds.SNEAK),
     Enlist("enlist", KeywordAbilityIds.ENLIST),
