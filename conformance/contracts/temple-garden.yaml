@@ -1,3 +1,5 @@
+# protocol: ReplacementEffect.etb-incoming, ReplacementEffect.source-zcid, ReplacementEffect.etb-choice-source
+# protocol: ReplacementEffect.etb-payment-affector, ReplacementEffect.etb-choice-bracket
 name: Temple Garden pay-life entry
 scenario: {suite: modal-warmup, id: shock-land-temple-garden}
 frames:

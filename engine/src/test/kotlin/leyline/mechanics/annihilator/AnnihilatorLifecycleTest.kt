@@ -143,6 +143,7 @@ class AnnihilatorLifecycleTest :
             }
         }
 
+        // protocol: SelectNReq.sacrifice-source
         session(
             "human defender chooses six sacrifices before blockers and combat continues",
             puzzle = puzzle("Healer's Hawk;Plains;Island;Swamp;Mountain;Forest;Wastes;Wastes"),
