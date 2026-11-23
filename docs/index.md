@@ -23,6 +23,9 @@ read_when:
   Forge-AI puzzle solutions into backend-neutral scripted suites
 - [`puzzle-harness.md`](puzzle-harness.md) — direct puzzle state, history-sensitive
   setup, and Full-state boundaries
+- [`protocol/README.md`](protocol/README.md) — the GRE protocol reference:
+  entity contracts, statement IDs and the
+  [implementation map](protocol/implementation.md)
 - [`protocol-conformance.md`](protocol-conformance.md) — bounded protocol
   obligations over deterministic scenarios and their CI lane
 - [`simclient-iteration.md`](simclient-iteration.md) — fixed-seed failure
