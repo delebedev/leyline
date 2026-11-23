@@ -40,6 +40,17 @@ Exception kinds:
 
 Rows are grouped by family and sorted by entity name.
 
+### Model and stream
+
+| Entity | Owner | Status |
+|---|---|---|
+| [AnnotationOrdering](stream/annotation-ordering.md) | `OrderRules`, `ObjectIdChangedFirstRule`, `SameCardIncrementalRule`, `ResolutionLifecycleRule`, `ResolveTransferOrderingRule`, `PhaseOrStepFirstRule`, `AnnotationPipeline` | `implemented` |
+| [Enums](model/enums.md) | `PlayerMapper.mapPhase`, `PlayerMapper.mapStep`, `AnnotationBuilder.userActionTaken` | `implemented` |
+| [IdentityAndZones](model/identity-and-zones.md) | `ZoneIds`, `ZoneMapper`, `StateZoneProjection`, `ZoneHandoffProjection`, `StateMapper` | `partial` |
+| [Messages](stream/messages.md) | `BundleBuilder`, `GsmBuilder`, `StateMapper`, `LifecycleMessageMaterializer`, `SettledPromptOwner`, `MatchConnection` | `partial` |
+| [Priority](stream/priority.md) | `PriorityPolicyRuntime`, `MatchCutCoordinator`, `MatchActionWindowRuntime` | `partial` |
+| [Timers](stream/timers.md) | `PlayerMapper.buildTimers`, `BundleBuilder.timerStart`, `BundleBuilder.timerStop` | `partial` |
+
 ### Prompts
 
 | Entity | Owner | Status |
@@ -57,6 +68,81 @@ Rows are grouped by family and sorted by entity name.
 Each exception is written so it can be filed as an issue unchanged: what the
 contract says, what Leyline does, and the owner to change. Exceptions are
 grouped by family, then by entity.
+
+### Model and stream exceptions
+
+#### IdentityAndZones
+
+- **`compat`** — [Open points](model/identity-and-zones.md#open-points), Graveyard and Exile member order
+  - Contract: the order of Graveyard and Exile members is not yet known.
+  - Leyline: lists Graveyard and Exile members newest first.
+  - Owner: `ZoneMapper.clientOrderedZone`
+
+#### Messages
+
+- **`absent`** — [Messages.undo-full](stream/messages.md#Messages.undo-full)
+  - Contract: an undo rewinds to an earlier state through a `Full` GSM with
+    `update=Undo`.
+  - Leyline: never emits `update=Undo` and does not handle `UndoReq`, so a
+    player cannot undo, although some prompts set `allowUndo`.
+  - Owner: `MatchConnection`
+- **`absent`** — [Messages.queued-shape](stream/messages.md#Messages.queued-shape),
+  [Messages.queued-closure](stream/messages.md#Messages.queued-closure),
+  [Messages.queued-other-seat](stream/messages.md#Messages.queued-other-seat)
+  - Contract: the other seat's still-cancellable commitment is published on
+    `QueuedGameStateMessage` before a regular GSM closes it.
+  - Leyline: never sends `QueuedGameStateMessage`. The builder exists but has
+    no production caller; the recipient sees the other seat's cast only in the
+    regular GSM that commits it.
+  - Owner: `BundleBuilder.queuedGameState`
+- **`absent`** — [Forced actions](stream/messages.md#forced-actions)
+  - Contract: an action the server applies on a seat's behalf is reported as
+    an `EdictalMessage`.
+  - Leyline: never sends `EdictalMessage`. The builder exists but has no
+    production caller.
+  - Owner: `BundleBuilder.edictalPass`
+- **`diverges`** — [Messages.action-rail-envelope](stream/messages.md#Messages.action-rail-envelope)
+  - Contract: the GSM action rail carries no `Pass` or `FloatMana` rows.
+  - Leyline: copies every action of the following `ActionsAvailableReq` onto
+    the GSM rail, including `Pass` and `FloatMana` rows stripped to their
+    action type.
+  - Owner: `ActionMapper.stripActionForGsm`, `GsmBuilder.embedActions`
+- **`absent`** — [Messages.action-rail-opponent](stream/messages.md#Messages.action-rail-opponent) *(provisional statement)*
+  - Contract: the GSM action rail is board state for both seats, restated
+    whether or not the recipient holds priority.
+  - Leyline: fills the rail only on GSMs that carry or echo a priority
+    decision, and only with that decision's actions, stamped with the
+    recipient's or the priority player's seat. Opponent actions never appear.
+  - Owner: `GsmBuilder.embedActions`, `StateMapper`
+
+#### Priority
+
+- **`diverges`** — [Priority.yield-turn](stream/priority.md#Priority.yield-turn) *(provisional statement)*
+  - Contract: when a turn yield ends with its turn, the next settings
+    response carries `autoPassOption=Clear`.
+  - Leyline: restores `autoPassOption=ResolveMyStackEffects` when the yield
+    ends.
+  - Owner: `PriorityPolicyRuntime`
+
+#### Timers
+
+- **`diverges`** — [Timers.state-message-seat](stream/timers.md#Timers.state-message-seat)
+  - Contract: every timer in a `TimerStateMessage` is one of the named seat's
+    `timerIds`.
+  - Leyline: the priority timer message always uses timer ID `1`. Seat 2's
+    `timerIds` is `[2]`, so the message names seat 1's timer.
+  - Owner: `BundleBuilder.timerStart`, `BundleBuilder.timerStop`
+- **`compat`** — [Open points](stream/timers.md#open-points), the `Decision` timer type
+  - Contract: the role of `TimerType` `Decision` is not yet known.
+  - Leyline: sends the priority timer as a `Decision` timer with behavior
+    `Timeout`, while GSMs list one `Inactivity` timer per seat.
+  - Owner: `BundleBuilder.timerStart`, `PlayerMapper.buildTimers`
+- **`absent`** — [Timeout lifecycle](stream/timers.md#timeout-lifecycle)
+  - Contract: charged timeouts are reported by `TimeoutMessage`, and
+    `gameInfo` carries the match timeout policy.
+  - Leyline: never sends `TimeoutMessage` and sets none of `maxTimeoutCount`,
+    `maxPipCount` or `timeoutDurationSec`.
+  - Owner: `PlayerMapper.buildTimers`
 
 ### Prompt exceptions
 

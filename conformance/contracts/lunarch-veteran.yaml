@@ -1,3 +1,4 @@
+# protocol: IdentityAndZones.resolve-keeps-id
 name: Lunarch Veteran disturb
 scenario: {suite: graveyard, id: disturb-lunarch}
 frames:

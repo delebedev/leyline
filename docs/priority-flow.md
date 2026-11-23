@@ -6,6 +6,9 @@ read_when:
 ---
 # Priority Flow
 
+The messages and settings fields this design uses are specified in the
+[priority protocol page](protocol/stream/priority.md).
+
 Forge owns rules priority, stack resolution, phases and required choices.
 `PriorityPolicyRuntime` decides whether a rules-priority boundary needs a
 visible player decision. Native and in-process heads submit the same settings

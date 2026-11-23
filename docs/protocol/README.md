@@ -32,10 +32,16 @@ statement.
 ## Reading order
 
 1. This page — vocabulary, normative language and citation rules.
-2. The family overview for the entity you are touching:
+2. The shared model every entity relies on:
+   [identity and zones](model/identity-and-zones.md) and
+   [enums](model/enums.md).
+3. The stream rules: [messages and game state](stream/messages.md),
+   [annotation ordering](stream/annotation-ordering.md),
+   [priority](stream/priority.md) and [timers](stream/timers.md).
+4. The family overview for the entity you are touching:
    [prompts](prompts/README.md) or [annotations](annotations/README.md).
-3. The entity page — meaning, field reference, lifecycle, then its **Contract**.
-4. [The implementation map](implementation.md) — the Leyline owner, status and
+5. The entity page — meaning, field reference, lifecycle, then its **Contract**.
+6. [The implementation map](implementation.md) — the Leyline owner, status and
    known exceptions for that entity.
 
 Authors also read [the authoring standard](authoring.md). Reviewers follow
