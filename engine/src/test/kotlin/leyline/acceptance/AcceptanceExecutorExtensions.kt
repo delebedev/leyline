@@ -1,6 +1,7 @@
 package leyline.acceptance
 
 import forge.game.zone.ZoneType
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -50,12 +51,16 @@ internal fun GREToClientMessage.isPromptMessage(): Boolean = PROMPT_TYPES.any { 
 
 internal fun GREToClientMessage.promptName(): String = PROMPT_TYPES.firstOrNull { (_, matches) -> matches() }?.first ?: "UnknownPrompt"
 
+/** [allowCancel] `true` requires the Abort affordance; `false` requires its absence. */
 internal fun GREToClientMessage.matchesPrompt(
     prompt: String,
     promptId: Int? = null,
+    allowCancel: Boolean? = null,
 ): Boolean {
     val matches = PROMPT_TYPES.firstOrNull { (name, _) -> name == prompt }?.second ?: error("unknown prompt condition: $prompt")
-    return matches() && (promptId == null || this.prompt.promptId == promptId)
+    return matches() &&
+        (promptId == null || this.prompt.promptId == promptId) &&
+        (allowCancel == null || (this.allowCancel == AllowCancel.Abort) == allowCancel)
 }
 
 internal fun String.toForgePhaseName(): String =

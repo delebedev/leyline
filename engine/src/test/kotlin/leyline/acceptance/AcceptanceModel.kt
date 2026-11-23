@@ -341,11 +341,14 @@ data class PhaseCondition(
     override val label: String = "phase is $phase"
 }
 
+/** A prompt was seen; [allowCancel] constrains whether it offered parent-action abort. */
 data class PromptCondition(
     val prompt: String,
     val promptId: Int? = null,
+    val allowCancel: Boolean? = null,
 ) : AcceptanceCondition {
-    override val label: String = "prompt $prompt${promptId?.let { "#$it" } ?: ""} seen"
+    override val label: String =
+        "prompt $prompt${promptId?.let { "#$it" } ?: ""}${allowCancel?.let { " allow_cancel=$it" } ?: ""} seen"
 }
 
 data class AnnotationSeenCondition(

@@ -50,7 +50,7 @@ internal class TargetingWindowMaterializer(
                         makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, counter.nextMsgId()) {
                             it.gameStateMessage = gameState
                         },
-                        promptMessage(gameStateId, counter.nextMsgId(), req),
+                        promptMessage(gameStateId, counter.nextMsgId(), req, window.allowCancel),
                     ),
                     actionGameStateId = gameStateId,
                 ),
@@ -82,7 +82,7 @@ internal class TargetingWindowMaterializer(
                     makeGRE(GREMessageType.GameStateMessage_695e, link.gsId, counter.nextMsgId()) {
                         it.gameStateMessage = echo
                     },
-                    promptMessage(link.gsId, counter.nextMsgId(), req),
+                    promptMessage(link.gsId, counter.nextMsgId(), req, window.allowCancel),
                 ),
                 actionGameStateId = link.gsId,
             ),
@@ -179,12 +179,18 @@ internal class TargetingWindowMaterializer(
         gameStateId: Int,
         msgId: Int,
         request: SelectTargetsReq,
+        allowCancel: Boolean,
     ): GREToClientMessage =
         makeGRE(GREMessageType.SelectTargetsReq_695e, gameStateId, msgId) {
             it.selectTargetsReq = request
             it.prompt = Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build()
-            it.allowCancel = AllowCancel.Abort
-            it.allowUndo = true
+            // A mandatory window carries neither abort nor an undo checkpoint.
+            if (allowCancel) {
+                it.allowCancel = AllowCancel.Abort
+                it.allowUndo = true
+            } else {
+                it.allowCancel = AllowCancel.No_a526
+            }
         }
 
     private fun TargetingCandidateValue.instanceId(projection: ProjectionState): Int? =

@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import forge.game.GameEntity
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.PromptRequest
+import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.handoff.TargetingCandidateValue
 import leyline.bridge.handoff.TargetingWindowValue
 import leyline.bridge.interaction.SpellAbilityShapes
@@ -91,6 +92,7 @@ internal class TargetingWindowCapture(
             stackAbilityGrpId = abilityIdentity?.abilityGrpId ?: 0,
             castAlternateCostGrpId = castAlternateCostGrpId,
             castAbilityGrpId = if (SpellAbilityShapes.usesCostOnlyCastingOption(targetingAbility)) 0 else castAlternateCostGrpId,
+            allowCancel = !(request.route is ResolvedPromptRoute.Targeting && request.isTriggeredAbility),
         )
     }
 

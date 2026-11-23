@@ -705,7 +705,7 @@ private class ScenarioRun(
     private fun matchesPassUntilCondition(condition: AcceptanceCondition): Boolean =
         if (condition is PromptCondition) {
             latestPromptMessage()?.let { prompt ->
-                prompt.matchesPrompt(condition.prompt, condition.promptId) &&
+                prompt.matchesPrompt(condition.prompt, condition.promptId, condition.allowCancel) &&
                     harness.bridge.responseAcceptance.hasOutstandingPrompt(prompt.msgId)
             } == true
         } else {
@@ -796,7 +796,10 @@ private class ScenarioRun(
                 )
 
             is PromptCondition ->
-                ConditionResult(promptSeen(condition.prompt, condition.promptId), "latest prompt=${latestPromptNameWithId() ?: "none"}")
+                ConditionResult(
+                    promptSeen(condition.prompt, condition.promptId, condition.allowCancel),
+                    "latest prompt=${latestPromptNameWithId() ?: "none"}",
+                )
 
             is AnnotationSeenCondition ->
                 ConditionResult(annotationSeen(condition), "annotations=${annotationTypes().distinct()}")
@@ -1000,7 +1003,8 @@ private class ScenarioRun(
     private fun promptSeen(
         prompt: String,
         promptId: Int?,
-    ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId) }
+        allowCancel: Boolean?,
+    ): Boolean = harness.allMessages.any { it.matchesPrompt(prompt, promptId, allowCancel) }
 
     private fun latestPromptMatches(
         prompt: String,
