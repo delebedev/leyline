@@ -110,6 +110,93 @@ Rows are grouped by family and sorted by entity name.
 | [UserActionTaken](annotations/UserActionTaken.md) | `AnnotationBuilder.userActionTaken`, `TransferAnnotations` | `implemented` |
 | [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
 
+Annotation types without a page have no Contract to check. This table records
+only whether Leyline emits each one and which builder owns it. A type moves to
+the table above when its page is written.
+
+| Type | Owner | Emission |
+|---|---|---|
+| `AbilityExhausted` | `AnnotationBuilder.abilityExhausted` | emitted |
+| `AbilityWordActive` | `AnnotationBuilder.abilityWordActive` | emitted |
+| `AddAbility` | `AnnotationBuilder.addAbility`, `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityMulti`, `AnnotationBuilder.addAbilityPacked` | emitted |
+| `Attachment` | `AnnotationBuilder.attachment` | emitted |
+| `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
+| `CardRevealed` | `AnnotationBuilder.cardRevealed` | emitted |
+| `CastingTimeOption` | `AnnotationBuilder.castingTimeOption` | emitted |
+| `ChoiceResult` | `AnnotationBuilder.choiceResult` | emitted |
+| `ClassLevel` | — | `absent` |
+| `CoinFlip` | `AnnotationBuilder.coinFlip` | emitted |
+| `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
+| `ControllerChanged` | `AnnotationBuilder.controllerChanged`, `AnnotationBuilder.controllerChangedEffect` | emitted |
+| `CopiedObject` | — | `absent` |
+| `Counter` | `AnnotationBuilder.counter`, `AnnotationBuilder.playerCounter` | emitted |
+| `CounterAdded` | `AnnotationBuilder.counterAdded`, `AnnotationBuilder.playerCounterAdded` | emitted |
+| `CounterRemoved` | `AnnotationBuilder.counterRemoved`, `AnnotationBuilder.playerCounterRemoved` | emitted |
+| `CrewedThisTurn` | `AnnotationBuilder.crewedThisTurn` | emitted |
+| `DamagedThisTurn` | `AnnotationBuilder.damagedThisTurn` | emitted |
+| `DelayedTriggerAffectees` | `AnnotationBuilder.delayedTriggerAffectees` | emitted |
+| `Designation` | `AnnotationBuilder.designation` | emitted |
+| `DisplayCardUnderCard` | `AnnotationBuilder.displayCardUnderCard` | emitted |
+| `DisqualifiedEffect` | — | `absent` |
+| `DungeonStatus` | `AnnotationBuilder.dungeonStatus` | emitted |
+| `DynamicAbility` | — | `absent` |
+| `FaceDown` | `AnnotationBuilder.faceDown`, `AnnotationBuilder.faceDownPersistent` | emitted |
+| `GainDesignation` | `AnnotationBuilder.gainDesignation` | emitted |
+| `GamewideHistoryCount` | — | `absent` |
+| `GroupedIds` | — | `absent` |
+| `HighlightReason` | — | `absent` |
+| `InstanceRevealedToOpponent` | `AnnotationBuilder.instanceRevealedToOpponent` | emitted |
+| `LayeredEffect` | `AnnotationBuilder.layeredEffect` | emitted |
+| `LayeredEffectCreated` | `AnnotationBuilder.layeredEffectCreated` | emitted |
+| `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
+| `LinkInfo` | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility` | emitted |
+| `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |
+| `LossOfGame` | `AnnotationBuilder.lossOfGame` | emitted |
+| `LoyaltyActivationsRemaining` | — | `absent` |
+| `ManaDetails` | `AnnotationBuilder.manaDetails` | emitted |
+| `MiscContinuousEffect` | — | `absent` |
+| `ModifiedColor` | — | `absent` |
+| `ModifiedCost` | — | `absent` |
+| `ModifiedLife` | `AnnotationBuilder.modifiedLife` | emitted |
+| `ModifiedName` | — | `absent` |
+| `ModifiedPower` | `AnnotationBuilder.modifiedPower`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
+| `ModifiedToughness` | `AnnotationBuilder.modifiedToughness`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
+| `ModifiedType` | `AnnotationBuilder.modifiedTypeLayeredEffect` | emitted |
+| `MultistepEffectComplete` | — | `absent` |
+| `MultistepEffectStarted` | — | `absent` |
+| `NewTurnStarted` | `AnnotationBuilder.newTurnStarted` | emitted |
+| `ObjectsSelected` | — | `absent` |
+| `ObjectsToDistinguish` | — | `absent` |
+| `PhasedIn` | `AnnotationBuilder.phasedPermanent` | emitted |
+| `PhasedOut` | `AnnotationBuilder.phasedPermanent` | emitted |
+| `PlayerSelectingTargets` | `AnnotationBuilder.playerSelectingTargets` | emitted |
+| `PlayerSubmittedTargets` | `AnnotationBuilder.playerSubmittedTargets` | emitted |
+| `PowerToughnessModCreated` | `AnnotationBuilder.powerToughnessModCreated` | emitted |
+| `PredictedDirectDamage` | `AnnotationBuilder.predictedDirectDamage` | emitted |
+| `Qualification` | `AnnotationBuilder.qualification` | emitted |
+| `RemoveAbility` | `AnnotationBuilder.removeAbility` | emitted |
+| `RemoveAttachment` | `AnnotationBuilder.removeAttachment` | emitted |
+| `ReplacementEffectApplied` | — | `absent` |
+| `RevealedCardCreated` | `AnnotationBuilder.revealedCardCreated` | emitted |
+| `RevealedCardDeleted` | `AnnotationBuilder.revealedCardDeleted` | emitted |
+| `SaddledThisTurn` | `AnnotationBuilder.saddledThisTurn` | emitted |
+| `Scry` | `AnnotationBuilder.scry` | emitted |
+| `SelectNdecoration` | `AnnotationBuilder.selectNDecoration` | emitted |
+| `ShouldntPlay` | `AnnotationBuilder.redundantActivation` | emitted |
+| `Shuffle` | `AnnotationBuilder.shuffle` | emitted |
+| `SupplementalText` | — | `absent` |
+| `SuppressedPowerAndToughness` | `AnnotationBuilder.suppressedPowerAndToughness` | emitted |
+| `SyntheticEvent` | `AnnotationBuilder.syntheticEvent` | emitted |
+| `TargetSpec` | `AnnotationBuilder.targetSpec` | emitted |
+| `TemporaryPermanent` | `AnnotationBuilder.temporaryPermanent` | emitted |
+| `TextChange` | — | `absent` |
+| `TokenCreated` | `AnnotationBuilder.tokenCreated` | emitted |
+| `TokenDeleted` | `AnnotationBuilder.tokenDeleted` | emitted |
+| `TriggeringObject` | `AnnotationBuilder.triggeringObject` | emitted |
+| `TurnPermanent` | — | `absent` |
+| `UseOrCostsManaCost` | — | `absent` |
+| `WinTheGame` | — | `absent` |
+
 ## Exceptions
 
 Each exception is written so it can be filed as an issue unchanged: what the
