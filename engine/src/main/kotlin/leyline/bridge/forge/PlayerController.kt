@@ -1919,11 +1919,18 @@ class PlayerController(
         return coord.chooseSpellAbility()
     }
 
+    /**
+     * PCHuman edits the attack already in [combat] through its GUI. Forge calls this
+     * again after rejecting a declaration, with the rejected attackers still
+     * registered. A bridge declaration names the complete attack, so the attacking
+     * player's previous attackers are removed before awaiting it on the engine thread.
+     */
     override fun declareAttackers(
         attacker: Player,
         combat: Combat,
     ) {
         val coord = priorityLoopCoordinator ?: return super.declareAttackers(attacker, combat)
+        combat.attackers.filter { it.controller == attacker }.forEach(combat::removeFromCombat)
         coord.declareAttackers(attacker, combat)
     }
 
