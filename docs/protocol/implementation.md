@@ -96,7 +96,10 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
+| [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
+| [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
 
 ## Exceptions
 
@@ -505,6 +508,23 @@ grouped by family, then by entity.
 
 ### Annotation exceptions
 
+#### EnteredZoneThisTurn
+
+- **`diverges`** — [EnteredZoneThisTurn.one-row-per-zone](annotations/EnteredZoneThisTurn.md#EnteredZoneThisTurn.one-row-per-zone)
+  - Contract: one live row per zone; an object entering a zone that already
+    has a row is added to that row.
+  - Leyline: adds a new single-object row for every transfer, so two objects
+    entering the battlefield in one turn, or in one GSM, produce two rows with
+    `affectorId` `28`.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind`
+- **`diverges`** — [Lifecycle](annotations/EnteredZoneThisTurn.md#lifecycle), retirement at the turn boundary
+  - Contract: the rows of the ending turn are deleted when the next turn
+    starts.
+  - Leyline: deletes a row only in the upkeep of its object's controller's
+    turn. A creature that enters during its controller's turn stays listed
+    through the opponent's whole next turn.
+  - Owner: `EnteredZoneThisTurnKind.shouldExpire`
+
 #### ReplacementEffect
 
 - **`absent`** — [Variants](annotations/ReplacementEffect.md#variants)
@@ -520,6 +540,16 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### ZoneTransfer
+
+- **`diverges`** — [ZoneTransfer.resolve-affector](annotations/ZoneTransfer.md#ZoneTransfer.resolve-affector) *(provisional statement)*
+  - Contract: a `Resolve` transfer names the seat that controls the resolving
+    spell.
+  - Leyline: names the priority player of the published state, or seat `2`
+    when no player has priority. An opponent's instant that resolves while the
+    active player receives priority is attributed to the active player.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ## Leyline-defined shapes
 

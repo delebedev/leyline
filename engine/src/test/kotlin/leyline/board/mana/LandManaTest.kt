@@ -52,6 +52,8 @@ class LandManaTest :
 
         // --- Zone transfer & annotation shape ---
 
+        // protocol: ObjectIdChanged.precedes-transfer, ObjectIdChanged.limbo, ZoneTransfer.play-land
+        // protocol: ZoneTransfer.post-transfer-id
         test("play land — annotations, zone transfer, instanceId realloc, Limbo") {
             val board =
                 startWithBoard { _, human, _ ->

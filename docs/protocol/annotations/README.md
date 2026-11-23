@@ -51,9 +51,9 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `ZoneTransfer` | transient | `zone_src`, `zone_dest`, `category` | An object moved from one zone to another; `category` names the cause. |
-| `ObjectIdChanged` | transient | `orig_id`, `new_id` | An object received a new instance ID, usually because it changed zones. |
-| `EnteredZoneThisTurn` | persistent | none | The objects that entered a zone during the current turn, keyed by that zone. |
+| [ZoneTransfer](ZoneTransfer.md) | transient | `zone_src`, `zone_dest`, `category` | An object moved from one zone to another; `category` names the cause. |
+| [ObjectIdChanged](ObjectIdChanged.md) | transient | `orig_id`, `new_id` | An object received a new instance ID, usually because it changed zones. |
+| [EnteredZoneThisTurn](EnteredZoneThisTurn.md) | persistent | none | The objects that entered a zone during the current turn, keyed by that zone. |
 | `TokenCreated` | transient | none | Tokens were created; `affectedIds` are the new token instance IDs. |
 | `TokenDeleted` | transient | none | A token left the battlefield; `affectedIds` are the removed token instance IDs. |
 | `Shuffle` | transient | `OldIds`, `NewIds` | A library was shuffled; maps the instance IDs before the shuffle to the IDs after it. |
