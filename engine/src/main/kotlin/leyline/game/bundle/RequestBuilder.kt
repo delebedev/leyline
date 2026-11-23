@@ -1,7 +1,9 @@
 package leyline.game.bundle
 
 import forge.game.Game
+import forge.game.GameEntity
 import forge.game.card.Card
+import forge.game.combat.AttackConstraints
 import forge.game.combat.CombatUtil
 import forge.game.cost.CostExert
 import forge.game.player.Player
@@ -84,6 +86,40 @@ object RequestBuilder {
             }
         }
 
+    private fun attackDefender(
+        player: Player,
+        recipient: DamageRecipient,
+        bridge: GameBridge,
+    ): GameEntity? =
+        when (recipient.type) {
+            DamageRecType.Player_a0e5 -> bridge.getPlayer(SeatId(recipient.playerSystemSeatId))
+            DamageRecType.PlanesWalker ->
+                CombatUtil.getAllPossibleDefenders(player).firstOrNull { defender ->
+                    defender is Card && bridge.instanceId(defender) == recipient.planeswalkerInstanceId
+                }
+            else -> null
+        }
+
+    private fun AttackConstraints.hasRestrictions(player: Player): Boolean =
+        globalRestrictions.max != null ||
+            globalRestrictions.defenderMax.isNotEmpty() ||
+            restrictions.any { (card, restriction) -> card.controller == player && restriction.types.isNotEmpty() }
+
+    private fun AttackConstraints.hasRequirements(player: Player): Boolean =
+        requirements.any { (card, requirement) -> card.controller == player && requirement.hasRequirement() } ||
+            playerRequirements[player]?.isEmpty == false
+
+    /**
+     * Forge's acceptance rule for a complete attack, applied to the accumulated
+     * selection: no restriction is broken, and no more requirements are broken than
+     * the best legal attack breaks. Forge applies the same rule to the committed
+     * combat in `CombatUtil.validateAttackers`.
+     */
+    private fun AttackConstraints.accepts(selection: Map<Card, GameEntity>): Boolean {
+        val violations = countViolations(selection)
+        return violations == 0 || (violations > 0 && violations <= legalAttackers.right)
+    }
+
     private fun buildAttackerOption(
         instanceId: Int,
         legalRecipients: List<DamageRecipient>,
@@ -117,6 +153,7 @@ object RequestBuilder {
         committedDamageRecipients: Map<Int, DamageRecipient> = emptyMap(),
     ): DeclareAttackersReq {
         val builder = DeclareAttackersReq.newBuilder()
+        val selection = linkedMapOf<Card, GameEntity>()
 
         for (card in attacker.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
@@ -134,6 +171,7 @@ object RequestBuilder {
             val legalRecipients = legalAttackDamageRecipients(attacker, card, bridge)
             if (legalRecipients.isEmpty()) continue
             val selectedRecipient = committedDamageRecipients[instanceId] ?: legalRecipients.first()
+            if (isCommitted) attackDefender(attacker, selectedRecipient, bridge)?.let { selection[card] = it }
 
             for (alternative in alternatives) {
                 val option = buildAttackerOption(instanceId, legalRecipients, alternative)
@@ -145,7 +183,19 @@ object RequestBuilder {
                 builder.addQualifiedAttackers(buildAttackerOption(instanceId, legalRecipients, alternative))
             }
         }
-        builder.setCanSubmitAttackers(true)
+        val constraints =
+            bridge
+                .getGame()
+                ?.phaseHandler
+                ?.combat
+                ?.attackConstraints
+        if (constraints == null) {
+            builder.setCanSubmitAttackers(true)
+        } else {
+            builder.setHasRestrictions(constraints.hasRestrictions(attacker))
+            builder.setHasRequirements(constraints.hasRequirements(attacker))
+            builder.setCanSubmitAttackers(constraints.accepts(selection))
+        }
         // Conformance: client expects an empty manaCost entry entry.
         builder.addManaCost(ManaRequirement.getDefaultInstance())
 
