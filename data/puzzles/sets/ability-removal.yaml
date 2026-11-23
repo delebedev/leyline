@@ -1,0 +1,18 @@
+name: ability-removal
+description: A creature that loses all abilities hides its printed abilities until the effect ends.
+scenarios:
+  - id: slime-counter
+    puzzle: sludge-monster-slimed
+    run: return Sludge Monster to hand while Serra Angel has a slime counter
+    expect: Serra Angel shows no abilities as a 2/2 under the slime counter and gets Flying and Vigilance back as a 4/4 when Sludge Monster leaves
+    steps:
+      - expect:
+          battlefield_stats: { side: ours, card: Serra Angel, power: 2, toughness: 2 }
+      - cast: Unsummon
+      - target: { side: ours, zone: battlefield, card: Sludge Monster }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Sludge Monster }
+            - annotation_seen: LayeredEffectDestroyed
+            - battlefield_stats: { side: ours, card: Serra Angel, power: 4, toughness: 4 }
