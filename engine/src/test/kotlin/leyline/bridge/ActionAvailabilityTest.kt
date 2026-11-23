@@ -61,6 +61,30 @@ class ActionAvailabilityTest :
             }
         }
 
+        for ((opponentPair, legal) in listOf(true to true, false to false)) {
+            test("dependent targets ignore a sub-ability target left by an earlier activation with opponent pair: $opponentPair") {
+                val board =
+                    startWithBoard { _, player, opponent ->
+                        addCard("Goblin Welder", player, ZoneType.Battlefield)
+                        addCard("Ornithopter", player, ZoneType.Battlefield)
+                        if (opponentPair) {
+                            addCard("Sol Ring", opponent, ZoneType.Battlefield)
+                            addCard("Ornithopter", opponent, ZoneType.Graveyard)
+                        }
+                    }
+                val ability = getNonManaActivatedAbilities(board.human.battlefield.card("Goblin Welder"), board.human).single()
+                ability.activatingPlayer = board.human
+                val leftover = board.human.battlefield.card("Ornithopter")
+                ability.subAbility.targets.add(leftover)
+                assertSoftly {
+                    ActionAvailability.hasLegalTargetsAndModes(ability) shouldBe legal
+                    ability.targets.size shouldBe 0
+                    ability.subAbility.targets.targetCards
+                        .toList() shouldBe listOf(leftover)
+                }
+            }
+        }
+
         test("dependent target search can use an opponent pair without choosing targets on the offered ability") {
             val board =
                 startWithBoard { _, player, opponent ->

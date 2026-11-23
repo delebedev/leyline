@@ -1,6 +1,7 @@
 package leyline.behavior.cards
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
@@ -47,6 +48,48 @@ class GoblinWelderTest :
             castSpellByName("Tormod's Crypt") shouldBe true
             passUntilResolved()
             human.battlefield.card("Tormod's Crypt").name shouldBe "Tormod's Crypt"
+        }
+
+        session(
+            "Welder is offered again on the next own turn and exchanges the pair back",
+            fullControl = true,
+            turns = 5,
+            responseMode = HeadlessResponseMode.PolicyVisible,
+            puzzle = """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=20
+            humanbattlefield=Goblin Welder;Sol Ring
+            humangraveyard=Ornithopter
+            humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+        """,
+        ) {
+            val id = human.battlefield.iid("Goblin Welder")
+
+            fun welderOffer() =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .singleOrNull { it.actionType == ActionType.Activate_add3 && it.instanceId == id }
+
+            submitAction(welderOffer().shouldNotBeNull())
+            selectTargets(listOf(human.battlefield.iid("Sol Ring")))
+            selectTargets(listOf(human.graveyard.iid("Ornithopter")))
+            passUntil(maxPasses = 4) { game().stack.isEmpty } shouldBe true
+            passUntilTurn(3, maxPasses = 80)
+            advanceToMain1()
+
+            submitAction(welderOffer().shouldNotBeNull())
+            selectTargets(listOf(human.battlefield.iid("Ornithopter")))
+            selectTargets(listOf(human.graveyard.iid("Sol Ring")))
+            val resolved = passUntil(maxPasses = 4) { game().stack.isEmpty }
+            assertSoftly {
+                resolved shouldBe true
+                human.battlefield.card("Sol Ring").name shouldBe "Sol Ring"
+                "Ornithopter" should beInGraveyardOf(human)
+            }
         }
 
         for (control in listOf("empty", "wrong-controller", "nonartifact", "sick", "tapped")) {

@@ -79,25 +79,38 @@ internal object ActionAvailability {
         }
     }
 
-    fun hasLegalTargetsAndModes(sa: SpellAbility): Boolean =
-        (ComputerUtilAbility.isFullyTargetable(sa) || hasSequentialSingleTargets(sa)) &&
+    fun hasLegalTargetsAndModes(sa: SpellAbility): Boolean = hasLegalTargetsAndModes(sa, probe = null)
+
+    /** [probe], when given, is an untracked copy of [sa] that the sequential search may reuse. */
+    private fun hasLegalTargetsAndModes(
+        sa: SpellAbility,
+        probe: SpellAbility?,
+    ): Boolean =
+        (ComputerUtilAbility.isFullyTargetable(sa) || hasSequentialSingleTargets(sa, probe)) &&
             (sa.api != ApiType.Charm || CharmEffect.makePossibleOptions(sa).isNotEmpty())
 
     /**
      * Independent candidate counts can reject a child whose controller depends on an
      * unchosen parent target. Retry single-target chains in order on an untracked copy;
      * the offered ability must stay unselected. Other cardinalities retain Forge's probe.
+     *
+     * Forge clears only the root's targets when an activation goes on the stack, so sub-abilities
+     * keep targets from the previous activation. Activation clears every link before choosing
+     * (`SpellAbility.setupTargets`), so the probe clears the copy the same way.
      */
-    private fun hasSequentialSingleTargets(sa: SpellAbility): Boolean {
+    private fun hasSequentialSingleTargets(
+        sa: SpellAbility,
+        reusableProbe: SpellAbility?,
+    ): Boolean {
         val chain = generateSequence(sa) { it.subAbility }.filter { it.usesTargeting() }.toList()
         if (chain.isEmpty() ||
-            chain.any {
-                !it.targets.isEmpty() || it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1
-            }
+            chain.any { it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1 }
         ) {
             return false
         }
-        return selectSingleTargets(sa.copy(sa.hostCard, sa.activatingPlayer, true))
+        val probe = reusableProbe ?: sa.copy(sa.hostCard, sa.activatingPlayer, true)
+        generateSequence(probe) { it.subAbility }.forEach { it.clearTargets() }
+        return selectSingleTargets(probe)
     }
 
     private fun selectSingleTargets(sa: SpellAbility?): Boolean {
@@ -129,7 +142,8 @@ internal object ActionAvailability {
      * Targets such as "mana value X" are checked with the unannounced X counted as zero.
      * X is announced before targets are chosen, so the action is offered when some X the
      * bound can cover gives it legal targets and its mana, X included, can be paid.
-     * Each X is set on an untracked copy; the offered ability keeps X unannounced.
+     * Each X is set on one untracked copy, which the sequential target search also
+     * uses; the offered ability keeps X unannounced.
      */
     private fun affordabilityWithAnnouncedX(
         sa: SpellAbility,
@@ -140,7 +154,7 @@ internal object ActionAvailability {
         for (x in 1..MAX_PROBED_X) {
             probe.xManaCostPaid = x
             if (!ManaAffordabilityBound.allows(probe, player)) break
-            if (!hasLegalTargetsAndModes(probe)) continue
+            if (!hasLegalTargetsAndModes(probe, probe)) continue
             when (manaAffordability(probe, player)) {
                 Affordability.Affordable -> return Affordability.Affordable
                 Affordability.Unsure -> best = Affordability.Unsure
