@@ -545,6 +545,7 @@ class MatchFlowHarness(
     /** Advance one exact priority or state-only synchronization stop. */
     fun passPriority() {
         passPriorityUntil(messageSnapshot(), "priority horizon")
+        awaitDeliveredStop()
     }
 
     /** Submit an offered action without rebuilding or dropping action fields. */
@@ -677,10 +678,65 @@ class MatchFlowHarness(
         stopWhen: () -> Boolean,
     ): Boolean {
         repeat(maxPasses) {
-            if (stopWhen()) return true
-            if (advance(stopWhen)) return true
+            if (stopWhen() || advance(stopWhen)) {
+                awaitDeliveredStop()
+                return true
+            }
         }
+        awaitDeliveredStop()
         return stopWhen()
+    }
+
+    /**
+     * Wait until this seat has received the engine horizon it is blocked on.
+     *
+     * A gameplay response may return after delivering only part of the work it
+     * released; the connection's delivery observer delivers later horizons. Live
+     * Forge state and the engine-side pending window can therefore run ahead of
+     * [allMessages]. Pass-driven helpers settle here before returning, so the
+     * caller's next response correlates with a delivered prompt.
+     *
+     * A horizon is the engine-side stop a response wait accepts: a priority or
+     * declaration window, a pending prompt, or the delivered terminal result.
+     */
+    internal fun awaitDeliveredStop() {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(GAMEPLAY_WAIT_MS)
+        while (true) {
+            val epoch = localOutput.snapshot()
+            if (deliveredStopReached()) return
+            val remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+            check(remainingMs > 0 && localOutput.awaitAfter(epoch, remainingMs)) {
+                "Timed out waiting for the engine's next stop to reach the client"
+            }
+        }
+    }
+
+    private fun deliveredStopReached(): Boolean {
+        val session = localConnection.session as? MatchSession
+        if (session == null) {
+            collectSinkMessages()
+            return true
+        }
+        // Runtime delivery holds this lock from feed drain through sink send.
+        return synchronized(session.connection.sessionLock) { connectedStopDelivered() }
+    }
+
+    private fun connectedStopDelivered(): Boolean {
+        collectSinkMessages()
+        if (isGameOver()) {
+            return allRawMessages.any {
+                it.hasMatchGameRoomStateChangedEvent() &&
+                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType == MatchGameRoomStateType.MatchCompleted
+            }
+        }
+        // Publication enqueues a stop's batches before the stop becomes visible, so
+        // read the stop first: an empty feed afterwards means runtime delivery sent
+        // its batches before this lock was taken, and they were collected above.
+        val pending = bridge.actionBridge(seatId).getPending()
+        val stopReached =
+            bridge.hasPendingNonActionInteraction() ||
+                (pending != null && pending.state.kind != PendingActionKind.SYNC_ONLY && pendingHorizonVisible(pending, allMessages))
+        return stopReached && !bridge.cutCoordinator.hasCommittedBatches(seatId)
     }
 
     /**
@@ -691,16 +747,11 @@ class MatchFlowHarness(
      */
     fun passUntilResolved(maxPasses: Int = 10) {
         repeat(maxPasses) {
-            if (isGameOver() || bridge.hasPendingNonActionInteraction()) return
-            val retainedSynchronization =
-                bridge
-                    .actionBridge(seatId)
-                    .getPending()
-                    ?.state
-                    ?.kind == PendingActionKind.SYNC_ONLY
-            if (game().stackZone.size() == 0 && !retainedSynchronization) return
+            awaitDeliveredStop()
+            if (isGameOver() || bridge.hasPendingNonActionInteraction() || game().stackZone.size() == 0) return
             passPriority()
         }
+        awaitDeliveredStop()
     }
 
     /**
@@ -2078,12 +2129,11 @@ private class SinkMatchOutput(
     private val monitor = java.lang.Object()
     private var deliveredEpoch = 0L
 
+    /** Every delivery advances the epoch, including terminal room-state messages. */
     override fun send(message: MatchServiceToClientMessage) {
-        sink.sendRaw(message)
-        if (!message.hasGreToClientEvent()) return
-        val greMessages = message.greToClientEvent.greToClientMessagesList
         synchronized(monitor) {
-            sink.send(greMessages)
+            sink.sendRaw(message)
+            if (message.hasGreToClientEvent()) sink.send(message.greToClientEvent.greToClientMessagesList)
             deliveredEpoch++
             monitor.notifyAll()
         }

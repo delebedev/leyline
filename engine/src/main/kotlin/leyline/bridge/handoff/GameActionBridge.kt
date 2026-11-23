@@ -131,6 +131,14 @@ class GameActionBridge(
         /** True while the window is published and neither claimed nor completed. */
         fun isVisible(actionId: String): Boolean
 
+        /**
+         * True once publication completed, including after a session claimed or
+         * completed the window. A client may claim a window between its
+         * publication and the engine's next read, so visibility alone cannot
+         * confirm that publication finished.
+         */
+        fun isPublished(actionId: String): Boolean
+
         /** Game-state id the client must answer against, or null before one is bound. */
         fun promptGameStateId(actionId: String): Int?
 
@@ -236,7 +244,7 @@ class GameActionBridge(
         }
         try {
             runtime.publish(action)
-            check(runtime.isVisible(actionId) || future.isDone) {
+            check(runtime.isPublished(actionId) || future.isDone) {
                 "Action window runtime returned before publication completed"
             }
         } catch (ex: Exception) {

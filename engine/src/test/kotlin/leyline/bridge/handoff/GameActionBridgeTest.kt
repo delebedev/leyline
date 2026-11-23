@@ -11,6 +11,7 @@ import leyline.UnitTag
 import leyline.bridge.handoff.GameActionBridge.ActionSubmission
 import leyline.bridge.handoff.GameActionBridge.PendingAction
 import leyline.bridge.handoff.GameActionBridge.WindowCloseReason
+import leyline.bridge.types.PrioritySignal
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -32,14 +33,24 @@ private class FakeActionWindowRuntime(
 
     @Volatile private var visibleActionId: String? = null
 
+    @Volatile private var publishedActionId: String? = null
+
     override fun publish(pending: PendingAction) {
         onPublish(pending)
         visibleActionId = pending.actionId
+        publishedActionId = pending.actionId
         afterVisible(pending)
         if (pending.future.isDone) visibleActionId = null
     }
 
+    /** A session claim hides the window before its answer completes the engine wait. */
+    fun claim(actionId: String) {
+        if (visibleActionId == actionId) visibleActionId = null
+    }
+
     override fun isVisible(actionId: String): Boolean = visibleActionId == actionId
+
+    override fun isPublished(actionId: String): Boolean = publishedActionId == actionId
 
     override fun promptGameStateId(actionId: String): Int? = boundPromptGameStateId
 
@@ -153,6 +164,33 @@ class GameActionBridgeTest :
             assertSoftly {
                 runtime.closes.shouldContainExactly(WindowCloseReason.Answered)
                 bridge.getPending().shouldBeNull()
+            }
+        }
+
+        test("session claim before the engine confirms publication waits for that answer") {
+            lateinit var runtime: FakeActionWindowRuntime
+            val claimed = AtomicReference<String>()
+            runtime =
+                FakeActionWindowRuntime(
+                    afterVisible = { pending ->
+                        runtime.claim(pending.actionId)
+                        claimed.set(pending.actionId)
+                    },
+                    onResolve = { PlayerAction.EndTurn },
+                )
+            // The bridge signals only after its post-publication check passes.
+            val checked = PrioritySignal()
+            val bridge = GameActionBridge(timeoutMs = 5_000, prioritySignal = checked, windowRuntime = runtime)
+            val result = AtomicReference<Result<PlayerAction>>()
+            val engine = Thread { result.set(runCatching { bridge.awaitAction(state) }) }.also { it.start() }
+
+            checked.awaitSignal(2_000) shouldBe true
+            bridge.submitRuntimeToken(claimed.get().shouldNotBeNull(), 1) shouldBe true
+            engine.join(2_000)
+
+            assertSoftly {
+                result.get().getOrThrow() shouldBe PlayerAction.EndTurn
+                runtime.closes.shouldContainExactly(WindowCloseReason.Answered)
             }
         }
 

@@ -78,6 +78,10 @@ internal class MatchActionWindowRuntime(
      */
     internal fun isVisible(actionId: String): Boolean = actionWindows[actionId]?.status == ActionWindowStatus.Published
 
+    /** Published, claimed or completed: publication finished even if a session has already answered. */
+    internal fun isPublished(actionId: String): Boolean =
+        actionWindows[actionId]?.status.let { it != null && it != ActionWindowStatus.Publishing }
+
     internal fun promptGameStateId(actionId: String): Int? = actionWindows[actionId]?.promptGameStateId
 
     @org.jetbrains.annotations.VisibleForTesting
