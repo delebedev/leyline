@@ -87,17 +87,21 @@ internal object ActionAvailability {
      * Independent candidate counts can reject a child whose controller depends on an
      * unchosen parent target. Retry single-target chains in order on an untracked copy;
      * the offered ability must stay unselected. Other cardinalities retain Forge's probe.
+     *
+     * Forge clears only the root's targets when an activation goes on the stack, so sub-abilities
+     * keep targets from the previous activation. Activation clears every link before choosing
+     * (`SpellAbility.setupTargets`), so the probe clears the copy the same way.
      */
     private fun hasSequentialSingleTargets(sa: SpellAbility): Boolean {
         val chain = generateSequence(sa) { it.subAbility }.filter { it.usesTargeting() }.toList()
         if (chain.isEmpty() ||
-            chain.any {
-                !it.targets.isEmpty() || it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1
-            }
+            chain.any { it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1 }
         ) {
             return false
         }
-        return selectSingleTargets(sa.copy(sa.hostCard, sa.activatingPlayer, true))
+        val probe = sa.copy(sa.hostCard, sa.activatingPlayer, true)
+        generateSequence(probe) { it.subAbility }.forEach { it.clearTargets() }
+        return selectSingleTargets(probe)
     }
 
     private fun selectSingleTargets(sa: SpellAbility?): Boolean {
