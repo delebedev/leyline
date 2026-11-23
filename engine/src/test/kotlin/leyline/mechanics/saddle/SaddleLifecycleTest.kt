@@ -58,6 +58,7 @@ class SaddleLifecycleTest :
                     .numberValue
             val sourceObject = paymentSlice.messages.allGameObjects().last { it.instanceId == sourceIid }
 
+            // protocol: PayCostsReq.select-threshold, PayCostsReq.effect-prompt
             assertSoftly {
                 paymentMessage.prompt.promptId shouldBe
                     checkNotNull(TapPaymentDescriptor.grounded(TapPaymentKind.TotalPower, 1)).promptId

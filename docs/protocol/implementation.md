@@ -74,6 +74,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
+| [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 | [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
 
@@ -260,6 +261,39 @@ grouped by family, then by entity.
     for cascade and discover. Every other cast permission granted while an
     effect resolves is an `OptionalActionMessage` sourced from the card.
   - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+
+#### PayCostsReq
+
+- **`compat`** — [Mana payment](prompts/PayCostsReq.md#mana-payment) for ordinary mana costs
+  - Contract: a mana payment can be a `PayCostsReq` offering mana abilities
+    as `Activate_Mana` steps, pool mana and `autoTapActionsReq` solutions,
+    answered by `PerformAutoTapActionsResp` or one `PerformActionResp` step.
+  - Leyline: pays ordinary mana costs from the `autoTapSolution` of the
+    priority action and never sends a mana-payment `PayCostsReq` for them.
+    It sends the mana family only for convoke, improvise and waterbend, as
+    `Make_Payment` steps.
+  - Owner: `ManaSourcePaymentMaterializer`, `ActionMapper`
+- **`absent`** — [PayCostsReq.auto-tap-index](prompts/PayCostsReq.md#PayCostsReq.auto-tap-index)
+  - Contract: a mana payment can propose `autoTapActionsReq` solutions that
+    the client accepts with `PerformAutoTapActionsResp`.
+  - Leyline: the convoke, improvise and waterbend requests carry no
+    `autoTapActionsReq`, and no handler admits `PerformAutoTapActionsResp`.
+  - Owner: `ManaSourcePaymentMaterializer`
+- **`diverges`** — [PayCostsReq.select-threshold](prompts/PayCostsReq.md#PayCostsReq.select-threshold), collect evidence
+  - Contract: a total-weight cost carries the threshold in `minSel`, sets
+    `maxSel` to `2147483647`, and leaves `minWeight` at the signed 32-bit
+    minimum.
+  - Leyline: sends collect evidence with the threshold in `minWeight` and
+    the selection-count range in `minSel` and `maxSel`. Total-power tap costs
+    already use the contract's shape.
+  - Owner: `OneShotPayCostsMaterializer.payCostsRequest`
+- **`diverges`** — [PayCostsReq.effect-prompt](prompts/PayCostsReq.md#PayCostsReq.effect-prompt), costs of activated abilities other than tap payments
+  - Contract: the `CardId` parameter names the spell or ability being paid
+    for, which for an activated ability is the ability on the stack.
+  - Leyline: when the cost route supplies no prompt source, as for a
+    sacrifice or graveyard-exile cost, the parameter names the card the
+    ability belongs to. Spells and tap payments name the right object.
+  - Owner: `OneShotPayCostsWindowCapture.freezePromptSource`
 
 #### SelectNReq
 
