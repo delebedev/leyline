@@ -250,11 +250,26 @@ class ForgeCardRepository private constructor(
                 }.distinct()
         }
 
-        /** Follow named modal effects without treating card/player validity filters as option handles. */
+        /**
+         * Follow named modal effects without treating card/player validity filters as option handles.
+         * A `Chapter` keyword row owns its chapters' effects; it takes the first chapter that offers modes,
+         * since a card registers one modal option list.
+         */
         private fun modalEffect(
             raw: String,
             variables: Map<String, String>,
         ): Map<String, String> {
+            if (raw.startsWith("Chapter:")) {
+                return raw
+                    .split(':')
+                    .getOrNull(2)
+                    ?.split(',')
+                    ?.map(String::trim)
+                    ?.distinct()
+                    ?.firstNotNullOfOrNull { variable ->
+                        variables[variable]?.let { modalEffect(it, variables).takeIf(Map<String, String>::isNotEmpty) }
+                    }.orEmpty()
+            }
             var effect = parseParams(raw)
             if (raw.startsWith("ETBReplacement:Other:")) {
                 val variable = raw.substringAfter("ETBReplacement:Other:").substringBefore(':')
