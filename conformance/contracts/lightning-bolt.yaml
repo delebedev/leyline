@@ -3,6 +3,7 @@
 # protocol: IdentityAndZones.resolve-renames, Enums.action-type-detail
 # protocol: ZoneTransfer.cast-from-hand, ZoneTransfer.post-transfer-id, ObjectIdChanged.resolve-elsewhere-renames
 # protocol: UserActionTaken.play-land, ResolutionComplete.before-resolve-transfer
+# protocol: DamageDealt.noncombat-type, DamageDealt.spell-source
 name: Lightning Bolt cast and resolution
 scenario: {suite: warmup, id: land-spell-face}
 frames:

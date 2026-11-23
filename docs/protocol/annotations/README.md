@@ -110,7 +110,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `DamageDealt` | transient | `damage`, `type`, `markDamage` | A source dealt damage to a player or object; `type` classifies the damage. |
+| [DamageDealt](DamageDealt.md) | transient | `damage`, `type`, `markDamage` | A source dealt damage to a player or object; `type` classifies the damage. |
 | `DamagedThisTurn` | persistent | none | Objects dealt damage during the current turn. |
 | `ModifiedLife` | transient | `life` | A player's life total changed by the signed amount in `life`. |
 | [ReplacementEffect](ReplacementEffect.md) | both | `grpid` | Links a replacement ability or lifecycle to the object whose event it modifies. |
@@ -121,7 +121,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `ManaPaid` | transient | `id`, `color` | Mana from a source was spent on a spell or ability. |
+| [ManaPaid](ManaPaid.md) | transient | `id`, `color` | Mana from a source was spent on a spell or ability. |
 | `ManaDetails` | persistent | none | Riders on mana in a pool, such as spending restrictions or mana that does not empty. |
 | `ColorProduction` | persistent | `colors` | The colors of mana a permanent can produce. |
 | `UseOrCostsManaCost` | persistent | `OrCost` | A card whose cost offers paying mana instead of a non-mana action; `OrCost` is the alternative mana cost as a packed symbol string such as `1B`. |
@@ -133,7 +133,7 @@ the type's page. Types without a page are described only by their row.
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
 | `NewTurnStarted` | transient | none | A new turn began for the seat in `affectedIds`. |
-| `PhaseOrStepModified` | transient | `phase`, `step` | The game entered a new phase or step. |
+| [PhaseOrStepModified](PhaseOrStepModified.md) | transient | `phase`, `step` | The game entered a new phase or step. |
 | `LoyaltyActivationsRemaining` | persistent | `ActivationsRemaining` | Loyalty-ability activations a planeswalker has left this turn. |
 
 ### Continuous effects
@@ -170,7 +170,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `TappedUntappedPermanent` | transient | `tapped` | A permanent became tapped (`tapped` is `1`) or untapped (`0`). |
+| [TappedUntappedPermanent](TappedUntappedPermanent.md) | transient | `tapped` | A permanent became tapped (`tapped` is `1`) or untapped (`0`). |
 | `Counter` | persistent | `count`, `counter_type` | The current number of counters of one kind on an object or player, including a player's poison total. |
 | `CounterAdded` | transient | `counter_type`, `transaction_amount` | Counters were added; `transaction_amount` is the change and `Counter` carries the result. |
 | `CounterRemoved` | transient | `counter_type`, `transaction_amount` | Counters were removed; `transaction_amount` is the change and `Counter` carries the result. |
