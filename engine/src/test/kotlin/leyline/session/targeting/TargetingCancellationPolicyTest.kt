@@ -109,6 +109,7 @@ class TargetingCancellationPolicyTest :
             cancelAction()
 
             assertSoftly {
+                bridge.cutCoordinator.targeting.current() shouldBe null
                 game().stack.isEmpty.shouldBeTrue()
                 human.battlefield
                     .card("Prodigal Pyromancer")
