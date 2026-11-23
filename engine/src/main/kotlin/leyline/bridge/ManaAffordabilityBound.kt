@@ -20,9 +20,9 @@ import forge.game.zone.ZoneType
  * floating mana that may pay this ability, mana abilities on the battlefield
  * and in hand (including paid filters and sacrifice outlets), Convoke creatures
  * and Improvise artifacts. The
- * total requirement is compared with the net mana those sources add. X counts as
- * its announced value, or zero before it is announced, and Phyrexian mana counts
- * as payable when the player can pay 2 life.
+ * total requirement is compared with the net mana those sources add. An announced
+ * X is counted before cost reductions, as in payment; an unannounced X counts as
+ * zero. Phyrexian mana counts as payable when the player can pay 2 life.
  *
  * A failed bound proves the cost unaffordable; a passing bound proves nothing.
  */
@@ -40,13 +40,13 @@ internal object ManaAffordabilityBound {
         sa: SpellAbility,
         player: Player,
     ): Boolean {
-        val cost = ActionManaCosts.computeEffectiveCost(sa, player) ?: return true
+        val cost = ActionManaCosts.computeEffectiveCost(sa, player, expandAnnouncedX = true) ?: return true
         val sources = sources(sa, player)
         var required = cost.genericCost
         val requiredByTypes = mutableMapOf<Int, Int>()
         for (shard in cost) {
             when {
-                shard == ManaCostShard.X -> required += sa.xManaCostPaid ?: 0
+                shard == ManaCostShard.X -> Unit
                 shard.isPhyrexian && player.canPayLife(2, false, sa) -> Unit
                 shard.isGeneric -> required++
                 else -> {

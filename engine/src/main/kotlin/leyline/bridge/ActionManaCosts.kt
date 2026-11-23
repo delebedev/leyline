@@ -322,14 +322,20 @@ internal object ActionManaCosts {
                     .takeIf { it.isNotEmpty() }
             }
 
+    /**
+     * With [expandAnnouncedX], an announced X becomes mana before cost adjustment, as in
+     * payment, so reductions can apply to it. Otherwise X stays symbolic.
+     */
     fun computeEffectiveCost(
         sa: SpellAbility,
         player: Player,
-    ): ManaCost? = withStackCostAbility(sa, player) { computeEffectiveCostInContext(it, player) }
+        expandAnnouncedX: Boolean = false,
+    ): ManaCost? = withStackCostAbility(sa, player) { computeEffectiveCostInContext(it, player, expandAnnouncedX) }
 
     private fun computeEffectiveCostInContext(
         sa: SpellAbility,
         player: Player,
+        expandAnnouncedX: Boolean,
     ): ManaCost? {
         val baseCost = sa.payCosts ?: return null
         val hostCard = sa.hostCard
@@ -353,6 +359,8 @@ internal object ActionManaCosts {
                     val manaCost = adjusted.totalMana ?: return@quiet null
                     if (manaCost.isNoCost) return@quiet null
                     val beingPaid = ManaCostBeingPaid(manaCost)
+                    val announcedX = sa.xManaCostPaid
+                    if (expandAnnouncedX && announcedX != null) beingPaid.setXManaCostPaid(announcedX, sa.xColor)
                     CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
                     beingPaid.toManaCost()
                 }

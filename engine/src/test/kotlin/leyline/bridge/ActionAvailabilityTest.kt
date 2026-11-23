@@ -34,15 +34,19 @@ class ActionAvailabilityTest :
         listOf(
             XTargetCase("Repeal", "Island", 3, "Grizzly Bears", true),
             XTargetCase("Disembowel", "Swamp", 3, "Grizzly Bears", true),
+            XTargetCase("March of Otherworldly Light", "Plains", 3, "Grizzly Bears", true),
             XTargetCase("Repeal", "Island", 2, "Grizzly Bears", false),
             XTargetCase("Repeal", "Island", 3, "Serra Angel", false),
+            XTargetCase("Repeal", "Island", 2, "Grizzly Bears", true, reducer = "Sapphire Medallion"),
         )
         ) {
-            test("${case.spell} with ${case.lands} ${case.land} and only a ${case.target} is offered: ${case.offered}") {
+            val reducer = case.reducer?.let { " and $it" }.orEmpty()
+            test("${case.spell} with ${case.lands} ${case.land}$reducer and only a ${case.target} is offered: ${case.offered}") {
                 val board =
                     startWithBoard { _, player, opponent ->
                         addCard(case.spell, player, ZoneType.Hand)
                         repeat(case.lands) { addCard(case.land, player, ZoneType.Battlefield) }
+                        case.reducer?.let { addCard(it, player, ZoneType.Battlefield) }
                         addCard(case.target, opponent, ZoneType.Battlefield)
                     }
                 val ability =
@@ -81,4 +85,5 @@ private data class XTargetCase(
     val lands: Int,
     val target: String,
     val offered: Boolean,
+    val reducer: String? = null,
 )
