@@ -38,6 +38,14 @@ enum class AutomaticAnswerRule(
         "the shown options leave nothing to choose; section headers, hidden cards and unmapped values cannot be told apart or chosen",
     ),
 
+    /**
+     * The order of an entering permanent's own entry replacements, such as a Siege's protector
+     * choice and its defense counters, or entering tapped and entering with counters.
+     */
+    OwnEntryReplacementOrder(
+        "each of the entering permanent's own entry replacements sets a separate part of how it enters; any order gives the same permanent",
+    ),
+
     /** A confirmation inside the free cast of a Paradigm copy. */
     ParadigmCopyCast(
         "the copy is cast through its own cast presentation; this confirmation is part of that cast",

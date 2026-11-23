@@ -47,6 +47,7 @@ import forge.game.player.Player
 import forge.game.player.PlayerActionConfirmMode
 import forge.game.player.PlayerView
 import forge.game.replacement.ReplacementEffect
+import forge.game.replacement.ReplacementType
 import forge.game.spellability.AbilitySub
 import forge.game.spellability.OptionalCostValue
 import forge.game.spellability.SpellAbility
@@ -765,9 +766,21 @@ class PlayerController(
                 defaultIndex = 0,
                 route = PromptRouteResolver.resolve(PromptSemantic.SelectReplacement),
             )
+        if (possibleReplacers.all { it.isOwnEntryReplacementOf(first.hostCard) }) {
+            bridge.recordAutomaticAnswer(request, AutomaticAnswerRule.OwnEntryReplacementOrder, listOf(0))
+            return first
+        }
         return bridge.requestReplacement(request, possibleReplacers)?.handle
             ?: super.chooseSingleReplacementEffect(possibleReplacers)
     }
+
+    /** A replacement of [host]'s own move to the battlefield, such as "enters tapped" or "enters with counters". */
+    private fun ReplacementEffect.isOwnEntryReplacementOf(host: Card?): Boolean =
+        host != null &&
+            hostCard === host &&
+            mode == ReplacementType.Moved &&
+            getParam("ValidCard") == "Card.Self" &&
+            getParam("Destination")?.split(',')?.contains("Battlefield") == true
 
     private fun awaitCommanderReturn(
         hostCard: Card?,
