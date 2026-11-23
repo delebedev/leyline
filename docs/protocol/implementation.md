@@ -75,6 +75,7 @@ Rows are grouped by family and sorted by entity name.
 |---|---|---|
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
+| [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
 
 ### Annotations
 
@@ -279,6 +280,22 @@ grouped by family, then by entity.
     including the color choice of a triggered mana ability such as Fertile
     Ground's additional mana.
   - Owner: `StaticChoiceWindowMaterializer.buildRequest`
+
+#### SelectTargetsReq
+
+- **`diverges`** — [SelectTargetsReq.groups-together](prompts/SelectTargetsReq.md#SelectTargetsReq.groups-together)
+  - Contract: a targeting ability with several target requirements presents
+    every requirement's group in each request.
+  - Leyline: publishes one requirement per targeting window, so each
+    request carries a single group and the requirements are asked one after
+    another, each with its own submission.
+  - Owner: `TargetingWindowMaterializer`, `TargetingCoordinator`
+- **`diverges`** — [SelectTargetsReq.trigger-echo](prompts/SelectTargetsReq.md#SelectTargetsReq.trigger-echo)
+  - Contract: after a selection, the echoed request for a triggered ability
+    carries `allowCancel=Abort` and `allowUndo=true`.
+  - Leyline: fixes the cancellation policy per window, so every echo for a
+    triggered ability keeps `allowCancel=No` without `allowUndo`.
+  - Owner: `TargetingWindowMaterializer.rePrompt`, `TargetingWindowCapture`
 
 ### Annotation exceptions
 

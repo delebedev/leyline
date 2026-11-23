@@ -76,6 +76,7 @@ class TargetingCancellationPolicyTest :
             passUntilResolved()
 
             assertSoftly {
+                // protocol: SelectTargetsReq.trigger-initial
                 targetPromptCancel shouldBe AllowCancel.No_a526
                 ai.battlefield.card("Centaur Courser").name shouldBe "Centaur Courser"
                 human.battlefield.card("Duplicant").name shouldBe "Duplicant"
@@ -102,6 +103,7 @@ class TargetingCancellationPolicyTest :
             passUntil(maxPasses = 5) { bridge.cutCoordinator.targeting.current() != null }.shouldBeTrue()
             val prompt = allMessages.last { it.hasSelectTargetsReq() }
             assertSoftly {
+                // protocol: SelectTargetsReq.spell-cancel
                 prompt.allowCancel shouldBe AllowCancel.Abort
                 prompt.allowUndo.shouldBeTrue()
             }
