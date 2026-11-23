@@ -376,6 +376,65 @@ class PhyrexianManaCostInteractionTest :
             human.life shouldBe 16
         }
 
+        listOf(ManaColor.Phyrexian_afc9, ManaColor.Red_afc9).forEach { color ->
+            session(
+                "activated phyrexian ability pays the selected $color with a source available",
+                puzzle = puzzle(hand = "", battlefield = "Immolating Souleater;Mountain"),
+            ) {
+                val request = after { activateAbility("Immolating Souleater").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+                request.castingTimeOptionReqList.map { it.selectManaTypeReq.manaColorsList } shouldBe
+                    listOf(listOf(ManaColor.Phyrexian_afc9, ManaColor.Red_afc9))
+                respondToManaTypeChoices(request.castingTimeOptionReqList.map { it.ctoId to color })
+                passUntilResolved()
+                val paidLife = color == ManaColor.Phyrexian_afc9
+                assertSoftly {
+                    human.life shouldBe if (paidLife) 18 else 20
+                    human.battlefield
+                        .card("Mountain")
+                        .isTapped shouldBe !paidLife
+                    human.battlefield
+                        .card("Immolating Souleater")
+                        .netPower shouldBe 2
+                }
+            }
+        }
+
+        session(
+            "granted black payment chooses life for an activated ability with a source available",
+            puzzle = puzzle(hand = "", battlefield = "$krrik;Drudge Skeletons;Swamp"),
+        ) {
+            val request = after { activateAbility("Drudge Skeletons").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            request.castingTimeOptionReqList.map { it.selectManaTypeReq.manaColorsList } shouldBe
+                listOf(listOf(ManaColor.Phyrexian_afc9, ManaColor.Black_afc9))
+            respondToManaTypeChoices(request.castingTimeOptionReqList.map { it.ctoId to ManaColor.Phyrexian_afc9 })
+            passUntilResolved()
+            assertSoftly {
+                human.life shouldBe 18
+                human.battlefield
+                    .card("Swamp")
+                    .isTapped shouldBe false
+                human.battlefield
+                    .card("Drudge Skeletons")
+                    .shieldCount shouldBe 1
+            }
+        }
+
+        session(
+            "cancelled activated phyrexian choice spends neither life nor mana",
+            puzzle = puzzle(hand = "", battlefield = "Immolating Souleater;Mountain"),
+        ) {
+            after { activateAbility("Immolating Souleater").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+            cancelAction()
+            assertSoftly {
+                human.life shouldBe 20
+                human.battlefield
+                    .card("Mountain")
+                    .isTapped shouldBe false
+                game().stack.isEmpty shouldBe true
+            }
+            after { activateAbility("Immolating Souleater").shouldBeTrue() }.expectOneCastingTimeOptionsReq()
+        }
+
         session("cancelled life choice keeps the card and life", puzzle = puzzle()) {
             after { castSpellByName(krrik).shouldBeTrue() }.expectOneCastingTimeOptionsReq()
             cancelAction()

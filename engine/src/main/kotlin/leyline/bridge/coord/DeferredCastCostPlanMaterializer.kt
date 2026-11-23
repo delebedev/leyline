@@ -37,6 +37,7 @@ internal object DeferredCastCostPlanMaterializer {
         offer: GameActionBridge.ActionOffer,
         nextToken: () -> Long,
     ): Result? {
+        materializeActivation(offer)?.let { return it }
         val card = (offer.command as? PlayerAction.CastSpell)?.ability?.hostCard ?: return null
         val cardData = bridge.cardRepository.findByGrpId(offer.action.grpId)
         val keywordCount = bridge.abilityRegistryFor(card, cardData)?.slotLayout?.keywordCount ?: 0
@@ -134,6 +135,18 @@ internal object DeferredCastCostPlanMaterializer {
         return Result(
             DeferredCastCostPlan.frozen(command.cardId, offer.action.instanceId, offer.action.grpId, hybrid, optional, alternate),
             childSelections.toMap(),
+        )
+    }
+
+    /** An activated ability defers only its per-symbol mana-or-alternative choices; it has no cast-time options. */
+    private fun materializeActivation(offer: GameActionBridge.ActionOffer): Result? {
+        val command = offer.command as? PlayerAction.ActivateAbility ?: return null
+        val ability = command.ability ?: return null
+        val player = ability.activatingPlayer ?: return null
+        val hybrid = materializeManaPlan(ability, player) ?: return null
+        return Result(
+            DeferredCastCostPlan.frozen(command.cardId, offer.action.instanceId, offer.action.grpId, hybrid, null, null),
+            emptyMap(),
         )
     }
 

@@ -137,7 +137,8 @@ internal class ActionPerformer(
                     action.actionType == ActionType.CastLeftRoom ||
                     action.actionType == ActionType.CastRightRoom ||
                     action.actionType == ActionType.CastOmen ||
-                    action.actionType == ActionType.CastMdfc
+                    action.actionType == ActionType.CastMdfc ||
+                    action.actionType == ActionType.Activate_add3
             val claim = bridge.cutCoordinator.claimPriorityResponse(pending.actionId, clientGsId, action, defer = mayDefer)
             if (claim == null) {
                 log
@@ -186,6 +187,9 @@ internal class ActionPerformer(
                     Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, submitted)
                 }
                 ActionType.Activate_add3 -> {
+                    if (targetingHandler.checkHybridManaTypeOptions(claim.actionClaim)) return
+                    check(ctx.bridge.cutCoordinator.completeActionClaim(claim.actionClaim)) { "Deferred action claim did not complete" }
+                    acceptedClaim = null
                     Tap.actionResult(matchId, counters.seatId.value, action.actionType, action.instanceId, claim.cardId, true)
                 }
                 ActionType.ActivateMana -> {
