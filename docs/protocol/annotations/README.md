@@ -94,7 +94,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `TargetSpec` | persistent | `abilityGrpId`, `index`, `promptParameters`, `promptId` | The targets chosen for a spell or ability: which ability, which target slot, and optional damage distribution. |
+| [TargetSpec](TargetSpec.md) | persistent | `abilityGrpId`, `index`, `promptParameters`, `promptId` | The targets chosen for a spell or ability: which ability, which target slot, and optional damage distribution. |
 | `PlayerSelectingTargets` | transient | none | A seat began choosing targets for a stack object. Carries no target data. |
 | `PlayerSubmittedTargets` | transient | none | A seat finished choosing targets for a stack object. |
 | `ChoiceResult` | transient | `Choice_Value`, `Choice_Sentiment` | The result of a player choice made during resolution. |
