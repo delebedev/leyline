@@ -658,7 +658,8 @@ private class ScenarioRun(
     }
 
     private fun passUntil(step: PassUntilStep) {
-        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(step) }
+        // A client passing priority cannot answer a selection; stop on any open SelectNReq the step did not name.
+        harness.passUntil(maxPasses = step.maxPasses) { passUntilConditionReached(step) || unrequestedSelectNOpen() }
         // Game-over detection can precede final result publication.
         val reached = passUntilConditionReached(step)
         require(reached) {
@@ -672,6 +673,11 @@ private class ScenarioRun(
                 "actions=${harness.accumulator.actions?.actionsList.orEmpty().joinToString { actionSummary(it) }}"
         }
     }
+
+    private fun unrequestedSelectNOpen(): Boolean =
+        latestPromptMessage()?.let { prompt ->
+            prompt.hasSelectNReq() && harness.bridge.responseAcceptance.hasOutstandingPrompt(prompt.msgId)
+        } == true
 
     private fun respondToOptionalAction(step: OptionalActionStep) {
         val ready =
