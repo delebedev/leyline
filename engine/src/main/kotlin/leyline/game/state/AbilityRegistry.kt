@@ -99,7 +99,13 @@ class AbilityRegistry private constructor(
                 .orEmpty()
                 .flatMap { it.getParam("AddAbility")?.split(" & ").orEmpty() }
                 .distinct()
-        if (variables.size != hiddenAbilityIds.size) return null
+        // Continuous rows lead the hidden layout; resolution-grant rows may follow them.
+        val resolutionRows =
+            grantor.cardState
+                ?.let(::resolutionGrantVariables)
+                .orEmpty()
+                .count { it !in variables }
+        if (variables.size != hiddenAbilityIds.size && variables.size + resolutionRows != hiddenAbilityIds.size) return null
         val matching =
             variables.withIndex().filter { (_, variable) ->
                 val script = AbilityUtils.getSVar(grantor, variable)
@@ -121,12 +127,7 @@ class AbilityRegistry private constructor(
             state.staticAbilities
                 .flatMap { it.getParam("AddAbility")?.split(" & ").orEmpty() }
                 .distinct()
-        val resolutionVariables =
-            (state.intrinsicSpellAbilities.map { it.originalMapParams } + svars.values.map(AbilityFactory::getMapParams))
-                .flatMap(::resolutionGrantedAbilityVariables)
-                .filter { it in svars }
-                .distinct()
-                .sorted()
+        val resolutionVariables = resolutionGrantVariables(state)
         val variables = (staticVariables + resolutionVariables).distinct()
         if (variables.size != hiddenAbilityIds.size) return null
         val variable =
@@ -149,8 +150,8 @@ class AbilityRegistry private constructor(
             registryLookup: (Card, CardData?) -> AbilityRegistry?,
         ): ResolvedAbilityIdentity? {
             val original = generateSequence(ability) { it.originalAbility }.last()
-            resolutionGrantState(ability)?.card?.let { donor ->
-                registryLookup(donor, cardDataLookup(donor))?.resolutionGrantedAbilityGrpId(ability)?.let {
+            resolutionGrantState(original)?.card?.let { donor ->
+                registryLookup(donor, cardDataLookup(donor))?.resolutionGrantedAbilityGrpId(original)?.let {
                     return ResolvedAbilityIdentity(AbilityDefinitionRef.SpellAbility(original.definitionId), it)
                 }
             }
@@ -260,6 +261,16 @@ class AbilityRegistry private constructor(
             ability.cardState?.takeIf {
                 !ability.isIntrinsic && ability.originalAbility == null && ability.grantorStatic == null && ability.keyword == null
             }
+
+        /** Resolution-granted ability variables defined on [state], in the name order the catalog publishes them. */
+        private fun resolutionGrantVariables(state: CardState): List<String> {
+            val svars = state.sVars
+            return (state.intrinsicSpellAbilities.map { it.originalMapParams } + svars.values.map(AbilityFactory::getMapParams))
+                .flatMap(::resolutionGrantedAbilityVariables)
+                .filter { it in svars }
+                .distinct()
+                .sorted()
+        }
 
         internal fun uniqueAbilityIdFor(
             cardData: CardData?,

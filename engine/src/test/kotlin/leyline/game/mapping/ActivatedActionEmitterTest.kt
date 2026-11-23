@@ -70,5 +70,8 @@ class ActivatedActionEmitterTest :
                 granted.abilityGrpId shouldNotBe printed.abilityGrpId
                 granted.uniqueAbilityId shouldNotBe printed.uniqueAbilityId
             }
+            val grantedAbility = checkNotNull(byAmount["2"]?.command?.shouldBeInstanceOf<PlayerAction.ActivateMana>()?.ability)
+            val stackCopy = grantedAbility.copy().also { it.setOriginalAbility(grantedAbility) }
+            b.resolveAbilityIdentity(stackCopy.hostCard, stackCopy)?.abilityGrpId shouldBe granted.abilityGrpId
         }
     })
