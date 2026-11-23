@@ -911,6 +911,30 @@ scenarios:
           all:
             - zone_not_contains: { side: ours, zone: battlefield, card: Mayhem Patrol }
             - stack_empty: true
+  - id: blitz-granted-henzie
+    puzzle: blitz-granted-henzie
+    native: { skip: Henzie "Toolbox" Torre is unavailable in the native card catalog. }
+    run: cast Etali with the Blitz Henzie grants and pass until it sacrifices itself
+    expect: only the mana value 4 creature gets a Blitz cast, which sacrifices the creature at end step and draws a card
+    steps:
+      - expect:
+          all:
+            - action: { type: cast, card: "Etali, Primal Conqueror", alt_cost: blitz }
+            - action_not_available: { type: cast, card: Gray Ogre, alt_cost: blitz }
+      - cast: { card: "Etali, Primal Conqueror", alt_cost: blitz }
+      - resolve_stack: {}
+      - expect:
+          zone_contains: { side: ours, zone: battlefield, card: "Etali, Primal Conqueror" }
+      # Etali's turn ends before any other draw, so the Mountain in hand is the Blitz draw.
+      - pass_until:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: "Etali, Primal Conqueror" }
+            - stack_empty: true
+            - phase: Cleanup
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
+            - zone_not_contains: { side: ours, zone: battlefield, card: "Etali, Primal Conqueror" }
   - id: retrace-waves-of-aggression
     puzzle: retrace-waves-of-aggression
     run: expose Waves of Aggression's Retrace cast from the graveyard

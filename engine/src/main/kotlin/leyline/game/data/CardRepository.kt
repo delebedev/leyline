@@ -1,5 +1,6 @@
 package leyline.game.data
 
+import forge.game.keyword.KeywordInterface
 import forge.game.spellability.SpellAbility
 import leyline.bridge.types.manaTokenToPair
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -331,5 +332,26 @@ internal fun CardRepository.grantedKeywordAbilityGrpId(sa: SpellAbility): Int? {
     val keyword = sa.keyword ?: sa.trigger?.keyword ?: return null
     if (keyword.isIntrinsic || keyword.static == null) return null
     val sourceGrpId = findGrpIdByName(keyword.static.hostCard.name) ?: return null
-    return findGrantedKeywordAbilityGrpId(sourceGrpId, keyword.original)
+    return findGrantedKeywordAbilityGrpId(sourceGrpId, grantedKeywordDefinition(keyword))
+}
+
+/**
+ * The granting static's `AddKeyword` entry behind a live granted keyword.
+ * Forge writes the recipient's mana cost or mana value into `CardManaCost` and
+ * `ConvertedManaCost` placeholders, so the live text names one recipient while
+ * catalog rows are keyed by the definition. Keywords without those placeholders
+ * are returned unchanged.
+ */
+private fun grantedKeywordDefinition(keyword: KeywordInterface): String {
+    val recipient = keyword.hostCard ?: return keyword.original
+    val definitions = keyword.static.getParam("AddKeyword")?.split(" & ") ?: return keyword.original
+    return definitions.firstOrNull { definition ->
+        val live =
+            when {
+                "CardManaCost" in definition -> definition.replace("CardManaCost", recipient.manaCost.shortString)
+                "ConvertedManaCost" in definition -> definition.replace("ConvertedManaCost", recipient.cmc.toString())
+                else -> return@firstOrNull false
+            }
+        live == keyword.original
+    } ?: keyword.original
 }

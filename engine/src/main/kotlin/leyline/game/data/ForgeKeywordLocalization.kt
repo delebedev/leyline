@@ -48,5 +48,9 @@ internal fun localizeGrantedKeyword(keyword: String): AbilityLocalization? {
     return AbilityLocalization("$reminder $costDescription", mana, name)
 }
 
-/** Costs a granted keyword takes from its host card instead of its own detail text. */
-private val HOST_COST_KEYWORDS = setOf("ManaCost", "")
+/**
+ * Costs a granted keyword takes from its host card instead of its own detail text.
+ * `CardManaCost` is the continuous-effect placeholder Forge replaces with each
+ * recipient's mana cost.
+ */
+private val HOST_COST_KEYWORDS = setOf("ManaCost", "CardManaCost", "")

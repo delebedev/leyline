@@ -120,6 +120,7 @@ class ForgeCardRepositoryTest :
                     "its mana cost, Discard this card: Draw a card. " +
                     "Its cycling cost is equal to its mana cost."
                 localization.manaCost shouldBe emptyList()
+                requireNotNull(localizeGrantedKeyword("Blitz:CardManaCost:Spell.Creature+cmcGE4")).keyword shouldBe "Blitz"
                 localizeGrantedKeyword("Not a Forge keyword") shouldBe null
             }
         }
