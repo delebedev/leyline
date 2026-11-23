@@ -1,0 +1,33 @@
+# Design Narrative
+# Mechanic: Offer a spell whose only legal targets need X above zero, then announce X before choosing targets.
+# Forcing: Every opposing nonland permanent has mana value 2, so Repeal has no legal target until X is 2.
+# AI behavior: The opponent has no instants and no untapped mana, so Repeal resolves unanswered.
+# Failure modes:
+#   WIN = Repeal is offered, X=2 is announced, Grizzly Bears returns to its owner's hand, and a card is drawn.
+#   LOSE = Repeal is not offered, or X=2 does not make Grizzly Bears a legal target.
+#   TIMEOUT = the cast stalls between the X announcement and target selection.
+# Card roles:
+#   Repeal — targets a nonland permanent with mana value X and draws a card.
+#   Island — three sources pay exactly {2}{U}.
+#   Grizzly Bears and Mind Stone — mana value 2 targets; no permanent has mana value 0.
+#   Island and Mountain libraries — keep both draws legal.
+# Protocol path: cast action, NumericInputReq, NumericInputResp, target selection, mana payment, and resolution.
+
+[metadata]
+Name:X-Dependent Target
+Goal:Survive
+Turns:1
+Difficulty:Easy
+Description:Cast Repeal with X=2 to return Grizzly Bears.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Repeal
+humanbattlefield=Island;Island;Island
+humanlibrary=Island;Island
+aibattlefield=Grizzly Bears;Mind Stone|Tapped
+ailibrary=Mountain;Mountain

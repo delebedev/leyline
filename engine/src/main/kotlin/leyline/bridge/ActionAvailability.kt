@@ -36,7 +36,8 @@ internal object ActionAvailability {
     ): Boolean = affordability(sa, player).offered
 
     /**
-     * Timing, non-mana costs, targets and modes must pass. Mana is affordable when
+     * Timing, non-mana costs, targets and modes must pass; targets that depend on an
+     * unannounced X may pass at any X the player could pay. Mana is affordable when
      * an exact estimate pays it and unaffordable only when the generous bound also
      * fails. A probe that throws is unsure.
      */
@@ -49,10 +50,9 @@ internal object ActionAvailability {
                 NonInteractiveScope.bestEffort {
                     sa.activatingPlayer = player
                     when {
-                        !sa.canPlay() || sa.payCosts?.canPay(sa, player, false) == false || !hasLegalTargetsAndModes(sa) ->
-                            Affordability.Unaffordable
-                        canPayMana(sa, player) -> Affordability.Affordable
-                        ManaAffordabilityBound.allows(sa, player) -> Affordability.Unsure
+                        !sa.canPlay() || sa.payCosts?.canPay(sa, player, false) == false -> Affordability.Unaffordable
+                        hasLegalTargetsAndModes(sa) -> manaAffordability(sa, player)
+                        hasUnannouncedManaX(sa) -> affordabilityWithAnnouncedX(sa, player)
                         else -> Affordability.Unaffordable
                     }
                 }
@@ -79,8 +79,14 @@ internal object ActionAvailability {
         }
     }
 
-    fun hasLegalTargetsAndModes(sa: SpellAbility): Boolean =
-        (ComputerUtilAbility.isFullyTargetable(sa) || hasSequentialSingleTargets(sa)) &&
+    fun hasLegalTargetsAndModes(sa: SpellAbility): Boolean = hasLegalTargetsAndModes(sa, probe = null)
+
+    /** [probe], when given, is an untracked copy of [sa] that the sequential search may reuse. */
+    private fun hasLegalTargetsAndModes(
+        sa: SpellAbility,
+        probe: SpellAbility?,
+    ): Boolean =
+        (ComputerUtilAbility.isFullyTargetable(sa) || hasSequentialSingleTargets(sa, probe)) &&
             (sa.api != ApiType.Charm || CharmEffect.makePossibleOptions(sa).isNotEmpty())
 
     /**
@@ -92,14 +98,17 @@ internal object ActionAvailability {
      * keep targets from the previous activation. Activation clears every link before choosing
      * (`SpellAbility.setupTargets`), so the probe clears the copy the same way.
      */
-    private fun hasSequentialSingleTargets(sa: SpellAbility): Boolean {
+    private fun hasSequentialSingleTargets(
+        sa: SpellAbility,
+        reusableProbe: SpellAbility?,
+    ): Boolean {
         val chain = generateSequence(sa) { it.subAbility }.filter { it.usesTargeting() }.toList()
         if (chain.isEmpty() ||
             chain.any { it.minTargets != 1 || it.targetRestrictions.getMaxTargets(it.hostCard, it) != 1 }
         ) {
             return false
         }
-        val probe = sa.copy(sa.hostCard, sa.activatingPlayer, true)
+        val probe = reusableProbe ?: sa.copy(sa.hostCard, sa.activatingPlayer, true)
         generateSequence(probe) { it.subAbility }.forEach { it.clearTargets() }
         return selectSingleTargets(probe)
     }
@@ -116,6 +125,46 @@ internal object ActionAvailability {
             }
         }
     }
+
+    private fun manaAffordability(
+        sa: SpellAbility,
+        player: Player,
+    ): Affordability =
+        when {
+            canPayMana(sa, player) -> Affordability.Affordable
+            ManaAffordabilityBound.allows(sa, player) -> Affordability.Unsure
+            else -> Affordability.Unaffordable
+        }
+
+    private fun hasUnannouncedManaX(sa: SpellAbility): Boolean = sa.costHasManaX() && sa.xManaCostPaid == null
+
+    /**
+     * Targets such as "mana value X" are checked with the unannounced X counted as zero.
+     * X is announced before targets are chosen, so the action is offered when some X the
+     * bound can cover gives it legal targets and its mana, X included, can be paid.
+     * Each X is set on one untracked copy, which the sequential target search also
+     * uses; the offered ability keeps X unannounced.
+     */
+    private fun affordabilityWithAnnouncedX(
+        sa: SpellAbility,
+        player: Player,
+    ): Affordability {
+        val probe = sa.copy(sa.hostCard, player, true)
+        var best = Affordability.Unaffordable
+        for (x in 1..MAX_PROBED_X) {
+            probe.xManaCostPaid = x
+            if (!ManaAffordabilityBound.allows(probe, player)) break
+            if (!hasLegalTargetsAndModes(probe, probe)) continue
+            when (manaAffordability(probe, player)) {
+                Affordability.Affordable -> return Affordability.Affordable
+                Affordability.Unsure -> best = Affordability.Unsure
+                Affordability.Unaffordable -> Unit
+            }
+        }
+        return best
+    }
+
+    private const val MAX_PROBED_X = 99
 
     private fun canPayMana(
         sa: SpellAbility,
