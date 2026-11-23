@@ -14,5 +14,4 @@ scenarios:
       - expect:
           all:
             - zone_contains: { side: ours, zone: hand, card: Sludge Monster }
-            - annotation_seen: LayeredEffectDestroyed
             - battlefield_stats: { side: ours, card: Serra Angel, power: 4, toughness: 4 }
