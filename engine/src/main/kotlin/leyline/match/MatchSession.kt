@@ -322,6 +322,8 @@ class MatchSession(
                             .addKeyValue("reason", it.reason.name)
                             .log("Client response rejected")
                         gameBridge.cutCoordinator.publishIllegalRequest(seatId, greMsg, it.reason)
+                        gameBridge.cutCoordinator.prompts.settled
+                            .resendRejected(greMsg)
                         drainCoordinatorFeed()
                     }
                     SettledPromptAdmission.NotOwned -> Unit

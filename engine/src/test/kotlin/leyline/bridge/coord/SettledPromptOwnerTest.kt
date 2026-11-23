@@ -197,6 +197,42 @@ class SettledPromptOwnerTest :
             }
         }
 
+        test("a rejected answer re-sends the open request and only its fresh msgId correlates") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val (result, finished, cards) = startAwait(coordinator, board, 3_000)
+            val published = awaitPublished(coordinator)
+            val original = coordinator.drain(SeatId(1)).flatten().single { it.hasSelectNReq() }
+            val selected = original.selectNReq.idsList[1]
+            val rejected =
+                leyline.testkit
+                    .selectNResp(emptyList())
+                    .toBuilder()
+                    .setGameStateId(published.gameStateId)
+                    .setRespId(original.msgId)
+                    .build()
+
+            coordinator.prompts.settled.admit(rejected) shouldBe SettledPromptAdmission.Rejected(FailureReason.InvalidOptionSelection)
+            coordinator.prompts.settled.resendRejected(rejected) shouldBe true
+            val resent = coordinator.drain(SeatId(1)).flatten().single()
+            assertSoftly {
+                resent.msgId shouldBe original.msgId + 1
+                resent.toBuilder().setMsgId(original.msgId).build() shouldBe original
+                board.bridge.committedSequence().lastPromptMsgId shouldBe resent.msgId
+                coordinator.prompts.settled.resendRejected(rejected) shouldBe false
+                coordinator.admitSettled(
+                    leyline.testkit.selectNResp(listOf(selected)),
+                    published.gameStateId,
+                    original.msgId,
+                ) shouldBe SettledPromptAdmission.Rejected(FailureReason.ReqRespMismatch)
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(selected)), published.gameStateId, resent.msgId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                result.get().handles.single() shouldBe cards[1]
+                coordinator.prompts.settled.resendRejected(rejected) shouldBe false
+            }
+        }
+
         test("timeout, delivery failure, and teardown retire the exact window") {
             val board = startPuzzleAtMain1(puzzle)
             val coordinator = board.bridge.cutCoordinator
