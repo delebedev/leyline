@@ -13,13 +13,13 @@ import leyline.testkit.aiPlayer
 import leyline.testkit.humanPlayer
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
-class EffectiveFlyingSnapshotTest :
+class EffectiveKeywordSnapshotTest :
     BoardTest({
         test("fresh projection suppresses intrinsic and independent Flying grants and restores both after source removal") {
             val board =
                 startPuzzleAtMain1(
                     PUZZLE.replace("aibattlefield=Atraxa, Praetors' Voice", "aibattlefield=Atraxa, Praetors' Voice;Levitation"),
-                    EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying),
+                    EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords),
                 )
             val (bridge, game, _) = board
             board.gameStart()
@@ -65,7 +65,7 @@ class EffectiveFlyingSnapshotTest :
                         "aibattlefield=Atraxa, Praetors' Voice",
                         "aibattlefield=Atraxa, Praetors' Voice;Archetype of Imagination",
                     ),
-                    EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying),
+                    EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords),
                 )
             val (bridge, game, _) = board
             board.gameStart()
@@ -109,16 +109,22 @@ class EffectiveFlyingSnapshotTest :
                 val fid = ForgeCardId(atraxa.id)
                 val iid = bridge.getOrAllocInstanceId(fid).value
                 val before = SnapshotCapture.run(game, bridge, "effective-flying", 100).objects.getValue(fid)
-                val flyingIds = before.flyingAbilityGrpIds
+                val flyingIds =
+                    bridge.cardRepository
+                        .findByGrpId(before.grpId)!!
+                        .abilityIds
+                        .map { it.first }
+                        .filter { bridge.cardRepository.findAbilityLocalization(it)?.keyword == "Flying" } + 8
                 val beforeObject = ObjectMapper.buildFromSnapshot(before, iid, ZoneIds.BATTLEFIELD, 2, bridge.cardProto, Visibility.Public)
                 assertSoftly {
                     atraxa.hasKeyword("Flying") shouldBe false
                     CombatUtil.canBlock(hawk, atraxa) shouldBe false
-                    before.effectiveFlying shouldBe if (policy == KeywordProjection.Native) null else false
-                    if (policy == KeywordProjection.WebEffectiveFlying) {
+                    if (policy == KeywordProjection.WebEffectiveKeywords) {
+                        before.lostKeywordAbilityGrpIds!!.containsAll(flyingIds) shouldBe true
                         beforeObject.uniqueAbilitiesList.none { it.grpId in flyingIds } shouldBe true
                         flyingIds.size shouldBe 2
                     } else {
+                        before.lostKeywordAbilityGrpIds shouldBe null
                         beforeObject.toByteArray().toList() shouldBe
                             bridge.cardProto
                                 .buildObjectInfo(before.grpId)
@@ -143,10 +149,45 @@ class EffectiveFlyingSnapshotTest :
                 assertSoftly {
                     atraxa.hasKeyword("Flying") shouldBe true
                     CombatUtil.canBlock(hawk, atraxa) shouldBe true
-                    after.effectiveFlying shouldBe if (policy == KeywordProjection.Native) null else true
-                    before.effectiveFlying shouldBe if (policy == KeywordProjection.Native) null else false
+                    after.lostKeywordAbilityGrpIds?.intersect(flyingIds.toSet()).orEmpty() shouldBe emptySet()
+                    (after.lostKeywordAbilityGrpIds == null) shouldBe (policy == KeywordProjection.Native)
                     afterObject.uniqueAbilitiesList shouldBe bridge.cardProto.buildObjectInfo(after.grpId).uniqueAbilitiesList
                 }
+            }
+        }
+
+        test("losing all abilities drops every printed keyword row and restores them when the effect ends") {
+            val board = startPuzzleAtMain1(SLUDGE_PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords))
+            val (bridge, game, _) = board
+            board.gameStart()
+
+            fun rows(name: String): Pair<List<Int>, List<Int>> {
+                val card = game.humanPlayer.battlefield.card(name)
+                val projected =
+                    bridge
+                        .viewerProjectionCursor()
+                        .fullState!!
+                        .gameObjectsList
+                        .single { it.instanceId == bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value }
+                return projected.uniqueAbilitiesList.map { it.grpId } to
+                    bridge.cardRepository
+                        .findByGrpId(projected.grpId)!!
+                        .abilityIds
+                        .map { it.first }
+            }
+            val serra = game.humanPlayer.battlefield.card("Serra Angel")
+            assertSoftly {
+                serra.hasKeyword("Vigilance") shouldBe false
+                rows("Serra Angel").first shouldBe emptyList()
+                rows("Serra Angel").second.size shouldBe 2
+                rows("Healer's Hawk").let { (projected, catalog) -> projected shouldBe catalog }
+            }
+            destroy(game.humanPlayer.battlefield.card("Sludge Monster"), game)
+            board.stateOnlyDiff()
+            assertSoftly {
+                serra.hasKeyword("Vigilance") shouldBe true
+                rows("Serra Angel").let { (projected, catalog) -> projected shouldBe catalog }
+                rows("Healer's Hawk").let { (projected, catalog) -> projected shouldBe catalog }
             }
         }
 
@@ -155,7 +196,7 @@ class EffectiveFlyingSnapshotTest :
             val json = kotlinx.serialization.json.Json
             json.encodeToString(
                 EngineSettings.serializer(),
-                EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying),
+                EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords),
             ) shouldBe
                 json.encodeToString(EngineSettings.serializer(), EngineSettings())
         }
@@ -175,5 +216,21 @@ private const val PUZZLE = """
     humanbattlefield=Archetype of Imagination;Healer's Hawk
     humanlibrary=Plains;Plains
     aibattlefield=Atraxa, Praetors' Voice
+    ailibrary=Forest;Forest
+"""
+
+private const val SLUDGE_PUZZLE = """
+    [metadata]
+    Name:Lost Keyword Capture
+    Goal:Demo
+    Turns:3
+    [state]
+    ActivePlayer=Human
+    ActivePhase=Main1
+    HumanLife=20
+    AILife=20
+    removesummoningsickness=true
+    humanbattlefield=Sludge Monster;Serra Angel|Counters:SLIME=1;Healer's Hawk
+    humanlibrary=Plains;Plains
     ailibrary=Forest;Forest
 """

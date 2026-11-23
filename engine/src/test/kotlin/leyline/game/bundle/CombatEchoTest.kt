@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class CombatEchoTest :
     BoardTest({
         test("committed echo qualification omits stale or missing prior identity mappings") {
-            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying))
+            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords))
             val (bridge, game, counter) = board
             board.gameStart()
             val fid =
@@ -131,7 +131,7 @@ class CombatEchoTest :
         }
 
         test("granted Flying and paired rows survive attacker and blocker select deselect and repeated echoes") {
-            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying))
+            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords))
             val (bridge, game, counter) = board
             board.gameStart()
             val bear = game.humanPlayer.battlefield.card("Grizzly Bears")
@@ -226,7 +226,7 @@ class CombatEchoTest :
         }
 
         test("unqualified cursor identities and partial rows omit the object rather than claim empty membership") {
-            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying))
+            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords))
             val (bridge, game, counter) = board
             board.gameStart()
             val iid =
@@ -308,7 +308,7 @@ class CombatEchoTest :
         }
 
         test("matching explicit known empty membership remains empty in the combat echo") {
-            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveFlying))
+            val board = startPuzzleAtMain1(PUZZLE, EngineSettings(keywordProjection = KeywordProjection.WebEffectiveKeywords))
             val (bridge, game, counter) = board
             board.gameStart()
             val seat = SeatId(1)

@@ -176,7 +176,7 @@ object ObjectMapper {
         abilitySource: GameObjectInfo? = null,
     ): GameObjectInfo {
         require(
-            cardSnap.effectiveFlying == null || abilitySource != null,
+            cardSnap.lostKeywordAbilityGrpIds == null || abilitySource != null,
         ) { "Effective combat echoes need a qualified committed ability source" }
         val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
@@ -202,7 +202,7 @@ object ObjectMapper {
                     clearUniqueAbilities().addAllUniqueAbilities(abilitySource.uniqueAbilitiesList)
                     clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(abilitySource.abilityOriginalCardGrpIdsList)
                 }
-                reconcileFlying(cardSnap)
+                reconcileKeywords(cardSnap)
             }.build()
     }
 
@@ -351,7 +351,7 @@ object ObjectMapper {
                     cardSnap.mergedComponentAbilityOriginalCardGrpIds,
             )
         }
-        builder.reconcileFlying(cardSnap)
+        builder.reconcileKeywords(cardSnap)
         return builder.build()
     }
 
@@ -364,13 +364,14 @@ object ObjectMapper {
     }
 
     /** Filter aligned rows once, retaining surviving recipient-local IDs and source origins. */
-    private fun GameObjectInfo.Builder.reconcileFlying(snapshot: CardSnapshot) {
-        if (snapshot.effectiveFlying != false) return
+    private fun GameObjectInfo.Builder.reconcileKeywords(snapshot: CardSnapshot) {
+        val lost = snapshot.lostKeywordAbilityGrpIds
+        if (lost.isNullOrEmpty()) return
         val abilities = uniqueAbilitiesList.toList()
         val origins = abilityOriginalCardGrpIdsList.toList()
         // Sparse origins do not establish index association. Keep the legacy row rather than invent a pairing.
         if (origins.isNotEmpty() && origins.size != abilities.size) return
-        val kept = abilities.indices.filter { abilities[it].grpId !in snapshot.flyingAbilityGrpIds }
+        val kept = abilities.indices.filter { abilities[it].grpId !in lost }
         if (kept.size == abilities.size) return
         clearUniqueAbilities().addAllUniqueAbilities(kept.map(abilities::get))
         if (origins.isNotEmpty()) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))

@@ -32,6 +32,9 @@ object KeywordGrpIds {
             "Protection from green" to 189,
         )
 
+    /** Unparameterized grant identities by keyword name. */
+    val baseGrants: Map<String, Int> get() = table
+
     fun forKeyword(keyword: String): Int? = parameterized[keyword] ?: table[keyword]
 
     fun forKeyword(

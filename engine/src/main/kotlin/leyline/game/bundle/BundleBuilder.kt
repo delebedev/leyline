@@ -1433,7 +1433,7 @@ class BundleBuilder(
         cursor?.fullState?.gameObjectsList?.singleOrNull { it.instanceId == instanceId }?.takeIf { source ->
             identities.forgeIdToInstanceId[snapshot.forgeCardId]?.value == instanceId &&
                 identities.instanceIdToForgeId[InstanceId(instanceId)] == snapshot.forgeCardId &&
-                snapshot.effectiveFlying != null &&
+                snapshot.lostKeywordAbilityGrpIds != null &&
                 snapshot.isOnBattlefield &&
                 snapshot.faceDownKind == null &&
                 source.visibility == Visibility.Public &&
@@ -1463,7 +1463,7 @@ class BundleBuilder(
         val (bundle, next) =
             bridge.editProjection(prior) {
                 val nextGs = counter.nextGsId()
-                val effectiveEcho = bridge.engineSettings.keywordProjection == leyline.config.KeywordProjection.WebEffectiveFlying
+                val effectiveEcho = bridge.engineSettings.keywordProjection == leyline.config.KeywordProjection.WebEffectiveKeywords
                 val cursor = prior.viewerCursors[SeatId(seatId)]
                 // Selection does not wake Forge. Reuse this viewer's committed cut, never recapture live keywords on the response thread.
                 val snap = if (effectiveEcho) cursor?.previousSnapshot else GsmSnapshot.capture(game, bridge, matchId, nextGs)

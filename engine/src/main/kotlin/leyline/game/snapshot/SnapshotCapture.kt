@@ -2,6 +2,7 @@ package leyline.game.snapshot
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.keyword.Keyword
 import forge.game.player.Player
 import leyline.bridge.CompanionAction
 import leyline.bridge.getNonManaActivatedAbilities
@@ -582,23 +583,29 @@ object SnapshotCapture {
             }
 
         val emblem = EmblemSnapshot.capture(card, bridge)
-        val observeFlying =
-            bridge.engineSettings.keywordProjection == KeywordProjection.WebEffectiveFlying &&
-                onBf &&
-                !card.isFaceDown
-        val flyingAbilityGrpIds =
-            if (observeFlying) {
-                (
-                    bridge.cardRepository
-                        .findByGrpId(grpId)
-                        ?.abilityIds
-                        .orEmpty()
-                        .map { it.first } +
-                        mergedState.componentAbilityGrpIds
-                ).filterTo(mutableSetOf()) { bridge.cardRepository.findAbilityLocalization(it)?.keyword == "Flying" }
-                    .apply { add(checkNotNull(KeywordGrpIds.forKeyword("Flying"))) }
+        val lostKeywordAbilityGrpIds =
+            if (bridge.engineSettings.keywordProjection == KeywordProjection.WebEffectiveKeywords && onBf && !card.isFaceDown) {
+                val catalogRows =
+                    (
+                        bridge.cardRepository
+                            .findByGrpId(grpId)
+                            ?.abilityIds
+                            .orEmpty()
+                            .map { it.first } +
+                            mergedState.componentAbilityGrpIds
+                    ).mapNotNull { id ->
+                        bridge.cardRepository
+                            .findAbilityLocalization(id)
+                            ?.keyword
+                            ?.let { it to id }
+                    }
+                (catalogRows + KeywordGrpIds.baseGrants.toList())
+                    .filter { (name, _) ->
+                        val keyword = Keyword.smartValueOf(name)
+                        keyword != Keyword.UNDEFINED && !card.hasKeyword(keyword)
+                    }.mapTo(mutableSetOf()) { it.second }
             } else {
-                emptySet()
+                null
             }
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
@@ -631,8 +638,7 @@ object SnapshotCapture {
             chosenColorIds = chosenColorIds,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
-            effectiveFlying = if (observeFlying) card.hasKeyword("Flying") else null,
-            flyingAbilityGrpIds = flyingAbilityGrpIds,
+            lostKeywordAbilityGrpIds = lostKeywordAbilityGrpIds,
             isPhasedOut = card.isPhasedOut,
             // Face-down exile inspection retains catalog P/T instead of the live 2/2 stencil.
             netPower = if (type.isCreature && !isFaceDownInExile) card.netPower else null,

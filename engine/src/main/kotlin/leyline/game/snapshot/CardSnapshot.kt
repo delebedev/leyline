@@ -65,10 +65,11 @@ data class CardSnapshot(
     // --- ObjectMapper live state ---
     /** True when the card is in the Battlefield zone. */
     val isOnBattlefield: Boolean = false,
-    /** Null means this host or identity does not supply effective Flying membership. */
-    val effectiveFlying: Boolean? = null,
-    /** Typed intrinsic/component rows and the explicit grant identity covered by that observation. */
-    val flyingAbilityGrpIds: Set<Int> = emptySet(),
+    /**
+     * Keyword ability rows (catalog, component and explicit grant identities) whose keyword Forge no longer
+     * reports on the card. Null means this host or identity does not supply effective keyword membership.
+     */
+    val lostKeywordAbilityGrpIds: Set<Int>? = null,
     /** Phasing status preserves battlefield membership and object identity. */
     val isPhasedOut: Boolean = false,
     /** Live net power from Forge (continuous effects/counters). Non-null only for creatures. */

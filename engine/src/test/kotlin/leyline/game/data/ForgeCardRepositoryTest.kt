@@ -12,15 +12,15 @@ class ForgeCardRepositoryTest :
     FunSpec({
         tags(UnitTag)
 
-        test("Flying identity comes from its keyword declaration without changing printed text or other rows") {
+        test("keyword identity comes from each keyword declaration without changing printed text or other rows") {
             val repo = ForgeCardRepository.open()
             val data = requireNotNull(repo.findByGrpId(requireNotNull(repo.findGrpIdByName("Atraxa, Praetors' Voice"))))
             val rows = data.abilityIds.map { requireNotNull(repo.findAbilityLocalization(it.first)) }
             assertSoftly {
-                rows.first().keyword shouldBe "Flying"
+                rows.take(4).map { it.keyword } shouldBe listOf("Flying", "Vigilance", "Deathtouch", "Lifelink")
                 rows.first().text shouldBe "Flying"
-                data.abilityKinds.first() shouldBe SlotKind.Keyword
-                rows.drop(1).all { it.keyword == null } shouldBe true
+                data.abilityKinds.take(4).all { it == SlotKind.Keyword } shouldBe true
+                rows.drop(4).all { it.keyword == null } shouldBe true
                 data.keywordNames.containsAll(listOf("Flying", "Vigilance", "Deathtouch", "Lifelink")) shouldBe true
             }
         }
