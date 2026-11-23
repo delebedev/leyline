@@ -98,6 +98,7 @@ Rows are grouped by family and sorted by entity name.
 |---|---|---|
 | [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
+| [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
@@ -120,7 +121,6 @@ the table above when its page is written.
 |---|---|---|
 | `AbilityExhausted` | `AnnotationBuilder.abilityExhausted` | emitted |
 | `AbilityWordActive` | `AnnotationBuilder.abilityWordActive` | emitted |
-| `AddAbility` | `AnnotationBuilder.addAbility`, `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityMulti`, `AnnotationBuilder.addAbilityPacked` | emitted |
 | `Attachment` | `AnnotationBuilder.attachment` | emitted |
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
 | `CardRevealed` | `AnnotationBuilder.cardRevealed` | emitted |
