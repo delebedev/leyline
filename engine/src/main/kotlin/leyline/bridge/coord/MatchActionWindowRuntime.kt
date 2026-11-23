@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import leyline.bridge.handoff.DeclarationAnswer
 import leyline.bridge.handoff.GameActionBridge
 import leyline.bridge.handoff.PendingActionKind
+import leyline.bridge.handoff.PendingActionState
 import leyline.bridge.handoff.PlayerAction
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
@@ -273,13 +274,13 @@ internal class MatchActionWindowRuntime(
                     val attackers = answer as? DeclarationAnswer.Attackers ?: return false
                     val next = combat.nextAttackers(attackers) ?: return false
                     combat.replaceAttackers(next)
-                    check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_ATTACKERS, prior, planner))
+                    check(publishDeclarationPresentation(window, pending.state, prior, planner))
                 }
                 PendingActionKind.DECLARE_BLOCKERS -> {
                     val blockers = answer as? DeclarationAnswer.Blockers ?: return false
                     val next = combat.nextBlockers(blockers) ?: return false
                     combat.replaceBlockers(next)
-                    check(publishDeclarationPresentation(window, PendingActionKind.DECLARE_BLOCKERS, prior, planner))
+                    check(publishDeclarationPresentation(window, pending.state, prior, planner))
                 }
                 PendingActionKind.PRIORITY,
                 PendingActionKind.SYNC_ONLY,
@@ -300,12 +301,12 @@ internal class MatchActionWindowRuntime(
                 return false
             }
             val prior = owner.bridge.projectionStateSnapshot()
-            publishDeclarationPresentation(window, pending.state.kind, prior, LogicalSequencePlanner(prior.sequence))
+            publishDeclarationPresentation(window, pending.state, prior, LogicalSequencePlanner(prior.sequence))
         }
 
     private fun publishDeclarationPresentation(
         window: RuntimeActionWindow,
-        kind: PendingActionKind,
+        state: PendingActionState,
         prior: ProjectionState,
         planner: LogicalSequencePlanner,
     ): Boolean {
@@ -314,7 +315,7 @@ internal class MatchActionWindowRuntime(
         val game = owner.bridge.getGame() ?: owner.fail(IllegalStateException("Game unavailable"))
         val prepared =
             try {
-                when (kind) {
+                when (state.kind) {
                     PendingActionKind.DECLARE_ATTACKERS ->
                         feed.builder.prepareEchoAttackers(
                             game,
@@ -324,6 +325,7 @@ internal class MatchActionWindowRuntime(
                             combat.selectedAttackAlternatives(),
                             combat.selectedDamageRecipients(),
                             window.presentationActions,
+                            state.combatant,
                         )
                     PendingActionKind.DECLARE_BLOCKERS ->
                         feed.builder.prepareEchoBlockers(
@@ -332,6 +334,7 @@ internal class MatchActionWindowRuntime(
                             combat.selectedBlockAssignments(),
                             combat.legalBlockerInstanceIds(),
                             window.presentationActions,
+                            state.combatant,
                         )
                     PendingActionKind.PRIORITY,
                     PendingActionKind.SYNC_ONLY,
@@ -539,6 +542,7 @@ internal class MatchActionWindowRuntime(
                         kind = pending.state.kind,
                         priorityCandidates = pending.priorityCandidates,
                         intent = intent,
+                        combatant = pending.state.combatant,
                     )
                 } catch (ex: Exception) {
                     owner.fail(ex)

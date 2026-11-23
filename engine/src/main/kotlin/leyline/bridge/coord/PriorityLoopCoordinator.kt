@@ -22,6 +22,7 @@ import leyline.bridge.handoff.SynchronizationContinuation
 import leyline.bridge.handoff.SynchronizationPresentation
 import leyline.bridge.resolveAttackDefender
 import leyline.bridge.types.ForgeCardId
+import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.PriorityDecision
 import leyline.game.data.KeywordAbilityIds
 import org.slf4j.LoggerFactory
@@ -191,6 +192,7 @@ class PriorityLoopCoordinator(
                 activePlayerId = attacker.id,
                 priorityPlayerId = attacker.id,
                 kind = PendingActionKind.DECLARE_ATTACKERS,
+                combatant = ForgePlayerId(attacker.id),
             )
         when (val action = actionBridge.awaitAction(state)) {
             is PlayerAction.DeclareAttackers -> {
@@ -198,7 +200,8 @@ class PriorityLoopCoordinator(
                 val fallbackDefender = resolveAttackDefender(game, attacker, action.defender)
                 for (cardId in action.attackerIds) {
                     val card = findCard(game, cardId) ?: continue
-                    if (!CombatUtil.canAttack(card)) continue
+                    // The declaring seat may be another player's chooser; only the attacking player's creatures attack.
+                    if (card.controller != attacker || !CombatUtil.canAttack(card)) continue
                     val defender =
                         action.defenderByAttacker[cardId]?.let { resolveAttackDefender(game, attacker, it) }
                             ?: fallbackDefender
@@ -240,6 +243,7 @@ class PriorityLoopCoordinator(
                 activePlayerId = defender.id,
                 priorityPlayerId = defender.id,
                 kind = PendingActionKind.DECLARE_BLOCKERS,
+                combatant = ForgePlayerId(defender.id),
             )
         while (true) {
             val assignments =
