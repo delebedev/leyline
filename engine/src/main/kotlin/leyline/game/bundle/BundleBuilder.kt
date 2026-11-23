@@ -1396,6 +1396,32 @@ class BundleBuilder(
         }
     }
 
+    /** Apply the selected but not yet declared block or attack to a provisional combat row. */
+    private fun GameObjectInfo.withProvisionalCombatState(
+        blockedAttackerId: Int?,
+        attackRecipient: DamageRecipient?,
+    ): GameObjectInfo =
+        when {
+            blockedAttackerId != null ->
+                toBuilder()
+                    .setBlockState(BlockState.Declared_aa2d)
+                    .setBlockInfo(BlockInfo.newBuilder().addAttackerIds(blockedAttackerId))
+                    .build()
+            attackRecipient != null -> {
+                val target =
+                    when (attackRecipient.type) {
+                        DamageRecType.Player_a0e5 -> attackRecipient.playerSystemSeatId
+                        DamageRecType.PlanesWalker -> attackRecipient.planeswalkerInstanceId
+                        else -> error("Unsupported provisional attack recipient")
+                    }
+                toBuilder()
+                    .setAttackState(AttackState.Declared_a3a9)
+                    .setAttackInfo(AttackInfo.newBuilder().setTargetId(target))
+                    .build()
+            }
+            else -> this
+        }
+
     /** Select only the combatant's complete public row pair for the retained combat presentation. */
     private fun combatAbilitySource(
         cursor: ViewerProjectionCursor?,
@@ -1458,6 +1484,8 @@ class BundleBuilder(
                         }
                     if (iid !in includedInstanceIds) continue
                     val cardSnap = snap?.objects?.get(fid) ?: continue
+                    // A provisional row is public and carries the printed identity; another player's face-down creature keeps no echo row.
+                    if (cardSnap.isFaceDown && cardSnap.controller.value != seatId) continue
                     val abilitySource =
                         if (effectiveEcho) {
                             combatAbilitySource(cursor, cardSnap, prior.identities, iid, combatantSeatId) ?: continue
@@ -1471,31 +1499,11 @@ class BundleBuilder(
                                 cardSnap,
                                 iid,
                                 ZoneIds.BATTLEFIELD,
-                                ownerSeatId = if (effectiveEcho) cardSnap.owner.value else combatantSeatId,
+                                ownerSeatId = cardSnap.owner.value,
                                 cardProto = bridge.cardProto,
                                 parentLinkage = snap.boundCards[fid]?.parentLinkage,
                                 abilitySource = abilitySource,
-                            ).let { obj ->
-                                provisionalBlockAssignments[iid]?.let { attackerId ->
-                                    obj
-                                        .toBuilder()
-                                        .setBlockState(BlockState.Declared_aa2d)
-                                        .setBlockInfo(BlockInfo.newBuilder().addAttackerIds(attackerId))
-                                        .build()
-                                } ?: provisionalAttackTargets[iid]?.let { recipient ->
-                                    val target =
-                                        when (recipient.type) {
-                                            DamageRecType.Player_a0e5 -> recipient.playerSystemSeatId
-                                            DamageRecType.PlanesWalker -> recipient.planeswalkerInstanceId
-                                            else -> error("Unsupported provisional attack recipient")
-                                        }
-                                    obj
-                                        .toBuilder()
-                                        .setAttackState(AttackState.Declared_a3a9)
-                                        .setAttackInfo(AttackInfo.newBuilder().setTargetId(target))
-                                        .build()
-                                } ?: obj
-                            },
+                            ).withProvisionalCombatState(provisionalBlockAssignments[iid], provisionalAttackTargets[iid]),
                     )
                 }
 

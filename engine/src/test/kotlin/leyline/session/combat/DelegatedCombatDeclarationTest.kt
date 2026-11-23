@@ -100,6 +100,38 @@ class DelegatedCombatDeclarationTest :
         }
 
         session(
+            "delegated block selection keeps the defending player's face-down creature concealed",
+            puzzle = INVASION_PLANS_BOARD.replace("aibattlefield=Walking Corpse", "aibattlefield=Gathan Raiders|FaceDown"),
+            turns = 4,
+        ) {
+            val bears = battlefieldIid(HUMAN_SEAT, "Grizzly Bears")
+            passUntil(maxPasses = 20) { allMessages.any { it.hasDeclareAttackersReq() } }.shouldBeTrue()
+            declareAttackers(listOf(bears))
+            passUntil(maxPasses = 20) { allMessages.any { it.hasDeclareBlockersReq() } }.shouldBeTrue()
+            val hidden =
+                allMessages
+                    .last { it.hasDeclareBlockersReq() }
+                    .declareBlockersReq.blockersList
+                    .single()
+                    .blockerInstanceId
+            val printedGrpId = checkNotNull(bridge.cardRepository.findGrpIdByName("Gathan Raiders"))
+
+            val echoRows =
+                toggleBlockers(mapOf(hidden to bears))
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.gameObjectsList }
+            assertSoftly {
+                echoRows.count { it.instanceId == hidden } shouldBe 0
+                echoRows.count { it.grpId == printedGrpId } shouldBe 0
+            }
+            submitBlockers()
+            passUntil(maxPasses = 40) {
+                human.getZone(ZoneType.Graveyard).cards.any { it.name == "Grizzly Bears" }
+            }.shouldBeTrue()
+            ai.life shouldBe 20
+        }
+
+        session(
             "defending player declares their own blockers without a delegated declarer",
             puzzle = INVASION_PLANS_BOARD.replace("Invasion Plans;", ""),
             turns = 4,
