@@ -163,6 +163,8 @@ object ObjectMapper {
      *
      * Echo objects carry NO combat state (no attackState/blockState).
      * Only base card fields are included — P/T, tapped, sickness from [CardSnapshot].
+     * Ability rows follow normal projection: [keywordGrants] and [grantedAbilities]
+     * that survive the card's ability removals are kept, and removed printed rows are omitted.
      * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
      * (not object state) to track provisional selections.
      */
@@ -173,11 +175,9 @@ object ObjectMapper {
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
         parentLinkage: ParentLinkage? = null,
-        abilitySource: GameObjectInfo? = null,
+        keywordGrants: List<EffectTracker.KeywordEntry> = emptyList(),
+        grantedAbilities: List<EffectTracker.TrackedGrantedAbility> = emptyList(),
     ): GameObjectInfo {
-        require(
-            cardSnap.effectiveFlying == null || abilitySource != null,
-        ) { "Effective combat echoes need a qualified committed ability source" }
         val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
             if (cardSnap.isToken && cardSnap.preparedRole !is PreparedRole.Copy && !isStackCopySpell) {
@@ -187,8 +187,9 @@ object ObjectMapper {
                 // but represent normal castable spells — projected as plain Cards.
                 GameObjectType.Card
             }
+        val extrinsicKws = cardSnap.survivingKeywordGrants(keywordGrants).mapNotNull { it.resolvedAbilityGrpId }
         return cardProto
-            .buildObjectInfo(cardSnap.grpId)
+            .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws + cardSnap.mergedComponentAbilityGrpIds)
             .setInstanceId(instanceId)
             .setType(objType)
             .setZoneId(zoneId)
@@ -198,11 +199,8 @@ object ObjectMapper {
             .setOthersideGrpId(cardSnap.othersideGrpId)
             .applyFieldsFromSnapshot(cardSnap, parentLinkage) // echo objects carry no combat state
             .apply {
-                if (abilitySource != null) {
-                    clearUniqueAbilities().addAllUniqueAbilities(abilitySource.uniqueAbilitiesList)
-                    clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(abilitySource.abilityOriginalCardGrpIdsList)
-                }
-                reconcileFlying(cardSnap)
+                applyGrantedAbilities(cardSnap.survivingGrantedAbilities(grantedAbilities))
+                applyComponentOriginsAndRemovals(cardSnap, cardProto, extrinsicKws.size, hasEarthbend = false)
             }.build()
     }
 
@@ -281,7 +279,7 @@ object ObjectMapper {
                     },
                 ).build()
         }
-        val extrinsicKws = keywordSnapshot[instanceId]?.mapNotNull { it.resolvedAbilityGrpId } ?: emptyList()
+        val extrinsicKws = cardSnap.survivingKeywordGrants(keywordSnapshot[instanceId].orEmpty()).mapNotNull { it.resolvedAbilityGrpId }
         // Face-down objects conceal printed identity while retaining
         // mechanic-specific intrinsic abilities and established keyword grants.
         if (cardSnap.faceDownKind != null || cardSnap.isFaceDown && (cardSnap.isOnBattlefield || zoneId == ZoneIds.STACK)) {
@@ -343,15 +341,8 @@ object ObjectMapper {
             }
             builder.addAbilityOriginalCardGrpIds(earthbend.sourceCardGrpId)
         }
-        builder.applyGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty())
-        if (cardSnap.isMergedPermanent) {
-            builder.addAllAbilityOriginalCardGrpIds(
-                cardProto.staticAbilityGrpIds(cardSnap.grpId).map { cardSnap.grpId } +
-                    List(extrinsicKws.size) { cardSnap.grpId } +
-                    cardSnap.mergedComponentAbilityOriginalCardGrpIds,
-            )
-        }
-        builder.reconcileFlying(cardSnap)
+        builder.applyGrantedAbilities(cardSnap.survivingGrantedAbilities(grantedAbilitySnapshot[instanceId].orEmpty()))
+        builder.applyComponentOriginsAndRemovals(cardSnap, cardProto, extrinsicKws.size, hasEarthbend = earthbend != null)
         return builder.build()
     }
 
@@ -363,17 +354,65 @@ object ObjectMapper {
         }
     }
 
-    /** Filter aligned rows once, retaining surviving recipient-local IDs and source origins. */
-    private fun GameObjectInfo.Builder.reconcileFlying(snapshot: CardSnapshot) {
-        if (snapshot.effectiveFlying != false) return
+    /** Keyword grants not hidden by a later ability-removing effect (CR 613.7) or a can't-have effect. */
+    private fun CardSnapshot.survivingKeywordGrants(grants: List<EffectTracker.KeywordEntry>): List<EffectTracker.KeywordEntry> =
+        grants.filterNot { grant -> abilityRemovals.any { it.suppressesGrant(grant.timestamp, grant.keyword) } }
+
+    /** Granted activated abilities not hidden by a later ability-removing effect. */
+    private fun CardSnapshot.survivingGrantedAbilities(
+        grants: List<EffectTracker.TrackedGrantedAbility>,
+    ): List<EffectTracker.TrackedGrantedAbility> =
+        grants.filterNot { grant -> abilityRemovals.any { it.suppressesGrant(grant.fingerprint.timestamp, keyword = null) } }
+
+    /**
+     * Add merged-permanent origins for the printed, keyword-grant and component rows, then omit rows hidden by
+     * ability-removing effects. Rows are laid out printed, then [extrinsicKeywordRows] keyword grants, then components.
+     */
+    private fun GameObjectInfo.Builder.applyComponentOriginsAndRemovals(
+        cardSnap: CardSnapshot,
+        cardProto: CardProtoBuilder,
+        extrinsicKeywordRows: Int,
+        hasEarthbend: Boolean,
+    ) {
+        val printedRows = cardProto.staticAbilityGrpIds(cardSnap.grpId).size
+        if (cardSnap.isMergedPermanent) {
+            addAllAbilityOriginalCardGrpIds(
+                List(printedRows + extrinsicKeywordRows) { cardSnap.grpId } + cardSnap.mergedComponentAbilityOriginalCardGrpIds,
+            )
+        }
+        omitRemovedAbilities(
+            cardSnap,
+            printedRows = printedRows,
+            componentRows = extrinsicKeywordRows until extrinsicKeywordRows + cardSnap.mergedComponentAbilityGrpIds.size,
+            originsLeadRows = cardSnap.isMergedPermanent && !hasEarthbend,
+        )
+    }
+
+    /**
+     * Omit printed and component rows hidden by ability-removing effects, keeping recipient-local IDs of the
+     * surviving rows. Grants are filtered by timestamp before they are added. [componentRows] is relative to the
+     * first row after the printed rows. When [originsLeadRows] is set, origin `i` belongs to row `i` and removed
+     * rows drop their origin; otherwise origins pair with later rows (an earthbend Haste row) and stay unchanged.
+     */
+    private fun GameObjectInfo.Builder.omitRemovedAbilities(
+        snapshot: CardSnapshot,
+        printedRows: Int,
+        componentRows: IntRange = IntRange.EMPTY,
+        originsLeadRows: Boolean = false,
+    ) {
+        val removed = snapshot.abilityRemovals.flatMapTo(mutableSetOf()) { it.removedAbilityGrpIds }
+        if (removed.isEmpty()) return
         val abilities = uniqueAbilitiesList.toList()
-        val origins = abilityOriginalCardGrpIdsList.toList()
-        // Sparse origins do not establish index association. Keep the legacy row rather than invent a pairing.
-        if (origins.isNotEmpty() && origins.size != abilities.size) return
-        val kept = abilities.indices.filter { abilities[it].grpId !in snapshot.flyingAbilityGrpIds }
-        if (kept.size == abilities.size) return
-        clearUniqueAbilities().addAllUniqueAbilities(kept.map(abilities::get))
-        if (origins.isNotEmpty()) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))
+        val dropped =
+            abilities.indices.filterTo(mutableSetOf()) { index ->
+                (index < printedRows || index - printedRows in componentRows) && abilities[index].grpId in removed
+            }
+        if (dropped.isEmpty()) return
+        clearUniqueAbilities().addAllUniqueAbilities(abilities.filterIndexed { index, _ -> index !in dropped })
+        if (originsLeadRows) {
+            val origins = abilityOriginalCardGrpIdsList.toList()
+            clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(origins.filterIndexed { index, _ -> index !in dropped })
+        }
     }
 
     fun buildDisturbBackObject(

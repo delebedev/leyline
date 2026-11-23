@@ -127,6 +127,38 @@ class EffectTracker {
         val destroyed: List<TrackedGrantedAbility>,
     )
 
+    // --- Ability removal tracking ---
+
+    /** One ability-removing effect observed on a permanent; [removedAbilityGrpIds] is null for "all". */
+    data class RemovalEntry(
+        val timestamp: Long,
+        val staticId: Long,
+        val removedAbilityGrpIds: List<Int>?,
+        val sourceForgeCardId: ForgeCardId? = null,
+    )
+
+    /** Removal identity. [removedAbilityGrpIds] is part of it, so a changed payload retires and replaces the effect. */
+    data class RemovalFingerprint(
+        val cardInstanceId: Int,
+        val timestamp: Long,
+        val staticId: Long,
+        val removedAbilityGrpIds: List<Int>? = null,
+    )
+
+    data class TrackedRemoval(
+        val syntheticId: Int,
+        val fingerprint: RemovalFingerprint,
+        val removedAbilityGrpIds: List<Int>?,
+        val sourceForgeCardId: ForgeCardId? = null,
+    ) {
+        val cardInstanceId: Int get() = fingerprint.cardInstanceId
+    }
+
+    data class RemovalDiffResult(
+        val created: List<TrackedRemoval>,
+        val destroyed: List<TrackedRemoval>,
+    )
+
     private data class LifecycleDiff<T>(
         val created: List<T>,
         val destroyed: List<T>,
@@ -139,6 +171,7 @@ class EffectTracker {
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
     private val activeKeywordEffects = mutableMapOf<KeywordFingerprint, TrackedKeywordEffect>()
     private val activeGrantedAbilities = mutableMapOf<GrantedAbilityFingerprint, TrackedGrantedAbility>()
+    private val activeRemovals = mutableMapOf<RemovalFingerprint, TrackedRemoval>()
 
     data class State(
         val initEmitted: Boolean,
@@ -146,7 +179,26 @@ class EffectTracker {
         val activeEffects: Map<EffectFingerprint, TrackedEffect>,
         val activeKeywordEffects: Map<KeywordFingerprint, TrackedKeywordEffect>,
         val activeGrantedAbilities: Map<GrantedAbilityFingerprint, TrackedGrantedAbility>,
-    )
+        val activeRemovals: Map<RemovalFingerprint, TrackedRemoval> = emptyMap(),
+    ) {
+        /** Committed keyword grants on [cardInstanceId], in lifecycle order. */
+        fun keywordGrantsFor(cardInstanceId: Int): List<KeywordEntry> =
+            activeKeywordEffects.values
+                .filter { it.cardInstanceId == cardInstanceId }
+                .map {
+                    KeywordEntry(
+                        it.fingerprint.timestamp,
+                        it.fingerprint.staticId,
+                        it.keyword,
+                        it.affectorForgeCardId,
+                        it.abilityGrpId,
+                    )
+                }
+
+        /** Committed generated activated abilities on [cardInstanceId], in lifecycle order. */
+        fun grantedAbilitiesFor(cardInstanceId: Int): List<TrackedGrantedAbility> =
+            activeGrantedAbilities.values.filter { it.cardInstanceId == cardInstanceId }
+    }
 
     /** Complete value state owned by a projection transition. */
     internal fun freeze(): State =
@@ -156,6 +208,7 @@ class EffectTracker {
             activeEffects = activeEffects.toMap(),
             activeKeywordEffects = activeKeywordEffects.toMap(),
             activeGrantedAbilities = activeGrantedAbilities.toMap(),
+            activeRemovals = activeRemovals.toMap(),
         )
 
     /** Build a private planner from a previously committed value. */
@@ -168,6 +221,8 @@ class EffectTracker {
         activeKeywordEffects.putAll(state.activeKeywordEffects)
         activeGrantedAbilities.clear()
         activeGrantedAbilities.putAll(state.activeGrantedAbilities)
+        activeRemovals.clear()
+        activeRemovals.putAll(state.activeRemovals)
     }
 
     /** Allocate the next monotonic synthetic effect ID. */
@@ -281,6 +336,28 @@ class EffectTracker {
         return GrantedAbilityDiffResult(diff.created, diff.destroyed)
     }
 
+    /**
+     * Diff ability-removing effects per affected permanent. A permanent leaving the battlefield drops its
+     * entries, which destroys the tracked removal.
+     */
+    fun diffAbilityRemovals(currentRemovals: Map<Int, List<RemovalEntry>>): RemovalDiffResult {
+        val diff =
+            diffLifecycle(
+                currentByCard = currentRemovals,
+                active = activeRemovals,
+                fingerprintOf = {
+                    cardIid,
+                    entry,
+                    ->
+                    RemovalFingerprint(cardIid, entry.timestamp, entry.staticId, entry.removedAbilityGrpIds)
+                },
+                createTracked = { fp, entry ->
+                    TrackedRemoval(nextEffectId(), fp, entry.removedAbilityGrpIds, entry.sourceForgeCardId)
+                },
+            )
+        return RemovalDiffResult(diff.created, diff.destroyed)
+    }
+
     fun activeGrantedAbilities(): List<TrackedGrantedAbility> = activeGrantedAbilities.values.toList()
 
     private fun <Entry, Fingerprint, Tracked> diffLifecycle(
@@ -355,6 +432,7 @@ class EffectTracker {
         activeEffects.clear()
         activeKeywordEffects.clear()
         activeGrantedAbilities.clear()
+        activeRemovals.clear()
         initEmitted = false
     }
 }

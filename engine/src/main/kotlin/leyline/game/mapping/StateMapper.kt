@@ -18,6 +18,7 @@ import leyline.game.event.GameEvent
 import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
+import leyline.game.state.AbilityRemoval
 import leyline.game.state.AnnotationProjectionState
 import leyline.game.state.DelayedTriggerAffecteesKind
 import leyline.game.state.EarthbendTracker
@@ -202,6 +203,7 @@ object StateMapper {
         val keywordDiff = effectPlanner.effects.diffKeywords(keywordSnapshot)
         val grantedAbilitySnapshot = grantedAbilityEntries(effectFacts, editor.identities)
         val grantedAbilityDiff = effectPlanner.effects.diffGrantedAbilities(grantedAbilitySnapshot)
+        val removalDiff = effectPlanner.effects.diffAbilityRemovals(abilityRemovalEntries(snap, editor.identities))
         val activeGrantedAbilities = effectPlanner.effects.activeGrantedAbilities().groupBy { it.cardInstanceId }
         // Persistent annotation history comes from the tentative projection editor.
         // computeBatch is pure over this value and the current feed set.
@@ -590,6 +592,7 @@ object StateMapper {
                 frameContext = frameContext,
                 keywordDiff = keywordDiff,
                 grantedAbilityDiff = grantedAbilityDiff,
+                removalDiff = removalDiff,
                 combatResult = combatResult,
                 persistentFeeds = persistentFeeds,
                 convokePaymentsBySource = convokePaymentsBySource,
@@ -715,7 +718,9 @@ object StateMapper {
                         keywordDiff.created.map { it.cardInstanceId } +
                         keywordDiff.destroyed.map { it.cardInstanceId } +
                         grantedAbilityDiff.created.map { it.cardInstanceId } +
-                        grantedAbilityDiff.destroyed.map { it.cardInstanceId }
+                        grantedAbilityDiff.destroyed.map { it.cardInstanceId } +
+                        removalDiff.created.map { it.cardInstanceId } +
+                        removalDiff.destroyed.map { it.cardInstanceId }
                 ).toSet(),
         )
     }
@@ -815,6 +820,29 @@ object StateMapper {
                 )
         }
         return entriesByInstance.mapValues { (_, entries) -> entries.toList() }
+    }
+
+    /** Ability-removing effects per battlefield permanent; a specific removal hiding no row has no client effect. */
+    private fun abilityRemovalEntries(
+        snap: GsmSnapshot,
+        identities: InstanceIdRegistry.Planner,
+    ): Map<Int, List<EffectTracker.RemovalEntry>> {
+        val entries = linkedMapOf<Int, List<EffectTracker.RemovalEntry>>()
+        for (card in snap.objects.values) {
+            val removals =
+                card.abilityRemovals.mapNotNull { removal ->
+                    val all = removal.scope == AbilityRemoval.Scope.All
+                    if (!all && removal.removedAbilityGrpIds.isEmpty()) return@mapNotNull null
+                    EffectTracker.RemovalEntry(
+                        timestamp = removal.timestamp,
+                        staticId = removal.staticId,
+                        removedAbilityGrpIds = removal.removedAbilityGrpIds.takeUnless { all },
+                        sourceForgeCardId = removal.sourceForgeCardId,
+                    )
+                }
+            if (removals.isNotEmpty()) entries[identities.getOrAlloc(card.forgeCardId).value] = removals
+        }
+        return entries
     }
 
     private fun keywordEntries(

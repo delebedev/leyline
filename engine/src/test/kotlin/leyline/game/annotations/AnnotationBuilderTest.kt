@@ -868,12 +868,24 @@ class AnnotationBuilderTest :
         // --- RemoveAbility (Tier 1) ---
 
         test("removeAbilityFields") {
-            val ann = AnnotationBuilder.removeAbility(instanceId = 200.iid, effectId = 7003.eid)
+            val all = AnnotationBuilder.removeAbility(instanceId = 200.iid, effectId = 7003.eid, affectorId = 210.iid)
+            val specific =
+                AnnotationBuilder.removeAbility(
+                    instanceId = 200.iid,
+                    effectId = 7004.eid,
+                    removedAbilityGrpIds = listOf(8, 15),
+                    sourceAbilityGrpId = 1234.grp,
+                )
             assertSoftly {
-                ann.typeList shouldContain AnnotationType.RemoveAbility
-                ann.affectedIdsList shouldContain 200
-                ann.detailInt("effect_id") shouldBe 7003
-                ann.detailsCount shouldBe 1
+                all.typeList shouldBe listOf(AnnotationType.RemoveAbility, AnnotationType.LayeredEffect)
+                all.affectedIdsList shouldBe listOf(200)
+                all.affectorId shouldBe 210
+                all.detailsList.map { it.key } shouldBe listOf("200", "effect_id")
+                all.detailsList.first().valueStringList shouldBe listOf("all")
+                all.detailInt("effect_id") shouldBe 7003
+                specific.detailsList.map { it.key } shouldBe listOf("200", "sourceAbilityGRPID", "effect_id")
+                specific.detailsList.first().valueInt32List shouldBe listOf(8, 15)
+                specific.detailInt("sourceAbilityGRPID") shouldBe 1234
             }
         }
 

@@ -9,10 +9,8 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.SeatId
 import leyline.bridge.types.StaticChoiceIds
 import leyline.bridge.types.WubrgColorMapping
-import leyline.config.KeywordProjection
 import leyline.game.annotations.AbilityWordScanner
 import leyline.game.annotations.CastAbilityWordScanner
-import leyline.game.codes.KeywordGrpIds
 import leyline.game.data.BasicLandAbilities
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
@@ -21,6 +19,7 @@ import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.ObjectMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.AbilityRegistry
+import leyline.game.state.AbilityRemoval
 import leyline.game.state.GameBridge
 import org.jetbrains.annotations.VisibleForTesting
 import wotc.mtgo.gre.external.messaging.Messages.SubType
@@ -582,23 +581,17 @@ object SnapshotCapture {
             }
 
         val emblem = EmblemSnapshot.capture(card, bridge)
-        val observeFlying =
-            bridge.engineSettings.keywordProjection == KeywordProjection.WebEffectiveFlying &&
-                onBf &&
-                !card.isFaceDown
-        val flyingAbilityGrpIds =
-            if (observeFlying) {
-                (
-                    bridge.cardRepository
-                        .findByGrpId(grpId)
-                        ?.abilityIds
-                        .orEmpty()
-                        .map { it.first } +
-                        mergedState.componentAbilityGrpIds
-                ).filterTo(mutableSetOf()) { bridge.cardRepository.findAbilityLocalization(it)?.keyword == "Flying" }
-                    .apply { add(checkNotNull(KeywordGrpIds.forKeyword("Flying"))) }
+        val abilityRemovals =
+            if (onBf && !card.isFaceDown) {
+                AbilityRemoval
+                    .read(card)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { removals ->
+                        val printedRows = bridge.cardProto.staticAbilityGrpIds(grpId) + mergedState.componentAbilityGrpIds
+                        removals.map { it.resolvedAgainst(printedRows, bridge.cardRepository) }
+                    }.orEmpty()
             } else {
-                emptySet()
+                emptyList()
             }
         return CardSnapshot(
             forgeCardId = ForgeCardId(card.id),
@@ -631,8 +624,7 @@ object SnapshotCapture {
             chosenColorIds = chosenColorIds,
             hasNonManaActivatedAbilities = hasNonManaActivatedAbilities,
             isOnBattlefield = onBf,
-            effectiveFlying = if (observeFlying) card.hasKeyword("Flying") else null,
-            flyingAbilityGrpIds = flyingAbilityGrpIds,
+            abilityRemovals = abilityRemovals,
             isPhasedOut = card.isPhasedOut,
             // Face-down exile inspection retains catalog P/T instead of the live 2/2 stencil.
             netPower = if (type.isCreature && !isFaceDownInExile) card.netPower else null,

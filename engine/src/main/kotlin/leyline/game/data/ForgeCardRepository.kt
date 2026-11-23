@@ -532,7 +532,11 @@ class ForgeCardRepository private constructor(
             rows.registerAbilityInfo(id, AbilityInfo(base, mana, category, if (kind == SlotKind.Mana) 1 else 0))
             val parsed = parseParams(raw)
             val keyword =
-                if (kind == SlotKind.Keyword && Keyword.getInstance(raw).keyword == Keyword.FLYING) "Flying" else null
+                Keyword
+                    .getInstance(raw)
+                    .keyword
+                    .takeIf { kind == SlotKind.Keyword && it != Keyword.UNDEFINED }
+                    ?.toString()
             rows.registerAbilityLocalization(id, AbilityLocalization(abilityText(parsed, raw), mana, keyword))
             val effect = modalEffect(raw, variables)
             effect["Choices"]

@@ -12,9 +12,8 @@ import leyline.architecture.EngineArchitecture.named
 /**
  * Keeps host-selected settings in projection.
  *
- * An embedding host may choose how the same game is presented: Forge-text cost
- * labels ([leyline.config.CostChoicePresentation]) or effective keyword rows
- * ([leyline.config.KeywordProjection]). Rules, action offers, prompt routing
+ * An embedding host may choose how the same game is presented, such as Forge-text
+ * cost labels ([leyline.config.CostChoicePresentation]). Rules, action offers, prompt routing
  * and Copilot decisions must stay identical across hosts, so only snapshot
  * building, object mapping and bundle construction may read these values.
  *
@@ -61,12 +60,11 @@ private val projectionPackages =
 private val hostOptInTypes =
     listOf(
         "leyline.config.CostChoicePresentation",
-        "leyline.config.KeywordProjection",
     )
 
 private val hostOptInGetter =
     object : DescribedPredicate<JavaMethodCall>("read a host opt-in from EngineSettings") {
         override fun test(call: JavaMethodCall): Boolean =
             call.targetOwner.name == "leyline.config.EngineSettings" &&
-                kotlinName(call.target.name) in setOf("getCostChoicePresentation", "getKeywordProjection")
+                kotlinName(call.target.name) in setOf("getCostChoicePresentation")
     }

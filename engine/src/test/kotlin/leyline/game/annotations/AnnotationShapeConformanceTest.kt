@@ -147,8 +147,8 @@ class AnnotationShapeConformanceTest :
                 setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid")
         }
 
-        test("RemoveAbility shape: {effect_id}") {
-            detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)) shouldBe setOf("effect_id")
+        test("RemoveAbility shape: {<instanceId>, effect_id}") {
+            detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)) shouldBe setOf("1", "effect_id")
         }
 
         test("AbilityExhausted shape: {AbilityGrpId, UsesRemaining, UniqueAbilityId}") {
@@ -329,7 +329,8 @@ class AnnotationShapeConformanceTest :
                 "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1.iid)),
                 "Counter" to detailKeys(AnnotationBuilder.counter(1.iid, 1, 1)),
                 "AddAbility" to detailKeys(AnnotationBuilder.addAbility(1.iid, 1.grp, 1.eid, 1, 1)),
-                "RemoveAbility" to detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)),
+                // The instance-ID key varies per affected permanent, so the reference lists only effect_id.
+                "RemoveAbility" to detailKeys(AnnotationBuilder.removeAbility(1.iid, 1.eid)) - "1",
                 "AbilityExhausted" to detailKeys(AnnotationBuilder.abilityExhausted(1.iid, 1.grp, 0, 1)),
                 "GainDesignation" to detailKeys(AnnotationBuilder.gainDesignation(1.sid, 19)),
                 "Designation" to detailKeys(AnnotationBuilder.designation(1.sid, 19)),

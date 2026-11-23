@@ -467,6 +467,37 @@ object MechanicAnnotations {
         return transient to persistent
     }
 
+    /**
+     * RemoveAbility lifecycle: `LayeredEffectCreated` plus one persistent row per affected permanent, and
+     * `LayeredEffectDestroyed` when the removal ends or the permanent leaves.
+     * [attribution] returns the affector and, for a resolving ability, its source ability grpId.
+     */
+    fun abilityRemovalAnnotations(
+        diff: EffectTracker.RemovalDiffResult,
+        attribution: (EffectTracker.TrackedRemoval) -> Pair<InstanceId?, GrpId?>,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val transient = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+        for (removal in diff.created) {
+            val effectId = EffectId(removal.syntheticId)
+            val (affectorId, sourceAbilityGrpId) = attribution(removal)
+            transient.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorId))
+            persistent.add(
+                AnnotationBuilder.removeAbility(
+                    instanceId = InstanceId(removal.cardInstanceId),
+                    effectId = effectId,
+                    removedAbilityGrpIds = removal.removedAbilityGrpIds,
+                    affectorId = affectorId,
+                    sourceAbilityGrpId = sourceAbilityGrpId,
+                ),
+            )
+        }
+        for (removal in diff.destroyed) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(removal.syntheticId)))
+        }
+        return transient to persistent
+    }
+
     private fun addGrantedAbilityEffectAnnotations(
         transient: MutableList<AnnotationInfo>,
         persistent: MutableList<AnnotationInfo>,
