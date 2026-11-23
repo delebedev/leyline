@@ -925,14 +925,16 @@ scenarios:
       - resolve_stack: {}
       - expect:
           zone_contains: { side: ours, zone: battlefield, card: "Etali, Primal Conqueror" }
+      # Etali's turn ends before any other draw, so the Mountain in hand is the Blitz draw.
       - pass_until:
           all:
             - zone_contains: { side: ours, zone: graveyard, card: "Etali, Primal Conqueror" }
-            - zone_contains: { side: ours, zone: hand, card: Mountain }
+            - stack_empty: true
+            - phase: Cleanup
       - expect:
           all:
+            - zone_contains: { side: ours, zone: hand, card: Mountain }
             - zone_not_contains: { side: ours, zone: battlefield, card: "Etali, Primal Conqueror" }
-            - stack_empty: true
   - id: retrace-waves-of-aggression
     puzzle: retrace-waves-of-aggression
     run: expose Waves of Aggression's Retrace cast from the graveyard

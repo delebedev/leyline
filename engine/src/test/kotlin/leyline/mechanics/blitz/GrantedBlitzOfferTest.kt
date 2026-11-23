@@ -1,9 +1,11 @@
 package leyline.mechanics.blitz
 
 import forge.game.keyword.Keyword
+import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -72,11 +74,17 @@ class GrantedBlitzOfferTest :
                 cto.detailInt("castAbilityGrpId") shouldBe blitz.alternativeGrpId
             }
 
+            val castTurn = game().phaseHandler.turn
             val handBefore = human.getZone(ZoneType.Hand).size()
             passUntil(maxPasses = 30) {
                 human.getZone(ZoneType.Graveyard).cards.any { it.name == "Etali, Primal Conqueror" } &&
-                    human.getZone(ZoneType.Hand).size() > handBefore
+                    game().stack.isEmpty
             }.shouldBeTrue()
-            human.getZone(ZoneType.Battlefield).cards.none { it.name == "Etali, Primal Conqueror" } shouldBe true
+            assertSoftly {
+                game().phaseHandler.turn shouldBe castTurn
+                game().phaseHandler.phase shouldBeIn listOf(PhaseType.END_OF_TURN, PhaseType.CLEANUP)
+                human.getZone(ZoneType.Battlefield).cards.none { it.name == "Etali, Primal Conqueror" } shouldBe true
+                human.getZone(ZoneType.Hand).size() shouldBe handBefore + 1
+            }
         }
     })
