@@ -54,6 +54,51 @@ class ForgeCatalogModalProbeTest :
             }
         }
 
+        test("saga chapter charms ask their mode and resolve on each chapter") {
+            forgeCatalogProbe(
+                "saga-chapter-charm",
+                "humanhand=Life of Toshiro Umezawa\n" +
+                    "humanbattlefield=Swamp;Swamp;Grizzly Bears",
+                responseMode = HeadlessResponseMode.PolicyVisible,
+            ) { repo ->
+                val sagaId = requireNotNull(repo.findDeckGrpIdByName("Life of Toshiro Umezawa"))
+                val options = requireNotNull(repo.lookupModalOptions(sagaId))
+                options.childGrpIds.map { repo.findAbilityLocalization(it)?.text } shouldBe
+                    listOf(
+                        "Target creature gets +2/+2 until end of turn.",
+                        "Target creature gets -1/-1 until end of turn.",
+                        "You gain 2 life.",
+                    )
+
+                fun chooseGainLife(
+                    before: Int,
+                    expectedLife: Int,
+                ) {
+                    passUntil(maxPasses = 40) { messagesSince(before).any { it.hasCastingTimeOptionsReq() } }.shouldBeTrue()
+                    val modal =
+                        messagesSince(before)
+                            .last { it.hasCastingTimeOptionsReq() }
+                            .castingTimeOptionsReq
+                            .getCastingTimeOptionReq(0)
+                            .modalReq
+                    modal.modalOptionsList.map { it.grpId } shouldBe options.childGrpIds
+                    respondModalChoice(listOf(modal.getModalOptions(2).grpId))
+                    passUntil(maxPasses = 10) { human.life == expectedLife && game().stack.isEmpty }.shouldBeTrue()
+                }
+
+                val beforeCast = messageSnapshot()
+                castSpellByName("Life of Toshiro Umezawa").shouldBeTrue()
+                chooseGainLife(beforeCast, 22)
+                chooseGainLife(messageSnapshot(), 24)
+                val saga = human.battlefield.card("Life of Toshiro Umezawa")
+                assertSoftly {
+                    saga.getCounters(forge.game.card.CounterEnumType.LORE) shouldBe 2
+                    game().isGameOver shouldBe false
+                    passUntil(maxPasses = 5) { allMessages.last().hasActionsAvailableReq() }.shouldBeTrue()
+                }
+            }
+        }
+
         for ((exileCount, castExiled) in listOf(1 to true, 1 to false, 2 to false)) {
             test("subability generic choice exiles $exileCount cards and ${if (castExiled) "casts one" else "declines casting"}") {
                 forgeCatalogProbe(

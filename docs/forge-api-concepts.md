@@ -85,6 +85,8 @@ choices reject cancellation and do not offer undo.
 Catalog modal discovery follows `ReplaceWith` references as well as trigger and
 execution references. Draw replacements such as Abundance retain their named
 Land and Nonland choices through the same resolution-time bridge.
+A `Chapter` keyword contributes the first of its chapter effects that offers
+modes, so a Saga's charm chapters ask their mode through the same bridge.
 Only named modal APIs contribute option identities; `Choices` validity filters
 on effects such as `ChoosePlayer` do not replace a card's modal metadata.
 
