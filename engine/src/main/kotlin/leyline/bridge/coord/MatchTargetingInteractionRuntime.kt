@@ -172,6 +172,7 @@ internal class MatchTargetingInteractionRuntime(
                         checkNotNull(prepared.gameStateId),
                         value.targetIndex,
                         kind,
+                        value.allowCancel,
                     )
                 val created =
                     TargetingWindow(
@@ -395,6 +396,7 @@ internal class MatchTargetingInteractionRuntime(
             synchronized(owner.feedLock) {
                 owner.ensureOpen()
                 val current = matching(commandInteractionId(command), commandGameStateId(command)) ?: return null
+                if (command is TargetingCommand.Cancel && !current.value.allowCancel) return null
                 current.exchange.admitLocked(command)
                 afterCommandClaim?.invoke()
                 current

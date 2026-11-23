@@ -98,7 +98,7 @@ class AcceptanceSuiteLoaderTest :
                     |      - attack: { cards: [Raging Goblin], target: { side: opponent, zone: battlefield, card: Liliana of the Veil } }
                     |      - expect:
                     |          all:
-                    |            - prompt: { type: OrderReq, prompt_id: 42 }
+                    |            - prompt: { type: OrderReq, prompt_id: 42, allow_cancel: false }
                     |            - battlefield_stats_at_least: { side: ours, card: Monastery Swiftspear, power: 2, toughness: 3 }
                     |            - zone_not_contains: { side: ours, zone: hand, card: Miscalculation }
                     |            - zone_count_at_least: { side: ours, zone: hand, count: 2 }
@@ -161,7 +161,7 @@ class AcceptanceSuiteLoaderTest :
                 scenario.steps[20] shouldBe
                     ExpectStep(
                         listOf(
-                            PromptCondition("OrderReq", 42),
+                            PromptCondition("OrderReq", 42, allowCancel = false),
                             BattlefieldStatsAtLeastCondition(AcceptanceSide.Ours, "Monastery Swiftspear", 2, 3),
                             ZoneNotContainsCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, "Miscalculation"),
                             ZoneCountAtLeastCondition(AcceptanceSide.Ours, AcceptanceZone.Hand, 2),

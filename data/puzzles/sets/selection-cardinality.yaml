@@ -1,5 +1,5 @@
 name: selection-cardinality
-description: Required selections, legal zero-target completion, and parent-action cancellation.
+description: Required selections, legal zero-target completion, parent-action cancellation, and mandatory trigger targets.
 scenarios:
   - id: required-stack-target
     puzzle: selection-required-stack-target
@@ -80,4 +80,36 @@ scenarios:
       - expect:
           all:
             - zone_contains: { side: ours, zone: battlefield, card: "Kaya, Orzhov Usurper" }
+            - stack_empty: true
+  - id: mandatory-trigger-target
+    puzzle: selection-mandatory-trigger-target
+    run: cast Flametongue Kavu and target Centaur Courser with its enters trigger
+    expect: the trigger's target prompt offers no cancel and the trigger destroys Centaur Courser
+    steps:
+      - cast: Flametongue Kavu
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 6 }
+      - expect:
+          prompt: { type: SelectTargetsReq, allow_cancel: false }
+      - target: { side: opponent, zone: battlefield, card: Centaur Courser }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: opponent, zone: graveyard, card: Centaur Courser }
+            - zone_contains: { side: ours, zone: battlefield, card: Flametongue Kavu }
+            - stack_empty: true
+  - id: optional-trigger-decline
+    puzzle: selection-optional-trigger-target
+    run: move to combat, target Battle-Rattle Shaman with its own trigger, then decline the optional pump
+    expect: the target prompt offers no cancel, and declining at resolution leaves Battle-Rattle Shaman at 2/2
+    steps:
+      - pass_until: { prompt: SelectTargetsReq, max_passes: 6 }
+      - expect:
+          prompt: { type: SelectTargetsReq, allow_cancel: false }
+      - target: { side: ours, zone: battlefield, card: Battle-Rattle Shaman }
+      - pass_until: { prompt: OptionalActionMessage, max_passes: 8 }
+      - optional_action: { accept: false }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Battle-Rattle Shaman, power: 2, toughness: 2 }
             - stack_empty: true

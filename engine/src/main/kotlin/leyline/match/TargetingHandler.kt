@@ -148,6 +148,9 @@ class TargetingHandler(
      * → spell targeting fails → engine unwinds the cast (removes from stack,
      * returns mana). We then resend the game state so the client sees the
      * board return to pre-cast state with available actions.
+     *
+     * A triggered ability's targeting window publishes `allowCancel=No`; a cancel
+     * against it is ignored and the prompt stays pending.
      */
     internal fun onCancelAction(greMsg: ClientToGREMessage): HandlerResult {
         val bridge = ctx.bridge
@@ -165,6 +168,10 @@ class TargetingHandler(
             bridge.cutCoordinator.targeting
                 .current()
                 ?.takeIf { it.kind == TargetingInteractionKind.Targeting }
+        if (targeting != null && !targeting.allowCancel) {
+            log.warn("TargetingHandler: CancelActionReq rejected; triggered-ability targeting is mandatory")
+            return HandlerResult.Waiting
+        }
         if (targeting != null) {
             bridge.cutCoordinator.targeting.cancel(targeting.interactionId, greMsg.gameStateId)?.let { receipt ->
                 return deliverTargetingReceipt(receipt)

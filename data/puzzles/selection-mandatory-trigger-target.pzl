@@ -1,0 +1,18 @@
+[metadata]
+Name:Mandatory Trigger Target
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Flametongue Kavu's enters trigger must target a creature; its target prompt cannot abandon the trigger.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Flametongue Kavu
+humanbattlefield=Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Centaur Courser
+ailibrary=Forest;Forest;Forest

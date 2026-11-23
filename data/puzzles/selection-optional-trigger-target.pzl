@@ -1,0 +1,17 @@
+[metadata]
+Name:Optional Trigger Target
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Battle-Rattle Shaman's optional combat trigger targets without an abort and is declined at resolution.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Battle-Rattle Shaman;Mountain
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Centaur Courser
+ailibrary=Forest;Forest;Forest

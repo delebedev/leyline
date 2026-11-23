@@ -498,6 +498,7 @@ object AcceptanceSuiteLoader {
                 PromptCondition(
                     prompt = map.requiredString("type", context),
                     promptId = map.optionalInt("prompt_id", context),
+                    allowCancel = map["allow_cancel"]?.asBoolean("$context.allow_cancel"),
                 )
             }
         }

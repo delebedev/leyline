@@ -54,6 +54,11 @@ data class TargetingWindowValue(
     val stackAbilityGrpId: Int = 0,
     val castAlternateCostGrpId: Int = 0,
     val castAbilityGrpId: Int = castAlternateCostGrpId,
+    /**
+     * Whether this window may abandon its parent action. Triggered-ability targets are mandatory;
+     * an optional trigger is declined through its resolution-time optional action instead.
+     */
+    val allowCancel: Boolean = true,
 ) {
     init {
         require(targetIndex > 0)
@@ -79,6 +84,7 @@ data class PublishedTargetingInteraction(
     val gameStateId: Int,
     val targetIndex: Int,
     val kind: TargetingInteractionKind = TargetingInteractionKind.Targeting,
+    val allowCancel: Boolean = true,
 )
 
 /** Result of one command accepted by the targeting interaction owner. */
