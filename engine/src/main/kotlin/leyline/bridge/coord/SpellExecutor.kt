@@ -2,8 +2,7 @@ package leyline.bridge.coord
 
 import forge.game.Game
 import forge.game.GameObject
-import forge.game.ability.AbilityUtils
-import forge.game.cost.CostPayment
+import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
@@ -133,24 +132,17 @@ class SpellExecutor(
 
         manaAbility.setActivatingPlayer(player)
 
-        // Pay costs via CostPayment (handles tap, sac, exile, etc.) then resolve.
-        // For Combo mana (e.g. "W B"), resolve() triggers the engine's chooseColor
-        // callback through HeadlessGuiBase → InteractivePromptBridge — one prompt, no duplication.
-        val costs = manaAbility.payCosts
-        if (costs != null) {
-            val payment = CostPayment(costs, manaAbility)
-            val decision = player.controller.getCostDecisionMaker(player, manaAbility, false)
-            if (!payment.payCost(decision)) return false
-        }
+        // Forge's no-stack activation announces cost variables (a counter-removal X), pays
+        // costs, rolls back a declined payment, and resolves the mana ability immediately.
+        // The published color answers only this ability's own color choice; mana triggered
+        // by the activation asks its controller separately.
+        val activate = { PlaySpellAbility(player.controller, manaAbility).playAbility(true, false, true) }
         try {
             val controller = player.controller as? PlayerController
-            if (controller != null) {
-                controller.withManaColorChoice(selectedColor) { AbilityUtils.resolve(manaAbility) }
-            } else {
-                AbilityUtils.resolve(manaAbility)
-            }
+            val activated = controller?.withManaActivation(manaAbility, selectedColor, activate) ?: activate()
+            if (!activated) return false
         } catch (ex: Exception) {
-            log.error("activateMana: resolve() failed for {}: {}", card.name, ex.message, ex)
+            log.error("activateMana: activation failed for {}: {}", card.name, ex.message, ex)
             return false
         }
         log.debug("activateMana: {} resolved, pool={}", card.name, player.manaPool)

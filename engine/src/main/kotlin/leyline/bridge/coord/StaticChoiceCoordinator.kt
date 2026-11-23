@@ -142,11 +142,12 @@ class StaticChoiceCoordinator(
         message: String,
         sa: SpellAbility?,
         colors: ColorSet,
+        askForManaAbility: Boolean = false,
     ): Byte {
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
-        if (sa?.isManaAbility() == true) return colors.orderedColors.first().colorMask
+        if (sa?.isManaAbility() == true && !askForManaAbility) return colors.orderedColors.first().colorMask
 
         val colorChoices = colors.orderedColors.toList()
         val colorOptions = colorChoices.map { it.translatedName }
