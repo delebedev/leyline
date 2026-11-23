@@ -10,6 +10,7 @@ import leyline.bridge.types.SeatId
 import leyline.game.codes.KeywordGrpIds
 import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.CombatRole
+import leyline.game.snapshot.EarthbendProjection
 import leyline.game.snapshot.SnapshotCapture
 import leyline.game.state.AbilityRemoval
 import leyline.game.state.EffectTracker
@@ -142,6 +143,30 @@ class ObjectMapperSnapshotTest :
                 removed.uniqueAbilitiesList.map { it.grpId } shouldBe listOf(8, 80002)
                 removed.abilityOriginalCardGrpIdsList shouldBe keep.map(native::getAbilityOriginalCardGrpIds)
                 project(base.copy(abilityRemovals = emptyList())).toByteArray().toList() shouldBe native.toByteArray().toList()
+            }
+        }
+
+        test("removed printed rows drop before an earthbend Haste row and its trailing origin") {
+            val (b, game, _) = startWithBoard { _, human, _ -> addCard("Serra Angel", human, ZoneType.Battlefield) }
+            val card = game.humanPlayer.battlefield.card("Serra Angel")
+            val fid = ForgeCardId(card.id)
+            val iid = b.getOrAllocInstanceId(fid).value
+            val base = SnapshotCapture.run(game, b, "test", 0).objects.getValue(fid)
+            val printed = b.cardProto.staticAbilityGrpIds(base.grpId)
+            val removal =
+                AbilityRemoval(timestamp = 10L, staticId = 4L, scope = AbilityRemoval.Scope.All, removedAbilityGrpIds = printed)
+            val projected =
+                ObjectMapper.buildFromSnapshot(
+                    base.copy(abilityRemovals = listOf(removal)),
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    1,
+                    b.cardProto,
+                    earthbend = EarthbendProjection(97490, 9, 203),
+                )
+            assertSoftly {
+                projected.uniqueAbilitiesList.map { it.id to it.grpId } shouldBe listOf(203 to 9)
+                projected.abilityOriginalCardGrpIdsList shouldBe listOf(97490)
             }
         }
 

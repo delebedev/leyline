@@ -382,15 +382,19 @@ object ObjectMapper {
         if (removed.isEmpty()) return
         val abilities = uniqueAbilitiesList.toList()
         val origins = abilityOriginalCardGrpIdsList.toList()
-        // Sparse origins do not establish index association. Keep the rows rather than invent a pairing.
-        if (origins.isNotEmpty() && origins.size != abilities.size) return
+        if (origins.size > abilities.size) return
+        // A shorter origin list pairs with the trailing rows (an earthbend Haste row), so only rows before it are removable.
+        val aligned = origins.size == abilities.size
+        val removableRows = if (aligned || origins.isEmpty()) abilities.size else abilities.size - origins.size
         val kept =
             abilities.indices.filterNot { index ->
-                (index < printedRows || index - printedRows in componentRows) && abilities[index].grpId in removed
+                index < removableRows &&
+                    (index < printedRows || index - printedRows in componentRows) &&
+                    abilities[index].grpId in removed
             }
         if (kept.size == abilities.size) return
         clearUniqueAbilities().addAllUniqueAbilities(kept.map(abilities::get))
-        if (origins.isNotEmpty()) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))
+        if (aligned) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))
     }
 
     fun buildDisturbBackObject(
