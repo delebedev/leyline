@@ -137,10 +137,12 @@ class EffectTracker {
         val sourceForgeCardId: ForgeCardId? = null,
     )
 
+    /** Removal identity. [removedAbilityGrpIds] is part of it, so a changed payload retires and replaces the effect. */
     data class RemovalFingerprint(
         val cardInstanceId: Int,
         val timestamp: Long,
         val staticId: Long,
+        val removedAbilityGrpIds: List<Int>? = null,
     )
 
     data class TrackedRemoval(
@@ -178,7 +180,25 @@ class EffectTracker {
         val activeKeywordEffects: Map<KeywordFingerprint, TrackedKeywordEffect>,
         val activeGrantedAbilities: Map<GrantedAbilityFingerprint, TrackedGrantedAbility>,
         val activeRemovals: Map<RemovalFingerprint, TrackedRemoval> = emptyMap(),
-    )
+    ) {
+        /** Committed keyword grants on [cardInstanceId], in lifecycle order. */
+        fun keywordGrantsFor(cardInstanceId: Int): List<KeywordEntry> =
+            activeKeywordEffects.values
+                .filter { it.cardInstanceId == cardInstanceId }
+                .map {
+                    KeywordEntry(
+                        it.fingerprint.timestamp,
+                        it.fingerprint.staticId,
+                        it.keyword,
+                        it.affectorForgeCardId,
+                        it.abilityGrpId,
+                    )
+                }
+
+        /** Committed generated activated abilities on [cardInstanceId], in lifecycle order. */
+        fun grantedAbilitiesFor(cardInstanceId: Int): List<TrackedGrantedAbility> =
+            activeGrantedAbilities.values.filter { it.cardInstanceId == cardInstanceId }
+    }
 
     /** Complete value state owned by a projection transition. */
     internal fun freeze(): State =
@@ -325,7 +345,12 @@ class EffectTracker {
             diffLifecycle(
                 currentByCard = currentRemovals,
                 active = activeRemovals,
-                fingerprintOf = { cardIid, entry -> RemovalFingerprint(cardIid, entry.timestamp, entry.staticId) },
+                fingerprintOf = {
+                    cardIid,
+                    entry,
+                    ->
+                    RemovalFingerprint(cardIid, entry.timestamp, entry.staticId, entry.removedAbilityGrpIds)
+                },
                 createTracked = { fp, entry ->
                     TrackedRemoval(nextEffectId(), fp, entry.removedAbilityGrpIds, entry.sourceForgeCardId)
                 },

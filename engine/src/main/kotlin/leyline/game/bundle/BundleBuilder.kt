@@ -1436,6 +1436,7 @@ class BundleBuilder(
             bridge.editProjection(prior) {
                 val nextGs = counter.nextGsId()
                 val snap = GsmSnapshot.capture(game, bridge, matchId, nextGs)
+                val committedEffects = prior.effects.effects
 
                 // Provisional combat objects reflect the selection before Forge accepts the declaration.
                 val objects = mutableListOf<GameObjectInfo>()
@@ -1457,6 +1458,8 @@ class BundleBuilder(
                                 ownerSeatId = cardSnap.owner.value,
                                 cardProto = bridge.cardProto,
                                 parentLinkage = snap.boundCards[fid]?.parentLinkage,
+                                keywordGrants = committedEffects.keywordGrantsFor(iid),
+                                grantedAbilities = committedEffects.grantedAbilitiesFor(iid),
                             ).withProvisionalCombatState(provisionalBlockAssignments[iid], provisionalAttackTargets[iid]),
                     )
                 }

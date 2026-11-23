@@ -4,7 +4,7 @@ scenarios:
   - id: slime-counter
     puzzle: sludge-monster-slimed
     run: return Sludge Monster to hand while Serra Angel has a slime counter
-    expect: Serra Angel shows no abilities as a 2/2 under the slime counter and gets Flying and Vigilance back as a 4/4 when Sludge Monster leaves
+    expect: Serra Angel is a base 2/2 under the slime counter and returns to her printed 4/4 when Sludge Monster leaves; ability rows are proved by focused projection tests
     steps:
       - expect:
           battlefield_stats: { side: ours, card: Serra Angel, power: 2, toughness: 2 }

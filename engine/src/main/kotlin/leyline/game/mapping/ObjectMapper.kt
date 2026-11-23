@@ -163,6 +163,8 @@ object ObjectMapper {
      *
      * Echo objects carry NO combat state (no attackState/blockState).
      * Only base card fields are included — P/T, tapped, sickness from [CardSnapshot].
+     * Ability rows follow normal projection: [keywordGrants] and [grantedAbilities]
+     * that survive the card's ability removals are kept, and removed printed rows are omitted.
      * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
      * (not object state) to track provisional selections.
      */
@@ -173,6 +175,8 @@ object ObjectMapper {
         ownerSeatId: Int,
         cardProto: CardProtoBuilder,
         parentLinkage: ParentLinkage? = null,
+        keywordGrants: List<EffectTracker.KeywordEntry> = emptyList(),
+        grantedAbilities: List<EffectTracker.TrackedGrantedAbility> = emptyList(),
     ): GameObjectInfo {
         val isStackCopySpell = zoneId == ZoneIds.STACK && cardSnap.isCopyToken
         val objType =
@@ -183,8 +187,9 @@ object ObjectMapper {
                 // but represent normal castable spells — projected as plain Cards.
                 GameObjectType.Card
             }
+        val extrinsicKws = cardSnap.survivingKeywordGrants(keywordGrants).mapNotNull { it.resolvedAbilityGrpId }
         return cardProto
-            .buildObjectInfo(cardSnap.grpId)
+            .buildObjectInfo(cardSnap.grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
             .setType(objType)
             .setZoneId(zoneId)
@@ -193,8 +198,10 @@ object ObjectMapper {
             .setControllerSeatId(cardSnap.controller.value)
             .setOthersideGrpId(cardSnap.othersideGrpId)
             .applyFieldsFromSnapshot(cardSnap, parentLinkage) // echo objects carry no combat state
-            .apply { omitRemovedAbilities(cardSnap, printedRows = cardProto.staticAbilityGrpIds(cardSnap.grpId).size) }
-            .build()
+            .apply {
+                applyGrantedAbilities(cardSnap.survivingGrantedAbilities(grantedAbilities))
+                omitRemovedAbilities(cardSnap, printedRows = cardProto.staticAbilityGrpIds(cardSnap.grpId).size)
+            }.build()
     }
 
     /**
@@ -346,6 +353,7 @@ object ObjectMapper {
             cardSnap,
             printedRows = cardProto.staticAbilityGrpIds(cardSnap.grpId).size,
             componentRows = extrinsicKws.size until extrinsicKws.size + cardSnap.mergedComponentAbilityGrpIds.size,
+            originsLeadRows = cardSnap.isMergedPermanent && earthbend == null,
         )
         return builder.build()
     }
@@ -369,32 +377,30 @@ object ObjectMapper {
         grants.filterNot { grant -> abilityRemovals.any { it.suppressesGrant(grant.fingerprint.timestamp, keyword = null) } }
 
     /**
-     * Omit printed and component rows hidden by ability-removing effects, keeping recipient-local IDs and
-     * aligned origins of the surviving rows. Grants are filtered by timestamp before they are added.
-     * [componentRows] is relative to the first row after the printed rows.
+     * Omit printed and component rows hidden by ability-removing effects, keeping recipient-local IDs of the
+     * surviving rows. Grants are filtered by timestamp before they are added. [componentRows] is relative to the
+     * first row after the printed rows. When [originsLeadRows] is set, origin `i` belongs to row `i` and removed
+     * rows drop their origin; otherwise origins pair with later rows (an earthbend Haste row) and stay unchanged.
      */
     private fun GameObjectInfo.Builder.omitRemovedAbilities(
         snapshot: CardSnapshot,
         printedRows: Int,
         componentRows: IntRange = IntRange.EMPTY,
+        originsLeadRows: Boolean = false,
     ) {
         val removed = snapshot.abilityRemovals.flatMapTo(mutableSetOf()) { it.removedAbilityGrpIds }
         if (removed.isEmpty()) return
         val abilities = uniqueAbilitiesList.toList()
-        val origins = abilityOriginalCardGrpIdsList.toList()
-        if (origins.size > abilities.size) return
-        // A shorter origin list pairs with the trailing rows (an earthbend Haste row), so only rows before it are removable.
-        val aligned = origins.size == abilities.size
-        val removableRows = if (aligned || origins.isEmpty()) abilities.size else abilities.size - origins.size
-        val kept =
-            abilities.indices.filterNot { index ->
-                index < removableRows &&
-                    (index < printedRows || index - printedRows in componentRows) &&
-                    abilities[index].grpId in removed
+        val dropped =
+            abilities.indices.filterTo(mutableSetOf()) { index ->
+                (index < printedRows || index - printedRows in componentRows) && abilities[index].grpId in removed
             }
-        if (kept.size == abilities.size) return
-        clearUniqueAbilities().addAllUniqueAbilities(kept.map(abilities::get))
-        if (aligned) clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(kept.map(origins::get))
+        if (dropped.isEmpty()) return
+        clearUniqueAbilities().addAllUniqueAbilities(abilities.filterIndexed { index, _ -> index !in dropped })
+        if (originsLeadRows) {
+            val origins = abilityOriginalCardGrpIdsList.toList()
+            clearAbilityOriginalCardGrpIds().addAllAbilityOriginalCardGrpIds(origins.filterIndexed { index, _ -> index !in dropped })
+        }
     }
 
     fun buildDisturbBackObject(

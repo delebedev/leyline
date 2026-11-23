@@ -28,6 +28,30 @@ class EffectTrackerTest :
             }
         }
 
+        test("removal payload changes retire the old effect and keep unchanged removals stable") {
+            val tracker = EffectTracker()
+            val narrow = EffectTracker.RemovalEntry(1L, 10L, listOf(101))
+            val other = EffectTracker.RemovalEntry(2L, 20L, null)
+            val first = tracker.diffAbilityRemovals(mapOf(100 to listOf(narrow), 200 to listOf(other)))
+            val oldId = first.created.single { it.cardInstanceId == 100 }.syntheticId
+            val change =
+                tracker.diffAbilityRemovals(
+                    mapOf(100 to listOf(narrow.copy(removedAbilityGrpIds = listOf(101, 102))), 200 to listOf(other)),
+                )
+            assertSoftly {
+                change.destroyed.map { it.syntheticId } shouldBe listOf(oldId)
+                change.created.single().removedAbilityGrpIds shouldBe listOf(101, 102)
+                change.created.single().syntheticId shouldNotBe oldId
+                tracker
+                    .diffAbilityRemovals(
+                        mapOf(100 to listOf(narrow.copy(removedAbilityGrpIds = listOf(101, 102))), 200 to listOf(other)),
+                    ).let {
+                        it.created.shouldBeEmpty()
+                        it.destroyed.shouldBeEmpty()
+                    }
+            }
+        }
+
         test("allocates synthetic IDs starting at 7002") {
             val tracker = EffectTracker()
             assertSoftly {

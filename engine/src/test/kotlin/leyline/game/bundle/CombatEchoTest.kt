@@ -1,5 +1,7 @@
 package leyline.game.bundle
 
+import forge.game.ability.AbilityKey
+import forge.game.card.CounterType
 import io.kotest.matchers.shouldBe
 import leyline.bridge.types.ForgeCardId
 import leyline.testkit.BoardTest
@@ -79,6 +81,31 @@ class CombatEchoTest :
                 .single()
                 .uniqueAbilitiesCount shouldBe 0
         }
+
+        test("a combat echo keeps a Flying grant added after the creature lost all abilities") {
+            val board = startPuzzleAtMain1(SLUDGE_PUZZLE)
+            val (bridge, game, counter) = board
+            board.gameStart()
+            val serra = game.humanPlayer.battlefield.card("Serra Angel")
+            board.snapshotDiff(checkSba = true) {
+                serra.addCounterInternal(CounterType.getType("Flying"), 1, board.human, true, null, AbilityKey.newMap())
+            }
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(serra.id)).value
+            val echo =
+                board.bundleBuilder().prepareEchoAttackers(
+                    game,
+                    counter,
+                    listOf(iid),
+                    listOf(iid),
+                    presentationActions = ActionsAvailableReq.getDefaultInstance(),
+                )
+            echo.bundle.messages
+                .single { it.hasGameStateMessage() }
+                .gameStateMessage.gameObjectsList
+                .single()
+                .uniqueAbilitiesList
+                .map { it.grpId } shouldBe listOf(FLYING_GRP_ID)
+        }
     })
 
 private const val PUZZLE = """
@@ -114,3 +141,5 @@ private const val SLUDGE_PUZZLE = """
     aibattlefield=Hill Giant
     ailibrary=Forest;Forest
 """
+
+private const val FLYING_GRP_ID = 8
