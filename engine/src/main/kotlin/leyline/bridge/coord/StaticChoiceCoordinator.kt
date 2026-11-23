@@ -6,6 +6,7 @@ import forge.card.MagicColor
 import forge.game.card.Card
 import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.spellability.SpellAbility
+import leyline.bridge.handoff.AutomaticAnswerRule
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.PromptRouteResolver
@@ -123,15 +124,12 @@ class StaticChoiceCoordinator(
                     max = 1,
                     defaultIndex = if (defaultVal != false) 0 else 1,
                     route =
-                        PromptRouteResolver.resolve(
-                            if (parityIds !=
-                                null
-                            ) {
-                                PromptSemantic.StaticParityChoice
-                            } else {
-                                PromptSemantic.Generic
-                            },
-                        ),
+                        when {
+                            parityIds != null -> PromptRouteResolver.resolve(PromptSemantic.StaticParityChoice)
+                            kindOfChoice == BinaryChoiceType.HeadsOrTails ->
+                                ResolvedPromptRoute.AutoResolve(PromptSemantic.Generic, AutomaticAnswerRule.CoinFlipCall)
+                            else -> PromptRouteResolver.resolve(PromptSemantic.Generic)
+                        },
                     sourceEntityId = sourceEntityId(sa),
                     staticList = if (parityIds != null) StaticList.Parities else null,
                     staticOptionIds = parityIds.orEmpty(),
@@ -306,18 +304,23 @@ class StaticChoiceCoordinator(
                 staticOptionIds = choices.map { it.second },
             )
 
-        fun unasked(): String? {
-            val answer = if (isOptional) null else validTypes.firstOrNull()
-            bridge.recordPolicyDefault(request(validTypes.map { it to 0 }), listOfNotNull(answer?.let { 0 }))
-            return answer
-        }
+        // Only values with a protocol mapping can be shown; the rest cannot be chosen.
         val choices =
             if (isCardType) {
-                validTypes.map { type -> type to (StaticChoiceIds.cardTypeIdFor(type) ?: return unasked()) }
+                validTypes.mapNotNull { type -> StaticChoiceIds.cardTypeIdFor(type)?.let { type to it } }
             } else {
                 validTypes.sorted().mapNotNull { type -> StaticChoiceIds.subtypeIdFor(type)?.let { type to it } }
             }
-        if (choices.isEmpty()) return unasked()
+        if (choices.size < 2 && !(isOptional && choices.size == 1)) {
+            val answer = if (isOptional) null else choices.singleOrNull()?.first ?: validTypes.firstOrNull()
+            val recorded = if (choices.isEmpty()) validTypes.map { it to 0 } else choices
+            bridge.recordAutomaticAnswer(
+                request(recorded),
+                AutomaticAnswerRule.NoChoiceAmongShownOptions,
+                listOfNotNull(answer?.let { recorded.indexOfFirst { pair -> pair.first == it } }),
+            )
+            return answer
+        }
 
         val idx = requestChoice(request(choices)).firstOrNull()
         return idx?.let { choices.getOrNull(it)?.first } ?: if (isOptional) null else choices.first().first

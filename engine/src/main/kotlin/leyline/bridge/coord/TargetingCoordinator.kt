@@ -14,6 +14,7 @@ import forge.game.spellability.SpellAbility
 import forge.game.zone.ZoneType
 import forge.player.TargetSelectionResult
 import forge.util.collect.FCollectionView
+import leyline.bridge.handoff.AutomaticAnswerRule
 import leyline.bridge.handoff.DistributionTargetRef
 import leyline.bridge.handoff.GroupingSourceValue
 import leyline.bridge.handoff.InteractivePromptBridge
@@ -159,15 +160,10 @@ class TargetingCoordinator(
                 searchedSeatId = searchedSeatId,
                 searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
-        val residual =
-            unclassifiedDefault(
-                request,
-                optional = isOptional,
-                allCandidatesProjectable = allCandidatesProjectable(optionList),
-            )
+        val residual = resolveUnclassified(request, optionList.toList(), optional = isOptional)
         val chosen =
             if (residual != null) {
-                residual.indices.firstOrNull()?.let(optionList::get)
+                residual.firstOrNull()?.let(optionList::get)
             } else if (request.route is ResolvedPromptRoute.CardSelect) {
                 val cards = optionList.filterIsInstance<Card>()
                 check(cards.size == optionList.size) { "CardSelect requires card options" }
@@ -326,12 +322,7 @@ class TargetingCoordinator(
                 searchSource = searchSource(semantic, sa),
                 searchGroupOptionIndices = groupedSearch.orEmpty(),
             )
-        val residual =
-            unclassifiedDefault(
-                request,
-                optional = plan.effectiveMin == 0,
-                allCandidatesProjectable = allCandidatesProjectable(optionList),
-            )
+        val residual = resolveUnclassified(request, optionList.toList(), optional = plan.effectiveMin == 0)
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             val candidateCards = optionList.filterIsInstance<Card>()
             check(candidateCards.size == optionList.size) { "One-shot PayCosts options must be cards" }
@@ -348,7 +339,7 @@ class TargetingCoordinator(
             val selected = bridge.requestCompatibilityCostSelection(request, optionList.toList())
             return selected.handles.map { handle -> optionList.first { it === handle } }
         }
-        val indices = residual?.indices ?: bridge.requestChoice(request)
+        val indices = residual ?: bridge.requestChoice(request)
         return indices.filter { it in optionList.indices }.map { optionList.get(it) }
     }
 
@@ -549,34 +540,46 @@ class TargetingCoordinator(
             candidateRefs = buildCandidateRefs(hand),
         )
 
+    /**
+     * "Discard N cards unless you discard a card of a type": the player first chooses
+     * the branch, then the exact cards, so every answer is legal. The branch is asked
+     * only when both differ, that is, a matching card exists and N is at least two.
+     */
     fun chooseCardsToDiscardUnlessType(
         min: Int,
         hand: CardCollectionView,
         param: Array<String>,
         sa: SpellAbility,
     ): CardCollectionView {
-        val labels =
-            hand.map { card ->
-                val isMatchingType = card.isValid(param, sa.activatingPlayer, sa.hostCard, sa)
-                if (isMatchingType) "${card.name} (${param.joinToString("/")})" else card.name
-            }
-        val request =
-            PromptRequest(
-                promptType = "choose_cards",
-                message = "Choose $min card(s) to discard (or pick a ${param.joinToString("/")} to reveal)",
-                options = labels,
-                min = 1,
-                max = min,
-                defaultIndex = 0,
-            )
-        val indices = bridge.requestChoice(request)
-        val handList = hand.toList()
-        val result = CardCollection()
-        for (idx in indices) {
-            val card = handList.getOrNull(idx) ?: continue
-            result.add(card)
-        }
-        return result
+        val count = min.coerceAtMost(hand.size)
+        val matching = CardCollection(hand.filter { it.isValid(param, sa.activatingPlayer, sa.hostCard, sa) })
+        val typeName = param.joinToString("/")
+        val discardMatching =
+            matching.isNotEmpty() &&
+                count >= 2 &&
+                bridge
+                    .requestChoice(
+                        PromptRequest(
+                            promptType = "choose_one",
+                            message = "Discard $count cards, or discard a $typeName card instead",
+                            options = listOf("Discard $count cards", "Discard a $typeName card"),
+                            min = 1,
+                            max = 1,
+                            defaultIndex = 0,
+                            sourceEntityId = sa.hostCard?.id?.takeIf { it > 0 },
+                        ),
+                    ).firstOrNull() == 1
+        val cards = if (discardMatching) matching else CardCollection(hand)
+        val exact = if (discardMatching) 1 else count
+        return chooseCardsViaBridge(
+            cards,
+            exact,
+            exact,
+            "Choose cards to discard",
+            semantic = PromptSemantic.SelectNDiscard,
+            candidateRefs = buildCandidateRefs(cards),
+            sourceEntityId = sa.hostCard?.id,
+        )
     }
 
     // -- Reveal ------------------------------------------------------------
@@ -1113,12 +1116,7 @@ class TargetingCoordinator(
                 searchSource = searchSource,
                 searchGroupOptionIndices = searchGroupOptionIndices,
             )
-        val residual =
-            unclassifiedDefault(
-                request,
-                optional = effectiveMin == 0,
-                allCandidatesProjectable = allCandidatesProjectable(cards),
-            )
+        val residual = resolveUnclassified(request, cards.toList(), optional = effectiveMin == 0)
         if (request.route is ResolvedPromptRoute.PayCosts && request.route.descriptor.manaSourcePayment == null) {
             return CardCollection(bridge.requestOneShotPayCosts(request, cards.toList()).handles)
         }
@@ -1129,7 +1127,7 @@ class TargetingCoordinator(
             val indices = bridge.requestCompatibilityCostSelection(request, cards.toList()).optionIndices
             return CardCollection(indices.filter { it in 0 until cards.size }.map(cards::get))
         }
-        val indices = residual?.indices ?: bridge.requestChoice(request)
+        val indices = residual ?: bridge.requestChoice(request)
         val result = CardCollection()
         for (idx in indices) {
             if (idx in 0 until cards.size) result.add(cards.get(idx))
@@ -1197,15 +1195,58 @@ class TargetingCoordinator(
 
     private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> = entities.toCandidateRefs()
 
-    /** Applies the unclassified-domain policy and records its answer as a policy default. */
-    private fun unclassifiedDefault(
+    /**
+     * Answers a resolution choice outside a typed route: asks over the options the
+     * chooser can be shown through the entity-selection route, or records the
+     * automatic answer when the shown options leave nothing to choose. Returns original
+     * option indices, or null when [request] has a typed route.
+     */
+    private fun resolveUnclassified(
         request: PromptRequest,
+        options: List<GameEntity>,
         optional: Boolean,
-        allCandidatesProjectable: Boolean,
-    ): UnclassifiedEntityChoicePolicy.Decision? =
-        UnclassifiedEntityChoicePolicy
-            .decide(request, optional, allCandidatesProjectable)
-            ?.also { bridge.recordPolicyDefault(request, it.indices) }
+    ): List<Int>? {
+        val disposition =
+            UnclassifiedEntityChoicePolicy.decide(
+                request,
+                optional,
+                showable = options.map { it.isShowableToChooser() },
+                selectable = options.map { !it.isSectionHeader() },
+            ) ?: return null
+        return when (disposition) {
+            is UnclassifiedEntityChoicePolicy.Disposition.Automatic ->
+                disposition.indices.also { bridge.recordAutomaticAnswer(request, AutomaticAnswerRule.NoChoiceAmongShownOptions, it) }
+            is UnclassifiedEntityChoicePolicy.Disposition.Ask -> {
+                val shown = disposition.shown
+                val entities = shown.map(options::get)
+                val selection =
+                    request.copy(
+                        options = shown.map(request.options::get),
+                        min = request.min.coerceAtMost(shown.size),
+                        max = request.max.coerceAtMost(shown.size),
+                        defaultIndex = 0,
+                        candidateRefs = entities.toCandidateRefs(),
+                        unfilteredRefs = emptyList(),
+                        route = ResolvedPromptRoute.CompatibilityCostSelection(request.route.semantic),
+                    )
+                val chosen =
+                    bridge
+                        .requestCompatibilityCostSelection(selection, entities)
+                        .optionIndices
+                        .mapNotNull(shown::getOrNull)
+                        .distinct()
+                // A timed-out or non-interactive prompt answers with one default index; a mandatory choice still needs its count.
+                val missing = if (optional) 0 else selection.min - chosen.size
+                if (missing <= 0) chosen else chosen + (shown - chosen.toSet()).take(missing)
+            }
+        }
+    }
+
+    private fun GameEntity.isShowableToChooser(): Boolean =
+        this is Player || (this is Card && !isSectionHeader() && isProjectableToChooser())
+
+    /** Forge decorates some entity lists with "--HEADING:--" cards that cannot be chosen. */
+    private fun GameEntity.isSectionHeader(): Boolean = this is Card && name.startsWith("--")
 
     private fun allCandidatesProjectable(entities: Iterable<GameEntity>): Boolean {
         val values = entities.toList()

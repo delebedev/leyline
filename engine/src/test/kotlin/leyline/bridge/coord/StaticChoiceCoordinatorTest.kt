@@ -1,8 +1,10 @@
 package leyline.bridge.coord
 
+import forge.game.player.PlayerController.BinaryChoiceType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import leyline.bridge.forge.PlayerController
+import leyline.bridge.handoff.AutomaticAnswerRule
 import leyline.bridge.handoff.PromptSideEffect
 import leyline.bridge.handoff.PublishedStaticChoiceInteraction
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -47,7 +49,7 @@ class StaticChoiceCoordinatorTest :
             listOf(
                 Case("Card", listOf("Land", "Creature"), StaticList.CardTypes, listOf(5, 2)),
                 Case("Card", listOf("land", "Creature"), StaticList.CardTypes, listOf(5, 2)),
-                Case("Card", listOf("Creature"), StaticList.CardTypes, listOf(2)),
+                Case("Card", listOf("Stickers", "Land", "Creature"), StaticList.CardTypes, listOf(5, 2)),
                 Case("Card", listOf("Land"), StaticList.CardTypes, listOf(5), optional = true),
                 Case("Creature", listOf("Goblin", "Human"), StaticList.SubTypes, listOf(34, 39)),
                 Case(
@@ -245,18 +247,42 @@ class StaticChoiceCoordinatorTest :
             }
         }
 
-        test("unmapped offered values retain whole-domain fallback without a partial prompt") {
+        test("a coin flip call answers without a prompt under its named rule") {
+            val board = startPuzzleAtMain1(puzzle)
+            val controller = board.human.controller as PlayerController
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
+            controller.chooseBinary(null, "Call coin flip", BinaryChoiceType.HeadsOrTails, true) shouldBe true
+            assertSoftly {
+                (
+                    bridge.history
+                        .drop(before)
+                        .single()
+                        .route as ResolvedPromptRoute.AutoResolve
+                ).rule shouldBe
+                    AutomaticAnswerRule.CoinFlipCall
+                board.bridge.cutCoordinator.staticChoices
+                    .current() shouldBe null
+            }
+        }
+
+        test("a type choice with one shown value or none answers without a prompt under its named rule") {
             val board = startPuzzleAtMain1(puzzle)
             val controller = board.human.controller as PlayerController
             val source = board.human.battlefield.card("Island")
             val sa = source.spellAbilities.first()
+            val bridge = board.bridge.promptBridge(SeatId(1))
+            val before = bridge.history.size
             assertSoftly {
-                controller.chooseSomeType("Card", sa, listOf("Stickers", "Land"), false) shouldBe "Stickers"
-                controller.chooseSomeType("Card", sa, listOf("Land", "Stickers"), true) shouldBe null
+                controller.chooseSomeType("Card", sa, listOf("Stickers", "Land"), false) shouldBe "Land"
+                controller.chooseSomeType("Card", sa, listOf("Creature"), false) shouldBe "Creature"
+                controller.chooseSomeType("Card", sa, listOf("Stickers"), true) shouldBe null
                 controller.chooseSomeType("Card", sa, listOf("Goblin", "Human"), false) shouldBe "Goblin"
                 controller.chooseSomeType("Card", sa, emptyList(), false) shouldBe null
                 board.bridge.cutCoordinator.staticChoices
                     .current() shouldBe null
+                bridge.history.drop(before).map { (it.route as? ResolvedPromptRoute.AutoResolve)?.rule } shouldBe
+                    List(5) { AutomaticAnswerRule.NoChoiceAmongShownOptions }
             }
         }
     })

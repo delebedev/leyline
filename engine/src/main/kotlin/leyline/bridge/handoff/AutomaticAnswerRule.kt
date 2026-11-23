@@ -25,6 +25,19 @@ enum class AutomaticAnswerRule(
         "the player chose this cast or activation and its costs before payment; declining would abandon a committed action",
     ),
 
+    /** Calling heads or tails before Forge flips a coin. */
+    CoinFlipCall(
+        "a fair flip is won with the same chance whichever side is called; the flip and its result are shown",
+    ),
+
+    /**
+     * A choice where the shown options leave nothing to choose: at most one can be
+     * shown, or the required count takes every shown option.
+     */
+    NoChoiceAmongShownOptions(
+        "the shown options leave nothing to choose; section headers, hidden cards and unmapped values cannot be told apart or chosen",
+    ),
+
     /** A confirmation inside the free cast of a Paradigm copy. */
     ParadigmCopyCast(
         "the copy is cast through its own cast presentation; this confirmation is part of that cast",

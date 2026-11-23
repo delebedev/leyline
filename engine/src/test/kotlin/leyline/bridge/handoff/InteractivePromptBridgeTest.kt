@@ -113,6 +113,56 @@ class InteractivePromptBridgeTest :
             }
         }
 
+        test("an unnamed generic choice is asked as labels over the options that are not section headers") {
+            val asked = mutableListOf<PromptRequest>()
+            val bridge = InteractivePromptBridge(timeoutMs = null)
+            bridge.runtimeBindings =
+                PromptRuntimeBindings(
+                    staticChoice =
+                        object : StaticChoiceInteractionRuntime {
+                            override fun awaitSelection(
+                                request: PromptRequest,
+                                timeoutMs: Long?,
+                            ): List<Int> = listOf(1).also { asked += request }
+                        },
+                )
+
+            val result =
+                bridge.requestChoice(
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "Choose one",
+                        options = listOf("--GROUP:--", "first", "second"),
+                    ),
+                )
+
+            assertSoftly {
+                result shouldContainExactly listOf(2)
+                asked.single().options shouldContainExactly listOf("first", "second")
+                asked.single().staticOptionIds shouldContainExactly listOf(1, 2)
+                bridge.defaultHistory shouldBe emptyList()
+            }
+        }
+
+        test("an unnamed generic choice with one shown option is answered under its named rule") {
+            val bridge = InteractivePromptBridge(timeoutMs = null)
+
+            val result =
+                bridge.requestChoice(
+                    PromptRequest(
+                        promptType = "choose_one",
+                        message = "Choose one",
+                        options = listOf("--GROUP:--", "only"),
+                    ),
+                )
+
+            assertSoftly {
+                result shouldContainExactly listOf(1)
+                (bridge.history.single().route as ResolvedPromptRoute.AutoResolve).rule shouldBe
+                    AutomaticAnswerRule.NoChoiceAmongShownOptions
+            }
+        }
+
         test("observed pending target consumption preserves a later equal target") {
             val bridge = InteractivePromptBridge(timeoutMs = null)
             val target =
