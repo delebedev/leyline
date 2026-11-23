@@ -335,19 +335,30 @@ class PlayerController(
         private val log = LoggerFactory.getLogger(PlayerController::class.java)
     }
 
-    private var pendingManaColorChoice: Byte? = null
+    /** A mana ability the player activated from a published action, with its published color. */
+    private class ManaActivation(
+        val ability: SpellAbility,
+        var selectedColor: Byte?,
+    )
 
-    fun <T> withManaColorChoice(
-        colorMask: Byte?,
+    private var manaActivation: ManaActivation? = null
+
+    /**
+     * Runs a player-initiated mana activation on the engine thread. [selectedColor] answers the
+     * first color choice of [ability]'s own chain. Color choices of other mana abilities during
+     * the activation, such as a mana trigger of an aura on the tapped land, ask the player.
+     */
+    fun <T> withManaActivation(
+        ability: SpellAbility,
+        selectedColor: Byte?,
         block: () -> T,
     ): T {
-        if (colorMask == null) return block()
-        val previous = pendingManaColorChoice
-        pendingManaColorChoice = colorMask
+        val previous = manaActivation
+        manaActivation = ManaActivation(ability, selectedColor)
         return try {
             block()
         } finally {
-            pendingManaColorChoice = previous
+            manaActivation = previous
         }
     }
 
@@ -868,9 +879,13 @@ class PlayerController(
         val cntColors = colors.countColors()
         if (cntColors == 0) return 0
         if (cntColors == 1) return colors.color
-        pendingManaColorChoice?.let { selectedColor ->
-            pendingManaColorChoice = null
-            if (colors.orderedColors.any { it.colorMask == selectedColor }) return selectedColor
+        manaActivation?.let { activation ->
+            if (sa?.rootAbility !== activation.ability) {
+                return staticChoiceCoordinator.chooseColor(message, sa, colors, askForManaAbility = true)
+            }
+            val selectedColor = activation.selectedColor
+            activation.selectedColor = null
+            if (selectedColor != null && colors.orderedColors.any { it.colorMask == selectedColor }) return selectedColor
         }
         return staticChoiceCoordinator.chooseColor(message, sa, colors)
     }
