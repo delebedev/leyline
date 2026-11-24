@@ -1540,7 +1540,9 @@ object ActionMapper {
      *
      *  - `instanceId` = hand card iid, `grpId` = card grpId, `facetId` = iid
      *  - `abilityGrpId` = 0 (the alt-cost row is on `alternativeGrpId`)
-     *  - `alternativeGrpId` = per-card row resolved per the rail's lookup mode
+     *  - `alternativeGrpId` = per-card row resolved per the rail's lookup mode,
+     *    or the granting static's row for a cost granted by another object
+     *    ([GrantedAlternativeCosts])
      *  - `manaCost` entries echo `alternativeGrpId` on each slot
      *
      * Madness and Flashback are intentionally NOT in
@@ -1560,12 +1562,16 @@ object ActionMapper {
     ) {
         val emitted = mutableSetOf<Pair<Int, List<Pair<ManaColor, Int>>>>()
         for ((abilityIndex, sa) in castable.withIndex()) {
-            val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) } ?: continue
+            val rail = CastRails.handWithAltCost.firstOrNull { it.saPredicate(sa) }
+            // A cost granted by another object's static has no hand rail.
+            val grantedAlternativeGrpId =
+                if (rail == null) GrantedAlternativeCosts.abilityGrpId(sa, player, bridge) ?: continue else null
             if (!ActionAvailability.hasLegalTargetsAndModes(sa)) continue
-            val effectiveCost = computeEffectiveCostForOffer(rail, sa, player, altCosts)
-            val payCostPairs = effectiveCost.first
-            val alternativeGrpId = bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: effectiveCost.second
-            if (rail.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
+            val (payCostPairs, railAlternativeGrpId) =
+                if (rail != null) computeEffectiveCostForOffer(rail, sa, player, altCosts) else effectiveCostPairs(sa, player) to 0
+            val alternativeGrpId =
+                grantedAlternativeGrpId ?: bridge.cardRepository.grantedKeywordAbilityGrpId(sa) ?: railAlternativeGrpId
+            if (rail?.kind == AltCostKind.EMERGE && alternativeGrpId <= 0) continue
             val canPay = canExecute(sa, player)
             if (!canPay) continue
             if (alternativeGrpId <= 0) continue
@@ -1609,10 +1615,14 @@ object ActionMapper {
             val payCostPairs = altCosts.firstOrNull { it.abilityGrpId == alternativeGrpId }?.manaCost.orEmpty()
             return payCostPairs to alternativeGrpId
         }
-        val effectiveCost = computeEffectiveCost(sa, player)
-        val payCostPairs = effectiveCost?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
-        return payCostPairs to resolveAltGrpId(rail, altCosts, altCostLookupPairs(sa))
+        return effectiveCostPairs(sa, player) to resolveAltGrpId(rail, altCosts, altCostLookupPairs(sa))
     }
+
+    private fun effectiveCostPairs(
+        sa: SpellAbility,
+        player: Player,
+    ): List<Pair<ManaColor, Int>> =
+        computeEffectiveCost(sa, player)?.takeIf { !it.isNoCost }?.let { forgeManaCostToPairs(it) } ?: emptyList()
 
     internal fun passOnlyActions(): ActionsAvailableReq =
         ActionsAvailableReq

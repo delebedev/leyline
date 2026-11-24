@@ -1,0 +1,26 @@
+# Design Narrative
+# Mechanic: Dream Halls offers its discard alternative cost for every spell, not only the first.
+# Forcing: No lands; each creature can only be cast by discarding a card that shares its color.
+# AI behavior: The opponent has no permanents or hand, so it makes no decisions.
+# Card roles:
+#   Dream Halls — grants the alternative cost.
+#   Wind Drake and Raging Goblin — the first and second creature cast.
+#   Opt and Shock — discards sharing blue and red respectively.
+# Protocol path: alternative-cost cast offer, discard cost selection, resolution, offer recomputation.
+
+[metadata]
+Name:Dream Halls Second Creature
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast Wind Drake by discarding Opt, then cast Raging Goblin by discarding Shock.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=40
+AILife=40
+humanbattlefield=Dream Halls
+humanhand=Wind Drake;Raging Goblin;Opt;Shock
+humanlibrary=Island;Island;Island
+ailibrary=Forest;Forest;Forest

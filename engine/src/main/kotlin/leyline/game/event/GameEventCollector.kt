@@ -29,6 +29,7 @@ import leyline.bridge.types.SelectedAdditionalCost
 import leyline.bridge.types.WubrgColorMapping
 import leyline.game.data.KeywordAbilityIds
 import leyline.game.data.grantedKeywordAbilityGrpId
+import leyline.game.mapping.GrantedAlternativeCosts
 import leyline.game.mapping.PlayerMapper
 import leyline.game.mapping.ZoneIds
 import leyline.game.state.GameBridge
@@ -317,7 +318,10 @@ class GameEventCollector(
                 eventSa?.let { bridge.cardRepository.grantedKeywordAbilityGrpId(it) }
                     ?: bridge.cardRepository.findKeywordAbilityGrpId(grpId, keywordId) ?: 0
             } else {
-                0
+                eventSa
+                    ?.takeIf { it.hostCard?.id == card.id }
+                    ?.let { sa -> sa.activatingPlayer?.let { GrantedAlternativeCosts.abilityGrpId(sa, it, bridge) } }
+                    ?: 0
             }
         val isWarpExileCast =
             eventSa?.hostCard?.castFrom?.zoneType == ZoneType.Exile &&
