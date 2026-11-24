@@ -126,7 +126,9 @@ abandon the cast or activation, or `UndoReq`.
   naming one of that row's `manaColors`.
 - <a id="CastingTimeOptionsReq.resp-cost-ctoid"></a>**CastingTimeOptionsReq.resp-cost-ctoid.**
   On every family except modes, the server `MUST` identify the answered row
-  by the response's `ctoId`.
+  by the response's `ctoId`. A `Done` response carries no `ctoId` and is
+  exempt; it is governed by
+  [CastingTimeOptionsReq.resp-done](#CastingTimeOptionsReq.resp-done).
 
 ## Open points
 
