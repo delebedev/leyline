@@ -140,6 +140,12 @@ grouped by family, then by entity.
   - Leyline: never sends `EdictalMessage`. The builder exists but has no
     production caller.
   - Owner: `BundleBuilder.edictalPass`
+- **`diverges`** — [Messages.pending-count](stream/messages.md#Messages.pending-count)
+  - Contract: `pendingMessageCount` counts every message after the GSM in the
+    array, including a `PromptReq` before the decision message.
+  - Leyline: sets `pendingMessageCount=1` when it sends a coin-flip or
+    starting-player `PromptReq` before the request, so the count is one short.
+  - Owner: `BundleBuilder`, `GsmBuilder.embedActions`
 - **`diverges`** — [Messages.action-rail-envelope](stream/messages.md#Messages.action-rail-envelope)
   - Contract: the GSM action rail carries no `Pass` or `FloatMana` rows.
   - Leyline: copies every action of the following `ActionsAvailableReq` onto

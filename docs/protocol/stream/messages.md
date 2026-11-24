@@ -20,7 +20,8 @@ payloads that correlate with the request they answer.
 ## Message stream
 
 Each server event carries an ordered `greToClientMessages` array. A GSM may
-stand alone or be followed by decision messages in the same array.
+stand alone or be followed by decision messages in the same array, sometimes
+with a `PromptReq` ahead of them.
 
 | Family | Role |
 |---|---|
@@ -39,7 +40,7 @@ stand alone or be followed by decision messages in the same array.
 | `gameStateId` | Identity of the published state. |
 | `prevGameStateId` | The state this message builds on. |
 | `update` | Publication mode; see below. |
-| `pendingMessageCount` | Number of decision messages that follow this GSM in the same array. |
+| `pendingMessageCount` | Number of messages that follow this GSM in the same array, counting a `PromptReq` as well as decision messages. |
 | `players` | Per-seat state, including `pendingMessageType`, the response family the seat owes. |
 | `turnInfo` | Active player, priority player, decision player, phase and step. |
 | `zones`, `gameObjects` | Zone and object state; see [identity and zones](../model/identity-and-zones.md). |
@@ -74,9 +75,14 @@ state.
 ## Decision bundling and correlation
 
 1. A GSM establishes `gameStateId` and announces `pendingMessageCount`.
-2. Exactly that many decision messages follow it in the same array.
-3. `players[].pendingMessageType` names the response family each seat owes.
-4. The client's response repeats the request's `gameStateId` and echoes its
+2. Exactly that many messages follow it and end the same array. A `PromptReq`
+   placed before the decision message, such as a coin-flip or starting-player
+   notice, is one of them; a `PromptReq` can also be the only one.
+3. A `Full` GSM sent with `update=SendAndRecord`, at game start or after a
+   reconnection, can be followed by a decision message without carrying
+   `pendingMessageCount`.
+4. `players[].pendingMessageType` names the response family each seat owes.
+5. The client's response repeats the request's `gameStateId` and echoes its
    `msgId` as `respId`.
 
 Several decisions pending against one state remain separate messages; their
@@ -133,8 +139,8 @@ seat's behalf, so the client can reconcile an action it did not submit.
   its own `gameStateId`.
 - <a id="Messages.pending-count"></a>**Messages.pending-count.** A GSM with
   `pendingMessageCount` N `MUST` be followed in the same
-  `greToClientMessages` array by exactly N decision messages, immediately
-  after it.
+  `greToClientMessages` array by exactly N messages, immediately after it and
+  ending the array. Each `PromptReq` among them counts toward N.
 - <a id="Messages.hifi-no-pending"></a>**Messages.hifi-no-pending.** A GSM
   with `update=SendHiFi` `MUST NOT` carry `pendingMessageCount`.
 - <a id="Messages.undo-full"></a>**Messages.undo-full.** A GSM with
