@@ -58,6 +58,7 @@ class RevealStateTest :
             assertSoftly {
                 gsm.annotationOrNull(AnnotationType.RevealedCardCreated)?.affectedIdsList shouldBe
                     listOf(revealedView.instanceId)
+                faceUp.typeList shouldBe listOf(AnnotationType.CardRevealed)
                 faceUp.affectedIdsList shouldBe listOf(revealedView.instanceId)
                 faceUp.detailInt("source_zone") shouldBe ZoneIds.P1_HAND
                 known.affectorId shouldBe actualId
