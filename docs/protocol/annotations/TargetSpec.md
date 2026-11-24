@@ -59,10 +59,10 @@ and an instance ID are both integers and are not interchangeable.
 4. When the effect divides an amount, a `DistributionReq` follows; after the
    answer, the existing row is published again under the same `id` with
    `distributions` added.
-5. When the stack object resolves or leaves the stack, its rows are deleted
-   through `diffDeletedPersistentAnnotationIds`. A resolving object's rows are
-   deleted in the GSM that carries its `ResolutionComplete`. A few rows
-   outlive their object.
+5. A resolving object's rows are normally deleted through
+   `diffDeletedPersistentAnnotationIds` in the GSM that carries its
+   `ResolutionComplete`; a few outlive it. A countered spell's rows stay
+   after it leaves the stack, usually until the next turn starts.
 
 Lightning Bolt targeting the opponent produces one row with `index` `1`,
 `affectedIds` naming the opponent's seat and `affectorId` the Bolt's stack ID.
@@ -93,15 +93,12 @@ Lightning Bolt targeting the opponent produces one row with `index` `1`,
 - <a id="TargetSpec.distribution-same-row"></a>**TargetSpec.distribution-same-row.**
   An allocation made after target submission `MUST` republish the existing
   row under the same `id`, not create a new row.
-- <a id="TargetSpec.retired-with-object"></a>**TargetSpec.retired-with-object.**
-  *(provisional)* A row `MUST` be deleted in the GSM where its `affectorId`
-  resolves or leaves the stack.
 
 ## Open points
 
 - When does `abilityGrpId` differ from the request group's
   `targetingAbilityGrpId`?
 - Which non-divided effects carry `distributions`?
-- Why do a few rows outlive their object's resolution or departure from the
-  stack, some until the end of the game?
+- Why do a few rows outlive their object's resolution, some until the end of
+  the game, and why does a countered spell keep its rows until the next turn?
 - What does `promptParameters` carry when it differs from `affectorId`?
