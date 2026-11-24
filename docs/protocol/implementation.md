@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Earthbend](mechanics/Earthbend.md) | `EarthbendEmitter`, `EarthbendTracker` | `implemented` |
+| [Enchant](mechanics/Enchant.md) | `TargetingWindowMaterializer`, `AnnotationBuilder.attachment` | `implemented` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 
