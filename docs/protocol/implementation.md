@@ -95,6 +95,7 @@ Rows are grouped by family and sorted by entity name.
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
 | [Saddled](designations/Saddled.md) | `CardStateDesignations`, `AnnotationBuilder.saddledDesignation`, `SaddledDesignationKind` | `implemented` |
 | [Solved](designations/Solved.md) | `CardStateDesignations`, `AnnotationBuilder.solvedDesignation`, `SolvedDesignationKind` | `implemented` |
+| [Suspected](designations/Suspected.md) | `CardStateDesignations`, `AnnotationBuilder.suspectedDesignation`, `AnnotationPipeline` | `partial` |
 
 ### Prompts
 
@@ -440,6 +441,15 @@ grouped by family, then by entity.
   - Leyline: emits `LoseDesignation` for `18` in the GSM where the plotted role
     ends, including the cast that consumes the exile instance.
   - Owner: `CardStateDesignations`, `AnnotationBuilder.loseDesignation`
+
+#### Suspected
+
+- **`absent`** — [Suspected.behaviour-rows](designations/Suspected.md#Suspected.behaviour-rows)
+  - Contract: a suspected permanent carries `AddAbility`, `LayeredEffect` and
+    `Qualification` rows for menace and the can't-block restriction.
+  - Leyline: publishes the two behaviour rows but no `Qualification` row for a
+    suspected permanent, so the client-facing qualification is missing.
+  - Owner: `AnnotationPipeline`
 
 ### Prompt exceptions
 
