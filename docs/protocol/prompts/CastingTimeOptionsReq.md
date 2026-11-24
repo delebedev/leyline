@@ -108,7 +108,9 @@ abandon the cast or activation, or `UndoReq`.
   `AdditionalCost` for other optional additional costs.
 - <a id="CastingTimeOptionsReq.modal-single"></a>**CastingTimeOptionsReq.modal-single.**
   A mode choice `MUST` be a request with exactly one row, of type `Modal`,
-  with `isRequired=true` and one `modalOptions` entry per mode.
+  with `isRequired=true` and one `modalOptions` entry per mode that can be
+  chosen now. A mode that cannot be chosen now `MUST NOT` be in
+  `modalOptions`; when listed, it is in `excludedOptions`.
 - <a id="CastingTimeOptionsReq.mana-type-rows"></a>**CastingTimeOptionsReq.mana-type-rows.**
   A hybrid payment `MUST` carry one `ManaType` row per hybrid symbol, each with
   its own `ctoId` and a `selectManaTypeReq` listing the payment choices for
