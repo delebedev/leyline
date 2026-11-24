@@ -252,6 +252,7 @@ Leyline cannot play at all is `absent`.
 | [Improvise](mechanics/Improvise.md) | `ManaSourcePaymentMaterializer`, `MatchManaSourcePaymentRuntime` | `implemented` |
 | [Increment](mechanics/Increment.md) | `TriggeringObjectProjection`, `AnnotationPipeline` | `implemented` |
 | [JobSelect](mechanics/JobSelect.md) | `AnnotationBuilder.attachmentCreated`, `MechanicAnnotations` | `implemented` |
+| [JumpStart](mechanics/JumpStart.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 
 ## Exceptions
 
@@ -1283,6 +1284,21 @@ grouped by family, then by entity.
     `alternativeGrpId` and `abilityGrpId`.
   - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
     alternative cost.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### JumpStart
+
+- **`diverges`** — [JumpStart.offer](mechanics/JumpStart.md#JumpStart.offer) *(provisional statement)*
+  - Contract: the graveyard offer carries `abilityGrpId` `170` and no
+    `alternativeGrpId`.
+  - Leyline: offers jump-start on its alternative-cost rail, with the
+    jump-start ability in `alternativeGrpId`.
+  - Owner: `CastRails`
+- **`diverges`** — [JumpStart.accepted](mechanics/JumpStart.md#JumpStart.accepted) *(provisional statement)*
+  - Contract: the accepted cast carries `abilityGrpId` `170` and no
+    `alternativeGrpId`.
+  - Leyline: names the jump-start ability in `alternativeGrpId` and writes
+    `abilityGrpId` `0`.
   - Owner: `TransferAnnotations.castSpellEventAnnotations`
 
 ## Leyline-defined shapes

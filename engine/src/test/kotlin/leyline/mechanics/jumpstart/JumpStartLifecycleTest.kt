@@ -40,6 +40,7 @@ private val PUZZLE =
 @FixturePinned
 class JumpStartLifecycleTest :
     SessionTest({
+        // protocol: JumpStart.cast-marker, JumpStart.resolve-exile
         session("Jump-start prompts for discard, resolves, and exiles the spell", puzzle = PUZZLE) {
             val radicalIdeaGrpId = bridge.cardRepository.findGrpIdByName("Radical Idea")!!
             val jumpStartAbilityGrpId =

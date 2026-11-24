@@ -38,3 +38,4 @@ that flag described under [designations](../designations/README.md).
 | [Improvise](Improvise.md) | Hand Cast, artifact payment | Taps artifacts to pay generic mana while casting a spell. |
 | [Increment](Increment.md) | Cast trigger, counter | Puts a +1/+1 counter on a creature when enough mana was spent on a spell. |
 | [JobSelect](JobSelect.md) | Enters trigger, token, attachment | Creates a Hero token and attaches the Equipment to it. |
+| [JumpStart](JumpStart.md) | Graveyard Cast, CastingTimeOption, discard cost, exile on leaving the stack | Casts an instant or sorcery from the graveyard by discarding a card. |
