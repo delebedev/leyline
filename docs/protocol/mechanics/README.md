@@ -19,3 +19,4 @@ that flag described under [designations](../designations/README.md).
 
 | Mechanic | Surfaces | Role |
 |---|---|---|
+| [Ninjutsu](Ninjutsu.md) | Hand activation, return cost, reveal, `Put` | Put a ninja from the hand onto the Battlefield attacking by returning an unblocked attacker. |

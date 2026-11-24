@@ -233,6 +233,7 @@ Leyline cannot play at all is `absent`.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 
 ## Exceptions
 
@@ -1200,6 +1201,17 @@ grouped by family, then by entity.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ### Mechanic exceptions
+
+#### Ninjutsu
+
+- **`absent`** — [Ninjutsu.source-revealed](mechanics/Ninjutsu.md#Ninjutsu.source-revealed)
+  - Contract: the GSM that commits the return cost creates a `RevealedCard`
+    and an `InstanceRevealedToOpponent` row for the ninjutsu card, and the
+    resolution deletes both.
+  - Leyline: publishes reveal rows only for Forge reveal events, and the Forge
+    ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
+    the hand while the ability is on the stack.
+  - Owner: `RevealStateContributor`
 
 ## Leyline-defined shapes
 
