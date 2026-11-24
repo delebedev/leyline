@@ -39,6 +39,7 @@ class DamagedThisTurnPipelineTest :
 
         // -- CombatAnnotations: routing + shape --
 
+        // protocol: DamagedThisTurn.persistent
         test("combatAnnotations emits DamagedThisTurn to persistent bucket, not transient") {
             val events =
                 listOf(
@@ -166,6 +167,7 @@ class DamagedThisTurnPipelineTest :
             }
         }
 
+        // protocol: DamagedThisTurn.grows-in-place, DamagedThisTurn.single-row
         test("computeBatch grows affectedIds when DamagedThisTurn already active, keeps same id") {
             val existing =
                 AnnotationBuilder

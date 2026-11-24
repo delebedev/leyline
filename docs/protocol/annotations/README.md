@@ -111,7 +111,7 @@ the type's page. Types without a page are described only by their row.
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
 | [DamageDealt](DamageDealt.md) | transient | `damage`, `type`, `markDamage` | A source dealt damage to a player or object; `type` classifies the damage. |
-| `DamagedThisTurn` | persistent | none | Objects dealt damage during the current turn. |
+| [DamagedThisTurn](DamagedThisTurn.md) | persistent | none | Objects dealt damage during the current turn. |
 | `ModifiedLife` | transient | `life` | A player's life total changed by the signed amount in `life`. |
 | [ReplacementEffect](ReplacementEffect.md) | both | `grpid` | Links a replacement ability or lifecycle to the object whose event it modifies. |
 | `ReplacementEffectApplied` | transient | `grpid`, `IsDamageReplacement` | A replacement effect applied to damage; it accompanies the resulting damage event. |

@@ -104,6 +104,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
+| [DamagedThisTurn](annotations/DamagedThisTurn.md) | `AnnotationBuilder.damagedThisTurn`, `CombatAnnotations`, `PersistentAnnotationStore` | `partial` |
 | [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
@@ -144,7 +145,6 @@ the table above when its page is written.
 | `CounterAdded` | `AnnotationBuilder.counterAdded`, `AnnotationBuilder.playerCounterAdded` | emitted |
 | `CounterRemoved` | `AnnotationBuilder.counterRemoved`, `AnnotationBuilder.playerCounterRemoved` | emitted |
 | `CrewedThisTurn` | `AnnotationBuilder.crewedThisTurn` | emitted |
-| `DamagedThisTurn` | `AnnotationBuilder.damagedThisTurn` | emitted |
 | `Designation` | `AnnotationBuilder.designation` | emitted |
 | `DisplayCardUnderCard` | `AnnotationBuilder.displayCardUnderCard` | emitted |
 | `DisqualifiedEffect` | — | `absent` |
@@ -664,6 +664,14 @@ grouped by family, then by entity.
   - Leyline: records a choice result only from a static-list `SelectNReq`
     and from a card-selection `SelectNReq`.
   - Owner: `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime`
+
+#### DamagedThisTurn
+
+- **`diverges`** — [DamagedThisTurn.turn-retire](annotations/DamagedThisTurn.md#DamagedThisTurn.turn-retire) *(provisional statement)*
+  - Contract: the row is deleted in the first GSM of the next turn.
+  - Leyline: deletes the row when the upkeep step begins, so it survives the
+    GSMs of the new turn's untap step.
+  - Owner: `CombatAnnotations`, `PersistentAnnotationStore`
 
 #### DelayedTriggerAffectees
 
