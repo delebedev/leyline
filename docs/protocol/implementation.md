@@ -257,7 +257,33 @@ Leyline cannot play at all is `absent`.
 | [Disturb](mechanics/Disturb.md) | `CastRails`, `ActionMapper`, `ZoneMapper.addDisturbBackObject` | `implemented` |
 | Flurry | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
 | Infusion | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
+| [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
+| [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
+| [OpeningHand](mechanics/OpeningHand.md) | `PlayerController.chooseSaToActivateFromOpeningHand`, `TransferAnnotations`, `TransferCategoryResolver` | `partial` |
 | Opus | `OpusAbilityWordFeedBuilder`, `CastAbilityWordScanner` | `implemented` |
+| [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
+| [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
+| [PowerUp](mechanics/PowerUp.md) | `AbilityExhaustionFactsCapture` | `implemented` |
+| Proliferate | `ChooseEntitiesPlanner` | `implemented` |
+| [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
+| [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
+| Renew | `ActionMapper` | `implemented` |
+| Retrace | `CastRails`, `ActionPerformer` | `implemented` |
+| [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
+| [SagaChapter](mechanics/SagaChapter.md) | `AnnotationPipeline` | `implemented` |
+| [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
+| [Spectacle](mechanics/Spectacle.md) | `CastRails`, `GameEventCollector` | `partial` |
+| [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
+| Storied | `PersistentAbilityWordFeedBuilder` | `absent` |
+| Surge | `CastRails` | `implemented` |
+| [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
+| [Tiered](mechanics/Tiered.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Training](mechanics/Training.md) | `StackAbilityGrpIdResolver`, `PersistentAbilityWordFeedBuilder` | `partial` |
+| [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
+| [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
+| [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
+| [Waterbend](mechanics/Waterbend.md) | `ManaSourcePaymentMaterializer`, `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
 
 ## Exceptions
 
@@ -1272,6 +1298,120 @@ grouped by family, then by entity.
     neither `TurnPermanent` nor the accepted `UserActionTaken`, as recorded
     under `Special_TurnFaceUp`.
   - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+
+#### Ninjutsu
+
+- **`absent`** — [Ninjutsu.source-revealed](mechanics/Ninjutsu.md#Ninjutsu.source-revealed)
+  - Contract: the GSM that commits the return cost creates a `RevealedCard`
+    and an `InstanceRevealedToOpponent` row for the ninjutsu card, and the
+    resolution deletes both.
+  - Leyline: publishes reveal rows only for Forge reveal events, and the Forge
+    ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
+    the hand while the ability is on the stack.
+  - Owner: `RevealStateContributor`
+
+#### OpeningHand
+
+- **`diverges`** — [OpeningHand.no-resolution-complete](mechanics/OpeningHand.md#OpeningHand.no-resolution-complete)
+  - Contract: the opening-hand put GSM carries `ResolutionStart` but no
+    `ResolutionComplete` for the opening-hand ability.
+  - Leyline: emits `ResolutionComplete` between the transfer and
+    `AbilityInstanceDeleted`.
+  - Pinned by: `OpeningHandLifecycleTest`, whose expected lifecycle order
+    includes the `ResolutionComplete`; update it with the fix.
+  - Owner: `TransferAnnotations`
+
+#### Overload
+
+- **`diverges`** — [Overload.option](mechanics/Overload.md#Overload.option)
+  - Contract: the overload `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
+  - Owner: `GameEventCollector`
+
+#### Prowess
+
+- **`diverges`** — [Prowess.no-resolution-start](mechanics/Prowess.md#Prowess.no-resolution-start)
+  - Contract: the resolution GSM of a prowess trigger carries
+    `ResolutionComplete` and no `ResolutionStart` for it.
+  - Leyline: emits `ResolutionStart` before `ResolutionComplete` for every
+    resolving triggered ability, prowess included.
+  - Owner: `AnnotationPipeline`
+
+#### Sneak
+
+- **`diverges`** — [Sneak.option](mechanics/Sneak.md#Sneak.option)
+  - Contract: a spell cast for its sneak cost carries `CastingTimeOption`
+    `type` `13` with `alternateCostGrpId` the sneak cost ability and no
+    `castAbilityGrpId`.
+  - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability.
+  - Pinned by: `SneakLifecycleTest`, which asserts the extra
+    `castAbilityGrpId` key; update it with the fix.
+  - Owner: `GameEventCollector`
+
+#### Spectacle
+
+- **`absent`** — [Spectacle.condition-row](mechanics/Spectacle.md#Spectacle.condition-row)
+  - Contract: a spectacle card in hand carries a `Spectacle`
+    `AbilityWordActive` row while an opponent has lost life this turn.
+  - Leyline: does not produce the row.
+  - Owner: `PersistentAbilityWordFeedBuilder`
+- **`diverges`** — [Spectacle.option](mechanics/Spectacle.md#Spectacle.option)
+  - Contract: the spectacle `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
+  - Owner: `GameEventCollector`
+
+#### Station
+
+- **`absent`** — [Station.threshold-on-entry](mechanics/Station.md#Station.threshold-on-entry)
+  - Contract: the GSM in which a station card resolves onto the Battlefield
+    creates one `StationLevelThreshold` row per striation, with `value` `0`.
+  - Leyline: publishes the rows only once the permanent has a charge counter,
+    so a station permanent that has never been stationed carries none.
+  - Owner: `AbilityWordScanner`
+
+#### Teamwork
+
+- **`diverges`** — [Teamwork.payment-card-id](mechanics/Teamwork.md#Teamwork.payment-card-id)
+  - Contract: the creature-payment `PayCostsReq` names, as `CardId`, the same
+    spell instance ID that the teamwork `CastingTimeOptionsReq` row names.
+  - Leyline: names a different stack instance ID from the one the option row
+    named.
+  - Pinned by: `TeamworkLifecycleTest`, which asserts that the payment
+    `CardId` differs from the option row's spell; update it with the fix.
+  - Owner: `DeferredCastCostPlanMaterializer`
+
+#### Training
+
+- **`diverges`** — [Training.condition-before-commit](mechanics/Training.md#Training.condition-before-commit)
+  - Contract: the `Training` `AbilityWordActive` row is shown while
+    attackers are being chosen and is deleted in the GSM that commits the
+    attack.
+  - Leyline: creates the row only from the committed attack, so it appears in
+    the commit GSM and never during attacker selection.
+  - Owner: `PersistentAbilityWordFeedBuilder`
+
+#### Unearth
+
+- **`absent`** — [Unearth.designation](mechanics/Unearth.md#Unearth.designation)
+  - Contract: the resolution GSM creates a persistent `Designation` with
+    `DesignationType` `26` on the returned permanent, with `source_grpid`
+    naming the card.
+  - Leyline: publishes no designation of type `26` for any card.
+  - Owner: `CardStateDesignations`
+
+#### Ward
+
+- **`diverges`** — [Ward.tax-prompt](mechanics/Ward.md#Ward.tax-prompt),
+  [Ward.tax-object](mechanics/Ward.md#Ward.tax-object)
+  - Contract: the ward tax is requested of the targeting player as a
+    mana-payment `PayCostsReq` with `promptId` `11` and `allowCancel`
+    `Continue`, whose `manaCost` names the targeting spell.
+  - Leyline: asks an `OptionalActionMessage` yes-or-no question instead and,
+    on yes, pays the cost by auto-tapping, so the player never chooses the
+    mana sources and no `PayCostsReq` is sent.
+  - Owner: `CostPaymentCoordinator.payOptionalManaCost`
 
 ## Leyline-defined shapes
 
