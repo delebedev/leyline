@@ -32,7 +32,8 @@ or already in Limbo. Its zone at the time is reported by the
 ## Lifecycle
 
 1. `AbilityInstanceCreated` names the new ability's ID in `affectedIds` and
-   its source in `affectorId`.
+   its source in `affectorId`; for a trigger tracked by a
+   [TriggerHolder](TriggerHolder.md), the affector can be the holder.
 2. An `Ability` object with that ID appears on the Stack or in Pending.
 3. Prompts and persistent annotations may use the ability's ID as their
    source or affector while it is live.
@@ -42,7 +43,8 @@ or already in Limbo. Its zone at the time is reported by the
 
 A mana ability does not use the stack (CR 605.3b). Its
 `AbilityInstanceCreated` and `AbilityInstanceDeleted` rows still bracket the
-activation, but no `Ability` object exists for it.
+activation, and normally no `Ability` object exists for it. A few activations
+do produce one, always in Pending.
 
 ## Sibling shapes
 
@@ -55,19 +57,24 @@ fires.
 
 - <a id="Ability.zone"></a>**Ability.zone.** An `Ability` object `MUST` be
   `Public` and `MUST` be a member of the Stack or the Pending zone.
-- <a id="Ability.created"></a>**Ability.created.** In the GSM where an
-  `Ability` object first appears, an `AbilityInstanceCreated` row `MUST` name
-  its instance ID in `affectedIds`, with the source object's instance ID as
-  `affectorId`.
+- <a id="Ability.created"></a>**Ability.created.** An
+  `AbilityInstanceCreated` row that names an `Ability` object's instance ID in
+  `affectedIds` `MUST` appear in the GSM where that object first appears, with
+  `affectorId` naming the source object or the trigger's `TriggerHolder`.
 - <a id="Ability.definition"></a>**Ability.definition.** An `Ability`
   object's `grpId` `MUST` be the ability's definition; the source card's
   definition belongs in `objectSourceGrpId`.
 - <a id="Ability.parent"></a>**Ability.parent.** An `Ability` object `MUST`
   carry `parentId` naming the instance of the object it came from.
 - <a id="Ability.mana-no-object"></a>**Ability.mana-no-object.** A mana
-  ability's activation `MUST NOT` produce an `Ability` object.
+  ability's activation `MUST NOT` put an `Ability` object on the Stack. Any
+  `Ability` object it produces `MUST` be in Pending.
 
 ## Open points
+
+- A triggered ability occasionally reaches the Stack with no
+  `AbilityInstanceCreated` row at all. Which triggers do that?
+- Which mana activations produce an `Ability` object in Pending?
 
 - Which ability families wait in Pending, and for how long?
 - When the source has already been replaced, does `parentId` name its old or
