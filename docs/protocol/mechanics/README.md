@@ -40,3 +40,4 @@ that flag described under [designations](../designations/README.md).
 | [JobSelect](JobSelect.md) | Enters trigger, token, attachment | Creates a Hero token and attaches the Equipment to it. |
 | [JumpStart](JumpStart.md) | Graveyard Cast, CastingTimeOption, discard cost, exile on leaving the stack | Casts an instant or sorcery from the graveyard by discarding a card. |
 | [Learn](Learn.md) | SelectNReq 147/148, Sideboard to Hand | Discards to draw, or puts a Lesson from outside the game into the hand. |
+| [Madness](Madness.md) | Discard to exile, trigger, staged Cast, CastingTimeOption | Discards a card into exile and lets its owner cast it for its madness cost. |

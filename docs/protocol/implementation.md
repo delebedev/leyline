@@ -254,6 +254,7 @@ Leyline cannot play at all is `absent`.
 | [JobSelect](mechanics/JobSelect.md) | `AnnotationBuilder.attachmentCreated`, `MechanicAnnotations` | `implemented` |
 | [JumpStart](mechanics/JumpStart.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Learn](mechanics/Learn.md) | `CardSelectWindowMaterializer` | `implemented` |
+| [Madness](mechanics/Madness.md) | `CastRails`, `ReplacementWindowCapture`, `TransferCategoryResolver` | `partial` |
 
 ## Exceptions
 
@@ -1300,6 +1301,27 @@ grouped by family, then by entity.
     `alternativeGrpId`.
   - Leyline: names the jump-start ability in `alternativeGrpId` and writes
     `abilityGrpId` `0`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### Madness
+
+- **`diverges`** — [Madness.discard-to-exile](mechanics/Madness.md#Madness.discard-to-exile)
+  - Contract: the discard moves the card Hand to Exile with `category`
+    `Discard`.
+  - Leyline: tags that transfer `CastSpell` when the card's spell-cast event
+    is matched before its discard event.
+  - Owner: `TransferCategoryResolver.categoryFromEvents`
+- **`diverges`** — [Madness.decline](mechanics/Madness.md#Madness.decline) *(provisional statement)*
+  - Contract: a declined madness cast moves the card to the graveyard with
+    `category` `Put`.
+  - Leyline: tags that transfer `Resolve`, from the madness ability's
+    resolution event.
+  - Owner: `TransferCategoryResolver.categoryFromEvents`
+- **`diverges`** — [Madness.accepted](mechanics/Madness.md#Madness.accepted) *(provisional statement)*
+  - Contract: the accepted cast names the madness ability in both
+    `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost.
   - Owner: `TransferAnnotations.castSpellEventAnnotations`
 
 ## Leyline-defined shapes
