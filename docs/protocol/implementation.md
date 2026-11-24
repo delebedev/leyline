@@ -255,6 +255,7 @@ Leyline cannot play at all is `absent`.
 | [JumpStart](mechanics/JumpStart.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Learn](mechanics/Learn.md) | `CardSelectWindowMaterializer` | `implemented` |
 | [Madness](mechanics/Madness.md) | `CastRails`, `ReplacementWindowCapture`, `TransferCategoryResolver` | `partial` |
+| [ManifestDread](mechanics/ManifestDread.md) | `CardSelectWindowCapture`, `PersistentFeedBuilder`, `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
 
 ## Exceptions
 
@@ -1323,6 +1324,15 @@ grouped by family, then by entity.
   - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
     alternative cost.
   - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### ManifestDread
+
+- **`absent`** — [ManifestDread.manifest-transfer](mechanics/ManifestDread.md#ManifestDread.manifest-transfer) *(provisional statement)*
+  - Contract: the manifested card moves Library to Battlefield with
+    `category` `ManifestLike`.
+  - Leyline: has no `ManifestLike` transfer category, so the move carries
+    another category.
+  - Owner: `TransferCategoryResolver`
 
 ## Leyline-defined shapes
 
