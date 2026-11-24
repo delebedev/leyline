@@ -243,6 +243,7 @@ Leyline cannot play at all is `absent`.
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 | [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
 | [Tiered](mechanics/Tiered.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Training](mechanics/Training.md) | `StackAbilityGrpIdResolver`, `PersistentAbilityWordFeedBuilder` | `partial` |
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
 | [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
@@ -1252,6 +1253,16 @@ grouped by family, then by entity.
   - Leyline: names a different stack instance ID from the one the option row
     named, and `TeamworkLifecycleTest` asserts that the two differ.
   - Owner: `DeferredCastCostPlanMaterializer`
+
+#### Training
+
+- **`diverges`** — [Training.condition-before-commit](mechanics/Training.md#Training.condition-before-commit)
+  - Contract: the `Training` `AbilityWordActive` row is shown while
+    attackers are being chosen and is deleted in the GSM that commits the
+    attack.
+  - Leyline: creates the row only from the committed attack, so it appears in
+    the commit GSM and never during attacker selection.
+  - Owner: `PersistentAbilityWordFeedBuilder`
 
 #### Unearth
 
