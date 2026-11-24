@@ -800,6 +800,12 @@ grouped by family, then by entity.
     the object's type line with no row, and `temporaryCardType`,
     `perpetualAffectedId` and the type-replacement branch are never produced.
   - Owner: `VehicleAttachContributor`, `EarthbendEmitter`
+- **`diverges`** — [Variants](annotations/ModifiedType.md#variants), reconfigure on the plain branch
+  - Contract: an attached reconfigure Equipment's row is a plain row, with
+    `effect_id` only.
+  - Leyline: adds `sourceAbilityGRPID`, the attach ability, to that row, and
+    ends it with `LayeredEffectDestroyed`.
+  - Owner: `VehicleAttachContributor`
 
 #### Qualification
 

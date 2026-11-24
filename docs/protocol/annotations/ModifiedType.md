@@ -27,8 +27,8 @@ Branches are told apart by their extra detail keys:
 
 | Branch | Discriminator | Examples |
 |---|---|---|
-| Plain | `effect_id` only | A Spacecraft becoming an artifact creature at its station threshold. |
-| Ability-sourced | `sourceAbilityGRPID` | A land animated by a resolving ability; crew; reconfigure. |
+| Plain | `effect_id` only | Static type changes: a Spacecraft at its station threshold, an attached reconfigure Equipment that is not a creature, an impending permanent that is not a creature. |
+| Ability-sourced | `sourceAbilityGRPID` | A land animated by a resolving ability. |
 | Temporary card type | `temporaryCardType`, usually with `sourceAbilityGRPID` | An artifact that becomes an artifact creature until end of turn. |
 | Perpetual | `perpetualAffectedId` with `perpetualSuperType` or `perpetualSubType` | A digital-only effect that perpetually adds a supertype or subtype. |
 | Type replacement | Co-typed `RemoveAbility`, with one instance-ID key per affected object | An effect that turns a permanent into a basic land type and removes its abilities. |
@@ -61,9 +61,12 @@ separate rows, each with its own `effect_id`.
    `ModifiedType` row appears and the object is published with its new type
    line.
 2. The row stays in `persistentAnnotations` while the effect applies.
-3. When the effect ends while the object stays on the battlefield,
-   `LayeredEffectDestroyed` names the identity, the row is deleted and the
-   object is republished with its original type line, in one GSM.
+3. When an effect created by a spell or ability ends while the object stays
+   on the battlefield, `LayeredEffectDestroyed` names the identity, the row
+   is deleted and the object is republished with its original type line, in
+   one GSM. A static type change that stops applying, such as reconfigure's
+   when the Equipment becomes unattached, can delete its plain row without a
+   `LayeredEffectDestroyed`.
 4. When the object leaves the battlefield, the row is deleted with its
    `ObjectIdChanged` and `ZoneTransfer`.
 5. An effect that is recomputed destroys its old identity before introducing
@@ -91,9 +94,10 @@ separate rows, each with its own `effect_id`.
   When `perpetualAffectedId` is present, its value `MUST` be one of
   `affectedIds`.
 - <a id="ModifiedType.expiry-destroys"></a>**ModifiedType.expiry-destroys.**
-  When the effect ends while the affected object stays on the battlefield,
-  the GSM that deletes the row `MUST` carry `LayeredEffectDestroyed` for its
-  `effect_id`.
+  When the effect of a row carrying `sourceAbilityGRPID` or
+  `temporaryCardType` ends while the affected object stays on the
+  battlefield, the GSM that deletes the row `MUST` carry
+  `LayeredEffectDestroyed` for its `effect_id`.
 
 ## Open points
 
@@ -101,3 +105,4 @@ separate rows, each with its own `effect_id`.
   grow when the row is republished?
 - What selects the plain branch over the ability-sourced branch for
   effects created by a resolving ability?
+- When does a plain row end with `LayeredEffectDestroyed`, and when without?

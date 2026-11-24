@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 
 class ReconfigureLifecycleTest :
     SessionTest({
-        // protocol: ModifiedType.persistent, ModifiedType.expiry-destroys
+        // protocol: ModifiedType.persistent
         session(
             "Rabbit Battery attaches and unattaches through Reconfigure",
             puzzleFile = "data/puzzles/reconfigure-rabbit-battery.pzl",
