@@ -1,11 +1,11 @@
 ---
-summary: "Ascend: the player-owned Ascend count row, the City's Blessing detail and designation gained at ten permanents, and the blessing that stays when the count drops."
+summary: "Ascend: the player-owned Ascend count row, the City's Blessing detail and designation gained at ten or more permanents, and the blessing that stays when the count drops."
 entity: mechanic/Ascend
 ---
 # Ascend
 
-Ascend counts the permanents a player controls toward ten and, once reached,
-gives that player the city's blessing for the rest of the game. The count is
+Ascend counts the permanents a player controls and, once they control ten or
+more, gives that player the city's blessing for the rest of the game. The count is
 a persistent [AbilityWordActive](../annotations/AbilityWordActive.md) row
 owned by the player; the blessing is a `GainDesignation` row and a persistent
 `Designation` row on the player's seat, plus a `City's Blessing` detail on
@@ -37,7 +37,8 @@ blessing is a designation with no rules meaning of its own (CR 702.131c).
 
 ## Blessing lifecycle
 
-1. The GSM in which the count reaches `10` carries a transient
+1. The GSM in which the count first reaches `10` or more while the player
+   has no blessing, such as when a tenth permanent enters, carries a transient
    `GainDesignation` with the seat as `affectorId` and `affectedIds` and
    `DesignationType` `6`.
 2. The same GSM creates a persistent `Designation` row on the seat with
@@ -71,4 +72,6 @@ seat, with `DesignationType` `7`.
 
 - How does an instant or sorcery with Ascend publish the count and the
   blessing?
+- How is the blessing published when an Ascend permanent enters while its
+  controller already controls ten or more permanents?
 - Does the count row stay once the player controls no Ascend permanent?
