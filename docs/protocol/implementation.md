@@ -248,6 +248,7 @@ Leyline cannot play at all is `absent`.
 | [Foretell](mechanics/Foretell.md) | `CastRails`, `PersistentFeedBuilder` | `partial` |
 | [Gift](mechanics/Gift.md) | `DeferredCastCostPlanMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Harmonize](mechanics/Harmonize.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Impending](mechanics/Impending.md) | `CastRails`, `ZoneTransferDetector` | `implemented` |
 
 ## Exceptions
 

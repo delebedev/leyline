@@ -34,3 +34,4 @@ that flag described under [designations](../designations/README.md).
 | [Foretell](Foretell.md) | Special action, FaceDown exile, Cast from exile | Exiles a card face down for {2} and casts it later for its foretell cost. |
 | [Gift](Gift.md) | CastingTimeOptionsReq AdditionalCost, CastingTimeOption | Promises an opponent a benefit as a spell is cast. |
 | [Harmonize](Harmonize.md) | Graveyard Cast, CastingTimeOptionsReq Selection, CastingTimeOption | Casts a card from the graveyard, tapping a creature to reduce the cost. |
+| [Impending](Impending.md) | Alternative-cost cast, time counters, end-step trigger | Casts a permanent that counts down with time counters before it is a creature. |
