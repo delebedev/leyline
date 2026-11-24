@@ -27,7 +27,7 @@ Persistent for tracked conditions; transient for a few one-time markers.
 | Label | `AbilityWordName` only | `Raid`, `Morbid`, `Infusion` |
 | Count | `value`, often `AbilityGrpId` | `LifeGainedThisTurn` |
 | Count with target | `value`, `threshold`, often `AbilityGrpId` | `Threshold` with target `7`, `CollectEvidenceCount` |
-| Specialized | Name-specific keys such as `colors`, `types`, `for-mode`, `choice`, `isActive`, `activeAbilities` | `Delirium` with `types` |
+| Specialized | Name-specific keys such as `colors`, `types`, `for-mode`, `isActive`, `activeAbilities` | `Delirium` with `types` |
 | Transient marker | `AbilityWordName`, on `annotations` | `Convoke` as a convoked spell is cast |
 
 ## Fields
@@ -55,7 +55,9 @@ ability definition.
 
 1. A persistent row appears when the condition becomes relevant to a card.
 2. When the count changes, the row is republished under the same `id` with
-   the new `value`.
+   the new `value`. `CollectEvidenceCount` rows are an exception: they are
+   often deleted and reissued under a new `id`, with or without a change of
+   `value`.
 3. The row is deleted when the condition stops being relevant to the card,
    or ends with the card's instance ID.
 
@@ -74,8 +76,9 @@ evaluates the condition itself. [Qualification](Qualification.md) and
 - <a id="AbilityWordActive.threshold-with-value"></a>**AbilityWordActive.threshold-with-value.**
   A row that carries `threshold` `MUST` also carry `value`.
 - <a id="AbilityWordActive.update-in-place"></a>**AbilityWordActive.update-in-place.**
-  A change of `value` for one card and name `MUST` republish the existing
-  persistent row under the same `id`.
+  For names other than `CollectEvidenceCount`, a change of `value` for one
+  card and name `MUST` republish the existing persistent row under the same
+  `id`.
 - <a id="AbilityWordActive.affector-domain"></a>**AbilityWordActive.affector-domain.**
   *(provisional)* Rows named `Raid`, `Morbid`, `Infusion` or `Delirium` `MUST`
   carry a seat as `affectorId`. Rows named `Threshold`, `LifeGainedThisTurn`
@@ -84,6 +87,7 @@ evaluates the condition itself. [Qualification](Qualification.md) and
 ## Open points
 
 - What selects the transient rail for a name?
+- Why are `CollectEvidenceCount` rows reissued under new IDs?
 - Which names carry `AbilityGrpId`, and which printed ability words have no
   row?
 - What do `ValueOfX` and the specialized keys encode?
