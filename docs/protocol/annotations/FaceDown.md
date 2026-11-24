@@ -37,9 +37,9 @@ Persistent only, never combined with another type. `REASON` and
 
 The row names the card's instance, not a separate view. `abilityGrpId` is an
 ability definition; it does not reveal which card is face down. A disguised
-spell's row follows the card from the stack to the battlefield: the same row
-`id` is republished with the battlefield instance ID after the
-[ObjectIdChanged](ObjectIdChanged.md) of the resolution.
+spell keeps its instance ID when it resolves onto the battlefield, like any
+permanent spell (see [ObjectIdChanged](ObjectIdChanged.md)), so its row stays
+live under the same `id` and names the same instance.
 
 ## Lifecycle
 
@@ -47,9 +47,13 @@ spell's row follows the card from the stack to the battlefield: the same row
    put onto the battlefield face down. The row appears in the same GSM as the
    face-down object.
 2. The row stays in `persistentAnnotations` while the card stays face down.
-3. When the card is turned face up, the row is deleted in the GSM that
-   republishes the object without `isFacedown`. A card that leaves its zone
-   loses its row with its instance ID.
+3. When the card is turned face up and stays in its zone, the row is deleted
+   in the GSM that republishes the object without `isFacedown`.
+4. A disguised spell that resolves keeps its row, as above. When the card
+   instead moves to another zone under a new instance ID, for example a
+   foretold card cast from exile or a face-down creature that dies, no row
+   names the new ID. The old row is not deleted through
+   `diffDeletedPersistentAnnotationIds`; it keeps naming the retired ID.
 
 ## Sibling shapes
 

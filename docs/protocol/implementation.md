@@ -753,7 +753,7 @@ grouped by family, then by entity.
 
 - **`absent`** — [FaceDown.disguise-on-stack](annotations/FaceDown.md#FaceDown.disguise-on-stack) *(provisional statement)*
   - Contract: a disguised spell carries its row on the stack, and the row
-    follows it to the battlefield.
+    stays live when the spell resolves onto the battlefield.
   - Leyline: creates the disguise row only once the face-down permanent is on
     the battlefield.
   - Owner: `PersistentFeedBuilder`
