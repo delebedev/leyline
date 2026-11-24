@@ -30,7 +30,7 @@ the answer returns the division the player chose.
 |---|---|
 | `instanceId` | A blocking creature, or the seat ID of the defending player. |
 | `minDamage` | On a blocker: the damage that counts as lethal for it. |
-| `maxDamage` | On the player: the most damage it can receive, which is `totalDamage` minus the blockers' `minDamage`. |
+| `maxDamage` | On the player: the most damage it can receive, which is `totalDamage` minus the blockers' `minDamage` when that is positive. |
 | `assignedDamage` | The proposed damage for this recipient. Absent means `0`. |
 
 One request carries one assigner. A player slot follows the blocker slots
@@ -71,9 +71,10 @@ The client answers with `ClientMessageType_AssignDamageResp`, correlated as in
   Every blocking creature of the attacker `MUST` have one slot carrying its
   lethal damage in `minDamage`.
 - <a id="AssignDamageReq.trample-slot"></a>**AssignDamageReq.trample-slot.**
-  When the attacker has trample, the request `MUST` include a slot for the
-  defending player, named by seat ID, whose `maxDamage` is `totalDamage`
-  minus the blockers' `minDamage`.
+  When the attacker has trample and its `totalDamage` exceeds the sum of the
+  blockers' `minDamage`, the request `MUST` include a slot for the defending
+  player, named by seat ID, whose `maxDamage` is `totalDamage` minus that
+  sum.
 - <a id="AssignDamageReq.proposal-total"></a>**AssignDamageReq.proposal-total.**
   The proposed `assignedDamage` values of an assigner `MUST` add up to its
   `totalDamage`.
@@ -82,6 +83,10 @@ The client answers with `ClientMessageType_AssignDamageResp`, correlated as in
   request's, or that assigns a negative amount.
 
 ## Open points
+
+- When a trampling attacker's `totalDamage` does not exceed the sum of the
+  blockers' `minDamage`, does the player slot carry `maxDamage` `0`, omit the
+  field, or not appear?
 
 - What does `canIgnoreBlockers` mean, and which attackers carry it?
 - How does the server answer a response it cannot apply? Is
