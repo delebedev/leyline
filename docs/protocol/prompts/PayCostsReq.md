@@ -117,6 +117,9 @@ cancellation.
 
 ## Contract
 
+The response rule shared by every request applies here:
+[Messages.resp-correlates](../stream/messages.md#Messages.resp-correlates).
+
 - <a id="PayCostsReq.follows-state"></a>**PayCostsReq.follows-state.** The
   request `MUST` follow, in the same message batch, a GSM with the same
   `gameStateId`.
@@ -170,10 +173,6 @@ cancellation.
   `PerformActionResp` that names one of `paymentActions` while part of the
   cost remains, the server `MUST` send a new GSM and a new `PayCostsReq` for
   the remaining cost.
-- <a id="PayCostsReq.resp-correlates"></a>**PayCostsReq.resp-correlates.** A
-  response answers the request whose `msgId` equals its `respId` and whose
-  `gameStateId` equals its own. A response for which either differs
-  `MUST NOT` be applied to the request.
 
 ## Open points
 
