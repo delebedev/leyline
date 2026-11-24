@@ -197,6 +197,7 @@ class MatchReplacementInteractionRuntimeTest :
             assertSoftly {
                 req.type shouldBe GREMessageType.SelectReplacementReq_695e
                 req.gameStateId shouldBe published.gameStateId
+                // protocol: SelectReplacementReq.prompt
                 req.prompt.promptId shouldBe PromptIds.SELECT_REPLACEMENT
                 req.prompt.parametersCount shouldBe 0
                 req.allowCancel shouldBe AllowCancel.No_a526
@@ -215,6 +216,7 @@ class MatchReplacementInteractionRuntimeTest :
                     row.replacementEffectId shouldBeGreaterThan 0
                     row.conferringObjectZcid shouldBe 0
                 }
+                // protocol: SelectReplacementReq.effect-ids
                 rows.map { it.replacementEffectId }.distinct() shouldHaveSize 2
                 req.selectReplacementReq.isOptional shouldBe false
                 req.selectReplacementReq.replacementsType.number shouldBe 0
@@ -223,6 +225,7 @@ class MatchReplacementInteractionRuntimeTest :
                 reject(response())
                 reject(response(selectReplacementResp = SelectReplacementResp.getDefaultInstance()))
                 reject(response(searchResp = SearchResp.getDefaultInstance()))
+                // protocol: SelectReplacementReq.resp-whole-row
                 reject(replacementResponse(rows[0].toBuilder().clearUniqueAbilityId().build()))
                 reject(replacementResponse(rows[0].toBuilder().setAffectedObject(rows[1].affectedObject).build()))
                 reject(replacementResponse(rows[0].toBuilder().setReplacementEffectId(rows.maxOf { it.replacementEffectId } + 1).build()))

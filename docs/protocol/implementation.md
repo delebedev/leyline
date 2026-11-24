@@ -86,6 +86,7 @@ Rows are grouped by family and sorted by entity name.
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
+| [SelectReplacementReq](prompts/SelectReplacementReq.md) | `ReplacementWindowMaterializer`, `MatchReplacementInteractionRuntime` | `partial` |
 | [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
 
 ### Annotations
@@ -441,6 +442,16 @@ grouped by family, then by entity.
     including the color choice of a triggered mana ability such as Fertile
     Ground's additional mana.
   - Owner: `StaticChoiceWindowMaterializer.buildRequest`
+
+#### SelectReplacementReq
+
+- **`diverges`** — [Row identities](prompts/SelectReplacementReq.md#request)
+  - Contract: `affectedObject` is the object whose event is replaced, an
+    identity separate from `objectInstance`.
+  - Leyline: sets `affectedObject` to the host of the replacement ability in
+    every row, which is correct only when the replacement affects its own
+    host.
+  - Owner: `ReplacementWindowMaterializer`
 
 #### SelectTargetsReq
 
