@@ -237,6 +237,7 @@ Leyline cannot play at all is `absent`.
 | [Emerge](mechanics/Emerge.md) | `CastRails`, `TargetingCoordinator.choosePermanentsToSacrifice` | `implemented` |
 | [Enchant](mechanics/Enchant.md) | `TargetingWindowMaterializer`, `AnnotationBuilder.attachment` | `implemented` |
 | [Endure](mechanics/Endure.md) | `ConfirmActionPlanner`, `OptionalActionGate` | `implemented` |
+| [Enlist](mechanics/Enlist.md) | `PromptJournal`, `GameEventCollector`, `OneShotPayCostsWindowCapture` | `implemented` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 
