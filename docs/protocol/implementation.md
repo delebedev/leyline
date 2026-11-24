@@ -99,6 +99,7 @@ Rows are grouped by family and sorted by entity name.
 | [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
 | [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
+| [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
@@ -128,7 +129,6 @@ the table above when its page is written.
 | `Attachment` | `AnnotationBuilder.attachment` | emitted |
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
 | `CardRevealed` | `AnnotationBuilder.cardRevealed` | emitted |
-| `CastingTimeOption` | `AnnotationBuilder.castingTimeOption` | emitted |
 | `ClassLevel` | — | `absent` |
 | `CoinFlip` | `AnnotationBuilder.coinFlip` | emitted |
 | `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
@@ -612,6 +612,15 @@ grouped by family, then by entity.
     source card, so every activation of one land or creature names the same
     instance ID for the whole game.
   - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
+
+#### CastingTimeOption
+
+- **`absent`** — [Variants](annotations/CastingTimeOption.md#variants), `Casualty`, `Bargain` and `OptionalCostPaid`
+  - Contract: casualty, bargain and named optional costs produce rows of
+    `type` `15`, `17` and `18`.
+  - Leyline: builds rows only for `ChooseX`, `Kicker`, `AdditionalCost`,
+    `ChooseOrCost` and `CastThroughAbility`.
+  - Owner: `TransferAnnotations`
 
 #### ChoiceResult
 

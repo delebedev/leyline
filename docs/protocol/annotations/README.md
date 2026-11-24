@@ -88,7 +88,7 @@ the type's page. Types without a page are described only by their row.
 | `MultistepEffectComplete` | transient | `SubCategory` | The matching multi-step effect finished. |
 | `PredictedDirectDamage` | persistent | `value` | The damage a damage-dealing stack object will deal on resolution, after modifiers such as kicker or X. Self-affecting: the stack object is both affector and affected. |
 | `TurnPermanent` | transient | `turned` | A seat took a special action specific to one permanent. |
-| `CastingTimeOption` | both | `type` | How a spell was cast: alternative cost, kicker, additional cost or X. A record of the decision, not the prompt. |
+| [CastingTimeOption](CastingTimeOption.md) | both | `type` | How a spell was cast: alternative cost, kicker, additional cost or X. A record of the decision, not the prompt. |
 
 ### Targets and choices
 
