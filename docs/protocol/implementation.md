@@ -58,6 +58,7 @@ Rows are grouped by family and sorted by entity name.
 | [Ability](object_types/Ability.md) | `ObjectMapper.buildAbilityObject`, `ZoneMapper.addStackAbilitiesFromSnapshot` | `partial` |
 | [Adventure](object_types/Adventure.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
+| [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
@@ -207,6 +208,18 @@ grouped by family, then by entity.
   - Leyline: places every `Ability` object on the Stack and never uses
     Pending.
   - Owner: `ZoneMapper.addStackAbilitiesFromSnapshot`
+
+#### MDFCBack
+
+- **`absent`** — [MDFCBack.back-identity](object_types/MDFCBack.md#MDFCBack.back-identity),
+  [MDFCBack.selected-back](object_types/MDFCBack.md#MDFCBack.selected-back),
+  [MDFCBack.remap](object_types/MDFCBack.md#MDFCBack.remap)
+  - Contract: a visible modal double-faced card projects a back-face companion
+    that carries the other face and follows the parent through remaps.
+  - Leyline: never emits `MDFCBack`. The projection layer supports only
+    `Adventure` and `Omen` companions, so a modal double-faced card shows no
+    alternate-face object.
+  - Owner: `LinkedFaceCompanionProjector`
 
 #### RevealedCard
 
