@@ -79,6 +79,7 @@ Rows are grouped by family and sorted by entity name.
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
+| [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
@@ -339,6 +340,14 @@ grouped by family, then by entity.
   - Leyline: uses one generic prompt, `1159`, for every optional effect that
     has no dedicated prompt mapping.
   - Owner: `BlockingInteractionMaterializer`
+
+#### OrderReq
+
+- **`absent`** — [Battlefield ordering](prompts/OrderReq.md#uses)
+  - Contract: cards an effect puts onto the battlefield together are ordered
+    with an `OrderReq` using prompt `91`.
+  - Leyline: sends `OrderReq` only for the top and bottom of a library.
+  - Owner: `OrderWindowMaterializer`
 
 #### PayCostsReq
 
