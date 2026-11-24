@@ -115,7 +115,7 @@ the type's page. Types without a page are described only by their row.
 | `ModifiedLife` | transient | `life` | A player's life total changed by the signed amount in `life`. |
 | [ReplacementEffect](ReplacementEffect.md) | both | `grpid` | Links a replacement ability or lifecycle to the object whose event it modifies. |
 | `ReplacementEffectApplied` | transient | `grpid`, `IsDamageReplacement` | A replacement effect applied to damage; it accompanies the resulting damage event. |
-| `SyntheticEvent` | transient | `type` | A server-generated event marker that accompanies an effect's result, such as life loss; `type` selects the kind. |
+| [SyntheticEvent](SyntheticEvent.md) | transient | `type` | A server-generated event marker that accompanies an effect's result, such as life loss; `type` selects the kind. |
 
 ### Mana and costs
 

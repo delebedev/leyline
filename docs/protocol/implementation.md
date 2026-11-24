@@ -118,6 +118,7 @@ Rows are grouped by family and sorted by entity name.
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 | [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
 | [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
+| [SyntheticEvent](annotations/SyntheticEvent.md) | `AnnotationBuilder.syntheticEvent`, `CombatAnnotations`, `AnnotationPipeline` | `partial` |
 | [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
 | [TargetSpec](annotations/TargetSpec.md) | `AnnotationBuilder.targetSpec`, `TargetSpecContributor`, `TargetSpecKind` | `implemented` |
 | [TemporaryPermanent](annotations/TemporaryPermanent.md) | `AnnotationBuilder.temporaryPermanent`, `PersistentTemporaryFeedBuilder` | `implemented` |
@@ -189,7 +190,6 @@ the table above when its page is written.
 | `Shuffle` | `AnnotationBuilder.shuffle` | emitted |
 | `SupplementalText` | — | `absent` |
 | `SuppressedPowerAndToughness` | `AnnotationBuilder.suppressedPowerAndToughness` | emitted |
-| `SyntheticEvent` | `AnnotationBuilder.syntheticEvent` | emitted |
 | `TextChange` | — | `absent` |
 | `TokenCreated` | `AnnotationBuilder.tokenCreated` | emitted |
 | `TokenDeleted` | `AnnotationBuilder.tokenDeleted` | emitted |
@@ -771,6 +771,13 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### SyntheticEvent
+
+- **`absent`** — [Variants](annotations/SyntheticEvent.md#variants), `type` `3`
+  - Contract: an object-scoped cue exists as `type` `3`.
+  - Leyline: builds only `type` `1`.
+  - Owner: `AnnotationBuilder.syntheticEvent`
 
 #### TriggeringObject
 
