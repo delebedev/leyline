@@ -35,7 +35,7 @@ The object type is independent of annotation and mechanic identity.
 | [TriggerHolder](TriggerHolder.md) | protocol utility | A delayed or recurring trigger between live ability instances. |
 | [Adventure](Adventure.md) | card side | The Adventure half of an Adventure card. |
 | [MDFCBack](MDFCBack.md) | card side | The back face of a modal double-faced card. |
-| `DisturbBack` | card side | The back face cast with disturb. |
+| [DisturbBack](DisturbBack.md) | card side | The back face cast with disturb. |
 | `Boon` | card side | A boon granted by a card. |
 | `PrototypeFacet` | card side | The prototype characteristics of a card. |
 | `RoomLeft`, `RoomRight` | card side | The doors of a Room. |

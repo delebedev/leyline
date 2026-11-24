@@ -58,6 +58,7 @@ Rows are grouped by family and sorted by entity name.
 | [Ability](object_types/Ability.md) | `ObjectMapper.buildAbilityObject`, `ZoneMapper.addStackAbilitiesFromSnapshot` | `partial` |
 | [Adventure](object_types/Adventure.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
+| [DisturbBack](object_types/DisturbBack.md) | `ZoneMapper.addDisturbBackObject`, `ObjectMapper.buildDisturbBackObject`, `StateMapper` | `partial` |
 | [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
@@ -208,6 +209,17 @@ grouped by family, then by entity.
   - Leyline: places every `Ability` object on the Stack and never uses
     Pending.
   - Owner: `ZoneMapper.addStackAbilitiesFromSnapshot`
+
+#### DisturbBack
+
+- **`absent`** — [DisturbBack.every-zone](object_types/DisturbBack.md#DisturbBack.every-zone),
+  [DisturbBack.disturb-cast](object_types/DisturbBack.md#DisturbBack.disturb-cast) *(provisional statement)*
+  - Contract: a card with a Disturb back face carries its companion in every
+    zone the parent is projected in, including the Stack and the Battlefield.
+  - Leyline: emits `DisturbBack` only for cards projected in a hand, graveyard,
+    sideboard or visible library. A card on the Stack, on the Battlefield or in
+    Exile has no companion.
+  - Owner: `ZoneMapper.addDisturbBackObject`, `StateMapper`
 
 #### MDFCBack
 
