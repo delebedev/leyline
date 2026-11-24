@@ -24,6 +24,7 @@ semantic discriminator; `promptId` selects instruction text.
 | [OptionalActionMessage](OptionalActionMessage.md) | Answer yes or no to an optional effect. |
 | [OrderReq](OrderReq.md) | Put objects in order, such as cards going to the top or bottom of a library. |
 | [PayCostsReq](PayCostsReq.md) | Pay a cost: mana, objects chosen to pay it, or counters gathered from several permanents. |
+| [SearchFromGroupsReq](SearchFromGroupsReq.md) | Search a hidden zone where the legal cards are split into groups. |
 | [SearchReq](SearchReq.md) | Search a hidden zone and choose cards from it. |
 | [SelectNReq](SelectNReq.md) | Choose values from a bounded domain: trigger order, discard, resolution choices, mana colors. |
 | [SelectReplacementReq](SelectReplacementReq.md) | Choose which of several replacement effects applies first. |

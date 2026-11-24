@@ -84,6 +84,7 @@ Rows are grouped by family and sorted by entity name.
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
+| [SearchFromGroupsReq](prompts/SearchFromGroupsReq.md) | `SearchWindowMaterializer`, `MatchSearchInteractionRuntime` | `partial` |
 | [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 | [SelectReplacementReq](prompts/SelectReplacementReq.md) | `ReplacementWindowMaterializer`, `MatchReplacementInteractionRuntime` | `partial` |
@@ -408,6 +409,13 @@ grouped by family, then by entity.
     sacrifice or graveyard-exile cost, the parameter names the card the
     ability belongs to. Spells and tap payments name the right object.
   - Owner: `OneShotPayCostsWindowCapture.freezePromptSource`
+
+#### SearchFromGroupsReq
+
+- **`compat`** — [Request prompt](prompts/SearchFromGroupsReq.md#request)
+  - Contract: the prompt ID is specific to the search effect.
+  - Leyline: uses `3713` for every grouped search.
+  - Owner: `SearchWindowMaterializer`
 
 #### SearchReq
 

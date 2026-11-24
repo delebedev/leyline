@@ -7,7 +7,7 @@ entity: prompt/SearchReq
 `SearchReq` asks a player to search a zone, normally their library, and choose
 cards from it (CR 701.23). It shows every card in the searched zone and marks
 which of them may be chosen. The answer is a flat list of chosen cards.
-`SearchFromGroupsReq` is the variant that splits the
+[SearchFromGroupsReq](SearchFromGroupsReq.md) is the variant that splits the
 legal cards into groups.
 
 Enum values below are written without their type prefix: `Any` is

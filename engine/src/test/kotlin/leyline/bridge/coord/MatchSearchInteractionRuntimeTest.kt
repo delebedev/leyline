@@ -286,6 +286,7 @@ class MatchSearchInteractionRuntimeTest :
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(req.groupsList[0].idsList[0])), published.gameStateId) shouldBe
                     false
                 coordinator.acceptSettled(
+                    // protocol: SearchFromGroupsReq.resp-group
                     leyline.testkit.groupedSearchResp(9000, listOf(req.groupsList[0].idsList[0]), 1),
                     published.gameStateId,
                 ) shouldBe
