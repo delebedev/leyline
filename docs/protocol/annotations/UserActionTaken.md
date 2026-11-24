@@ -72,8 +72,10 @@ ability. It never names the hand ID the card had before the action.
   the instance named by the activation's `AbilityInstanceCreated`.
 - <a id="UserActionTaken.activate"></a>**UserActionTaken.activate.**
   *(provisional)* An activated ability put on the stack `MUST` produce a row
-  with `actionType` `2`, `abilityGrpId` equal to the ability's grpId and
-  `affectedIds` equal to the ability's stack instance ID.
+  with `actionType` `2` and `affectedIds` equal to the ability's stack
+  instance ID. Its `abilityGrpId` `MUST` equal the ability's grpId, except on
+  a Reconfigure activation, which carries the keyword's ability instead: `243`
+  to attach or `244` to unattach.
 - <a id="UserActionTaken.cast"></a>**UserActionTaken.cast.**
   *(provisional)* A spell cast from hand for its mana cost, other than by a
   face-specific cast, `MUST` produce a row with `actionType` `1`,
@@ -84,5 +86,6 @@ ability. It never names the hand ID the card had before the action.
 - What does a nonzero `abilityGrpId` on a `Cast` row identify?
 - Which `ActionType` values appear on this row for special actions and
   face-specific casts, and what does each name in `affectedIds`?
-- A Reconfigure activation carried an `abilityGrpId` that differs from its
-  stack object's `grpId`. Which activations do that?
+- Do activations of keyword abilities other than Reconfigure carry the
+  keyword's ability as `abilityGrpId` rather than the stack object's
+  `grpId`?
