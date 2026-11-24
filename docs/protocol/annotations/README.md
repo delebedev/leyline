@@ -154,7 +154,7 @@ the type's page. Types without a page are described only by their row.
 | `PowerToughnessModCreated` | transient | `power`, `toughness` | A direct power/toughness modification began, such as a +2/+2 pump. |
 | `SuppressedPowerAndToughness` | persistent | none | An object's ordinary power and toughness are suppressed, optionally replaced by `power` and `toughness`. |
 | [CopiedObject](CopiedObject.md) | persistent | `copyFromGrpid`, `LayeredEffectType`, `effect_id` | An object is a copy of the card definition in `copyFromGrpid`. |
-| `MiscContinuousEffect` | persistent | none | A continuous effect on a player, such as maximum hand size, extra turns or additional land plays. |
+| [MiscContinuousEffect](MiscContinuousEffect.md) | persistent | `MaxHandSize`, `additional_lands` or `extra_phases` | A continuous effect on a player, such as maximum hand size, additional land plays or an extra combat phase. |
 | [Qualification](Qualification.md) | persistent | `SourceParent`, `grpid`, `QualificationSubtype`, `QualificationType` | A restriction or permission on an object, such as "can't block". |
 | `DisqualifiedEffect` | transient | none | A continuous effect stopped applying, for example because its condition is no longer met. |
 

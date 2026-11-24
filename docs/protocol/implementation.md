@@ -114,6 +114,7 @@ Rows are grouped by family and sorted by entity name.
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
+| [MiscContinuousEffect](annotations/MiscContinuousEffect.md) | — | `absent` |
 | [ModifiedCost](annotations/ModifiedCost.md) | — | `absent` |
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
@@ -165,7 +166,6 @@ the table above when its page is written.
 | `LossOfGame` | `AnnotationBuilder.lossOfGame` | emitted |
 | `LoyaltyActivationsRemaining` | — | `absent` |
 | `ManaDetails` | `AnnotationBuilder.manaDetails` | emitted |
-| `MiscContinuousEffect` | — | `absent` |
 | `ModifiedColor` | — | `absent` |
 | `ModifiedLife` | `AnnotationBuilder.modifiedLife` | emitted |
 | `ModifiedName` | — | `absent` |
@@ -760,6 +760,12 @@ grouped by family, then by entity.
     choice made by a computer-controlled opponent produces the row with no
     `ChoiceResult`.
   - Owner: `PersistentFeedBuilder`, `MatchStaticChoiceInteractionRuntime`
+
+#### MiscContinuousEffect
+
+- **`absent`** — [MiscContinuousEffect](annotations/MiscContinuousEffect.md), the entity
+  - Leyline: publishes no `MiscContinuousEffect` row for any player-level
+    continuous effect.
 
 #### ModifiedCost
 
