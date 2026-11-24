@@ -40,7 +40,8 @@ statement.
    [priority](stream/priority.md) and [timers](stream/timers.md).
 4. The family overview for the entity you are touching:
    [game object types](object_types/README.md), [actions](actions/README.md),
-   [designations](designations/README.md), [prompts](prompts/README.md) or
+   [designations](designations/README.md), [mechanics](mechanics/README.md),
+   [prompts](prompts/README.md) or
    [annotations](annotations/README.md).
 5. The entity page — meaning, field reference, lifecycle, then its **Contract**.
 6. [The implementation map](implementation.md) — the Leyline owner, status and

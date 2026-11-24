@@ -225,6 +225,15 @@ the table above when its page is written.
 | `UseOrCostsManaCost` | — | `absent` |
 | `WinTheGame` | — | `absent` |
 
+### Mechanics
+
+A mechanic row names the code that owns the mechanic-specific behavior. Shapes
+shared with other mechanics are covered by the entity rows above. A mechanic
+Leyline cannot play at all is `absent`.
+
+| Entity | Owner | Status |
+|---|---|---|
+
 ## Exceptions
 
 Each exception is written so it can be filed as an issue unchanged: what the
@@ -1189,6 +1198,8 @@ grouped by family, then by entity.
     when no player has priority. An opponent's instant that resolves while the
     active player receives priority is attributed to the active player.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
+
+### Mechanic exceptions
 
 ## Leyline-defined shapes
 

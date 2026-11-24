@@ -172,6 +172,34 @@ overview.
 6. `## Contract`
 7. `## Open points`
 
+### Mechanic — `mechanics/<Name>.md`
+
+A mechanic page follows one rules mechanic across the entities it uses. It
+owns the sequence and the mechanic-specific values; the entity pages own the
+shapes. Link a prompt, action, annotation, object or designation page for its
+shape and state only what this mechanic adds: its ability and prompt IDs, its
+discriminator values, its ordering across entities, and what is absent that a
+reader would expect.
+
+1. Opening paragraph: the mechanic and the protocol surfaces it uses.
+2. `## Rules grounding` — only the rules needed to name the sub-surfaces.
+3. `## Surfaces` — table: each surface (cast or alternative cost, activation,
+   keyword stack ability, linked cost trigger, persistent state, movement
+   without a transfer row) with the entity pages that carry it.
+4. One `## <Surface> lifecycle` section per surface the mechanic uses —
+   numbered GSM, prompt, response and annotation steps.
+5. `## Sibling shapes` — the nearest mechanic a reader could confuse it with.
+6. `## Contract`
+7. `## Open points`
+
+A statement belongs on the mechanic page only when it is specific to the
+mechanic. A statement that holds for every user of an entity belongs on that
+entity's page; cite it by link.
+
+An ability word gets a page under `mechanics/` only when a multi-stage state
+or trigger lifecycle needs interpretation; otherwise it is a row in the
+`AbilityWordActive` page or the mechanics overview.
+
 ### Shared page — `model/<topic>.md`, `stream/<topic>.md`
 
 Meaning, then the cross-cutting contract (tables for field roles, numbered
