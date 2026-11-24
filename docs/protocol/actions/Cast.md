@@ -27,8 +27,8 @@ fields; see Sibling shapes.
 | `alternativeGrpId` | Present only on an alternative-cost cast: the cost's ability definition. |
 | `alternativeSourceZcid` | On some alternative-cost casts, the object granting the permission. |
 
-`manaCost` entries are `{color[], count}`, aggregated per color with the
-generic requirement last. A hybrid "two generic or one colored" symbol is a
+`manaCost` entries are `{color[], count}`, aggregated per color, normally
+with the generic requirement first. A hybrid "two generic or one colored" symbol is a
 single requirement carrying both `ManaColor_TwoGeneric` and the colored
 value.
 
@@ -44,21 +44,30 @@ state alone, and none that require the player to choose what pays:
   recomputed every time the action rail is restated. It reduces only generic
   mana, and never below zero.
 - A reduction chosen while paying — convoke, improvise, delve — is not
-  applied. The offer shows the printed cost; the reduction appears later in
-  `PayCostsReq`, where the player chooses what pays.
+  applied to the offer; the reduction appears later in `PayCostsReq`, where
+  the player chooses what pays.
 
 The line is the choice, not whether the reduction reads game state: delve
 and a graveyard-counting static reduction both read the graveyard and behave
 oppositely.
 
-Both rails agree. Where one card's `Cast` offer appears on the GSM rail and
-on `ActionsAvailableReq` for the same state, the two `manaCost` arrays are
-equal, including on frames where the other seat holds priority.
+Both rails normally agree. Where one card's `Cast` offer, with the same
+`alternativeGrpId` or none, appears on the GSM rail and on
+`ActionsAvailableReq` for the same state, the two `manaCost` arrays are
+equal, including on frames where the other seat holds priority. Two cases
+differ:
+
+- A spell that costs less depending on its target, such as "costs {3} less
+  if it targets a tapped creature", shows the reduction on
+  `ActionsAvailableReq` and the unreduced cost on the GSM rail.
+- A spell that may be cast with mana of any type shows an all-generic cost on
+  the GSM rail and the colored cost on `ActionsAvailableReq`.
 
 ### Additional-cost choices
 
 A spell whose additional cost is a choice — "as an additional cost, do X or
-pay {N}" — is offered as one `Cast` at its printed cost. The choice is a
+pay {N}" — is offered as one `Cast` whose `manaCost` leaves out the optional
+`{N}`. The choice is a
 `CastingTimeOptionsReq` with `ChooseOrCost`, sent after the cast is submitted,
 in the state where the card moves to the stack.
 
@@ -91,13 +100,15 @@ in the state where the card moves to the stack.
   to choose permanents or cards while paying, such as convoke, improvise or
   delve.
 - <a id="Cast.rails-agree"></a>**Cast.rails-agree.** For one card in one
-  state, the `manaCost` of its `Cast` offer `MUST` be equal on the GSM rail
-  and on `ActionsAvailableReq`.
+  state, the `manaCost` of a `Cast` offer with the same `alternativeGrpId`, or
+  none, `MUST` be equal on the GSM rail and on `ActionsAvailableReq`, unless
+  the spell's cost depends on its target or the spell may be cast with mana
+  of any type.
 - <a id="Cast.choose-or-cost"></a>**Cast.choose-or-cost.** *(provisional)*
   A spell whose additional cost is a choice between doing something and
-  paying mana `MUST` be offered as exactly one `Cast` at its printed cost,
-  with the choice sent as a `CastingTimeOptionsReq` of type `ChooseOrCost`
-  after submission.
+  paying mana `MUST` be offered as exactly one `Cast` whose `manaCost` does
+  not include that optional mana, with the choice sent as a
+  `CastingTimeOptionsReq` of type `ChooseOrCost` after submission.
 - <a id="Cast.accepted"></a>**Cast.accepted.** An accepted `Cast`,
   including an alternative-cost `Cast`, `MUST` be recorded by
   `UserActionTaken` with `actionType` `1`.
@@ -108,3 +119,6 @@ in the state where the card moves to the stack.
   `manaCost`?
 - Are emerge, offering and assist reductions shown like convoke?
 - How is a true alternative additional cost offered?
+- When a static cost change also applies to a spell with a `ChooseOrCost`
+  additional cost, does the offer's `manaCost` carry that change?
+- Which spells list the generic requirement after the colored ones?
