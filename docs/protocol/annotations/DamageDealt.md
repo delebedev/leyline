@@ -66,8 +66,11 @@ damage a spell on the stack will deal.
   *(provisional)* For two creatures fighting, each creature's damage `MUST`
   carry `type` `3`.
 - <a id="DamageDealt.player-life"></a>**DamageDealt.player-life.**
-  When `affectedIds` names a seat and `damage` is greater than `0`, the same
-  GSM `MUST` carry a `ModifiedLife` whose `affectedIds` is that seat.
+  When `affectedIds` names a seat, `damage` is greater than `0` and the source
+  does not have infect, the same GSM `MUST` carry a `ModifiedLife` whose
+  `affectedIds` is that seat. Damage from a source with infect gives the
+  player poison counters instead of causing life loss (CR 120.3a,
+  CR 120.3b).
 
 ## Open points
 
