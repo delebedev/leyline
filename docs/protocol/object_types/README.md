@@ -39,4 +39,4 @@ The object type is independent of annotation and mechanic identity.
 | `Boon` | card side | A boon granted by a card. |
 | `PrototypeFacet` | card side | The prototype characteristics of a card. |
 | `RoomLeft`, `RoomRight` | card side | The doors of a Room. |
-| `Omen` | card side | The Omen half of an Omen card. |
+| [Omen](Omen.md) | card side | The Omen half of an Omen card. |

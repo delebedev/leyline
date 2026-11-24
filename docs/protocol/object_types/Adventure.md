@@ -55,8 +55,8 @@ itself a transfer subject.
 
 ## Sibling shapes
 
-`Omen` uses the same parent-and-companion topology and differs in its cast
-action and its resolution path. Back-face companions such as
+[`Omen`](Omen.md) uses the same parent-and-companion topology and differs in its
+cast action and its resolution path. Back-face companions such as
 `MDFCBack` expose an alternate face of the same card, while `RoomLeft`,
 `RoomRight`, `SplitLeft` and `SplitRight` materialize two named sides at once.
 
