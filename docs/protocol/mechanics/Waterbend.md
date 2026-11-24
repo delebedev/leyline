@@ -1,12 +1,13 @@
 ---
-summary: "Waterbend mechanic: a cost whose generic part may be paid by tapping artifacts and creatures, offered as MakePayment actions in the mana PayCostsReq, and its optional spell-time choice."
+summary: "Waterbend mechanic: a cost whose generic part may be paid by tapping artifacts and creatures you control, offered as MakePayment actions in the mana PayCostsReq, and its optional spell-time choice."
 entity: mechanic/Waterbend
 ---
 # Waterbend
 
 Waterbend is a way to pay a cost: each generic mana in the waterbend part may
-be paid by tapping an untapped artifact or creature instead. The mechanic
-appears as an optional additional cost of a spell, chosen in
+be paid by tapping an untapped artifact or creature its payer controls
+instead. The mechanic appears as an optional additional cost of a spell,
+chosen in
 [CastingTimeOptionsReq](../prompts/CastingTimeOptionsReq.md), or as the cost of
 an activated ability. Either way the tappable permanents are offered as
 mana-payment actions in the ordinary mana
@@ -15,8 +16,8 @@ mana-payment actions in the ordinary mana
 ## Rules grounding
 
 CR 701.67 defines waterbend: while paying a waterbend cost, the player may tap
-untapped artifacts and creatures, each paying for one generic mana of that
-cost.
+untapped artifacts and creatures they control, each paying for one generic
+mana of that cost.
 
 ## Surfaces
 
@@ -28,6 +29,8 @@ cost.
 
 ## Spell lifecycle
 
+This is the lifecycle of an optional waterbend cost.
+
 1. The caster receives a `CastingTimeOptionsReq` with an `AdditionalCost` row
    whose `grpId` is the card's waterbend ability, then a `Done` row.
 2. Answering with the waterbend row creates a persistent `CastingTimeOption`
@@ -37,7 +40,7 @@ cost.
    `manaCost` lists the waterbend part as its own generic entry whose
    `abilityGrpId` is the waterbend ability, beside the spell's own cost
    entries.
-4. Each untapped artifact and creature that can pay is a `MakePayment` action
+4. Each untapped artifact and creature the caster controls that can pay is a `MakePayment` action
    whose mana option has `abilityGrpId` `384`, `srcInstanceId` the permanent,
    `color` colorless, `count` `1`, and specs `Predictive` and
    `ManaSubstitution`; a creature also has `FromCreature`.
@@ -57,8 +60,8 @@ saddle tap creatures through an object-selection `PayCostsReq` instead.
 
 ## Contract
 
-- <a id="Waterbend.option-row"></a>**Waterbend.option-row.** A spell's
-  waterbend choice `MUST` be an `AdditionalCost` row of
+- <a id="Waterbend.option-row"></a>**Waterbend.option-row.** When a spell's
+  waterbend cost is optional, the choice to pay it `MUST` be an `AdditionalCost` row of
   `CastingTimeOptionsReq` whose `grpId` is the waterbend ability, followed by
   a `Done` row.
 - <a id="Waterbend.paid-option"></a>**Waterbend.paid-option.** A spell cast
@@ -74,6 +77,8 @@ saddle tap creatures through an object-selection `PayCostsReq` instead.
 
 ## Open points
 
+- How is a waterbend cost that a spell requires published: does it skip the
+  choice row?
 - Does the activated branch's `manaCost` also carry a waterbend entry with the
   ability's ID?
 - Is a permanent that can also produce mana offered as both an activation and
