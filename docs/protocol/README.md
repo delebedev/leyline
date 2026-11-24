@@ -132,6 +132,11 @@ code marks the code that implements the statement; it is not proof.
 
 `just docs-lint` checks that every cited ID exists, that every owner symbol in
 [the implementation map](implementation.md) exists in main code, and that
-normative keywords stay inside Contract sections. It also lists statements that
-no test or conformance contract cites yet. That list is informational and never
-fails the build.
+normative keywords stay inside Contract sections.
+
+It also checks proof coverage. `uncovered.txt` lists the statements that no
+test or conformance contract cites yet. A statement must be cited or listed
+there, so a new statement arrives with its proof or with a deliberate entry.
+An entry whose statement has gained a citation, or no longer exists, fails the
+lint until the line is removed, so the list only shrinks.
+`PROTOCOL_UNCOVERED_WRITE=1 just docs-lint` rewrites the list.

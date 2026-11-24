@@ -14,8 +14,8 @@ Leyline does something other than the page describes. Everything not listed as
 an exception is intended to hold.
 
 Proof coverage is not stored here. `just docs-lint` computes it from
-`protocol:` citations in tests and conformance contracts and lists statements
-no proof cites yet.
+`protocol:` citations in tests and conformance contracts. Statements no proof
+cites yet are listed in `uncovered.txt`.
 
 ## Status vocabulary
 

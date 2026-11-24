@@ -285,17 +285,34 @@ protocol-docs-lint:
         done < "$work/owner-lines"
     fi
 
-    # Informational: statements that no test or conformance contract cites.
+    # Proof coverage. A statement is covered when a test or conformance contract cites it.
+    # $ref_dir/uncovered.txt is the committed baseline of statements with no proof yet:
+    # a statement must be covered or listed there, and a listed statement must still
+    # exist and still be uncovered. PROTOCOL_UNCOVERED_WRITE=1 rewrites the baseline.
+    baseline="$ref_dir/uncovered.txt"
     awk -F'\t' '$2 ~ /(^|\/)src\/test\// || $2 ~ /^conformance\// { print $1 }' "$work/cites" | sort -u > "$work/proved"
-    uncovered="$(cut -f1 "$work/defs" | sort -u | comm -23 - "$work/proved")"
-    total="$(cut -f1 "$work/defs" | sort -u | grep -c . || true)"
-    echo ""
-    if [[ -n "$uncovered" ]]; then
-        echo "Statements without a citing test or conformance contract ($(grep -c . <<< "$uncovered") of $total; informational):"
-        sed 's/^/  /' <<< "$uncovered"
-    else
-        echo "Every statement ($total) has a citing test or conformance contract."
+    sort -u "$work/def-ids" > "$work/all-ids"
+    comm -23 "$work/all-ids" "$work/proved" > "$work/uncovered"
+    total="$(grep -c . "$work/all-ids" || true)"
+    uncovered_count="$(grep -c . "$work/uncovered" || true)"
+    if [[ "${PROTOCOL_UNCOVERED_WRITE:-0}" == 1 ]]; then
+        cp "$work/uncovered" "$baseline"
+        echo "Wrote $baseline ($uncovered_count statements)."
     fi
+    echo "Checking proof coverage..."
+    if [[ -f "$baseline" ]]; then sort -u "$baseline" > "$work/baseline"; else : > "$work/baseline"; fi
+    while read -r id; do
+        [[ -n "$id" ]] && fail "$id has no citing test or conformance contract: add a protocol: citation to a check that fails when it is violated, or list it in $baseline"
+    done < <(comm -23 "$work/uncovered" "$work/baseline")
+    while read -r id; do
+        [[ -z "$id" ]] && continue
+        if grep -qxF "$id" "$work/all-ids"; then
+            fail "$id is cited by a test or conformance contract: remove it from $baseline"
+        else
+            fail "$id is not a statement: remove it from $baseline"
+        fi
+    done < <(comm -13 "$work/uncovered" "$work/baseline")
+    echo "  $((total - uncovered_count)) of $total statements have a citing test or conformance contract."
 
     if ((errors > 0)); then
         echo ""
