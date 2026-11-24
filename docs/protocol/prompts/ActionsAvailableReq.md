@@ -109,13 +109,13 @@ leaves an `ActionsAvailableReq` unanswered with `ConcedeReq`, or with
 
 ## Contract
 
+The batch and response rules shared by every request apply here:
+[Messages.pending-count](../stream/messages.md#Messages.pending-count) and
+[Messages.resp-correlates](../stream/messages.md#Messages.resp-correlates).
+
 - <a id="ActionsAvailableReq.follows-state"></a>**ActionsAvailableReq.follows-state.**
   The request `MUST` follow, in the same message batch, a GSM with the same
   `gameStateId`.
-- <a id="ActionsAvailableReq.pending-count"></a>**ActionsAvailableReq.pending-count.**
-  That GSM's `pendingMessageCount` `MUST` equal the number of messages that
-  follow it in the batch, counting each `PromptReq` between the GSM and the
-  request as well as the request itself.
 - <a id="ActionsAvailableReq.pass-offered"></a>**ActionsAvailableReq.pass-offered.**
   `actions` `MUST` contain exactly one `Pass` action, and that action `MUST`
   carry no field other than `actionType`.
@@ -132,10 +132,6 @@ leaves an `ActionsAvailableReq` unanswered with `ConcedeReq`, or with
 - <a id="ActionsAvailableReq.inactive-no-execution"></a>**ActionsAvailableReq.inactive-no-execution.**
   An action in `inactiveActions` `MUST NOT` carry `targets`,
   `autoTapSolution`, `manaPaymentOptions` or `manaSelections`.
-- <a id="ActionsAvailableReq.resp-correlates"></a>**ActionsAvailableReq.resp-correlates.**
-  A `PerformActionResp` answers the request whose `msgId` equals its `respId`
-  and whose `gameStateId` equals its own. A response for which either differs
-  `MUST NOT` be applied to the request.
 - <a id="ActionsAvailableReq.resp-single"></a>**ActionsAvailableReq.resp-single.**
   `performActionResp.actions` carries exactly one action. The server `MUST`
   resolve it against the request's `actions` by `actionType`, `instanceId`

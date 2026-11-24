@@ -259,13 +259,6 @@ grouped by family, then by entity.
 
 #### ActionsAvailableReq
 
-- **`diverges`** — [ActionsAvailableReq.pending-count](prompts/ActionsAvailableReq.md#ActionsAvailableReq.pending-count)
-  - Contract: the GSM before the request counts every message that follows
-    it in the batch, including a `PromptReq` placed before the request.
-  - Leyline: sets `pendingMessageCount=1` on that GSM when it also sends the
-    starting-player `PromptReq` (prompt `37`) or a coin-flip `PromptReq`
-    (prompt `46`) before the request, so the count is one short.
-  - Owner: `BundleBuilder`, `GsmBuilder.embedActions`
 - **`compat`** — [ActionsAvailableReq.permission-window](prompts/ActionsAvailableReq.md#ActionsAvailableReq.permission-window), permissions other than cascade and discover
   - Contract: a cast-permission window, such as casting a card exiled by
     madness, is an `ActionsAvailableReq` with a permission-specific prompt,
