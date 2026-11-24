@@ -45,8 +45,9 @@ the two share visibility and viewers.
 1. The companion appears when its parent becomes visible, with `parentId`
    naming that parent instance.
 2. While the parent keeps its instance ID, the companion keeps its own.
-3. When `ObjectIdChanged` reallocates the parent, the old companion retires and
-   a new companion appears with `parentId` naming the replacement.
+3. When `ObjectIdChanged` reallocates the parent, the old companion retires
+   and, for a viewer who can see the replacement, a new companion appears
+   with `parentId` naming it.
 4. When the parent leaves the viewer's projection, the companion retires with
    it.
 
@@ -71,9 +72,10 @@ cast action and its resolution path. Back-face companions such as
 - <a id="Adventure.stack-face"></a>**Adventure.stack-face.** *(provisional)*
   While the Adventure spell is on the Stack, the parent `Card`'s `grpId` `MUST`
   be the Adventure face and the companion `MUST` carry the same face.
-- <a id="Adventure.remap"></a>**Adventure.remap.** When the parent receives a
-  new instance ID, a companion with `parentId` naming the new ID `MUST` appear,
-  and the previous companion `MUST` retire.
+- <a id="Adventure.remap"></a>**Adventure.remap.** When the parent receives a new instance
+  ID, the previous companion `MUST` retire. For a viewer who can see the
+  replacement parent, a companion with `parentId` naming the new ID `MUST`
+  appear; a viewer who cannot see it gets no companion.
 
 ## Open points
 
