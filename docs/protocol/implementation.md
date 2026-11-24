@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Earthbend](mechanics/Earthbend.md) | `EarthbendEmitter`, `EarthbendTracker` | `implemented` |
+| [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 
 ## Exceptions
 
@@ -1201,6 +1202,15 @@ grouped by family, then by entity.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ### Mechanic exceptions
+
+#### Exploit
+
+- **`diverges`** — [Exploit.sacrifice-prompt](mechanics/Exploit.md#Exploit.sacrifice-prompt) *(provisional statement)*
+  - Contract: the exploit sacrifice choice is a `SelectNReq` with prompt
+    `5014` and `allowCancel` `Continue`.
+  - Leyline: sends the sacrifice as a `SelectNReq` with prompt `180` and
+    `allowCancel` `No`, the shape it uses for every sacrifice effect.
+  - Owner: `CardSelectWindowMaterializer`, `SelectNEnvelope`
 
 ## Leyline-defined shapes
 
