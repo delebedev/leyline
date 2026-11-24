@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
+| [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
 | [Crew](mechanics/Crew.md) | `VehicleAttachContributor`, `AnnotationBuilder.crewedThisTurn`, `OneShotPayCostsMaterializer` | `implemented` |
 | [Cycling](mechanics/Cycling.md) | `ActivatedActionEmitter`, `TransferCategoryResolver`, `ZoneMoveLedger` | `implemented` |
