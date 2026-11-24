@@ -89,8 +89,9 @@ alone.
   row whose `affectorId` is a spell or ability on the stack `MUST` be carried
   in `persistentAnnotations`.
 - <a id="CastingTimeOption.spell-envelope"></a>**CastingTimeOption.spell-envelope.**
-  `affectedIds` `MUST` contain exactly one ID, equal to `affectorId`. On a
-  persistent row that ID `MUST` be a spell or ability on the stack.
+  `affectedIds` `MUST` contain exactly one ID, equal to `affectorId`. In the
+  GSM that creates a persistent row, that ID `MUST` be a spell or ability on
+  the stack. A row that outlives its spell is not covered; see Lifecycle.
 - <a id="CastingTimeOption.type-keys"></a>**CastingTimeOption.type-keys.**
   A row `MUST` carry the branch keys its `type` requires: `value` for `2`,
   `kickerAbilityGrpId` for `3`, `additionalCostGrpId` for `5`, and
