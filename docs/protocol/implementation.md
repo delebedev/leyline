@@ -233,6 +233,7 @@ Leyline cannot play at all is `absent`.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 
 ## Exceptions
 
@@ -1200,6 +1201,15 @@ grouped by family, then by entity.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ### Mechanic exceptions
+
+#### Cascade
+
+- **`diverges`** — [Cascade.no-resolution-start](mechanics/Cascade.md#Cascade.no-resolution-start) *(provisional statement)*
+  - Contract: the Cascade ability's resolution carries no `ResolutionStart`
+    row for the ability.
+  - Leyline: brackets the Cascade ability like every resolving ability, with a
+    `ResolutionStart` naming the ability before the reveal transfers.
+  - Owner: `AnnotationPipeline`
 
 ## Leyline-defined shapes
 

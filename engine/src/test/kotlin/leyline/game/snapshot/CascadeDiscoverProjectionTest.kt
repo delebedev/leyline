@@ -119,6 +119,7 @@ class CascadeDiscoverProjectionTest :
             }
         }
 
+        // protocol: Cascade.window, Cascade.offer, Cascade.no-inactive
         session(
             "Cascade trigger StackEntry resolves grpId=86 and source-card grpId independently",
             puzzle = PUZZLE,
