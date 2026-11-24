@@ -250,6 +250,7 @@ Leyline cannot play at all is `absent`.
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
 | [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
+| [Waterbend](mechanics/Waterbend.md) | `ManaSourcePaymentMaterializer`, `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
 
 ## Exceptions
 

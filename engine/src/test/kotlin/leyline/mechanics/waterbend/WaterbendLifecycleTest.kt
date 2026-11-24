@@ -129,6 +129,7 @@ class WaterbendLifecycleTest :
 
             val payCosts = after { respondToOptionalCost(waterbendOption.ctoId) }.expectOnePayCostsReq()
 
+            // protocol: Waterbend.payment-action
             assertSoftly {
                 allMessages.last { it.hasPrompt() }.prompt.promptId shouldBe PromptIds.PAY_COSTS
                 payCosts.manaCostList.any { it.count > 0 } shouldBe true
@@ -147,6 +148,7 @@ class WaterbendLifecycleTest :
                     .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
                     .filter { it.detailInt(DetailKeys.TYPE) == CastingTimeOptionType.AdditionalCost.number }
 
+            // protocol: Waterbend.paid-option
             additionalCostAnnotations shouldHaveSize 1
             additionalCostAnnotations.single().detailInt(DetailKeys.ADDITIONAL_COST_GRP_ID) shouldBe RUINOUS_WATERBEND_ABILITY_GRP_ID
 

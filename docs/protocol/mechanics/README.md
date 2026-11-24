@@ -41,3 +41,4 @@ that flag described under [designations](../designations/README.md).
 | [Unearth](Unearth.md) | Graveyard activation, `Return`, designation, pending exile | Return a card from the graveyard with haste until it is exiled at the next end step. |
 | [Ward](Ward.md) | Trigger on being targeted, tax `PayCostsReq` | Counter an opponent's spell or ability that targets the permanent unless its controller pays the ward cost. |
 | [Warp](Warp.md) | Hand alternative cost, end-step exile, cast from exile | Cast a card cheaply from the hand, exile it at end step, and cast it again from exile later. |
+| [Waterbend](Waterbend.md) | Optional-cost choice, tap-to-pay mana actions | Pay generic mana of a waterbend cost by tapping artifacts and creatures. |
