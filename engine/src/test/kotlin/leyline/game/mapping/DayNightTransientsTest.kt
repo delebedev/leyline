@@ -99,6 +99,9 @@ class DayNightTransientsTest :
             assertSoftly {
                 out.take(2) shouldContainExactly listOf(unrelated, resolve)
                 out[2].typeList shouldContainExactly listOf(AnnotationType.GainDesignation)
+                designationType(out[2]) shouldBe AnnotationConstants.DESIGNATION_TYPE_DAY
+                out[2].affectedIdsList shouldContainExactly listOf(0)
+                out[2].affectorId shouldBe 0
                 out[3] shouldBe trigger
             }
         }
