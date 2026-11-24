@@ -67,8 +67,11 @@ row.
   While the row is live, the affected object's `overlayGrpId` `MUST` equal
   `copyFromGrpid`.
 - <a id="CopiedObject.effect-introduced"></a>**CopiedObject.effect-introduced.**
-  The row's `effect_id` `MUST` be an identity introduced by a
-  `LayeredEffectCreated`.
+  When the row first appears on an object that was already public in the
+  previous GSM, its `effect_id` `MUST` be an identity that a
+  `LayeredEffectCreated` introduced in the same GSM or an earlier one. An
+  object hidden from the receiving seat is not covered; see
+  [LayeredEffectCreated](LayeredEffectCreated.md#open-points).
 - <a id="CopiedObject.ends-with-destroyed"></a>**CopiedObject.ends-with-destroyed.**
   *(provisional)* When the copy effect ends, the GSM that deletes the row
   `MUST` carry `LayeredEffectDestroyed` for its `effect_id`.
