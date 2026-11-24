@@ -58,9 +58,9 @@ permanent with the same ward cost uses the same ability. `Ward {2}` is
 
 ## Sibling shapes
 
-A tax that is part of casting a spell, such as an additional cost, is asked
-through `CastingTimeOptionsReq` while the spell is being cast, after it has
-moved to the stack. Ward's tax
+An optional additional cost of a spell is asked through
+`CastingTimeOptionsReq` while the spell is being cast, after it has moved to
+the stack. Ward's tax
 is asked while a separate triggered ability resolves, of a different player
 from the one who controls that ability.
 
