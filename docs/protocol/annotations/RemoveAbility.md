@@ -39,8 +39,10 @@ Persistent only, typed `RemoveAbility` and `LayeredEffect`.
 | `sourceAbilityGRPID` | When present, the resolving or triggered ability that created the effect. Absent for Aura and static effects and for Room doors. |
 | `grpid`, `UniqueAbilityId`, `originalAbilityObjectZcid` | Present only when the row is also `AddAbility`, with the [AddAbility](AddAbility.md) meanings. |
 
-The values name no keywords. What was removed is read from the object's
-ability list, not from the row.
+The values name no keywords. On the specific-abilities branch the value lists
+the removed grpIds, which the object's `uniqueAbilities` no longer carries. On
+the loses-all branch the value is only `all`; what was removed is read by
+comparing the object's ability list with its printed abilities.
 
 ## Identity model
 
@@ -55,7 +57,10 @@ an object, not an ability; the removed abilities are in the key's value.
    detail values do not change while the row lives.
 3. When the effect ends while the permanent stays on the battlefield,
    `LayeredEffectDestroyed` names the identity, the row is deleted, and the
-   object is published again with its printed abilities, all in one GSM.
+   object is published again with the abilities that the effects still
+   applying leave it, all in one GSM. When no other effect removes or grants
+   its abilities, those are its printed abilities. A second removal effect
+   that still applies keeps them absent.
 4. When the affected permanent leaves the battlefield, the row is deleted in
    the GSM that carries its `ObjectIdChanged` and `ZoneTransfer`.
 5. Unlocking a Room door deletes that door's row, without
@@ -92,12 +97,14 @@ does, but it does not remove abilities.
 - <a id="RemoveAbility.loses-all-projection"></a>**RemoveAbility.loses-all-projection.**
   *(provisional)* For a permanent that is not changing type, while a row with
   value `all` names it, its `uniqueAbilities` `MUST NOT` list any of its
-  printed abilities.
+  printed abilities, other than one that an effect with a later timestamp
+  grants.
 - <a id="RemoveAbility.expiry-restores"></a>**RemoveAbility.expiry-restores.**
   *(provisional)* On the loses-all-abilities branch, when the effect ends
-  while the permanent remains on the battlefield, the GSM that deletes the row `MUST` carry
-  `LayeredEffectDestroyed` for its `effect_id` and `MUST` republish the object
-  with its printed abilities.
+  while the permanent remains on the battlefield, the GSM that deletes the row
+  `MUST` carry `LayeredEffectDestroyed` for its `effect_id`. When no other
+  effect still removes or grants abilities of that permanent, the same GSM
+  `MUST` republish the object with its printed abilities.
 
 ## Open points
 
