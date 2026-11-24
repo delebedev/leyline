@@ -93,7 +93,7 @@ position.
   mulligan request `MUST` carry `context=LondonMulligan`, every hand card in
   `instanceIds`, and two `groupSpecs` whose bounds fix the number of cards kept
   and put on the bottom.
-- <a id="GroupReq.source-card"></a>**GroupReq.source-card.** *(provisional)*
+- <a id="GroupReq.source-card"></a>**GroupReq.source-card.**
   For scry and surveil, the `CardId` parameter `MUST` equal `sourceId` when
   `sourceId` names a card, and the ability's `parentId` when `sourceId` names
   an ability.
@@ -112,5 +112,3 @@ position.
 - For some piles requests the client answers with `groupType=Ordered` and
   library labels while the request was `GroupType_Arbitrary`; what does that
   answer mean?
-- When does a scry or surveil request carry a `CardId` parameter with no
-  value?

@@ -273,15 +273,15 @@ grouped by family, then by entity.
 
 #### AssignDamageReq
 
-- **`diverges`** — [AssignDamageReq.resp-invalid](prompts/AssignDamageReq.md#AssignDamageReq.resp-invalid)
-  - Contract: a response the server cannot apply is answered with
-    `IllegalRequest` (`FailureReason_InvalidDamageAssignment`) and the
-    request is published again.
-  - Leyline: drops the response without an `IllegalRequest` and leaves the
-    request pending.
-  - Owner: `CombatHandler.onAssignDamage`
+- **`diverges`** — [AssignDamageReq.proposal-total](prompts/AssignDamageReq.md#AssignDamageReq.proposal-total)
+  - Contract: the proposal assigns all of `totalDamage`, putting damage left
+    over after lethal on the last slot.
+  - Leyline: without trample, leaves damage beyond the blockers' lethal
+    amounts unassigned, so the proposal sums to less than `totalDamage` and
+    fails Leyline's own sum check if returned unchanged.
+  - Owner: `BlockingInteractionMaterializer.damage`
 - **`diverges`** — [Request `canIgnoreBlockers`](prompts/AssignDamageReq.md#request)
-  - Contract: most trample assigners carry no `canIgnoreBlockers`.
+  - Contract: trample assigners carry no `canIgnoreBlockers`.
   - Leyline: sets `canIgnoreBlockers` on every trample assigner.
   - Owner: `BlockingInteractionMaterializer.damage`
 

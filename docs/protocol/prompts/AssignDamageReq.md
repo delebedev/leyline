@@ -1,5 +1,5 @@
 ---
-summary: "AssignDamageReq: divide an attacker's combat damage among its blockers and, with trample, the defending player; assigner rows, slots, AssignDamageResp and rejection."
+summary: "AssignDamageReq: divide an attacker's combat damage among its blockers and, with trample, the defending player; assigner rows, slots, AssignDamageResp and lifecycle."
 entity: prompt/AssignDamageReq
 ---
 # AssignDamageReq
@@ -24,7 +24,7 @@ the answer returns the division the player chose.
 | `totalDamage` | The combat damage it assigns. |
 | `assignments` | One slot per recipient; see below. |
 | `decisionPrompt` | `promptId=8` with one `CardId` parameter naming the attacker. |
-| `canIgnoreBlockers` | Present on some assigners; see Open points. |
+| `canIgnoreBlockers` | Not set on ordinary or trample assigners; see Open points. |
 
 | Slot field | Role |
 |---|---|
@@ -33,10 +33,10 @@ the answer returns the division the player chose.
 | `maxDamage` | On the player: the most damage it can receive, which is `totalDamage` minus the blockers' `minDamage`. |
 | `assignedDamage` | The proposed damage for this recipient. Absent means `0`. |
 
-One request carries one assigner. The proposal usually assigns lethal damage
-to the blocker slots in order until the damage runs out, and any rest to the
-player slot. A player slot follows the blocker slots when the attacker has
-trample.
+One request carries one assigner. A player slot follows the blocker slots
+when the attacker has trample. The proposal assigns lethal damage to the
+blocker slots in order until the damage runs out, and any damage left over to
+the last slot: the player with trample, otherwise the last blocker.
 
 ## Candidate identity
 
@@ -52,10 +52,6 @@ The client answers with `ClientMessageType_AssignDamageResp`, correlated as in
 |---|---|
 | `assignDamageResp.assigners` | One row per request assigner, with its `instanceId`, `totalDamage` and the same slots in the same order, each with its chosen `assignedDamage`. The client may add `maxDamage` to blocker slots. |
 
-A response the server cannot apply is answered with `IllegalRequest` carrying
-`reason=FailureReason_InvalidDamageAssignment`, then a fresh GSM and
-`AssignDamageReq`.
-
 ## Lifecycle
 
 1. Blockers are committed and the combat damage step begins.
@@ -63,8 +59,7 @@ A response the server cannot apply is answered with `IllegalRequest` carrying
    [the message stream](../stream/messages.md), for each attacker whose
    division is a choice.
 3. The client answers.
-4. The server can send `AssignDamageConfirmation`. The next GSMs deal combat
-   damage or ask about the next attacker.
+4. The next GSMs deal combat damage or ask about the next attacker.
 
 ## Contract
 
@@ -79,22 +74,19 @@ A response the server cannot apply is answered with `IllegalRequest` carrying
   When the attacker has trample, the request `MUST` include a slot for the
   defending player, named by seat ID, whose `maxDamage` is `totalDamage`
   minus the blockers' `minDamage`.
+- <a id="AssignDamageReq.proposal-total"></a>**AssignDamageReq.proposal-total.**
+  The proposed `assignedDamage` values of an assigner `MUST` add up to its
+  `totalDamage`.
 - <a id="AssignDamageReq.resp-slots"></a>**AssignDamageReq.resp-slots.** The
   server `MUST NOT` apply a response whose assigners or slots differ from the
   request's, or that assigns a negative amount.
-- <a id="AssignDamageReq.resp-invalid"></a>**AssignDamageReq.resp-invalid.**
-  *(provisional)* The server `MUST` answer a response it cannot apply with
-  `IllegalRequest` carrying `reason=FailureReason_InvalidDamageAssignment`, and
-  `MUST` then publish the request again.
 
 ## Open points
 
-- What does `canIgnoreBlockers` mean? Most trample assigners do not carry it.
-- A response that omits the assigner's `totalDamage` is rejected; which other
-  omissions are?
-- Some proposals assign more than `totalDamage` across the blockers, and the
-  unchanged proposal is accepted. When, and what is dealt?
-- When is the division asked rather than made by the server, and when does
-  `AssignDamageConfirmation` follow?
+- What does `canIgnoreBlockers` mean, and which attackers carry it?
+- How does the server answer a response it cannot apply? Is
+  `FailureReason_InvalidDamageAssignment` the `IllegalRequest` reason?
+- When is the division asked rather than made by the server, and what is
+  `AssignDamageConfirmation` for?
 - How are several attackers, or one creature blocking several attackers,
   handled?
