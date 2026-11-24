@@ -64,8 +64,9 @@ same `Copy` transfer without a casualty row.
   A spell whose casualty cost is being paid `MUST` carry a persistent
   `CastingTimeOption` row with `type` `15` and `casualtyAbilityGrpId` the
   card's Casualty ability.
-- <a id="Casualty.sacrifice"></a>**Casualty.sacrifice.** *(provisional)* The
-  sacrificed creature `MUST` move Battlefield to Graveyard with `category`
+- <a id="Casualty.sacrifice"></a>**Casualty.sacrifice.** *(provisional)* When
+  no replacement effect changes where it goes, the sacrificed creature
+  `MUST` move Battlefield to Graveyard with `category`
   `Sacrifice` and the spell as `affectorId`, before the cast's
   `UserActionTaken`.
 - <a id="Casualty.copy"></a>**Casualty.copy.** *(provisional)* The Casualty
@@ -75,6 +76,8 @@ same `Copy` transfer without a casualty row.
 
 ## Open points
 
+- How is the sacrifice published when a replacement effect sends the
+  creature somewhere other than the graveyard?
 - Which prompt offers the casualty choice and the creature to sacrifice?
 - Why does the copy, which cannot pay Casualty, carry its own `type` `15`
   row?

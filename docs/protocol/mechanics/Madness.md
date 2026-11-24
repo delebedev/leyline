@@ -88,8 +88,9 @@ offered at any time the card could be cast and not through a trigger.
   accepted madness cast `MUST` be recorded by `UserActionTaken` with
   `actionType` `1` and the madness ability in both `alternativeGrpId` and
   `abilityGrpId`.
-- <a id="Madness.decline"></a>**Madness.decline.** *(provisional)* A declined
-  madness cast `MUST` move the card to the graveyard with `category` `Put`
+- <a id="Madness.decline"></a>**Madness.decline.** *(provisional)* When no
+  replacement effect changes where the card goes, a declined madness cast
+  `MUST` move the card to the graveyard with `category` `Put`
   and record no `UserActionTaken` for it.
 
 The decision request is stated under
@@ -97,6 +98,8 @@ The decision request is stated under
 
 ## Open points
 
+- How is a declined card's move published when a replacement effect sends
+  it somewhere other than the graveyard?
 - Which fields of the decision request name the staged spell?
 - What changes when several discard replacements apply and one is chosen
   through `SelectReplacementReq`?

@@ -75,7 +75,8 @@ Manifest dread's face-down 2/2 has no ward ability; disguise's does.
   *(provisional)* The chosen card `MUST` move Library to Battlefield with
   `category` `ManifestLike`.
 - <a id="ManifestDread.other-to-graveyard"></a>**ManifestDread.other-to-graveyard.**
-  *(provisional)* The other card `MUST` move Library to Graveyard with
+  *(provisional)* When no replacement effect changes where it goes, the
+  other card `MUST` move Library to Graveyard with
   `category` `Put`.
 - <a id="ManifestDread.noncreature-no-turn-up"></a>**ManifestDread.noncreature-no-turn-up.**
   A manifested noncreature card `MUST NOT` be offered a turn-face-up action.
@@ -87,5 +88,7 @@ and the turn-face-up offer by
 
 ## Open points
 
+- How is the other card's move published when a replacement effect sends
+  it somewhere other than the graveyard?
 - How is the manifested object shown to the opponent?
 - How does turning a manifested card face up through another effect differ?

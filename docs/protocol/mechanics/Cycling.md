@@ -54,8 +54,8 @@ discarding are separate triggers with their own ability objects.
 - <a id="Cycling.hand-source"></a>**Cycling.hand-source.** A cycling
   ability's `AbilityInstanceCreated` `MUST` name the card in the hand as
   `affectorId` and carry the hand's zone ID as `source_zone`.
-- <a id="Cycling.discard"></a>**Cycling.discard.** The activation GSM `MUST`
-  move the card Hand to Graveyard with `category` `Discard`, with the cycling
+- <a id="Cycling.discard"></a>**Cycling.discard.** When no replacement effect
+  changes where the card goes, the activation GSM `MUST` move the card Hand to Graveyard with `category` `Discard`, with the cycling
   ability as `affectorId` of both the `ObjectIdChanged` and the
   `ZoneTransfer`.
 - <a id="Cycling.accepted"></a>**Cycling.accepted.** The activation `MUST` be
@@ -64,6 +64,8 @@ discarding are separate triggers with their own ability objects.
 
 ## Open points
 
+- How is the discard published when a replacement effect sends the card
+  elsewhere, such as a madness card going to exile?
 - Which prompt and response does typecycling's search use, and in which GSM
   is the found card revealed?
 - How is a cycling cost with no mana and an additional non-mana part ordered?
