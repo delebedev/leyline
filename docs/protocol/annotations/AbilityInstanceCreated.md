@@ -24,9 +24,11 @@ One transient row per created instance. Two branches share the shape:
 - **Stack branch.** Activated and triggered abilities that use the stack. The
   GSM also carries a game object of type `GameObjectType_Ability` with the
   instance ID, and the instance stays on the stack until it resolves or leaves.
-- **Mana-ability branch.** The instance never becomes a game object. It exists
-  only as the identity that the rows of one activation share, and it is
-  created and deleted in the same GSM.
+- **Mana-ability branch.** The instance never goes on the stack. Usually it
+  never becomes a game object and is created and deleted in the same GSM; it
+  exists only as the identity that the rows of one activation share. Some
+  activations instead publish the instance as an Ability object in the
+  Pending zone, `25`, and delete it in a later GSM.
 
 ## Fields
 
@@ -74,14 +76,19 @@ object whose event triggered it; that object can differ from the source in
   An `AbilityInstanceCreated` row `MUST` carry exactly one ID in
   `affectedIds`.
 - <a id="AbilityInstanceCreated.mana-stackless"></a>**AbilityInstanceCreated.mana-stackless.**
-  On the mana-ability branch, the GSM `MUST NOT` carry a game object for the
-  instance, and `MUST` carry the `AbilityInstanceDeleted` for the instance.
+  On the mana-ability branch, the GSM `MUST` either carry no game object for
+  the instance and carry its `AbilityInstanceDeleted`, or carry the instance
+  as a game object in zone `25`.
 - <a id="AbilityInstanceCreated.mana-fresh-id"></a>**AbilityInstanceCreated.mana-fresh-id.**
   *(provisional)* On the mana-ability branch, each activation `MUST` name an
   instance ID that no earlier `AbilityInstanceCreated` in the game named.
 
 ## Open points
 
+- Which mana abilities are published in the Pending zone instead of being
+  created and deleted in one GSM?
+- A few mana-ability activations name an instance ID that an earlier
+  `AbilityInstanceCreated` in the game named. When does that happen?
 - When does `source_zone` differ from the zone the source object's game object
   is listed in?
 - When does `affectorId` differ from the ability game object's `parentId`, for

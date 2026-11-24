@@ -17,8 +17,9 @@ One transient row per retired instance, on the same two branches as
 
 - **Stack branch.** The row appears in the GSM where the ability leaves the
   stack, normally after its `ResolutionComplete`.
-- **Mana-ability branch.** The row appears in the same GSM as the
-  `AbilityInstanceCreated`, after the `ManaPaid` it funded.
+- **Mana-ability branch.** The row normally appears in the same GSM as the
+  `AbilityInstanceCreated`, after the `ManaPaid` it funded. An instance
+  published in the Pending zone is deleted in a later GSM.
 
 ## Fields
 
@@ -44,8 +45,8 @@ branch sequences.
 - <a id="AbilityInstanceDeleted.no-details"></a>**AbilityInstanceDeleted.no-details.**
   An `AbilityInstanceDeleted` row `MUST NOT` carry detail keys.
 - <a id="AbilityInstanceDeleted.matches-created"></a>**AbilityInstanceDeleted.matches-created.**
-  A row's `affectedIds` `MUST` be exactly the `affectedIds` of an earlier
-  `AbilityInstanceCreated`, and its `affectorId` `MUST` equal that row's
+  *(provisional)* A row's `affectedIds` `MUST` be exactly the `affectedIds` of
+  an earlier `AbilityInstanceCreated`, and its `affectorId` `MUST` equal that row's
   `affectorId`.
 - <a id="AbilityInstanceDeleted.after-resolution"></a>**AbilityInstanceDeleted.after-resolution.**
   When the ability resolves, its `ResolutionComplete` `MUST` precede the
@@ -53,5 +54,7 @@ branch sequences.
 
 ## Open points
 
+- A few rows name an instance for which the receiving seat saw no
+  `AbilityInstanceCreated`. Which instances are those?
 - Which rows accompany the deletion of an ability that is countered or removed
   from the stack without resolving?
