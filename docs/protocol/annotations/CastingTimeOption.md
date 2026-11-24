@@ -11,7 +11,9 @@ as evoke or flashback, kicker, an additional cost, or the value of X
 (CR 601.2b, CR 601.2f). `CastingTimeOption` records the chosen option on the
 spell while it is on the stack. It is the record of the decision, not the
 request for it: a spell cast through an alternative-cost `Cast` action
-carries the row even when no `CastingTimeOptionsReq` was sent. An ability on
+carries the row even when no `CastingTimeOptionsReq` was sent. A spell cast
+face down with [Disguise](../mechanics/Disguise.md) carries it only in its
+caster's view. An ability on
 the stack can carry a row too: an activated ability with a chosen X, or a
 triggered ability of a kicked permanent.
 

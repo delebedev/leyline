@@ -13,6 +13,8 @@ resolve (CR 608.2). The rows that describe its effects follow it, and
 ## Variants
 
 One transient row per resolving object. Spells and abilities share the shape.
+Some triggered abilities resolve without the row: the [Cascade](../mechanics/Cascade.md)
+and [Prowess](../mechanics/Prowess.md) triggers carry none.
 
 ## Fields
 

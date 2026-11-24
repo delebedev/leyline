@@ -13,7 +13,8 @@ finished applying its effects (CR 608.2).
 ## Variants
 
 One transient row per resolved object, with the same fields as
-`ResolutionStart`.
+`ResolutionStart`. An ability that puts a card from the opening hand onto the
+battlefield resolves without it; see [OpeningHand](../mechanics/OpeningHand.md).
 
 ## Fields
 
