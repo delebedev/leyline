@@ -57,7 +57,7 @@ key carries none, and the state is read from the row's type alone.
 | 18 | `Plotted` | card | A card exiled by plot and castable later without paying its mana cost. |
 | 19 | `LeftUnlocked` | card | The left door of a Room is unlocked; the door action is in [Rooms](../actions/Rooms.md). |
 | 20 | `RightUnlocked` | card | The right door of a Room is unlocked; the door action is in [Rooms](../actions/Rooms.md). |
-| 21 | `PlayerSpeed` | seat | A player's current speed, from 1 to 4. |
+| 21 | [PlayerSpeed](PlayerSpeed.md) | seat | A player's current speed, from 1 to 4. |
 | 23 | [AnimatedLand](AnimatedLand.md) | card | A land currently animated as a creature. |
 | 24 | `Prepared` | card | A prepared permanent, linked to a prepare-spell copy in exile. |
 | 26 | Unearthed | card | A permanent created on the battlefield by an effect rather than cast, carrying its source card and the kind of creation. |
