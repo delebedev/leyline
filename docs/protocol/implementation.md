@@ -1246,7 +1246,7 @@ grouped by family, then by entity.
   - Leyline: emits `ResolutionComplete` between the transfer and
     `AbilityInstanceDeleted`.
   - Pinned by: `OpeningHandLifecycleTest`, whose expected lifecycle order
-    includes the `ResolutionComplete`.
+    includes the `ResolutionComplete`; update it with the fix.
   - Owner: `TransferAnnotations`
 
 #### Overload
@@ -1272,8 +1272,9 @@ grouped by family, then by entity.
   - Contract: a spell cast for its sneak cost carries `CastingTimeOption`
     `type` `13` with `alternateCostGrpId` the sneak cost ability and no
     `castAbilityGrpId`.
-  - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability,
-    and `SneakLifecycleTest` asserts that extra key.
+  - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability.
+  - Pinned by: `SneakLifecycleTest`, which asserts the extra
+    `castAbilityGrpId` key; update it with the fix.
   - Owner: `GameEventCollector`
 
 #### Spectacle
@@ -1304,7 +1305,9 @@ grouped by family, then by entity.
   - Contract: the creature-payment `PayCostsReq` names, as `CardId`, the same
     spell instance ID that the teamwork `CastingTimeOptionsReq` row names.
   - Leyline: names a different stack instance ID from the one the option row
-    named, and `TeamworkLifecycleTest` asserts that the two differ.
+    named.
+  - Pinned by: `TeamworkLifecycleTest`, which asserts that the payment
+    `CardId` differs from the option row's spell; update it with the fix.
   - Owner: `DeferredCastCostPlanMaterializer`
 
 #### Training
