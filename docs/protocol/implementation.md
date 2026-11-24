@@ -108,6 +108,7 @@ Rows are grouped by family and sorted by entity name.
 | [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
+| [InstanceRevealedToOpponent](annotations/InstanceRevealedToOpponent.md) | `AnnotationBuilder.instanceRevealedToOpponent`, `RevealStateContributor`, `InstanceRevealedToOpponentKind` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
@@ -154,7 +155,6 @@ the table above when its page is written.
 | `GamewideHistoryCount` | — | `absent` |
 | `GroupedIds` | — | `absent` |
 | `HighlightReason` | — | `absent` |
-| `InstanceRevealedToOpponent` | `AnnotationBuilder.instanceRevealedToOpponent` | emitted |
 | `LayeredEffect` | `AnnotationBuilder.layeredEffect` | emitted |
 | `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
 | `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |
@@ -718,6 +718,14 @@ grouped by family, then by entity.
   - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
     ability's definition as `abilityGrpId`.
   - Owner: `PersistentFeedBuilder`, `AnnotationConstants`
+
+#### InstanceRevealedToOpponent
+
+- **`diverges`** — [InstanceRevealedToOpponent.not-library](annotations/InstanceRevealedToOpponent.md#InstanceRevealedToOpponent.not-library) *(provisional statement)*
+  - Contract: no row names a card in a library.
+  - Leyline: records opponent knowledge for a card revealed from a library
+    as well, until the card moves or the library is shuffled.
+  - Owner: `RevealStateContributor`, `InstanceRevealedToOpponentKind`
 
 #### LinkInfo
 

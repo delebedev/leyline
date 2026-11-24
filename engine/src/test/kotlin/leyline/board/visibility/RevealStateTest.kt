@@ -29,6 +29,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 class RevealStateTest :
     BoardTest({
         // protocol: CardRevealed.persistent, CardRevealed.view-affected
+        // protocol: InstanceRevealedToOpponent.persistent, InstanceRevealedToOpponent.self-row
         test("hand reveal emits both contracts with separate affected identities") {
             val board = startWithBoard { _, human, _ -> addCard("Lightning Bolt", human, ZoneType.Hand) }
             val card =

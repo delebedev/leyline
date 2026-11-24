@@ -71,7 +71,7 @@ the type's page. Types without a page are described only by their row.
 | `RevealedCardCreated` | transient | none | A card from a hidden zone became revealed. |
 | `RevealedCardDeleted` | transient | none | A reveal ended, normally because the card moved to its destination. |
 | [CardRevealed](CardRevealed.md) | persistent | `source_zone` | A card is revealed to one or both players from a hidden zone. |
-| `InstanceRevealedToOpponent` | persistent | none | A card has been revealed to the opponent and stays marked as known. |
+| [InstanceRevealedToOpponent](InstanceRevealedToOpponent.md) | persistent | none | A card has been revealed to the opponent and stays marked as known. |
 
 ### Actions, stack and resolution
 
