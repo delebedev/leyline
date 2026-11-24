@@ -239,6 +239,7 @@ Leyline cannot play at all is `absent`.
 | [Endure](mechanics/Endure.md) | `ConfirmActionPlanner`, `OptionalActionGate` | `implemented` |
 | [Enlist](mechanics/Enlist.md) | `PromptJournal`, `GameEventCollector`, `OneShotPayCostsWindowCapture` | `implemented` |
 | [Equip](mechanics/Equip.md) | `AnnotationBuilder.attachmentCreated`, `AnnotationBuilder.attachment` | `implemented` |
+| [Escape](mechanics/Escape.md) | `CastRails`, `OneShotPayCostsMaterializer` | `partial` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 
@@ -1208,6 +1209,16 @@ grouped by family, then by entity.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ### Mechanic exceptions
+
+#### Escape
+
+- **`diverges`** — [Escape.accepted](mechanics/Escape.md#Escape.accepted) *(provisional statement)*
+  - Contract: an accepted escape cast is recorded with the escape ability in
+    both `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost, so the accepted row names the escape ability only in
+    `alternativeGrpId`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
 
 #### Exploit
 
