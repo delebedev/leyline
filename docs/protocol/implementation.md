@@ -84,6 +84,12 @@ Rows are grouped by family and sorted by entity name.
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 | [Special_TurnFaceUp](actions/Special_TurnFaceUp.md) | `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
 
+### Designations
+
+| Entity | Owner | Status |
+|---|---|---|
+| [AnimatedLand](designations/AnimatedLand.md) | `EarthbendEmitter`, `AnnotationBuilder.manaCreatureDesignation` | `partial` |
+
 ### Prompts
 
 | Entity | Owner | Status |
@@ -398,6 +404,18 @@ grouped by family, then by entity.
   - Leyline: sets `alternativeSourceZcid` to the permanent's own instance ID on
     every offer.
   - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+
+### Designation exceptions
+
+#### AnimatedLand
+
+- **`absent`** — [AnimatedLand.persistent-shape](designations/AnimatedLand.md#AnimatedLand.persistent-shape) *(provisional statement)*
+  - Contract: a land that currently has creature characteristics carries a
+    persistent `Designation` with `DesignationType` `23` and its controlling
+    seat.
+  - Leyline: emits the designation only for earthbend animation. A land animated
+    by any other effect carries no designation.
+  - Owner: `EarthbendEmitter`
 
 ### Prompt exceptions
 
