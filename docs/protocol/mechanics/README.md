@@ -24,6 +24,8 @@ that flag described under [designations](../designations/README.md).
 | [Backup](Backup.md) | Enters trigger, target step, counters | Enters trigger that puts +1/+1 counters on a target creature. |
 | [BattleCry](BattleCry.md) | Attack trigger, pump | Attack trigger that gives each other attacker +1/+0. |
 | [Behold](Behold.md) | Cast submit, paid cost, hand reveal | Optional additional cost paid by revealing a qualifying card. |
+| Blight | Not yet characterized | Keyword action that puts -1/-1 counters on a creature its controller chooses, often as an additional cost. |
+| Blitz | Not yet characterized | Alternative cost that gives haste, draws a card when the creature dies, and sacrifices it at the next end step. |
 | [Boast](Boast.md) | Offer, activation, use recorded | Once-per-turn activated ability of a creature that attacked. |
 | [Cascade](Cascade.md) | Keyword stack ability, cast-permission window, free cast, residue | Cast trigger that exiles to a free cast of the first eligible card. |
 | [Casualty](Casualty.md) | Chosen cost, sacrifice, copy trigger, copy | Optional creature sacrifice while casting that copies the spell. |
@@ -33,7 +35,9 @@ that flag described under [designations](../designations/README.md).
 | [Convoke](Convoke.md) | Payment step, payment bracket, count, resolution label | Tapping creatures to pay part of a spell's mana cost. |
 | [Crew](Crew.md) | Activation, total-power cost, helpers tapped, type change | Vehicle ability paid by tapping creatures with enough total power. |
 | [Cycling](Cycling.md) | Activation from the hand, discard cost | Hand-zone activated ability whose cost discards the card. |
+| Dash | Not yet characterized | Alternative cost that gives haste and returns the permanent to its owner's hand at the next end step. |
 | [Decayed](Decayed.md) | Attack trigger, delayed cleanup, sacrifice | Attack trigger that sacrifices the creature at end of combat. |
+| Delve | Not yet characterized | Exiling graveyard cards to pay generic mana while casting a spell. |
 | [Discover](Discover.md) | Discover ability, cast-permission window, free cast, residue | Keyword action that exiles to a free cast or puts the card into the hand. |
 | [Disguise](Disguise.md) | Face-down cast, face-down state, turning face up | Face-down 2/2 ward cast for `{3}`, turned face up for its disguise cost. |
 | [Disturb](Disturb.md) | Graveyard cast, back face | Casting a double-faced card transformed from the graveyard. |

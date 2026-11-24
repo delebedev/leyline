@@ -238,6 +238,8 @@ Leyline cannot play at all is `absent`.
 | [Backup](mechanics/Backup.md) | `TargetingWindowCapture`, `ProjectionCardReferences` | `implemented` |
 | [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
 | [Behold](mechanics/Behold.md) | `AnnotationBuilder.castingTimeOption` | `partial` |
+| Blight | `DeferredCastCostPlanMaterializer`, `DeferredCastCostPlan` | `implemented` |
+| Blitz | `CastRails`, `BoundCard` | `implemented` |
 | [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Casualty](mechanics/Casualty.md) | `DeferredCastCostPlanMaterializer`, `TransferCategoryResolver` | `partial` |
@@ -247,7 +249,9 @@ Leyline cannot play at all is `absent`.
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
 | [Crew](mechanics/Crew.md) | `VehicleAttachContributor`, `AnnotationBuilder.crewedThisTurn`, `OneShotPayCostsMaterializer` | `implemented` |
 | [Cycling](mechanics/Cycling.md) | `ActivatedActionEmitter`, `TransferCategoryResolver`, `ZoneMoveLedger` | `implemented` |
+| Dash | `CastRails`, `BoundCard` | `implemented` |
 | [Decayed](mechanics/Decayed.md) | `PersistentTemporaryFeedBuilder`, `ProjectionCardReferences`, `StateMapper` | `implemented` |
+| Delve | `CostPaymentCoordinator` | `implemented` |
 | [Discover](mechanics/Discover.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `implemented` |
 | [Disguise](mechanics/Disguise.md) | `CastRails`, `ActionMapper.addSpecialTurnFaceUpActions`, `PersistentFeedBuilder` | `partial` |
 | [Disturb](mechanics/Disturb.md) | `CastRails`, `ActionMapper`, `ZoneMapper.addDisturbBackObject` | `implemented` |
