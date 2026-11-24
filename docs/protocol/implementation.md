@@ -81,6 +81,7 @@ Rows are grouped by family and sorted by entity name.
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `implemented` |
 | [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
+| [IntermissionReq](prompts/IntermissionReq.md) | `BundleBuilder.prepareGameOverBundle`, `MatchGameOverRuntime` | `partial` |
 | [NumericInputReq](prompts/NumericInputReq.md) | `BlockingInteractionMaterializer.numeric`, `NumericInputHandler` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
@@ -347,6 +348,15 @@ grouped by family, then by entity.
   - Leyline: sends `GroupReq` only for scry, surveil and the London
     mulligan.
   - Owner: `GroupingWindowCapture`
+
+#### IntermissionReq
+
+- **`diverges`** — [IntermissionReq.draw-result](prompts/IntermissionReq.md#IntermissionReq.draw-result)
+  - Contract: a draw uses `intermissionPrompt` `28` with no parameters, no
+    `winningTeamId`, and offers only the hand reveal.
+  - Leyline: sends a draw with `intermissionPrompt` `27`, a `WinningTeamId`
+    parameter of `0`, and both options.
+  - Owner: `BundleBuilder.prepareGameOverBundle`
 
 #### NumericInputReq
 
