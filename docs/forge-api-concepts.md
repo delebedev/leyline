@@ -191,7 +191,10 @@ and restrictions, including discard and per-turn conditions. Offers retain the
 selected Forge ability rather than reconstructing it from a catalog identity.
 
 Generated activation alternatives share their original catalog definition but
-receive distinct per-source `uniqueAbilityId` handles. Snapshots retain
+receive distinct per-source `uniqueAbilityId` handles. The same applies to any
+later activation whose resolved identity repeats an earlier one on the same
+source, such as the equal equip {0} each Puresteel Paladin grants to one
+Equipment; the first occurrence keeps its existing shape. Snapshots retain
 the unfiltered occurrence order for each seat. Shared state projection assigns
 the handles after ordinary and granted object rows exist, and passes the same
 plan through `ProjectionOutput` to action publication. Each alternative has a
