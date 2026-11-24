@@ -95,7 +95,6 @@ class NinjutsuPuzzleTest :
 
             val payCostsMessage = allMessages.last { it.hasPayCostsReq() }
             val returnCostReq = payCostsMessage.payCostsReq.effectCostReq.costSelection
-            // protocol: Ninjutsu.return-prompt
             assertSoftly {
                 payCostsMessage.prompt.promptId shouldBe PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST
                 payCostsMessage.prompt.parametersList

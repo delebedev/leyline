@@ -53,7 +53,6 @@ class StationLifecycleTest :
                 counterGsm.persistentAnnotationsList.first {
                     AnnotationType.AbilityWordActive in it.typeList && it.detailInt("threshold") == 12
                 }
-            // protocol: Station.shared-ability, Station.charge-counters, Station.threshold-rows
             assertSoftly {
                 resolutionGsm.annotation(AnnotationType.ResolutionStart).detailUint("grpid") shouldBe 373
                 resolutionGsm.annotation(AnnotationType.ResolutionComplete).detailUint("grpid") shouldBe 373
