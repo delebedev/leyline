@@ -32,11 +32,11 @@ the battlefield tapped if it dies or is put into exile (CR 701.66a).
 
 1. The target is chosen through the ordinary target exchange for the spell or
    ability that earthbends.
-2. In the resolution GSM, four `LayeredEffectCreated` rows introduce four
-   effects; their `affectorId` is the resolving spell or ability.
+2. With the target land still legal, the resolution GSM carries four `LayeredEffectCreated` rows that introduce four effects; their `affectorId` is the resolving spell or ability.
 3. The same GSM carries one persistent row per effect on the land, each with
    `sourceAbilityGRPID` naming the earthbend ability and `effect_id` naming
-   its effect, and with the earthbending card's permanent as `affectorId`:
+   its effect. When the earthbend comes from an ability of a permanent, that
+   permanent is the rows' `affectorId`:
 
    | Row | Effect |
    |---|---|
@@ -68,15 +68,16 @@ land stays a land.
 
 ## Contract
 
-- <a id="Earthbend.layers"></a>**Earthbend.layers.** *(provisional)* The
-  resolution of an earthbend `MUST` publish, on the target land, persistent
+- <a id="Earthbend.layers"></a>**Earthbend.layers.** *(provisional)* When the
+  target land is still legal, the resolution of an earthbend `MUST` publish, on the target land, persistent
   `ModifiedType`, `AddAbility`, `ModifiedPower` and `ModifiedToughness` rows
   combined with `LayeredEffect`, each carrying `sourceAbilityGRPID` equal to
   the earthbend ability and an `effect_id` introduced by a
   `LayeredEffectCreated` in the same GSM.
 - <a id="Earthbend.haste"></a>**Earthbend.haste.** *(provisional)* The
-  earthbend `AddAbility` row `MUST` carry `grpid` `9` and
-  `originalAbilityObjectZcid` naming the source permanent.
+  earthbend `AddAbility` row `MUST` carry `grpid` `9`. When the earthbend
+  comes from an ability of a permanent, the row `MUST` carry
+  `originalAbilityObjectZcid` naming that permanent.
 - <a id="Earthbend.keeps-instance"></a>**Earthbend.keeps-instance.** The
   target land `MUST` keep its instance ID through the resolution.
 - <a id="Earthbend.refresh"></a>**Earthbend.refresh.** *(provisional)* When
@@ -92,4 +93,6 @@ and [AnimatedLand.controller-detail](../designations/AnimatedLand.md#AnimatedLan
 
 - How is the return to the battlefield published when an earthbent land dies
   or is exiled?
+- When a spell earthbends, what do the rows' `affectorId` and
+  `originalAbilityObjectZcid` name?
 - Does the target prompt use one prompt ID for every earthbend source?
