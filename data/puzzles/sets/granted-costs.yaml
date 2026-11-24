@@ -12,3 +12,39 @@ scenarios:
             - zone_contains: {side: ours, zone: graveyard, card: "Yarok, the Desecrated"}
             - zone_contains: {side: ours, zone: battlefield, card: "Yarok, the Desecrated"}
             - stack_empty: true
+  - id: dream-halls-second-creature
+    puzzle: dream-halls-second-creature
+    headless: { full_control: true }
+    run: cast Wind Drake by discarding Opt, then Raging Goblin by discarding Shock
+    expect: both creatures resolve without mana
+    steps:
+      - expect:
+          action: { type: cast, card: Wind Drake }
+      - cast: Wind Drake
+      - select_cost: { zone: hand, cards: [Opt] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Wind Drake }
+            - zone_contains: { side: ours, zone: graveyard, card: Opt }
+      - expect:
+          action: { type: cast, card: Raging Goblin }
+      - cast: Raging Goblin
+      - select_cost: { zone: hand, cards: [Shock] }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Raging Goblin }
+            - zone_contains: { side: ours, zone: graveyard, card: Shock }
+  - id: dream-halls-mana-cast
+    puzzle: dream-halls-mana-cast
+    headless: { full_control: true }
+    run: cast Wind Drake by paying its mana cost with Dream Halls on the battlefield
+    expect: Wind Drake resolves and Opt stays in hand
+    steps:
+      - cast: Wind Drake
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: battlefield, card: Wind Drake }
+            - zone_contains: { side: ours, zone: hand, card: Opt }

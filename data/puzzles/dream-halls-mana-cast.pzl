@@ -1,0 +1,26 @@
+# Design Narrative
+# Mechanic: Dream Halls leaves a spell's normal mana cast available.
+# Forcing: Three Islands pay for Wind Drake, so the normal cast is offered beside the alternative cost.
+# AI behavior: The opponent has no permanents or hand, so it makes no decisions.
+# Card roles:
+#   Dream Halls — grants the alternative cost.
+#   Wind Drake — cast by paying its mana cost.
+#   Opt — a blue card that stays in hand because nothing is discarded.
+# Protocol path: normal cast offer, mana payment, resolution.
+
+[metadata]
+Name:Dream Halls Mana Cast
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast Wind Drake by paying its mana cost while Dream Halls is on the battlefield.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=40
+AILife=40
+humanbattlefield=Dream Halls;Island;Island;Island
+humanhand=Wind Drake;Opt
+humanlibrary=Island;Island;Island
+ailibrary=Forest;Forest;Forest
