@@ -49,7 +49,6 @@ class SnapshotCaptureTest :
             val snapshot = SnapshotCapture.run(board.game, board.bridge, "test", 1)
             val card = snapshot.objects.getValue(ForgeCardId(emblem.id))
             val objectInfo = ObjectMapper.buildFromSnapshot(card, board.instanceId(emblem.id), ZoneIds.COMMAND, 1, board.bridge.cardProto)
-            // protocol: Emblem.universal-grp-id, Emblem.plain-characteristics, Emblem.source-lineage, Emblem.ability-ids
             assertSoftly {
                 snapshot.zones.getValue(ZoneIds.COMMAND).contents shouldContain ForgeCardId(emblem.id)
                 card.isProjectable shouldBe true

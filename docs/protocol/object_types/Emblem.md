@@ -15,7 +15,7 @@ identity carries no card characteristics.
 | `instanceId` | The emblem object. |
 | `grpId`, `overlayGrpId` | `2` for every emblem. |
 | `objectSourceGrpId` | The card definition the emblem came from. |
-| `parentId` | The object whose resolution created the emblem. |
+| `parentId` | Depends on the creator; see Lifecycle for examples. |
 | `name` | `1`. |
 | `uniqueAbilities[].id` | An ability handle within the emblem. |
 | `uniqueAbilities[].grpId` | The emblem's ability definitions. |
@@ -55,19 +55,18 @@ emblem lives in Command.
 
 ## Contract
 
-- <a id="Emblem.command-member"></a>**Emblem.command-member.** An emblem object
-  `MUST` be a `Public` member of the Command zone.
-- <a id="Emblem.universal-grp-id"></a>**Emblem.universal-grp-id.** Every emblem
-  object `MUST` carry `grpId` `2` and `overlayGrpId` `2`.
-- <a id="Emblem.plain-characteristics"></a>**Emblem.plain-characteristics.** An
-  emblem object `MUST NOT` carry card types, colors, power or toughness.
-- <a id="Emblem.source-lineage"></a>**Emblem.source-lineage.** An emblem's
-  `objectSourceGrpId` `MUST` name the card definition that created it.
-- <a id="Emblem.ability-ids"></a>**Emblem.ability-ids.** Each
-  `uniqueAbilities[].grpId` on an emblem `MUST` be one of that emblem's ability
-  definitions, and the `uniqueAbilities[].id` values `MUST` be distinct.
+No emblem statement is established yet. The shape described above is the
+expected one; each part of it that would bind an implementation is asked
+under Open points.
 
 ## Open points
 
+- Is an emblem always a `Public` member of the Command zone?
+- Does every emblem carry `grpId` `2` and `overlayGrpId` `2`?
+- Does an emblem ever carry card types, colors, power or toughness?
+- Does `objectSourceGrpId` always name the card definition that created the
+  emblem?
+- Is each `uniqueAbilities[].grpId` one of the emblem's ability definitions,
+  with distinct `uniqueAbilities[].id` values?
 - Which object do different emblem creators name in `parentId`?
 - Is an emblem ever retired while the game continues, and by which row?
