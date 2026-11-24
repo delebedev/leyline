@@ -253,6 +253,7 @@ Leyline cannot play at all is `absent`.
 | [Increment](mechanics/Increment.md) | `TriggeringObjectProjection`, `AnnotationPipeline` | `implemented` |
 | [JobSelect](mechanics/JobSelect.md) | `AnnotationBuilder.attachmentCreated`, `MechanicAnnotations` | `implemented` |
 | [JumpStart](mechanics/JumpStart.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Learn](mechanics/Learn.md) | `CardSelectWindowMaterializer` | `implemented` |
 
 ## Exceptions
 
