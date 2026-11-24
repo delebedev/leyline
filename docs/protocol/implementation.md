@@ -606,8 +606,8 @@ grouped by family, then by entity.
 
 #### AbilityInstanceCreated
 
-- **`diverges`** — [AbilityInstanceCreated.mana-fresh-id](annotations/AbilityInstanceCreated.md#AbilityInstanceCreated.mana-fresh-id) *(provisional statement)*
-  - Contract: each mana ability activation names a new instance ID.
+- **`diverges`** — [Lifecycle](annotations/AbilityInstanceCreated.md#lifecycle), instance IDs of mana abilities
+  - Contract: a mana ability activation normally names a new instance ID.
   - Leyline: derives the mana ability instance from a surrogate keyed by the
     source card, so every activation of one land or creature names the same
     instance ID for the whole game.

@@ -60,6 +60,11 @@ spell, in one GSM:
 4. `ManaPaid` from the Elves to the spell being paid for.
 5. `AbilityInstanceDeleted` from the Elves retires the instance.
 
+An activation normally names an instance ID that no earlier
+`AbilityInstanceCreated` in the game named. A few activations reuse one, some
+while the earlier instance still waits in the Pending zone and some after it
+was deleted; see Open points.
+
 Stack branch: `AbilityInstanceCreated` appears in the GSM that puts the ability
 on the stack. `ResolutionStart` and `ResolutionComplete` later bracket its
 resolution, and `AbilityInstanceDeleted` retires it.
@@ -79,9 +84,6 @@ object whose event triggered it; that object can differ from the source in
   On the mana-ability branch, the GSM `MUST` either carry no game object for
   the instance and carry its `AbilityInstanceDeleted`, or carry the instance
   as a game object in zone `25`.
-- <a id="AbilityInstanceCreated.mana-fresh-id"></a>**AbilityInstanceCreated.mana-fresh-id.**
-  *(provisional)* On the mana-ability branch, each activation `MUST` name an
-  instance ID that no earlier `AbilityInstanceCreated` in the game named.
 
 ## Open points
 
