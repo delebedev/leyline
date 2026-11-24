@@ -2,7 +2,7 @@
 # protocol: AnnotationOrdering.identity-first, AnnotationOrdering.cast-block, AnnotationOrdering.resolution-bracket
 # protocol: IdentityAndZones.resolve-renames, Enums.action-type-detail
 # protocol: ZoneTransfer.cast-from-hand, ZoneTransfer.post-transfer-id, ObjectIdChanged.resolve-elsewhere-renames
-# protocol: TargetSpec.persistent, TargetSpec.retired-with-object
+# protocol: TargetSpec.persistent
 # protocol: UserActionTaken.play-land, ResolutionComplete.before-resolve-transfer
 # protocol: DamageDealt.noncombat-type, DamageDealt.spell-source
 name: Lightning Bolt cast and resolution
