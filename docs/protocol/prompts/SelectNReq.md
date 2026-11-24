@@ -5,7 +5,7 @@ entity: prompt/SelectNReq
 # SelectNReq
 
 `SelectNReq` asks one seat to choose values from a bounded choice domain. The
-same request type serves simultaneous-trigger ordering, discard, resolution
+same request type serves simultaneous-trigger ordering, turn-based discard, resolution
 choices over objects or enum values, and mana color choices. The
 `context` and `optionContext` pair identifies the family; `listType`,
 `staticList` and `idType` identify what the offered values are.
@@ -19,13 +19,8 @@ is `SelectionContext_TriggeredAbility`, `Static` is `SelectionListType_Static`.
 |---|---|---|---|---|
 | Trigger ordering | `TriggeredAbility` | `Stacking` | `Dynamic` | Pending ability instance IDs |
 | Turn-based discard | `Discard` | `TurnBased` | `Dynamic` | Hand object instance IDs |
-| Discard as a cost | `Discard` | `Payment` | `Static` | Hand object instance IDs |
 | Resolution choice | `Resolution` | `Resolution` | `Dynamic`, `Static` or `StaticSubset` | Objects, enum values, definition IDs or prompt-bound values |
 | Mana color choice | `ManaFromAbility` | `Resolution` | `Static` | `StaticList_Colors` values |
-
-`listType=Static` does not by itself mean an enum domain: the cost-discard
-family pairs it with object instance IDs. The enum-domain branches are the
-ones that set `staticList`.
 
 ## Request
 
@@ -129,10 +124,6 @@ The response rule shared by every request applies here:
   turn-based discard `MUST` use `Discard` with `TurnBased`, a `Dynamic` list,
   `idType=InstanceId` and hand instance IDs in `ids`, with no `sourceId`,
   `minWeight` or `maxWeight`.
-- <a id="SelectNReq.cost-discard"></a>**SelectNReq.cost-discard.**
-  *(provisional)* A discard paid as a cost `MUST` use `Discard` with
-  `Payment`, `listType=Static`, `idType=InstanceId` and hand instance IDs in
-  `ids`, with no `staticList`.
 - <a id="SelectNReq.enum-domain"></a>**SelectNReq.enum-domain.** When
   `staticList` is set, `idType` `MUST` be absent, and every value in `ids` and
   in `selectNResp.ids` `MUST` be an enum value of that list.
@@ -176,5 +167,8 @@ The response rule shared by every request applies here:
   each player choose) share that layout?
 - What roles do `weights`, `hotIds`, `zoneIds` and `shouldCancel` play, and on
   which families?
+- How is a discard paid as a cost requested: which `context`,
+  `optionContext`, `listType` and `idType` does it carry, and is it a
+  `SelectNReq` at all?
 - Which mana-producing contexts besides a resolving mana ability use
   `ManaFromAbility`?
