@@ -21,7 +21,7 @@ rows mark transitions where the protocol exposes them.
 |---|---|---|
 | `annotations` | `GainDesignation` | The state was gained in this GSM. |
 | `annotations` | `LoseDesignation` | The state was lost in this GSM. |
-| `persistentAnnotations` | `Designation` | The state holds, and is restated while it holds. |
+| `persistentAnnotations` | `Designation` | The durable state, present while it holds. |
 
 Every designation row carries `DesignationType` in its details. The identity
 domain decides which IDs the row names:
