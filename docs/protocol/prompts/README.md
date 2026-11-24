@@ -1,15 +1,28 @@
 ---
-summary: "Prompt family overview: requests that suspend the game until one seat answers, and their responses."
+summary: "Prompt family overview: every GRE request that asks a player for a decision, the messages around them, and where each is described."
 read_when:
   - "finding the page for a GRE prompt type"
   - "emitting or parsing a request and its correlated response"
 ---
 # Prompts
 
-A prompt suspends game progression while one seat supplies a decision. The
-request defines the legal choice domain; the response correlates to the
-request through `respId` and `gameStateId`. The typed request payload is the
-semantic discriminator; `promptId` selects instruction text.
+A prompt is a GRE request that asks one player for a decision. Its typed
+payload defines what can be chosen. The client answers with the matching
+response message, correlated to the request as in
+[the message stream](../stream/messages.md#Messages.resp-correlates). A
+request usually follows the GSM it is decided against, in the same batch.
+
+The payload type, not the `promptId`, says what is being decided. A
+`promptId` selects the instruction the player reads, so one payload type can
+carry many prompt IDs and related effects can share one. Prompt parameters
+name the objects and values that instruction mentions.
+
+Most requests carry a cancellation policy: `allowCancel`, and sometimes
+`allowUndo`. While a spell is being cast or an ability activated, requests
+usually allow `AllowCancel_Abort`, which abandons the whole cast. Requests
+during resolution usually carry `AllowCancel_No`.
+
+## Requests with a page
 
 | Prompt | Role |
 |---|---|
@@ -31,3 +44,26 @@ semantic discriminator; `promptId` selects instruction text.
 | [SelectNReq](SelectNReq.md) | Choose values from a bounded domain: trigger order, discard, resolution choices, mana colors. |
 | [SelectReplacementReq](SelectReplacementReq.md) | Choose which of several replacement effects applies first. |
 | [SelectTargetsReq](SelectTargetsReq.md) | Choose targets for a spell or ability, one change at a time, then submit. |
+
+## Other request types
+
+These types have no page yet. The roles follow from their message shapes.
+
+| Type | Role |
+|---|---|
+| `MulliganReq` | Keep the opening hand or mulligan. Carries `mulliganType` (`MulliganType_London`), `freeMulliganCount` and `mulliganCount`, with `promptId=34`; answered by `MulliganResp` with `MulliganOption_AcceptHand` or `MulliganOption_Mulligan`. The London mulligan's cards to put on the bottom are then chosen with [GroupReq](GroupReq.md). |
+| `GatherReq` | Collect an amount from several sources into one destination. The same shape appears inside [PayCostsReq](PayCostsReq.md) for counter costs. |
+| `SelectCountersReq` | Choose counters, as `counterPairs`, between `minSel` and `maxSel`. |
+| `SelectFromGroupsReq` | Choose objects from groups, outside a search. |
+| `SelectNgroupReq` | Choose between `minSel` and `maxSel` whole groups, answered with group IDs. |
+| `StringInputReq` | Enter text for a source, answered with `inputValue`. |
+| `SubmitDeckReq` | Submit a deck, such as between games of a match. |
+| `OrderCombatDamageReq` | A request type with no payload of its own. |
+| `RevealHandReq` | A request type with no payload of its own. |
+
+## Messages that ask nothing
+
+| Type | Role |
+|---|---|
+| `PromptReq` | Shows an instruction and expects no answer, for example `promptId=37` naming the player who goes first, `36` with a player and a number of cards, or `46` with a coin flip result. |
+| `EdictalMessage` | Carries, in `edictMessage`, a client message that the server has applied on the player's behalf, such as a `PerformActionResp` or `CancelActionReq`. |
