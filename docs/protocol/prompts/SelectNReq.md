@@ -89,25 +89,6 @@ On the trigger-ordering family the client can ask the server to order the
 abilities itself: `ids=[0]` with `useArbitrary=OrderingType_OrderArbitraryOnce`.
 The `0` is a placeholder, not one of the offered ability IDs.
 
-## Permanent-sacrifice branch
-
-Annihilator's trigger asks the defending player to sacrifice a number of
-permanents while the ability resolves. The request has:
-
-- outer prompt `180`, with two parameters in order: the host card's instance
-  ID and the number to sacrifice, both `parameterName=CardId`,
-  `type=Number`;
-- an inner prompt with no prompt ID and one parameter `parameterName=Parameter`,
-  `type=PromptId`, `promptId=5`;
-- `Resolution` for both contexts, a `Dynamic` list of battlefield instance IDs,
-  `NonRepeatable`, `minSel` equal to `maxSel`, and unbounded weights;
-- `allowCancel=No`;
-- `sourceId` naming the resolving ability on the stack, while the outer
-  parameter names the card that ability came from.
-
-The GSM after the response moves the chosen permanents to the graveyard and
-completes the ability's resolution.
-
 ## Lifecycle
 
 1. A GSM publishes the decision state with `pendingMessageCount` counting the
@@ -149,8 +130,8 @@ Family-specific steps:
   turn-based discard `MUST` use `Discard` with `TurnBased`, a `Dynamic` list,
   `idType=InstanceId` and hand instance IDs in `ids`, with no `sourceId`,
   `minWeight` or `maxWeight`.
-- <a id="SelectNReq.cost-discard"></a>**SelectNReq.cost-discard.** A discard
-  paid as a cost `MUST` use `Discard` with `Payment`, `listType=Static`,
+- <a id="SelectNReq.cost-discard"></a>**SelectNReq.cost-discard.**
+  *(provisional)* A discard paid as a cost `MUST` use `Discard` with `Payment`, `listType=Static`,
   `idType=InstanceId` and hand instance IDs in `ids`, with no `staticList`.
 - <a id="SelectNReq.enum-domain"></a>**SelectNReq.enum-domain.** When
   `staticList` is set, `idType` `MUST` be absent, and every value in `ids` and
@@ -176,20 +157,8 @@ Family-specific steps:
   not as a cancellation or an error, whenever selecting nothing is within the
   bounds.
 - <a id="SelectNReq.weight-sentinels"></a>**SelectNReq.weight-sentinels.**
-  *(provisional)* On resolution and cost-discard requests with no weight
-  constraint, `minWeight` and `maxWeight` are the signed 32-bit minimum and
+  *(provisional)* On resolution requests with no weight constraint, `minWeight` and `maxWeight` are the signed 32-bit minimum and
   maximum.
-- <a id="SelectNReq.sacrifice-prompt"></a>**SelectNReq.sacrifice-prompt.**
-  *(provisional)* On the permanent-sacrifice branch, grounded for Annihilator,
-  the request `MUST` carry outer prompt `180` with the host card's instance ID
-  and the count as two `CardId` `Number` parameters in that order; an inner
-  prompt whose only parameter is `Parameter` of `type=PromptId` with
-  `promptId=5`; `Resolution` for both contexts; a `Dynamic` instance-ID list;
-  `minSel` equal to `maxSel`; and `allowCancel=No`.
-- <a id="SelectNReq.sacrifice-source"></a>**SelectNReq.sacrifice-source.**
-  *(provisional)* On the permanent-sacrifice branch, grounded for Annihilator,
-  `sourceId` `MUST` be the instance ID of the resolving ability on the stack,
-  not the host card named by the outer prompt parameter.
 - <a id="SelectNReq.mana-color"></a>**SelectNReq.mana-color.**
   *(provisional)* A color choice made while a mana ability resolves uses
   `ManaFromAbility` with `Resolution`, `listType=Static` and
@@ -199,8 +168,11 @@ Family-specific steps:
 
 - What `SelectNResp` sequence orders triggers one at a time, as distinct from
   the automatic-order answer?
+- How does a request to sacrifice permanents while an ability resolves, such
+  as Annihilator's, lay out its outer and inner prompts, and does its
+  `sourceId` name the resolving ability or the card it came from?
 - Do restricted sacrifice prompts ("sacrifice a creature", edicts that let
-  each player choose) use the permanent-sacrifice branch's prompt layout?
+  each player choose) share that layout?
 - What roles do `weights`, `hotIds`, `zoneIds` and `shouldCancel` play, and on
   which families?
 - Which mana-producing contexts besides a resolving mana ability use

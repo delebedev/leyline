@@ -181,8 +181,8 @@ The **Contract** section is a bullet list. Each item is one statement:
 ```markdown
 - <a id="SelectNReq.resp-empty-ok"></a>**SelectNReq.resp-empty-ok.** An empty
   `selectNResp` `MUST` be accepted as a successful zero-value answer.
-- <a id="SelectNReq.sacrifice-prompt"></a>**SelectNReq.sacrifice-prompt.**
-  *(provisional)* On the permanent-sacrifice branch, …
+- <a id="SelectNReq.mana-color"></a>**SelectNReq.mana-color.**
+  *(provisional)* A color choice made while a mana ability resolves …
 ```
 
 - The anchor `id` and the bold ID are identical and match

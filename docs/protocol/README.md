@@ -110,7 +110,7 @@ Code, tests, conformance contracts, issues and PR **Evidence** lines cite
 statements with the marker `protocol:` followed by one or more IDs:
 
 ```kotlin
-// protocol: SelectNReq.sacrifice-prompt, SelectNReq.sacrifice-source
+// protocol: SelectNReq.trigger-order, SelectNReq.trigger-order-arbitrary
 ```
 
 ```yaml
