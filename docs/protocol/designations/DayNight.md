@@ -11,7 +11,9 @@ player's running spell count for the current turn.
 ## Rules grounding
 
 CR 731.1 defines the initial neither state and the transition into Day or Night.
-Once established, exactly one of the two states remains. CR 731.2 checks the
+Daybound and nightbound permanents establish the state, and other effects can
+too, such as a sorcery that makes it night. Once established, exactly one of
+the two states remains. CR 731.2 checks the
 previous turn's spell activity during the untap step to decide whether the state
 changes.
 
@@ -23,9 +25,8 @@ messages.
 | Surface | Role |
 |---|---|
 | `GainDesignation` | The incoming state was established in this GSM. |
-| `LoseDesignation` | The outgoing state ended at a flip. |
-| `Designation` | The persistent state; carries `ActivePlayerSpellCount`. |
-| Persistent-row deletion | Retires the outgoing state's row at a flip. |
+| `Designation` | The persistent state: one row for the game, whose annotation ID stays the same through count updates and flips. |
+| `DesignationType` | `10` for Day, `11` for Night; a flip rewrites it on the same row. |
 | `ActivePlayerSpellCount` | The active player's running spell total for the current turn. |
 
 These rows are game-scoped: `affectedIds` is `[0]` and there is no `affectorId`.
@@ -37,14 +38,17 @@ the neither state, and no third designation marks it.
 
 ## Lifecycle
 
-1. A first transition is published in the GSM that resolves the permanent
-   establishing Day or Night: the gain row and the first persistent row appear
-   in that GSM.
+1. A first transition is published in the GSM where Day or Night is
+   established, for example by a resolving daybound permanent: the gain row
+   and the first persistent row appear in that GSM. Another effect that makes
+   it day or night, such as a sorcery, establishes it the same way at its own
+   resolution.
 2. The persistent row carries the active player's current-turn spell count. The
    count resets at the start of a turn and rises as that player casts spells.
-3. At a flip, the outgoing state emits its loss row and its persistent row is
-   deleted; the incoming state emits its gain row, and the incoming persistent
-   row carries the new turn's count.
+3. At a flip, the same persistent row is sent again with the incoming
+   state's `DesignationType` and the new turn's count, and the incoming state
+   emits its gain row. No `LoseDesignation` is sent and the row is not
+   deleted.
 4. The state persists until the game ends.
 
 ## Sibling shapes
@@ -55,22 +59,24 @@ surface and not part of this designation's contract.
 
 ## Contract
 
-- <a id="DayNight.gain-first"></a>**DayNight.gain-first.** *(provisional)* The
-  first transition into Day or Night `MUST` carry a `GainDesignation` with
-  `DesignationType` `10` or `11`, `affectedIds` `[0]` and no `affectorId`, in the
-  GSM whose resolution establishes the state.
+- <a id="DayNight.gain-first"></a>**DayNight.gain-first.** *(provisional)* When
+  a resolving permanent first establishes Day or Night, that GSM `MUST` carry a
+  `GainDesignation` with `DesignationType` `10` or `11`, `affectedIds` `[0]`
+  and no `affectorId`.
 - <a id="DayNight.persistent-apsc"></a>**DayNight.persistent-apsc.** While Day or
   Night is established, its persistent `Designation` `MUST` carry
   `DesignationType` `10` or `11` and `ActivePlayerSpellCount` equal to the
   active player's spells cast in the current turn.
-- <a id="DayNight.flip-pair"></a>**DayNight.flip-pair.** *(provisional)* A flip
-  `MUST` carry a `LoseDesignation` for the outgoing state and delete its
-  persistent row, then carry the incoming state's `GainDesignation` and a
-  persistent row for the incoming state with the new turn's count.
+- <a id="DayNight.flip-in-place"></a>**DayNight.flip-in-place.** A flip `MUST`
+  send the existing persistent row again, under the same annotation ID, with
+  the incoming state's `DesignationType`, and `MUST` carry the incoming state's
+  `GainDesignation`. It `MUST NOT` carry a `LoseDesignation` for the outgoing
+  state or delete the row.
 - <a id="DayNight.mutual-exclusion"></a>**DayNight.mutual-exclusion.** One GSM
   `MUST NOT` carry persistent Day and Night rows at the same time.
 
 ## Open points
 
-- Is the persistent row's annotation ID stable across spell-count updates?
+- When an effect other than a resolving permanent first establishes Day or
+  Night, does its GSM carry the same gain row?
 - Can a non-daybound effect establish the state, and does it use the same rows?

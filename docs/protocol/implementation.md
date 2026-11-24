@@ -89,7 +89,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [AnimatedLand](designations/AnimatedLand.md) | `EarthbendEmitter`, `AnnotationBuilder.manaCreatureDesignation` | `partial` |
-| [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `implemented` |
+| [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `partial` |
 | [PlayerSpeed](designations/PlayerSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `PlayerSpeedDesignationKind`, `StateMapper` | `implemented` |
 | [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
@@ -449,6 +449,15 @@ grouped by family, then by entity.
   - Leyline: emits the designation only for earthbend animation. A land animated
     by any other effect carries no designation.
   - Owner: `EarthbendEmitter`
+
+#### DayNight
+
+- **`diverges`** — [DayNight.flip-in-place](designations/DayNight.md#DayNight.flip-in-place)
+  - Contract: a flip rewrites the existing persistent row in place and sends
+    only the incoming state's `GainDesignation`.
+  - Leyline: sends the outgoing state's `LoseDesignation` beside the incoming
+    `GainDesignation`.
+  - Owner: `AnnotationBuilder.loseDesignationOnGame`
 
 #### Plotted
 
