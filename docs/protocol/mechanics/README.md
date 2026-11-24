@@ -32,3 +32,4 @@ that flag described under [designations](../designations/README.md).
 | [Firebending](Firebending.md) | Attack trigger, mana pool, ManaDetails | Adds red mana on attack that is kept until end of combat. |
 | [Flashback](Flashback.md) | Graveyard Cast, CastingTimeOption, exile on leaving the stack | Casts an instant or sorcery from the graveyard and exiles it afterwards. |
 | [Foretell](Foretell.md) | Special action, FaceDown exile, Cast from exile | Exiles a card face down for {2} and casts it later for its foretell cost. |
+| [Gift](Gift.md) | CastingTimeOptionsReq AdditionalCost, CastingTimeOption | Promises an opponent a benefit as a spell is cast. |

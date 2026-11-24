@@ -246,6 +246,7 @@ Leyline cannot play at all is `absent`.
 | [Firebending](mechanics/Firebending.md) | `ManaSnapshotCapture`, `ManaDetailsContributor` | `implemented` |
 | [Flashback](mechanics/Flashback.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Foretell](mechanics/Foretell.md) | `CastRails`, `PersistentFeedBuilder` | `partial` |
+| [Gift](mechanics/Gift.md) | `DeferredCastCostPlanMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 
 ## Exceptions
 
