@@ -91,6 +91,7 @@ Rows are grouped by family and sorted by entity name.
 | [AnimatedLand](designations/AnimatedLand.md) | `EarthbendEmitter`, `AnnotationBuilder.manaCreatureDesignation` | `partial` |
 | [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `partial` |
 | [PlayerSpeed](designations/PlayerSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `PlayerSpeedDesignationKind`, `StateMapper` | `implemented` |
+| [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
 
 ### Prompts
 
@@ -427,6 +428,15 @@ grouped by family, then by entity.
   - Leyline: emits `LoseDesignation` for the outgoing state in the flip GSM,
     beside the incoming state's gain row.
   - Owner: `AnnotationBuilder.loseDesignationOnGame`, `StateMapper`
+
+#### Plotted
+
+- **`compat`** — [Open points](designations/Plotted.md#open-points), the loss row when the exile object is consumed
+  - Contract: whether the plotted state emits a loss row when the exile object
+    is consumed is not yet known.
+  - Leyline: emits `LoseDesignation` for `18` in the GSM where the plotted role
+    ends, including the cast that consumes the exile instance.
+  - Owner: `CardStateDesignations`, `AnnotationBuilder.loseDesignation`
 
 ### Prompt exceptions
 
