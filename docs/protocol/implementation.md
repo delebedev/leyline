@@ -93,6 +93,7 @@ Rows are grouped by family and sorted by entity name.
 | [PlayerSpeed](designations/PlayerSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `PlayerSpeedDesignationKind`, `StateMapper` | `implemented` |
 | [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
+| [Saddled](designations/Saddled.md) | `CardStateDesignations`, `AnnotationBuilder.saddledDesignation`, `SaddledDesignationKind` | `implemented` |
 
 ### Prompts
 

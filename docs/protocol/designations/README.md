@@ -53,7 +53,7 @@ key carries none, and the state is read from the row's type alone.
 | 11 | [Night](DayNight.md) | game | Night is established, in the same shape as Day. |
 | 15 | `Solved` | card | A Case permanent whose solve condition has resolved. |
 | 16 | `Suspected` | card | A permanent that has menace and cannot block. |
-| 17 | `Saddled` | card | A Mount saddled this turn. |
+| 17 | [Saddled](Saddled.md) | card | A Mount saddled this turn. |
 | 18 | [Plotted](Plotted.md) | card | A card exiled by plot and castable later without paying its mana cost. |
 | 19 | `LeftUnlocked` | card | The left door of a Room is unlocked; the door action is in [Rooms](../actions/Rooms.md). |
 | 20 | `RightUnlocked` | card | The right door of a Room is unlocked; the door action is in [Rooms](../actions/Rooms.md). |
