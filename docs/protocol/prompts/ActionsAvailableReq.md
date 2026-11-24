@@ -134,8 +134,11 @@ The batch and response rules shared by every request apply here:
   `autoTapSolution`, `manaPaymentOptions` or `manaSelections`.
 - <a id="ActionsAvailableReq.resp-single"></a>**ActionsAvailableReq.resp-single.**
   `performActionResp.actions` carries exactly one action. The server `MUST`
-  resolve it against the request's `actions` by `actionType`, `instanceId`
-  and `abilityGrpId`.
+  resolve it against the request's `actions` by `actionType` and
+  `instanceId`, together with each of `abilityGrpId`, `uniqueAbilityId` and
+  `alternativeGrpId` that the response carries. Two `Cast` offers for one card
+  can differ only in `alternativeGrpId`, and an object can carry two copies of
+  one ability that differ only in `uniqueAbilityId`.
 - <a id="ActionsAvailableReq.resp-offered"></a>**ActionsAvailableReq.resp-offered.**
   The server `MUST NOT` apply an action that matches no entry of the
   request's `actions`, including one that matches only an entry of
