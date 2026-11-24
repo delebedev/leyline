@@ -79,7 +79,7 @@ Rows are grouped by family and sorted by entity name.
 | [ChooseStartingPlayerReq](prompts/ChooseStartingPlayerReq.md) | `LifecycleMessageMaterializer.initialBundle`, `GsmBuilder.buildInitialGameState`, `MulliganHandler` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
-| [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `implemented` |
+| [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `partial` |
 | [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
 | [IntermissionReq](prompts/IntermissionReq.md) | `BundleBuilder.prepareGameOverBundle`, `MatchGameOverRuntime` | `partial` |
 | [NumericInputReq](prompts/NumericInputReq.md) | `BlockingInteractionMaterializer.numeric`, `NumericInputHandler` | `partial` |
@@ -333,6 +333,15 @@ grouped by family, then by entity.
     required to block.
   - Leyline: never sets `mustBlock`.
   - Owner: `RequestBuilder.buildDeclareBlockersReq`
+
+#### DistributionReq
+
+- **`diverges`** — [DistributionReq.resp-bounds](prompts/DistributionReq.md#DistributionReq.resp-bounds)
+  - Contract: a response whose total falls outside the allowed amount is not
+    applied.
+  - Leyline: sums the response amounts as `Int`, so amounts near the `Int`
+    limit can wrap to the allowed total and be applied.
+  - Owner: `MatchDistributionInteractionRuntime.validate`
 
 #### GroupReq
 
