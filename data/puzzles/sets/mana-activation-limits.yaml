@@ -1,0 +1,36 @@
+name: mana-activation-limits
+description: Mana abilities with an activation limit are offered only until the limit is used.
+scenarios:
+  - id: vivi-once-per-turn
+    puzzle: vivi-ornitier-once-per-turn
+    headless: { full_control: true }
+    run: activate Vivi Ornitier for two mana, cast Divination, then pass to the next turn
+    expect: Vivi's mana pays for Divination, its ability returns only on the next turn, and Islands keep working
+    steps:
+      - expect:
+          action: { type: activate_mana, card: Vivi Ornitier }
+      - activate_mana: { card: Vivi Ornitier }
+      - static_choice: { id: 2, label: Blue }
+      - static_choice: { id: 4, label: Red }
+      - expect:
+          all:
+            - action: { type: cast, card: Divination }
+            - action_not_available: { type: activate_mana, card: Vivi Ornitier }
+      - cast: Divination
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: graveyard, card: Divination }
+            - action_not_available: { type: activate_mana, card: Vivi Ornitier }
+            - action: { type: activate_mana, card: Island }
+      - pass_until:
+          action: { type: activate_mana, card: Vivi Ornitier }
+          max_passes: 30
+      - activate_mana: { card: Vivi Ornitier }
+      - static_choice: { id: 2, label: Blue }
+      - static_choice: { id: 2, label: Blue }
+      - static_choice: { id: 2, label: Blue }
+      - expect:
+          all:
+            - action_not_available: { type: activate_mana, card: Vivi Ornitier }
+            - action: { type: activate_mana, card: Island }

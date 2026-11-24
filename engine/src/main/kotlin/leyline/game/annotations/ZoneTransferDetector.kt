@@ -26,6 +26,8 @@ data class ManaPaymentRecord(
     val abilityGrpId: Int,
     /** InstanceId of the spell/ability this mana pays for (ManaPaid.affectedIds). */
     val spellInstanceId: Int = 0,
+    /** False when the producing mana ability has no {T} cost, so the source is not shown tapping. */
+    val tapsSource: Boolean = true,
 )
 
 data class AppliedTransfer(
@@ -435,6 +437,7 @@ object ZoneTransferDetector {
                             color = mp.color,
                             abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                             spellInstanceId = newId,
+                            tapsSource = mp.tapsSource,
                         )
                     } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
@@ -954,6 +957,7 @@ object ZoneTransferDetector {
                     color = mp.color,
                     abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                     spellInstanceId = stackId,
+                    tapsSource = mp.tapsSource,
                 )
             } ?: emptyList()
 
@@ -1637,6 +1641,7 @@ object ZoneTransferDetector {
                 color = mp.color,
                 abilityGrpId = MechanicSourceProjection.paymentAbilityGrpId(mp, manaAbilityGrpIdResolver).value,
                 spellInstanceId = idLookup(castEv.cardId).value,
+                tapsSource = mp.tapsSource,
             ),
         )
     }
