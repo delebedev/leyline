@@ -236,6 +236,7 @@ Leyline cannot play at all is `absent`.
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 | [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
+| [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
 | [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
@@ -1225,6 +1226,15 @@ grouped by family, then by entity.
     ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
     the hand while the ability is on the stack.
   - Owner: `RevealStateContributor`
+
+#### Prowess
+
+- **`diverges`** — [Prowess.no-resolution-start](mechanics/Prowess.md#Prowess.no-resolution-start)
+  - Contract: the resolution GSM of a prowess trigger carries
+    `ResolutionComplete` and no `ResolutionStart` for it.
+  - Leyline: emits `ResolutionStart` before `ResolutionComplete` for every
+    resolving triggered ability, prowess included.
+  - Owner: `AnnotationPipeline`
 
 #### Sneak
 
