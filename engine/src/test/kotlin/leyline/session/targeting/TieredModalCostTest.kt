@@ -45,6 +45,7 @@ class TieredModalCostTest :
             val option = cto.getCastingTimeOptionReq(0)
             val modalReq = option.modalReq
 
+            // protocol: Tiered.selection-bounds, Tiered.tier-cost, Tiered.zero-cost
             assertSoftly {
                 option.ctoId shouldBe 2
                 option.grpId shouldBe 95912

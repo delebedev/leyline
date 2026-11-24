@@ -27,6 +27,7 @@ that flag described under [designations](../designations/README.md).
 | [Spree](Spree.md) | Modal casting-time option with per-mode costs | Choose one or more modes while casting and pay each chosen mode's cost. |
 | [Station](Station.md) | Activation, tap cost, charge counters, striation rows | Tap a creature to add charge counters; striations apply at their charge thresholds. |
 | [Teamwork](Teamwork.md) | Optional-cost choice, weighted creature payment | Pay an optional additional cost by tapping creatures with enough total power. |
+| [Tiered](Tiered.md) | Modal casting-time option with one tier | Choose exactly one tier while casting and pay its cost. |
 | [Unearth](Unearth.md) | Graveyard activation, `Return`, designation, pending exile | Return a card from the graveyard with haste until it is exiled at the next end step. |
 | [Ward](Ward.md) | Trigger on being targeted, tax `PayCostsReq` | Counter an opponent's spell or ability that targets the permanent unless its controller pays the ward cost. |
 | [Warp](Warp.md) | Hand alternative cost, end-step exile, cast from exile | Cast a card cheaply from the hand, exile it at end step, and cast it again from exile later. |

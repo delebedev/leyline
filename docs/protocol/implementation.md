@@ -241,6 +241,7 @@ Leyline cannot play at all is `absent`.
 | [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 | [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
+| [Tiered](mechanics/Tiered.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
 | [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
