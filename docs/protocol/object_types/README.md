@@ -31,7 +31,7 @@ The object type is independent of annotation and mechanic identity.
 | [Ability](Ability.md) | generic | An activated or triggered ability on the Stack or in Pending. |
 | `Emblem` | generic | An emblem in the Command zone. |
 | `SplitCard` | card side | A split card as a whole. |
-| [SplitLeft](SplitLeft.md), `SplitRight` | card side | A split card's halves. |
+| [SplitLeft](SplitLeft.md), [SplitRight](SplitRight.md) | card side | A split card's halves. |
 | [RevealedCard](RevealedCard.md) | protocol utility | A temporary public projection of a revealed card. |
 | [TriggerHolder](TriggerHolder.md) | protocol utility | A delayed or recurring trigger between live ability instances. |
 | [Adventure](Adventure.md) | card side | The Adventure half of an Adventure card. |

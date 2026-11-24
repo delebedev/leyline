@@ -63,6 +63,7 @@ Rows are grouped by family and sorted by entity name.
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
 | [SplitLeft](object_types/SplitLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [SplitRight](object_types/SplitRight.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
 | [TriggerHolder](object_types/TriggerHolder.md) | `ObjectMapper.buildTriggerHolderObject`, `StateMapper` | `implemented` |
 
@@ -242,6 +243,18 @@ grouped by family, then by entity.
   - Contract: a split card's projection carries both half companions, and the
     Stack parent adopts the selected half's `grpId`.
   - Leyline: never emits `SplitLeft` or `SplitRight`. A split half is projected
+    as an ordinary `Card` on the Stack, with the face `grpId` and no companion
+    pair.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### SplitRight
+
+- **`absent`** — [SplitRight.pair-together](object_types/SplitRight.md#SplitRight.pair-together),
+  [SplitRight.selected-face](object_types/SplitRight.md#SplitRight.selected-face)
+  *(provisional statement)*
+  - Contract: a split card's projection carries both half companions, and the
+    Stack parent adopts the selected half's `grpId`.
+  - Leyline: never emits `SplitRight` or `SplitLeft`. A split half is projected
     as an ordinary `Card` on the Stack, with the face `grpId` and no companion
     pair.
   - Owner: `LinkedFaceCompanionProjector`
