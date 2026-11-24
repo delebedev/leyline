@@ -29,9 +29,15 @@ ObjectIdChanged
 ZoneTransfer
 ```
 
+`LayeredEffectCreated` and `ChoiceResult` rows that name the new ID come
+before its `ObjectIdChanged`, for example the layered effect of a spell being
+cast. `GainDesignation` and `PowerToughnessModCreated` rows can come on either
+side of it.
+
 ## Incremental changes to one object
 
-When several rows update the same object, they follow this precedence:
+When one change updates several aspects of the same object, its rows usually
+follow this precedence:
 
 | Order | Annotation | Object identity field |
 |---:|---|---|
@@ -109,10 +115,8 @@ ZoneTransfer          Draw: Library -> Hand
 
 - <a id="AnnotationOrdering.identity-first"></a>**AnnotationOrdering.identity-first.**
   An `ObjectIdChanged` row `MUST` precede every row in the same array whose
-  `affectorId` or `affectedIds` names its `new_id`.
-- <a id="AnnotationOrdering.same-object"></a>**AnnotationOrdering.same-object.**
-  Rows of the types in the precedence table that update the same object
-  `MUST` appear in table order.
+  `affectorId` or `affectedIds` names its `new_id`, except `LayeredEffectCreated`,
+  `ChoiceResult`, `GainDesignation` and `PowerToughnessModCreated` rows.
 - <a id="AnnotationOrdering.damage-before-death"></a>**AnnotationOrdering.damage-before-death.**
   `DamageDealt` rows `MUST` precede the `ObjectIdChanged` and `ZoneTransfer`
   of a permanent that dies from that damage in the same GSM.
@@ -121,8 +125,10 @@ ZoneTransfer          Draw: Library -> Hand
   `SyntheticEvent` rows that change that player's life in the same array.
 - <a id="AnnotationOrdering.resolution-bracket"></a>**AnnotationOrdering.resolution-bracket.**
   The rows a resolving spell's effect produces `MUST` lie between its
-  `ResolutionStart` and `ResolutionComplete`, and the spell's own
-  `ObjectIdChanged` and `ZoneTransfer` `MUST` follow `ResolutionComplete`.
+  `ResolutionStart` and `ResolutionComplete`. When the spell leaves the stack
+  after resolving, its own `ObjectIdChanged` and `ZoneTransfer` `MUST` follow
+  `ResolutionComplete`; when its own effect moves it, such as a spell that
+  exiles itself, those rows lie inside the bracket.
 - <a id="AnnotationOrdering.spell-before-sba"></a>**AnnotationOrdering.spell-before-sba.**
   A resolved spell's `ZoneTransfer` off the stack `MUST` precede the
   `ObjectIdChanged` and `ZoneTransfer` of a permanent destroyed by its effect
@@ -135,6 +141,11 @@ ZoneTransfer          Draw: Library -> Hand
   drawn card's `ObjectIdChanged`, then its `Draw` `ZoneTransfer`.
 
 ## Open points
+
+- When one resolution applies several effects to the same object in turn, such
+  as a pump and then a tap or two separate counter placements, the rows follow
+  the effects' order rather than the precedence table. Is the table order
+  required whenever the changes are simultaneous?
 
 - Where do `TokenCreated` rows sit relative to rows that refer to the new
   token?

@@ -44,7 +44,7 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
-| [AnnotationOrdering](stream/annotation-ordering.md) | `OrderRules`, `ObjectIdChangedFirstRule`, `SameCardIncrementalRule`, `ResolutionLifecycleRule`, `ResolveTransferOrderingRule`, `PhaseOrStepFirstRule`, `AnnotationPipeline` | `implemented` |
+| [AnnotationOrdering](stream/annotation-ordering.md) | `OrderRules`, `ObjectIdChangedFirstRule`, `SameCardIncrementalRule`, `ResolutionLifecycleRule`, `ResolveTransferOrderingRule`, `PhaseOrStepFirstRule`, `AnnotationPipeline` | `partial` |
 | [Enums](model/enums.md) | `PlayerMapper.mapPhase`, `PlayerMapper.mapStep`, `AnnotationBuilder.userActionTaken` | `implemented` |
 | [IdentityAndZones](model/identity-and-zones.md) | `ZoneIds`, `ZoneMapper`, `StateZoneProjection`, `ZoneHandoffProjection`, `StateMapper` | `partial` |
 | [Messages](stream/messages.md) | `BundleBuilder`, `GsmBuilder`, `StateMapper`, `LifecycleMessageMaterializer`, `SettledPromptOwner`, `MatchConnection` | `partial` |
@@ -88,6 +88,21 @@ contract says, what Leyline does, and the owner to change. Exceptions are
 grouped by family, then by entity.
 
 ### Model and stream exceptions
+
+#### AnnotationOrdering
+
+- **`diverges`** — [Identity before reference](stream/annotation-ordering.md#identity-before-reference)
+  - Contract: `LayeredEffectCreated` and `ChoiceResult` rows that name a new
+    ID come before its `ObjectIdChanged`.
+  - Leyline: moves `ObjectIdChanged` ahead of every row that names its
+    `new_id`, including those rows.
+  - Owner: `ObjectIdChangedFirstRule`
+- **`diverges`** — [Incremental changes to one object](stream/annotation-ordering.md#incremental-changes-to-one-object)
+  - Contract: when one resolution changes an object in several steps, the
+    rows follow the order of those steps.
+  - Leyline: reorders every same-object row into the precedence table's
+    order, even for changes made one after another.
+  - Owner: `SameCardIncrementalRule`
 
 #### IdentityAndZones
 
