@@ -255,6 +255,9 @@ Leyline cannot play at all is `absent`.
 | [Discover](mechanics/Discover.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `implemented` |
 | [Disguise](mechanics/Disguise.md) | `CastRails`, `ActionMapper.addSpecialTurnFaceUpActions`, `PersistentFeedBuilder` | `partial` |
 | [Disturb](mechanics/Disturb.md) | `CastRails`, `ActionMapper`, `ZoneMapper.addDisturbBackObject` | `implemented` |
+| Flurry | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
+| Infusion | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
+| Opus | `OpusAbilityWordFeedBuilder`, `CastAbilityWordScanner` | `implemented` |
 
 ## Exceptions
 

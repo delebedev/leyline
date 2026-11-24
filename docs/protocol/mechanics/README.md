@@ -41,3 +41,6 @@ that flag described under [designations](../designations/README.md).
 | [Discover](Discover.md) | Discover ability, cast-permission window, free cast, residue | Keyword action that exiles to a free cast or puts the card into the hand. |
 | [Disguise](Disguise.md) | Face-down cast, face-down state, turning face up | Face-down 2/2 ward cast for `{3}`, turned face up for its disguise cost. |
 | [Disturb](Disturb.md) | Graveyard cast, back face | Casting a double-faced card transformed from the graveyard. |
+| Flurry | Count row, trigger | Ability word for triggers on casting the second spell in a turn; `AbilityWordActive` `Flurry` counts spells against `threshold`. |
+| Infusion | Label row | Ability word for effects conditioned on gaining life this turn; a label-only `AbilityWordActive` `Infusion` row. |
+| Opus | Cast trigger, label row | Ability word for triggers on casting an instant or sorcery; a label-only `Opus` row marks the mana-spent branch. |
