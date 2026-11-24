@@ -89,7 +89,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [AnimatedLand](designations/AnimatedLand.md) | `EarthbendEmitter`, `AnnotationBuilder.manaCreatureDesignation` | `partial` |
-| [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `partial` |
+| [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `implemented` |
 | [PlayerSpeed](designations/PlayerSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `PlayerSpeedDesignationKind`, `StateMapper` | `implemented` |
 | [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
@@ -423,15 +423,6 @@ grouped by family, then by entity.
   - Leyline: emits the designation only for earthbend animation. A land animated
     by any other effect carries no designation.
   - Owner: `EarthbendEmitter`
-
-#### DayNight
-
-- **`compat`** — [Open points](designations/DayNight.md#open-points), the flip's loss row
-  - Contract: whether a flip carries a `LoseDesignation` for the outgoing state
-    is not yet known.
-  - Leyline: emits `LoseDesignation` for the outgoing state in the flip GSM,
-    beside the incoming state's gain row.
-  - Owner: `AnnotationBuilder.loseDesignationOnGame`, `StateMapper`
 
 #### Plotted
 

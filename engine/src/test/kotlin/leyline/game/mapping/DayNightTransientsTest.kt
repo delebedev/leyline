@@ -54,6 +54,7 @@ class DayNightTransientsTest :
             }
         }
 
+        // protocol: DayNight.flip-pair
         test("Day -> Night: Lose{Day} paired with Gain{Night}") {
             val out = mutableListOf<AnnotationInfo>()
             insertDayNightDesignationTransients(out, prevDayTime = false, curDayTime = true)

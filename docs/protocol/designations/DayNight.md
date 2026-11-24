@@ -23,6 +23,7 @@ messages.
 | Surface | Role |
 |---|---|
 | `GainDesignation` | The incoming state was established in this GSM. |
+| `LoseDesignation` | The outgoing state ended at a flip. |
 | `Designation` | The persistent state; carries `ActivePlayerSpellCount`. |
 | Persistent-row deletion | Retires the outgoing state's row at a flip. |
 | `ActivePlayerSpellCount` | The active player's running spell total for the current turn. |
@@ -41,8 +42,9 @@ the neither state, and no third designation marks it.
    in that GSM.
 2. The persistent row carries the active player's current-turn spell count. The
    count resets at the start of a turn and rises as that player casts spells.
-3. At a flip, the outgoing persistent row is deleted, the incoming state emits
-   its gain row, and the incoming persistent row carries the new turn's count.
+3. At a flip, the outgoing state emits its loss row and its persistent row is
+   deleted; the incoming state emits its gain row, and the incoming persistent
+   row carries the new turn's count.
 4. The state persists until the game ends.
 
 ## Sibling shapes
@@ -62,14 +64,13 @@ surface and not part of this designation's contract.
   `DesignationType` `10` or `11` and `ActivePlayerSpellCount` equal to the
   active player's spells cast in the current turn.
 - <a id="DayNight.flip-pair"></a>**DayNight.flip-pair.** *(provisional)* A flip
-  `MUST` delete the outgoing state's persistent row, carry the incoming state's
-  `GainDesignation`, and carry a persistent row for the incoming state with the
-  new turn's count.
+  `MUST` carry a `LoseDesignation` for the outgoing state and delete its
+  persistent row, then carry the incoming state's `GainDesignation` and a
+  persistent row for the incoming state with the new turn's count.
 - <a id="DayNight.mutual-exclusion"></a>**DayNight.mutual-exclusion.** One GSM
   `MUST NOT` carry persistent Day and Night rows at the same time.
 
 ## Open points
 
-- Does a flip also carry a `LoseDesignation` for the outgoing state?
 - Is the persistent row's annotation ID stable across spell-count updates?
 - Can a non-daybound effect establish the state, and does it use the same rows?
