@@ -710,8 +710,8 @@ grouped by family, then by entity.
 - **`compat`** — [Value of X](prompts/CastingTimeOptionsReq.md#families)
   - Contract: the value of X is a `ChooseX` row with `numericInputReq` in a
     `CastingTimeOptionsReq` with prompt `51`.
-  - Leyline: asks for X with a standalone `NumericInputReq` and never sends
-    a `ChooseX` row.
+  - Leyline: asks for X with a standalone `NumericInputReq` in the cost-X
+    shape (`ChooseX`, prompt `51`) and never sends a `ChooseX` row.
   - Owner: `PlayerController.announceRequirements`
 
 #### ChooseStartingPlayerReq
@@ -792,12 +792,18 @@ grouped by family, then by entity.
 
 #### NumericInputReq
 
-- **`diverges`** — [NumericInputReq.any-amount](prompts/NumericInputReq.md#NumericInputReq.any-amount)
-  - Contract: a number chosen during resolution uses
+- **`diverges`** — [NumericInputReq.effect-amount](prompts/NumericInputReq.md#NumericInputReq.effect-amount) *(provisional statement)*
+  - Contract: a number chosen by a resolving effect uses
     `NumericInputType_ChooseAnyAmount` and a prompt specific to the effect.
-  - Leyline: sends every number request as `NumericInputType_ChooseX` with
-    prompt `51`.
+  - Leyline: sends every number request, including effect amounts, as
+    `NumericInputType_ChooseX` with prompt `51`.
   - Owner: `BlockingInteractionMaterializer.numeric`
+- **`diverges`** — [NumericInputReq.cost-x](prompts/NumericInputReq.md#NumericInputReq.cost-x) *(provisional statement)*
+  - Contract: the X of a cost paid during resolution names the resolving
+    ability in `sourceId`.
+  - Leyline: sets `sourceId`, and the `CardId` parameter, to the card the
+    ability comes from.
+  - Owner: `NumericInputGate`, `BlockingInteractionMaterializer.numeric`
 
 #### OptionalActionMessage
 
