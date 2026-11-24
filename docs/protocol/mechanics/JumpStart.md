@@ -45,7 +45,8 @@ appears as the cast ability rather than as an alternative.
    `CastingTimeOption` row of `type` `13` with `castAbilityGrpId` `170` and
    no `alternateCostGrpId`, and an `AbilityWordActive` row naming
    `Jump-start`.
-3. The mana is paid. In the GSM after the cast, the discarded card gets a new
+3. The mana is paid. In the GSM after the cast, with no replacement effect
+   changing where it goes, the discarded card gets a new
    instance ID and moves Hand to Graveyard with `category` `Discard`, and
    `UserActionTaken` records `actionType` `1` with `abilityGrpId` `170` and no
    `alternativeGrpId`.
@@ -73,8 +74,9 @@ graveyard, but through an alternative cost named in `alternativeGrpId` and
 - <a id="JumpStart.cast-marker"></a>**JumpStart.cast-marker.** The stack
   spell `MUST` carry a `CastingTimeOption` row of `type` `13` with
   `castAbilityGrpId` `170`.
-- <a id="JumpStart.discard"></a>**JumpStart.discard.** The discarded card
-  `MUST` move Hand to Graveyard with `category` `Discard`.
+- <a id="JumpStart.discard"></a>**JumpStart.discard.** When no replacement
+  effect changes where the discarded card goes, it `MUST` move Hand to
+  Graveyard with `category` `Discard`.
 - <a id="JumpStart.accepted"></a>**JumpStart.accepted.** *(provisional)* An
   accepted jump-start cast `MUST` be recorded by `UserActionTaken` with
   `actionType` `1`, `abilityGrpId` `170` and no `alternativeGrpId`.
@@ -85,4 +87,6 @@ graveyard, but through an alternative cost named in `alternativeGrpId` and
 ## Open points
 
 - Which request chooses the card to discard, and with which fields?
+- How is the discard published when a replacement effect sends the card
+  elsewhere, such as a madness card going to exile?
 - What `category` does the move to exile carry when the spell is countered?
