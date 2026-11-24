@@ -127,7 +127,7 @@ Rows are grouped by family and sorted by entity name.
 | [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 | [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
-| [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
+| [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler`, `AnnotationPipeline` | `partial` |
 | [ShouldntPlay](annotations/ShouldntPlay.md) | `AnnotationBuilder.redundantActivation`, `VehicleAttachContributor` | `partial` |
 | [SyntheticEvent](annotations/SyntheticEvent.md) | `AnnotationBuilder.syntheticEvent`, `CombatAnnotations`, `AnnotationPipeline` | `partial` |
 | [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
@@ -622,6 +622,11 @@ grouped by family, then by entity.
     card, and the controller's seat for `LifeGainedThisTurn`, which it
     publishes for infusion triggers.
   - Owner: `AbilityWordScanner`, `AbilityWordTriggerRecognizers`
+- **`diverges`** — [AbilityWordActive.update-in-place](annotations/AbilityWordActive.md#AbilityWordActive.update-in-place)
+  - Contract: a change of `value` republishes the row under the same `id`.
+  - Leyline: deletes the row and creates a new one when the value changes,
+    for example for `Threshold`, `Delirium` and `LifeGainedThisTurn`.
+  - Owner: `AbilityWordActiveKind`
 
 #### CardRevealed
 
@@ -640,6 +645,11 @@ grouped by family, then by entity.
     `RevealedCardDeleted`, and names only a resolving spell or ability as
     `affectorId`.
   - Owner: `RevealStateContributor`
+- **`diverges`** — [CardRevealed.view-affected](annotations/CardRevealed.md#CardRevealed.view-affected)
+  - Contract: a row names a view that is new in the row's GSM.
+  - Leyline: the replacement row for a changed `source_zone` names the
+    existing view.
+  - Owner: `CardRevealedKind`
 
 #### CastingTimeOption
 
@@ -727,6 +737,11 @@ grouped by family, then by entity.
     turn. A creature that enters during its controller's turn stays listed
     through the opponent's whole next turn.
   - Owner: `EnteredZoneThisTurnKind.shouldExpire`
+- **`diverges`** — [EnteredZoneThisTurn.zone-affector](annotations/EnteredZoneThisTurn.md#EnteredZoneThisTurn.zone-affector)
+  - Contract: every object in a row is in the zone named by `affectorId`.
+  - Leyline: an object that passes through exile and returns in one GSM stays
+    listed in the exile row under its intermediate ID, now in Limbo.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind`
 
 #### FaceDown
 
@@ -749,6 +764,12 @@ grouped by family, then by entity.
   - Leyline: records opponent knowledge for a card revealed from a library
     as well, until the card moves or the library is shuffled.
   - Owner: `RevealStateContributor`, `InstanceRevealedToOpponentKind`
+- **`diverges`** — [InstanceRevealedToOpponent.retired-on-rename](annotations/InstanceRevealedToOpponent.md#InstanceRevealedToOpponent.retired-on-rename) *(provisional statement)*
+  - Contract: the row is deleted in the GSM whose `ObjectIdChanged` renames
+    its card.
+  - Leyline: keeps some rows after the card is renamed, for example when it
+    moves from the hand to the battlefield.
+  - Owner: `InstanceRevealedToOpponentKind`
 
 #### LinkInfo
 
@@ -861,6 +882,15 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### ResolutionStart
+
+- **`diverges`** — [ResolutionStart.grpid](annotations/ResolutionStart.md#ResolutionStart.grpid)
+  - Contract: `grpid` equals the resolving object's `grpId` or an entry of its
+    `uniqueAbilities`.
+  - Leyline: writes `grpid` `0` for some resolving abilities whose object
+    carries a nonzero `grpId`.
+  - Owner: `AnnotationPipeline`, `StateProjectionCompiler`
 
 #### ShouldntPlay
 
