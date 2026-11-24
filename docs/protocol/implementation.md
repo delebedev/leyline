@@ -258,6 +258,7 @@ Leyline cannot play at all is `absent`.
 | [ManifestDread](mechanics/ManifestDread.md) | `CardSelectWindowCapture`, `PersistentFeedBuilder`, `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
 | [MaxSpeed](mechanics/MaxSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `EffectTracker` | `implemented` |
 | [Mentor](mechanics/Mentor.md) | `TargetingCoordinator`, `TargetingWindowCapture` | `implemented` |
+| [Mobilize](mechanics/Mobilize.md) | `PersistentTemporaryFeedBuilder`, `PersistentFeedBuilder` | `implemented` |
 
 ## Exceptions
 

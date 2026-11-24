@@ -44,3 +44,4 @@ that flag described under [designations](../designations/README.md).
 | [ManifestDread](ManifestDread.md) | SelectNReq 13125, ManifestLike, FaceDown, turn face up | Manifests one of the top two library cards face down. |
 | [MaxSpeed](MaxSpeed.md) | PlayerSpeed, AddAbility | Grants an ability while its controller's speed is 4. |
 | [Mentor](Mentor.md) | Attack trigger, SelectTargetsReq 2247, counter | Puts a +1/+1 counter on an attacking creature with lesser power. |
+| [Mobilize](Mobilize.md) | Attack trigger, tokens, delayed cleanup | Creates attacking Warrior tokens and sacrifices them at end step. |
