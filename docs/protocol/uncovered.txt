@@ -297,9 +297,11 @@ Ninjutsu.return-prompt
 Ninjutsu.return-transfer
 Ninjutsu.source-keeps-id
 Ninjutsu.source-revealed
-NumericInputReq.any-amount
+NumericInputReq.cost-x
+NumericInputReq.effect-amount
 NumericInputReq.no-cancel
 NumericInputReq.resp-bounds
+NumericInputReq.resp-zero
 NumericInputReq.source-card
 ObjectIdChanged.affected-orig
 ObjectIdChanged.resolve-battlefield-keeps-id
@@ -405,7 +407,6 @@ SearchReq.no-cancel
 SearchReq.sought-subset
 SearchReq.source-card
 SelectNReq.cleanup-discard
-SelectNReq.cost-discard
 SelectNReq.enum-complete
 SelectNReq.filtered-reveal
 SelectNReq.follows-state
