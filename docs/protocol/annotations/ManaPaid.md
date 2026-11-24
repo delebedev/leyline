@@ -26,7 +26,7 @@ mana-ability sequence.
 | `affectorId` | The permanent that produced the mana or made the substitution. |
 | `affectedIds` | The spell or ability instance the payment went to, as a one-element list. |
 | `id` | An identity for the paid mana. |
-| `color` | The color of the paid mana. |
+| `color` | The paid mana as a `ManaColor` value: `1` to `5` for white, blue, black, red and green, `12` for colorless; `7` (`Generic`) also occurs. |
 | `substitution_grpid` | On the substitution branch, the grpId of the substituting ability. |
 
 ## Identity model
@@ -58,11 +58,13 @@ costs are paid.
 - <a id="ManaPaid.substitution-keys"></a>**ManaPaid.substitution-keys.**
   *(provisional)* On the convoke substitution branch, the row `MUST` carry
   `substitution_grpid` and `color` and `MUST NOT` carry `id`.
+- <a id="ManaPaid.color-value"></a>**ManaPaid.color-value.**
+  *(provisional)* Mana paid from a basic land `MUST` carry `color` equal to
+  the `ManaColor` value of the land's color: `1` for a Plains, `2` an Island,
+  `3` a Swamp, `4` a Mountain and `5` a Forest.
 
 ## Open points
 
-- Which value set does `color` use? Most payments carry `ManaColor` values,
-  such as `5` for green, but power-of-two values such as `16` for green and `8`
-  for red also occur. What selects the encoding?
+- What does a `color` of `7`, `Generic`, describe?
 - What does `id` identify, and how does it relate to other rows that name paid
   mana, such as `ManaDetails`?

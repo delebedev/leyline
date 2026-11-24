@@ -23,7 +23,6 @@ Persistent only, never combined with another type. `REASON` and
 | Foretell | `5` | `208` | Exile |
 | Disguise | `6` | `307` | Stack, then battlefield |
 | Manifest dread | `8` | `351` | Battlefield |
-| Exiled face down by an effect | `1` | The effect's ability | Exile |
 
 ## Fields
 
@@ -84,4 +83,3 @@ spell's row follows the card from the stack to the battlefield: the same row
 
 - Which `REASON` and `abilityGrpId` do morph, manifest and cloak use, and
   effects that turn an existing permanent face down?
-- Which effects use `REASON` `1`?

@@ -115,7 +115,7 @@ Rows are grouped by family and sorted by entity name.
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
 | [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md) | — | `absent` |
-| [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
+| [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations`, `GameEventCollector` | `partial` |
 | [MiscContinuousEffect](annotations/MiscContinuousEffect.md) | — | `absent` |
 | [ModifiedCost](annotations/ModifiedCost.md) | — | `absent` |
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
@@ -736,12 +736,6 @@ grouped by family, then by entity.
   - Leyline: creates the disguise row only once the face-down permanent is on
     the battlefield.
   - Owner: `PersistentFeedBuilder`
-- **`absent`** — [Variants](annotations/FaceDown.md#variants), `REASON` `1`
-  - Contract: a card exiled face down by an effect carries `REASON` `1` and
-    the effect's ability.
-  - Leyline: emits rows only for foretell, disguise, cloak and manifest
-    dread.
-  - Owner: `PersistentFeedBuilder`
 - **`compat`** — [Open points](annotations/FaceDown.md#open-points), cloak
   - Contract: the cloak path's `REASON` and `abilityGrpId` are unknown.
   - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
@@ -782,6 +776,14 @@ grouped by family, then by entity.
 - **`absent`** — [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md), the entity
   - Leyline: publishes no `LoyaltyActivationsRemaining` row for any
     planeswalker.
+
+#### ManaPaid
+
+- **`diverges`** — [ManaPaid.color-value](annotations/ManaPaid.md#ManaPaid.color-value) *(provisional statement)*
+  - Contract: `color` is a `ManaColor` value, `4` for red and `5` for green.
+  - Leyline: writes a color bit mask, `1`, `2`, `4`, `8` and `16` for white,
+    blue, black, red and green.
+  - Owner: `GameEventCollector`, `TransferAnnotations`
 
 #### MiscContinuousEffect
 

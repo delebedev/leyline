@@ -24,7 +24,7 @@ fall into three groups:
 
 - movement causes, such as `Draw`, `CastSpell`, `PlayLand`, `Resolve`,
   `Discard`, `Destroy`, `Sacrifice`, `Exile`, `Countered`, `Return`, `Put`,
-  `Mill`, `Surveil`, `Search` and `Bounce`;
+  `Mill`, `Surveil`, `Seek` and `Warp`;
 - state-based actions, prefixed `SBA_`, such as `SBA_Damage`,
   `SBA_ZeroToughness`, `SBA_Deathtouch`, `SBA_LegendRule`,
   `SBA_UnattachedAura` and `SBA_ZeroLoyalty`;
