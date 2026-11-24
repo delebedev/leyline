@@ -84,8 +84,11 @@ Typical sequences:
 4. **State-based death.** A creature with lethal damage moves from `28` to its
    owner's graveyard with `SBA_Damage`.
 
-The destination zone's [EnteredZoneThisTurn](EnteredZoneThisTurn.md) row in
-the same GSM lists the moved object.
+For a move onto the battlefield, the stack or a hand, the destination zone's
+[EnteredZoneThisTurn](EnteredZoneThisTurn.md) row in the same GSM lists the
+moved object, unless the object moves again in that GSM. A move into a
+graveyard or exile can leave the object out of that zone's row; see
+EnteredZoneThisTurn.
 
 ## Sibling shapes
 
