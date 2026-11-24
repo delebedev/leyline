@@ -29,7 +29,7 @@ The object type is independent of annotation and mechanic identity.
 | [Card](Card.md) | generic | A card, permanent or spell. |
 | [Token](Token.md) | generic | A token created during the game. |
 | [Ability](Ability.md) | generic | An activated or triggered ability on the Stack or in Pending. |
-| `Emblem` | generic | An emblem in the Command zone. |
+| [Emblem](Emblem.md) | generic | An emblem in the Command zone. |
 | `SplitCard` | card side | A split card as a whole. |
 | [SplitLeft](SplitLeft.md), [SplitRight](SplitRight.md) | card side | A split card's halves. |
 | [RevealedCard](RevealedCard.md) | protocol utility | A temporary public projection of a revealed card. |

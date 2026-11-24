@@ -59,6 +59,7 @@ Rows are grouped by family and sorted by entity name.
 | [Adventure](object_types/Adventure.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
 | [DisturbBack](object_types/DisturbBack.md) | `ZoneMapper.addDisturbBackObject`, `ObjectMapper.buildDisturbBackObject`, `StateMapper` | `partial` |
+| [Emblem](object_types/Emblem.md) | `ObjectMapper.buildFromSnapshot`, `EmblemSnapshot` | `implemented` |
 | [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
