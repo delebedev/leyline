@@ -47,8 +47,9 @@ evoke trigger.
    `TemporaryPermanent` row stays on the permanent.
 2. The evoke trigger is created as an ability object whose `grpId` is the
    evoke ability and whose `parentId` is the permanent.
-3. When the trigger resolves, the permanent gets a new instance ID and moves
-   Battlefield to Graveyard with `category` `Sacrifice`.
+3. When the trigger resolves while the permanent is still on the
+   battlefield, the permanent gets a new instance ID and moves Battlefield to
+   Graveyard with `category` `Sacrifice`.
 4. In the same GSM, `ResolutionComplete` and `AbilityInstanceDeleted` retire
    the trigger, and the `TemporaryPermanent` row is deleted.
 
@@ -69,14 +70,15 @@ permanent enters, and its `grpId` is the evoke ability itself.
 - <a id="Evoke.temporary-permanent"></a>**Evoke.temporary-permanent.**
   *(provisional)* A card cast for its evoke cost `MUST` carry a persistent
   `TemporaryPermanent` row whose `AbilityGrpId` is the evoke ability, from the
-  stack until the GSM of its sacrifice.
+  stack until the GSM in which the evoke trigger sacrifices it.
 - <a id="Evoke.trigger-identity"></a>**Evoke.trigger-identity.**
   *(provisional)* The evoke sacrifice trigger `MUST` be an ability object whose
   `grpId` is the evoke ability and whose `parentId` is the permanent.
-- <a id="Evoke.sacrifice"></a>**Evoke.sacrifice.** *(provisional)* The
-  trigger's resolution `MUST` move the permanent Battlefield to Graveyard with
-  `category` `Sacrifice` and delete the `TemporaryPermanent` row in the same
-  GSM.
+- <a id="Evoke.sacrifice"></a>**Evoke.sacrifice.** *(provisional)* When the
+  trigger resolves while the permanent is still on the battlefield and no
+  replacement effect changes where it goes, the resolution `MUST` move the
+  permanent Battlefield to Graveyard with `category` `Sacrifice` and delete
+  the `TemporaryPermanent` row in the same GSM.
 - <a id="Evoke.normal-cast"></a>**Evoke.normal-cast.** A card with evoke cast
   for its mana cost `MUST NOT` carry a `TemporaryPermanent` or
   `CastingTimeOption` row, and `MUST NOT` be sacrificed by an evoke trigger.
@@ -86,4 +88,7 @@ permanent enters, and its `grpId` is the evoke ability itself.
 - Which evoke cards carry an `AbilityWordActive` row named
   `ManaPaymentCondition` in the payment GSM, and what does it mark?
 - What happens to the `TemporaryPermanent` row when the permanent leaves
-  before the trigger resolves?
+  before the trigger resolves, and what does the trigger's resolution carry
+  then?
+- How is the sacrifice published when a replacement effect sends the
+  permanent somewhere other than the graveyard?
