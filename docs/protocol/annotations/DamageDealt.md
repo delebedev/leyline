@@ -66,13 +66,16 @@ damage a spell on the stack will deal.
   *(provisional)* For two creatures fighting, each creature's damage `MUST`
   carry `type` `3`.
 - <a id="DamageDealt.player-life"></a>**DamageDealt.player-life.**
-  When `affectedIds` names a seat, `damage` is greater than `0` and the source
-  does not have infect, the same GSM `MUST` carry a `ModifiedLife` whose
-  `affectedIds` is that seat. Damage from a source with infect gives the
-  player poison counters instead of causing life loss (CR 120.3a,
-  CR 120.3b).
+  When `affectedIds` names a seat, `damage` is greater than `0`, the source
+  does not have infect and no effect says that player can't lose life, the
+  same GSM `MUST` carry a `ModifiedLife` whose `affectedIds` is that seat.
+  Damage from a source with infect gives the player poison counters instead
+  of causing life loss (CR 120.3b, CR 702.90b), and a player who can't lose
+  life loses none (CR 119.8).
 
 ## Open points
+
+- What does the GSM carry for damage dealt to a player who can't lose life?
 
 - What does `markDamage` signal, and when is it absent or `0`?
 - When is a row with `damage` `0` sent?
