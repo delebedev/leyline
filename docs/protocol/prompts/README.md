@@ -20,6 +20,7 @@ semantic discriminator; `promptId` selects instruction text.
 | [DeclareBlockersReq](DeclareBlockersReq.md) | Declare blockers and what they block, one change at a time, then submit. |
 | [DistributionReq](DistributionReq.md) | Divide damage or counters among the targets just chosen. |
 | [GroupReq](GroupReq.md) | Split cards into groups: scry, surveil, London mulligan, piles. |
+| [NumericInputReq](NumericInputReq.md) | Choose a number while a spell or ability resolves. |
 | [OptionalActionMessage](OptionalActionMessage.md) | Answer yes or no to an optional effect. |
 | [OrderReq](OrderReq.md) | Put objects in order, such as cards going to the top or bottom of a library. |
 | [PayCostsReq](PayCostsReq.md) | Pay a cost: mana, objects chosen to pay it, or counters gathered from several permanents. |

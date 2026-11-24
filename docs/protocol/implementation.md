@@ -80,6 +80,7 @@ Rows are grouped by family and sorted by entity name.
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `implemented` |
 | [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
+| [NumericInputReq](prompts/NumericInputReq.md) | `BlockingInteractionMaterializer.numeric`, `NumericInputHandler` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
@@ -336,6 +337,15 @@ grouped by family, then by entity.
   - Leyline: sends `GroupReq` only for scry, surveil and the London
     mulligan.
   - Owner: `GroupingWindowCapture`
+
+#### NumericInputReq
+
+- **`diverges`** — [NumericInputReq.any-amount](prompts/NumericInputReq.md#NumericInputReq.any-amount)
+  - Contract: a number chosen during resolution uses
+    `NumericInputType_ChooseAnyAmount` and a prompt specific to the effect.
+  - Leyline: sends every number request as `NumericInputType_ChooseX` with
+    prompt `51`.
+  - Owner: `BlockingInteractionMaterializer.numeric`
 
 #### OptionalActionMessage
 
