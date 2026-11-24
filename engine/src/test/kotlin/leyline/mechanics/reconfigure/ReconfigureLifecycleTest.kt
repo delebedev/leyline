@@ -18,6 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 
 class ReconfigureLifecycleTest :
     SessionTest({
+        // protocol: ModifiedType.persistent
         session(
             "Rabbit Battery attaches and unattaches through Reconfigure",
             puzzleFile = "data/puzzles/reconfigure-rabbit-battery.pzl",
@@ -43,7 +44,10 @@ class ReconfigureLifecycleTest :
                     }.shouldBeTrue()
                 attachedPersistent
                     .any {
-                        AnnotationType.ModifiedType in it.typeList && rabbitIid in it.affectedIdsList
+                        AnnotationType.ModifiedType in it.typeList &&
+                            rabbitIid in it.affectedIdsList &&
+                            AnnotationType.LayeredEffect in it.typeList &&
+                            it.detailsList.any { d -> d.key == DetailKeys.EFFECT_ID }
                     }.shouldBeTrue()
             }
 

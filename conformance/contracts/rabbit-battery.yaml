@@ -1,3 +1,4 @@
+# protocol: LayeredEffectCreated.no-details
 name: Rabbit Battery — attach
 scenario: {suite: mechanics-warmup, id: reconfigure-attach-unattach}
 frames:

@@ -39,6 +39,7 @@ class DamagedThisTurnPipelineTest :
 
         // -- CombatAnnotations: routing + shape --
 
+        // protocol: DamagedThisTurn.persistent
         test("combatAnnotations emits DamagedThisTurn to persistent bucket, not transient") {
             val events =
                 listOf(
@@ -66,6 +67,7 @@ class DamagedThisTurnPipelineTest :
                 dtt.typeList shouldContain AnnotationType.DamagedThisTurn
                 dtt.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
                 dtt.affectedIdsList shouldBe listOf(idResolver(ForgeCardId(2)).value)
+                dtt.detailsList shouldBe emptyList()
             }
         }
 
@@ -166,6 +168,7 @@ class DamagedThisTurnPipelineTest :
             }
         }
 
+        // protocol: DamagedThisTurn.grows-in-place, DamagedThisTurn.single-row
         test("computeBatch grows affectedIds when DamagedThisTurn already active, keeps same id") {
             val existing =
                 AnnotationBuilder

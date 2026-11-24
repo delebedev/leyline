@@ -52,6 +52,8 @@ class LandManaTest :
 
         // --- Zone transfer & annotation shape ---
 
+        // protocol: ObjectIdChanged.precedes-transfer, ObjectIdChanged.limbo, ZoneTransfer.play-land
+        // protocol: ZoneTransfer.post-transfer-id
         test("play land — annotations, zone transfer, instanceId realloc, Limbo") {
             val board =
                 startWithBoard { _, human, _ ->
@@ -90,7 +92,7 @@ class LandManaTest :
                 oic.affectorId shouldBe 0
 
                 val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-                zt.affectedIdsList.shouldContain(newId)
+                zt.affectedIdsList shouldBe listOf(newId)
                 zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
                 zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
                 zt.detailString("category") shouldBe "PlayLand"

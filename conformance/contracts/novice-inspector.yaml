@@ -1,3 +1,5 @@
+# protocol: TriggeringObject.persistent, TriggeringObject.ability-affector
+# protocol: TriggeringObject.born-with-instance
 # protocol: Token.created
 name: Novice Inspector investigate trigger
 scenario: {suite: mechanics-protocol, id: investigate-novice-inspector}
@@ -20,7 +22,7 @@ frames:
         lane: persistent
         op: create
         keys: [source_zone]
-        fields: {details.source_zone: [28]}
+        fields: {details.source_zone: [28], raw.type.length: 1}
         equals: {affectorId: ability.affectorId, "affectedIds[0]": created.affectorId}
   - id: resolution
     events:

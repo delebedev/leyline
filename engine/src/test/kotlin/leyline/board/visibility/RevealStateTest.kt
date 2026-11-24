@@ -28,6 +28,8 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 class RevealStateTest :
     BoardTest({
+        // protocol: CardRevealed.persistent, CardRevealed.view-affected
+        // protocol: InstanceRevealedToOpponent.persistent, InstanceRevealedToOpponent.self-row
         test("hand reveal emits both contracts with separate affected identities") {
             val board = startWithBoard { _, human, _ -> addCard("Lightning Bolt", human, ZoneType.Hand) }
             val card =
@@ -56,6 +58,7 @@ class RevealStateTest :
             assertSoftly {
                 gsm.annotationOrNull(AnnotationType.RevealedCardCreated)?.affectedIdsList shouldBe
                     listOf(revealedView.instanceId)
+                faceUp.typeList shouldBe listOf(AnnotationType.CardRevealed)
                 faceUp.affectedIdsList shouldBe listOf(revealedView.instanceId)
                 faceUp.detailInt("source_zone") shouldBe ZoneIds.P1_HAND
                 known.affectorId shouldBe actualId

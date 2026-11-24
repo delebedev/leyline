@@ -1,3 +1,4 @@
+# protocol: DamageDealt.single-recipient, DamageDealt.combat-type, DamageDealt.player-life
 name: Attack declaration and unblocked combat damage
 scenario: {suite: warmup, id: attack-main2}
 frames:

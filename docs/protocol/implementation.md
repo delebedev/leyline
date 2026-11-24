@@ -124,7 +124,106 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
+| [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
+| [AbilityWordActive](annotations/AbilityWordActive.md) | `AnnotationBuilder.abilityWordActive`, `AbilityWordScanner`, `AbilityWordTriggerRecognizers`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `partial` |
+| [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
+| [CardRevealed](annotations/CardRevealed.md) | `AnnotationBuilder.cardRevealed`, `RevealStateContributor`, `CardRevealedKind` | `partial` |
+| [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
+| [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
+| [CoinFlip](annotations/CoinFlip.md) | `AnnotationBuilder.coinFlip`, `AnnotationPipeline`, `BundleBuilder`, `GameEventCollector` | `partial` |
+| [CopiedObject](annotations/CopiedObject.md) | — | `absent` |
+| [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
+| [DamagedThisTurn](annotations/DamagedThisTurn.md) | `AnnotationBuilder.damagedThisTurn`, `CombatAnnotations`, `PersistentAnnotationStore` | `partial` |
+| [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
+| [DungeonStatus](annotations/DungeonStatus.md) | `AnnotationBuilder.dungeonStatus`, `PersistentFeedBuilder` | `compat-only` |
+| [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
+| [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
+| [InstanceRevealedToOpponent](annotations/InstanceRevealedToOpponent.md) | `AnnotationBuilder.instanceRevealedToOpponent`, `RevealStateContributor`, `InstanceRevealedToOpponentKind` | `partial` |
+| [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
+| [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
+| [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md) | — | `absent` |
+| [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations`, `GameEventCollector` | `partial` |
+| [MiscContinuousEffect](annotations/MiscContinuousEffect.md) | — | `absent` |
+| [ModifiedCost](annotations/ModifiedCost.md) | — | `absent` |
+| [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
+| [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
+| [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
+| [PhasedIn](annotations/PhasedIn.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline` | `compat-only` |
+| [PhasedOut](annotations/PhasedOut.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection` | `compat-only` |
+| [Qualification](annotations/Qualification.md) | `AnnotationBuilder.qualification`, `PersistentFeedBuilder`, `QualificationKind`, `QualificationType` | `partial` |
+| [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
+| [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
+| [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler`, `AnnotationPipeline` | `partial` |
+| [ShouldntPlay](annotations/ShouldntPlay.md) | `AnnotationBuilder.redundantActivation`, `VehicleAttachContributor` | `partial` |
+| [SyntheticEvent](annotations/SyntheticEvent.md) | `AnnotationBuilder.syntheticEvent`, `CombatAnnotations`, `AnnotationPipeline` | `partial` |
+| [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
+| [TargetSpec](annotations/TargetSpec.md) | `AnnotationBuilder.targetSpec`, `TargetSpecContributor`, `TargetSpecKind` | `implemented` |
+| [TemporaryPermanent](annotations/TemporaryPermanent.md) | `AnnotationBuilder.temporaryPermanent`, `PersistentTemporaryFeedBuilder` | `implemented` |
+| [TriggeringObject](annotations/TriggeringObject.md) | `AnnotationBuilder.triggeringObject`, `AnnotationPipeline`, `TriggeringObjectProjection.shouldEmit` | `partial` |
+| [UserActionTaken](annotations/UserActionTaken.md) | `AnnotationBuilder.userActionTaken`, `TransferAnnotations` | `implemented` |
+| [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
+
+Annotation types without a page have no Contract to check. This table records
+only whether Leyline emits each one and which builder owns it. A type moves to
+the table above when its page is written.
+
+| Type | Owner | Emission |
+|---|---|---|
+| `AbilityExhausted` | `AnnotationBuilder.abilityExhausted` | emitted |
+| `Attachment` | `AnnotationBuilder.attachment` | emitted |
+| `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
+| `ClassLevel` | — | `absent` |
+| `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
+| `ControllerChanged` | `AnnotationBuilder.controllerChanged`, `AnnotationBuilder.controllerChangedEffect` | emitted |
+| `Counter` | `AnnotationBuilder.counter`, `AnnotationBuilder.playerCounter` | emitted |
+| `CounterAdded` | `AnnotationBuilder.counterAdded`, `AnnotationBuilder.playerCounterAdded` | emitted |
+| `CounterRemoved` | `AnnotationBuilder.counterRemoved`, `AnnotationBuilder.playerCounterRemoved` | emitted |
+| `CrewedThisTurn` | `AnnotationBuilder.crewedThisTurn` | emitted |
+| `Designation` | `AnnotationBuilder.designation` | emitted |
+| `DisplayCardUnderCard` | `AnnotationBuilder.displayCardUnderCard` | emitted |
+| `DisqualifiedEffect` | — | `absent` |
+| `DynamicAbility` | — | `absent` |
+| `GainDesignation` | `AnnotationBuilder.gainDesignation` | emitted |
+| `GamewideHistoryCount` | — | `absent` |
+| `GroupedIds` | — | `absent` |
+| `HighlightReason` | — | `absent` |
+| `LayeredEffect` | `AnnotationBuilder.layeredEffect` | emitted |
+| `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
+| `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |
+| `LossOfGame` | `AnnotationBuilder.lossOfGame` | emitted |
+| `ManaDetails` | `AnnotationBuilder.manaDetails` | emitted |
+| `ModifiedColor` | — | `absent` |
+| `ModifiedLife` | `AnnotationBuilder.modifiedLife` | emitted |
+| `ModifiedName` | — | `absent` |
+| `ModifiedPower` | `AnnotationBuilder.modifiedPower`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
+| `ModifiedToughness` | `AnnotationBuilder.modifiedToughness`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
+| `MultistepEffectComplete` | — | `absent` |
+| `MultistepEffectStarted` | — | `absent` |
+| `NewTurnStarted` | `AnnotationBuilder.newTurnStarted` | emitted |
+| `ObjectsSelected` | — | `absent` |
+| `ObjectsToDistinguish` | — | `absent` |
+| `PlayerSelectingTargets` | `AnnotationBuilder.playerSelectingTargets` | emitted |
+| `PlayerSubmittedTargets` | `AnnotationBuilder.playerSubmittedTargets` | emitted |
+| `PowerToughnessModCreated` | `AnnotationBuilder.powerToughnessModCreated` | emitted |
+| `PredictedDirectDamage` | `AnnotationBuilder.predictedDirectDamage` | emitted |
+| `RemoveAttachment` | `AnnotationBuilder.removeAttachment` | emitted |
+| `ReplacementEffectApplied` | — | `absent` |
+| `RevealedCardCreated` | `AnnotationBuilder.revealedCardCreated` | emitted |
+| `RevealedCardDeleted` | `AnnotationBuilder.revealedCardDeleted` | emitted |
+| `SaddledThisTurn` | `AnnotationBuilder.saddledThisTurn` | emitted |
+| `Scry` | `AnnotationBuilder.scry` | emitted |
+| `SelectNdecoration` | `AnnotationBuilder.selectNDecoration` | emitted |
+| `Shuffle` | `AnnotationBuilder.shuffle` | emitted |
+| `SupplementalText` | — | `absent` |
+| `SuppressedPowerAndToughness` | `AnnotationBuilder.suppressedPowerAndToughness` | emitted |
+| `TextChange` | — | `absent` |
+| `TokenCreated` | `AnnotationBuilder.tokenCreated` | emitted |
+| `TokenDeleted` | `AnnotationBuilder.tokenDeleted` | emitted |
+| `TurnPermanent` | — | `absent` |
+| `UseOrCostsManaCost` | — | `absent` |
+| `WinTheGame` | — | `absent` |
 
 ## Exceptions
 
@@ -743,6 +842,280 @@ grouped by family, then by entity.
 
 ### Annotation exceptions
 
+#### AbilityInstanceCreated
+
+- **`diverges`** — [Lifecycle](annotations/AbilityInstanceCreated.md#lifecycle), instance IDs of mana abilities
+  - Contract: a mana ability activation normally names a new instance ID.
+  - Leyline: derives the mana ability instance from a surrogate keyed by the
+    source card, so every activation of one land or creature names the same
+    instance ID for the whole game.
+  - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
+
+#### AbilityWordActive
+
+- **`diverges`** — [AbilityWordActive.affector-domain](annotations/AbilityWordActive.md#AbilityWordActive.affector-domain) *(provisional statement)*
+  - Contract: `Delirium` rows name a seat and `LifeGainedThisTurn` rows name
+    the affected card.
+  - Leyline: names the affected card for `Delirium`, which it scans per
+    card, and the controller's seat for `LifeGainedThisTurn`, which it
+    publishes for infusion triggers.
+  - Owner: `AbilityWordScanner`, `AbilityWordTriggerRecognizers`
+- **`diverges`** — [AbilityWordActive.update-in-place](annotations/AbilityWordActive.md#AbilityWordActive.update-in-place)
+  - Contract: a change of `value` republishes the row under the same `id`.
+  - Leyline: deletes the row and creates a new one when the value changes,
+    for example for `Threshold`, `Delirium` and `LifeGainedThisTurn`.
+  - Owner: `AbilityWordActiveKind`
+
+#### CardRevealed
+
+- **`diverges`** — [CardRevealed.one-row-per-view](annotations/CardRevealed.md#CardRevealed.one-row-per-view)
+  - Contract: one row per view, with `source_zone` fixed once the outcome is
+    known.
+  - Leyline: keys the row by its view and replaces it with a new row when
+    `source_zone` changes, so a card revealed from the library and then put
+    into the hand is named by a library-zone row and then a hand-zone row
+    for the same view.
+  - Owner: `CardRevealedKind`, `RevealStateContributor`
+- **`compat`** — [Variants](annotations/CardRevealed.md#variants), lifecycle choice
+  - Contract: most reveals use the unbracketed lifecycle; the selection rule
+    is unknown.
+  - Leyline: brackets every view with `RevealedCardCreated` and
+    `RevealedCardDeleted`, and names only a resolving spell or ability as
+    `affectorId`.
+  - Owner: `RevealStateContributor`
+- **`diverges`** — [CardRevealed.view-affected](annotations/CardRevealed.md#CardRevealed.view-affected)
+  - Contract: a row names a view that is new in the row's GSM.
+  - Leyline: the replacement row for a changed `source_zone` names the
+    existing view.
+  - Owner: `CardRevealedKind`
+
+#### CastingTimeOption
+
+- **`absent`** — [Variants](annotations/CastingTimeOption.md#variants), `Casualty`, `Bargain` and `OptionalCostPaid`
+  - Contract: casualty, bargain and named optional costs produce rows of
+    `type` `15`, `17` and `18`.
+  - Leyline: builds rows only for `ChooseX`, `Kicker`, `AdditionalCost`,
+    `ChooseOrCost` and `CastThroughAbility`.
+  - Owner: `TransferAnnotations`
+- **`absent`** — [Variants](annotations/CastingTimeOption.md#variants), ability rows and the transient Kicker row
+  - Contract: an activated ability with a chosen X and the triggered ability
+    of a kicked permanent carry a persistent row, and a kicked permanent's
+    resolution can carry a transient Kicker row.
+  - Leyline: builds rows only for spells, while they are on the stack.
+  - Owner: `TransferAnnotations`
+
+#### ChoiceResult
+
+- **`diverges`** — [ChoiceResult.before-resolution](annotations/ChoiceResult.md#ChoiceResult.before-resolution) *(provisional statement)*
+  - Contract: `ChoiceResult` precedes `ResolutionComplete` in its GSM.
+  - Leyline: appends the prompt's choice results after the transfer and
+    resolution annotations of the GSM, so a choice made while a spell or
+    ability resolves follows its `ResolutionComplete`.
+  - Owner: `AnnotationPipeline`
+- **`absent`** — [Variants](annotations/ChoiceResult.md#variants), choices outside static-list and card-selection prompts
+  - Contract: choices answered through other prompts, such as `PromptReq` or a
+    declined optional choice with `Choice_Value` `-1`, also produce a row.
+  - Leyline: records a choice result only from a static-list `SelectNReq`
+    and from a card-selection `SelectNReq`.
+  - Owner: `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime`
+
+#### CoinFlip
+
+- **`diverges`** — [CoinFlip.result-code](annotations/CoinFlip.md#CoinFlip.result-code)
+  - Contract: a lost flip carries `CoinFlipResult` `2`.
+  - Leyline: writes `1` for a won flip and `0` for a lost one. The prompt's
+    localization reference is still `48` for a loss.
+  - Owner: `GameEventCollector`, `AnnotationPipeline`
+
+#### CopiedObject
+
+- **`absent`** — [CopiedObject](annotations/CopiedObject.md), the entity
+  - Leyline: publishes no `CopiedObject` row for any copy effect.
+
+#### DamagedThisTurn
+
+- **`diverges`** — [Lifecycle](annotations/DamagedThisTurn.md#lifecycle), retirement at the turn boundary
+  - Contract: the row is normally deleted in the first GSM of the next turn.
+  - Leyline: deletes the row when the upkeep step begins, so it survives the
+    GSMs of the new turn's untap step.
+  - Owner: `CombatAnnotations`, `PersistentAnnotationStore`
+- **`diverges`** — [DamagedThisTurn.member-leaves](annotations/DamagedThisTurn.md#DamagedThisTurn.member-leaves) *(provisional statement)*
+  - Contract: a member that receives a new instance ID is removed from the
+    row in that GSM.
+  - Leyline: leaves the row unchanged, so it keeps naming the old instance ID
+    until the row is cleared. Such a row breaks the rule in the
+    [annotation reference](annotations/README.md) that a row names objects by
+    their current ID.
+  - Owner: `PersistentAnnotationStore`
+
+#### DelayedTriggerAffectees
+
+- **`absent`** — [Variants](annotations/DelayedTriggerAffectees.md#variants), mana branch and holderless triggers
+  - Contract: a delayed mana trigger carries `mana_to_add`, and a trigger
+    that fires as it is created starts its row on the ability.
+  - Leyline: builds rows only from pending trigger holders, and never writes
+    `mana_to_add`.
+  - Owner: `PersistentTemporaryFeedBuilder`
+
+#### DungeonStatus
+
+- **`compat`** — [DungeonStatus](annotations/DungeonStatus.md), the entity
+  - Leyline: publishes one row per player that has dungeon state, with the
+    seat as `affectorId` and `affectedIds`. Each of `CurrentDungeon`,
+    `CurrentDungeonZCID` and `CurrentRoom` is an Int32 when its value is
+    present and the typed string `"nil"` when it is absent, field by field,
+    so `CurrentRoom` can be `"nil"` while a dungeon is active.
+    `AllDungeonsCompleted` lists completed dungeon grpIds and is key-only when
+    empty. A player without dungeon state has no row. The contract for these
+    fields is not established.
+  - Owner: `AnnotationBuilder.dungeonStatus`, `PersistentFeedBuilder`
+
+#### EnteredZoneThisTurn
+
+- **`diverges`** — [EnteredZoneThisTurn.one-row-per-zone](annotations/EnteredZoneThisTurn.md#EnteredZoneThisTurn.one-row-per-zone)
+  - Contract: one live row per zone; an object entering a zone that already
+    has a row is added to that row.
+  - Leyline: adds a new single-object row for every transfer, so two objects
+    entering the battlefield in one turn, or in one GSM, produce two rows with
+    `affectorId` `28`.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind`
+- **`diverges`** — [Lifecycle](annotations/EnteredZoneThisTurn.md#lifecycle), retirement at the turn boundary
+  - Contract: the rows of the ending turn are deleted when the next turn
+    starts.
+  - Leyline: deletes a row only in the upkeep of its object's controller's
+    turn. A creature that enters during its controller's turn stays listed
+    through the opponent's whole next turn.
+  - Owner: `EnteredZoneThisTurnKind.shouldExpire`
+- **`diverges`** — [EnteredZoneThisTurn.zone-affector](annotations/EnteredZoneThisTurn.md#EnteredZoneThisTurn.zone-affector)
+  - Contract: every object in a row is in the zone named by `affectorId`.
+  - Leyline: an object that passes through exile and returns in one GSM stays
+    listed in the exile row under its intermediate ID, now in Limbo.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind`
+
+#### FaceDown
+
+- **`absent`** — [FaceDown.disguise-on-stack](annotations/FaceDown.md#FaceDown.disguise-on-stack) *(provisional statement)*
+  - Contract: a disguised spell carries its row on the stack, and the row
+    stays live when the spell resolves onto the battlefield.
+  - Leyline: creates the disguise row only once the face-down permanent is on
+    the battlefield.
+  - Owner: `PersistentFeedBuilder`
+- **`compat`** — [Open points](annotations/FaceDown.md#open-points), cloak
+  - Contract: the cloak path's `REASON` and `abilityGrpId` are unknown.
+  - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
+    ability's definition as `abilityGrpId`.
+  - Owner: `PersistentFeedBuilder`, `AnnotationConstants`
+
+#### InstanceRevealedToOpponent
+
+- **`diverges`** — [InstanceRevealedToOpponent.not-library](annotations/InstanceRevealedToOpponent.md#InstanceRevealedToOpponent.not-library) *(provisional statement)*
+  - Contract: no row names a card in a library.
+  - Leyline: records opponent knowledge for a card revealed from a library
+    as well, until the card moves or the library is shuffled.
+  - Owner: `RevealStateContributor`, `InstanceRevealedToOpponentKind`
+- **`diverges`** — [InstanceRevealedToOpponent.retired-on-rename](annotations/InstanceRevealedToOpponent.md#InstanceRevealedToOpponent.retired-on-rename) *(provisional statement)*
+  - Contract: the row is deleted in the GSM whose `ObjectIdChanged` renames
+    its card.
+  - Leyline: keeps some rows after the card is renamed, for example when it
+    moves from the hand to the battlefield.
+  - Owner: `InstanceRevealedToOpponentKind`
+
+#### LinkInfo
+
+- **`absent`** — [Variants](annotations/LinkInfo.md#variants), `LinkType` `2` for sacrifice costs
+  - Contract: an activated ability that sacrifices an object as a cost, such
+    as a Clue's or a Food's, carries a row naming the sacrificed object.
+  - Leyline: emits `LinkType` `2` only for an activated discover ability,
+    naming its source card.
+  - Owner: `AnnotationPipeline`
+- **`absent`** — [Variants](annotations/LinkInfo.md#variants), `Parity` and `Amount` choices
+  - Contract: parity and amount choices are remembered under `LinkType` `3`.
+  - Leyline: remembers only a chosen creature type and the first chosen
+    color.
+  - Owner: `PersistentFeedBuilder`
+- **`diverges`** — [LinkInfo.choice-with-result](annotations/LinkInfo.md#LinkInfo.choice-with-result) *(provisional statement)*
+  - Contract: the row first appears with the choice's `ChoiceResult`.
+  - Leyline: derives the row from the permanent's remembered choice, and
+    records a `ChoiceResult` only for a choice made through a prompt, so a
+    choice made by a computer-controlled opponent produces the row with no
+    `ChoiceResult`.
+  - Owner: `PersistentFeedBuilder`, `MatchStaticChoiceInteractionRuntime`
+
+#### LoyaltyActivationsRemaining
+
+- **`absent`** — [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md), the entity
+  - Leyline: publishes no `LoyaltyActivationsRemaining` row for any
+    planeswalker.
+
+#### ManaPaid
+
+- **`diverges`** — [ManaPaid.color-value](annotations/ManaPaid.md#ManaPaid.color-value) *(provisional statement)*
+  - Contract: `color` is a `ManaColor` value, `4` for red and `5` for green.
+  - Leyline: writes a color bit mask, `1`, `2`, `4`, `8` and `16` for white,
+    blue, black, red and green.
+  - Owner: `GameEventCollector`, `TransferAnnotations`
+
+#### MiscContinuousEffect
+
+- **`absent`** — [MiscContinuousEffect](annotations/MiscContinuousEffect.md), the entity
+  - Leyline: publishes no `MiscContinuousEffect` row for any player-level
+    continuous effect.
+
+#### ModifiedCost
+
+- **`absent`** — [ModifiedCost](annotations/ModifiedCost.md), the entity
+  - Leyline: publishes no `ModifiedCost` row. Its `RemoveAbility` rows are
+    typed `RemoveAbility` and `LayeredEffect` only.
+
+#### ModifiedType
+
+- **`absent`** — [Variants](annotations/ModifiedType.md#variants), effects other than crew, reconfigure and earthbend
+  - Contract: every continuous effect that changes a type line publishes a
+    row, including animated lands and artifacts, Spacecraft thresholds and
+    perpetual and type-replacement effects.
+  - Leyline: emits `ModifiedType` only for a crewed Vehicle, an attached
+    reconfigure permanent and an earthbended land. Other type changes reach
+    the object's type line with no row, and `temporaryCardType`,
+    `perpetualAffectedId` and the type-replacement branch are never produced.
+  - Owner: `VehicleAttachContributor`, `EarthbendEmitter`
+- **`diverges`** — [Variants](annotations/ModifiedType.md#variants), reconfigure on the plain branch
+  - Contract: an attached reconfigure Equipment's row is a plain row, with
+    `effect_id` only.
+  - Leyline: adds `sourceAbilityGRPID`, the attach ability, to that row, and
+    ends it with `LayeredEffectDestroyed`.
+  - Owner: `VehicleAttachContributor`
+
+#### PhasedIn
+
+- **`compat`** — [PhasedIn](annotations/PhasedIn.md), the entity
+  - Leyline: publishes one row per returning permanent with its unchanged
+    instance ID, no `affectorId` and no details, after the untap step's
+    `PhaseOrStepModified` and before its untap rows. The contract for this
+    shape is not established.
+  - Owner: `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`
+
+#### PhasedOut
+
+- **`compat`** — [PhasedOut](annotations/PhasedOut.md), the entity
+  - Leyline: publishes one row naming the permanent by its unchanged
+    instance ID, with the resolving spell or ability as `affectorId` and no
+    details, without `ObjectIdChanged` or `ZoneTransfer`, and republishes the
+    object with `zoneId` `12` while keeping it in the battlefield zone. The
+    contract for this shape is not established.
+  - Owner: `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection`
+
+#### Qualification
+
+- **`absent`** — [Variants](annotations/Qualification.md#variants), predicates other than combat restrictions, combat keywords and adventure casting
+  - Contract: rows publish every qualifying predicate, including doesn't
+    untap, can't be countered, cost changes, cast permissions granted by
+    other cards and player-scoped predicates, with `parent_grpid` and the
+    duration keys where they apply.
+  - Leyline: emits `QualificationType` `30`, `31`, `32` and `40`, and `47`
+    only for an adventure card in exile. It never writes `parent_grpid` or a
+    duration key.
+  - Owner: `PersistentFeedBuilder`, `QualificationType`
+
 #### ReplacementEffect
 
 - **`absent`** — [Variants](annotations/ReplacementEffect.md#variants)
@@ -758,6 +1131,64 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### ResolutionStart
+
+- **`diverges`** — [ResolutionStart.grpid](annotations/ResolutionStart.md#ResolutionStart.grpid)
+  - Contract: `grpid` equals the resolving object's `grpId` or an entry of its
+    `uniqueAbilities`.
+  - Leyline: writes `grpid` `0` for some resolving abilities whose object
+    carries a nonzero `grpId`.
+  - Owner: `AnnotationPipeline`, `StateProjectionCompiler`
+
+#### ShouldntPlay
+
+- **`absent`** — [Variants](annotations/ShouldntPlay.md#variants), `EntersTapped`, `Legendary` and `ConsequentialConditionNotMet`
+  - Contract: the client is warned about tapped lands, duplicate legendary
+    permanents and abilities whose condition is not met.
+  - Leyline: emits only `RedundantActivation`, once, in the GSM where a
+    Vehicle becomes crewed.
+  - Owner: `VehicleAttachContributor`
+
+#### SyntheticEvent
+
+- **`absent`** — [Variants](annotations/SyntheticEvent.md#variants), `type` `3`
+  - Contract: an object-scoped cue exists as `type` `3`.
+  - Leyline: builds only `type` `1`.
+  - Owner: `AnnotationBuilder.syntheticEvent`
+
+#### TriggeringObject
+
+- **`diverges`** — [TriggeringObject.born-with-instance](annotations/TriggeringObject.md#TriggeringObject.born-with-instance)
+  - Contract: the row first appears in the GSM whose `AbilityInstanceCreated`
+    names the ability.
+  - Leyline: for a trigger that chooses targets as it goes on the stack,
+    publishes `AbilityInstanceCreated` with the target selection and the
+    row only when the trigger's cast event is drained, two GSMs later.
+  - Owner: `AnnotationPipeline`
+- **`diverges`** — [TriggeringObject.source-zone](annotations/TriggeringObject.md#TriggeringObject.source-zone)
+  - Contract: `source_zone` is a zone ID.
+  - Leyline: writes `0` when neither the triggering object's zone nor the
+    ability's source zone is known, as happens for some Leyline-defined
+    trigger abilities.
+  - Owner: `AnnotationPipeline`, `ZoneTransferDetector`
+- **`absent`** — [Variants](annotations/TriggeringObject.md#variants), source-and-event-objects and renamed-source branches
+  - Contract: a row can name several objects of the trigger event, and can
+    carry `NEW_OBJECT_ID` for a source that changed instance ID.
+  - Leyline: always names exactly one object and never writes
+    `NEW_OBJECT_ID`.
+  - Owner: `AnnotationBuilder.triggeringObject`
+
+#### ZoneTransfer
+
+- **`diverges`** — [ZoneTransfer.resolve-affector](annotations/ZoneTransfer.md#ZoneTransfer.resolve-affector) *(provisional statement)*
+  - Contract: for a spell resolving from the stack whose controller owns it,
+    a `Resolve` transfer names that seat. Spells whose owner and controller
+    differ are not covered.
+  - Leyline: names the priority player of the published state, or seat `2`
+    when no player has priority. An opponent's instant that resolves while the
+    active player receives priority is attributed to the active player.
+  - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ## Leyline-defined shapes
 

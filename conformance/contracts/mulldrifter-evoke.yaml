@@ -1,3 +1,6 @@
+# protocol: CastingTimeOption.persistent, CastingTimeOption.spell-envelope
+# protocol: TemporaryPermanent.persistent, TemporaryPermanent.affector-domain
+# protocol: CastingTimeOption.alternative-matches-action
 name: Mulldrifter paid Evoke and sacrifice lifecycle
 scenario: {suite: mechanics-protocol, id: evoke-mulldrifter}
 frames:
@@ -31,7 +34,7 @@ frames:
         lane: persistent
         op: create
         keys: [type, alternateCostGrpId]
-        fields: {details.type: [13]}
+        fields: {details.type: [13], raw.type.length: 1}
         equals:
           affectorId: "cast-reallocated.details.new_id[0]"
           affectedIds: cast-reallocated.details.new_id
