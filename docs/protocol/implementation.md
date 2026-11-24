@@ -104,6 +104,7 @@ Rows are grouped by family and sorted by entity name.
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
+| [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
@@ -146,7 +147,6 @@ the table above when its page is written.
 | `DisqualifiedEffect` | — | `absent` |
 | `DungeonStatus` | `AnnotationBuilder.dungeonStatus` | emitted |
 | `DynamicAbility` | — | `absent` |
-| `FaceDown` | `AnnotationBuilder.faceDown`, `AnnotationBuilder.faceDownPersistent` | emitted |
 | `GainDesignation` | `AnnotationBuilder.gainDesignation` | emitted |
 | `GamewideHistoryCount` | — | `absent` |
 | `GroupedIds` | — | `absent` |
@@ -671,6 +671,26 @@ grouped by family, then by entity.
     turn. A creature that enters during its controller's turn stays listed
     through the opponent's whole next turn.
   - Owner: `EnteredZoneThisTurnKind.shouldExpire`
+
+#### FaceDown
+
+- **`absent`** — [FaceDown.disguise-on-stack](annotations/FaceDown.md#FaceDown.disguise-on-stack) *(provisional statement)*
+  - Contract: a disguised spell carries its row on the stack, and the row
+    follows it to the battlefield.
+  - Leyline: creates the disguise row only once the face-down permanent is on
+    the battlefield.
+  - Owner: `PersistentFeedBuilder`
+- **`absent`** — [Variants](annotations/FaceDown.md#variants), `REASON` `1`
+  - Contract: a card exiled face down by an effect carries `REASON` `1` and
+    the effect's ability.
+  - Leyline: emits rows only for foretell, disguise, cloak and manifest
+    dread.
+  - Owner: `PersistentFeedBuilder`
+- **`compat`** — [Open points](annotations/FaceDown.md#open-points), cloak
+  - Contract: the cloak path's `REASON` and `abilityGrpId` are unknown.
+  - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
+    ability's definition as `abilityGrpId`.
+  - Owner: `PersistentFeedBuilder`, `AnnotationConstants`
 
 #### ModifiedType
 

@@ -62,7 +62,7 @@ the type's page. Types without a page are described only by their row.
 | `PhasedIn` | transient | none | An object phased in. |
 | `PhasedOut` | transient | none | An object phased out. |
 | `TemporaryPermanent` | persistent | `AbilityGrpId` | A permanent that a named ability will remove when its effect ends. |
-| `FaceDown` | persistent | `REASON`, `abilityGrpId` | An object is face down; `REASON` names the face-down path and `abilityGrpId` its shared mechanic ability. |
+| [FaceDown](FaceDown.md) | persistent | `REASON`, `abilityGrpId` | An object is face down; `REASON` names the face-down path and `abilityGrpId` its shared mechanic ability. |
 
 ### Reveals and visibility
 
