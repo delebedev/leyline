@@ -53,9 +53,12 @@ Battlefield and uses `PreparedCopyZcid` to name a second object's lifetime.
 ## Contract
 
 - <a id="Prepared.gain-bracket"></a>**Prepared.gain-bracket.** *(provisional)*
-  When a permanent enters the Battlefield prepared, its `GainDesignation` row
-  `MUST` appear immediately before the Stack-to-Battlefield `ZoneTransfer` whose
-  `category` is `Resolve` for that permanent.
+  When a permanent spell resolves onto the Battlefield prepared, its
+  `GainDesignation` row `MUST` appear immediately before the
+  Stack-to-Battlefield `ZoneTransfer` whose `category` is `Resolve` for that
+  permanent. A permanent that becomes prepared while already on the
+  Battlefield, or that returns to it from another zone, is not bound by this
+  ordering.
 - <a id="Prepared.copy-detail"></a>**Prepared.copy-detail.** The prepared
   persistent row `MUST` carry `PreparedCopyZcid` naming the exile copy's
   instance, with `affectorId` and first affected ID naming the prepared
