@@ -42,7 +42,9 @@ into lists its members without a `Card` object for them.
    [AnnotationOrdering.identity-first](../stream/annotation-ordering.md#AnnotationOrdering.identity-first):
    for example, a cast spell's `LayeredEffectCreated` can name the new ID
    first.
-4. The old ID is parked in Limbo until `diffDeletedInstanceIds` retires it.
+4. The old ID is parked in Limbo. It usually leaves Limbo in the GSM whose
+   `diffDeletedInstanceIds` lists it, but it can also stay there for the rest
+   of the game.
 
 Whether a zone change keeps the ID depends on the change; see
 [identity and zones](../model/identity-and-zones.md#instance-identity-over-time).
@@ -71,5 +73,4 @@ parent card and are never zone members.
 ## Open points
 
 - When does a `Card` carry `parentId` of its own?
-- How long does an old ID stay in Limbo before `diffDeletedInstanceIds`
-  retires it?
+- What decides whether an old ID leaves Limbo, and when?
