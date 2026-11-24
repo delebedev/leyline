@@ -20,7 +20,8 @@ that zones, actions, prompts and most card-directed annotations use.
 | `uniqueAbilities[].grpId` | That ability's definition. |
 
 A `Card` is identified by its own instance, not through a parent. Card-side
-companions point their `parentId` at the `Card`.
+companions point their `parentId` at the `Card`, or at the `Token` when the
+composite is a token copy, such as a token copy of a Room.
 
 ## Zone and visibility
 
@@ -56,10 +57,12 @@ parent card and are never zone members.
   composite card, the zone `MUST` list the parent `Card` instance and `MUST
   NOT` list its companion objects.
 - <a id="Card.companion-parent"></a>**Card.companion-parent.** A card-side
-  companion object `MUST` carry `parentId` equal to its parent `Card`'s
-  instance ID.
+  companion object `MUST` carry `parentId` equal to the instance ID of its
+  parent `Card`, or of its parent `Token` when the composite is a token.
 - <a id="Card.ability-handles"></a>**Card.ability-handles.** Within one
-  object, each `uniqueAbilities[].id` `MUST` be distinct.
+  object, each `uniqueAbilities[].id` that is present `MUST` be distinct.
+  `RevealedCard` and `Ability` objects can list several entries with no
+  `id`.
 
 ## Open points
 
