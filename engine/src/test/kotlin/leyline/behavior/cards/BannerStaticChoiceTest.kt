@@ -102,6 +102,7 @@ class BannerStaticChoiceTest :
             assertSoftly {
                 choiceResult.detailInt(DetailKeys.CHOICE_VALUE) shouldBe goblinId
                 choiceResult.detailInt(DetailKeys.CHOICE_DOMAIN) shouldBe 5
+                allMessages.allPersistentAnnotations().none { AnnotationType.ChoiceResult in it.typeList } shouldBe true
                 linkInfo.affectedIdsList shouldBe listOf(6, goblinId)
                 linkInfo.detailString(DetailKeys.CHOOSE_LINK_TYPE) shouldBe "Type"
                 linkInfo.detailInt(DetailKeys.SOURCE_ABILITY_GRPID) shouldBe 176647
