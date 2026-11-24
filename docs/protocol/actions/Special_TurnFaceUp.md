@@ -42,14 +42,11 @@ support an equality rule among `abilityGrpId`, `alternativeGrpId` and
    characteristics without reallocating the instance ID.
 5. Abilities that the turn-face-up event causes create their own ability
    objects after the projection changes.
+6. `UserActionTaken` records `actionType` `8` and retains `alternativeGrpId`.
+   Its `abilityGrpId` is either `0` or the same face-up ability ID; a consumer
+   accepts both shapes.
 
 The action itself identifies no target selection and no zone transfer.
-
-## Accepted action
-
-`UserActionTaken` records `actionType` `8` and retains `alternativeGrpId`. Its
-`abilityGrpId` is either `0` or the same face-up ability ID; a consumer accepts
-both shapes.
 
 ## Sibling shapes
 

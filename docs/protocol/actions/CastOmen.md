@@ -49,14 +49,14 @@ face's ability.
 6. `UserActionTaken` records `actionType` `24` on the stack instance. An
    ordinary cast records `abilityGrpId` `0`; a cast through a permission echoes
    the permission's ability.
+7. `ResolutionStart` and `ResolutionComplete` name the stack card and the Omen
+   face `grpId`.
+8. The stack instance is reallocated to a library identity and `ZoneTransfer`
+   moves it from Stack to Library with `category` `Resolve`. The parent card
+   with its companion is restored, and a `Shuffle` usually follows.
 
-## Resolution
-
-`ResolutionStart` and `ResolutionComplete` name the stack card and the Omen face
-`grpId`. The stack instance is then reallocated to a library identity,
-`ZoneTransfer` moves it from Stack to Library with `category` `Resolve`, and the
-parent card with its companion is restored. A `Shuffle` usually follows. The
-Omen spell does not go to the graveyard as an ordinary instant or sorcery does.
+The Omen spell does not go to the Graveyard as an ordinary instant or sorcery
+does.
 
 ## Sibling shapes
 

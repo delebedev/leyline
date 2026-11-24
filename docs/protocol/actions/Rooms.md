@@ -60,8 +60,6 @@ same parent instance.
 The room stays on the Battlefield after resolution. It is not discarded, exiled
 or returned to a library by the door cast itself.
 
-## Second door
-
 After one door is unlocked, the other door can be offered on the resident
 Battlefield instance with the same parent-instance and selected-door-cost shape.
 Casting it uses the stack and returns to the same room lifecycle, then adds the
