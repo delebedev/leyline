@@ -28,7 +28,8 @@ way" (CR 702.101a). Each instance triggers separately (CR 702.101b).
 
 1. The extort permanent's controller casts a spell. The extort ability is
    created with `AbilityInstanceCreated` in the GSM of the cast.
-2. The trigger resolves after the decision about the optional payment.
+2. The trigger goes on the stack. Its controller decides whether to pay
+   {W/B} as it resolves.
 
 ## Sibling shapes
 
