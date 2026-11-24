@@ -42,7 +42,10 @@ cast both record `1`.
 | [Special](Special.md) | Take a costed special action, such as foretelling or plotting a card. |
 | `SpecialTurnFaceUp` | Turn a face-down permanent face up. |
 | `CastLeft`, `CastRight` | Cast one half of a split card. |
-| `CastAdventure`, `CastOmen`, `CastMdfc`, `CastPrototype` | Cast a named face of a card. |
+| [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |
+| `CastOmen` | Cast the Omen half of an Omen card. |
+| `CastMdfc` | Cast the spell face of a modal double-faced card. |
+| `CastPrototype` | Cast the prototype face of a card. |
 | `PlayMdfc` | Play the land face of a modal double-faced card. |
 | `CastLeftRoom`, `CastRightRoom` | Cast one door of a Room. |
 | `FloatMana` | Float available mana. Request rail only. |
