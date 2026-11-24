@@ -41,6 +41,7 @@ class PhasingAnnotationTest :
             }
         }
 
+        // protocol: PhasedOut.ability-affector
         test("spell phase out uses the resolving spell instance inside its bracket") {
             val board =
                 startWithBoard { _, human, _ ->
@@ -165,6 +166,7 @@ class PhasingAnnotationTest :
             }
         }
 
+        // protocol: PhasedOut.no-transfer, PhasedOut.zone-projection
         test("phasing preserves battlefield membership identity and counters without transfers") {
             lateinit var creature: Card
             val board =

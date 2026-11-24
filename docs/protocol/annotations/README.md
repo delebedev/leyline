@@ -59,8 +59,8 @@ the type's page. Types without a page are described only by their row.
 | `Shuffle` | transient | `OldIds`, `NewIds` | A library was shuffled; maps the instance IDs before the shuffle to the IDs after it. |
 | `ControllerChanged` | both | none | A control-changing effect: a transient row for the change and a persistent row for the ongoing effect, which carries effect identity such as `effect_id`. |
 | `DisplayCardUnderCard` | persistent | `Disable` | Relates a card displayed under a host card (`affectorId`) to that host, such as a card exiled by a permanent. `TemporaryZoneTransfer` marks a card that will return. |
-| `PhasedIn` | transient | none | An object phased in. |
-| `PhasedOut` | transient | none | An object phased out. |
+| [PhasedIn](PhasedIn.md) | transient | none | An object phased in. |
+| [PhasedOut](PhasedOut.md) | transient | none | An object phased out. |
 | [TemporaryPermanent](TemporaryPermanent.md) | persistent | `AbilityGrpId` | A permanent that a named ability will remove when its effect ends. |
 | [FaceDown](FaceDown.md) | persistent | `REASON`, `abilityGrpId` | An object is face down; `REASON` names the face-down path and `abilityGrpId` its shared mechanic ability. |
 

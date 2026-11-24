@@ -116,6 +116,8 @@ Rows are grouped by family and sorted by entity name.
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
+| [PhasedIn](annotations/PhasedIn.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline` | `implemented` |
+| [PhasedOut](annotations/PhasedOut.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection` | `implemented` |
 | [Qualification](annotations/Qualification.md) | `AnnotationBuilder.qualification`, `PersistentFeedBuilder`, `QualificationKind`, `QualificationType` | `partial` |
 | [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
@@ -173,8 +175,6 @@ the table above when its page is written.
 | `NewTurnStarted` | `AnnotationBuilder.newTurnStarted` | emitted |
 | `ObjectsSelected` | — | `absent` |
 | `ObjectsToDistinguish` | — | `absent` |
-| `PhasedIn` | `AnnotationBuilder.phasedPermanent` | emitted |
-| `PhasedOut` | `AnnotationBuilder.phasedPermanent` | emitted |
 | `PlayerSelectingTargets` | `AnnotationBuilder.playerSelectingTargets` | emitted |
 | `PlayerSubmittedTargets` | `AnnotationBuilder.playerSubmittedTargets` | emitted |
 | `PowerToughnessModCreated` | `AnnotationBuilder.powerToughnessModCreated` | emitted |
