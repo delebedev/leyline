@@ -38,10 +38,9 @@ The trigger resolves in one GSM, in this order:
 1. `ResolutionStart` with `grpid` `364`.
 2. `TokenCreated` with the ability as `affectorId` and the Hero token as
    affected ID.
-3. With the Equipment still on the battlefield, `AttachmentCreated` with
-   the Equipment as `affectorId` and the token as
-   affected ID. A persistent `Attachment` row with the same identities records
-   the link.
+3. When the Equipment becomes attached to the token, `AttachmentCreated`
+   with the Equipment as `affectorId` and the token as affected ID. A
+   persistent `Attachment` row with the same identities records the link.
 4. `ResolutionComplete` with `grpid` `364`.
 5. `AbilityInstanceDeleted`, naming the Equipment and the ability.
 
@@ -57,15 +56,16 @@ and attaches without a target or a cost.
   `ResolutionStart` and `ResolutionComplete` of a job select trigger `MUST`
   carry `grpid` `364`.
 - <a id="JobSelect.token-then-attach"></a>**JobSelect.token-then-attach.**
-  *(provisional)* The resolution `MUST` carry `TokenCreated` for the Hero
-  token. While the Equipment is still on the battlefield, that row `MUST`
-  come before the `AttachmentCreated` that attaches the Equipment to the
-  token, in the same GSM.
+  *(provisional)* When the resolution creates the Hero token, it `MUST` carry
+  `TokenCreated` for it. When the resolution also attaches the Equipment to
+  that token, the `TokenCreated` row `MUST` come before the
+  `AttachmentCreated`, in the same GSM.
 - <a id="JobSelect.attachment"></a>**JobSelect.attachment.** *(provisional)*
-  That `AttachmentCreated` `MUST` name the Equipment as `affectorId` and the
-  token as its affected ID.
+  When the Equipment becomes attached to the token, the `AttachmentCreated`
+  `MUST` name the Equipment as `affectorId` and the token as its affected ID.
 
 ## Open points
 
-- What happens when the Equipment has left the battlefield before the
-  trigger resolves: is the token created without any attachment row?
+- What does the resolution carry when the Equipment does not become attached,
+  for example because it has left the battlefield or cannot legally be
+  attached?

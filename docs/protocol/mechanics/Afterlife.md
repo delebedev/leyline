@@ -67,15 +67,15 @@ spell instead of to a triggered ability.
   *(provisional)* The Afterlife ability's `TriggeringObject` row `MUST` name
   the source's battlefield instance in `affectedIds`, with `source_zone`
   `28`.
-- <a id="Afterlife.tokens"></a>**Afterlife.tokens.** *(provisional)* When no
-  replacement effect changes the number of tokens, Afterlife N `MUST` create
-  N tokens. Each token created `MUST` be announced by a `TokenCreated` row with the
-  Afterlife ability as `affectorId` and carrying the ability as `parentId`.
+- <a id="Afterlife.tokens"></a>**Afterlife.tokens.** *(provisional)* Each
+  Spirit token the resolution creates `MUST` be announced by its own
+  `TokenCreated` row with the Afterlife ability as `affectorId`, and the token
+  `MUST` carry the ability as `parentId`.
 
 ## Open points
 
 - Does an Afterlife source that dies outside combat, or is sacrificed, use
   the same order?
-- How many `TokenCreated` rows appear when a replacement effect changes the
-  number of Spirits?
+- What does the resolution carry when it creates a number of Spirits other
+  than N, for example because a replacement effect changes the number?
 - Does the `TriggeringObject` row ever carry `NEW_OBJECT_ID` for Afterlife?
