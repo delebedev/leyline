@@ -60,6 +60,11 @@ persistent rows.
 4. An effect that is recomputed can destroy its old identities and introduce
    new ones in the same GSM.
 
+Each seat sees only its own view. An effect on an object hidden from the
+receiving seat, such as a card in a library or in the opponent's hand, can
+reach that seat as a persistent row, or as a `LayeredEffectDestroyed`,
+without the `LayeredEffectCreated` that introduced the identity.
+
 For example, a +2/+2 pump spell resolving publishes `LayeredEffectCreated` for
 a new identity, and a persistent row typed `ModifiedPower`, `ModifiedToughness`
 and `LayeredEffect` on the target with that identity as `effect_id`.
@@ -82,11 +87,10 @@ power/toughness change; it does not introduce an effect identity.
 - <a id="LayeredEffectCreated.single-effect"></a>**LayeredEffectCreated.single-effect.**
   A row `MUST` carry exactly one effect identity in `affectedIds`.
 - <a id="LayeredEffectCreated.introduces-effect-id"></a>**LayeredEffectCreated.introduces-effect-id.**
-  A persistent row that carries `effect_id` `MUST` name an identity that a
-  `LayeredEffectCreated` introduced in the same GSM or an earlier one.
-- <a id="LayeredEffectCreated.destroyed-names-created"></a>**LayeredEffectCreated.destroyed-names-created.**
-  A `LayeredEffectDestroyed` `MUST` name in `affectedIds` an identity that a
-  `LayeredEffectCreated` introduced earlier.
+  When a persistent row that carries `effect_id` first appears on an object
+  that was already public in the previous GSM, its `effect_id` `MUST` be an
+  identity that a `LayeredEffectCreated` introduced in the same GSM or an
+  earlier one.
 
 ## Open points
 
@@ -95,3 +99,6 @@ power/toughness change; it does not introduce an effect identity.
 - When an effect ends, which persistent rows carrying its identity are deleted
   in the `LayeredEffectDestroyed` GSM and which later?
 - What rule decides when a static effect is recomputed under a new identity?
+- A `LayeredEffectDestroyed` can name an identity that no
+  `LayeredEffectCreated` sent to the receiving seat introduced, including in
+  the first GSMs of a game. Is every such identity one hidden from that seat?
