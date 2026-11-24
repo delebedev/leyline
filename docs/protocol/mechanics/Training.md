@@ -32,16 +32,18 @@ more +1/+1 counters on it.
    attack with a creature of greater power creates a persistent
    `AbilityWordActive` row named `Training`, with the training creature as
    `affectorId` and the greater-power attacker as affected.
-2. The GSM that commits the attack taps the creature, deletes that row, and
-   creates the training trigger: an `Ability` with `grpId` `220`,
-   `AbilityInstanceCreated` from the creature with `source_zone` the
-   Battlefield, and a `TriggeringObject` row naming the creature. The trigger
-   has no targets.
+2. The GSM that commits the attack deletes that row and creates the
+   training trigger. A creature without vigilance is tapped in the same GSM;
+   one with vigilance stays untapped and still trains. The trigger is an
+   `Ability` with `grpId` `220`, `AbilityInstanceCreated` from the creature
+   with `source_zone` the Battlefield, and a `TriggeringObject` row naming the
+   creature. It has no targets.
 
 ## Resolution lifecycle
 
 1. `ResolutionStart` with `grpid` `220`.
-2. `CounterAdded` from the trigger to the creature with `counter_type` `1` and
+2. While the creature is still on the battlefield, `CounterAdded` from the
+   trigger to the creature with `counter_type` `1` and
    `transaction_amount` `1`, then `PowerToughnessModCreated` and
    `LayeredEffectCreated` for the counter.
 3. A "whenever this creature trains" trigger, if the creature has one, is
@@ -62,8 +64,9 @@ puts the counter on its own source and needs no target.
   `ResolutionStart` and `ResolutionComplete` `MUST` carry `220`.
 - <a id="Training.no-target"></a>**Training.no-target.** A training trigger
   `MUST NOT` carry a `TargetSpec` or a `PlayerSelectingTargets` row.
-- <a id="Training.counter"></a>**Training.counter.** A resolving training
-  trigger `MUST` carry `CounterAdded` from the trigger to its source creature
+- <a id="Training.counter"></a>**Training.counter.** When a training trigger
+  resolves while its source creature is still on the battlefield, the
+  resolution `MUST` carry `CounterAdded` from the trigger to its source creature
   with `counter_type` `1`.
 - <a id="Training.condition-before-commit"></a>**Training.condition-before-commit.**
   *(provisional)* Grounded for a single training creature: the `Training`
@@ -75,6 +78,8 @@ puts the counter on its own source and needs no target.
 
 ## Open points
 
+- What does a training trigger carry when its creature has left the
+  battlefield before it resolves?
 - Which selection change during attack declaration creates the `Training`
   row, and is it removed when the selection stops qualifying?
 - How do several training creatures in one attack appear in the condition

@@ -39,8 +39,8 @@ separately.
 
 The resolution GSM carries, without a `ResolutionStart`:
 
-1. `LayeredEffectCreated` from the prowess ability, and
-   `PowerToughnessModCreated` from the ability to the creature with `power`
+1. While the creature is still on the battlefield, `LayeredEffectCreated`
+   from the prowess ability, and `PowerToughnessModCreated` from the ability to the creature with `power`
    `1` and `toughness` `1`.
 2. `ResolutionComplete` with `grpid` `137`, then `AbilityInstanceDeleted`.
 3. A persistent `ModifiedPower` and `ModifiedToughness` row on the creature,
@@ -66,12 +66,15 @@ but carry their own card-specific ability rather than `137`.
 - <a id="Prowess.no-resolution-start"></a>**Prowess.no-resolution-start.**
   *(provisional)* The resolution GSM of a prowess trigger `MUST NOT` carry a
   `ResolutionStart` for it.
-- <a id="Prowess.stat-change"></a>**Prowess.stat-change.** A resolving prowess
-  trigger `MUST` carry `PowerToughnessModCreated` from the trigger to its
+- <a id="Prowess.stat-change"></a>**Prowess.stat-change.** When a prowess
+  trigger resolves while its source creature is still on the battlefield,
+  the resolution `MUST` carry `PowerToughnessModCreated` from the trigger to its
   source creature with `power` `1` and `toughness` `1`.
 
 ## Open points
 
+- What does a prowess trigger's resolution carry when its creature has left
+  the battlefield?
 - Why does the prowess resolution carry no `ResolutionStart`, and which other
   triggers resolve without one?
 - Which GSM deletes the `ModifiedPower` and `ModifiedToughness` row at end of
