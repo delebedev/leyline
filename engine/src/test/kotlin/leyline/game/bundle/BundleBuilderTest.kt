@@ -244,9 +244,12 @@ class BundleBuilderTest :
                 leyline.bridge.coord
                     .hasAmbiguousActionCatalog(double.offers)
                     .shouldBeFalse()
-                doubleActions.filter { it.uniqueAbilityId != 0 }.forEach { action ->
-                    double.sourceRows.count { it.id == action.uniqueAbilityId && it.grpId == action.abilityGrpId } shouldBe 1
-                }
+                // Each grant has its own definition, so the first keeps its unhandled shape and only the repeat
+                // receives a backed occurrence handle.
+                doubleActions[0].uniqueAbilityId shouldBe 0
+                val repeat = doubleActions[1]
+                repeat.uniqueAbilityId shouldNotBe 0
+                double.sourceRows.count { it.id == repeat.uniqueAbilityId && it.grpId == repeat.abilityGrpId } shouldBe 1
                 double.grantedEquips
                     .map {
                         checkNotNull((it.command as PlayerAction.ActivateAbility).ability)
