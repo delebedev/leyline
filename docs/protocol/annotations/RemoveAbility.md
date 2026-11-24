@@ -71,8 +71,9 @@ an object, not an ability; the removed abilities are in the key's value.
 
 - **Loses all abilities.** No printed ability remains in `uniqueAbilities`;
   the list can be empty. Abilities granted after the removal stay, with their
-  own `UniqueAbilityId`. A type-changing effect leaves the new type's intrinsic
-  ability, such as a basic land type's mana ability, as the only entry.
+  own `UniqueAbilityId`. A type-changing effect gives the new type's intrinsic
+  ability, such as a basic land type's mana ability; it is the only entry
+  when no other effect grants the object an ability (CR 305.7).
 - **Loses specific abilities.** Only the named grpIds are absent. A Room lists
   its door-unlock actions and its unlocked door's ability, not the locked
   door's ability.
