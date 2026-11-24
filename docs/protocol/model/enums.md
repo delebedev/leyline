@@ -155,7 +155,8 @@ Their use on the stream lives in [timers](../stream/timers.md).
 
 - <a id="Enums.phase-step"></a>**Enums.phase-step.** `turnInfo.phase` and
   `turnInfo.step` `MUST` pair as in the turn-structure table. Both main phases
-  carry step `0`.
+  carry step `0`. Before the first turn's Untap step, `turnInfo` can carry
+  phase `Beginning` with no step.
 - <a id="Enums.first-strike-step"></a>**Enums.first-strike-step.** The
   first-strike combat damage step `MUST` be step `11` in phase `Combat`, and
   `MUST NOT` be reported as step `7`.
