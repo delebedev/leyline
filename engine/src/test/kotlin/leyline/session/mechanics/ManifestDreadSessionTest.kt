@@ -54,7 +54,6 @@ private fun MatchFlowHarness.castUnnervingGraspUntilSelectN(): SelectNReq {
 
 class ManifestDreadSessionTest :
     SessionTest({
-        // protocol: ManifestDread.choice
         session(
             "Manifest Dread choice, hidden permanent, annotation, graveyard, and turn-up action",
             puzzle = manifestDreadPuzzle("Centaur Courser;Island"),

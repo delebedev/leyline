@@ -69,7 +69,6 @@ class ImpendingLifecycleTest :
             }
         }
 
-        // protocol: Impending.tick
         session("impending first end-step trigger removes one time counter", puzzle = PUZZLE) {
             val overlordGrpId = bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
             val impendingAbilityGrpId =

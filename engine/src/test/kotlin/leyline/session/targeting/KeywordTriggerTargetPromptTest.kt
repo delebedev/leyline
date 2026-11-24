@@ -118,7 +118,7 @@ class KeywordTriggerTargetPromptTest :
             }
         }
 
-        // protocol: Mentor.target-prompt, Mentor.prompt-source
+        // protocol: Mentor.target-prompt
         test("Mentor target prompt carries the shared keyword prompt shape") {
             val h = MatchFlowHarness()
             try {

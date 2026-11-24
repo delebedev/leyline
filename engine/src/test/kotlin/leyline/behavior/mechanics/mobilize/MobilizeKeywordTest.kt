@@ -210,7 +210,6 @@ class MobilizeKeywordTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
             """.trimIndent()
 
-        // protocol: Mobilize.token-rows
         session("Mobilize 3 produces three Warrior tokens", puzzle = mobilize3Puzzle) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Dalkovan Packbeasts" }
             sources shouldHaveSize 1
@@ -272,7 +271,6 @@ class MobilizeKeywordTest :
             distinctParents.size shouldBeGreaterThanOrEqual 2
         }
 
-        // protocol: Mobilize.sacrifice
         session("Mobilize 1 cleanup at next end step sacrifices the token", puzzle = mobilize1Puzzle) {
             val sources = humanBattlefieldCreatures().filter { it.second == "Reigning Victor" }
             val sourceIid = sources.first().first

@@ -35,7 +35,6 @@ class LearnLessonTest :
     SessionTest({
         val learnPuzzle = "data/puzzles/learn-cram-session.pzl"
 
-        // protocol: Learn.prompt
         session(
             "Learn emits SelectNReq with sideboard Lesson candidate",
             puzzleFile = learnPuzzle,
