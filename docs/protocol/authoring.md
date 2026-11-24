@@ -74,7 +74,13 @@ entity: prompt/SelectNReq
   `<Name>` is the file name without `.md`. Shared pages under `model/` and
   `stream/` use the CamelCase form of the file name, for example
   `stream/Messages` for `messages.md` and `model/IdentityAndZones` for
-  `identity-and-zones.md`. Family overviews, this page,
+  `identity-and-zones.md`.
+- One page may own two or more protocol types when they share one object and
+  lifecycle, for example `action/MDFC` for `CastMdfc` and `PlayMdfc`, or
+  `designation/DayNight` for `Day` and `Night`. The page is named for the
+  shared subject, its `entity` and statement IDs use that name, its opening
+  paragraph names every type it owns, and the family overview gives each type
+  its own row linking to the page. Family overviews, this page,
   the overview and the implementation map have no `entity` key and no
   Contract.
 
@@ -130,6 +136,8 @@ payload is the semantic discriminator; a prompt ID selects text, not meaning.
 2. `## Offer` — offered fields and their identities.
 3. `## Lifecycle` — submission, identity changes, costs and resolution. State
    the accepted `UserActionTaken.actionType` integer; it is contract-bearing.
+   What happens when the action resolves, and whether and how the same
+   source can be used again, belongs here too.
 4. `## Sibling shapes` — discriminator, alternate-cost fields, stack identity
    and destination differences.
 5. `## Contract`
@@ -156,7 +164,9 @@ overview.
 
 1. `## Meaning`
 2. `## Rules grounding` — rules state versus message state.
-3. `## State` — gain, persistence, loss, identity and detail semantics.
+3. `## State` — gain, persistence, loss, identity and detail semantics,
+   with a field table for the row's `affectorId`, `affectedIds` and each
+   detail key, such as the designation value.
 4. `## Lifecycle`
 5. `## Sibling shapes`
 6. `## Contract`
@@ -209,6 +219,11 @@ A statement earns an ID when both hold:
    an exact discriminator value, equality between two identities, cardinality,
    ordering within or across GSMs, or the GSM in which a row is created or
    retired.
+
+A statement rests on what the protocol is known to do, not on what an
+implementation happens to send. When sources disagree, or a branch has not
+been seen, write the narrower statement that holds, mark it *(provisional)*,
+or ask the question under Open points.
 
 Field glossaries, gameplay meaning, sibling contrasts and rules context stay
 informative and carry no ID. If a field's meaning has a checkable consequence,
