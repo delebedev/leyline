@@ -90,6 +90,8 @@ read_when:
 
 `summary` is for scanning. `read_when` declares relevance conditions. An agent should never need to read all of `docs/` — it scans summaries, matches conditions to its current task, and reads selectively.
 
+Entity pages under `docs/protocol/` carry `summary` and `entity` only: the entity name is the relevance condition. See [the protocol authoring standard](protocol/authoring.md).
+
 ## 8. One canonical location per fact
 
 Build instructions live in root `AGENTS.md`. Module boundaries live in the module's own `AGENTS.md`. Architectural shape lives in `architecture.md`. Everything else links — never restates. Redundancy is staleness waiting to happen.

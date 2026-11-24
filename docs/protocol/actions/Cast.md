@@ -1,9 +1,5 @@
 ---
 summary: "Cast action: the base spell-cast offer; displayed mana cost, static versus payment-time reductions, additional-cost choices and sibling cast shapes."
-read_when:
-  - "offering or accepting a Cast action"
-  - "computing the manaCost shown on a cast offer"
-  - "distinguishing a plain cast from an alternative-cost or face cast"
 entity: action/Cast
 ---
 # Cast

@@ -1,9 +1,5 @@
 ---
 summary: "ReplacementEffect annotation: links a replacement ability or lifecycle to the object whose event it modifies; rails, fields, identities and the entry-choice lifecycle."
-read_when:
-  - "emitting or consuming a ReplacementEffect annotation"
-  - "publishing a choice that is made before a permanent enters"
-  - "reviewing replacement-effect emission or its retirement"
 entity: annotation/ReplacementEffect
 ---
 # ReplacementEffect

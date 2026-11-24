@@ -59,15 +59,14 @@ need; keep the order.
 ```yaml
 ---
 summary: "SelectNReq: bounded selection prompt; families, request, response and lifecycle."
-read_when:
-  - "emitting, routing or parsing SelectNReq or SelectNResp"
-  - "reviewing a change to a SelectN-routed prompt"
 entity: prompt/SelectNReq
 ---
 ```
 
 - `summary` is one line naming the entity and what the page covers.
-- `read_when` lists the tasks that need the page.
+- `read_when` appears only on shared pages: this standard, the overview, the
+  implementation map, family overviews and pages under `model/` and `stream/`.
+  An entity page is read when its entity is touched, so it carries none.
 - `entity` is `<kind>/<Name>` on entity pages. `<kind>` is one of `prompt`,
   `action`, `annotation`, `object_type`, `designation`, `mechanic`, `model` or
   `stream`. `<Name>` is the file name without `.md` and the prefix of every
@@ -235,7 +234,8 @@ row and exceptions there in the same change, following its
 
 ## Completion checklist
 
-- Frontmatter has `summary`, `read_when` and, on entity pages, `entity`.
+- Frontmatter has `summary`, plus `entity` on entity pages and `read_when` on
+  shared pages.
 - Sections follow the template for the page's kind, in order.
 - Every contract-bearing identity and lifecycle transition is stated once,
   on the page that owns it.

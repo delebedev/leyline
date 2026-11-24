@@ -1,8 +1,5 @@
 ---
 summary: "SelectNReq: bounded selection prompt; families, request, candidate identity, response and lifecycle."
-read_when:
-  - "emitting, routing or parsing SelectNReq or SelectNResp"
-  - "reviewing a change to a SelectN-routed prompt"
 entity: prompt/SelectNReq
 ---
 # SelectNReq

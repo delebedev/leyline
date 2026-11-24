@@ -1,8 +1,5 @@
 ---
 summary: "Special action: the costed special-action rail for mechanics such as foretell and plot; mandatory ability, optional alternative fields and the accepted action."
-read_when:
-  - "offering or accepting a Special action"
-  - "distinguishing a special action from an alternative-cost cast"
 entity: action/Special
 ---
 # Special

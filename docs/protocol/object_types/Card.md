@@ -1,8 +1,5 @@
 ---
 summary: "Card game object: zone-bearing card, permanent or spell; identity fields, composite-card membership, visibility and lifecycle."
-read_when:
-  - "projecting a card into a GSM"
-  - "following a card's identity across zone changes"
 entity: object_type/Card
 ---
 # Card

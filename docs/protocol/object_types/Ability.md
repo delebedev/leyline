@@ -1,9 +1,5 @@
 ---
 summary: "Ability game object: an activated or triggered ability on the Stack or in Pending; definition, parent and source identities, and lifecycle."
-read_when:
-  - "projecting an ability on the stack or a pending trigger"
-  - "linking an ability object to its source card"
-  - "emitting a mana ability, which has no ability object"
 entity: object_type/Ability
 ---
 # Ability

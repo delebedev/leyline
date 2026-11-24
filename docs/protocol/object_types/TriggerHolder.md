@@ -1,8 +1,5 @@
 ---
 summary: "TriggerHolder game object: a delayed or recurring trigger anchored in Limbo; identity fields, persistent-annotation ownership and lifecycle families."
-read_when:
-  - "projecting a delayed or recurring triggered ability"
-  - "attaching persistent annotations to a trigger that has not fired"
 entity: object_type/TriggerHolder
 ---
 # TriggerHolder

@@ -1,8 +1,5 @@
 ---
 summary: "RevealedCard game object: a temporary projection of a card shown from a private or hidden zone; source zone versus Revealed-zone membership, and lifecycle."
-read_when:
-  - "revealing a card from a hand or library"
-  - "projecting a card during search, browse or reveal effects"
 entity: object_type/RevealedCard
 ---
 # RevealedCard

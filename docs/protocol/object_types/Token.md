@@ -1,8 +1,5 @@
 ---
 summary: "Token game object: a token created during the game; creation lineage, battlefield membership, departure and retirement."
-read_when:
-  - "projecting a created token"
-  - "emitting a token's creation or departure"
 entity: object_type/Token
 ---
 # Token

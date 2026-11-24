@@ -1,9 +1,5 @@
 ---
 summary: "ActivateMana action: activating a mana ability; offer fields, color choice within one ability, the accepted action and the stackless annotation bracket."
-read_when:
-  - "offering or accepting a mana ability activation"
-  - "decoding the color a player chose for a mana ability"
-  - "emitting the annotations of a mana activation"
 entity: action/Activate_Mana
 ---
 # Activate_Mana
