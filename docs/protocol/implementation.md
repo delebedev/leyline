@@ -236,6 +236,7 @@ Leyline cannot play at all is `absent`.
 | [Afterlife](mechanics/Afterlife.md) | `AnnotationPipeline`, `TriggeringObjectProjection`, `AnnotationBuilder.tokenCreated` | `implemented` |
 | [Ascend](mechanics/Ascend.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedBuilder`, `AnnotationBuilder.citysBlessingDesignation` | `implemented` |
 | [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
+| [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [CollectEvidence](mechanics/CollectEvidence.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedFactsCapture`, `TransferCategoryResolver` | `implemented` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |

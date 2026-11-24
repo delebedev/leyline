@@ -22,6 +22,7 @@ that flag described under [designations](../designations/README.md).
 | [Afterlife](Afterlife.md) | Dies trigger, token creation | Dies trigger that creates Spirit tokens. |
 | [Ascend](Ascend.md) | Count, blessing | Seat-owned permanent count that grants the city's blessing at ten. |
 | [BattleCry](BattleCry.md) | Attack trigger, pump | Attack trigger that gives each other attacker +1/+0. |
+| [Boast](Boast.md) | Offer, activation, use recorded | Once-per-turn activated ability of a creature that attacked. |
 | [Cascade](Cascade.md) | Keyword stack ability, cast-permission window, free cast, residue | Cast trigger that exiles to a free cast of the first eligible card. |
 | [CollectEvidence](CollectEvidence.md) | Count, chosen cost, payment, cast submit | Additional cost paid by exiling graveyard cards by total mana value. |
 | [Companion](Companion.md) | Chosen companion, put into the hand | Card from outside the game marked from the first state and put into the hand for `{3}`. |
