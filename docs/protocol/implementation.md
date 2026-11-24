@@ -106,6 +106,12 @@ grouped by family, then by entity.
 
 #### IdentityAndZones
 
+- **`diverges`** — [IdentityAndZones.limbo-retires](model/identity-and-zones.md#IdentityAndZones.limbo-retires)
+  - Contract: a GSM that retires a visible object's ID re-sends that old ID's
+    `GameObjectInfo` in Limbo.
+  - Leyline: lists the old ID in Limbo but keeps its `GameObjectInfo` only for
+    staged moves; ordinary moves send no object for it.
+  - Owner: `ZoneTransferDetector`, `ZoneHandoffProjection`
 - **`compat`** — [Open points](model/identity-and-zones.md#open-points), Graveyard and Exile member order
   - Contract: the order of Graveyard and Exile members is not yet known.
   - Leyline: lists Graveyard and Exile members newest first.

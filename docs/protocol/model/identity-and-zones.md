@@ -94,9 +94,11 @@ normally allocates a new ID:
 1. `ObjectIdChanged` maps `orig_id` to `new_id` in the GSM where the move
    happens.
 2. The new ID becomes the object's identity in its destination. The old ID
-   is listed in the Limbo zone, with no game object of its own, so the client
-   can reconcile references to it. Parking the old ID in Limbo is not a card
-   movement and carries no `ZoneTransfer`.
+   is listed in the Limbo zone so the client can reconcile references to it.
+   When the recipient could see the object before the move, the same GSM also
+   carries the old ID's `GameObjectInfo` with `zoneId` Limbo; a hidden object,
+   such as a card in an opponent's hand or library, gets none. Parking the old
+   ID in Limbo is not a card movement and carries no `ZoneTransfer`.
 3. `diffDeletedInstanceIds` removes game objects from the running diff state.
    It is distinct from `diffDeletedPersistentAnnotationIds`, which retires
    persistent annotations; a GSM can carry either or both.
@@ -119,8 +121,10 @@ battlefield. A resolving spell that goes anywhere else receives a new ID.
   with the member's card identity unless the member is revealed to it.
 - <a id="IdentityAndZones.limbo-retires"></a>**IdentityAndZones.limbo-retires.**
   When `ObjectIdChanged` replaces an object's ID, the old ID `MUST` appear in
-  the Limbo zone's `objectInstanceIds`, with no `GameObjectInfo` for it and no
-  `ZoneTransfer` for the parking.
+  the Limbo zone's `objectInstanceIds`, with no `ZoneTransfer` for the
+  parking. If the recipient had a `GameObjectInfo` for the old ID, the same
+  GSM `MUST` send it again with `zoneId` Limbo; otherwise it `MUST NOT` send
+  one.
 - <a id="IdentityAndZones.resolve-keeps-id"></a>**IdentityAndZones.resolve-keeps-id.**
   A spell that resolves onto the battlefield `MUST` keep its stack instance
   ID, with no `ObjectIdChanged`.
