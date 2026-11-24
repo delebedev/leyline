@@ -64,8 +64,8 @@ row.
   `LayeredEffect`, with `effect_id`, `copyFromGrpid` and `LayeredEffectType`
   `CopyObject`.
 - <a id="CopiedObject.overlay"></a>**CopiedObject.overlay.**
-  While the row is live, the affected object's `overlayGrpId` `MUST` equal
-  `copyFromGrpid`.
+  While the row is the only live `CopiedObject` row naming its affected
+  object, that object's `overlayGrpId` `MUST` equal `copyFromGrpid`.
 - <a id="CopiedObject.effect-introduced"></a>**CopiedObject.effect-introduced.**
   When the row first appears on an object that was already public in the
   previous GSM, its `effect_id` `MUST` be an identity that a
@@ -79,5 +79,7 @@ row.
 ## Open points
 
 - What does `Duration` encode?
+- When two copy effects apply to one object at once, are both rows live, and
+  which `copyFromGrpid` does `overlayGrpId` follow?
 - How are copy-as-enters effects, such as a Clone, published?
 - What does an `affectorId` that is not an object identify?
