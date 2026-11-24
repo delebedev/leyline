@@ -33,6 +33,7 @@ that flag described under [designations](../designations/README.md).
 | [Convoke](Convoke.md) | Payment step, payment bracket, count, resolution label | Tapping creatures to pay part of a spell's mana cost. |
 | [Crew](Crew.md) | Activation, total-power cost, helpers tapped, type change | Vehicle ability paid by tapping creatures with enough total power. |
 | [Cycling](Cycling.md) | Activation from the hand, discard cost | Hand-zone activated ability whose cost discards the card. |
+| [Decayed](Decayed.md) | Attack trigger, delayed cleanup, sacrifice | Attack trigger that sacrifices the creature at end of combat. |
 | [Discover](Discover.md) | Discover ability, cast-permission window, free cast, residue | Keyword action that exiles to a free cast or puts the card into the hand. |
 | [Disguise](Disguise.md) | Face-down cast, face-down state, turning face up | Face-down 2/2 ward cast for `{3}`, turned face up for its disguise cost. |
 | [Disturb](Disturb.md) | Graveyard cast, back face | Casting a double-faced card transformed from the graveyard. |
