@@ -1,4 +1,5 @@
 # protocol: CastingTimeOption.persistent, CastingTimeOption.spell-envelope
+# protocol: TemporaryPermanent.persistent, TemporaryPermanent.affector-domain
 # protocol: CastingTimeOption.alternative-matches-action
 name: Mulldrifter paid Evoke and sacrifice lifecycle
 scenario: {suite: mechanics-protocol, id: evoke-mulldrifter}

@@ -61,7 +61,7 @@ the type's page. Types without a page are described only by their row.
 | `DisplayCardUnderCard` | persistent | `Disable` | Relates a card displayed under a host card (`affectorId`) to that host, such as a card exiled by a permanent. `TemporaryZoneTransfer` marks a card that will return. |
 | `PhasedIn` | transient | none | An object phased in. |
 | `PhasedOut` | transient | none | An object phased out. |
-| `TemporaryPermanent` | persistent | `AbilityGrpId` | A permanent that a named ability will remove when its effect ends. |
+| [TemporaryPermanent](TemporaryPermanent.md) | persistent | `AbilityGrpId` | A permanent that a named ability will remove when its effect ends. |
 | [FaceDown](FaceDown.md) | persistent | `REASON`, `abilityGrpId` | An object is face down; `REASON` names the face-down path and `abilityGrpId` its shared mechanic ability. |
 
 ### Reveals and visibility

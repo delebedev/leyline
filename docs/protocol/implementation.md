@@ -120,6 +120,7 @@ Rows are grouped by family and sorted by entity name.
 | [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
 | [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
 | [TargetSpec](annotations/TargetSpec.md) | `AnnotationBuilder.targetSpec`, `TargetSpecContributor`, `TargetSpecKind` | `implemented` |
+| [TemporaryPermanent](annotations/TemporaryPermanent.md) | `AnnotationBuilder.temporaryPermanent`, `PersistentTemporaryFeedBuilder` | `implemented` |
 | [TriggeringObject](annotations/TriggeringObject.md) | `AnnotationBuilder.triggeringObject`, `AnnotationPipeline`, `TriggeringObjectProjection.shouldEmit` | `partial` |
 | [UserActionTaken](annotations/UserActionTaken.md) | `AnnotationBuilder.userActionTaken`, `TransferAnnotations` | `implemented` |
 | [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
@@ -189,7 +190,6 @@ the table above when its page is written.
 | `SupplementalText` | — | `absent` |
 | `SuppressedPowerAndToughness` | `AnnotationBuilder.suppressedPowerAndToughness` | emitted |
 | `SyntheticEvent` | `AnnotationBuilder.syntheticEvent` | emitted |
-| `TemporaryPermanent` | `AnnotationBuilder.temporaryPermanent` | emitted |
 | `TextChange` | — | `absent` |
 | `TokenCreated` | `AnnotationBuilder.tokenCreated` | emitted |
 | `TokenDeleted` | `AnnotationBuilder.tokenDeleted` | emitted |
