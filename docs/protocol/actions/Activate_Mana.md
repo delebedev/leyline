@@ -10,7 +10,9 @@ entity: action/Activate_Mana
 because mana abilities do not use the stack (CR 605.3b): the source's cost,
 the produced mana and any payment it feeds are reported directly in the
 state around the action. The activation gets an ability instance ID for its
-annotations but no [Ability](../object_types/Ability.md) object.
+annotations. Usually it has no [Ability](../object_types/Ability.md) object;
+some activations project one in the Pending zone until the activation
+completes (see [Activate_Mana.bracket](#Activate_Mana.bracket)).
 
 `instanceId` names the source permanent; `abilityGrpId` names the mana
 ability. One action row is one ability choice. A source with several mana
