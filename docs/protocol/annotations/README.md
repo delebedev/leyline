@@ -145,7 +145,7 @@ the type's page. Types without a page are described only by their row.
 | `LayeredEffectDestroyed` | transient | none | A layered effect ended, for example because its duration expired or its source left. |
 | [AddAbility](AddAbility.md) | persistent | `UniqueAbilityId`, `grpid`, `originalAbilityObjectZcid`, `effect_id` | A continuous effect grants an ability or keyword to an object. |
 | [RemoveAbility](RemoveAbility.md) | persistent | `effect_id` | A continuous effect removes abilities from an object. |
-| `ModifiedType` | persistent | `effect_id` | A continuous effect changed an object's types, subtypes or supertypes. |
+| [ModifiedType](ModifiedType.md) | persistent | `effect_id` | A continuous effect changed an object's types, subtypes or supertypes. |
 | `ModifiedColor` | persistent | `color`, `modificationType`, `effect_id` | A continuous effect changed an object's color; `modificationType` distinguishes setting from adding. |
 | `ModifiedName` | persistent | `effect_id` | A continuous effect changed an object's name. |
 | `TextChange` | persistent | `effect_id` | A continuous effect changed an object's rules text. |

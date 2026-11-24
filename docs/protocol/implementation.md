@@ -103,6 +103,7 @@ Rows are grouped by family and sorted by entity name.
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
+| [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
 | [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
@@ -163,7 +164,6 @@ the table above when its page is written.
 | `ModifiedName` | — | `absent` |
 | `ModifiedPower` | `AnnotationBuilder.modifiedPower`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
 | `ModifiedToughness` | `AnnotationBuilder.modifiedToughness`, `AnnotationBuilder.layeredEffect`, `AnnotationBuilder.counter` | emitted |
-| `ModifiedType` | `AnnotationBuilder.modifiedTypeLayeredEffect` | emitted |
 | `MultistepEffectComplete` | — | `absent` |
 | `MultistepEffectStarted` | — | `absent` |
 | `NewTurnStarted` | `AnnotationBuilder.newTurnStarted` | emitted |
@@ -629,6 +629,18 @@ grouped by family, then by entity.
     turn. A creature that enters during its controller's turn stays listed
     through the opponent's whole next turn.
   - Owner: `EnteredZoneThisTurnKind.shouldExpire`
+
+#### ModifiedType
+
+- **`absent`** — [Variants](annotations/ModifiedType.md#variants), effects other than crew, reconfigure and earthbend
+  - Contract: every continuous effect that changes a type line publishes a
+    row, including animated lands and artifacts, Spacecraft thresholds and
+    perpetual and type-replacement effects.
+  - Leyline: emits `ModifiedType` only for a crewed Vehicle, an attached
+    reconfigure permanent and an earthbended land. Other type changes reach
+    the object's type line with no row, and `temporaryCardType`,
+    `perpetualAffectedId` and the type-replacement branch are never produced.
+  - Owner: `VehicleAttachContributor`, `EarthbendEmitter`
 
 #### ReplacementEffect
 
