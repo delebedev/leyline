@@ -72,6 +72,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastRight](actions/CastRight.md) | `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations` | `absent` |
+| [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 
 ### Prompts
@@ -262,6 +263,16 @@ grouped by family, then by entity.
     `Cast` carrying the face `grpId`, and the accepted rows use `actionType`
     `1`.
   - Owner: `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations`
+
+#### MDFC
+
+- **`diverges`** — [MDFC.cast-source-pair](actions/MDFC.md#MDFC.cast-source-pair) *(provisional statement)*
+  - Contract: a `CastMdfc` offer that carries `sourceId` also carries
+    `abilityGrpId`.
+  - Leyline: sets `sourceId` to the parent instance on every `CastMdfc` offer
+    and adds `abilityGrpId` only when the back-face ability resolves, so an
+    offer can carry `sourceId` alone.
+  - Owner: `ActionMapper.buildMdfcSpellAction`
 
 #### Special
 
