@@ -42,7 +42,7 @@ Each instance of Cascade triggers separately (CR 702.85c).
    as long as the ability.
 
 The stack source zone separates Cascade from triggered library reveals such as
-`Discover`, whose ability comes from a permanent.
+[Discover](Discover.md), whose ability comes from a permanent.
 
 ## Reveal and window lifecycle
 
@@ -89,7 +89,7 @@ carry the resulting order.
 
 ## Sibling shapes
 
-`Discover` shares the reveal, the window and the free cast.
+[Discover](Discover.md) shares the reveal, the window and the free cast.
 
 | Axis | Cascade | Discover |
 |---|---|---|

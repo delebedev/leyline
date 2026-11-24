@@ -20,3 +20,4 @@ that flag described under [designations](../designations/README.md).
 | Mechanic | Surfaces | Role |
 |---|---|---|
 | [Cascade](Cascade.md) | Keyword stack ability, cast-permission window, free cast, residue | Cast trigger that exiles to a free cast of the first eligible card. |
+| [Discover](Discover.md) | Discover ability, cast-permission window, free cast, residue | Keyword action that exiles to a free cast or puts the card into the hand. |

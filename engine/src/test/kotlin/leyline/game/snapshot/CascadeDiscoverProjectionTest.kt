@@ -225,6 +225,7 @@ class CascadeDiscoverProjectionTest :
             }
         }
 
+        // protocol: Discover.window, Discover.offer, Discover.inactive-reveals
         session(
             "Discover accepted free cast carries its per-card ability identity",
             puzzle = DISCOVER_PUZZLE,
