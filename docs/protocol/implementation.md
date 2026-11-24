@@ -235,6 +235,7 @@ Leyline cannot play at all is `absent`.
 |---|---|---|
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 | [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
+| [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
 | [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
@@ -1226,6 +1227,14 @@ grouped by family, then by entity.
     ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
     the hand while the ability is on the stack.
   - Owner: `RevealStateContributor`
+
+#### Overload
+
+- **`diverges`** — [Overload.option](mechanics/Overload.md#Overload.option)
+  - Contract: the overload `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
+  - Owner: `GameEventCollector`
 
 #### Prowess
 

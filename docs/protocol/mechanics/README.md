@@ -21,6 +21,7 @@ that flag described under [designations](../designations/README.md).
 |---|---|---|
 | [Ninjutsu](Ninjutsu.md) | Hand activation, return cost, reveal, `Put` | Put a ninja from the hand onto the Battlefield attacking by returning an unblocked attacker. |
 | [Offspring](Offspring.md) | Optional-cost choice, enters trigger, token copy | Pay an optional cost so the creature makes a 1/1 token copy of itself when it enters. |
+| [Overload](Overload.md) | Alternative-cost cast without targets | Cast a spell for its overload cost so it affects each object instead of a target. |
 | [Paradigm](Paradigm.md) | Self-exile, trigger holder, free copy cast | Exile the spell as it resolves, then cast a free copy of it in each later precombat main phase. |
 | [Prowess](Prowess.md) | Cast trigger, temporary +1/+1 | Give a creature +1/+1 until end of turn whenever its controller casts a noncreature spell. |
 | [Reconfigure](Reconfigure.md) | Attach and unattach activations, attachment rows, type change | Attach an Equipment creature to a creature, or unattach it so it is a creature again. |
