@@ -22,7 +22,7 @@ frames:
         lane: persistent
         op: create
         keys: [source_zone]
-        fields: {details.source_zone: [28]}
+        fields: {details.source_zone: [28], raw.type.length: 1}
         equals: {affectorId: ability.affectorId, "affectedIds[0]": created.affectorId}
   - id: resolution
     events:
