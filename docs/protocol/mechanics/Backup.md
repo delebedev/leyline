@@ -27,7 +27,8 @@ of this creature printed below this one until end of turn" (CR 702.165a).
 
 ## Trigger lifecycle
 
-1. The GSM in which the creature spell resolves to the Battlefield carries
+1. The GSM in which the creature enters the Battlefield, such as the one in
+   which its spell resolves, carries
    `AbilityInstanceCreated` from the new permanent with `source_zone` `28`
    and a persistent `TriggeringObject` row from the ability to the permanent.
    The ability has the card's Backup ability as `grpId`.
@@ -38,8 +39,9 @@ of this creature printed below this one until end of turn" (CR 702.165a).
 ## Resolution lifecycle
 
 1. `ResolutionStart` with the card's Backup ability as `grpid`.
-2. `CounterAdded` from the ability to the target with `counter_type` `1`
-   and `transaction_amount` N, and the counter's power and toughness change.
+2. With the target still legal and no replacement effect changing the
+   number of counters, `CounterAdded` from the ability to the target with
+   `counter_type` `1` and `transaction_amount` N, and the counter's power and toughness change.
 3. `ResolutionComplete`, then `AbilityInstanceDeleted`. The
    `TriggeringObject` and `TargetSpec` rows are deleted in the same GSM.
 
@@ -56,12 +58,15 @@ a shared keyword ability rather than by the card's ability.
   ability as `grpId`.
 - <a id="Backup.target-spec"></a>**Backup.target-spec.** *(provisional)* The
   Backup trigger's `TargetSpec` row `MUST` carry `abilityGrpId` `287`.
-- <a id="Backup.counters"></a>**Backup.counters.** *(provisional)* The
-  resolution `MUST` carry `CounterAdded` on the target with `counter_type`
+- <a id="Backup.counters"></a>**Backup.counters.** *(provisional)* When the
+  target is still legal and no replacement effect changes the number of
+  counters, the resolution `MUST` carry `CounterAdded` on the target with `counter_type`
   `1` and `transaction_amount` N.
 
 ## Open points
 
+- What does `transaction_amount` carry when a replacement effect changes the
+  number of counters placed?
 - How are the abilities granted to another target creature published?
 - When the creature targets itself, the counter's `PowerToughnessModCreated`
   row names the creature, not the trigger, as `affectorId`; is that also true

@@ -42,7 +42,7 @@ card no longer has once the transfer applies.
 ## Resolution lifecycle
 
 1. `ResolutionStart` with the Afterlife ability's `grpId`.
-2. One `TokenCreated` per Spirit, with the ability as `affectorId`. Each
+2. One `TokenCreated` per Spirit created, with the ability as `affectorId`. Each
    token has the ability as `parentId`, the dead card's `grpId` as
    `objectSourceGrpId`, white and black color, the Spirit subtype, power and
    toughness `1` and flying (`8`) in `uniqueAbilities`.
@@ -67,12 +67,15 @@ spell instead of to a triggered ability.
   *(provisional)* The Afterlife ability's `TriggeringObject` row `MUST` name
   the source's battlefield instance in `affectedIds`, with `source_zone`
   `28`.
-- <a id="Afterlife.tokens"></a>**Afterlife.tokens.** *(provisional)* Afterlife
-  N `MUST` create N tokens, each announced by a `TokenCreated` row with the
+- <a id="Afterlife.tokens"></a>**Afterlife.tokens.** *(provisional)* When no
+  replacement effect changes the number of tokens, Afterlife N `MUST` create
+  N tokens. Each token created `MUST` be announced by a `TokenCreated` row with the
   Afterlife ability as `affectorId` and carrying the ability as `parentId`.
 
 ## Open points
 
 - Does an Afterlife source that dies outside combat, or is sacrificed, use
   the same order?
+- How many `TokenCreated` rows appear when a replacement effect changes the
+  number of Spirits?
 - Does the `TriggeringObject` row ever carry `NEW_OBJECT_ID` for Afterlife?
