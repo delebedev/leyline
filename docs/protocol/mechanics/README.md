@@ -24,6 +24,7 @@ that flag described under [designations](../designations/README.md).
 | [Reconfigure](Reconfigure.md) | Attach and unattach activations, attachment rows, type change | Attach an Equipment creature to a creature, or unattach it so it is a creature again. |
 | [Saddle](Saddle.md) | Activation, total-power helper payment, helper roster | Tap creatures with enough total power to make a Mount saddled this turn; see [Saddled](../designations/Saddled.md). |
 | [Sneak](Sneak.md) | Hand alternative cost, return cost | Cast a spell during declare blockers by returning an unblocked attacker; a permanent enters attacking. |
+| [Spree](Spree.md) | Modal casting-time option with per-mode costs | Choose one or more modes while casting and pay each chosen mode's cost. |
 | [Station](Station.md) | Activation, tap cost, charge counters, striation rows | Tap a creature to add charge counters; striations apply at their charge thresholds. |
 | [Teamwork](Teamwork.md) | Optional-cost choice, weighted creature payment | Pay an optional additional cost by tapping creatures with enough total power. |
 | [Unearth](Unearth.md) | Graveyard activation, `Return`, designation, pending exile | Return a card from the graveyard with haste until it is exiled at the next end step. |
