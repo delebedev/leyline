@@ -82,7 +82,7 @@ the type's page. Types without a page are described only by their row.
 | [AbilityInstanceDeleted](AbilityInstanceDeleted.md) | transient | none | An ability instance ended: it resolved, was countered or left the stack. |
 | [ResolutionStart](ResolutionStart.md) | transient | `grpid` | A spell or ability began resolving. |
 | [ResolutionComplete](ResolutionComplete.md) | transient | `grpid` | A spell or ability finished resolving. |
-| `TriggeringObject` | persistent | `source_zone` | Links a triggered ability instance to the object that triggered it. |
+| [TriggeringObject](TriggeringObject.md) | persistent | `source_zone` | Links a triggered ability instance to the object that triggered it. |
 | `DelayedTriggerAffectees` | persistent | `abilityGrpId` | The objects a delayed triggered ability will act on, such as a card exiled until it returns. |
 | `MultistepEffectStarted` | transient | `SubCategory` | A multi-step effect such as scry began; `SubCategory` names the effect kind. |
 | `MultistepEffectComplete` | transient | `SubCategory` | The matching multi-step effect finished. |

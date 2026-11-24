@@ -112,6 +112,7 @@ Rows are grouped by family and sorted by entity name.
 | [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
 | [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
 | [TargetSpec](annotations/TargetSpec.md) | `AnnotationBuilder.targetSpec`, `TargetSpecContributor`, `TargetSpecKind` | `implemented` |
+| [TriggeringObject](annotations/TriggeringObject.md) | `AnnotationBuilder.triggeringObject`, `AnnotationPipeline`, `TriggeringObjectProjection.shouldEmit` | `partial` |
 | [UserActionTaken](annotations/UserActionTaken.md) | `AnnotationBuilder.userActionTaken`, `TransferAnnotations` | `implemented` |
 | [ZoneTransfer](annotations/ZoneTransfer.md) | `AnnotationBuilder.zoneTransfer`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer` | `partial` |
 
@@ -192,7 +193,6 @@ the table above when its page is written.
 | `TextChange` | — | `absent` |
 | `TokenCreated` | `AnnotationBuilder.tokenCreated` | emitted |
 | `TokenDeleted` | `AnnotationBuilder.tokenDeleted` | emitted |
-| `TriggeringObject` | `AnnotationBuilder.triggeringObject` | emitted |
 | `TurnPermanent` | — | `absent` |
 | `UseOrCostsManaCost` | — | `absent` |
 | `WinTheGame` | — | `absent` |
@@ -657,6 +657,28 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### TriggeringObject
+
+- **`diverges`** — [TriggeringObject.born-with-instance](annotations/TriggeringObject.md#TriggeringObject.born-with-instance)
+  - Contract: the row first appears in the GSM whose `AbilityInstanceCreated`
+    names the ability.
+  - Leyline: for a trigger that chooses targets as it goes on the stack,
+    publishes `AbilityInstanceCreated` with the target selection and the
+    row only when the trigger's cast event is drained, two GSMs later.
+  - Owner: `AnnotationPipeline`
+- **`diverges`** — [TriggeringObject.source-zone](annotations/TriggeringObject.md#TriggeringObject.source-zone)
+  - Contract: `source_zone` is a zone ID.
+  - Leyline: writes `0` when neither the triggering object's zone nor the
+    ability's source zone is known, as happens for some Leyline-defined
+    trigger abilities.
+  - Owner: `AnnotationPipeline`, `ZoneTransferDetector`
+- **`absent`** — [Variants](annotations/TriggeringObject.md#variants), source-and-event-objects and renamed-source branches
+  - Contract: a row can name several objects of the trigger event, and can
+    carry `NEW_OBJECT_ID` for a source that changed instance ID.
+  - Leyline: always names exactly one object and never writes
+    `NEW_OBJECT_ID`.
+  - Owner: `AnnotationBuilder.triggeringObject`
 
 #### ZoneTransfer
 

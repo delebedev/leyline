@@ -1,3 +1,5 @@
+# protocol: TriggeringObject.persistent, TriggeringObject.ability-affector
+# protocol: TriggeringObject.born-with-instance, TriggeringObject.retired-with-ability
 # protocol: Token.created
 name: Novice Inspector investigate trigger
 scenario: {suite: mechanics-protocol, id: investigate-novice-inspector}
