@@ -37,7 +37,11 @@ into lists its members without a `Card` object for them.
 
 1. A visible card enters the projection as a new `Card` instance.
 2. A zone change either keeps the instance ID or allocates a new one.
-3. A new ID is announced by `ObjectIdChanged` before any row that uses it.
+3. A new ID is announced by `ObjectIdChanged` before the rows that use it,
+   with the exceptions listed in
+   [AnnotationOrdering.identity-first](../stream/annotation-ordering.md#AnnotationOrdering.identity-first):
+   for example, a cast spell's `LayeredEffectCreated` can name the new ID
+   first.
 4. The old ID is parked in Limbo until `diffDeletedInstanceIds` retires it.
 
 Whether a zone change keeps the ID depends on the change; see
