@@ -391,6 +391,18 @@ grouped by family, then by entity.
     mapping recognizes no room branch. The offer and the accepted row disagree
     on the action type.
   - Owner: `TransferAnnotations.castSpellEventAnnotations`, `ActionMapper.addRoomCastActions`
+- **`absent`** — [Rooms.request-face](actions/Rooms.md#Rooms.request-face)
+  - Contract: a door offer on `ActionsAvailableReq` carries `grpId` naming the
+    selected door's face and `facetId` naming the parent.
+  - Leyline: sends neither field on door offers.
+  - Owner: `ActionMapper.addRoomCastActions`
+- **`diverges`** — [Rooms.unlock-offer](actions/Rooms.md#Rooms.unlock-offer),
+  [Rooms.unlock-applied](actions/Rooms.md#Rooms.unlock-applied)
+  - Contract: a locked door of a Room on the Battlefield is unlocked through a
+    `Special` action that applies the designation at once, without the stack.
+  - Leyline: offers `CastLeftRoom` or `CastRightRoom` for the Battlefield
+    Room's locked door and runs it as a spell through the stack.
+  - Owner: `ActionMapper.addRoomCastActions`
 
 #### Special
 

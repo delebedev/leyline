@@ -91,7 +91,6 @@ class RoomActionTest :
             val snap = SnapshotCapture.run(game, b, "test", 0)
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
 
-            // protocol: Rooms.repeat-door
             val activeLeft =
                 actions.actionsList.firstOrNull {
                     it.actionType == ActionType.CastLeftRoom && it.instanceId == iid
