@@ -88,10 +88,9 @@ offered at any time the card could be cast and not through a trigger.
   accepted madness cast `MUST` be recorded by `UserActionTaken` with
   `actionType` `1` and the madness ability in both `alternativeGrpId` and
   `abilityGrpId`.
-- <a id="Madness.decline"></a>**Madness.decline.** *(provisional)* When no
-  replacement effect changes where the card goes, a declined madness cast
-  `MUST` move the card to the graveyard with `category` `Put`
-  and record no `UserActionTaken` for it.
+- <a id="Madness.decline"></a>**Madness.decline.** *(provisional)* When a
+  declined madness card goes to the graveyard, it `MUST` move there with
+  `category` `Put`, and no `UserActionTaken` `MUST` be recorded for it.
 
 The decision request is stated under
 [ActionsAvailableReq](../prompts/ActionsAvailableReq.md).

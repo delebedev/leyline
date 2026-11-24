@@ -1424,8 +1424,8 @@ grouped by family, then by entity.
     is matched before its discard event.
   - Owner: `TransferCategoryResolver.categoryFromEvents`
 - **`diverges`** — [Madness.decline](mechanics/Madness.md#Madness.decline) *(provisional statement)*
-  - Contract: with no replacement effect, a declined madness cast moves the
-    card to the graveyard with `category` `Put`.
+  - Contract: when a declined madness card goes to the graveyard, it moves
+    there with `category` `Put`.
   - Leyline: tags that transfer `Resolve`, from the madness ability's
     resolution event.
   - Owner: `TransferCategoryResolver.categoryFromEvents`

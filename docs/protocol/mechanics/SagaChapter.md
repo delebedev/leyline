@@ -49,8 +49,8 @@ lower chapters.
 
 ## Final-chapter lifecycle
 
-When no other chapter ability of the Saga is still on the stack, the final
-chapter's resolution GSM carries its effect rows,
+When the Saga is sacrificed after its final chapter resolves, that chapter's
+resolution GSM carries its effect rows,
 `ResolutionComplete`, `AbilityInstanceDeleted`, and then the Saga's
 `ObjectIdChanged` and Battlefield to Graveyard `ZoneTransfer` with `category`
 `Sacrifice`; the lore `Counter` row is deleted there. A transforming Saga
@@ -72,15 +72,16 @@ levels, not triggers.
   created by `AbilityInstanceCreated` from the Saga in the GSM of the lore
   increase.
 - <a id="SagaChapter.final-sacrifice"></a>**SagaChapter.final-sacrifice.**
-  *(provisional)* Grounded for a non-transforming Saga with no other chapter
-  ability of its own on the stack: the `Sacrifice` transfer of the Saga `MUST` be in the same GSM as its final chapter's
-  `AbilityInstanceDeleted`, and after it.
+  *(provisional)* Grounded for a non-transforming Saga: when the Saga is
+  sacrificed after its final chapter resolves, the `Sacrifice` transfer `MUST`
+  be in the same GSM as that chapter's `AbilityInstanceDeleted`, and after it.
 
 ## Open points
 
 - How are several chapters crossed by one lore increase ordered?
 - What does the client see when the final chapter is countered?
-- When several chapter abilities of one Saga are on the stack, is the
-  sacrifice published only after the last of them leaves?
+- What does the final chapter's resolution carry when the Saga is not
+  sacrificed then, for example because another of its chapter abilities is
+  still on the stack or its lore count fell below the final chapter?
 - With read ahead, which rows does a later lore increase in the entry turn
   carry for chapters it crosses without landing on?

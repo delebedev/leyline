@@ -69,16 +69,16 @@ permanent enters, and its `grpId` is the evoke ability itself.
   `abilityGrpId` `0` and the evoke ability in `alternativeGrpId`.
 - <a id="Evoke.temporary-permanent"></a>**Evoke.temporary-permanent.**
   *(provisional)* A card cast for its evoke cost `MUST` carry a persistent
-  `TemporaryPermanent` row whose `AbilityGrpId` is the evoke ability, from the
-  stack until the GSM in which the evoke trigger sacrifices it.
+  `TemporaryPermanent` row whose `AbilityGrpId` is the evoke ability from the
+  stack on. When the evoke trigger sacrifices the permanent, the row `MUST`
+  last until that GSM.
 - <a id="Evoke.trigger-identity"></a>**Evoke.trigger-identity.**
   *(provisional)* The evoke sacrifice trigger `MUST` be an ability object whose
   `grpId` is the evoke ability and whose `parentId` is the permanent.
 - <a id="Evoke.sacrifice"></a>**Evoke.sacrifice.** *(provisional)* When the
-  trigger resolves while the permanent is still on the battlefield and no
-  replacement effect changes where it goes, the resolution `MUST` move the
-  permanent Battlefield to Graveyard with `category` `Sacrifice` and delete
-  the `TemporaryPermanent` row in the same GSM.
+  trigger's resolution sacrifices the permanent and it goes to the graveyard,
+  the resolution `MUST` move it Battlefield to Graveyard with `category`
+  `Sacrifice` and delete the `TemporaryPermanent` row in the same GSM.
 - <a id="Evoke.normal-cast"></a>**Evoke.normal-cast.** A card with evoke cast
   for its mana cost `MUST NOT` carry a `TemporaryPermanent` or
   `CastingTimeOption` row, and `MUST NOT` be sacrificed by an evoke trigger.
@@ -87,8 +87,7 @@ permanent enters, and its `grpId` is the evoke ability itself.
 
 - Which evoke cards carry an `AbilityWordActive` row named
   `ManaPaymentCondition` in the payment GSM, and what does it mark?
-- What happens to the `TemporaryPermanent` row when the permanent leaves
-  before the trigger resolves, and what does the trigger's resolution carry
-  then?
-- How is the sacrifice published when a replacement effect sends the
-  permanent somewhere other than the graveyard?
+- What does the trigger's resolution carry, and what happens to the
+  `TemporaryPermanent` row, when the permanent is not sacrificed into the
+  graveyard, for example because it left first or a replacement effect sends
+  it elsewhere?

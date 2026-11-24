@@ -65,10 +65,9 @@ same `Copy` transfer without a casualty row.
   `CastingTimeOption` row with `type` `15` and `casualtyAbilityGrpId` the
   card's Casualty ability.
 - <a id="Casualty.sacrifice"></a>**Casualty.sacrifice.** *(provisional)* When
-  no replacement effect changes where it goes, the sacrificed creature
-  `MUST` move Battlefield to Graveyard with `category`
-  `Sacrifice` and the spell as `affectorId`, before the cast's
-  `UserActionTaken`.
+  the creature sacrificed for casualty goes to the graveyard, the move `MUST`
+  be Battlefield to Graveyard with `category` `Sacrifice` and the spell as
+  `affectorId`, before the cast's `UserActionTaken`.
 - <a id="Casualty.copy"></a>**Casualty.copy.** *(provisional)* The Casualty
   trigger's resolution `MUST` carry `ResolutionStart` with `grpid` the
   Casualty ability and a Stack-to-Stack `ZoneTransfer` with `category`

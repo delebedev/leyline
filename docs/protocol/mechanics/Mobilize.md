@@ -83,10 +83,9 @@ end step" effects use the same cleanup rows with their own abilities.
   GSM `MUST` create one `DelayedTriggerAffectees` row over all the tokens and
   one `TemporaryPermanent` row per token, both with the trigger holder as
   `affectorId`.
-- <a id="Mobilize.sacrifice"></a>**Mobilize.sacrifice.** Each token still on
-  the battlefield at cleanup and controlled by the cleanup's controller,
-  with no replacement effect changing where it goes, `MUST` move Battlefield to Graveyard with
-  `category` `Sacrifice`.
+- <a id="Mobilize.sacrifice"></a>**Mobilize.sacrifice.** When the cleanup
+  sacrifices a token and it goes to the graveyard, the move `MUST` be
+  Battlefield to Graveyard with `category` `Sacrifice`.
 
 The holder is stated by [TriggerHolder](../object_types/TriggerHolder.md)
 and the grouping by

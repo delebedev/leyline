@@ -54,10 +54,10 @@ discarding are separate triggers with their own ability objects.
 - <a id="Cycling.hand-source"></a>**Cycling.hand-source.** A cycling
   ability's `AbilityInstanceCreated` `MUST` name the card in the hand as
   `affectorId` and carry the hand's zone ID as `source_zone`.
-- <a id="Cycling.discard"></a>**Cycling.discard.** When no replacement effect
-  changes where the card goes, the activation GSM `MUST` move the card Hand to Graveyard with `category` `Discard`, with the cycling
-  ability as `affectorId` of both the `ObjectIdChanged` and the
-  `ZoneTransfer`.
+- <a id="Cycling.discard"></a>**Cycling.discard.** When the cycled card goes
+  to the graveyard, the activation GSM `MUST` move it Hand to Graveyard with
+  `category` `Discard`, with the cycling ability as `affectorId` of both the
+  `ObjectIdChanged` and the `ZoneTransfer`.
 - <a id="Cycling.accepted"></a>**Cycling.accepted.** The activation `MUST` be
   recorded by `UserActionTaken` with `actionType` `2` and the cycling ability
   in `abilityGrpId`, after the discard transfer.

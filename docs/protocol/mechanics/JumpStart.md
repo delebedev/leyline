@@ -74,9 +74,9 @@ graveyard, but through an alternative cost named in `alternativeGrpId` and
 - <a id="JumpStart.cast-marker"></a>**JumpStart.cast-marker.** The stack
   spell `MUST` carry a `CastingTimeOption` row of `type` `13` with
   `castAbilityGrpId` `170`.
-- <a id="JumpStart.discard"></a>**JumpStart.discard.** When no replacement
-  effect changes where the discarded card goes, it `MUST` move Hand to
-  Graveyard with `category` `Discard`.
+- <a id="JumpStart.discard"></a>**JumpStart.discard.** When the discarded card
+  goes to the graveyard, it `MUST` move Hand to Graveyard with `category`
+  `Discard`.
 - <a id="JumpStart.accepted"></a>**JumpStart.accepted.** *(provisional)* An
   accepted jump-start cast `MUST` be recorded by `UserActionTaken` with
   `actionType` `1`, `abilityGrpId` `170` and no `alternativeGrpId`.

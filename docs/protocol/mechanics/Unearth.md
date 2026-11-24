@@ -85,25 +85,25 @@ unearth, but their resolution creates a token instead of returning the card.
 - <a id="Unearth.no-cast"></a>**Unearth.no-cast.** An unearth activation `MUST`
   be recorded with `actionType` `2`, and `MUST NOT` move the card to the stack
   or create a `CastingTimeOption` row.
-- <a id="Unearth.return-transfer"></a>**Unearth.return-transfer.** When an unearth
-  ability resolves while its card is still in the graveyard, the resolution
-  `MUST` move its card Graveyard to Battlefield with
-  `category` `Return` and the ability as `affectorId`, between its
-  `ResolutionStart` and `ResolutionComplete`.
+- <a id="Unearth.return-transfer"></a>**Unearth.return-transfer.** When the
+  resolution returns its card from the graveyard to the battlefield, the move
+  `MUST` be Graveyard to Battlefield with `category` `Return` and the ability
+  as `affectorId`, between its `ResolutionStart` and `ResolutionComplete`.
 - <a id="Unearth.designation"></a>**Unearth.designation.** *(provisional)*
   Grounded for a returned creature card: the resolution GSM `MUST` create a
   persistent `Designation` with `DesignationType` `26` whose `affectorId` and
   affected ID are the returned permanent and whose `source_grpid` is the
   card's `grpId`.
-- <a id="Unearth.pending-exile"></a>**Unearth.pending-exile.** The resolution
-  GSM `MUST` create `DelayedTriggerAffectees` and `TemporaryPermanent` rows
-  whose `affectorId` is the end-step exile's trigger holder and whose affected
-  ID is the returned permanent.
+- <a id="Unearth.pending-exile"></a>**Unearth.pending-exile.** When the card
+  returns to the battlefield, the resolution GSM `MUST` create
+  `DelayedTriggerAffectees` and `TemporaryPermanent` rows whose `affectorId`
+  is the end-step exile's trigger holder and whose affected ID is the returned
+  permanent.
 
 ## Open points
 
-- What does an unearth ability carry when its card has left the graveyard
-  before it resolves?
+- What does the resolution carry when the card does not return, for example
+  because it has left the graveyard or an effect stops it entering?
 - What does the end-step exile carry when it resolves, and which rows retire
   with it?
 - What does the replacement exile carry when the permanent would leave the

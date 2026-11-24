@@ -72,12 +72,11 @@ Manifest dread's face-down 2/2 has no ward ability; disguise's does.
   dread choice `MUST` be a `SelectNReq` with prompt `13125`, `allowCancel`
   `No`, `minSel` `1` and `maxSel` `1` over the two top library cards.
 - <a id="ManifestDread.manifest-transfer"></a>**ManifestDread.manifest-transfer.**
-  *(provisional)* The chosen card `MUST` move Library to Battlefield with
-  `category` `ManifestLike`.
+  *(provisional)* When the chosen card is manifested, it `MUST` move Library
+  to Battlefield with `category` `ManifestLike`.
 - <a id="ManifestDread.other-to-graveyard"></a>**ManifestDread.other-to-graveyard.**
-  *(provisional)* When no replacement effect changes where it goes, the
-  other card `MUST` move Library to Graveyard with
-  `category` `Put`.
+  *(provisional)* When the other card goes to the graveyard, it `MUST` move
+  Library to Graveyard with `category` `Put`.
 - <a id="ManifestDread.noncreature-no-turn-up"></a>**ManifestDread.noncreature-no-turn-up.**
   A manifested noncreature card `MUST NOT` be offered a turn-face-up action.
 

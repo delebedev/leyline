@@ -62,23 +62,22 @@ ability. Decayed is identified by `214` on the trigger and the holder.
   attacker with `source_zone` `28`, in the GSM that declares it as an
   attacker.
 - <a id="Decayed.holder"></a>**Decayed.holder.** *(provisional)* When the
-  trigger resolves while the attacker is still on the battlefield, the
-  resolution `MUST` create a persistent `TemporaryPermanent` row
-  from a `TriggerHolder` whose `objectSourceGrpId` is `214` to the attacker,
-  with `AbilityGrpId` the cleanup ability.
-- <a id="Decayed.sacrifice"></a>**Decayed.sacrifice.** *(provisional)* At end
-  of combat, while the attacker is still on the battlefield and no
-  replacement effect changes where it goes, the cleanup ability's resolution
-  `MUST` move the attacker
-  Battlefield to Graveyard with `category` `Sacrifice` and the cleanup
-  ability as `affectorId`.
+  resolution schedules the end-of-combat sacrifice of the attacker, it `MUST`
+  create a persistent `TemporaryPermanent` row from a `TriggerHolder` whose
+  `objectSourceGrpId` is `214` to the attacker, with `AbilityGrpId` the
+  cleanup ability.
+- <a id="Decayed.sacrifice"></a>**Decayed.sacrifice.** *(provisional)* When
+  the cleanup ability sacrifices the attacker at end of combat and it goes to
+  the graveyard, the move `MUST` be Battlefield to Graveyard with `category`
+  `Sacrifice` and the cleanup ability as `affectorId`.
 
 ## Open points
 
 - How is "can't block" published: is the creature left out of the blocker
   offers, or offered and refused?
 - Is the cleanup ability the same for every Decayed card?
-- What do the trigger and the cleanup carry when the attacker has left the
-  battlefield before they resolve?
+- What do the trigger and the cleanup carry when the attacker is not
+  sacrificed into the graveyard, for example because it left the battlefield
+  first?
 - Why is the trigger's `AbilityInstanceDeleted` repeated in the cleanup
   birth GSM?
