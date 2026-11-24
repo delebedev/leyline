@@ -134,7 +134,7 @@ the type's page. Types without a page are described only by their row.
 |---|---|---|---|
 | `NewTurnStarted` | transient | none | A new turn began for the seat in `affectedIds`. |
 | [PhaseOrStepModified](PhaseOrStepModified.md) | transient | `phase`, `step` | The game entered a new phase or step. |
-| `LoyaltyActivationsRemaining` | persistent | `ActivationsRemaining` | Loyalty-ability activations a planeswalker has left this turn. |
+| [LoyaltyActivationsRemaining](LoyaltyActivationsRemaining.md) | persistent | `ActivationsRemaining` | Loyalty-ability activations a planeswalker has left this turn. |
 
 ### Continuous effects
 

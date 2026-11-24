@@ -113,6 +113,7 @@ Rows are grouped by family and sorted by entity name.
 | [InstanceRevealedToOpponent](annotations/InstanceRevealedToOpponent.md) | `AnnotationBuilder.instanceRevealedToOpponent`, `RevealStateContributor`, `InstanceRevealedToOpponentKind` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
 | [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
+| [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md) | — | `absent` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
 | [MiscContinuousEffect](annotations/MiscContinuousEffect.md) | — | `absent` |
 | [ModifiedCost](annotations/ModifiedCost.md) | — | `absent` |
@@ -164,7 +165,6 @@ the table above when its page is written.
 | `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
 | `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |
 | `LossOfGame` | `AnnotationBuilder.lossOfGame` | emitted |
-| `LoyaltyActivationsRemaining` | — | `absent` |
 | `ManaDetails` | `AnnotationBuilder.manaDetails` | emitted |
 | `ModifiedColor` | — | `absent` |
 | `ModifiedLife` | `AnnotationBuilder.modifiedLife` | emitted |
@@ -760,6 +760,12 @@ grouped by family, then by entity.
     choice made by a computer-controlled opponent produces the row with no
     `ChoiceResult`.
   - Owner: `PersistentFeedBuilder`, `MatchStaticChoiceInteractionRuntime`
+
+#### LoyaltyActivationsRemaining
+
+- **`absent`** — [LoyaltyActivationsRemaining](annotations/LoyaltyActivationsRemaining.md), the entity
+  - Leyline: publishes no `LoyaltyActivationsRemaining` row for any
+    planeswalker.
 
 #### MiscContinuousEffect
 
