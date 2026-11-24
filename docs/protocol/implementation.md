@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
+| [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |

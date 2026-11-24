@@ -20,6 +20,7 @@ that flag described under [designations](../designations/README.md).
 | Mechanic | Surfaces | Role |
 |---|---|---|
 | [Ninjutsu](Ninjutsu.md) | Hand activation, return cost, reveal, `Put` | Put a ninja from the hand onto the Battlefield attacking by returning an unblocked attacker. |
+| [Offspring](Offspring.md) | Optional-cost choice, enters trigger, token copy | Pay an optional cost so the creature makes a 1/1 token copy of itself when it enters. |
 | [Paradigm](Paradigm.md) | Self-exile, trigger holder, free copy cast | Exile the spell as it resolves, then cast a free copy of it in each later precombat main phase. |
 | [Reconfigure](Reconfigure.md) | Attach and unattach activations, attachment rows, type change | Attach an Equipment creature to a creature, or unattach it so it is a creature again. |
 | [Saddle](Saddle.md) | Activation, total-power helper payment, helper roster | Tap creatures with enough total power to make a Mount saddled this turn; see [Saddled](../designations/Saddled.md). |
