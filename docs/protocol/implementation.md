@@ -76,6 +76,7 @@ Rows are grouped by family and sorted by entity name.
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
 | [AssignDamageReq](prompts/AssignDamageReq.md) | `BlockingInteractionMaterializer.damage`, `CombatHandler.onAssignDamage`, `MatchBlockingInteractionRuntime.submitDamageCommand` | `partial` |
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
+| [ChooseStartingPlayerReq](prompts/ChooseStartingPlayerReq.md) | `LifecycleMessageMaterializer.initialBundle`, `GsmBuilder.buildInitialGameState`, `MulliganHandler` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `implemented` |
@@ -302,6 +303,13 @@ grouped by family, then by entity.
   - Leyline: asks for X with a standalone `NumericInputReq` and never sends
     a `ChooseX` row.
   - Owner: `PlayerController.announceRequirements`
+
+#### ChooseStartingPlayerReq
+
+- **`diverges`** — [ChooseStartingPlayerReq.candidates](prompts/ChooseStartingPlayerReq.md#ChooseStartingPlayerReq.candidates)
+  - Contract: the candidate seats are listed as `[1, 2]`.
+  - Leyline: lists them as `[2, 1]`.
+  - Owner: `LifecycleMessageMaterializer`
 
 #### DeclareAttackersReq
 

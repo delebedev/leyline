@@ -16,6 +16,7 @@ semantic discriminator; `promptId` selects instruction text.
 | [ActionsAvailableReq](ActionsAvailableReq.md) | Take a priority action or pass; also the cast-permission window. |
 | [AssignDamageReq](AssignDamageReq.md) | Divide an attacker's combat damage among blockers and, with trample, the player. |
 | [CastingTimeOptionsReq](CastingTimeOptionsReq.md) | Choose modes, optional costs, X, hybrid payment or a cost branch while casting. |
+| [ChooseStartingPlayerReq](ChooseStartingPlayerReq.md) | The die-roll winner chooses who takes the first turn. |
 | [DeclareAttackersReq](DeclareAttackersReq.md) | Declare attackers and what they attack, one change at a time, then submit. |
 | [DeclareBlockersReq](DeclareBlockersReq.md) | Declare blockers and what they block, one change at a time, then submit. |
 | [DistributionReq](DistributionReq.md) | Divide damage or counters among the targets just chosen. |
