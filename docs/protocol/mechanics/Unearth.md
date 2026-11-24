@@ -85,8 +85,9 @@ unearth, but their resolution creates a token instead of returning the card.
 - <a id="Unearth.no-cast"></a>**Unearth.no-cast.** An unearth activation `MUST`
   be recorded with `actionType` `2`, and `MUST NOT` move the card to the stack
   or create a `CastingTimeOption` row.
-- <a id="Unearth.return-transfer"></a>**Unearth.return-transfer.** A resolving
-  unearth ability `MUST` move its card Graveyard to Battlefield with
+- <a id="Unearth.return-transfer"></a>**Unearth.return-transfer.** When an unearth
+  ability resolves while its card is still in the graveyard, the resolution
+  `MUST` move its card Graveyard to Battlefield with
   `category` `Return` and the ability as `affectorId`, between its
   `ResolutionStart` and `ResolutionComplete`.
 - <a id="Unearth.designation"></a>**Unearth.designation.** *(provisional)*
@@ -101,6 +102,8 @@ unearth, but their resolution creates a token instead of returning the card.
 
 ## Open points
 
+- What does an unearth ability carry when its card has left the graveyard
+  before it resolves?
 - What does the end-step exile carry when it resolves, and which rows retire
   with it?
 - What does the replacement exile carry when the permanent would leave the

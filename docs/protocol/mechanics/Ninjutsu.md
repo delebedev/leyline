@@ -87,13 +87,16 @@ stack; only the ability is on the stack.
   step: the GSM that commits the return cost `MUST` create a `RevealedCard`
   for the ninjutsu card and an `InstanceRevealedToOpponent` row naming it,
   and the resolution `MUST` delete both.
-- <a id="Ninjutsu.put-transfer"></a>**Ninjutsu.put-transfer.** A resolving
-  ninjutsu ability `MUST` move its card Hand to Battlefield with `category`
+- <a id="Ninjutsu.put-transfer"></a>**Ninjutsu.put-transfer.** When a ninjutsu
+  ability resolves while its card is still in the hand, the resolution
+  `MUST` move its card Hand to Battlefield with `category`
   `Put` and the ability as `affectorId`, between its `ResolutionStart` and
   `ResolutionComplete`.
 
 ## Open points
 
+- What does a ninjutsu ability carry when its card has left the hand
+  before it resolves?
 - What does a commander ninjutsu activation from the command zone carry?
 - What does the resolution carry when the ninjutsu card has left the hand?
 - Is the returned attacker revealed when it lands in the hand?
