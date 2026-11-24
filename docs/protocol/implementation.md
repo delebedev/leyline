@@ -659,6 +659,12 @@ grouped by family, then by entity.
   - Leyline: builds rows only for `ChooseX`, `Kicker`, `AdditionalCost`,
     `ChooseOrCost` and `CastThroughAbility`.
   - Owner: `TransferAnnotations`
+- **`absent`** — [Variants](annotations/CastingTimeOption.md#variants), ability rows and the transient Kicker row
+  - Contract: an activated ability with a chosen X and the triggered ability
+    of a kicked permanent carry a persistent row, and a kicked permanent's
+    resolution can carry a transient Kicker row.
+  - Leyline: builds rows only for spells, while they are on the stack.
+  - Owner: `TransferAnnotations`
 
 #### ChoiceResult
 

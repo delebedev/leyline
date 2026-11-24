@@ -1,5 +1,5 @@
 ---
-summary: "CastingTimeOption annotation: persistent record of how a spell on the stack was cast; type branches for alternative costs, kicker, additional costs and X, identities and retirement."
+summary: "CastingTimeOption annotation: record of how a spell or ability on the stack was cast, with a transient Kicker row on a kicked permanent's resolution; type branches for alternative costs, kicker, additional costs and X, identities and retirement."
 entity: annotation/CastingTimeOption
 ---
 # CastingTimeOption
@@ -11,12 +11,16 @@ as evoke or flashback, kicker, an additional cost, or the value of X
 (CR 601.2b, CR 601.2f). `CastingTimeOption` records the chosen option on the
 spell while it is on the stack. It is the record of the decision, not the
 request for it: a spell cast through an alternative-cost `Cast` action
-carries the row even when no `CastingTimeOptionsReq` was sent.
+carries the row even when no `CastingTimeOptionsReq` was sent. An ability on
+the stack can carry a row too: an activated ability with a chosen X, or a
+triggered ability of a kicked permanent.
 
 ## Variants
 
-Persistent only, never combined with another type. `type` is a
-`CastingTimeOptionType` value and selects the branch:
+Never combined with another type. A row for a spell or ability on the stack
+is persistent. When a kicked permanent spell resolves, the GSM of its
+`Resolve` transfer can also carry a transient Kicker row naming the
+permanent. `type` is a `CastingTimeOptionType` value and selects the branch:
 
 | `type` | Branch | Branch keys |
 |---|---|---|
@@ -30,14 +34,15 @@ Persistent only, never combined with another type. `type` is a
 | `18` OptionalCostPaid | A named optional cost paid | `costType`, `costGrpid` |
 
 A spell with several options carries one row per option. A key absent from a
-row does not take part in that branch; it is not a zero value.
+row does not take part in that branch; it is not a zero value. The Kicker row
+of a kicked permanent's triggered ability carries `kickerAbilityGrpId` `0`.
 
 ## Fields
 
 | Field | Role |
 |---|---|
-| `affectorId` | The spell's instance ID on the stack. |
-| `affectedIds` | The same spell, as a one-element list. |
+| `affectorId` | The spell's or ability's instance ID on the stack; on the transient Kicker row, the resolved permanent. |
+| `affectedIds` | The same object, as a one-element list. |
 | `type` | The branch, as above. |
 | `alternateCostGrpId` | The alternative cost's ability definition. It equals the `alternativeGrpId` of the submitted [Cast](../actions/Cast.md) action. |
 | `castAbilityGrpId` | The ability definition through which the spell was cast, such as a permission granted by another card. |
@@ -80,25 +85,27 @@ alone.
 ## Contract
 
 - <a id="CastingTimeOption.persistent"></a>**CastingTimeOption.persistent.**
-  `CastingTimeOption` `MUST` be carried in `persistentAnnotations` and
-  `MUST NOT` be combined with another annotation type.
+  `CastingTimeOption` `MUST NOT` be combined with another annotation type. A
+  row whose `affectorId` is a spell or ability on the stack `MUST` be carried
+  in `persistentAnnotations`.
 - <a id="CastingTimeOption.spell-envelope"></a>**CastingTimeOption.spell-envelope.**
-  `affectorId` `MUST` be the spell's stack instance ID, and `affectedIds`
-  `MUST` contain exactly that ID.
+  `affectedIds` `MUST` contain exactly one ID, equal to `affectorId`. On a
+  persistent row that ID `MUST` be a spell or ability on the stack.
 - <a id="CastingTimeOption.type-keys"></a>**CastingTimeOption.type-keys.**
   A row `MUST` carry the branch keys its `type` requires: `value` for `2`,
   `kickerAbilityGrpId` for `3`, `additionalCostGrpId` for `5`, and
   `alternateCostGrpId` or `castAbilityGrpId` for `13`.
 - <a id="CastingTimeOption.alternative-matches-action"></a>**CastingTimeOption.alternative-matches-action.**
-  When the GSM carries the `UserActionTaken` of the cast, `alternateCostGrpId`
-  `MUST` equal that row's `alternativeGrpId`.
-- <a id="CastingTimeOption.retired-with-spell"></a>**CastingTimeOption.retired-with-spell.**
-  *(provisional)* The row `MUST` be deleted in the GSM where the spell leaves
-  the stack.
+  When a row carries `alternateCostGrpId` and the GSM carries the
+  `UserActionTaken` of the cast, `alternateCostGrpId` `MUST` equal that
+  action's `alternativeGrpId`. Rows without `alternateCostGrpId`, such as a
+  ChooseX row, are not subject to this statement.
 
 ## Open points
 
 - What do `costType` values name on the `OptionalCostPaid` branch?
-- Why do a few rows outlive the spell they describe?
+- Why do a few rows outlive the spell they describe? Is the row otherwise
+  deleted in the GSM where the spell leaves the stack?
+- Which kicked permanents carry the transient Kicker row on resolution?
 - Do `Multikicker`, `Replicate` and the other unlisted types produce rows, and
   with which keys?
