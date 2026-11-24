@@ -79,6 +79,7 @@ Rows are grouped by family and sorted by entity name.
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
+| [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 | [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
 
@@ -356,6 +357,20 @@ grouped by family, then by entity.
     sacrifice or graveyard-exile cost, the parameter names the card the
     ability belongs to. Spells and tap payments name the right object.
   - Owner: `OneShotPayCostsWindowCapture.freezePromptSource`
+
+#### SearchReq
+
+- **`diverges`** — [Prompt](prompts/SearchReq.md#prompt)
+  - Contract: a second `CardId` parameter, when present, carries a number the
+    instruction uses; it is not a seat.
+  - Leyline: always sends a second `CardId` parameter holding the searched
+    player's seat ID.
+  - Owner: `SearchWindowMaterializer`
+- **`compat`** — [Prompt](prompts/SearchReq.md#prompt)
+  - Contract: the prompt ID is specific to the search effect.
+  - Leyline: uses `1065` for every search except typecycling, which uses
+    `11626`.
+  - Owner: `SearchWindowMaterializer`
 
 #### SelectNReq
 

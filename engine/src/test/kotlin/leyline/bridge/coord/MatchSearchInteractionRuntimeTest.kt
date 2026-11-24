@@ -134,6 +134,7 @@ class MatchSearchInteractionRuntimeTest :
                 search.searchReq.itemsSoughtList.shouldHaveSize(2)
                 search.searchReq.zonesToSearchList shouldContainExactly listOf(ZoneIds.libraryOf(SeatId(1)))
                 search.searchReq.maxFind shouldBe 1
+                // protocol: SearchReq.items-published
                 libraryObjects.containsAll(search.searchReq.itemsToSearchList) shouldBe true
                 finished.count shouldBe 1
             }
@@ -143,6 +144,7 @@ class MatchSearchInteractionRuntimeTest :
             val counter = board.counter.snapshot()
             assertSoftly {
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected)), published.gameStateId + 1) shouldBe false
+                // protocol: SearchReq.resp-sought
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(selected, selected)), published.gameStateId) shouldBe false
                 coordinator.acceptSettled(leyline.testkit.searchResp(listOf(Int.MAX_VALUE)), published.gameStateId) shouldBe false
                 board.bridge.projectionStateSnapshot() shouldBe projection
@@ -220,6 +222,7 @@ class MatchSearchInteractionRuntimeTest :
                 board.bridge.responseAcceptance.responsesAccepted() shouldBe acceptedResponses
                 coordinator.search.current() shouldBe published
                 finished.await(100, TimeUnit.MILLISECONDS) shouldBe false
+                // protocol: SearchReq.resp-empty
                 coordinator.acceptSettled(leyline.testkit.searchResp(emptyList()), published.gameStateId) shouldBe true
                 finished.await(3, TimeUnit.SECONDS) shouldBe true
                 result.get() shouldContainExactly listOf(2)
