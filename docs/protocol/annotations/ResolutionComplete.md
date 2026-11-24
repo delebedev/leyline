@@ -26,8 +26,10 @@ One transient row per resolved object, with the same fields as
 ## Lifecycle
 
 `ResolutionComplete` follows its `ResolutionStart`, in the same GSM or, when a
-prompt interrupts the resolution, a later one. It precedes the rows that
-retire the resolved object:
+prompt interrupts the resolution, a later one. Some resolutions, Prowess
+triggers among them, carry `ResolutionComplete` with no `ResolutionStart`.
+`ResolutionComplete` precedes the rows that retire the resolved object, in
+the same GSM or, when a prompt follows the resolution, a later one:
 
 - for a spell, the `ObjectIdChanged`, if any, and the `ZoneTransfer` with
   `category` `Resolve` that moves the card off the stack;
@@ -43,14 +45,16 @@ For example, Lightning Bolt resolving publishes, in order, `ResolutionStart`,
   A `ResolutionComplete` row `MUST` carry `affectedIds` equal to exactly its
   `affectorId`.
 - <a id="ResolutionComplete.after-start"></a>**ResolutionComplete.after-start.**
-  A `ResolutionComplete` `MUST` be preceded by a `ResolutionStart` with the
-  same `affectorId` and `grpid`, in the same GSM or an earlier one.
+  When a `ResolutionStart` names the same `affectorId`, it `MUST` precede the
+  `ResolutionComplete`, in the same GSM or an earlier one, and carry the same
+  `grpid`.
 - <a id="ResolutionComplete.before-resolve-transfer"></a>**ResolutionComplete.before-resolve-transfer.**
-  For a resolved spell, `ResolutionComplete` `MUST` precede, in the same GSM,
-  the `ZoneTransfer` with `category` `Resolve` that moves the spell off the
-  stack.
+  For a resolved spell, `ResolutionComplete` `MUST` precede the
+  `ZoneTransfer` with `category` `Resolve` that moves the spell off the
+  stack, in the same GSM or an earlier one.
 
 ## Open points
 
 - Which rows close a resolution that is cut short, for example when every
   target became illegal?
+- Which resolutions have no `ResolutionStart`?

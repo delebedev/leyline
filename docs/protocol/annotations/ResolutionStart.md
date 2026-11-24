@@ -45,9 +45,12 @@ its stack ID here.
   `affectorId`.
 - <a id="ResolutionStart.grpid"></a>**ResolutionStart.grpid.**
   When the resolving game object carries no `overlayGrpId`, `grpid` `MUST`
-  equal its `grpId`.
+  equal its `grpId` or, for an ability object, the `grpId` of an entry in
+  its `uniqueAbilities`.
 
 ## Open points
 
 - Which identity does `grpid` carry for a resolving object that has an
   `overlayGrpId`?
+- When does an ability's `grpid` name an entry of its `uniqueAbilities`
+  rather than its own `grpId`?
