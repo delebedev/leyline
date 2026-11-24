@@ -56,8 +56,9 @@ not mention keep their current assignment.
 
 `SubmitBlockersReq` commits the current declaration. It has no payload beyond
 `gameStateId` and `respId`, which name the newest request. Submitting with no
-assigned blocker declares no blocks when that is legal, that is, when no
-blocking requirement can be obeyed (CR 509.1c).
+assigned blocker declares no blocks when that is legal under the blocking
+requirements (CR 509.1c). A player may decline to pay an optional cost to
+block, so a blocking requirement does not always rule it out.
 
 ## Lifecycle
 
@@ -101,9 +102,9 @@ blocking requirement can be obeyed (CR 509.1c).
   every assigned blocker's row carries its `selectedAttackerInstanceIds`.
 - <a id="DeclareBlockersReq.submit-commits"></a>**DeclareBlockersReq.submit-commits.**
   The server `MUST NOT` commit blocks before it accepts a `SubmitBlockersReq`
-  for the newest request. When declaring no blockers is legal, because no
-  blocking requirement could be obeyed (CR 509.1c), it `MUST` accept one with
-  no assigned blocker as declaring no blocks.
+  for the newest request. When declaring no blockers is legal under the
+  blocking requirements (CR 509.1c), it `MUST` accept one with no assigned
+  blocker as declaring no blocks.
 
 ## Open points
 
