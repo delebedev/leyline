@@ -245,6 +245,7 @@ Leyline cannot play at all is `absent`.
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 | [Firebending](mechanics/Firebending.md) | `ManaSnapshotCapture`, `ManaDetailsContributor` | `implemented` |
 | [Flashback](mechanics/Flashback.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Foretell](mechanics/Foretell.md) | `CastRails`, `PersistentFeedBuilder` | `partial` |
 
 ## Exceptions
 
@@ -1246,6 +1247,17 @@ grouped by family, then by entity.
     alternative cost, so the accepted row names the flashback ability only in
     `alternativeGrpId`.
   - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### Foretell
+
+- **`absent`** — [Foretell.special-cost](mechanics/Foretell.md#Foretell.special-cost) *(provisional statement)*
+  - Contract: foretelling is offered as a `Special` action keyed by the card's
+    foretell ability.
+  - Leyline: offers foretelling as a `Cast` with that ability in
+    `alternativeGrpId` and `abilityGrpId` `0`, as recorded for
+    [Special.foretell-plot](actions/Special.md#Special.foretell-plot), so no
+    foretell `Special` offer exists.
+  - Owner: `ActionMapper`, `CastRails`
 
 ## Leyline-defined shapes
 
