@@ -1,10 +1,10 @@
 ---
-summary: "Cleave: an alternative cost from the hand that removes bracketed text; the per-card Cleave ability on the offer and accepted cast, the type-13 CastingTimeOption, and the stack layered effect."
+summary: "Cleave: an alternative cost that removes bracketed text; the per-card Cleave ability on the offer and accepted cast, the type-13 CastingTimeOption, and the stack layered effect."
 entity: mechanic/Cleave
 ---
 # Cleave
 
-Cleave is an alternative cost paid from the hand. A spell cast for its cleave
+Cleave is an alternative cost. A spell cast for its cleave
 cost loses the words in square brackets while it is on the stack. The cast is
 a [Cast](../actions/Cast.md) whose `alternativeGrpId` names the card's
 Cleave ability; the cast is marked by a
@@ -27,6 +27,9 @@ change is a text-changing effect (CR 702.148b).
 | Text change | [LayeredEffectCreated](../annotations/LayeredEffectCreated.md), `LayeredEffectDestroyed` | On the stack spell, from cast to resolution |
 
 ## Cast lifecycle
+
+The lifecycle below is the cast from the hand. Another effect can let a
+cleave card be cast from another zone, such as exile.
 
 1. The card in the hand is offered as a `Cast` whose `alternativeGrpId` is
    the card's Cleave ability, beside its ordinary cast.
@@ -70,4 +73,5 @@ but replaces "target" with "each" and removes the targeting step.
 
 - Does a cleaved spell whose remaining text has no target skip
   `PlayerSelectingTargets`?
+- How does a cleave cast from a zone other than the hand differ?
 - Is the text change visible on the stack object's ability list?
