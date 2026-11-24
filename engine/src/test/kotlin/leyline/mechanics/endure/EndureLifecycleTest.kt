@@ -63,6 +63,7 @@ class EndureLifecycleTest :
         // Mode B we pre-seed `declineNextOptionalAction()` so the auto-responder
         // sends `CancelNo` instead. Tests assert post-resolution state.
 
+        // protocol: Endure.accept-counters
         test("Mode A — Yes puts a +1/+1 counter on the source") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
@@ -92,6 +93,7 @@ class EndureLifecycleTest :
             tokens.none { it.name.contains("Spirit", ignoreCase = true) } shouldBe true
         }
 
+        // protocol: Endure.decline-token
         test("Mode B — No creates a 1/1 Spirit token") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
@@ -133,6 +135,7 @@ class EndureLifecycleTest :
             }
         }
 
+        // protocol: Endure.choice-prompt
         test("OAM envelope — promptId, sourceId, parameters, allowCancel") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h

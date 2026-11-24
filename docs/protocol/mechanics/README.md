@@ -22,5 +22,6 @@ that flag described under [designations](../designations/README.md).
 | [Earthbend](Earthbend.md) | Target prompt, layered effects, counters, AnimatedLand | Animates a land its controller controls and refreshes the animation when repeated. |
 | [Emerge](Emerge.md) | Alternative-cost cast, sacrifice cost | Casts a spell for its emerge cost by sacrificing a creature. |
 | [Enchant](Enchant.md) | Aura cast, target exchange, attachment | Restricts what an Aura spell targets and what the Aura enchants. |
+| [Endure](Endure.md) | Resolution OptionalActionMessage, counters or token | Puts +1/+1 counters on a permanent or creates a Spirit token. |
 | [Exploit](Exploit.md) | Enters trigger, resolution SelectNReq, sacrifice transfer | Optionally sacrifices a creature as the enters trigger resolves. |
 | [Extort](Extort.md) | Cast trigger, optional payment | Drains each opponent when the controller pays after casting a spell. |
