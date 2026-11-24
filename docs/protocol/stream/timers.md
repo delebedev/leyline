@@ -10,9 +10,8 @@ entity: stream/Timers
 ## Meaning
 
 Arena represents the rope and the timeout policy as a timer set per seat,
-plus two side-channel messages. A `TimeoutMessage` reports a charged timeout
-and the seat's new count; it is not a notification that the carried timer
-reached zero.
+plus two side-channel messages. A `TimeoutMessage` reports a timeout for a
+seat; it is not a notification that the carried timer reached zero.
 
 ## Surfaces
 
@@ -20,7 +19,7 @@ reached zero.
 |---|---|---|
 | `GameStateMessage` | `timers` carries the current timer pool; `players[].timerIds` assigns timers to seats. | Full `TimerInfo` rows, including elapsed and running state. |
 | `TimerStateMessage` | Replaces the timer set of the seat named by `seatId`, during setup or reconfiguration. | Timer definitions, normally without elapsed state. |
-| `TimeoutMessage` | Reports a charged timeout and the seat's new count. | One timer snapshot plus `seatId` and `timeoutCount`. |
+| `TimeoutMessage` | Reports a timeout for a seat. | One timer snapshot plus `seatId` and `timeoutCount`. |
 
 `GameStateMessage.gameInfo` carries the match policy: `maxTimeoutCount`, the
 number of charged timeouts before the policy ends the game; `maxPipCount`,
@@ -82,13 +81,13 @@ The other defined behaviors are operations the client applies locally.
 
 1. A GSM or `TimerStateMessage` establishes the seat's timer set.
 2. Timer snapshots update elapsed and running state.
-3. When the server charges a timeout, it sends a `TimeoutMessage` whose
-   `timeoutCount` is the seat's new count, carrying the timer active at that
-   moment.
-4. The client shows the latest `timeoutCount` for that seat.
+3. When a timeout occurs, the server sends a `TimeoutMessage` for the seat,
+   carrying the timer active at that moment and a `timeoutCount`. The seat's
+   `players[].timeoutCount` in later GSMs records its timeouts.
 
-The carried timer may still have time left; `timeoutCount`, not elapsed
-time, is the charged count.
+The carried timer may still have time left. Successive `TimeoutMessage`s for
+one seat do not carry increasing `timeoutCount` values: the value usually
+falls or is absent.
 
 ## Contract
 
@@ -100,9 +99,6 @@ time, is the charged count.
 - <a id="Timers.server-behaviors"></a>**Timers.server-behaviors.** A timer
   the server sends `MUST` carry behavior `TakeControl`, `Timeout` or
   `StartDelayedTimer`.
-- <a id="Timers.timeout-count"></a>**Timers.timeout-count.** Each
-  `TimeoutMessage` for a seat `MUST` carry a `timeoutCount` greater than that
-  of the previous `TimeoutMessage` for the same seat.
 
 ## Open points
 
@@ -110,3 +106,5 @@ time, is the charged count.
 - How do warning pips, the per-action allowance and the carried timer
   combine into the charged-timeout policy?
 - Does `TimerType` `Decision` have any role on the stream?
+- What does `TimeoutMessage.timeoutCount` count: timeouts remaining before
+  `maxTimeoutCount`, or something else?
