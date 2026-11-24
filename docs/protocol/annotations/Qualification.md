@@ -91,13 +91,16 @@ player-level effects and can share a row with `Qualification`.
 - <a id="Qualification.no-source"></a>**Qualification.no-source.**
   A row without `affectorId` `MUST` carry `SourceParent` `0`.
 - <a id="Qualification.source-parent"></a>**Qualification.source-parent.**
-  *(provisional)* When `affectorId` is present, `SourceParent` `MUST` equal
-  it or, when `affectorId` is an ability object, that object's `parentId`.
+  *(provisional)* When `affectorId` names a card or permanent that the
+  receiving seat has seen, `SourceParent` `MUST` equal it. When it names an
+  ability object, `SourceParent` `MUST` equal that object's `parentId`.
 
 ## Open points
 
 - What do the remaining `QualificationType` values and the non-zero
   `QualificationSubtype` values mean?
 - What selects an ability object rather than its source as `affectorId`?
+- A few rows name as `affectorId` an object the receiving seat never saw, with
+  a different `SourceParent`. What do those name?
 - When is a granted keyword published as a `Qualification` and when only as
   [AddAbility](AddAbility.md)?
