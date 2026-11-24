@@ -57,7 +57,8 @@ manaSelections
    of the offered row. There is no separate selected-color field: the chosen
    color is the one payment option left in `manaPaymentOptions`. The
    response may still carry the whole `manaSelections` menu.
-2. The server reports the activation as one bracket:
+2. The server reports an activation whose mana pays for something as one
+   bracket, in this order:
    - `AbilityInstanceCreated`, with the source as `affectorId` and the
      activation's ability instance ID in `affectedIds`;
    - the cost's state changes, such as `TappedUntappedPermanent` for a tap;
@@ -67,6 +68,8 @@ manaSelections
 
    When the activation's `Ability` object waits in Pending, the same rows are
    split across GSMs and `AbilityInstanceDeleted` arrives in a later one.
+   The order of `UserActionTaken` and `AbilityInstanceDeleted` for an
+   activation that only floats mana is an open point.
 3. Mana that is not consumed at once appears in the player's `manaPool` as a
    `ManaInfo` with the source's instance ID, color, ability, count and mana
    ID.
