@@ -111,6 +111,9 @@ server can also send an empty `SubmitTargetsResp` after a submission.
 
 ## Contract
 
+The response rule shared by every request applies here:
+[Messages.resp-correlates](../stream/messages.md#Messages.resp-correlates).
+
 - <a id="SelectTargetsReq.follows-state"></a>**SelectTargetsReq.follows-state.**
   The request `MUST` follow, in the same message batch, a GSM with the same
   `gameStateId`.
@@ -137,10 +140,6 @@ server can also send an empty `SubmitTargetsResp` after a submission.
 - <a id="SelectTargetsReq.cancel-keeps-bounds"></a>**SelectTargetsReq.cancel-keeps-bounds.**
   `allowCancel=Abort` `MUST NOT` lower a group's `minTargets`: a required
   target keeps `minTargets=1` when the parent action can be abandoned.
-- <a id="SelectTargetsReq.resp-correlates"></a>**SelectTargetsReq.resp-correlates.**
-  A `SelectTargetsResp` or `SubmitTargetsReq` answers the request whose
-  `msgId` equals its `respId` and whose `gameStateId` equals its own. One for
-  which either differs `MUST NOT` be applied to the request.
 - <a id="SelectTargetsReq.resp-one-group"></a>**SelectTargetsReq.resp-one-group.**
   The server `MUST` accept a `SelectTargetsResp` that names one group by
   `targetIdx` and one or more of that group's candidate entries, and `MUST
