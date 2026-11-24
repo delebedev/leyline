@@ -31,6 +31,7 @@ class ProtectionChoiceTest :
             ailibrary=Island;Island;Island
         """
 
+        // protocol: SelectNReq.enum-domain, SelectNReq.enum-subset, SelectNReq.card-colors
         session("choosing red protection removes the creature from red spell targets", puzzle = puzzle, fullControl = true) {
             val protected = human.battlefield.iid("Grizzly Bears")
             val unprotected = ai.battlefield.iid("Centaur Courser")
@@ -42,6 +43,7 @@ class ProtectionChoiceTest :
                 req.listType shouldBe SelectionListType.StaticSubset
                 req.staticList shouldBe StaticList.CardColors
                 req.idsList shouldBe listOf(1, 2, 3, 4, 5)
+                req.idType shouldBe IdType.None_ab2c
             }
             respondToSelectN(listOf(4))
             passUntil(8) { allMessages.any { it.hasGroupReq() } }.shouldBeTrue()

@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.game.codes.DetailKeys
 import leyline.game.mapping.PromptIds
+import leyline.game.mapping.ZoneIds
 import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.performAction
@@ -92,6 +93,7 @@ class ShockLandEtbTest :
             }
         }
 
+        // protocol: ReplacementEffect.etb-choice-bracket
         session("decline — land enters tapped, life unchanged", puzzle = puzzleText()) {
             human.life shouldBe 20
 
@@ -113,6 +115,13 @@ class ShockLandEtbTest :
                 responseMessages.annotationsOfType(AnnotationType.SyntheticEvent).size shouldBe 0
                 responseMessages.annotationsOfType(AnnotationType.ModifiedLife).size shouldBe 0
                 responseMessages.deletedPersistentAnnotationIds() shouldContain replacement.id
+                responseMessages
+                    .gameStateMessages()
+                    .single { gsm ->
+                        gsm.annotationsList.any {
+                            AnnotationType.ZoneTransfer_af5a in it.typeList && it.detailInt(DetailKeys.ZONE_DEST) == ZoneIds.BATTLEFIELD
+                        }
+                    }.diffDeletedPersistentAnnotationIdsList shouldContain replacement.id
                 human.life shouldBe 20
                 templeGarden.isTapped shouldBe true
             }

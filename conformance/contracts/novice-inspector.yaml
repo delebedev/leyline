@@ -1,3 +1,4 @@
+# protocol: Token.created
 name: Novice Inspector investigate trigger
 scenario: {suite: mechanics-protocol, id: investigate-novice-inspector}
 frames:
@@ -27,7 +28,7 @@ frames:
         type: Token
         lane: object
         op: create
-        fields: {raw.zoneId: 28, raw.controllerSeatId: 1}
+        fields: {raw.zoneId: 28, raw.visibility: Public, raw.controllerSeatId: 1}
         equals: {raw.parentId: ability.affectorId, raw.objectSourceGrpId: ability.raw.objectSourceGrpId}
       - id: started
         type: ResolutionStart

@@ -1,3 +1,6 @@
+# protocol: Cast.accepted, Activate_Mana.bracket, Activate_Mana.paid
+# protocol: AnnotationOrdering.identity-first, AnnotationOrdering.cast-block, AnnotationOrdering.resolution-bracket
+# protocol: IdentityAndZones.resolve-renames, Enums.action-type-detail
 name: Lightning Bolt cast and resolution
 scenario: {suite: warmup, id: land-spell-face}
 frames:

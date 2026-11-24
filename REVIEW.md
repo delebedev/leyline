@@ -38,6 +38,13 @@ playable behavior, then protocol fidelity, then broader conformance.
   - documentation: `docs/principles-documentation.md`;
   - protocol obligations: `docs/protocol-conformance.md` and
     `conformance/contracts/`.
+- For a change to prompt, action, annotation or game-object emission, check it
+  against the **Contract** section of the entity's page under `docs/protocol/`
+  and its row and exceptions in `docs/protocol/implementation.md`. A `compat`
+  exception or a Leyline-defined shape listed there is not a violation. A
+  *(provisional)* statement holds only in the scope it names; do not require
+  it of sibling branches. An emission change that contradicts a statement
+  without updating the page or the map is a finding.
 
 ## Severity
 

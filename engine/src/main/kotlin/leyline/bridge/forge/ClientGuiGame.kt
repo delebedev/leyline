@@ -367,19 +367,16 @@ class ClientGuiGame(
         sideboardingMode: Boolean,
         showRememberCheckbox: Boolean,
     ): IGuiGame.OrderResult<T> {
-        // Trigger-order auto-resolve. Forge's `PCHuman.orderSimultaneousSa`
-        // routes through here with `SpellAbilityView` choices for simultaneous
-        // triggers. The protocol does not surface a stepper for that decision —
-        // the engine resolves with APNAP / first-controller-orders default. Any
-        // bridge round-trip we tried to emit here would land as a `choose_one`
-        // request the client doesn't render and would time out, by which point
-        // the session has often torn down. Short-circuit: return the engine's
-        // already-ordered list (preselect = dest; first-time = source) and
-        // let resolution proceed.
+        // Simultaneous-trigger ordering. Forge's `PCHuman.orderSimultaneousSa`
+        // routes here with `SpellAbilityView` choices. This path emits no
+        // prompt and keeps the order Forge supplies, so a player cannot order
+        // their own simultaneous triggers. The protocol reference defines a
+        // trigger-ordering `SelectNReq` for this decision; the implementation
+        // map lists it as absent. The generic `choose_one` route below is not
+        // that prompt, and the client does not render it.
         //
-        // PCHuman currently passes exactly one non-empty list; if a future
-        // partial-preselect mode ever populates both, prefer dest (the
-        // preselected order is the load-bearing input).
+        // PCHuman passes exactly one non-empty list. The source list is
+        // returned when it is non-empty, otherwise the destination list.
         val orderedDest = destChoices.orEmpty()
         val payload = if (sourceChoices.isNotEmpty()) sourceChoices else orderedDest
         if (payload.firstOrNull { it != null } is SpellAbilityView) {

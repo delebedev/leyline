@@ -23,7 +23,11 @@ import leyline.tooling.headless.HeadlessResponseMode
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.IdType
+import wotc.mtgo.gre.external.messaging.Messages.OptionContext
 import wotc.mtgo.gre.external.messaging.Messages.ParameterType
+import wotc.mtgo.gre.external.messaging.Messages.SelectionContext
+import wotc.mtgo.gre.external.messaging.Messages.SelectionListType
 
 class AnnihilatorLifecycleTest :
     SessionTest({
@@ -170,6 +174,10 @@ class AnnihilatorLifecycleTest :
                 selection.minSel shouldBe 6
                 selection.maxSel shouldBe 6
                 selection.idsCount shouldBe 8
+                selection.context shouldBe SelectionContext.Resolution_a163
+                selection.optionContext shouldBe OptionContext.Resolution_a9d7
+                selection.listType shouldBe SelectionListType.Dynamic
+                selection.idType shouldBe IdType.InstanceId_ab2c
                 promptMessage.prompt.promptId shouldBe 180
                 promptMessage.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId", "CardId")
                 promptMessage.prompt.parametersList.map { it.type } shouldBe listOf(ParameterType.Number, ParameterType.Number)

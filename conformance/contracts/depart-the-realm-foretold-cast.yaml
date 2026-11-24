@@ -1,3 +1,4 @@
+# protocol: RevealedCard.created
 name: Depart the Realm — cast foretold card
 scenario: {suite: mechanics-protocol, id: foretell-depart-the-realm-lifecycle}
 frames:
