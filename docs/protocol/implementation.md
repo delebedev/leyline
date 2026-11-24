@@ -108,6 +108,7 @@ Rows are grouped by family and sorted by entity name.
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [DamagedThisTurn](annotations/DamagedThisTurn.md) | `AnnotationBuilder.damagedThisTurn`, `CombatAnnotations`, `PersistentAnnotationStore` | `partial` |
 | [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
+| [DungeonStatus](annotations/DungeonStatus.md) | `AnnotationBuilder.dungeonStatus`, `PersistentFeedBuilder` | `compat-only` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
 | [InstanceRevealedToOpponent](annotations/InstanceRevealedToOpponent.md) | `AnnotationBuilder.instanceRevealedToOpponent`, `RevealStateContributor`, `InstanceRevealedToOpponentKind` | `partial` |
@@ -155,7 +156,6 @@ the table above when its page is written.
 | `Designation` | `AnnotationBuilder.designation` | emitted |
 | `DisplayCardUnderCard` | `AnnotationBuilder.displayCardUnderCard` | emitted |
 | `DisqualifiedEffect` | — | `absent` |
-| `DungeonStatus` | `AnnotationBuilder.dungeonStatus` | emitted |
 | `DynamicAbility` | — | `absent` |
 | `GainDesignation` | `AnnotationBuilder.gainDesignation` | emitted |
 | `GamewideHistoryCount` | — | `absent` |
@@ -694,6 +694,16 @@ grouped by family, then by entity.
   - Leyline: builds rows only from pending trigger holders, and never writes
     `mana_to_add`.
   - Owner: `PersistentTemporaryFeedBuilder`
+
+#### DungeonStatus
+
+- **`compat`** — [DungeonStatus](annotations/DungeonStatus.md), the entity
+  - Leyline: publishes one row per player with the seat as `affectorId` and
+    `affectedIds`, Int32 `CurrentDungeon`, `CurrentDungeonZCID` and
+    `CurrentRoom` (the string `"nil"` when no dungeon is active), and
+    `AllDungeonsCompleted` listing completed dungeon grpIds, key-only when
+    empty. The contract for these fields is not established.
+  - Owner: `AnnotationBuilder.dungeonStatus`, `PersistentFeedBuilder`
 
 #### EnteredZoneThisTurn
 

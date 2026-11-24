@@ -181,7 +181,7 @@ the type's page. Types without a page are described only by their row.
 | `GamewideHistoryCount` | persistent | `count`, `AbilityGrpId` | A game-wide count tracked for a player and the ability that uses it. |
 | `SupplementalText` | persistent | `AbilityWordName`, `value` | A named value associated with a source card and a player. |
 | [AbilityWordActive](AbilityWordActive.md) | both | `AbilityWordName` | An ability word condition or tracked value on an object, such as threshold or raid. `AbilityWordName` is an open set. |
-| `DungeonStatus` | persistent | `CurrentDungeon`, `CurrentDungeonZCID`, `CurrentRoom`, `AllDungeonsCompleted` | A player's current dungeon, room and completed dungeons. |
+| [DungeonStatus](DungeonStatus.md) | persistent | not established | A player's current dungeon, room and completed dungeons. |
 
 ### Designations
 
