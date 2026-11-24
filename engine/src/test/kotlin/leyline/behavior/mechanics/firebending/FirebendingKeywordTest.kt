@@ -30,6 +30,7 @@ class FirebendingKeywordTest :
             TestCardRegistry.ensureCardRegistered("Jeong Jeong, the Deserter")
         }
 
+        // protocol: Firebending.pool-entry, Firebending.mana-details, Firebending.combat-cleanup
         session(
             "Firebending attack trigger resolves to combat-persistent red mana",
             """

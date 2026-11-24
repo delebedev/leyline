@@ -29,3 +29,4 @@ that flag described under [designations](../designations/README.md).
 | [Evoke](Evoke.md) | Alternative-cost cast, TemporaryPermanent, sacrifice trigger | Casts a card for its evoke cost and sacrifices the permanent as it enters. |
 | [Exploit](Exploit.md) | Enters trigger, resolution SelectNReq, sacrifice transfer | Optionally sacrifices a creature as the enters trigger resolves. |
 | [Extort](Extort.md) | Cast trigger, optional payment | Drains each opponent when the controller pays after casting a spell. |
+| [Firebending](Firebending.md) | Attack trigger, mana pool, ManaDetails | Adds red mana on attack that is kept until end of combat. |

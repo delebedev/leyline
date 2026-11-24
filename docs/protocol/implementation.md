@@ -243,6 +243,7 @@ Leyline cannot play at all is `absent`.
 | [Evoke](mechanics/Evoke.md) | `CastRails`, `PersistentTemporaryFeedBuilder` | `implemented` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
+| [Firebending](mechanics/Firebending.md) | `ManaSnapshotCapture`, `ManaDetailsContributor` | `implemented` |
 
 ## Exceptions
 
