@@ -48,6 +48,6 @@ cast both record `1`.
 | [CastMdfc](MDFC.md) | Cast the spell face of a modal double-faced card. |
 | `CastPrototype` | Cast the prototype face of a card. |
 | [PlayMdfc](MDFC.md) | Play the land face of a modal double-faced card. |
-| `CastLeftRoom`, `CastRightRoom` | Cast one door of a Room. |
+| [CastLeftRoom](Rooms.md), [CastRightRoom](Rooms.md) | Cast one door of a Room. |
 | `FloatMana` | Float available mana. Request rail only. |
 | `ResolutionCost`, `MakePayment`, `CombatCost`, `SpecialPayment`, `OpeningHandAction` | Sub-actions offered inside other decisions. |

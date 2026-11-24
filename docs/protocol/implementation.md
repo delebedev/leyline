@@ -73,6 +73,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastRight](actions/CastRight.md) | `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations` | `absent` |
 | [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Rooms](actions/Rooms.md) | `ActionMapper.addRoomCastActions`, `CardStateDesignations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 
 ### Prompts
@@ -273,6 +274,18 @@ grouped by family, then by entity.
     and adds `abilityGrpId` only when the back-face ability resolves, so an
     offer can carry `sourceId` alone.
   - Owner: `ActionMapper.buildMdfcSpellAction`
+
+#### Rooms
+
+- **`diverges`** — [Rooms.door-discriminator](actions/Rooms.md#Rooms.door-discriminator),
+  [Rooms.accepted](actions/Rooms.md#Rooms.accepted)
+  - Contract: a door is selected by `actionType` `22` or `23`, and the accepted
+    cast is recorded with the same integer.
+  - Leyline: offers `CastLeftRoom` and `CastRightRoom`, then records the
+    accepted cast as `UserActionTaken` `actionType` `1`, because the cast-event
+    mapping recognizes no room branch. The offer and the accepted row disagree
+    on the action type.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`, `ActionMapper.addRoomCastActions`
 
 #### Special
 
