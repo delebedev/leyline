@@ -23,8 +23,10 @@ One transient row per action. `actionType` is the discriminator and carries the
 | `3` | `Play` | The land on the battlefield | `0` |
 | `4` | `ActivateMana` | The mana ability instance | The mana ability's grpId |
 
-Other `ActionType` values, such as `Special` and the face-specific cast
-variants, use the same shape. An alternative cast adds `alternativeGrpId`, the
+Other `ActionType` values, such as `Special`, `PlayMdfc` (`19`) for a modal
+double-faced card's back face, and the face-specific casts `CastLeft`,
+`CastRight`, `CastAdventure`, `CastLeftRoom`, `CastRightRoom` and
+`CastOmen`, use the same shape. An alternative cast adds `alternativeGrpId`, the
 grpId of the cost or permission used.
 
 ## Fields
@@ -61,23 +63,26 @@ ability. It never names the hand ID the card had before the action.
 - <a id="UserActionTaken.single-affected"></a>**UserActionTaken.single-affected.**
   A row `MUST` carry exactly one ID in `affectedIds`.
 - <a id="UserActionTaken.play-land"></a>**UserActionTaken.play-land.**
-  A land played from hand `MUST` produce a row with `actionType` `3`,
-  `abilityGrpId` `0` and `affectedIds` equal to the land's battlefield ID.
+  A land played from hand by its front face `MUST` produce a row with
+  `actionType` `3`, `abilityGrpId` `0` and `affectedIds` equal to the land's
+  battlefield ID.
 - <a id="UserActionTaken.activate-mana"></a>**UserActionTaken.activate-mana.**
   A mana ability activation `MUST` produce a row with `actionType` `4`,
   `abilityGrpId` equal to the mana ability's grpId and `affectedIds` equal to
   the instance named by the activation's `AbilityInstanceCreated`.
 - <a id="UserActionTaken.activate"></a>**UserActionTaken.activate.**
-  An activated ability put on the stack `MUST` produce a row with `actionType`
-  `2`, `abilityGrpId` equal to the ability's grpId and `affectedIds` equal to
-  the ability's stack instance ID.
+  *(provisional)* An activated ability put on the stack `MUST` produce a row
+  with `actionType` `2`, `abilityGrpId` equal to the ability's grpId and
+  `affectedIds` equal to the ability's stack instance ID.
 - <a id="UserActionTaken.cast"></a>**UserActionTaken.cast.**
-  *(provisional)* A spell cast from hand for its mana cost `MUST` produce a
-  row with `actionType` `1`, `abilityGrpId` `0` and `affectedIds` equal to
-  the spell's stack ID.
+  *(provisional)* A spell cast from hand for its mana cost, other than by a
+  face-specific cast, `MUST` produce a row with `actionType` `1`,
+  `abilityGrpId` `0` and `affectedIds` equal to the spell's stack ID.
 
 ## Open points
 
 - What does a nonzero `abilityGrpId` on a `Cast` row identify?
 - Which `ActionType` values appear on this row for special actions and
   face-specific casts, and what does each name in `affectedIds`?
+- A Reconfigure activation carried an `abilityGrpId` that differs from its
+  stack object's `grpId`. Which activations do that?
