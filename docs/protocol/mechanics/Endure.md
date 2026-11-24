@@ -29,7 +29,8 @@ skip the action.
 ## Choice lifecycle
 
 1. The ability with endure begins to resolve.
-2. Its controller receives an `OptionalActionMessage` with prompt `13976`,
+2. While the enduring permanent is still on the battlefield, its controller
+   receives an `OptionalActionMessage` with prompt `13976`,
    `allowCancel` `No`, and one `CardId` parameter naming the permanent that
    endures. `sourceId` follows
    [OptionalActionMessage.ability-source](../prompts/OptionalActionMessage.md#OptionalActionMessage.ability-source).
@@ -53,7 +54,8 @@ not to endure.
 ## Contract
 
 - <a id="Endure.choice-prompt"></a>**Endure.choice-prompt.** *(provisional)*
-  The endure choice `MUST` be an `OptionalActionMessage` with prompt `13976`
+  While the enduring permanent is still on the battlefield, the endure
+  choice `MUST` be an `OptionalActionMessage` with prompt `13976`
   and `allowCancel` `No`.
 - <a id="Endure.choice-card"></a>**Endure.choice-card.** *(provisional)* Its
   only prompt parameter `MUST` be a `CardId` naming the permanent that
@@ -68,5 +70,8 @@ not to endure.
 ## Open points
 
 - Does endure 0 send the choice?
+- When the enduring permanent has left the battlefield before the ability
+  resolves, is the Spirit token created without a choice, and with which
+  rows?
 - When an effect makes a permanent other than the ability's source endure,
   does the parameter still name the enduring permanent?

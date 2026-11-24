@@ -48,8 +48,8 @@ Vehicle (CR 702.122b, CR 702.122c).
 1. A later GSM carries `ResolutionStart` for the crew ability,
    `LayeredEffectCreated` with the crew ability as `affectorId`, and
    `ResolutionComplete`, then `AbilityInstanceDeleted` from the Vehicle.
-2. The same GSM creates a persistent `ModifiedType` and `LayeredEffect` row
-   on the Vehicle, naming the Vehicle as `affectorId`, with
+2. While the Vehicle is still on the battlefield, the same GSM creates a
+   persistent `ModifiedType` and `LayeredEffect` row on the Vehicle, naming the Vehicle as `affectorId`, with
    `sourceAbilityGRPID` the crew ability and the new `effect_id`.
 
 ## Sibling shapes
@@ -71,8 +71,9 @@ as mana for a spell.
 - <a id="Crew.crewed-this-turn"></a>**Crew.crewed-this-turn.** The GSM that
   taps the helpers `MUST` create a persistent `CrewedThisTurn` row naming the
   Vehicle as `affectorId` and every helper in `affectedIds`.
-- <a id="Crew.type-change"></a>**Crew.type-change.** *(provisional)* The crew
-  ability's resolution `MUST` create a persistent `ModifiedType` row on the
+- <a id="Crew.type-change"></a>**Crew.type-change.** *(provisional)* When the
+  crew ability resolves while the Vehicle is still on the battlefield, the
+  resolution `MUST` create a persistent `ModifiedType` row on the
   Vehicle, naming the Vehicle as `affectorId`, with `sourceAbilityGRPID` the
   crew ability.
 
@@ -81,4 +82,6 @@ as mana for a spell.
 - Is the cost prompt skipped when only one set of creatures can pay?
 - When are the `CrewedThisTurn` and `ModifiedType` rows deleted, and does a
   second crew of the same Vehicle in one turn extend the first row?
+- What does the crew ability's resolution carry when the Vehicle has left
+  the battlefield?
 - Do Crew values above 4 have their own prompt IDs?
