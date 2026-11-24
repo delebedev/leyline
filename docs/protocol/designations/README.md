@@ -51,7 +51,7 @@ key carries none, and the state is read from the row's type alone.
 | 1 | Commander | seat and card | A commander's identity and command-zone tax: colour identity, commander `grpId` and cumulative cost increase, on both the seat and the card. |
 | 10 | [Day](DayNight.md) | game | Day is established; the persistent row carries the active player's current-turn spell count. |
 | 11 | [Night](DayNight.md) | game | Night is established, in the same shape as Day. |
-| 15 | `Solved` | card | A Case permanent whose solve condition has resolved. |
+| 15 | [Solved](Solved.md) | card | A Case permanent whose solve condition has resolved. |
 | 16 | `Suspected` | card | A permanent that has menace and cannot block. |
 | 17 | [Saddled](Saddled.md) | card | A Mount saddled this turn. |
 | 18 | [Plotted](Plotted.md) | card | A card exiled by plot and castable later without paying its mana cost. |

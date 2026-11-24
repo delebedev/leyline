@@ -94,6 +94,7 @@ Rows are grouped by family and sorted by entity name.
 | [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
 | [Saddled](designations/Saddled.md) | `CardStateDesignations`, `AnnotationBuilder.saddledDesignation`, `SaddledDesignationKind` | `implemented` |
+| [Solved](designations/Solved.md) | `CardStateDesignations`, `AnnotationBuilder.solvedDesignation`, `SolvedDesignationKind` | `implemented` |
 
 ### Prompts
 
