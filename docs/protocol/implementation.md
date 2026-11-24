@@ -236,6 +236,7 @@ Leyline cannot play at all is `absent`.
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
+| [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 
 ## Exceptions
 
@@ -1223,6 +1224,15 @@ grouped by family, then by entity.
   - Leyline: publishes the rows only once the permanent has a charge counter,
     so a station permanent that has never been stationed carries none.
   - Owner: `AbilityWordScanner`
+
+#### Unearth
+
+- **`absent`** — [Unearth.designation](mechanics/Unearth.md#Unearth.designation)
+  - Contract: the resolution GSM creates a persistent `Designation` with
+    `DesignationType` `26` on the returned permanent, with `source_grpid`
+    naming the card.
+  - Leyline: publishes no designation of type `26` for any card.
+  - Owner: `CardStateDesignations`
 
 ## Leyline-defined shapes
 
