@@ -76,6 +76,7 @@ Rows are grouped by family and sorted by entity name.
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
+| [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 | [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
@@ -293,6 +294,26 @@ grouped by family, then by entity.
   - Leyline: offers Exert as an extra attacker row whose `alternativeGrpId` is
     Exert's keyword ability ID, in the Enlist row layout.
   - Owner: `RequestBuilder.buildDeclareAttackersReq`
+
+#### OptionalActionMessage
+
+- **`diverges`** — [OptionalActionMessage.ability-source](prompts/OptionalActionMessage.md#OptionalActionMessage.ability-source)
+  - Contract: when the optional effect belongs to a resolving ability,
+    `sourceId` is that ability on the stack and the first `CardId`
+    parameter is its source card.
+  - Leyline: sets `sourceId` and the `CardId` parameter both to the host
+    card, so the ability on the stack is never named.
+  - Owner: `OptionalActionGate`, `BlockingInteractionMaterializer`
+- **`diverges`** — [OptionalActionMessage.card-parameters](prompts/OptionalActionMessage.md#OptionalActionMessage.card-parameters)
+  - Contract: every outer prompt parameter is a `CardId` number.
+  - Leyline: adds a `Cost` parameter of type `NonLocalizedString` when the
+    optional action is paying a mana cost to prevent an effect.
+  - Owner: `BlockingInteractionMaterializer`, `PlayerController.payCostToPreventEffect`
+- **`compat`** — [Prompt](prompts/OptionalActionMessage.md#prompt)
+  - Contract: the prompt ID is specific to the optional effect.
+  - Leyline: uses one generic prompt, `1159`, for every optional effect that
+    has no dedicated prompt mapping.
+  - Owner: `BlockingInteractionMaterializer`
 
 #### PayCostsReq
 
