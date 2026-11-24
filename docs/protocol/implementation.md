@@ -105,6 +105,7 @@ Rows are grouped by family and sorted by entity name.
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
+| [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 | [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
 | [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
@@ -175,7 +176,6 @@ the table above when its page is written.
 | `PowerToughnessModCreated` | `AnnotationBuilder.powerToughnessModCreated` | emitted |
 | `PredictedDirectDamage` | `AnnotationBuilder.predictedDirectDamage` | emitted |
 | `Qualification` | `AnnotationBuilder.qualification` | emitted |
-| `RemoveAbility` | `AnnotationBuilder.removeAbility` | emitted |
 | `RemoveAttachment` | `AnnotationBuilder.removeAttachment` | emitted |
 | `ReplacementEffectApplied` | — | `absent` |
 | `RevealedCardCreated` | `AnnotationBuilder.revealedCardCreated` | emitted |
