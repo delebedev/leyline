@@ -239,6 +239,7 @@ Leyline cannot play at all is `absent`.
 | [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Casualty](mechanics/Casualty.md) | `DeferredCastCostPlanMaterializer`, `TransferCategoryResolver` | `partial` |
+| [Cleave](mechanics/Cleave.md) | `CastRails`, `BoundCard`, `AnnotationBuilder.castingTimeOption` | `implemented` |
 | [CollectEvidence](mechanics/CollectEvidence.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedFactsCapture`, `TransferCategoryResolver` | `implemented` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
