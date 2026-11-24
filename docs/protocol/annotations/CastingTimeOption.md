@@ -67,7 +67,7 @@ alone.
 3. The row stays in `persistentAnnotations` while the spell is on the stack.
 4. When the spell leaves the stack, by resolving, being countered or being
    exiled, the row is deleted, normally in the GSM that carries that
-   transfer.
+   transfer. A few rows outlive the spell.
 
 ## Sibling shapes
 
@@ -93,10 +93,12 @@ alone.
   When the GSM carries the `UserActionTaken` of the cast, `alternateCostGrpId`
   `MUST` equal that row's `alternativeGrpId`.
 - <a id="CastingTimeOption.retired-with-spell"></a>**CastingTimeOption.retired-with-spell.**
-  The row `MUST` be deleted once the spell has left the stack.
+  *(provisional)* The row `MUST` be deleted in the GSM where the spell leaves
+  the stack.
 
 ## Open points
 
 - What do `costType` values name on the `OptionalCostPaid` branch?
+- Why do a few rows outlive the spell they describe?
 - Do `Multikicker`, `Replicate` and the other unlisted types produce rows, and
   with which keys?
