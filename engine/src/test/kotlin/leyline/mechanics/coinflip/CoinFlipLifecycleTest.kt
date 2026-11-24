@@ -22,6 +22,7 @@ class CoinFlipLifecycleTest :
     SessionTest({
         fun GameStateMessage.annotationTypes(): List<AnnotationType> = annotationsList.flatMap { it.typeList }
 
+        // protocol: CoinFlip.transient, CoinFlip.within-resolution
         session(
             "Tavern Swindler emits coin flip annotation and prompt during resolution",
             puzzle = """

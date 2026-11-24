@@ -103,6 +103,7 @@ Rows are grouped by family and sorted by entity name.
 | [CardRevealed](annotations/CardRevealed.md) | `AnnotationBuilder.cardRevealed`, `RevealStateContributor`, `CardRevealedKind` | `partial` |
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
+| [CoinFlip](annotations/CoinFlip.md) | `AnnotationBuilder.coinFlip`, `AnnotationPipeline`, `BundleBuilder`, `GameEventCollector` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [DamagedThisTurn](annotations/DamagedThisTurn.md) | `AnnotationBuilder.damagedThisTurn`, `CombatAnnotations`, `PersistentAnnotationStore` | `partial` |
 | [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
@@ -138,7 +139,6 @@ the table above when its page is written.
 | `Attachment` | `AnnotationBuilder.attachment` | emitted |
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
 | `ClassLevel` | — | `absent` |
-| `CoinFlip` | `AnnotationBuilder.coinFlip` | emitted |
 | `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
 | `ControllerChanged` | `AnnotationBuilder.controllerChanged`, `AnnotationBuilder.controllerChangedEffect` | emitted |
 | `CopiedObject` | — | `absent` |
@@ -664,6 +664,14 @@ grouped by family, then by entity.
   - Leyline: records a choice result only from a static-list `SelectNReq`
     and from a card-selection `SelectNReq`.
   - Owner: `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime`
+
+#### CoinFlip
+
+- **`diverges`** — [CoinFlip.result-code](annotations/CoinFlip.md#CoinFlip.result-code)
+  - Contract: a lost flip carries `CoinFlipResult` `2`.
+  - Leyline: writes `1` for a won flip and `0` for a lost one. The prompt's
+    localization reference is still `48` for a loss.
+  - Owner: `GameEventCollector`, `AnnotationPipeline`
 
 #### DamagedThisTurn
 
