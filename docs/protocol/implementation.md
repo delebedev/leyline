@@ -685,6 +685,12 @@ grouped by family, then by entity.
   - Leyline: deletes the row when the upkeep step begins, so it survives the
     GSMs of the new turn's untap step.
   - Owner: `CombatAnnotations`, `PersistentAnnotationStore`
+- **`diverges`** — [DamagedThisTurn.member-leaves](annotations/DamagedThisTurn.md#DamagedThisTurn.member-leaves) *(provisional statement)*
+  - Contract: a member that receives a new instance ID is removed from the
+    row in that GSM.
+  - Leyline: leaves the row unchanged, so it keeps naming the old instance ID
+    until the row is cleared.
+  - Owner: `PersistentAnnotationStore`
 
 #### DelayedTriggerAffectees
 

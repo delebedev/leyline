@@ -37,8 +37,9 @@ object and is not a member.
 1. The first damage to a permanent in a turn: the GSM carries `DamageDealt`
    for it and a new row naming it, or every permanent damaged in that GSM.
 2. Later damage in the same turn republishes the row under the same `id`
-   with the new permanents added. A permanent that leaves the battlefield can
-   be removed from the list, and the row deleted when no member remains.
+   with the new permanents added. A permanent that leaves the battlefield is
+   removed from the list in the GSM of its `ObjectIdChanged`; the row is
+   deleted instead when no member remains.
 3. The row is deleted when the next turn begins.
 
 At most one row is live at a time.
@@ -63,6 +64,10 @@ affector for another turn-scoped set.
 - <a id="DamagedThisTurn.grows-in-place"></a>**DamagedThisTurn.grows-in-place.**
   Damage to another permanent while a row is live `MUST` republish that row
   under the same `id`, not create a second row.
+- <a id="DamagedThisTurn.member-leaves"></a>**DamagedThisTurn.member-leaves.**
+  *(provisional)* When a member receives a new instance ID, the same GSM
+  `MUST` republish the row without that member or, when no member remains,
+  delete the row.
 - <a id="DamagedThisTurn.turn-retire"></a>**DamagedThisTurn.turn-retire.**
   *(provisional)* The row `MUST` be deleted in the first GSM of the next
   turn.
@@ -72,5 +77,3 @@ affector for another turn-scoped set.
 - Why do some rows survive the first GSM of the next turn?
 - Why is a permanent occasionally added in a GSM without a `DamageDealt` for
   it?
-- When is a permanent that leaves the battlefield removed from the list, and
-  when does the row keep its old instance ID?
