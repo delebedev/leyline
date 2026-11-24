@@ -69,14 +69,12 @@ countdown changes only whether it is a creature.
   `actionType` `1`, `abilityGrpId` `0` and the impending ability in
   `alternativeGrpId`.
 - <a id="Impending.enter-counters"></a>**Impending.enter-counters.**
-  *(provisional)* When no replacement effect changes the number of time
-  counters it enters with, the resolution of an impending spell `MUST` carry
-  `CounterAdded` on the permanent with `counter_type` `5` and
-  `transaction_amount` equal to its impending number.
-- <a id="Impending.tick"></a>**Impending.tick.** When an impending
-  permanent's end-step trigger resolves while the permanent is still on the
-  battlefield with a time counter, the resolution `MUST` carry `CounterRemoved` on it with
-  `counter_type` `5` and `transaction_amount` `1`.
+  *(provisional)* When a permanent cast for its impending cost enters with N
+  time counters, its resolution `MUST` carry `CounterAdded` on it with
+  `counter_type` `5` and `transaction_amount` N.
+- <a id="Impending.tick"></a>**Impending.tick.** When an impending permanent's
+  end-step trigger removes a time counter from it, the resolution `MUST` carry
+  `CounterRemoved` on it with `counter_type` `5` and `transaction_amount` `1`.
 - <a id="Impending.keeps-instance"></a>**Impending.keeps-instance.** The
   permanent `MUST` keep its instance ID while time counters are removed,
   including the last one.

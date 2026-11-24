@@ -67,13 +67,14 @@ spell and leaves a lasting counter.
 - <a id="Increment.triggering-spell"></a>**Increment.triggering-spell.**
   *(provisional)* The trigger's `TriggeringObject` `MUST` name the spell that
   caused it, with `source_zone` `27`.
-- <a id="Increment.counter"></a>**Increment.counter.** When the creature is
-  still on the battlefield and the trigger's condition still holds as it
-  resolves, the resolution `MUST` carry `CounterAdded` on the creature with `counter_type` `1` and
-  `transaction_amount` `1`.
+- <a id="Increment.counter"></a>**Increment.counter.** When the resolution
+  puts a +1/+1 counter on the creature, it `MUST` carry `CounterAdded` on the
+  creature with `counter_type` `1` and `transaction_amount` `1`.
 
 ## Open points
 
+- What does the resolution carry when the counter is not put on the creature,
+  for example because it is prevented?
 - What does the trigger carry when its condition no longer holds as it
   resolves, for example when the creature grew in the meantime?
 - What does the `TriggeringObject` row name once the causing spell has left

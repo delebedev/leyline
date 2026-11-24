@@ -59,12 +59,14 @@ a shared keyword ability rather than by the card's ability.
 - <a id="Backup.target-spec"></a>**Backup.target-spec.** *(provisional)* The
   Backup trigger's `TargetSpec` row `MUST` carry `abilityGrpId` `287`.
 - <a id="Backup.counters"></a>**Backup.counters.** *(provisional)* When the
-  target is still legal and no replacement effect changes the number of
-  counters, the resolution `MUST` carry `CounterAdded` on the target with `counter_type`
-  `1` and `transaction_amount` N.
+  resolution puts N +1/+1 counters on the target, it `MUST` carry
+  `CounterAdded` on the target with `counter_type` `1` and
+  `transaction_amount` N.
 
 ## Open points
 
+- What does the resolution carry when the counter is not put on the creature,
+  for example because it is prevented?
 - What does `transaction_amount` carry when a replacement effect changes the
   number of counters placed?
 - How are the abilities granted to another target creature published?

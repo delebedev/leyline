@@ -99,11 +99,11 @@ power into counters at resolution.
   commits the tap cost `MUST` carry `TappedUntappedPermanent` for the tapped
   creature with the station ability as `affectorId`, and the activation's
   `UserActionTaken`.
-- <a id="Station.charge-counters"></a>**Station.charge-counters.** When a station
-  ability resolves while its permanent is still on the battlefield and the
-  tapped creature's power is greater than 0, the resolution `MUST` carry `CounterAdded` with `counter_type` `19` naming
-  the station permanent, and the same GSM `MUST` carry its persistent
-  `Counter` row with the cumulative charge count.
+- <a id="Station.charge-counters"></a>**Station.charge-counters.** When the
+  resolution puts charge counters on the station permanent, it `MUST` carry
+  `CounterAdded` with `counter_type` `19` naming the station permanent, and
+  the same GSM `MUST` carry its persistent `Counter` row with the cumulative
+  charge count.
 - <a id="Station.threshold-rows"></a>**Station.threshold-rows.** While a
   station card is on the Battlefield, it `MUST` carry one persistent
   `AbilityWordActive` row named `StationLevelThreshold` per printed
@@ -118,6 +118,8 @@ power into counters at resolution.
 
 ## Open points
 
+- What does the resolution carry when no charge counter is put on the
+  permanent, for example because it is prevented?
 - Which rows does a resolution carry when the charge count first crosses a
   striation, and when it crosses several at once?
 - What does each entry-time `LayeredEffectCreated` stand for, given that their

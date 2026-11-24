@@ -64,10 +64,9 @@ puts the counter on its own source and needs no target.
   `ResolutionStart` and `ResolutionComplete` `MUST` carry `220`.
 - <a id="Training.no-target"></a>**Training.no-target.** A training trigger
   `MUST NOT` carry a `TargetSpec` or a `PlayerSelectingTargets` row.
-- <a id="Training.counter"></a>**Training.counter.** When a training trigger
-  resolves while its source creature is still on the battlefield, the
-  resolution `MUST` carry `CounterAdded` from the trigger to its source creature
-  with `counter_type` `1`.
+- <a id="Training.counter"></a>**Training.counter.** When the resolution puts
+  the +1/+1 counter on the training creature, it `MUST` carry `CounterAdded`
+  from the trigger to that creature with `counter_type` `1`.
 - <a id="Training.condition-before-commit"></a>**Training.condition-before-commit.**
   *(provisional)* Grounded for a single training creature: the `Training`
   `AbilityWordActive` row `MUST` be deleted in the GSM that commits the
@@ -78,6 +77,8 @@ puts the counter on its own source and needs no target.
 
 ## Open points
 
+- What does the resolution carry when the counter is not put on its creature,
+  for example because it is prevented?
 - What does a training trigger carry when its creature has left the
   battlefield before it resolves?
 - Which selection change during attack declaration creates the `Training`
