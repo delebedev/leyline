@@ -17,7 +17,7 @@ ability resolves, after its `ResolutionStart`.
 | Family | `numericInputType` | Prompt | `sourceId` | Bounds | Next |
 |---|---|---|---|---|---|
 | Amount chosen by an effect, such as how many counters or how much energy | `ChooseAnyAmount` | Specific to the effect | The resolving object, or an ID that names no published object | Effect-specific `maxValue`, often a `minValue` | The effect applies the number |
-| X of a cost the player agreed to pay during resolution, such as "you may pay {X}" | `ChooseX` | `51` | The resolving ability | `maxValue=2147483647` | `PayCostsReq` for the chosen cost |
+| X of a cost the player agreed to pay during resolution, such as "you may pay {X}" | `ChooseX` | `51` | The resolving ability | `maxValue=2147483647` on the one grounded card; see Open points | `PayCostsReq` for the chosen cost |
 
 In the cost family the request follows the `OptionalActionMessage` that
 accepts paying the cost, and its `CardId` prompt parameter names the card the
