@@ -121,8 +121,8 @@ Rows are grouped by family and sorted by entity name.
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
-| [PhasedIn](annotations/PhasedIn.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline` | `implemented` |
-| [PhasedOut](annotations/PhasedOut.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection` | `implemented` |
+| [PhasedIn](annotations/PhasedIn.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline` | `compat-only` |
+| [PhasedOut](annotations/PhasedOut.md) | `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection` | `compat-only` |
 | [Qualification](annotations/Qualification.md) | `AnnotationBuilder.qualification`, `PersistentFeedBuilder`, `QualificationKind`, `QualificationType` | `partial` |
 | [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
@@ -806,6 +806,25 @@ grouped by family, then by entity.
   - Leyline: adds `sourceAbilityGRPID`, the attach ability, to that row, and
     ends it with `LayeredEffectDestroyed`.
   - Owner: `VehicleAttachContributor`
+
+#### PhasedIn
+
+- **`compat`** — [PhasedIn](annotations/PhasedIn.md), the entity
+  - Leyline: publishes one row per returning permanent with its unchanged
+    instance ID, no `affectorId` and no details, after the untap step's
+    `PhaseOrStepModified` and before its untap rows. The contract for this
+    shape is not established.
+  - Owner: `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`
+
+#### PhasedOut
+
+- **`compat`** — [PhasedOut](annotations/PhasedOut.md), the entity
+  - Leyline: publishes one row naming the permanent by its unchanged
+    instance ID, with the resolving spell or ability as `affectorId` and no
+    details, without `ObjectIdChanged` or `ZoneTransfer`, and republishes the
+    object with `zoneId` `12` while keeping it in the battlefield zone. The
+    contract for this shape is not established.
+  - Owner: `AnnotationBuilder.phasedPermanent`, `AnnotationPipeline`, `StateZoneProjection`
 
 #### Qualification
 

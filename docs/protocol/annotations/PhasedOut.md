@@ -1,5 +1,5 @@
 ---
-summary: "PhasedOut annotation: transient event for a permanent phasing out; same instance ID, PhasedOut zone projection with battlefield membership kept, affector and absence of zone-transfer annotations."
+summary: "PhasedOut annotation: transient event for a permanent phasing out; rules grounding and the open questions, since its shape is not yet established."
 entity: annotation/PhasedOut
 ---
 # PhasedOut
@@ -15,64 +15,33 @@ return is [PhasedIn](PhasedIn.md).
 
 Phasing is not a zone change (CR 702.26d): no leaves-the-battlefield or
 enters-the-battlefield event happens, counters and attachments stay, and the
-object keeps its instance ID.
+object keeps its identity. The zone layout reserves zone `12`, PhasedOut
+(see [identity and zones](../model/identity-and-zones.md)).
 
 ## Variants
 
-Transient only, never combined with another type, without details.
-
-## Fields
-
-| Field | Role |
-|---|---|
-| `affectorId` | The resolving spell or ability that phased the permanent out. |
-| `affectedIds` | The permanent, by its unchanged instance ID. |
-| details | None. |
-
-## Identity model
-
-The affector is a stack instance, not the permanent, even when the
-permanent's own ability phases it out; the ability object's `parentId` links
-the two. The permanent keeps its instance ID through the whole cycle.
-
-While phased out, the object's `zoneId` is `12`, the PhasedOut zone, but its
-ID stays in the battlefield zone's member list (see
-[identity and zones](../model/identity-and-zones.md)). The object stays in
-`gameObjects`, publicly visible, with its controller, counters and abilities.
-Its actions are not offered while it is phased out.
-
-## Lifecycle
-
-1. The phasing ability resolves: in one GSM, `ResolutionStart`, `PhasedOut`,
-   `ResolutionComplete` and `AbilityInstanceDeleted`, with the object
-   republished with `zoneId` `12`.
-2. The row lasts for that GSM only.
-3. The object stays phased out until its controller's next untap step.
+Transient. The fields and their values are not established; see Open
+points.
 
 ## Sibling shapes
 
-A permanent that is exiled and returned, unlike one that phases out, gets
-[ObjectIdChanged](ObjectIdChanged.md) and [ZoneTransfer](ZoneTransfer.md)
-and a new instance ID. `PhasedOut` is accompanied by neither.
+A permanent that is exiled and returned is a new object and gets
+[ObjectIdChanged](ObjectIdChanged.md) and [ZoneTransfer](ZoneTransfer.md);
+phasing is not such a move.
 
 ## Contract
 
-- <a id="PhasedOut.transient"></a>**PhasedOut.transient.**
-  `PhasedOut` `MUST` be carried in `annotations` without details and with
-  exactly one `affectedIds` entry.
-- <a id="PhasedOut.no-transfer"></a>**PhasedOut.no-transfer.**
-  The GSM `MUST NOT` carry `ObjectIdChanged` or `ZoneTransfer` for the
-  phased-out permanent, and the permanent `MUST` keep its instance ID.
-- <a id="PhasedOut.zone-projection"></a>**PhasedOut.zone-projection.**
-  *(provisional)* While phased out, the object `MUST` carry `zoneId` `12` and
-  `MUST` remain a member of the battlefield zone.
-- <a id="PhasedOut.ability-affector"></a>**PhasedOut.ability-affector.**
-  *(provisional)* A permanent phased out by a resolving spell or ability
-  `MUST` name that stack instance as `affectorId`.
+No statements yet. The row's fields, identities and lifecycle are not
+established.
 
 ## Open points
 
-- What do phasing by an effect on several permanents, and phasing of
-  attached permanents, look like?
-- Is there an `affectorId` when a static ability such as phasing itself
-  phases a permanent out?
+- Is the phased-out permanent named in `affectedIds` under its unchanged
+  instance ID, and does the GSM omit `ObjectIdChanged` and `ZoneTransfer`
+  for it?
+- Does the object carry `zoneId` `12` while phased out, and does it stay a
+  member of the battlefield zone?
+- What does `affectorId` name: the resolving spell or ability, or nothing for
+  a static ability such as phasing itself?
+- What do phasing of several permanents, and of attached permanents, look
+  like?

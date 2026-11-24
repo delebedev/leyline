@@ -1,4 +1,3 @@
-# protocol: PhasedIn.transient, PhasedIn.same-instance, PhasedIn.no-affector, PhasedIn.before-untap
 name: Kaito natural phase-in chronology
 scenario: {suite: phasing, id: kaito-cycle}
 frames:

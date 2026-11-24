@@ -1,5 +1,5 @@
 ---
-summary: "PhasedIn annotation: transient event for a phased-out permanent phasing back in; same instance ID, no affector on the natural untap-step return, ordering within the untap step and restored projection."
+summary: "PhasedIn annotation: transient event for a phased-out permanent phasing back in during its controller's untap step; rules grounding and the open questions, since its shape is not yet established."
 entity: annotation/PhasedIn
 ---
 # PhasedIn
@@ -12,62 +12,25 @@ permanents untap (CR 702.26a, CR 702.26c), and is treated as existing again.
 
 ## Variants
 
-Transient only, never combined with another type, without details. The
-natural return during the untap step has no `affectorId`.
-
-## Fields
-
-| Field | Role |
-|---|---|
-| `affectorId` | Absent on the natural return. Absence is not the same as `0` or the permanent's own ID. |
-| `affectedIds` | The permanent, by the same instance ID that `PhasedOut` named. |
-| details | None. |
-
-## Identity model
-
-No new instance is allocated and control does not change. The object's
-`zoneId` returns from `12` to the battlefield (see
-[PhasedOut](PhasedOut.md) and [identity and zones](../model/identity-and-zones.md)).
-Counters and ability identities are kept; per-turn state such as a
-planeswalker's used loyalty activation is reset as for any permanent in a new
-turn.
-
-## Lifecycle
-
-Within the GSM that covers the controller's untap step:
-
-1. [PhaseOrStepModified](PhaseOrStepModified.md) for the untap step.
-2. `PhasedIn` for each returning permanent.
-3. [TappedUntappedPermanent](TappedUntappedPermanent.md) rows untapping the
-   active player's permanents.
-4. `PhaseOrStepModified` for the upkeep step.
-
-The same GSM republishes the object with its battlefield `zoneId` and offers
-its actions again. The row lasts for that GSM only.
+Transient. The fields and their values are not established; see Open
+points.
 
 ## Sibling shapes
 
 [ZoneTransfer](ZoneTransfer.md) and [ObjectIdChanged](ObjectIdChanged.md)
-never accompany phasing in; a permanent returning from exile uses them
-instead.
+describe zone changes; phasing in is not one (CR 702.26d).
 
 ## Contract
 
-- <a id="PhasedIn.transient"></a>**PhasedIn.transient.**
-  `PhasedIn` `MUST` be carried in `annotations` without details and with
-  exactly one `affectedIds` entry.
-- <a id="PhasedIn.same-instance"></a>**PhasedIn.same-instance.**
-  `affectedIds` `MUST` name the instance ID that the permanent's `PhasedOut`
-  named.
-- <a id="PhasedIn.no-affector"></a>**PhasedIn.no-affector.**
-  *(provisional)* A natural return during the untap step `MUST NOT` carry
-  `affectorId`.
-- <a id="PhasedIn.before-untap"></a>**PhasedIn.before-untap.**
-  *(provisional)* `PhasedIn` `MUST` follow the untap step's
-  `PhaseOrStepModified` and precede the untap step's
-  `TappedUntappedPermanent` rows.
+No statements yet. The row's fields, identities and ordering are not
+established.
 
 ## Open points
 
-- Does an effect that phases a permanent in name an `affectorId`?
+- Does `affectedIds` name the instance ID that the permanent's `PhasedOut`
+  named?
+- Does the natural return during the untap step carry an `affectorId`?
+- Where does the row sit relative to the untap step's
+  [PhaseOrStepModified](PhaseOrStepModified.md) and its
+  [TappedUntappedPermanent](TappedUntappedPermanent.md) rows?
 - How are several returning permanents, and attached permanents, ordered?
