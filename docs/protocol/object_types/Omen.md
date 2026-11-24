@@ -75,7 +75,5 @@ differs in its cast action and its resolution path. Back-face companions such as
 
 ## Open points
 
-- Does an Omen companion persist across the Stack-to-Library return when the
-  parent instance ID changes, or is it always rebuilt?
 - Does the companion ever carry abilities the Omen face does not have, such as a
   cast permission attached at cast time?
