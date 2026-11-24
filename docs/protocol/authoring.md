@@ -221,6 +221,10 @@ write that consequence as a statement.
   every `protocol:` citation and link to it in the same change.
 - Promoting a provisional statement removes the marker and keeps the ID when
   the requirement is unchanged within the old scope.
+- Widening a statement's scope, including a promotion that covers branches the
+  provisional statement did not, needs either a new ID or a check of every
+  existing citation against the wider scope. A test that proves one branch
+  does not prove the others.
 
 ## Open points
 
