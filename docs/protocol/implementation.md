@@ -341,6 +341,11 @@ grouped by family, then by entity.
 
 #### CastOmen
 
+- **`absent`** — [CastOmen.request-face](actions/CastOmen.md#CastOmen.request-face)
+  - Contract: the `ActionsAvailableReq` offer carries `grpId` naming the Omen
+    face and `facetId` naming the parent.
+  - Leyline: sends neither field on `CastOmen`.
+  - Owner: `ActionMapper.buildOmenAction`
 - **`absent`** — [CastOmen.permission-pair](actions/CastOmen.md#CastOmen.permission-pair) *(provisional statement)*
   - Contract: a cast through a non-hand permission carries `sourceId` and
     `abilityGrpId` together, identifying the permission.

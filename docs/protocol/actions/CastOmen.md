@@ -29,7 +29,9 @@ same parent.
 | `manaCost` | The Omen face's cost. |
 | `sourceId`, `abilityGrpId` | Paired fields on a cast-through-permission branch; they identify the permission, not the Omen face. |
 
-The ordinary offer carries `instanceId` and `manaCost` only. `alternativeGrpId`
+On the GSM rail the ordinary offer carries `instanceId` and `manaCost` only;
+on `ActionsAvailableReq` it also carries `grpId` naming the Omen face and
+`facetId` naming the parent. `alternativeGrpId`
 is absent on every branch, and an ordinary hand-origin cast installs no
 persistent `CastingTimeOption`.
 
@@ -75,6 +77,10 @@ does.
   companion.
 - <a id="CastOmen.face-cost"></a>**CastOmen.face-cost.** The offer's `manaCost`
   `MUST` be the Omen face's cost, not the permanent face's cost.
+- <a id="CastOmen.request-face"></a>**CastOmen.request-face.** The offer on
+  `ActionsAvailableReq` `MUST` carry `grpId` naming the Omen face and
+  `facetId` naming the parent `Card`; the offer on the GSM rail `MUST NOT`
+  carry either.
 - <a id="CastOmen.no-alternative-grpid"></a>**CastOmen.no-alternative-grpid.**
   The offer `MUST NOT` carry `alternativeGrpId`.
 - <a id="CastOmen.no-hand-option"></a>**CastOmen.no-hand-option.** *(provisional)*
