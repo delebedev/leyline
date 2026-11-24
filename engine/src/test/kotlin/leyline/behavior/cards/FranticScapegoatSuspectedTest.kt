@@ -15,6 +15,7 @@ import leyline.testkit.*
 import leyline.testkit.SessionTest
 import leyline.testkit.annotationsOfType
 import leyline.testkit.detailInt
+import leyline.testkit.gameStateMessages
 import leyline.testkit.persistentAnnotationsOfType
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -109,6 +110,7 @@ class FranticScapegoatSuspectedTest :
                         it.affectorId == bearIid &&
                             it.detailInt(DetailKeys.DESIGNATION_TYPE) == AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
                     }
+            // protocol: Suspected.gain, Suspected.move, Suspected.persistent, Suspected.behaviour-rows
             val bearAbilityRows =
                 allMessages
                     .persistentAnnotationsOfType(AnnotationType.AddAbility_af5a)
@@ -147,6 +149,10 @@ class FranticScapegoatSuspectedTest :
                 bearGain.affectedIdsList shouldContain bearIid
                 scapegoatLoss.affectorId shouldBe resolution.affectorId
                 scapegoatLoss.affectedIdsList shouldContain scapegoatIid
+                allMessages
+                    .gameStateMessages()
+                    .any { gsm -> bearGain in gsm.annotationsList && scapegoatLoss in gsm.annotationsList }
+                    .shouldBeTrue()
             }
         }
     })

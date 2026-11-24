@@ -27,8 +27,9 @@ read_when:
   the shared [identity model](protocol/model/identity-and-zones.md), the
   [message stream](protocol/stream/messages.md), contracts for
   [game objects](protocol/object_types/README.md),
-  [actions](protocol/actions/README.md), prompts and annotations, and the
-  [implementation map](protocol/implementation.md)
+  [actions](protocol/actions/README.md),
+  [designations](protocol/designations/README.md), prompts and annotations, and
+  the [implementation map](protocol/implementation.md)
 - [`protocol-conformance.md`](protocol-conformance.md) — bounded protocol
   obligations over deterministic scenarios and their CI lane
 - [`simclient-iteration.md`](simclient-iteration.md) — fixed-seed failure

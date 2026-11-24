@@ -43,6 +43,7 @@ class OmenCompanionTest :
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
+            // protocol: Omen.face-identity, Omen.shares-parent-state
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Omen_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
             val descriptor =

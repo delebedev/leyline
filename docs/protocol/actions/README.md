@@ -40,10 +40,14 @@ cast both record `1`.
 | [Activate_Mana](Activate_Mana.md) | Activate a mana ability. |
 | `Pass` | Pass priority. Request rail only. |
 | [Special](Special.md) | Take a costed special action, such as foretelling or plotting a card. |
-| `SpecialTurnFaceUp` | Turn a face-down permanent face up. |
-| `CastLeft`, `CastRight` | Cast one half of a split card. |
-| `CastAdventure`, `CastOmen`, `CastMdfc`, `CastPrototype` | Cast a named face of a card. |
-| `PlayMdfc` | Play the land face of a modal double-faced card. |
-| `CastLeftRoom`, `CastRightRoom` | Cast one door of a Room. |
+| [SpecialTurnFaceUp](Special_TurnFaceUp.md) | Turn a face-down permanent face up. |
+| `CastLeft` | Cast the left half of a split card. |
+| [CastRight](CastRight.md) | Cast the right half of a split card. |
+| [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |
+| [CastOmen](CastOmen.md) | Cast the Omen half of an Omen card. |
+| [CastMdfc](MDFC.md) | Cast the spell face of a modal double-faced card. |
+| [PlayMdfc](MDFC.md) | Play the land face of a modal double-faced card. |
+| `CastPrototype` | Cast the prototype face of a card. |
+| [CastLeftRoom](Rooms.md), [CastRightRoom](Rooms.md) | Cast one door of a Room. |
 | `FloatMana` | Float available mana. Request rail only. |
 | `ResolutionCost`, `MakePayment`, `CombatCost`, `SpecialPayment`, `OpeningHandAction` | Sub-actions offered inside other decisions. |

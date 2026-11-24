@@ -56,8 +56,17 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [Ability](object_types/Ability.md) | `ObjectMapper.buildAbilityObject`, `ZoneMapper.addStackAbilitiesFromSnapshot` | `partial` |
+| [Adventure](object_types/Adventure.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
+| [DisturbBack](object_types/DisturbBack.md) | `ZoneMapper.addDisturbBackObject`, `ObjectMapper.buildDisturbBackObject`, `StateMapper` | `partial` |
+| [Emblem](object_types/Emblem.md) | `ObjectMapper.buildFromSnapshot`, `EmblemSnapshot` | `implemented` |
+| [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
+| [RoomLeft](object_types/RoomLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [RoomRight](object_types/RoomRight.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [SplitLeft](object_types/SplitLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [SplitRight](object_types/SplitRight.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
 | [TriggerHolder](object_types/TriggerHolder.md) | `ObjectMapper.buildTriggerHolderObject`, `StateMapper` | `implemented` |
 
@@ -67,7 +76,26 @@ Rows are grouped by family and sorted by entity name.
 |---|---|---|
 | [Activate_Mana](actions/Activate_Mana.md) | `ActivatedActionEmitter`, `ManaSourcePaymentMaterializer`, `ActionPerformer` | `partial` |
 | [Cast](actions/Cast.md) | `ActionMapper`, `CastDisplayCost`, `CastRails`, `CastingTimeOptionsBuilder` | `implemented` |
+| [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [CastRight](actions/CastRight.md) | `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations` | `absent` |
+| [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Rooms](actions/Rooms.md) | `ActionMapper.addRoomCastActions`, `CardStateDesignations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
+| [Special_TurnFaceUp](actions/Special_TurnFaceUp.md) | `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
+
+### Designations
+
+| Entity | Owner | Status |
+|---|---|---|
+| [AnimatedLand](designations/AnimatedLand.md) | `EarthbendEmitter`, `AnnotationBuilder.manaCreatureDesignation` | `partial` |
+| [DayNight](designations/DayNight.md) | `DayNightDesignationKind`, `AnnotationBuilder.dayNightDesignation`, `AnnotationBuilder.gainDesignationOnGame`, `AnnotationBuilder.loseDesignationOnGame` | `partial` |
+| [PlayerSpeed](designations/PlayerSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `PlayerSpeedDesignationKind`, `StateMapper` | `implemented` |
+| [Plotted](designations/Plotted.md) | `CardStateDesignations`, `AnnotationBuilder.plottedDesignation`, `PlottedDesignationKind` | `partial` |
+| [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
+| [Saddled](designations/Saddled.md) | `CardStateDesignations`, `AnnotationBuilder.saddledDesignation`, `SaddledDesignationKind` | `implemented` |
+| [Solved](designations/Solved.md) | `CardStateDesignations`, `AnnotationBuilder.solvedDesignation`, `SolvedDesignationKind` | `implemented` |
+| [Suspected](designations/Suspected.md) | `CardStateDesignations`, `AnnotationBuilder.suspectedDesignation`, `AnnotationPipeline` | `implemented` |
 
 ### Prompts
 
@@ -200,6 +228,29 @@ grouped by family, then by entity.
     Pending.
   - Owner: `ZoneMapper.addStackAbilitiesFromSnapshot`
 
+#### DisturbBack
+
+- **`absent`** — [DisturbBack.every-zone](object_types/DisturbBack.md#DisturbBack.every-zone),
+  [DisturbBack.disturb-cast](object_types/DisturbBack.md#DisturbBack.disturb-cast) *(provisional statement)*
+  - Contract: a card with a Disturb back face carries its companion in every
+    zone the parent is projected in, including the Stack and the Battlefield.
+  - Leyline: emits `DisturbBack` only for cards projected in a hand, graveyard,
+    sideboard or visible library. A card on the Stack, on the Battlefield or in
+    Exile has no companion.
+  - Owner: `ZoneMapper.addDisturbBackObject`, `StateMapper`
+
+#### MDFCBack
+
+- **`absent`** — [MDFCBack.back-identity](object_types/MDFCBack.md#MDFCBack.back-identity),
+  [MDFCBack.selected-back](object_types/MDFCBack.md#MDFCBack.selected-back),
+  [MDFCBack.remap](object_types/MDFCBack.md#MDFCBack.remap)
+  - Contract: a visible modal double-faced card projects a back-face companion
+    that carries the other face and follows the parent through remaps.
+  - Leyline: never emits `MDFCBack`. The projection layer supports only
+    `Adventure` and `Omen` companions, so a modal double-faced card shows no
+    alternate-face object.
+  - Owner: `LinkedFaceCompanionProjector`
+
 #### RevealedCard
 
 - **`diverges`** — [RevealedCard.source-zone](object_types/RevealedCard.md#RevealedCard.source-zone)
@@ -216,6 +267,58 @@ grouped by family, then by entity.
     both.
   - Owner: `RevealStateContributor`, `AnnotationBuilder.revealedCardCreated`
 
+#### RoomLeft
+
+- **`absent`** — [RoomLeft.pair-together](object_types/RoomLeft.md#RoomLeft.pair-together),
+  [RoomLeft.selected-door](object_types/RoomLeft.md#RoomLeft.selected-door),
+  [RoomLeft.battlefield-persist](object_types/RoomLeft.md#RoomLeft.battlefield-persist)
+  *(provisional statements)*
+  - Contract: a Room projects both door companions, the Stack parent adopts the
+    cast door's `grpId`, and the pair persists onto the Battlefield when the
+    parent instance ID is preserved.
+  - Leyline: never emits `RoomLeft` or `RoomRight`. The Room is projected as one
+    `Card`; door identity appears only as the stack `grpId` and the door
+    designation on the parent.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### RoomRight
+
+- **`absent`** — [RoomRight.pair-together](object_types/RoomRight.md#RoomRight.pair-together),
+  [RoomRight.selected-door](object_types/RoomRight.md#RoomRight.selected-door),
+  [RoomRight.battlefield-persist](object_types/RoomRight.md#RoomRight.battlefield-persist)
+  *(provisional statements)*
+  - Contract: a Room projects both door companions, the Stack parent adopts the
+    cast door's `grpId`, and the pair persists onto the Battlefield when the
+    parent instance ID is preserved.
+  - Leyline: never emits `RoomRight` or `RoomLeft`. The Room is projected as one
+    `Card`; door identity appears only as the stack `grpId` and the door
+    designation on the parent.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### SplitLeft
+
+- **`absent`** — [SplitLeft.pair-together](object_types/SplitLeft.md#SplitLeft.pair-together),
+  [SplitLeft.selected-face](object_types/SplitLeft.md#SplitLeft.selected-face)
+  *(provisional statement)*
+  - Contract: a split card's projection carries both half companions, and the
+    Stack parent adopts the selected half's `grpId`.
+  - Leyline: never emits `SplitLeft` or `SplitRight`. A split half is projected
+    as an ordinary `Card` on the Stack, with the face `grpId` and no companion
+    pair.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### SplitRight
+
+- **`absent`** — [SplitRight.pair-together](object_types/SplitRight.md#SplitRight.pair-together),
+  [SplitRight.selected-face](object_types/SplitRight.md#SplitRight.selected-face)
+  *(provisional statement)*
+  - Contract: a split card's projection carries both half companions, and the
+    Stack parent adopts the selected half's `grpId`.
+  - Leyline: never emits `SplitRight` or `SplitLeft`. A split half is projected
+    as an ordinary `Card` on the Stack, with the face `grpId` and no companion
+    pair.
+  - Owner: `LinkedFaceCompanionProjector`
+
 ### Action exceptions
 
 #### Activate_Mana
@@ -228,6 +331,79 @@ grouped by family, then by entity.
     ability that names its colors, including single-color ones.
   - Owner: `ActivatedActionEmitter`
 
+#### CastAdventure
+
+- **`diverges`** — [CastAdventure.request-face](actions/CastAdventure.md#CastAdventure.request-face)
+  - Contract: the `ActionsAvailableReq` offer carries `grpId` naming the
+    Adventure face and `facetId` naming the parent.
+  - Leyline: sets `grpId` to the permanent face and sends no `facetId`.
+  - Owner: `ActionMapper.buildAdventureAction`
+
+#### CastOmen
+
+- **`absent`** — [CastOmen.request-face](actions/CastOmen.md#CastOmen.request-face)
+  - Contract: the `ActionsAvailableReq` offer carries `grpId` naming the Omen
+    face and `facetId` naming the parent.
+  - Leyline: sends neither field on `CastOmen`.
+  - Owner: `ActionMapper.buildOmenAction`
+- **`absent`** — [CastOmen.permission-pair](actions/CastOmen.md#CastOmen.permission-pair) *(provisional statement)*
+  - Contract: a cast through a non-hand permission carries `sourceId` and
+    `abilityGrpId` together, identifying the permission.
+  - Leyline: offers `CastOmen` only from the hand, with `instanceId` and
+    `manaCost`; no `CastOmen` offer carries `sourceId` or `abilityGrpId`.
+  - Owner: `ActionMapper.buildOmenAction`
+
+#### CastRight
+
+- **`absent`** — [CastRight.source-rail](actions/CastRight.md#CastRight.source-rail),
+  [CastRight.accepted](actions/CastRight.md#CastRight.accepted)
+  - Contract: a split half is offered as `CastRight` with the half companion in
+    `sourceId` and the half's spell ability in `abilityGrpId`, and the accepted
+    action is recorded with `actionType` `11`.
+  - Leyline: never emits `CastRight` or `CastLeft`. Both halves are offered as
+    `Cast` carrying the face `grpId`, and the accepted rows use `actionType`
+    `1`.
+  - Owner: `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations`
+
+#### MDFC
+
+- **`absent`** — [MDFC.request-face](actions/MDFC.md#MDFC.request-face)
+  - Contract: `CastMdfc` and `PlayMdfc` offers on `ActionsAvailableReq` carry
+    `grpId` naming the selected face and `facetId` naming the parent.
+  - Leyline: sends neither field on either offer.
+  - Owner: `ActionMapper.addMdfcFaceActions`
+- **`diverges`** — [MDFC.cast-source-pair](actions/MDFC.md#MDFC.cast-source-pair) *(provisional statement)*
+  - Contract: a `CastMdfc` offer that carries `sourceId` also carries
+    `abilityGrpId`.
+  - Leyline: sets `sourceId` to the parent instance on every `CastMdfc` offer
+    and adds `abilityGrpId` only when the back-face ability resolves, so an
+    offer can carry `sourceId` alone.
+  - Owner: `ActionMapper.buildMdfcSpellAction`
+
+#### Rooms
+
+- **`diverges`** — [Rooms.door-discriminator](actions/Rooms.md#Rooms.door-discriminator),
+  [Rooms.accepted](actions/Rooms.md#Rooms.accepted)
+  - Contract: a door is selected by `actionType` `22` or `23`, and the accepted
+    cast is recorded with the same integer.
+  - Leyline: offers `CastLeftRoom` and `CastRightRoom`, then records the
+    accepted cast as `UserActionTaken` `actionType` `1`, because the cast-event
+    mapping recognizes no room branch. The offer and the accepted row disagree
+    on the action type.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`, `ActionMapper.addRoomCastActions`
+- **`absent`** — [Rooms.request-face](actions/Rooms.md#Rooms.request-face)
+  - Contract: a door offer on `ActionsAvailableReq` carries `grpId` naming the
+    selected door's face and `facetId` naming the parent.
+  - Leyline: sends neither field on door offers.
+  - Owner: `ActionMapper.addRoomCastActions`
+- **`diverges`** — [Rooms.unlock-offer](actions/Rooms.md#Rooms.unlock-offer),
+  [Rooms.unlock-applied](actions/Rooms.md#Rooms.unlock-applied)
+  - Contract: a locked door of a Room on the Battlefield is unlocked through a
+    `Special` action that applies the designation at once, without the stack.
+  - Leyline: offers `CastLeftRoom` or `CastRightRoom` for the Battlefield
+    Room's locked door and runs it as a spell through the stack.
+  - Owner: `ActionMapper.addRoomCastActions`
+
 #### Special
 
 - **`diverges`** — [Special.foretell-plot](actions/Special.md#Special.foretell-plot)
@@ -237,6 +413,60 @@ grouped by family, then by entity.
     the accepted foretell as `UserActionTaken` `actionType` `7`. The offer and
     the accepted row disagree on the action type.
   - Owner: `ActionMapper`, `CastRails`
+
+#### Special_TurnFaceUp
+
+- **`absent`** — [Special_TurnFaceUp.accepted](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.accepted),
+  [Special_TurnFaceUp.accepted-ability](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.accepted-ability),
+  [Special_TurnFaceUp.turn-transient](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.turn-transient)
+  - Contract: an accepted turn-face-up is recorded with `actionType` `8` and
+    `alternativeGrpId`, and the event carries a `TurnPermanent` row naming the
+    permanent.
+  - Leyline: offers the action and applies the turn, but emits no
+    `UserActionTaken` for it and no `TurnPermanent` annotation, so the accepted
+    turn is visible only through the changed object projection.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+- **`absent`** — [Special_TurnFaceUp.request-identity](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.request-identity)
+  - Contract: the `ActionsAvailableReq` offer carries the permanent's `grpId`
+    and a `facetId` naming the permanent.
+  - Leyline: sends neither field.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+- **`compat`** — [Open points](actions/Special_TurnFaceUp.md#open-points), `alternativeSourceZcid`
+  - Contract: whether the source hint is always present, and what it identifies
+    when it differs from `instanceId`, is not yet known.
+  - Leyline: sets `alternativeSourceZcid` to the permanent's own instance ID on
+    every offer.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+
+### Designation exceptions
+
+#### AnimatedLand
+
+- **`absent`** — [AnimatedLand.persistent-shape](designations/AnimatedLand.md#AnimatedLand.persistent-shape) *(provisional statement)*
+  - Contract: a land that currently has creature characteristics carries a
+    persistent `Designation` with `DesignationType` `23` and its controlling
+    seat.
+  - Leyline: emits the designation only for earthbend animation. A land animated
+    by any other effect carries no designation.
+  - Owner: `EarthbendEmitter`
+
+#### DayNight
+
+- **`diverges`** — [DayNight.flip-in-place](designations/DayNight.md#DayNight.flip-in-place)
+  - Contract: a flip rewrites the existing persistent row in place and sends
+    only the incoming state's `GainDesignation`.
+  - Leyline: sends the outgoing state's `LoseDesignation` beside the incoming
+    `GainDesignation`.
+  - Owner: `AnnotationBuilder.loseDesignationOnGame`
+
+#### Plotted
+
+- **`compat`** — [Open points](designations/Plotted.md#open-points), the loss row when the exile object is consumed
+  - Contract: whether the plotted state emits a loss row when the exile object
+    is consumed is not yet known.
+  - Leyline: emits `LoseDesignation` for `18` in the GSM where the plotted role
+    ends, including the cast that consumes the exile instance.
+  - Owner: `CardStateDesignations`, `AnnotationBuilder.loseDesignation`
 
 ### Prompt exceptions
 

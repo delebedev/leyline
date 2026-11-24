@@ -61,6 +61,7 @@ class RoomActionTest :
             val actions = ActionMapper.buildFromSnapshot(1, snap, b)
 
             val offers = roomOffersForIid(actions.actionsList, iid)
+            // protocol: Rooms.door-offer, Rooms.door-discriminator
             offers.map { it.actionType } shouldContainExactlyInAnyOrder
                 listOf(ActionType.CastLeftRoom, ActionType.CastRightRoom)
             assertSoftly {

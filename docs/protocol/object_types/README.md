@@ -29,14 +29,15 @@ The object type is independent of annotation and mechanic identity.
 | [Card](Card.md) | generic | A card, permanent or spell. |
 | [Token](Token.md) | generic | A token created during the game. |
 | [Ability](Ability.md) | generic | An activated or triggered ability on the Stack or in Pending. |
-| `Emblem` | generic | An emblem in the Command zone. |
-| `SplitCard`, `SplitLeft`, `SplitRight` | card side | A split card and its halves. |
+| [Emblem](Emblem.md) | generic | An emblem in the Command zone. |
+| `SplitCard` | card side | A split card as a whole. |
+| [SplitLeft](SplitLeft.md), [SplitRight](SplitRight.md) | card side | A split card's halves. |
 | [RevealedCard](RevealedCard.md) | protocol utility | A temporary public projection of a revealed card. |
 | [TriggerHolder](TriggerHolder.md) | protocol utility | A delayed or recurring trigger between live ability instances. |
-| `Adventure` | card side | The Adventure half of an Adventure card. |
-| `MDFCBack` | card side | The back face of a modal double-faced card. |
-| `DisturbBack` | card side | The back face cast with disturb. |
+| [Adventure](Adventure.md) | card side | The Adventure half of an Adventure card. |
+| [MDFCBack](MDFCBack.md) | card side | The back face of a modal double-faced card. |
+| [DisturbBack](DisturbBack.md) | card side | The back face cast with disturb. |
 | `Boon` | card side | A boon granted by a card. |
 | `PrototypeFacet` | card side | The prototype characteristics of a card. |
-| `RoomLeft`, `RoomRight` | card side | The doors of a Room. |
-| `Omen` | card side | The Omen half of an Omen card. |
+| [RoomLeft](RoomLeft.md), [RoomRight](RoomRight.md) | card side | The doors of a Room. |
+| [Omen](Omen.md) | card side | The Omen half of an Omen card. |

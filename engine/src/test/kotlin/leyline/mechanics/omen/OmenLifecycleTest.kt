@@ -14,8 +14,10 @@ import leyline.testkit.FixturePinned
 import leyline.testkit.SessionTest
 import leyline.testkit.allAnnotations
 import leyline.testkit.allGameObjects
+import leyline.testkit.detail
 import leyline.testkit.detailInt
 import leyline.testkit.detailIntList
+import leyline.testkit.detailString
 import leyline.testkit.gameStateMessages
 import leyline.testkit.performAction
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -77,6 +79,7 @@ class OmenLifecycleTest :
                     it.isType(AnnotationType.UserActionTaken) && it.detailInt("actionType") == ActionType.CastOmen.number
                 }
 
+            // protocol: CastOmen.accepted, Omen.face-identity, Omen.stack-face, Omen.remap
             assertSoftly {
                 stackCompanion.parentId shouldBe stackCard.instanceId
                 stackCompanion.grpId shouldBe 95537
@@ -129,8 +132,21 @@ class OmenLifecycleTest :
                     .firstOrNull { it.zoneId == ZoneIds.P1_LIBRARY && libraryParent.instanceId in it.objectInstanceIdsList }
                     ?: error("No library zone carrying ${libraryParent.instanceId}")
             val deletedIds = lifecycleMessages.gameStateMessages().flatMap { it.diffDeletedInstanceIdsList }
+            val parentTransfers =
+                annotations.filter {
+                    it.isType(AnnotationType.ZoneTransfer_af5a) && libraryParent.instanceId in it.affectedIdsList
+                }
 
+            // protocol: CastOmen.library-return
             assertSoftly {
+                parentTransfers.size shouldBe 1
+                parentTransfers.single().detailInt("zone_src") shouldBe ZoneIds.STACK
+                parentTransfers.single().detailInt("zone_dest") shouldBe ZoneIds.P1_LIBRARY
+                parentTransfers.single().detailString("category") shouldBe "Resolve"
+                annotations.none {
+                    it.isType(AnnotationType.ZoneTransfer_af5a) &&
+                        it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.P1_GRAVEYARD
+                } shouldBe true
                 libraryParent.instanceId shouldBe resolveObjectIdChanged.detailInt("new_id")
                 libraryCompanion.parentId shouldBe libraryParent.instanceId
                 libraryCompanion.grpId shouldBe 95537
