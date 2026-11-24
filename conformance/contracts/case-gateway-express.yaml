@@ -1,3 +1,4 @@
+# protocol: AbilityWordActive.name, AbilityWordActive.threshold-with-value, AbilityWordActive.update-in-place
 name: Case solve progress and resolution
 scenario: {suite: mechanics-protocol, id: case-gateway-express-lifecycle}
 frames:

@@ -98,6 +98,7 @@ Rows are grouped by family and sorted by entity name.
 |---|---|---|
 | [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
+| [AbilityWordActive](annotations/AbilityWordActive.md) | `AnnotationBuilder.abilityWordActive`, `AbilityWordScanner`, `AbilityWordTriggerRecognizers`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `partial` |
 | [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
 | [CardRevealed](annotations/CardRevealed.md) | `AnnotationBuilder.cardRevealed`, `RevealStateContributor`, `CardRevealedKind` | `partial` |
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
@@ -129,7 +130,6 @@ the table above when its page is written.
 | Type | Owner | Emission |
 |---|---|---|
 | `AbilityExhausted` | `AnnotationBuilder.abilityExhausted` | emitted |
-| `AbilityWordActive` | `AnnotationBuilder.abilityWordActive` | emitted |
 | `Attachment` | `AnnotationBuilder.attachment` | emitted |
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
 | `ClassLevel` | — | `absent` |
@@ -612,6 +612,16 @@ grouped by family, then by entity.
     source card, so every activation of one land or creature names the same
     instance ID for the whole game.
   - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
+
+#### AbilityWordActive
+
+- **`diverges`** — [AbilityWordActive.affector-domain](annotations/AbilityWordActive.md#AbilityWordActive.affector-domain) *(provisional statement)*
+  - Contract: `Delirium` rows name a seat and `LifeGainedThisTurn` rows name
+    the affected card.
+  - Leyline: names the affected card for `Delirium`, which it scans per
+    card, and the controller's seat for `LifeGainedThisTurn`, which it
+    publishes for infusion triggers.
+  - Owner: `AbilityWordScanner`, `AbilityWordTriggerRecognizers`
 
 #### CardRevealed
 
