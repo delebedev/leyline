@@ -94,8 +94,8 @@ does, but it does not remove abilities.
   value `all` names it, its `uniqueAbilities` `MUST NOT` list any of its
   printed abilities.
 - <a id="RemoveAbility.expiry-restores"></a>**RemoveAbility.expiry-restores.**
-  *(provisional)* When the effect ends while the permanent remains on the
-  battlefield, the GSM that deletes the row `MUST` carry
+  *(provisional)* On the loses-all-abilities branch, when the effect ends
+  while the permanent remains on the battlefield, the GSM that deletes the row `MUST` carry
   `LayeredEffectDestroyed` for its `effect_id` and `MUST` republish the object
   with its printed abilities.
 
