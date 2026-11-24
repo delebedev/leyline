@@ -236,6 +236,7 @@ Leyline cannot play at all is `absent`.
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
+| [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
@@ -1218,6 +1219,16 @@ grouped by family, then by entity.
     ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
     the hand while the ability is on the stack.
   - Owner: `RevealStateContributor`
+
+#### Sneak
+
+- **`diverges`** — [Sneak.option](mechanics/Sneak.md#Sneak.option)
+  - Contract: a spell cast for its sneak cost carries `CastingTimeOption`
+    `type` `13` with `alternateCostGrpId` the sneak cost ability and no
+    `castAbilityGrpId`.
+  - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability,
+    and `SneakLifecycleTest` asserts that extra key.
+  - Owner: `GameEventCollector`
 
 #### Station
 

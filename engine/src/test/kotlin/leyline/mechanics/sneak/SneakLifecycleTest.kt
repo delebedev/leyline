@@ -66,6 +66,7 @@ class SneakLifecycleTest :
             passUntil(maxPasses = 5) { allMessages.any { it.hasPayCostsReq() } }.shouldBeTrue()
 
             val payCostsMessage = allMessages.last { it.hasPayCostsReq() }
+            // protocol: Sneak.return-prompt
             assertSoftly {
                 payCostsMessage.prompt.promptId shouldBe PromptIds.NINJUTSU_RETURN_UNBLOCKED_ATTACKER_COST
                 payCostsMessage.payCostsReq.effectCostReq.costSelection.idsList
