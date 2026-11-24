@@ -59,7 +59,7 @@ key carries none, and the state is read from the row's type alone.
 | 20 | `RightUnlocked` | card | The right door of a Room is unlocked; the door action is in [Rooms](../actions/Rooms.md). |
 | 21 | [PlayerSpeed](PlayerSpeed.md) | seat | A player's current speed, from 1 to 4. |
 | 23 | [AnimatedLand](AnimatedLand.md) | card | A land currently animated as a creature. |
-| 24 | `Prepared` | card | A prepared permanent, linked to a prepare-spell copy in exile. |
+| 24 | [Prepared](Prepared.md) | card | A prepared permanent, linked to a prepare-spell copy in exile. |
 | 26 | Unearthed | card | A permanent created on the battlefield by an effect rather than cast, carrying its source card and the kind of creation. |
 
 A type with no established meaning is not listed until its meaning is grounded.
