@@ -307,6 +307,12 @@ grouped by family, then by entity.
 
 #### ChooseStartingPlayerReq
 
+- **`diverges`** — [ChooseStartingPlayerReq.decider](prompts/ChooseStartingPlayerReq.md#ChooseStartingPlayerReq.decider)
+  - Contract: the request is sent to the die-roll winner.
+  - Leyline: sends it to seat 2 whatever the winner, so with
+    `dieRollWinner=1` the losing seat chooses who starts.
+  - Owner: `LifecycleMessageMaterializer.initialBundle`,
+    `LifecycleMessageMaterializer.initialBundles`
 - **`diverges`** — [ChooseStartingPlayerReq.candidates](prompts/ChooseStartingPlayerReq.md#ChooseStartingPlayerReq.candidates)
   - Contract: the candidate seats are listed as `[1, 2]`.
   - Leyline: lists them as `[2, 1]`.
