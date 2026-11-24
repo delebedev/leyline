@@ -37,3 +37,4 @@ that flag described under [designations](../designations/README.md).
 | [Impending](Impending.md) | Alternative-cost cast, time counters, end-step trigger | Casts a permanent that counts down with time counters before it is a creature. |
 | [Improvise](Improvise.md) | Hand Cast, artifact payment | Taps artifacts to pay generic mana while casting a spell. |
 | [Increment](Increment.md) | Cast trigger, counter | Puts a +1/+1 counter on a creature when enough mana was spent on a spell. |
+| [JobSelect](JobSelect.md) | Enters trigger, token, attachment | Creates a Hero token and attaches the Equipment to it. |

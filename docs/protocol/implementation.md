@@ -251,6 +251,7 @@ Leyline cannot play at all is `absent`.
 | [Impending](mechanics/Impending.md) | `CastRails`, `ZoneTransferDetector` | `implemented` |
 | [Improvise](mechanics/Improvise.md) | `ManaSourcePaymentMaterializer`, `MatchManaSourcePaymentRuntime` | `implemented` |
 | [Increment](mechanics/Increment.md) | `TriggeringObjectProjection`, `AnnotationPipeline` | `implemented` |
+| [JobSelect](mechanics/JobSelect.md) | `AnnotationBuilder.attachmentCreated`, `MechanicAnnotations` | `implemented` |
 
 ## Exceptions
 
