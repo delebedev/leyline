@@ -242,6 +242,7 @@ Leyline cannot play at all is `absent`.
 | [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
+| [SagaChapter](mechanics/SagaChapter.md) | `AnnotationPipeline` | `implemented` |
 | [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
 | [Spectacle](mechanics/Spectacle.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
