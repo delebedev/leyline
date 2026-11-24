@@ -176,8 +176,8 @@ seat's behalf, so the client can reconcile an action it did not submit.
 
 - What distinguishes `Send` from `SendAndRecord` on a state that carries no
   decision?
-- Does a reconnection resynchronize with a `Full` GSM, and with which
-  `update`?
+- Does every reconnection resynchronize with a `Full` GSM sent with
+  `update=SendAndRecord`, as the observed ones do?
 - Which of the other seat's commitments are queued, and which travel only on
   the regular rail?
 - When does the server send `EdictalMessage`, and which messages does it wrap?
