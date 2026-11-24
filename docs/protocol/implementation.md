@@ -259,6 +259,7 @@ Leyline cannot play at all is `absent`.
 | [MaxSpeed](mechanics/MaxSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `EffectTracker` | `implemented` |
 | [Mentor](mechanics/Mentor.md) | `TargetingCoordinator`, `TargetingWindowCapture` | `implemented` |
 | [Mobilize](mechanics/Mobilize.md) | `PersistentTemporaryFeedBuilder`, `PersistentFeedBuilder` | `implemented` |
+| [Mutate](mechanics/Mutate.md) | `CastRails`, `TargetingWindowCapture`, `ZoneTransferDetector` | `partial` |
 
 ## Exceptions
 
@@ -1336,6 +1337,15 @@ grouped by family, then by entity.
   - Leyline: has no `ManifestLike` transfer category, so the move carries
     another category.
   - Owner: `TransferCategoryResolver`
+
+#### Mutate
+
+- **`diverges`** — [Mutate.cast-marker](mechanics/Mutate.md#Mutate.cast-marker) *(provisional statement)*
+  - Contract: the mutate `CastingTimeOption` row carries no
+    `castAbilityGrpId`.
+  - Leyline: defaults `castAbilityGrpId` to the alternative cost, so the row
+    carries the mutate ability in both fields.
+  - Owner: `ZoneTransferDetector`
 
 ## Leyline-defined shapes
 

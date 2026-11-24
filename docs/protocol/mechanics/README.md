@@ -45,3 +45,4 @@ that flag described under [designations](../designations/README.md).
 | [MaxSpeed](MaxSpeed.md) | PlayerSpeed, AddAbility | Grants an ability while its controller's speed is 4. |
 | [Mentor](Mentor.md) | Attack trigger, SelectTargetsReq 2247, counter | Puts a +1/+1 counter on an attacking creature with lesser power. |
 | [Mobilize](Mobilize.md) | Attack trigger, tokens, delayed cleanup | Creates attacking Warrior tokens and sacrifices them at end step. |
+| [Mutate](Mutate.md) | Hand Cast, SelectTargetsReq 141, CastingTimeOption, merge LayeredEffect | Merges a creature spell into a non-Human creature with the same owner. |
