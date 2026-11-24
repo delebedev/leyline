@@ -64,9 +64,10 @@ saddle tap creatures through an object-selection `PayCostsReq` instead.
   waterbend cost is optional, the choice to pay it `MUST` be an `AdditionalCost` row of
   `CastingTimeOptionsReq` whose `grpId` is the waterbend ability, followed by
   a `Done` row.
-- <a id="Waterbend.paid-option"></a>**Waterbend.paid-option.** A spell cast
-  with waterbend paid `MUST` carry a persistent `CastingTimeOption` with
-  `type` `5` and `additionalCostGrpId` naming the waterbend ability.
+- <a id="Waterbend.paid-option"></a>**Waterbend.paid-option.** When a spell's
+  optional waterbend cost is paid, the spell `MUST` carry a persistent
+  `CastingTimeOption` with `type` `5` and `additionalCostGrpId` naming the
+  waterbend ability.
 - <a id="Waterbend.payment-action"></a>**Waterbend.payment-action.** Each
   permanent that can pay for waterbend `MUST` be a `MakePayment` action whose
   mana option has `abilityGrpId` `384`, `srcInstanceId` the permanent, and the
