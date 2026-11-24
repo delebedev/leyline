@@ -4,8 +4,9 @@ entity: prompt/DeclareAttackersReq
 ---
 # DeclareAttackersReq
 
-`DeclareAttackersReq` asks the active player which creatures attack and what
-each attacks (CR 508.1). Declaration is an exchange: each
+`DeclareAttackersReq` asks the deciding player which creatures the active
+player attacks with and what each attacks (CR 508.1). The deciding player is
+normally the active player. Declaration is an exchange: each
 `DeclareAttackersResp` changes the declaration, the server answers with a
 fresh request showing it, and `SubmitAttackersReq` commits it. The exchange
 has the same form as [SelectTargetsReq](SelectTargetsReq.md) and
@@ -18,7 +19,7 @@ Enum values below are written without their type prefix: `Player` is
 
 | Field | Role |
 |---|---|
-| `systemSeatIds` | The attacking player. |
+| `systemSeatIds` | The deciding seat, also named by `turnInfo.decisionPlayer`. In every observed game it is the active player. |
 | `msgId` | Echoed as `respId` by `DeclareAttackersResp` and `SubmitAttackersReq`. |
 | `gameStateId` | The GSM the declaration belongs to. Each echo has a new one. |
 | `prompt` | `promptId=6`, with no parameters. |
@@ -134,3 +135,5 @@ The response rule shared by every request applies here:
 - How are attack costs, such as a tax per attacker, carried in `manaCost`?
 - When does `qualifiedAttackers` list a creature that `attackers` does not?
 - Can a battle be a damage recipient, and with which `DamageRecType`?
+- When another player controls the active player's turn (CR 723), is the
+  request sent to that player's seat?
