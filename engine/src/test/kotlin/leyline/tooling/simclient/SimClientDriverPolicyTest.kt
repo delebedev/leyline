@@ -2,6 +2,8 @@ package leyline.tooling.simclient
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
 import leyline.bridge.types.SeatId
 import leyline.copilot.ExpectedCastVariant
@@ -17,6 +19,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.testkit.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionReq
 import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
@@ -120,12 +123,14 @@ class SimClientDriverPolicyTest :
             abilityGrpId: Int = 0,
             targetIds: List<Int> = listOf(2),
             selected: Int = 0,
+            allowCancel: AllowCancel = AllowCancel.Abort,
         ): GREToClientMessage =
             GREToClientMessage
                 .newBuilder()
                 .setMsgId(8)
                 .setGameStateId(18)
                 .setType(GREMessageType.SelectTargetsReq_695e)
+                .setAllowCancel(allowCancel)
                 .setSelectTargetsReq(
                     SelectTargetsReq
                         .newBuilder()
@@ -211,26 +216,50 @@ class SimClientDriverPolicyTest :
             response.value shouldBe SimPromptResponseValue.Decision(SimDecision.Search(listOf(101, 102)))
         }
 
-        test("an already-satisfied targeting prompt submits rather than cancelling") {
+        // Kotest compares data classes field by field, so property-less data objects
+        // such as SubmitTargets and CancelAction compare equal; assert identity instead.
+        fun decideTargets(msg: GREToClientMessage): SimDecision {
             val harness = MatchFlowHarness()
-            harness.allMessages +=
-                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 1)
-
+            harness.allMessages += msg
             val prompt = SimPromptLedger(harness).activePrompt()!!
-            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
-
-            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.SubmitTargets)
+            val value = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 }).value
+            return value.shouldBeInstanceOf<SimPromptResponseValue.Decision>().decision
         }
 
-        test("a targeting prompt with nothing selectable and nothing selected cancels") {
-            val harness = MatchFlowHarness()
-            harness.allMessages +=
-                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 0)
+        test("an already-satisfied targeting prompt submits rather than cancelling") {
+            decideTargets(
+                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 1),
+            ) shouldBeSameInstanceAs SimDecision.SubmitTargets
+        }
 
-            val prompt = SimPromptLedger(harness).activePrompt()!!
-            val response = GreedyPromptPolicy(harness).respondToPrompt(prompt, ActionAttemptLedger { 1 })
+        test("a cancellable targeting prompt with nothing selectable and nothing selected cancels") {
+            decideTargets(
+                selectTargetsPrompt(min = 1, max = 1, legalAction = SelectAction.Unselect, selected = 0),
+            ) shouldBeSameInstanceAs SimDecision.CancelAction
+        }
 
-            response.value shouldBe SimPromptResponseValue.Decision(SimDecision.CancelAction)
+        test("a targeting prompt without cancel submits rather than cancelling when nothing is selectable") {
+            decideTargets(
+                selectTargetsPrompt(
+                    min = 1,
+                    max = 1,
+                    legalAction = SelectAction.Unselect,
+                    selected = 0,
+                    allowCancel = AllowCancel.No_a526,
+                ),
+            ) shouldBeSameInstanceAs SimDecision.SubmitTargets
+        }
+
+        test("a targeting prompt without cancel selects its legal target") {
+            decideTargets(
+                selectTargetsPrompt(min = 1, max = 1, targetIds = listOf(5), allowCancel = AllowCancel.No_a526),
+            ) shouldBe SimDecision.SelectTargets(mapOf(0 to listOf(5)))
+        }
+
+        test("an up-to-one targeting prompt without cancel submits zero targets") {
+            decideTargets(
+                selectTargetsPrompt(min = 0, max = 1, targetIds = listOf(5), allowCancel = AllowCancel.No_a526),
+            ) shouldBeSameInstanceAs SimDecision.SubmitTargets
         }
 
         test("forge-ai search adapter prefers lands before the fourth land") {

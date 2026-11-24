@@ -13,6 +13,7 @@ import leyline.game.mapping.ZoneIds
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -220,9 +221,12 @@ internal open class GreedyPromptPolicy(
         // Nothing left to select. A re-offer of an already-chosen target carries
         // only Unselect, and the selection is complete — submit it. Cancelling
         // there unwinds the cast, which the policy then proposes again, so the
-        // pair loops until the driver calls the game stalled.
+        // pair loops until the driver calls the game stalled. A window without
+        // Cancel (a triggered ability's targets) ignores CancelActionReq, so it
+        // submits the selection it holds instead.
         val satisfied = selections.isNotEmpty() && selections.all { it.selectedTargets >= it.minTargets }
-        return if (satisfied) SimDecision.SubmitTargets else SimDecision.CancelAction
+        val cancellable = msg.allowCancel != AllowCancel.No_a526
+        return if (satisfied || !cancellable) SimDecision.SubmitTargets else SimDecision.CancelAction
     }
 
     private fun respondSelectN(msg: GREToClientMessage): SimDecision {
