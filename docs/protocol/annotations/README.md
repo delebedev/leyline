@@ -97,7 +97,7 @@ the type's page. Types without a page are described only by their row.
 | [TargetSpec](TargetSpec.md) | persistent | `abilityGrpId`, `index`, `promptParameters`, `promptId` | The targets chosen for a spell or ability: which ability, which target slot, and optional damage distribution. |
 | `PlayerSelectingTargets` | transient | none | A seat began choosing targets for a stack object. Carries no target data. |
 | `PlayerSubmittedTargets` | transient | none | A seat finished choosing targets for a stack object. |
-| `ChoiceResult` | transient | `Choice_Value`, `Choice_Sentiment` | The result of a player choice made during resolution. |
+| [ChoiceResult](ChoiceResult.md) | transient | `Choice_Value`, `Choice_Sentiment` | The result of a player choice made during resolution. |
 | `ObjectsSelected` | persistent | `playerId` | A seat committed a selection for an effect; `affectedIds` holds the chosen object, or `0` for an implicit selection. |
 | `GroupedIds` | persistent | `group_id` | One row per group, such as a pile in a pile split; `affectedIds` are the group's members. |
 | `SelectNdecoration` | transient | `affected_objects` | The object set a selection applies to. |

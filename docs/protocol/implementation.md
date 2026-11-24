@@ -99,6 +99,7 @@ Rows are grouped by family and sorted by entity name.
 | [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
 | [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
+| [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
@@ -128,7 +129,6 @@ the table above when its page is written.
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
 | `CardRevealed` | `AnnotationBuilder.cardRevealed` | emitted |
 | `CastingTimeOption` | `AnnotationBuilder.castingTimeOption` | emitted |
-| `ChoiceResult` | `AnnotationBuilder.choiceResult` | emitted |
 | `ClassLevel` | — | `absent` |
 | `CoinFlip` | `AnnotationBuilder.coinFlip` | emitted |
 | `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
@@ -612,6 +612,21 @@ grouped by family, then by entity.
     source card, so every activation of one land or creature names the same
     instance ID for the whole game.
   - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
+
+#### ChoiceResult
+
+- **`diverges`** — [ChoiceResult.before-resolution](annotations/ChoiceResult.md#ChoiceResult.before-resolution) *(provisional statement)*
+  - Contract: `ChoiceResult` precedes `ResolutionComplete` in its GSM.
+  - Leyline: appends the prompt's choice results after the transfer and
+    resolution annotations of the GSM, so a choice made while a spell or
+    ability resolves follows its `ResolutionComplete`.
+  - Owner: `AnnotationPipeline`
+- **`absent`** — [Variants](annotations/ChoiceResult.md#variants), choices outside static-list and card-selection prompts
+  - Contract: choices answered through other prompts, such as `PromptReq` or a
+    declined optional choice with `Choice_Value` `-1`, also produce a row.
+  - Leyline: records a choice result only from a static-list `SelectNReq`
+    and from a card-selection `SelectNReq`.
+  - Owner: `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime`
 
 #### EnteredZoneThisTurn
 
