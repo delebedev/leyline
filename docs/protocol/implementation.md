@@ -944,8 +944,9 @@ grouped by family, then by entity.
 #### ZoneTransfer
 
 - **`diverges`** — [ZoneTransfer.resolve-affector](annotations/ZoneTransfer.md#ZoneTransfer.resolve-affector) *(provisional statement)*
-  - Contract: a `Resolve` transfer names the seat that controls and owns the
-    resolving spell.
+  - Contract: for a spell resolving from the stack whose controller owns it,
+    a `Resolve` transfer names that seat. Spells whose owner and controller
+    differ are not covered.
   - Leyline: names the priority player of the published state, or seat `2`
     when no player has priority. An opponent's instant that resolves while the
     active player receives priority is attributed to the active player.
