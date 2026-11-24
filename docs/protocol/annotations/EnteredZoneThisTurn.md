@@ -34,8 +34,11 @@ its move, the same ID its [ZoneTransfer](ZoneTransfer.md) names.
    the GSM that carries the object's `ZoneTransfer`.
 2. Each further entry republishes the row under the same `id` with the new
    object added to `affectedIds`.
-3. At the turn boundary the rows of the ending turn are deleted through
-   `diffDeletedPersistentAnnotationIds`, and the new turn starts without them.
+3. At the turn boundary the rows of the ending turn are normally deleted
+   through `diffDeletedPersistentAnnotationIds`. A few rows survive the
+   boundary, most of them the stack's; see Open points.
+4. A row can also be deleted during the turn. This happens most often to the
+   rows of the stack and of the hands.
 
 ## Sibling shapes
 
@@ -57,9 +60,10 @@ state rows. Unlike them, `EnteredZoneThisTurn` uses a zone as its affector.
   the same `affectorId`. An object entering a zone that already has a row is
   added to that row.
 - <a id="EnteredZoneThisTurn.with-transfer"></a>**EnteredZoneThisTurn.with-transfer.**
-  *(provisional)* For transfers onto the battlefield, the stack or a hand, the
-  GSM carrying the `ZoneTransfer` `MUST` carry the destination zone's row with
-  the transferred object's ID in `affectedIds`.
+  For a transfer onto the battlefield, the stack or a hand of an object that
+  does not move again in the same GSM, the GSM carrying the `ZoneTransfer`
+  `MUST` carry the destination zone's row with the transferred object's ID in
+  `affectedIds`.
 
 ## Open points
 
