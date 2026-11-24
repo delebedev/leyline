@@ -51,8 +51,8 @@ publishes behaviour rows beside it.
 - <a id="Saddled.lose-at-cleanup"></a>**Saddled.lose-at-cleanup.** Turn-boundary
   cleanup `MUST` carry a `LoseDesignation` with `DesignationType` `17` for the
   Mount and retire its persistent row.
-- <a id="Saddled.no-detail"></a>**Saddled.no-detail.** None of the three rows
-  `MUST` carry a detail beyond `DesignationType`.
+- <a id="Saddled.no-detail"></a>**Saddled.no-detail.** The gain, persistent and
+  loss rows `MUST NOT` carry a detail beyond `DesignationType`.
 
 ## Open points
 
