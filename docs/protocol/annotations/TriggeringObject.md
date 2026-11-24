@@ -55,10 +55,11 @@ the zone IDs of the same page.
    `TriggeringObject` row is created.
 2. The row stays in `persistentAnnotations` while the ability is on the
    stack, including while its targets are chosen.
-3. When the ability resolves or is removed, the row is deleted in the GSM
-   that carries [AbilityInstanceDeleted](AbilityInstanceDeleted.md) for it,
-   which for a resolution is also the GSM with
-   [ResolutionComplete](ResolutionComplete.md).
+3. When the ability resolves or is removed, the row is usually deleted in
+   the GSM that carries [AbilityInstanceDeleted](AbilityInstanceDeleted.md)
+   for it, which for a resolution is also the GSM with
+   [ResolutionComplete](ResolutionComplete.md). A sizeable share of rows
+   outlives the ability, some across turns.
 
 ## Sibling shapes
 
@@ -80,9 +81,6 @@ for triggered abilities that carry one.
 - <a id="TriggeringObject.source-zone"></a>**TriggeringObject.source-zone.**
   When `source_zone` is present, its value `MUST` be a zone ID from the zone
   layout.
-- <a id="TriggeringObject.retired-with-ability"></a>**TriggeringObject.retired-with-ability.**
-  *(provisional)* A row `MUST` be deleted in the GSM that carries
-  `AbilityInstanceDeleted` for its `affectorId`.
 
 ## Open points
 
@@ -93,5 +91,5 @@ for triggered abilities that carry one.
 - Which objects of the trigger event join the source in `affectedIds`, and in
   what order?
 - What does a row without `source_zone` represent?
-- Why are a few rows deleted without an `AbilityInstanceDeleted` for their
-  ability?
+- When is a row deleted with its ability's `AbilityInstanceDeleted`, and
+  what deletes a row that outlives the ability?
