@@ -57,6 +57,7 @@ class ConvokeLifecycleTest :
             }
         }
 
+        // protocol: Convoke.count, Convoke.label
         session(
             "Conclave Tribunal accepts duplicate native Convoke source fields once",
             puzzle =
