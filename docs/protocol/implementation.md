@@ -238,6 +238,7 @@ Leyline cannot play at all is `absent`.
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
+| [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
 
 ## Exceptions
 
@@ -1234,6 +1235,18 @@ grouped by family, then by entity.
     naming the card.
   - Leyline: publishes no designation of type `26` for any card.
   - Owner: `CardStateDesignations`
+
+#### Ward
+
+- **`diverges`** — [Ward.tax-prompt](mechanics/Ward.md#Ward.tax-prompt),
+  [Ward.tax-object](mechanics/Ward.md#Ward.tax-object)
+  - Contract: the ward tax is requested of the targeting player as a
+    mana-payment `PayCostsReq` with `promptId` `11` and `allowCancel`
+    `Continue`, whose `manaCost` names the targeting spell.
+  - Leyline: asks an `OptionalActionMessage` yes-or-no question instead and,
+    on yes, pays the cost by auto-tapping, so the player never chooses the
+    mana sources and no `PayCostsReq` is sent.
+  - Owner: `CostPaymentCoordinator.payOptionalManaCost`
 
 ## Leyline-defined shapes
 
