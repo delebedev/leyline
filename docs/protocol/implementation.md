@@ -196,6 +196,12 @@ grouped by family, then by entity.
 
 #### RevealedCard
 
+- **`diverges`** — [RevealedCard.source-zone](object_types/RevealedCard.md#RevealedCard.source-zone)
+  - Contract: only a card revealed from a hand gets a `RevealedCardCreated`
+    row and a Revealed zone membership.
+  - Leyline: emits `RevealedCardCreated` and lists the `RevealedCard` in the Revealed
+    zone for every reveal, whatever its source zone.
+  - Owner: `RevealStateContributor`, `StateMapper`
 - **`diverges`** — [RevealedCard.created](object_types/RevealedCard.md#RevealedCard.created)
   - Contract: `RevealedCardCreated` carries the revealed card's instance ID as
     both `affectorId` and `affectedIds`.
