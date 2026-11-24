@@ -51,7 +51,7 @@ frames:
         type: SyntheticEvent
         lane: transient
         keys: [type]
-        fields: {details.type: [1], affectedIds: [1]}
+        fields: {details.type: [1], detailTypes.type: Int32, affectedIds: [1]}
         equals: {affectorId: replacement.affectorId}
       - id: life-paid
         type: ModifiedLife
