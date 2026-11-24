@@ -237,6 +237,7 @@ Leyline cannot play at all is `absent`.
 | [Ascend](mechanics/Ascend.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedBuilder`, `AnnotationBuilder.citysBlessingDesignation` | `implemented` |
 | [Backup](mechanics/Backup.md) | `TargetingWindowCapture`, `ProjectionCardReferences` | `implemented` |
 | [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
+| [Behold](mechanics/Behold.md) | `AnnotationBuilder.castingTimeOption` | `partial` |
 | [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Casualty](mechanics/Casualty.md) | `DeferredCastCostPlanMaterializer`, `TransferCategoryResolver` | `partial` |
@@ -1224,6 +1225,15 @@ grouped by family, then by entity.
   - Leyline: emits one `PowerToughnessModCreated` per affected creature for
     every created boost effect with a nonzero power or toughness change.
   - Owner: `MechanicAnnotations`
+
+#### Behold
+
+- **`absent`** — [Behold.cast-option](mechanics/Behold.md#Behold.cast-option) *(provisional statement)*
+  - Contract: a paid behold cost marks the spell with a `CastingTimeOption`
+    row of `type` `18` and `costType` `behold`.
+  - Leyline: has no behold-specific cost seam and emits no `OptionalCostPaid`
+    row, so a paid behold cost leaves no cast-option row.
+  - Owner: `AnnotationBuilder.castingTimeOption`
 
 #### Cascade
 
