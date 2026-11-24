@@ -15,7 +15,7 @@ face has been chosen.
 |---|---|
 | `instanceId` | The companion's own object lifetime. |
 | `grpId` | The back face's definition and characteristics. |
-| `othersideGrpId` | The face the parent currently shows. |
+| `othersideGrpId` | The companion's opposite face. |
 | `parentId` | The current parent `Card` instance. |
 | `zoneId`, `ownerSeatId`, `controllerSeatId`, `visibility`, `viewers` | Copied from the parent. |
 | `uniqueAbilities[]` | The back face's abilities. |
@@ -61,9 +61,9 @@ object.
 
 ## Contract
 
-- <a id="MDFCBack.back-identity"></a>**MDFCBack.back-identity.** An `MDFCBack`
-  companion's `grpId` `MUST` be the card's other face, and its
-  `othersideGrpId` `MUST` be the face the parent `Card` currently shows.
+- <a id="MDFCBack.back-identity"></a>**MDFCBack.back-identity.** *(provisional)*
+  While the parent shows its front face, the companion's `grpId` `MUST` be the
+  card's back face and its `othersideGrpId` `MUST` be that front face.
 - <a id="MDFCBack.shares-parent-state"></a>**MDFCBack.shares-parent-state.** The
   companion's `zoneId`, `ownerSeatId`, `controllerSeatId` and `visibility`
   `MUST` equal the parent `Card`'s values in the same GSM.
@@ -79,5 +79,5 @@ object.
 
 - Is the companion projected in every zone the parent occupies, including
   Command?
-- Does the companion's `othersideGrpId` ever name something other than the
-  parent's shown face?
+- What does the companion's `othersideGrpId` name after the back face is
+  selected?

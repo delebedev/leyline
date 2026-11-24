@@ -14,7 +14,7 @@ parent shows its front face or has been cast and resolved transformed.
 |---|---|
 | `instanceId` | The companion's own object lifetime. |
 | `grpId` | The back face's definition and characteristics. |
-| `othersideGrpId` | The front face, the reverse direction of the parent's link. |
+| `othersideGrpId` | The companion's opposite face; the reverse direction of the parent's link. |
 | `parentId` | The current parent `Card` instance. |
 | `zoneId`, `ownerSeatId`, `controllerSeatId`, `visibility`, `viewers` | Copied from the parent. |
 | `uniqueAbilities[]` | The back face's abilities. |
@@ -63,9 +63,10 @@ produce no parallel back object at all.
 
 ## Contract
 
-- <a id="DisturbBack.back-identity"></a>**DisturbBack.back-identity.** A
-  `DisturbBack` companion's `grpId` `MUST` be the back face and its
-  `othersideGrpId` `MUST` be the front face.
+- <a id="DisturbBack.back-identity"></a>**DisturbBack.back-identity.**
+  *(provisional)* While the parent shows its front face, the companion's `grpId`
+  `MUST` be the back face and its `othersideGrpId` `MUST` be that front face, the
+  opposite direction of the parent's own link.
 - <a id="DisturbBack.shares-parent-state"></a>**DisturbBack.shares-parent-state.**
   The companion's `zoneId`, `ownerSeatId`, `controllerSeatId` and `visibility`
   `MUST` equal the parent `Card`'s values in the same GSM.
@@ -86,3 +87,5 @@ produce no parallel back object at all.
 
 - Is the companion projected for a face-down card in Exile or on the Stack?
 - Does a Disturb cast reuse the Graveyard companion or always create a new one?
+- What does the companion's `othersideGrpId` name after the back face is
+  selected?
