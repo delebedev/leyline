@@ -67,7 +67,8 @@ class TargetingCancellationPolicyTest :
         ) {
             castSpellByName("Duplicant").shouldBeTrue()
             passUntil(maxPasses = 6) { bridge.cutCoordinator.targeting.current() != null }.shouldBeTrue()
-            val targetPromptCancel = allMessages.last { it.hasSelectTargetsReq() }.allowCancel
+            val targetPrompt = allMessages.last { it.hasSelectTargetsReq() }
+            val targetPromptCancel = targetPrompt.allowCancel
 
             holdNextOptionalAction()
             selectTargets(listOf(ai.battlefield.iid("Centaur Courser")))
@@ -76,7 +77,9 @@ class TargetingCancellationPolicyTest :
             passUntilResolved()
 
             assertSoftly {
+                // protocol: SelectTargetsReq.trigger-initial
                 targetPromptCancel shouldBe AllowCancel.No_a526
+                targetPrompt.allowUndo shouldBe false
                 ai.battlefield.card("Centaur Courser").name shouldBe "Centaur Courser"
                 human.battlefield.card("Duplicant").name shouldBe "Duplicant"
                 game().stack.isEmpty.shouldBeTrue()
@@ -102,6 +105,7 @@ class TargetingCancellationPolicyTest :
             passUntil(maxPasses = 5) { bridge.cutCoordinator.targeting.current() != null }.shouldBeTrue()
             val prompt = allMessages.last { it.hasSelectTargetsReq() }
             assertSoftly {
+                // protocol: SelectTargetsReq.spell-cancel
                 prompt.allowCancel shouldBe AllowCancel.Abort
                 prompt.allowUndo.shouldBeTrue()
             }

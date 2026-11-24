@@ -130,6 +130,7 @@ class StockUpTest :
             val orderReq = orderMsg.orderReq
             assertSoftly {
                 orderMsg.type shouldBe GREMessageType.OrderReq_695e
+                // protocol: OrderReq.bottom-context, OrderReq.source-card, OrderReq.no-cancel
                 orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_BOTTOM
                 cardByIid(
                     orderMsg.prompt.parametersList

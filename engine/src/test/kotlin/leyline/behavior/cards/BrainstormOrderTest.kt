@@ -55,6 +55,7 @@ class BrainstormOrderTest :
                     .shouldNotBeNull()
                 orderMsg.gameStateId shouldBeGreaterThan selectMsg.gameStateId
                 orderMsg.type shouldBe GREMessageType.OrderReq_695e
+                // protocol: OrderReq.top-context, OrderReq.source-card
                 orderMsg.prompt.promptId shouldBe PromptIds.ORDER_LIBRARY_TOP
                 cardByIid(
                     orderMsg.prompt.parametersList

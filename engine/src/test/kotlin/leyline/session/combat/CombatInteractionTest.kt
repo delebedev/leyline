@@ -784,6 +784,7 @@ class CombatInteractionTest :
             echoReq.shouldNotBeNull()
             echoReq.msgId shouldBeGreaterThan echoMsgs.first { it.hasGameStateMessage() }.msgId
 
+            // protocol: DeclareAttackersReq.echo
             // Conformance: committed attackers have selectedDamageRecipient set
             val echoAttacker =
                 echoReq.declareAttackersReq.attackersList
@@ -791,6 +792,7 @@ class CombatInteractionTest :
             echoAttacker.hasSelectedDamageRecipient().shouldBeTrue()
             echoAttacker.selectedDamageRecipient.type shouldBe DamageRecType.Player_a0e5
 
+            // protocol: DeclareAttackersReq.qualified
             // Conformance: qualifiedAttackers never has selectedDamageRecipient
             val qualAttacker =
                 echoReq.declareAttackersReq.qualifiedAttackersList
@@ -859,6 +861,7 @@ class CombatInteractionTest :
             onReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(true)
 
             // Deselect by omitting selectedDamageRecipient.
+            // protocol: DeclareAttackersReq.resp-select
             val offMsgs = deselectAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             offReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(false)
@@ -1053,6 +1056,7 @@ class CombatInteractionTest :
             val blockerSlots = assigner.assignmentsList.filter { it.minDamage > 0 }
             val defenderSlot = assigner.assignmentsList.find { it.minDamage == 0 && it.maxDamage > 0 }
 
+            // protocol: AssignDamageReq.blocker-slots
             blockerSlots.size shouldBe 2
             blockerSlots.forEach {
                 it.minDamage shouldBe 2
@@ -1061,6 +1065,7 @@ class CombatInteractionTest :
 
             assertSoftly {
                 defenderSlot.shouldNotBeNull()
+                // protocol: AssignDamageReq.trample-slot
                 defenderSlot.instanceId shouldBe OPPONENT_SEAT
                 defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
                 defenderSlot.assignedDamage shouldBe 1

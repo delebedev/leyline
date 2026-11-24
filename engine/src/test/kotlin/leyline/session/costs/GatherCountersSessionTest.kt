@@ -63,6 +63,7 @@ class GatherCountersSessionTest :
                     .filter { it.type == GameObjectType.Ability }
                     .map { it.instanceId }
 
+            // protocol: PayCostsReq.gather-shape, PayCostsReq.effect-prompt, PayCostsReq.effect-cancel
             assertSoftly {
                 payCosts.effectCostReq.effectCostType shouldBe EffectCostType.GatherCounters
                 payCosts.paymentActions.actionsList shouldBe emptyList()

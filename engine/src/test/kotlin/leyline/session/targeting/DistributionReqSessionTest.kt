@@ -36,7 +36,10 @@ class DistributionReqSessionTest :
             val sourceIid = preTargetSpec.affectorId
 
             assertSoftly {
+                // protocol: DistributionReq.prompt, DistributionReq.targets
                 distributionMessage.prompt.promptId shouldBe PromptIds.DISTRIBUTE_DAMAGE
+                distributionMessage.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                distributionMessage.prompt.parametersList.map { it.numberValue } shouldBe listOf(sourceIid)
                 distributionMessage.distributionReq.minAmount shouldBe 3
                 distributionMessage.distributionReq.maxAmount shouldBe 3
                 distributionMessage.distributionReq.minPerTarget shouldBe 1
@@ -53,6 +56,7 @@ class DistributionReqSessionTest :
             val targetSpecs = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec)
             val postTargetSpec = targetSpecs.last { it.detailIntList("distributions") == expectedDistributions }
             assertSoftly {
+                // protocol: DistributionReq.target-spec
                 postTargetSpec.id shouldBe preTargetSpec.id
                 postTargetSpec.affectorId shouldBe sourceIid
                 postTargetSpec.affectedIdsList shouldContainExactly targetOrder
@@ -120,6 +124,7 @@ class DistributionReqSessionTest :
             val targetSpecs = allMessages.persistentAnnotationsOfType(AnnotationType.TargetSpec)
             val postTargetSpec = targetSpecs.last { it.detailIntList("distributions") == expectedDistributions }
             assertSoftly {
+                // protocol: DistributionReq.target-spec
                 postTargetSpec.id shouldBe preTargetSpec.id
                 postTargetSpec.affectorId shouldBe triggerIid
                 postTargetSpec.affectedIdsList shouldContainExactly targetOrder

@@ -101,7 +101,24 @@ Rows are grouped by family and sorted by entity name.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
+| [AssignDamageReq](prompts/AssignDamageReq.md) | `BlockingInteractionMaterializer.damage`, `CombatHandler.onAssignDamage`, `MatchBlockingInteractionRuntime.submitDamageCommand` | `partial` |
+| [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
+| [ChooseStartingPlayerReq](prompts/ChooseStartingPlayerReq.md) | `LifecycleMessageMaterializer.initialBundle`, `GsmBuilder.buildInitialGameState`, `MulliganHandler` | `partial` |
+| [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
+| [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
+| [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `partial` |
+| [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
+| [IntermissionReq](prompts/IntermissionReq.md) | `BundleBuilder.prepareGameOverBundle`, `MatchGameOverRuntime` | `partial` |
+| [NumericInputReq](prompts/NumericInputReq.md) | `BlockingInteractionMaterializer.numeric`, `NumericInputHandler` | `partial` |
+| [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
+| [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
+| [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
+| [SearchFromGroupsReq](prompts/SearchFromGroupsReq.md) | `SearchWindowMaterializer`, `MatchSearchInteractionRuntime` | `partial` |
+| [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
+| [SelectReplacementReq](prompts/SelectReplacementReq.md) | `ReplacementWindowMaterializer`, `MatchReplacementInteractionRuntime` | `partial` |
+| [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
 
 ### Annotations
 
@@ -470,6 +487,214 @@ grouped by family, then by entity.
 
 ### Prompt exceptions
 
+#### ActionsAvailableReq
+
+- **`compat`** — [ActionsAvailableReq.permission-window](prompts/ActionsAvailableReq.md#ActionsAvailableReq.permission-window), permissions other than cascade and discover
+  - Contract: a cast-permission window, such as casting a card exiled by
+    madness, is an `ActionsAvailableReq` with a permission-specific prompt,
+    a `CardId` parameter, `allowCancel=No`, and the permitted `Cast` beside
+    `Pass`.
+  - Leyline: sends the window as a priority request with prompt `1134` only
+    for cascade and discover. Every other cast permission granted while an
+    effect resolves is an `OptionalActionMessage` sourced from the card.
+  - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+
+#### AssignDamageReq
+
+- **`diverges`** — [AssignDamageReq.proposal-total](prompts/AssignDamageReq.md#AssignDamageReq.proposal-total)
+  - Contract: the proposal assigns all of `totalDamage`, putting damage left
+    over after lethal on the last slot.
+  - Leyline: without trample, leaves damage beyond the blockers' lethal
+    amounts unassigned, so the proposal sums to less than `totalDamage` and
+    fails Leyline's own sum check if returned unchanged.
+  - Owner: `BlockingInteractionMaterializer.damage`
+- **`diverges`** — [Request `canIgnoreBlockers`](prompts/AssignDamageReq.md#request)
+  - Contract: trample assigners carry no `canIgnoreBlockers`.
+  - Leyline: sets `canIgnoreBlockers` on every trample assigner.
+  - Owner: `BlockingInteractionMaterializer.damage`
+
+#### CastingTimeOptionsReq
+
+- **`diverges`** — [CastingTimeOptionsReq.cost-type](prompts/CastingTimeOptionsReq.md#CastingTimeOptionsReq.cost-type)
+  - Contract: bargain and casualty rows use the `Bargain` and `Casualty`
+    types.
+  - Leyline: sends every optional cost other than kicker as
+    `AdditionalCost`, including bargain, casualty, offspring and conspire.
+  - Owner: `DeferredCastCostPlanMaterializer`
+- **`compat`** — [Value of X](prompts/CastingTimeOptionsReq.md#families)
+  - Contract: the value of X is a `ChooseX` row with `numericInputReq` in a
+    `CastingTimeOptionsReq` with prompt `51`.
+  - Leyline: asks for X with a standalone `NumericInputReq` and never sends
+    a `ChooseX` row.
+  - Owner: `PlayerController.announceRequirements`
+
+#### ChooseStartingPlayerReq
+
+- **`diverges`** — [ChooseStartingPlayerReq.decider](prompts/ChooseStartingPlayerReq.md#ChooseStartingPlayerReq.decider)
+  - Contract: the request is sent to the die-roll winner.
+  - Leyline: sends it to seat 2 whatever the winner, so with
+    `dieRollWinner=1` the losing seat chooses who starts.
+  - Owner: `LifecycleMessageMaterializer.initialBundle`,
+    `LifecycleMessageMaterializer.initialBundles`
+- **`diverges`** — [ChooseStartingPlayerReq.candidates](prompts/ChooseStartingPlayerReq.md#ChooseStartingPlayerReq.candidates)
+  - Contract: the candidate seats are listed as `[1, 2]`.
+  - Leyline: lists them as `[2, 1]`.
+  - Owner: `LifecycleMessageMaterializer`
+
+#### DeclareAttackersReq
+
+- **`diverges`** — [DeclareAttackersReq.selected-single-row](prompts/DeclareAttackersReq.md#DeclareAttackersReq.selected-single-row)
+  - Contract: a declared creature appears in exactly one row, the selected
+    one.
+  - Leyline: keeps every alternative row of a declared creature that has
+    Enlist or Exert, so the request shows the selected row beside the
+    creature's other rows.
+  - Owner: `RequestBuilder.buildDeclareAttackersReq`
+- **`diverges`** — [DeclareAttackersReq.resp-auto](prompts/DeclareAttackersReq.md#DeclareAttackersReq.resp-auto)
+  - Contract: `autoDeclare=true` declares every creature with an ordinary
+    attack row against `autoDeclareDamageRecipient`.
+  - Leyline: ignores `autoDeclareDamageRecipient` and declares every attacker
+    against the default defending player, so a planeswalker named there is
+    never attacked.
+  - Owner: `CombatHandler.onDeclareAttackers`, `DeclarationAnswer`,
+    `RuntimeCombatWindow.nextAttackers`
+- **`compat`** — [Open points](prompts/DeclareAttackersReq.md#open-points), attack alternatives other than Enlist
+  - Contract: unknown which `alternativeGrpId` other alternatives use.
+  - Leyline: offers Exert as an extra attacker row whose `alternativeGrpId` is
+    Exert's keyword ability ID, in the Enlist row layout.
+  - Owner: `RequestBuilder.buildDeclareAttackersReq`
+
+#### DeclareBlockersReq
+
+- **`absent`** — [Blocker row `mustBlock`](prompts/DeclareBlockersReq.md#request)
+  - Contract: a blocker row carries `mustBlock` when the creature is
+    required to block.
+  - Leyline: never sets `mustBlock`.
+  - Owner: `RequestBuilder.buildDeclareBlockersReq`
+
+#### DistributionReq
+
+- **`diverges`** — [DistributionReq.resp-bounds](prompts/DistributionReq.md#DistributionReq.resp-bounds)
+  - Contract: a response whose total falls outside the allowed amount is not
+    applied.
+  - Leyline: sums the response amounts as `Int`, so amounts near the `Int`
+    limit can wrap to the allowed total and be applied.
+  - Owner: `MatchDistributionInteractionRuntime.validate`
+
+#### GroupReq
+
+- **`diverges`** — [GroupReq.source-card](prompts/GroupReq.md#GroupReq.source-card)
+  - Contract: for scry and surveil, the `CardId` parameter names the source
+    card.
+  - Leyline: sends the `CardId` parameter with no value.
+  - Owner: `GroupingWindowMaterializer`
+- **`absent`** — [Piles](prompts/GroupReq.md#uses)
+  - Contract: effects that separate cards into piles use a `GroupReq` with
+    `GroupType_Arbitrary` and no `context`.
+  - Leyline: sends `GroupReq` only for scry, surveil and the London
+    mulligan.
+  - Owner: `GroupingWindowCapture`
+
+#### IntermissionReq
+
+- **`diverges`** — [IntermissionReq.draw-result](prompts/IntermissionReq.md#IntermissionReq.draw-result)
+  - Contract: a draw uses `intermissionPrompt` `28` with no parameters, no
+    `winningTeamId`, and offers only the hand reveal.
+  - Leyline: sends a draw with `intermissionPrompt` `27`, a `WinningTeamId`
+    parameter of `0`, and both options.
+  - Owner: `BundleBuilder.prepareGameOverBundle`
+
+#### NumericInputReq
+
+- **`diverges`** — [NumericInputReq.any-amount](prompts/NumericInputReq.md#NumericInputReq.any-amount)
+  - Contract: a number chosen during resolution uses
+    `NumericInputType_ChooseAnyAmount` and a prompt specific to the effect.
+  - Leyline: sends every number request as `NumericInputType_ChooseX` with
+    prompt `51`.
+  - Owner: `BlockingInteractionMaterializer.numeric`
+
+#### OptionalActionMessage
+
+- **`diverges`** — [OptionalActionMessage.ability-source](prompts/OptionalActionMessage.md#OptionalActionMessage.ability-source)
+  - Contract: when the optional effect belongs to a resolving ability,
+    `sourceId` is that ability on the stack and the first `CardId`
+    parameter is its source card.
+  - Leyline: sets `sourceId` and the `CardId` parameter both to the host
+    card, so the ability on the stack is never named.
+  - Owner: `OptionalActionGate`, `BlockingInteractionMaterializer`
+- **`diverges`** — [OptionalActionMessage.card-parameters](prompts/OptionalActionMessage.md#OptionalActionMessage.card-parameters)
+  - Contract: every outer prompt parameter is a `CardId` number.
+  - Leyline: adds a `Cost` parameter of type `NonLocalizedString` when the
+    optional action is paying a mana cost to prevent an effect.
+  - Owner: `BlockingInteractionMaterializer`, `PlayerController.payCostToPreventEffect`
+- **`compat`** — [Prompt](prompts/OptionalActionMessage.md#prompt)
+  - Contract: the prompt ID is specific to the optional effect.
+  - Leyline: uses one generic prompt, `1159`, for every optional effect that
+    has no dedicated prompt mapping.
+  - Owner: `BlockingInteractionMaterializer`
+
+#### OrderReq
+
+- **`absent`** — [Battlefield ordering](prompts/OrderReq.md#uses)
+  - Contract: cards an effect puts onto the battlefield together are ordered
+    with an `OrderReq` using prompt `91`.
+  - Leyline: sends `OrderReq` only for the top and bottom of a library.
+  - Owner: `OrderWindowMaterializer`
+
+#### PayCostsReq
+
+- **`compat`** — [Mana payment](prompts/PayCostsReq.md#mana-payment) for ordinary mana costs
+  - Contract: a mana payment can be a `PayCostsReq` offering mana abilities
+    as `Activate_Mana` steps, pool mana and `autoTapActionsReq` solutions,
+    answered by `PerformAutoTapActionsResp` or one `PerformActionResp` step.
+  - Leyline: pays ordinary mana costs from the `autoTapSolution` of the
+    priority action and never sends a mana-payment `PayCostsReq` for them.
+    It sends the mana family only for convoke, improvise and waterbend, as
+    `Make_Payment` steps.
+  - Owner: `ManaSourcePaymentMaterializer`, `ActionMapper`
+- **`absent`** — [PayCostsReq.auto-tap-index](prompts/PayCostsReq.md#PayCostsReq.auto-tap-index)
+  - Contract: a mana payment can propose `autoTapActionsReq` solutions that
+    the client accepts with `PerformAutoTapActionsResp`.
+  - Leyline: the convoke, improvise and waterbend requests carry no
+    `autoTapActionsReq`, and no handler admits `PerformAutoTapActionsResp`.
+  - Owner: `ManaSourcePaymentMaterializer`
+- **`diverges`** — [PayCostsReq.select-threshold](prompts/PayCostsReq.md#PayCostsReq.select-threshold), collect evidence
+  - Contract: a total-weight cost carries the threshold in `minSel`, sets
+    `maxSel` to `2147483647`, and leaves `minWeight` at the signed 32-bit
+    minimum.
+  - Leyline: sends collect evidence with the threshold in `minWeight` and
+    the selection-count range in `minSel` and `maxSel`. Total-power tap costs
+    already use the contract's shape.
+  - Owner: `OneShotPayCostsMaterializer.payCostsRequest`
+- **`diverges`** — [PayCostsReq.effect-prompt](prompts/PayCostsReq.md#PayCostsReq.effect-prompt), costs of activated abilities other than tap payments
+  - Contract: the `CardId` parameter names the spell or ability being paid
+    for, which for an activated ability is the ability on the stack.
+  - Leyline: when the cost route supplies no prompt source, as for a
+    sacrifice or graveyard-exile cost, the parameter names the card the
+    ability belongs to. Spells and tap payments name the right object.
+  - Owner: `OneShotPayCostsWindowCapture.freezePromptSource`
+
+#### SearchFromGroupsReq
+
+- **`compat`** — [Request prompt](prompts/SearchFromGroupsReq.md#request)
+  - Contract: the prompt ID is specific to the search effect.
+  - Leyline: uses `3713` for every grouped search.
+  - Owner: `SearchWindowMaterializer`
+
+#### SearchReq
+
+- **`diverges`** — [Prompt](prompts/SearchReq.md#prompt)
+  - Contract: a second `CardId` parameter, when present, carries a number the
+    instruction uses; it is not a seat.
+  - Leyline: always sends a second `CardId` parameter holding the searched
+    player's seat ID.
+  - Owner: `SearchWindowMaterializer`
+- **`compat`** — [Prompt](prompts/SearchReq.md#prompt)
+  - Contract: the prompt ID is specific to the search effect.
+  - Leyline: uses `1065` for every search except typecycling, which uses
+    `11626`.
+  - Owner: `SearchWindowMaterializer`
+
 #### SelectNReq
 
 - **`absent`** — [SelectNReq.trigger-order](prompts/SelectNReq.md#SelectNReq.trigger-order),
@@ -489,6 +714,32 @@ grouped by family, then by entity.
     including the color choice of a triggered mana ability such as Fertile
     Ground's additional mana.
   - Owner: `StaticChoiceWindowMaterializer.buildRequest`
+
+#### SelectReplacementReq
+
+- **`diverges`** — [Row identities](prompts/SelectReplacementReq.md#request)
+  - Contract: `affectedObject` is the object whose event is replaced, an
+    identity separate from `objectInstance`.
+  - Leyline: sets `affectedObject` to the host of the replacement ability in
+    every row, which is correct only when the replacement affects its own
+    host.
+  - Owner: `ReplacementWindowMaterializer`
+
+#### SelectTargetsReq
+
+- **`diverges`** — [SelectTargetsReq.groups-together](prompts/SelectTargetsReq.md#SelectTargetsReq.groups-together)
+  - Contract: a targeting ability with several target requirements presents
+    every requirement's group in each request.
+  - Leyline: publishes one requirement per targeting window, so each
+    request carries a single group and the requirements are asked one after
+    another, each with its own submission.
+  - Owner: `TargetingWindowMaterializer`, `TargetingCoordinator`
+- **`diverges`** — [SelectTargetsReq.trigger-echo](prompts/SelectTargetsReq.md#SelectTargetsReq.trigger-echo)
+  - Contract: after a selection, the echoed request for a triggered ability
+    carries `allowCancel=Abort` and `allowUndo=true`.
+  - Leyline: fixes the cancellation policy per window, so every echo for a
+    triggered ability keeps `allowCancel=No` without `allowUndo`.
+  - Owner: `TargetingWindowMaterializer.rePrompt`, `TargetingWindowCapture`
 
 ### Annotation exceptions
 

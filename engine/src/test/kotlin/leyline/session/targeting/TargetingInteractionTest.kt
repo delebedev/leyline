@@ -459,6 +459,7 @@ class TargetingInteractionTest :
             val targetGroup = rePromptMsg.selectTargetsReq.getTargets(0)
 
             assertSoftly {
+                // protocol: SelectTargetsReq.echo, SelectTargetsReq.selected-count, SelectTargetsReq.spell-cancel
                 rePromptMsg.hasPrompt().shouldBeTrue()
                 rePromptMsg.prompt.promptId shouldBe 10
                 rePromptMsg.allowCancel shouldBe AllowCancel.Abort
@@ -482,6 +483,7 @@ class TargetingInteractionTest :
 
             val phase1Messages = after { selectTargetsIterative(listOf(OPPONENT_SEAT)) }.messages
 
+            // protocol: SelectTargetsReq.submit-commits
             assertSoftly {
                 // No damage landed yet — spell hasn't resolved
                 ai.life shouldBe preBoltAiLife
