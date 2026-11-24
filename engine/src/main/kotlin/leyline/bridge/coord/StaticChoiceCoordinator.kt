@@ -4,6 +4,7 @@ import forge.card.ColorSet
 import forge.card.ICardFace
 import forge.card.MagicColor
 import forge.game.card.Card
+import forge.game.card.CardCollectionView
 import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.spellability.SpellAbility
 import leyline.bridge.handoff.AutomaticAnswerRule
@@ -41,6 +42,47 @@ class StaticChoiceCoordinator(
             )
         return values[selected.single()]
     }
+
+    /**
+     * Asks which of two separated piles to take. Forge's GUI form re-asks until a
+     * pile caption is picked, so the choice is offered over the two piles directly.
+     * [faceDown] is Forge's FaceDown value: "False" shows both piles, "One" hides
+     * pile 1, "True" hides both. Returns true when pile 1 is chosen.
+     */
+    fun chooseCardsPile(
+        sa: SpellAbility,
+        pile1: CardCollectionView,
+        pile2: CardCollectionView,
+        faceDown: String,
+    ): Boolean {
+        val selected =
+            bridge.requestStaticChoice(
+                PromptRequest(
+                    promptType = "choose_one",
+                    message = "Choose a pile",
+                    options =
+                        listOf(
+                            pileLabel(1, pile1, shown = faceDown == "False"),
+                            pileLabel(2, pile2, shown = faceDown != "True"),
+                        ),
+                    route = PromptRouteResolver.resolve(PromptSemantic.NamedChoice),
+                    sourceEntityId = sourceEntityId(sa),
+                    staticOptionIds = listOf(1, 2),
+                ),
+            )
+        return selected.firstOrNull() != 1
+    }
+
+    private fun pileLabel(
+        number: Int,
+        pile: CardCollectionView,
+        shown: Boolean,
+    ): String =
+        when {
+            pile.isEmpty() -> "Pile $number: no cards"
+            shown -> "Pile $number: ${pile.joinToString { it.name }}"
+            else -> "Pile $number: ${pile.size} face-down card${if (pile.size == 1) "" else "s"}"
+        }
 
     fun chooseDungeon(
         faces: List<ICardFace>,
