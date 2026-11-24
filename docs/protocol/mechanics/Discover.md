@@ -4,8 +4,9 @@ entity: mechanic/Discover
 ---
 # Discover
 
-Discover is a keyword action performed by a triggered or activated ability of
-a permanent. The resolving ability exiles cards from the top of the library,
+Discover is a keyword action that a spell or ability can instruct a player to
+perform. This page covers discover performed by a triggered or activated
+ability of a permanent. The resolving ability exiles cards from the top of the library,
 offers the first eligible card as a free cast through a cast-permission
 [ActionsAvailableReq](../prompts/ActionsAvailableReq.md), and puts the rest
 on the bottom. The accepted cast is an ordinary [Cast](../actions/Cast.md)
@@ -49,7 +50,9 @@ The other exiled cards go on the bottom of the library in a random order
 2. Each exiled card gets an `ObjectIdChanged` and a Library-to-Exile
    `ZoneTransfer` with `category` `Exile`, with the Discover ability as
    `affectorId`.
-3. The same batch ends with a cast-permission `ActionsAvailableReq`:
+3. When the discovered card can be cast, including having legal targets
+   when it needs them, the same batch ends with a cast-permission
+   `ActionsAvailableReq`:
    `promptId` `1134`, one `CardId` parameter naming the source permanent, and
    `allowCancel` `No`. For a source sacrificed as a cost, the parameter carries
    the permanent's instance ID from before the sacrifice.
@@ -101,8 +104,8 @@ the mechanic.
 - <a id="Discover.resolution-start"></a>**Discover.resolution-start.** The
   Discover ability's `ResolutionStart` `MUST` precede its first reveal
   transfer, with the Discover ability's `grpId` as `grpid`.
-- <a id="Discover.window"></a>**Discover.window.** The decision to cast the
-  discovered card `MUST` be an `ActionsAvailableReq` with `promptId` `1134`
+- <a id="Discover.window"></a>**Discover.window.** When the discovered card
+  can be cast, the decision to cast it `MUST` be an `ActionsAvailableReq` with `promptId` `1134`
   whose `CardId` parameter names the source permanent.
 - <a id="Discover.offer"></a>**Discover.offer.** The window's `Cast` `MUST`
   carry the exiled card's `instanceId`, the Discover ability as
@@ -130,7 +133,10 @@ the mechanic.
 
 - What does the hand branch send: how is the card moved to the hand, and in
   which GSM does `ResolutionComplete` follow?
-- Is the window sent when the resulting spell's mana value is greater than
-  N, or does the card go to the hand without one?
+- Is the window sent when the discovered card cannot be cast, because the
+  resulting spell's mana value is greater than N or it has no legal target,
+  or does the card go to the hand without one?
+- How does discover performed by a spell differ, with no source permanent to
+  name?
 - Which source link does an activated Discover ability carry when its cost
   sacrifices nothing?
