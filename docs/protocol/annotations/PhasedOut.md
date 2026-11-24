@@ -1,5 +1,5 @@
 ---
-summary: "PhasedOut annotation: transient event for a permanent phasing out; rules grounding and the open questions, since its shape is not yet established."
+summary: "PhasedOut annotation: event for a permanent phasing out; rules grounding and the open questions, since its shape is not yet established."
 entity: annotation/PhasedOut
 ---
 # PhasedOut
@@ -20,8 +20,7 @@ object keeps its identity. The zone layout reserves zone `12`, PhasedOut
 
 ## Variants
 
-Transient. The fields and their values are not established; see Open
-points.
+The rail, fields and values are not established; see Open points.
 
 ## Sibling shapes
 

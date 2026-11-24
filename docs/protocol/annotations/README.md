@@ -59,8 +59,8 @@ the type's page. Types without a page are described only by their row.
 | `Shuffle` | transient | `OldIds`, `NewIds` | A library was shuffled; maps the instance IDs before the shuffle to the IDs after it. |
 | `ControllerChanged` | both | none | A control-changing effect: a transient row for the change and a persistent row for the ongoing effect, which carries effect identity such as `effect_id`. |
 | `DisplayCardUnderCard` | persistent | `Disable` | Relates a card displayed under a host card (`affectorId`) to that host, such as a card exiled by a permanent. `TemporaryZoneTransfer` marks a card that will return. |
-| [PhasedIn](PhasedIn.md) | transient | none | An object phased in. |
-| [PhasedOut](PhasedOut.md) | transient | none | An object phased out. |
+| [PhasedIn](PhasedIn.md) | not established | not established | An object phased in. |
+| [PhasedOut](PhasedOut.md) | not established | not established | An object phased out. |
 | [TemporaryPermanent](TemporaryPermanent.md) | persistent | `AbilityGrpId` | A permanent that a named ability will remove when its effect ends. |
 | [FaceDown](FaceDown.md) | persistent | `REASON`, `abilityGrpId` | An object is face down; `REASON` names the face-down path and `abilityGrpId` its shared mechanic ability. |
 
@@ -100,7 +100,7 @@ the type's page. Types without a page are described only by their row.
 | [ChoiceResult](ChoiceResult.md) | transient | `Choice_Value`, `Choice_Sentiment` | The result of a player choice made during resolution. |
 | `ObjectsSelected` | persistent | `playerId` | A seat committed a selection for an effect; `affectedIds` holds the chosen object, or `0` for an implicit selection. |
 | `GroupedIds` | persistent | `group_id` | One row per group, such as a pile in a pile split; `affectedIds` are the group's members. |
-| `SelectNdecoration` | transient | `affected_objects` | The object set a selection applies to. |
+| `SelectNdecoration` | not established | not established | The object set a selection applies to. |
 | `Scry` | transient | `topIds`, `bottomIds` | A scry result: the instance IDs kept on top and those put on the bottom. |
 | `ObjectsToDistinguish` | persistent | none | A source-defined set of objects; the row keeps its `id` while `affectedIds` changes. |
 | [LinkInfo](LinkInfo.md) | persistent | `LinkType` | Links a permanent to a choice or associated object, such as a chosen color or a linked card; `LinkType` selects the kind. |
@@ -140,7 +140,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `LayeredEffect` | both | `effect_id` | An active continuous effect on an object. Usually shares its row with the specific modification type. |
+| `LayeredEffect` | persistent | `effect_id` | An active continuous effect on an object. Usually shares its row with the specific modification type. |
 | [LayeredEffectCreated](LayeredEffectCreated.md) | transient | none | A layered effect began; the row's identity matches the effect's `effect_id`. |
 | `LayeredEffectDestroyed` | transient | none | A layered effect ended, for example because its duration expired or its source left. |
 | [AddAbility](AddAbility.md) | persistent | `UniqueAbilityId`, `grpid`, `originalAbilityObjectZcid`, `effect_id` | A continuous effect grants an ability or keyword to an object. |
@@ -149,8 +149,8 @@ the type's page. Types without a page are described only by their row.
 | `ModifiedColor` | persistent | `color`, `modificationType`, `effect_id` | A continuous effect changed an object's color; `modificationType` distinguishes setting from adding. |
 | `ModifiedName` | persistent | `effect_id` | A continuous effect changed an object's name. |
 | `TextChange` | persistent | `effect_id` | A continuous effect changed an object's rules text. |
-| `ModifiedPower` | both | none | An object's power is modified; counter-based rows carry `counter_type` and `count`, effect-based rows carry `effect_id`. |
-| `ModifiedToughness` | both | none | An object's toughness is modified, with the same branches as `ModifiedPower`. |
+| `ModifiedPower` | persistent | none | An object's power is modified; counter-based rows carry `counter_type` and `count`, effect-based rows carry `effect_id`. |
+| `ModifiedToughness` | persistent | none | An object's toughness is modified, with the same branches as `ModifiedPower`. |
 | `PowerToughnessModCreated` | transient | `power`, `toughness` | A direct power/toughness modification began, such as a +2/+2 pump. |
 | `SuppressedPowerAndToughness` | persistent | none | An object's ordinary power and toughness are suppressed, optionally replaced by `power` and `toughness`. |
 | [CopiedObject](CopiedObject.md) | persistent | `copyFromGrpid`, `LayeredEffectType`, `effect_id` | An object is a copy of the card definition in `copyFromGrpid`. |
@@ -178,10 +178,10 @@ the type's page. Types without a page are described only by their row.
 | `ClassLevel` | persistent | `Level` | The current level of a Class. |
 | `CrewedThisTurn` | persistent | none | A Vehicle crewed this turn, related to the creatures that crewed it. |
 | `SaddledThisTurn` | persistent | none | A Mount saddled this turn, related to the creatures that saddled it. |
-| `GamewideHistoryCount` | persistent | `count`, `AbilityGrpId` | A game-wide count tracked for a player and the ability that uses it. |
+| `GamewideHistoryCount` | not established | not established | A game-wide count tracked for a player and the ability that uses it. |
 | `SupplementalText` | persistent | `AbilityWordName`, `value` | A named value associated with a source card and a player. |
 | [AbilityWordActive](AbilityWordActive.md) | both | `AbilityWordName` | An ability word condition or tracked value on an object, such as threshold or raid. `AbilityWordName` is an open set. |
-| [DungeonStatus](DungeonStatus.md) | persistent | not established | A player's current dungeon, room and completed dungeons. |
+| [DungeonStatus](DungeonStatus.md) | not established | not established | A player's current dungeon, room and completed dungeons. |
 
 ### Designations
 
@@ -195,7 +195,7 @@ the type's page. Types without a page are described only by their row.
 
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
-| `LossOfGame` | both | `reason` | A player lost the game; `reason` names the cause. |
+| `LossOfGame` | persistent | `reason` | A player lost the game; `reason` names the cause. |
 | `WinTheGame` | persistent | `gameEffectCardGrpId`, `reason` | A card effect made a player win the game; `affectorId` is the effect source and `affectedIds` the winning seat. |
 
 ### Presentation hints

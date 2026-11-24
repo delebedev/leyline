@@ -1,5 +1,5 @@
 ---
-summary: "DungeonStatus annotation: persistent per-player dungeon progress (current dungeon, room and completed dungeons); rules grounding and the open questions, since its shape is not yet established."
+summary: "DungeonStatus annotation: per-player dungeon progress (current dungeon, room and completed dungeons); rules grounding and the open questions, since its shape is not yet established."
 entity: annotation/DungeonStatus
 ---
 # DungeonStatus
@@ -23,8 +23,8 @@ player completes it (CR 309.7).
 
 ## Variants
 
-Persistent. The detail keys and their value types are not established; see
-Open points.
+The rail, detail keys and value types are not established; see Open
+points.
 
 ## Contract
 

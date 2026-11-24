@@ -1,5 +1,5 @@
 ---
-summary: "PhasedIn annotation: transient event for a phased-out permanent phasing back in during its controller's untap step; rules grounding and the open questions, since its shape is not yet established."
+summary: "PhasedIn annotation: event for a phased-out permanent phasing back in during its controller's untap step; rules grounding and the open questions, since its shape is not yet established."
 entity: annotation/PhasedIn
 ---
 # PhasedIn
@@ -12,8 +12,7 @@ permanents untap (CR 702.26a, CR 702.26c), and is treated as existing again.
 
 ## Variants
 
-Transient. The fields and their values are not established; see Open
-points.
+The rail, fields and values are not established; see Open points.
 
 ## Sibling shapes
 
