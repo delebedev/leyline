@@ -361,6 +361,11 @@ class GameBridgeTest :
             assertSoftly {
                 // protocol: ActionsAvailableReq.pass-offered
                 actions.actionsList.count { it.actionType == Messages.ActionType.Pass } shouldBe 1
+                actions.actionsList.single { it.actionType == Messages.ActionType.Pass } shouldBe
+                    Messages.Action
+                        .newBuilder()
+                        .setActionType(Messages.ActionType.Pass)
+                        .build()
                 actions.actionsList.count { it.actionType == Messages.ActionType.Play_add3 } shouldBeGreaterThan 0
             }
         }
@@ -584,6 +589,8 @@ class GameBridgeTest :
                 // Message 5: ActionsAvailableReq (promptId=2)
                 messages[4].type shouldBe Messages.GREMessageType.ActionsAvailableReq_695e
                 messages[4].prompt.promptId shouldBe 2
+                messages[4].prompt.parametersCount shouldBe 0
+                messages[4].allowCancel shouldBe Messages.AllowCancel.None_a526
             }
 
             // gsIds should be ascending across GSM messages
