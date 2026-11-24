@@ -77,6 +77,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
+| [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SearchReq](prompts/SearchReq.md) | `SearchWindowMaterializer`, `RequestBuilder.buildSearchRequest`, `MatchSearchInteractionRuntime` | `partial` |
@@ -304,6 +305,20 @@ grouped by family, then by entity.
     required to block.
   - Leyline: never sets `mustBlock`.
   - Owner: `RequestBuilder.buildDeclareBlockersReq`
+
+#### GroupReq
+
+- **`diverges`** — [GroupReq.source-card](prompts/GroupReq.md#GroupReq.source-card)
+  - Contract: for scry and surveil, the `CardId` parameter names the source
+    card.
+  - Leyline: sends the `CardId` parameter with no value.
+  - Owner: `GroupingWindowMaterializer`
+- **`absent`** — [Piles](prompts/GroupReq.md#uses)
+  - Contract: effects that separate cards into piles use a `GroupReq` with
+    `GroupType_Arbitrary` and no `context`.
+  - Leyline: sends `GroupReq` only for scry, surveil and the London
+    mulligan.
+  - Owner: `GroupingWindowCapture`
 
 #### OptionalActionMessage
 

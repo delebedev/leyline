@@ -17,6 +17,7 @@ semantic discriminator; `promptId` selects instruction text.
 | [CastingTimeOptionsReq](CastingTimeOptionsReq.md) | Choose modes, optional costs, X, hybrid payment or a cost branch while casting. |
 | [DeclareAttackersReq](DeclareAttackersReq.md) | Declare attackers and what they attack, one change at a time, then submit. |
 | [DeclareBlockersReq](DeclareBlockersReq.md) | Declare blockers and what they block, one change at a time, then submit. |
+| [GroupReq](GroupReq.md) | Split cards into groups: scry, surveil, London mulligan, piles. |
 | [OptionalActionMessage](OptionalActionMessage.md) | Answer yes or no to an optional effect. |
 | [PayCostsReq](PayCostsReq.md) | Pay a cost: mana, objects chosen to pay it, or counters gathered from several permanents. |
 | [SearchReq](SearchReq.md) | Search a hidden zone and choose cards from it. |

@@ -52,6 +52,7 @@ class LibraryOrderInteractionTest :
         session("surveil 1 — GroupReq shape and revealed card", puzzle = surveil1State) {
             val req = castSpellUntilGroupReq("Wary Thespian")
             assertSoftly {
+                // protocol: GroupReq.surveil-specs
                 req.context shouldBe GroupingContext.Surveil
                 req.instanceIdsList shouldHaveSize 1
                 req.groupSpecsList shouldHaveSize 2
@@ -205,6 +206,7 @@ class LibraryOrderInteractionTest :
         session("scry 1 — GroupReq shape", puzzleFile = "data/puzzles/scry-wall-of-runes.pzl") {
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
+                // protocol: GroupReq.scry-specs
                 req.context shouldBe GroupingContext.Scry_a0f6
                 req.instanceIdsList shouldHaveSize 1
                 req.groupSpecsList shouldHaveSize 2
