@@ -31,9 +31,8 @@ One choice of several values produces one row per value.
 | `affectorId` | The card or permanent whose effect asked for the choice. A triggered ability's source card is named, not the ability instance. |
 | `affectedIds` | The seat of the player who chose, as a one-element list. |
 | `Choice_Value` | The chosen value, in the domain of its branch. |
-| `Choice_Domain` | A `StaticList` value naming the list the value comes from: `1` CardColors, `5` SubTypes, `6` Colors, `9` BasicLandTypes, `11` CounterTypes, `13` CardNames, `14` Parities. |
+| `Choice_Domain` | A `StaticList` value naming the list the value comes from: `1` CardColors, `5` SubTypes, `6` Colors, `9` BasicLandTypes, `13` CardNames, `14` Parities. |
 | `Choice_Sentiment` | A small integer classifying the choice. Static-list rows carry `2`; object rows carry `1` or `2`. |
-| `Choice_Options` | Rare; see Open points. |
 
 ## Identity model
 
@@ -84,7 +83,6 @@ before the result GSM but is not part of the state stream.
 
 ## Open points
 
-- What does `Choice_Sentiment` classify, and when is it `5`?
-- What does `Choice_Options` carry?
+- What does `Choice_Sentiment` classify?
 - Which declined choices produce a `-1` row, and which produce no row?
 - Why do a few rows follow other effect annotations in their GSM?
