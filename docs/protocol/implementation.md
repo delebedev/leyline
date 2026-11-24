@@ -1231,7 +1231,9 @@ grouped by family, then by entity.
 - **`diverges`** — [BattleCry.no-pt-mod](mechanics/BattleCry.md#BattleCry.no-pt-mod) *(provisional statement)*
   - Contract: the Battle Cry pump carries no `PowerToughnessModCreated` rows.
   - Leyline: emits one `PowerToughnessModCreated` per affected creature for
-    every created boost effect with a nonzero power or toughness change.
+    every created boost effect with a nonzero power or toughness change. Read
+    from `MechanicAnnotations`; `EffectAnnotationPipelineTest` pins the
+    companion row for a generic boost, and no test covers Battle Cry itself.
   - Owner: `MechanicAnnotations`
 
 #### Behold
