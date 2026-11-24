@@ -33,7 +33,8 @@ state-based action. CR 702.155 defines read ahead.
 1. Each lore increase is a `CounterAdded` with the Saga as `affectorId` and
    affected, `counter_type` `108` and `transaction_amount` the number added.
    The same GSM creates or updates the Saga's persistent `Counter` row.
-2. For each chapter threshold crossed, the same GSM creates a chapter
+2. For each chapter threshold crossed, outside the read ahead case below,
+   the same GSM creates a chapter
    `Ability` with `AbilityInstanceCreated` from the Saga, `source_zone` the
    Battlefield, and the Saga as `parentId`. Each chapter has its own ability
    `grpId`.
@@ -42,11 +43,14 @@ state-based action. CR 702.155 defines read ahead.
    its `grpid`, then `AbilityInstanceDeleted`.
 
 A Saga with read ahead enters with the chosen number of lore counters in one
-`CounterAdded`; only the chapter at that number triggers.
+`CounterAdded`. For the rest of the turn it entered, a chapter triggers only
+when the lore count equals that chapter's number, so entering skips the
+lower chapters.
 
 ## Final-chapter lifecycle
 
-The final chapter's resolution GSM carries its effect rows,
+When no other chapter ability of the Saga is still on the stack, the final
+chapter's resolution GSM carries its effect rows,
 `ResolutionComplete`, `AbilityInstanceDeleted`, and then the Saga's
 `ObjectIdChanged` and Battlefield to Graveyard `ZoneTransfer` with `category`
 `Sacrifice`; the lore `Counter` row is deleted there. A transforming Saga
@@ -68,11 +72,15 @@ levels, not triggers.
   created by `AbilityInstanceCreated` from the Saga in the GSM of the lore
   increase.
 - <a id="SagaChapter.final-sacrifice"></a>**SagaChapter.final-sacrifice.**
-  *(provisional)* Grounded for a non-transforming Saga: the `Sacrifice`
-  transfer of the Saga `MUST` be in the same GSM as its final chapter's
+  *(provisional)* Grounded for a non-transforming Saga with no other chapter
+  ability of its own on the stack: the `Sacrifice` transfer of the Saga `MUST` be in the same GSM as its final chapter's
   `AbilityInstanceDeleted`, and after it.
 
 ## Open points
 
 - How are several chapters crossed by one lore increase ordered?
 - What does the client see when the final chapter is countered?
+- When several chapter abilities of one Saga are on the stack, is the
+  sacrifice published only after the last of them leaves?
+- With read ahead, which rows does a later lore increase in the entry turn
+  carry for chapters it crosses without landing on?
