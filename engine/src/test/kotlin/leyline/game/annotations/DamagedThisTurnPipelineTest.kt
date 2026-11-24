@@ -67,6 +67,7 @@ class DamagedThisTurnPipelineTest :
                 dtt.typeList shouldContain AnnotationType.DamagedThisTurn
                 dtt.affectorId shouldBe AnnotationConstants.BATTLEFIELD_ZONE_AFFECTOR.value
                 dtt.affectedIdsList shouldBe listOf(idResolver(ForgeCardId(2)).value)
+                dtt.detailsList shouldBe emptyList()
             }
         }
 
