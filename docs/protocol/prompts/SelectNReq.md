@@ -131,8 +131,9 @@ Family-specific steps:
   `idType=InstanceId` and hand instance IDs in `ids`, with no `sourceId`,
   `minWeight` or `maxWeight`.
 - <a id="SelectNReq.cost-discard"></a>**SelectNReq.cost-discard.**
-  *(provisional)* A discard paid as a cost `MUST` use `Discard` with `Payment`, `listType=Static`,
-  `idType=InstanceId` and hand instance IDs in `ids`, with no `staticList`.
+  *(provisional)* A discard paid as a cost `MUST` use `Discard` with
+  `Payment`, `listType=Static`, `idType=InstanceId` and hand instance IDs in
+  `ids`, with no `staticList`.
 - <a id="SelectNReq.enum-domain"></a>**SelectNReq.enum-domain.** When
   `staticList` is set, `idType` `MUST` be absent, and every value in `ids` and
   in `selectNResp.ids` `MUST` be an enum value of that list.
@@ -157,11 +158,12 @@ Family-specific steps:
   not as a cancellation or an error, whenever selecting nothing is within the
   bounds.
 - <a id="SelectNReq.weight-sentinels"></a>**SelectNReq.weight-sentinels.**
-  *(provisional)* On resolution requests with no weight constraint, `minWeight` and `maxWeight` are the signed 32-bit minimum and
+  *(provisional)* On resolution requests with no weight constraint,
+  `minWeight` and `maxWeight` `MUST` be the signed 32-bit minimum and
   maximum.
 - <a id="SelectNReq.mana-color"></a>**SelectNReq.mana-color.**
-  *(provisional)* A color choice made while a mana ability resolves uses
-  `ManaFromAbility` with `Resolution`, `listType=Static` and
+  *(provisional)* A color choice made while a mana ability resolves `MUST`
+  use `ManaFromAbility` with `Resolution`, `listType=Static` and
   `StaticList_Colors`.
 
 ## Open points
