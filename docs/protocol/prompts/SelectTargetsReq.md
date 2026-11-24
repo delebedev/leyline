@@ -160,7 +160,6 @@ The response rule shared by every request applies here:
   of a triggered ability, which carries `Abort`?
 - What does `allowCancel=Continue` on a copy's first request allow, and do
   other sources use it?
-- When does the GSM before a request omit `pendingMessageCount`?
 - What does `informationalUseOnly` signal, and how should the client answer
   such a request?
 - When does the server send `SubmitTargetsResp`, and what does it confirm?
