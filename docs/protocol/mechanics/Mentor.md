@@ -62,11 +62,14 @@ is an attack trigger that adds mana instead.
   `minTargets` and `maxTargets` `1`.
 - <a id="Mentor.prompt-source"></a>**Mentor.prompt-source.** That prompt's
   `CardId` parameter `MUST` name the mentor creature.
-- <a id="Mentor.counter"></a>**Mentor.counter.** *(provisional)* The
-  resolution `MUST` carry `CounterAdded` on the target with `counter_type`
+- <a id="Mentor.counter"></a>**Mentor.counter.** *(provisional)* When the
+  target is still legal and no replacement effect changes the number of
+  counters, the resolution `MUST` carry `CounterAdded` on the target with `counter_type`
   `1` and `transaction_amount` `1`.
 
 ## Open points
 
+- What does `transaction_amount` carry when a replacement effect changes
+  the number of counters placed?
 - What does the request's `allowCancel` depend on?
 - How is a mentor trigger whose target became illegal retired?
