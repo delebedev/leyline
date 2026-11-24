@@ -33,7 +33,7 @@ the branches below are those with a known meaning:
 | `1` | Cost change | none | A cost reduction for a class of spells |
 
 Other values occur with branch keys such as `must_attack`, `must_be_blocked`,
-`affectedType`, `additional_lands` and `qualification_value_of_x`, and with
+`affectedType` and `additional_lands`, and with
 the duration keys `Duration`, `durationContinues` and `durationWarning`.
 `QualificationSubtype` is `0` on most rows; see Open points.
 
@@ -44,7 +44,7 @@ the duration keys `Duration`, `durationContinues` and `durationWarning`.
 | `affectorId` | The source of the predicate: the permanent with the static ability, the Aura, or the card granting a permission. Absent on the adventure cast permission. |
 | `affectedIds` | The qualified objects, or seats for a player-scoped predicate. |
 | `QualificationType`, `QualificationSubtype` | The predicate, as above. |
-| `SourceParent` | The source object's instance ID; `0` when the row has no source. |
+| `SourceParent` | The source object's instance ID: `affectorId`, or the source of the ability named by `affectorId`; `0` when the row has no source. |
 | `grpid` | The ability definition that states the predicate, such as Menace or "can't block". |
 | `parent_grpid` | When present, the card definition of the source. |
 | `CantAttackObjects`, `CantBlockObjects`, `CantBeBlockedByObjects` | Instance IDs of the objects the restriction is limited to. |
@@ -92,13 +92,12 @@ player-level effects and can share a row with `Qualification`.
   A row without `affectorId` `MUST` carry `SourceParent` `0`.
 - <a id="Qualification.source-parent"></a>**Qualification.source-parent.**
   *(provisional)* When `affectorId` is present, `SourceParent` `MUST` equal
-  it.
+  it or, when `affectorId` is an ability object, that object's `parentId`.
 
 ## Open points
 
 - What do the remaining `QualificationType` values and the non-zero
   `QualificationSubtype` values mean?
-- Why does `SourceParent` differ from `affectorId` on some cast permissions
-  and evasion rows?
+- What selects an ability object rather than its source as `affectorId`?
 - When is a granted keyword published as a `Qualification` and when only as
   [AddAbility](AddAbility.md)?
