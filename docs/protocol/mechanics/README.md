@@ -23,6 +23,7 @@ that flag described under [designations](../designations/README.md).
 | [Ascend](Ascend.md) | Count, blessing | Seat-owned permanent count that grants the city's blessing at ten. |
 | [BattleCry](BattleCry.md) | Attack trigger, pump | Attack trigger that gives each other attacker +1/+0. |
 | [Cascade](Cascade.md) | Keyword stack ability, cast-permission window, free cast, residue | Cast trigger that exiles to a free cast of the first eligible card. |
+| [CollectEvidence](CollectEvidence.md) | Count, chosen cost, payment, cast submit | Additional cost paid by exiling graveyard cards by total mana value. |
 | [Companion](Companion.md) | Chosen companion, put into the hand | Card from outside the game marked from the first state and put into the hand for `{3}`. |
 | [Convoke](Convoke.md) | Payment step, payment bracket, count, resolution label | Tapping creatures to pay part of a spell's mana cost. |
 | [Crew](Crew.md) | Activation, total-power cost, helpers tapped, type change | Vehicle ability paid by tapping creatures with enough total power. |
