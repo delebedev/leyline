@@ -35,6 +35,11 @@ hidden. It never becomes a member of the source zone.
    both its affector and its affected object, and the ID stays in the
    Revealed zone while the card is shown. A reveal from another zone sends
    the object with no `RevealedCardCreated` row.
+3. When the card is revealed from the recipient's own hand, the recipient
+   can get the `RevealedCardCreated` row and the Revealed zone membership
+   with no `RevealedCard` object. A `Full` GSM sent on reconnection restates
+   a revealed card's object without the row, because it carries no transient
+   annotations; a later `Full` GSM can repeat the row.
 4. `RevealedCardDeleted` ends the disclosure, and `diffDeletedInstanceIds`
    removes the object.
 
@@ -54,10 +59,10 @@ information.
   `RevealedCard` object's `zoneId` `MUST` be the underlying card's zone. When
   that zone is a hand, its ID `MUST` be a member of the owner's Revealed zone
   and of no other zone; otherwise it `MUST NOT` be a member of any zone.
-- <a id="RevealedCard.created"></a>**RevealedCard.created.** In the GSM where
-  a `RevealedCard` from a hand first appears, a `RevealedCardCreated` row
-  `MUST` carry its instance ID as both `affectorId` and the only
-  `affectedIds` entry. A `RevealedCard` from any other zone `MUST NOT` have a
+- <a id="RevealedCard.created"></a>**RevealedCard.created.** In the `Diff`
+  GSM where a `RevealedCard` from a hand first appears, a
+  `RevealedCardCreated` row `MUST` carry its instance ID as both `affectorId`
+  and the only `affectedIds` entry. A `RevealedCard` from any other zone `MUST NOT` have a
   `RevealedCardCreated` row.
 - <a id="RevealedCard.no-lineage"></a>**RevealedCard.no-lineage.** A
   `RevealedCard` object `MUST NOT` carry `parentId`.
