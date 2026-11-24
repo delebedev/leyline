@@ -127,6 +127,7 @@ class ManifestDreadSessionTest :
             }
         }
 
+        // protocol: ManifestDread.noncreature-no-turn-up
         session(
             "manifested noncreature has no turn-face-up action",
             puzzle = manifestDreadPuzzle("Island;Grizzly Bears"),

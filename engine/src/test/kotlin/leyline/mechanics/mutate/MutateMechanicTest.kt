@@ -30,6 +30,7 @@ private const val TARGET_CREATURE = "Runeclaw Bear"
 
 class MutateActionTest :
     BoardTest({
+        // protocol: Mutate.offer
         test("ActionMapper offers hand Cast with per-card mutate alternativeGrpId") {
             val (b, game, _) =
                 startWithBoard { _, human, _ ->
@@ -67,6 +68,7 @@ class MutateActionTest :
 
 class MutateLifecycleTest :
     SessionTest({
+        // protocol: Mutate.target-prompt, Mutate.merge-effect
         session(
             "mutate prompts for top or under, then resolves under with Suppressed component shape",
             puzzle = MUTATE_PUZZLE,

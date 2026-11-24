@@ -123,6 +123,7 @@ class LearnLessonTest :
             }
         }
 
+        // protocol: Learn.lesson-transfer
         session(
             "selecting sideboard Lesson reveals and moves it to hand",
             puzzleFile = learnPuzzle,

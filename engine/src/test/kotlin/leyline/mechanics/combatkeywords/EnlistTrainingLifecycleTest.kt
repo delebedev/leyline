@@ -67,6 +67,7 @@ class EnlistTrainingLifecycleTest :
             }
         }
 
+        // protocol: Enlist.tap-affector, Enlist.triggering-enlisted, Enlist.ability-id
         session("Enlist attack cost prompts with PayCostsReq and links tapped creature", puzzle = enlistPuzzle) {
             val faithbonderIid = human.battlefield.iid("Benalish Faithbonder")
             val courserIid = human.battlefield.iid("Centaur Courser")

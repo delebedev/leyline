@@ -41,8 +41,35 @@ that flag described under [designations](../designations/README.md).
 | [Discover](Discover.md) | Discover ability, cast-permission window, free cast, residue | Keyword action that exiles to a free cast or puts the card into the hand. |
 | [Disguise](Disguise.md) | Face-down cast, face-down state, turning face up | Face-down 2/2 ward cast for `{3}`, turned face up for its disguise cost. |
 | [Disturb](Disturb.md) | Graveyard cast, back face | Casting a double-faced card transformed from the graveyard. |
+| [Earthbend](Earthbend.md) | Target prompt, layered effects, counters, AnimatedLand | Animates a land its controller controls and refreshes the animation when repeated. |
+| [Emerge](Emerge.md) | Alternative-cost cast, sacrifice cost | Casts a spell for its emerge cost by sacrificing a creature. |
+| [Enchant](Enchant.md) | Aura cast, target exchange, attachment | Restricts what an Aura spell targets and what the Aura enchants. |
+| [Endure](Endure.md) | Resolution OptionalActionMessage, counters or token | Puts +1/+1 counters on a permanent or creates a Spirit token. |
+| [Enlist](Enlist.md) | Attack alternative, PayCostsReq tap cost, linked trigger | Taps a nonattacking creature as a creature attacks to add its power. |
+| [Equip](Equip.md) | Activated ability, target exchange, attachment | Attaches an Equipment to a target creature its controller controls. |
+| [Escape](Escape.md) | Graveyard Cast, PayCostsReq exile cost, CastingTimeOption | Casts a card from the graveyard for its escape cost. |
+| [Evoke](Evoke.md) | Alternative-cost cast, TemporaryPermanent, sacrifice trigger | Casts a card for its evoke cost and sacrifices the permanent as it enters. |
+| [Exploit](Exploit.md) | Enters trigger, resolution SelectNReq, sacrifice transfer | Optionally sacrifices a creature as the enters trigger resolves. |
+| [Extort](Extort.md) | Cast trigger, optional payment | Drains each opponent when the controller pays after casting a spell. |
+| [Firebending](Firebending.md) | Attack trigger, mana pool, ManaDetails | Adds red mana on attack that is kept until end of combat. |
+| [Flashback](Flashback.md) | Graveyard Cast, CastingTimeOption, exile on leaving the stack | Casts an instant or sorcery from the graveyard and exiles it afterwards. |
 | Flurry | Count row, trigger | Ability word for triggers on casting the second spell in a turn; `AbilityWordActive` `Flurry` counts spells against `threshold`. |
+| [Foretell](Foretell.md) | Special action, FaceDown exile, Cast from exile | Exiles a card face down for {2} and casts it later for its foretell cost. |
+| [Gift](Gift.md) | CastingTimeOptionsReq AdditionalCost, CastingTimeOption | Promises an opponent a benefit as a spell is cast. |
+| [Harmonize](Harmonize.md) | Graveyard Cast, CastingTimeOptionsReq Selection, CastingTimeOption | Casts a card from the graveyard, tapping a creature to reduce the cost. |
+| [Impending](Impending.md) | Alternative-cost cast, time counters, end-step trigger | Casts a permanent that counts down with time counters before it is a creature. |
+| [Improvise](Improvise.md) | Hand Cast, artifact payment | Taps artifacts to pay generic mana while casting a spell. |
+| [Increment](Increment.md) | Cast trigger, counter | Puts a +1/+1 counter on a creature when enough mana was spent on a spell. |
 | Infusion | Label row | Ability word for effects conditioned on gaining life this turn; a label-only `AbilityWordActive` `Infusion` row. |
+| [JobSelect](JobSelect.md) | Enters trigger, token, attachment | Creates a Hero token and attaches the Equipment to it. |
+| [JumpStart](JumpStart.md) | Graveyard Cast, CastingTimeOption, discard cost, exile on leaving the stack | Casts an instant or sorcery from the graveyard by discarding a card. |
+| [Learn](Learn.md) | SelectNReq 147/148, Sideboard to Hand | Discards to draw, or puts a Lesson from outside the game into the hand. |
+| [Madness](Madness.md) | Discard to exile, trigger, staged Cast, CastingTimeOption | Discards a card into exile and lets its owner cast it for its madness cost. |
+| [ManifestDread](ManifestDread.md) | SelectNReq 13125, ManifestLike, FaceDown, turn face up | Manifests one of the top two library cards face down. |
+| [MaxSpeed](MaxSpeed.md) | PlayerSpeed, AddAbility | Grants an ability while its controller's speed is 4. |
+| [Mentor](Mentor.md) | Attack trigger, SelectTargetsReq 2247, counter | Puts a +1/+1 counter on an attacking creature with lesser power. |
+| [Mobilize](Mobilize.md) | Attack trigger, tokens, delayed cleanup | Creates attacking Warrior tokens and sacrifices them at end step. |
+| [Mutate](Mutate.md) | Hand Cast, SelectTargetsReq 141, CastingTimeOption, merge LayeredEffect | Merges a creature spell into a non-Human creature with the same owner. |
 | [Ninjutsu](Ninjutsu.md) | Hand activation, return cost, reveal, `Put` | Put a ninja from the hand onto the Battlefield attacking by returning an unblocked attacker. |
 | [Offspring](Offspring.md) | Optional-cost choice, enters trigger, token copy | Pay an optional cost so the creature makes a 1/1 token copy of itself when it enters. |
 | [OpeningHand](OpeningHand.md) | Opening-hand ability, Put transfer, dedicated action type | Use a card from the opening hand before the first turn, such as starting with it on the battlefield. |

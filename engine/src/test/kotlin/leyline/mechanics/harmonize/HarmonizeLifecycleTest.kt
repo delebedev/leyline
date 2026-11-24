@@ -33,6 +33,7 @@ private val PUZZLE =
 
 class HarmonizeLifecycleTest :
     SessionTest({
+        // protocol: Harmonize.cast-marker
         session("Winternight Stories casts from graveyard with Harmonize", puzzle = PUZZLE) {
             val cardGrpId = bridge.cardRepository.findGrpIdByName("Winternight Stories")!!
             val harmonizeAbilityGrpId = bridge.cardRepository.findKeywordAbilityGrpId(cardGrpId, KeywordAbilityIds.HARMONIZE)!!

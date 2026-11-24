@@ -214,7 +214,10 @@ protocol-docs-lint:
         [[ "$kind" == err ]] && fail "$where → $msg"
     done < "$work/scan"
     awk -F'\t' '$1 == "def" { print $2 "\t" $3 }' "$work/scan" | sort > "$work/defs"
-    cut -f1 "$work/defs" | uniq -d | while read -r id; do
+    # A file, not a pipe: grep -q exits at the first match, and under pipefail a
+    # writer cut short by that exit would make an existing ID look missing.
+    cut -f1 "$work/defs" > "$work/def-ids"
+    uniq -d "$work/def-ids" | while read -r id; do
         echo "duplicate statement ID: $id ($(awk -F'\t' -v id="$id" '$1 == id { printf "%s ", $2 }' "$work/defs"))"
     done > "$work/dups"
     while read -r line; do fail "$line"; done < "$work/dups"
@@ -229,7 +232,7 @@ protocol-docs-lint:
             for id in ${ids//,/ }; do printf '%s\t%s:%s\n' "$id" "${file#./}" "$line_num"; done
         done > "$work/cites" || true
     while IFS=$'\t' read -r id where; do
-        cut -f1 "$work/defs" | grep -qxF "$id" || fail "$where → cited statement does not exist: $id"
+        grep -qxF "$id" "$work/def-ids" || fail "$where → cited statement does not exist: $id"
     done < "$work/cites"
 
     rg -n -o --no-heading --type md "${rg_exclude[@]}" "\]\([^)#[:space:]]*\.md#${id_pat}\)" . 2>/dev/null \
