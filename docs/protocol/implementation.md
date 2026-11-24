@@ -1246,6 +1246,7 @@ grouped by family, then by entity.
   - Leyline: sends the sacrifice as a `SelectNReq` with prompt `180` and
     `allowCancel` `No`, the shape it uses for every sacrifice effect.
   - Owner: `CardSelectWindowMaterializer`, `SelectNEnvelope`
+  - Pinned by: `MatchCardSelectInteractionRuntimeTest`
 
 #### Flashback
 
@@ -1272,6 +1273,7 @@ grouped by family, then by entity.
     [Special.foretell-plot](actions/Special.md#Special.foretell-plot), so no
     foretell `Special` offer exists.
   - Owner: `ActionMapper`, `CastRails`
+  - Pinned by: `ForetellActionTest`
 
 #### Harmonize
 
@@ -1301,6 +1303,7 @@ grouped by family, then by entity.
   - Leyline: offers jump-start on its alternative-cost rail, with the
     jump-start ability in `alternativeGrpId`.
   - Owner: `CastRails`
+  - Pinned by: `JumpStartLifecycleTest`
 - **`diverges`** — [JumpStart.accepted](mechanics/JumpStart.md#JumpStart.accepted) *(provisional statement)*
   - Contract: the accepted cast carries `abilityGrpId` `170` and no
     `alternativeGrpId`.
