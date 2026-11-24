@@ -19,6 +19,7 @@ that flag described under [designations](../designations/README.md).
 
 | Mechanic | Surfaces | Role |
 |---|---|---|
+| [Afterlife](Afterlife.md) | Dies trigger, token creation | Dies trigger that creates Spirit tokens. |
 | [Cascade](Cascade.md) | Keyword stack ability, cast-permission window, free cast, residue | Cast trigger that exiles to a free cast of the first eligible card. |
 | [Companion](Companion.md) | Chosen companion, put into the hand | Card from outside the game marked from the first state and put into the hand for `{3}`. |
 | [Convoke](Convoke.md) | Payment step, payment bracket, count, resolution label | Tapping creatures to pay part of a spell's mana cost. |

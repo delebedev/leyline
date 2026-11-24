@@ -233,6 +233,7 @@ Leyline cannot play at all is `absent`.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [Afterlife](mechanics/Afterlife.md) | `AnnotationPipeline`, `TriggeringObjectProjection`, `AnnotationBuilder.tokenCreated` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
