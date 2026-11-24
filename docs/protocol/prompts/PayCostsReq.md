@@ -1,9 +1,5 @@
 ---
 summary: "PayCostsReq: cost payment prompt; mana payment, object-selection costs and counter gathering, their responses and cancellation."
-read_when:
-  - "emitting, routing or parsing PayCostsReq, EffectCostResp or PerformAutoTapActionsResp"
-  - "adding a non-mana cost paid by choosing objects, such as sacrifice, tap or exile"
-  - "changing convoke, improvise or other mana payment through a prompt"
 entity: prompt/PayCostsReq
 ---
 # PayCostsReq

@@ -1,9 +1,5 @@
 ---
 summary: "ActionsAvailableReq: priority prompt; action sets, prompt regimes, action identity, PerformActionResp and lifecycle."
-read_when:
-  - "emitting, routing or parsing ActionsAvailableReq or PerformActionResp"
-  - "adding or changing an offered or inactive priority action"
-  - "reviewing a cast-permission window offered as a priority prompt"
 entity: prompt/ActionsAvailableReq
 ---
 # ActionsAvailableReq

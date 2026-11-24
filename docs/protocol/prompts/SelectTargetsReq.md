@@ -1,9 +1,5 @@
 ---
 summary: "SelectTargetsReq: iterative target selection for a spell or ability; target groups, candidate identity, delta responses, echo, submission and cancellation."
-read_when:
-  - "emitting, routing or parsing SelectTargetsReq, SelectTargetsResp or SubmitTargetsReq"
-  - "changing target groups, target bounds or targeting cancellation"
-  - "reviewing a targeting window for a spell, activated ability or triggered ability"
 entity: prompt/SelectTargetsReq
 ---
 # SelectTargetsReq

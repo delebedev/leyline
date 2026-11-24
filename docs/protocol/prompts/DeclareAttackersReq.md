@@ -1,9 +1,5 @@
 ---
 summary: "DeclareAttackersReq: iterative attack declaration; attacker rows, damage recipients, attack alternatives, delta responses, echo and submission."
-read_when:
-  - "emitting, routing or parsing DeclareAttackersReq, DeclareAttackersResp or SubmitAttackersReq"
-  - "changing legal attackers, attack recipients or an attack alternative such as Enlist"
-  - "reviewing the declare-attackers step"
 entity: prompt/DeclareAttackersReq
 ---
 # DeclareAttackersReq
