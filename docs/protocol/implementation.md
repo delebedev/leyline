@@ -250,6 +250,7 @@ Leyline cannot play at all is `absent`.
 | [Harmonize](mechanics/Harmonize.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Impending](mechanics/Impending.md) | `CastRails`, `ZoneTransferDetector` | `implemented` |
 | [Improvise](mechanics/Improvise.md) | `ManaSourcePaymentMaterializer`, `MatchManaSourcePaymentRuntime` | `implemented` |
+| [Increment](mechanics/Increment.md) | `TriggeringObjectProjection`, `AnnotationPipeline` | `implemented` |
 
 ## Exceptions
 

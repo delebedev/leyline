@@ -36,3 +36,4 @@ that flag described under [designations](../designations/README.md).
 | [Harmonize](Harmonize.md) | Graveyard Cast, CastingTimeOptionsReq Selection, CastingTimeOption | Casts a card from the graveyard, tapping a creature to reduce the cost. |
 | [Impending](Impending.md) | Alternative-cost cast, time counters, end-step trigger | Casts a permanent that counts down with time counters before it is a creature. |
 | [Improvise](Improvise.md) | Hand Cast, artifact payment | Taps artifacts to pay generic mana while casting a spell. |
+| [Increment](Increment.md) | Cast trigger, counter | Puts a +1/+1 counter on a creature when enough mana was spent on a spell. |
