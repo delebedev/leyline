@@ -62,6 +62,9 @@ manaSelections
    - `UserActionTaken` with `actionType` `4`;
    - `ManaPaid`, when a payment in progress consumes the mana at once;
    - `AbilityInstanceDeleted` for the activation's ability instance.
+
+   When the activation's `Ability` object waits in Pending, the same rows are
+   split across GSMs and `AbilityInstanceDeleted` arrives in a later one.
 3. Mana that is not consumed at once appears in the player's `manaPool` as a
    `ManaInfo` with the source's instance ID, color, ability, count and mana
    ID.
@@ -89,12 +92,13 @@ mana abilities; it is not how a multi-color ability is offered.
   one color, the server `MUST` read that color as the player's choice, even
   if `manaSelections` still lists several.
 - <a id="Activate_Mana.bracket"></a>**Activate_Mana.bracket.** An accepted
-  activation `MUST` be reported, in order, by `AbilityInstanceCreated` from
-  the source, the cost's state changes, `UserActionTaken` with `actionType`
-  `4` naming the activation's ability instance, and
-  `AbilityInstanceDeleted` for that instance. When the activation has an
-  `Ability` object waiting in Pending, the rows are split across GSMs, and
-  `AbilityInstanceDeleted` comes once that object is resolved.
+  activation whose mana pays for a spell or cost `MUST` be reported, in
+  order, by `AbilityInstanceCreated` from the source, the cost's state
+  changes, `UserActionTaken` with `actionType` `4` naming the activation's
+  ability instance, and `AbilityInstanceDeleted` for that instance. When the
+  activation has an `Ability` object waiting in Pending, the rows are split
+  across GSMs, and `UserActionTaken` still comes before
+  `AbilityInstanceDeleted`.
 - <a id="Activate_Mana.paid"></a>**Activate_Mana.paid.** When the mana pays
   for a spell being cast, a `ManaPaid` row with the source as `affectorId`
   and the spell as `affectedIds` `MUST` appear before the activation's
@@ -102,9 +106,11 @@ mana abilities; it is not how a multi-color ability is offered.
 
 ## Open points
 
-- When an activation waits in Pending, can `UserActionTaken` follow its
-  `AbilityInstanceDeleted`?
-
+- When an activation's mana pays for nothing and only floats, does
+  `AbilityInstanceDeleted` come before `UserActionTaken`? One such
+  activation has shown that order.
+- Is a Pending activation's ability instance always deleted, and in which
+  GSM?
 - Does every `FloatMana` decision end in one of the `ActivateMana` rows?
 - When is `isBatchable` false?
 - Is `manaSelections` sent for an ability that makes one fixed color?
