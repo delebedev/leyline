@@ -77,19 +77,23 @@ Equipment.
   with the same `grpId`, the card's reconfigure ability.
 - <a id="Reconfigure.attach-target-spec"></a>**Reconfigure.attach-target-spec.**
   The `TargetSpec` of an attach activation `MUST` carry `abilityGrpId` `243`.
-- <a id="Reconfigure.attach-rows"></a>**Reconfigure.attach-rows.** An attach
-  resolution `MUST` carry `AttachmentCreated` from the reconfigure permanent
+- <a id="Reconfigure.attach-rows"></a>**Reconfigure.attach-rows.** When an attach
+  ability resolves with its target creature still legal, the resolution
+  `MUST` carry `AttachmentCreated` from the reconfigure permanent
   to the host and create a persistent `Attachment` row between them.
 - <a id="Reconfigure.attached-not-creature"></a>**Reconfigure.attached-not-creature.**
   While attached, the reconfigure permanent's object `MUST NOT` list
   `CardType_Creature`, and it `MUST` carry a persistent `ModifiedType` row.
-- <a id="Reconfigure.unattach-rows"></a>**Reconfigure.unattach-rows.** An
-  unattach resolution `MUST` carry `RemoveAttachment` from the reconfigure
+- <a id="Reconfigure.unattach-rows"></a>**Reconfigure.unattach-rows.** When an
+  unattach ability resolves while the permanent is still attached, the
+  resolution `MUST` carry `RemoveAttachment` from the reconfigure
   permanent to the former host with `invalidating_grpid` `244`, and `MUST`
   delete the `Attachment` and `ModifiedType` rows.
 
 ## Open points
 
+- What does an attach or unattach resolution carry when the target is no
+  longer legal or the permanent is no longer attached?
 - Is the attach or unattach offer that cannot be used marked inactive, or
   rejected on submission?
 - What does `RemoveAttachment` carry when the permanent becomes unattached
