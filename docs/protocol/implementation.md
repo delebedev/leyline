@@ -62,6 +62,7 @@ Rows are grouped by family and sorted by entity name.
 | [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
+| [SplitLeft](object_types/SplitLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
 | [TriggerHolder](object_types/TriggerHolder.md) | `ObjectMapper.buildTriggerHolderObject`, `StateMapper` | `implemented` |
 
@@ -231,6 +232,18 @@ grouped by family, then by entity.
   - Leyline: never emits `MDFCBack`. The projection layer supports only
     `Adventure` and `Omen` companions, so a modal double-faced card shows no
     alternate-face object.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### SplitLeft
+
+- **`absent`** — [SplitLeft.pair-together](object_types/SplitLeft.md#SplitLeft.pair-together),
+  [SplitLeft.selected-face](object_types/SplitLeft.md#SplitLeft.selected-face)
+  *(provisional statement)*
+  - Contract: a split card's projection carries both half companions, and the
+    Stack parent adopts the selected half's `grpId`.
+  - Leyline: never emits `SplitLeft` or `SplitRight`. A split half is projected
+    as an ordinary `Card` on the Stack, with the face `grpId` and no companion
+    pair.
   - Owner: `LinkedFaceCompanionProjector`
 
 #### RevealedCard
