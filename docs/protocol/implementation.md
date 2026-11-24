@@ -696,8 +696,8 @@ grouped by family, then by entity.
 
 #### DamagedThisTurn
 
-- **`diverges`** — [DamagedThisTurn.turn-retire](annotations/DamagedThisTurn.md#DamagedThisTurn.turn-retire) *(provisional statement)*
-  - Contract: the row is deleted in the first GSM of the next turn.
+- **`diverges`** — [Lifecycle](annotations/DamagedThisTurn.md#lifecycle), retirement at the turn boundary
+  - Contract: the row is normally deleted in the first GSM of the next turn.
   - Leyline: deletes the row when the upkeep step begins, so it survives the
     GSMs of the new turn's untap step.
   - Owner: `CombatAnnotations`, `PersistentAnnotationStore`

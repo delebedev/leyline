@@ -36,11 +36,14 @@ object and is not a member.
 
 1. The first damage to a permanent in a turn: the GSM carries `DamageDealt`
    for it and a new row naming it, or every permanent damaged in that GSM.
+   Rarely a permanent is added in a GSM without a `DamageDealt` for it; see
+   Open points.
 2. Later damage in the same turn republishes the row under the same `id`
    with the new permanents added. A permanent that leaves the battlefield is
    removed from the list in the GSM of its `ObjectIdChanged`; the row is
    deleted instead when no member remains.
-3. The row is deleted when the next turn begins.
+3. The row is normally deleted in the first GSM of the next turn. A few rows
+   survive that GSM; see Open points.
 
 At most one row is live at a time.
 
@@ -57,10 +60,6 @@ affector for another turn-scoped set.
   details, with `affectorId` `28`.
 - <a id="DamagedThisTurn.single-row"></a>**DamagedThisTurn.single-row.**
   The live state `MUST NOT` hold more than one `DamagedThisTurn` row.
-- <a id="DamagedThisTurn.member-damaged"></a>**DamagedThisTurn.member-damaged.**
-  *(provisional)* An instance ID added to `affectedIds`, at creation or on
-  update, `MUST` be named in `affectedIds` of a `DamageDealt` row in the
-  same GSM.
 - <a id="DamagedThisTurn.grows-in-place"></a>**DamagedThisTurn.grows-in-place.**
   Damage to another permanent while a row is live `MUST` republish that row
   under the same `id`, not create a second row.
@@ -68,9 +67,6 @@ affector for another turn-scoped set.
   *(provisional)* When a member receives a new instance ID, the same GSM
   `MUST` republish the row without that member or, when no member remains,
   delete the row.
-- <a id="DamagedThisTurn.turn-retire"></a>**DamagedThisTurn.turn-retire.**
-  *(provisional)* The row `MUST` be deleted in the first GSM of the next
-  turn.
 
 ## Open points
 
