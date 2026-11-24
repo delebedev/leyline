@@ -57,7 +57,8 @@ Each count has its own trigger ability and its own cleanup ability:
    ability.
 2. At the next end step the cleanup resolves: `ResolutionStart` and
    `ResolutionComplete` carry the cleanup ability ID.
-3. Each token still on the battlefield gets a new instance ID, moves
+3. Each token still on the battlefield under the cleanup controller's
+   control gets a new instance ID, moves
    Battlefield to Graveyard with `category` `Sacrifice` and then gets
    `TokenDeleted`. A token that already left gets no second transfer.
 
@@ -83,7 +84,8 @@ end step" effects use the same cleanup rows with their own abilities.
   one `TemporaryPermanent` row per token, both with the trigger holder as
   `affectorId`.
 - <a id="Mobilize.sacrifice"></a>**Mobilize.sacrifice.** Each token still on
-  the battlefield at cleanup `MUST` move Battlefield to Graveyard with
+  the battlefield at cleanup and controlled by the cleanup's controller,
+  with no replacement effect changing where it goes, `MUST` move Battlefield to Graveyard with
   `category` `Sacrifice`.
 
 The holder is stated by [TriggerHolder](../object_types/TriggerHolder.md)
@@ -93,3 +95,5 @@ and the grouping by
 ## Open points
 
 - Which IDs does mobilize 2 use?
+- What does the cleanup carry for a token another player controls by then,
+  which cannot be sacrificed?
