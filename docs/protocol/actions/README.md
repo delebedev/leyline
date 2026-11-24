@@ -46,8 +46,8 @@ cast both record `1`.
 | [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |
 | [CastOmen](CastOmen.md) | Cast the Omen half of an Omen card. |
 | [CastMdfc](MDFC.md) | Cast the spell face of a modal double-faced card. |
-| `CastPrototype` | Cast the prototype face of a card. |
 | [PlayMdfc](MDFC.md) | Play the land face of a modal double-faced card. |
+| `CastPrototype` | Cast the prototype face of a card. |
 | [CastLeftRoom](Rooms.md), [CastRightRoom](Rooms.md) | Cast one door of a Room. |
 | `FloatMana` | Float available mana. Request rail only. |
 | `ResolutionCost`, `MakePayment`, `CombatCost`, `SpecialPayment`, `OpeningHandAction` | Sub-actions offered inside other decisions. |

@@ -95,7 +95,7 @@ Rows are grouped by family and sorted by entity name.
 | [Prepared](designations/Prepared.md) | `CardStateDesignations`, `AnnotationBuilder.preparedDesignation`, `PreparedDesignationKind`, `PersistentFeedBuilder` | `implemented` |
 | [Saddled](designations/Saddled.md) | `CardStateDesignations`, `AnnotationBuilder.saddledDesignation`, `SaddledDesignationKind` | `implemented` |
 | [Solved](designations/Solved.md) | `CardStateDesignations`, `AnnotationBuilder.solvedDesignation`, `SolvedDesignationKind` | `implemented` |
-| [Suspected](designations/Suspected.md) | `CardStateDesignations`, `AnnotationBuilder.suspectedDesignation`, `AnnotationPipeline` | `partial` |
+| [Suspected](designations/Suspected.md) | `CardStateDesignations`, `AnnotationBuilder.suspectedDesignation`, `AnnotationPipeline` | `implemented` |
 
 ### Prompts
 
@@ -251,6 +251,22 @@ grouped by family, then by entity.
     alternate-face object.
   - Owner: `LinkedFaceCompanionProjector`
 
+#### RevealedCard
+
+- **`diverges`** — [RevealedCard.source-zone](object_types/RevealedCard.md#RevealedCard.source-zone)
+  - Contract: only a card revealed from a hand gets a `RevealedCardCreated`
+    row and a Revealed zone membership.
+  - Leyline: emits `RevealedCardCreated` and lists the `RevealedCard` in the Revealed
+    zone for every reveal, whatever its source zone.
+  - Owner: `RevealStateContributor`, `StateMapper`
+- **`diverges`** — [RevealedCard.created](object_types/RevealedCard.md#RevealedCard.created)
+  - Contract: `RevealedCardCreated` carries the revealed card's instance ID as
+    both `affectorId` and `affectedIds`.
+  - Leyline: the reveal path for cards revealed to the opponent sets only
+    `affectedIds`. The path for a permanent bounced to its owner's hand sets
+    both.
+  - Owner: `RevealStateContributor`, `AnnotationBuilder.revealedCardCreated`
+
 #### RoomLeft
 
 - **`absent`** — [RoomLeft.pair-together](object_types/RoomLeft.md#RoomLeft.pair-together),
@@ -302,22 +318,6 @@ grouped by family, then by entity.
     as an ordinary `Card` on the Stack, with the face `grpId` and no companion
     pair.
   - Owner: `LinkedFaceCompanionProjector`
-
-#### RevealedCard
-
-- **`diverges`** — [RevealedCard.source-zone](object_types/RevealedCard.md#RevealedCard.source-zone)
-  - Contract: only a card revealed from a hand gets a `RevealedCardCreated`
-    row and a Revealed zone membership.
-  - Leyline: emits `RevealedCardCreated` and lists the `RevealedCard` in the Revealed
-    zone for every reveal, whatever its source zone.
-  - Owner: `RevealStateContributor`, `StateMapper`
-- **`diverges`** — [RevealedCard.created](object_types/RevealedCard.md#RevealedCard.created)
-  - Contract: `RevealedCardCreated` carries the revealed card's instance ID as
-    both `affectorId` and `affectedIds`.
-  - Leyline: the reveal path for cards revealed to the opponent sets only
-    `affectedIds`. The path for a permanent bounced to its owner's hand sets
-    both.
-  - Owner: `RevealStateContributor`, `AnnotationBuilder.revealedCardCreated`
 
 ### Action exceptions
 
@@ -441,15 +441,6 @@ grouped by family, then by entity.
   - Leyline: emits `LoseDesignation` for `18` in the GSM where the plotted role
     ends, including the cast that consumes the exile instance.
   - Owner: `CardStateDesignations`, `AnnotationBuilder.loseDesignation`
-
-#### Suspected
-
-- **`absent`** — [Suspected.behaviour-rows](designations/Suspected.md#Suspected.behaviour-rows)
-  - Contract: a suspected permanent carries `AddAbility`, `LayeredEffect` and
-    `Qualification` rows for menace and the can't-block restriction.
-  - Leyline: publishes the two behaviour rows but no `Qualification` row for a
-    suspected permanent, so the client-facing qualification is missing.
-  - Owner: `AnnotationPipeline`
 
 ### Prompt exceptions
 

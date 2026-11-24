@@ -8,8 +8,8 @@ read_when:
 
 A designation is durable state attached to the game, a seat or a card. It is
 carried on the designation rails rather than by an ability that fires, and other
-rows interpret it: a suspecting effect publishes the behaviour rows that menace
-and the blocking restriction need.
+rows interpret it: an effect that suspects a permanent also publishes the
+behaviour rows for menace and the blocking restriction.
 
 A mechanic can own an activation or resolution lifecycle and a separate
 designation surface. The persistent row owns the durable state; gain and loss
@@ -48,7 +48,7 @@ key carries none, and the state is read from the row's type alone.
 
 | Value | Designation | Domain | Role |
 |---:|---|---|---|
-| 1 | Commander | seat and card | A commander's identity and command-zone tax: colour identity, commander `grpId` and cumulative cost increase, on both the seat and the card. |
+| 1 | `Commander` | seat and card | A commander's identity and command-zone tax: colour identity, commander `grpId` and cumulative cost increase, on both the seat and the card. |
 | 10 | [Day](DayNight.md) | game | Day is established; the persistent row carries the active player's current-turn spell count. |
 | 11 | [Night](DayNight.md) | game | Night is established, in the same shape as Day. |
 | 15 | [Solved](Solved.md) | card | A Case permanent whose solve condition has resolved. |
@@ -60,6 +60,6 @@ key carries none, and the state is read from the row's type alone.
 | 21 | [PlayerSpeed](PlayerSpeed.md) | seat | A player's current speed, from 1 to 4. |
 | 23 | [AnimatedLand](AnimatedLand.md) | card | A land currently animated as a creature. |
 | 24 | [Prepared](Prepared.md) | card | A prepared permanent, linked to a prepare-spell copy in exile. |
-| 26 | Unearthed | card | A permanent created on the battlefield by an effect rather than cast, carrying its source card and the kind of creation. |
+| 26 | `Unearthed` | card | A permanent created on the battlefield by an effect rather than cast, carrying its source card and the kind of creation. |
 
 A type with no established meaning is not listed until its meaning is grounded.

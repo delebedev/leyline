@@ -19,6 +19,7 @@ class PlayerSpeedProjectionTest :
     FunSpec({
         tags(UnitTag)
 
+        // protocol: PlayerSpeed.update-in-place, PlayerSpeed.trigger-holder
         test("speed designation updates in place and carries the player holder") {
             val first = AnnotationBuilder.playerSpeedDesignation(SeatId(1), 3, InstanceId(100_000_001))
             val firstBatch =

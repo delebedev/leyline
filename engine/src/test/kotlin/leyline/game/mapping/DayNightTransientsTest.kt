@@ -87,6 +87,7 @@ class DayNightTransientsTest :
             }
         }
 
+        // protocol: DayNight.gain-first
         test("initial Day follows resolution and precedes its entry trigger") {
             val unrelated = AnnotationBuilder.abilityInstanceCreated(90.iid, 70.iid, ZoneIds.BATTLEFIELD)
             val resolve = AnnotationBuilder.zoneTransfer(100.iid, ZoneIds.STACK, ZoneIds.BATTLEFIELD, TransferCategory.Resolve.label)

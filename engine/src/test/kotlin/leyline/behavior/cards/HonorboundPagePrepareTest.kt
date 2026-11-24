@@ -131,6 +131,7 @@ class HonorboundPagePrepareTest :
             assertSoftly {
                 copyObj.type shouldBe GameObjectType.Card
                 copyObj.isCopy shouldBe true
+                // protocol: Prepared.copy-parent
                 copyObj.parentId shouldBe sourceIid
                 copyObj.grpId shouldNotBe 0
                 copyObj.zoneId shouldBe ZoneIds.EXILE

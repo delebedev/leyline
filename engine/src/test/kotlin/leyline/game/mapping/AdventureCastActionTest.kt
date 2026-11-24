@@ -46,6 +46,7 @@ class AdventureCastActionTest :
 
             adventureActions shouldHaveSize 1
             val adv = adventureActions[0]
+            // protocol: CastAdventure.parent-instance, CastAdventure.face-cost
             assertSoftly {
                 adv.instanceId shouldBe traineeIid
                 // grpId = creature face (client can't resolve IsPrimaryCard=0 adventure faces)

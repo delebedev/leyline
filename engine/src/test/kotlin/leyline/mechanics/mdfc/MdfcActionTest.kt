@@ -38,6 +38,7 @@ class MdfcActionTest :
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
             val landFace = actionsFor(actions.actionsList, iid, ActionType.PlayMdfc).firstOrNull()
+            // protocol: MDFC.play-fields
             assertSoftly {
                 mainCast shouldNotBe null
                 landFace shouldNotBe null
@@ -65,6 +66,7 @@ class MdfcActionTest :
             val actions = ActionMapper.buildFromSnapshot(1, SnapshotCapture.run(game, b, "test", 0), b)
 
             val backSpell = actionsFor(actions.actionsList, iid, ActionType.CastMdfc).firstOrNull()
+            // protocol: MDFC.cast-instance, MDFC.no-alternative
             assertSoftly {
                 backSpell shouldNotBe null
                 backSpell!!.grpId shouldBe 0

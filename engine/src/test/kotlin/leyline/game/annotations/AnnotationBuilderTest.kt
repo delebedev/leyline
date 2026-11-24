@@ -1093,6 +1093,7 @@ class AnnotationBuilderTest :
             }
         }
 
+        // protocol: AnimatedLand.persistent-shape, AnimatedLand.controller-detail
         test("manaCreatureDesignationFields") {
             val ann = AnnotationBuilder.manaCreatureDesignation(instanceId = 199.iid, controllerId = 1.sid)
             assertSoftly {

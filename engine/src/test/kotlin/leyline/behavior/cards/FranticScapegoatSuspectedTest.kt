@@ -109,6 +109,7 @@ class FranticScapegoatSuspectedTest :
                         it.affectorId == bearIid &&
                             it.detailInt(DetailKeys.DESIGNATION_TYPE) == AnnotationConstants.DESIGNATION_TYPE_SUSPECTED
                     }
+            // protocol: Suspected.gain, Suspected.move, Suspected.persistent, Suspected.behaviour-rows
             val bearAbilityRows =
                 allMessages
                     .persistentAnnotationsOfType(AnnotationType.AddAbility_af5a)

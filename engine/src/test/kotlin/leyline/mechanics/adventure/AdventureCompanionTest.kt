@@ -43,6 +43,7 @@ class AdventureCompanionTest :
                         effectFacts = board.bridge.materializeEffectProjectionFacts(),
                         abilityExhaustionFacts = leyline.game.state.AbilityExhaustionFacts(),
                     ).gsm
+            // protocol: Adventure.face-identity, Adventure.shares-parent-state
             val companion = gsm.gameObjectsList.single { it.type == GameObjectType.Adventure_a4aa }
             val hand = gsm.zonesList.single { it.zoneId == ZoneIds.P1_HAND }
 
@@ -118,6 +119,7 @@ class AdventureCompanionTest :
                     ).value
 
             val (diff, newParentIid) = board.transferCard("Ratcatcher Trainee") { moved, game -> exile(moved, game) }
+            // protocol: Adventure.remap
             val companion = diff.gameObjectsList.single { it.type == GameObjectType.Adventure_a4aa }
             val exile = diff.zonesList.single { it.zoneId == ZoneIds.EXILE }
 

@@ -52,6 +52,7 @@ class OmenActionTest :
 
             val mainCast = actions.actionsList.firstOrNull { it.actionType == ActionType.Cast && it.instanceId == iid }
             val omen = omenOffers(actions.actionsList, iid).firstOrNull()
+            // protocol: CastOmen.parent-instance, CastOmen.no-alternative-grpid
             assertSoftly {
                 mainCast shouldNotBe null
                 omen shouldNotBe null

@@ -77,6 +77,7 @@ class OmenLifecycleTest :
                     it.isType(AnnotationType.UserActionTaken) && it.detailInt("actionType") == ActionType.CastOmen.number
                 }
 
+            // protocol: CastOmen.accepted, Omen.face-identity, Omen.stack-face, Omen.remap
             assertSoftly {
                 stackCompanion.parentId shouldBe stackCard.instanceId
                 stackCompanion.grpId shouldBe 95537
@@ -130,6 +131,7 @@ class OmenLifecycleTest :
                     ?: error("No library zone carrying ${libraryParent.instanceId}")
             val deletedIds = lifecycleMessages.gameStateMessages().flatMap { it.diffDeletedInstanceIdsList }
 
+            // protocol: CastOmen.library-return
             assertSoftly {
                 libraryParent.instanceId shouldBe resolveObjectIdChanged.detailInt("new_id")
                 libraryCompanion.parentId shouldBe libraryParent.instanceId

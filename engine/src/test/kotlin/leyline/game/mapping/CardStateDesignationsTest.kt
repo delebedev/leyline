@@ -95,6 +95,7 @@ class CardStateDesignationsTest :
             insertStateDesignationTransients(annotations, prev, cur, resolveIid)
 
             // Expect: gain inserted at index 0 (before the Resolve ZT now at 1).
+            // protocol: Prepared.gain-bracket
             assertSoftly {
                 annotations shouldHaveSize 2
                 annotations[0].typeList shouldContain AnnotationType.GainDesignation
