@@ -66,15 +66,14 @@ but carry their own card-specific ability rather than `137`.
 - <a id="Prowess.no-resolution-start"></a>**Prowess.no-resolution-start.**
   *(provisional)* The resolution GSM of a prowess trigger `MUST NOT` carry a
   `ResolutionStart` for it.
-- <a id="Prowess.stat-change"></a>**Prowess.stat-change.** When a prowess
-  trigger resolves while its source creature is still on the battlefield,
-  the resolution `MUST` carry `PowerToughnessModCreated` from the trigger to its
-  source creature with `power` `1` and `toughness` `1`.
+- <a id="Prowess.stat-change"></a>**Prowess.stat-change.** When the resolution
+  gives the prowess creature +1/+1, it `MUST` carry `PowerToughnessModCreated`
+  from the trigger to that creature with `power` `1` and `toughness` `1`.
 
 ## Open points
 
-- What does a prowess trigger's resolution carry when its creature has left
-  the battlefield?
+- What does a prowess trigger's resolution carry when the creature does not
+  get +1/+1, for example because it has left the battlefield?
 - Why does the prowess resolution carry no `ResolutionStart`, and which other
   triggers resolve without one?
 - Which GSM deletes the `ModifiedPower` and `ModifiedToughness` row at end of

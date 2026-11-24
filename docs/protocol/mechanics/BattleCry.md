@@ -49,11 +49,11 @@ one creature creates a row with that creature alone in `affectedIds`.
   Battle Cry ability `MUST` be created with `grpId` `92` from its creature,
   with `source_zone` `28`, in the GSM that declares it as an attacker.
 - <a id="BattleCry.shared-row"></a>**BattleCry.shared-row.** *(provisional)*
-  When the Battle Cry creature is still on the battlefield as the ability
-  resolves, the resolution `MUST` create exactly one persistent
-  `ModifiedPower` row for
-  the effect, naming the Battle Cry creature as `affectorId`, every other
-  attacking creature in `affectedIds`, and `sourceAbilityGRPID` `92`.
+  When the resolution gives +1/+0 to at least one other attacking creature
+  while the Battle Cry creature is on the battlefield, it `MUST` create
+  exactly one persistent `ModifiedPower` row for the effect, naming the Battle
+  Cry creature as `affectorId`, every other attacking creature in
+  `affectedIds`, and `sourceAbilityGRPID` `92`.
 - <a id="BattleCry.no-pt-mod"></a>**BattleCry.no-pt-mod.** *(provisional)*
   The resolution `MUST NOT` carry `PowerToughnessModCreated` rows for the
   pump.

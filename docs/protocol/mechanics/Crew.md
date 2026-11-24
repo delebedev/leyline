@@ -72,16 +72,15 @@ as mana for a spell.
   taps the helpers `MUST` create a persistent `CrewedThisTurn` row naming the
   Vehicle as `affectorId` and every helper in `affectedIds`.
 - <a id="Crew.type-change"></a>**Crew.type-change.** *(provisional)* When the
-  crew ability resolves while the Vehicle is still on the battlefield, the
-  resolution `MUST` create a persistent `ModifiedType` row on the
-  Vehicle, naming the Vehicle as `affectorId`, with `sourceAbilityGRPID` the
-  crew ability.
+  resolution makes the Vehicle an artifact creature, it `MUST` create a
+  persistent `ModifiedType` row on the Vehicle, naming the Vehicle as
+  `affectorId`, with `sourceAbilityGRPID` the crew ability.
 
 ## Open points
 
 - Is the cost prompt skipped when only one set of creatures can pay?
 - When are the `CrewedThisTurn` and `ModifiedType` rows deleted, and does a
   second crew of the same Vehicle in one turn extend the first row?
-- What does the crew ability's resolution carry when the Vehicle has left
-  the battlefield?
+- What does the crew ability's resolution carry when the Vehicle does not
+  become a creature, for example because it has left the battlefield?
 - Do Crew values above 4 have their own prompt IDs?

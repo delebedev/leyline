@@ -69,11 +69,11 @@ land stays a land.
 ## Contract
 
 - <a id="Earthbend.layers"></a>**Earthbend.layers.** *(provisional)* When the
-  target land is still legal, the resolution of an earthbend `MUST` publish, on the target land, persistent
-  `ModifiedType`, `AddAbility`, `ModifiedPower` and `ModifiedToughness` rows
-  combined with `LayeredEffect`, each carrying `sourceAbilityGRPID` equal to
-  the earthbend ability and an `effect_id` introduced by a
-  `LayeredEffectCreated` in the same GSM.
+  resolution earthbends the target land, it `MUST` publish, on that land,
+  persistent `ModifiedType`, `AddAbility`, `ModifiedPower` and
+  `ModifiedToughness` rows combined with `LayeredEffect`, each carrying
+  `sourceAbilityGRPID` equal to the earthbend ability and an `effect_id`
+  introduced by a `LayeredEffectCreated` in the same GSM.
 - <a id="Earthbend.haste"></a>**Earthbend.haste.** *(provisional)* The
   earthbend `AddAbility` row `MUST` carry `grpid` `9`. When the earthbend
   comes from an ability of a permanent, the row `MUST` carry
@@ -91,6 +91,8 @@ and [AnimatedLand.controller-detail](../designations/AnimatedLand.md#AnimatedLan
 
 ## Open points
 
+- What does the resolution carry when the land is not earthbent, for example
+  because the target is no longer legal?
 - How is the return to the battlefield published when an earthbent land dies
   or is exiled?
 - When a spell earthbends, what do the rows' `affectorId` and
