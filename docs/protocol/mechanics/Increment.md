@@ -39,7 +39,8 @@ creature." (CR 702.191a). Each instance triggers separately (CR 702.191b).
 ## Resolution lifecycle
 
 1. `ResolutionStart` carries `grpid` `404`.
-2. `CounterAdded` names the creature with `counter_type` `1` and
+2. When the creature is still on the battlefield and the mana spent still
+   exceeds its power or toughness, `CounterAdded` names the creature with `counter_type` `1` and
    `transaction_amount` `1`, and `PowerToughnessModCreated` reports `power`
    `1` and `toughness` `1`.
 3. The creature's persistent `Counter` row carries the new total, and its
@@ -66,11 +67,14 @@ spell and leaves a lasting counter.
 - <a id="Increment.triggering-spell"></a>**Increment.triggering-spell.**
   *(provisional)* The trigger's `TriggeringObject` `MUST` name the spell that
   caused it, with `source_zone` `27`.
-- <a id="Increment.counter"></a>**Increment.counter.** The resolution `MUST`
-  carry `CounterAdded` on the creature with `counter_type` `1` and
+- <a id="Increment.counter"></a>**Increment.counter.** When the creature is
+  still on the battlefield and the trigger's condition still holds as it
+  resolves, the resolution `MUST` carry `CounterAdded` on the creature with `counter_type` `1` and
   `transaction_amount` `1`.
 
 ## Open points
 
+- What does the trigger carry when its condition no longer holds as it
+  resolves, for example when the creature grew in the meantime?
 - What does the `TriggeringObject` row name once the causing spell has left
   the stack before the trigger resolves?
