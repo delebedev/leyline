@@ -56,7 +56,8 @@ the parent. The door actions are described in [Rooms](../actions/Rooms.md).
   name the Room `Card` in the same GSM.
 - <a id="RoomRight.pair-together"></a>**RoomRight.pair-together.** A Room's
   projection `MUST` carry both door companions in the same GSM, with the same
-  `parentId`.
+  `parentId`, in every zone the parent is sent in, including a hand or library
+  sent privately to its viewer.
 - <a id="RoomRight.selected-door"></a>**RoomRight.selected-door.**
   *(provisional)* While a door is on the Stack, the parent `Card` `MUST` carry
   that door's `grpId` and both companions `MUST` remain present.
@@ -70,5 +71,3 @@ the parent. The door actions are described in [Rooms](../actions/Rooms.md).
 ## Open points
 
 - Does the companion pair survive a parent move that reallocates the parent?
-- Are both door companions projected in a private hand, or only on the Stack and
-  Battlefield?
