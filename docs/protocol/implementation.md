@@ -333,11 +333,10 @@ grouped by family, then by entity.
 
 #### CastAdventure
 
-- **`compat`** — [CastAdventure.no-grp-id](actions/CastAdventure.md#CastAdventure.no-grp-id)
-  - Contract: the offer carries no `grpId`.
-  - Leyline: adds the permanent face's `grpId` to the
-    `ActionsAvailableReq` offer and strips it from the GSM rail, so the two
-    rails disagree on that field.
+- **`diverges`** — [CastAdventure.request-face](actions/CastAdventure.md#CastAdventure.request-face)
+  - Contract: the `ActionsAvailableReq` offer carries `grpId` naming the
+    Adventure face and `facetId` naming the parent.
+  - Leyline: sets `grpId` to the permanent face and sends no `facetId`.
   - Owner: `ActionMapper.buildAdventureAction`
 
 #### CastOmen

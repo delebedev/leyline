@@ -29,9 +29,13 @@ parent card.
 | `instanceId` | The parent card in its current zone. |
 | `manaCost` | The Adventure face's cost. |
 
-No `abilityGrpId`, `sourceId`, `alternativeGrpId` or `alternativeSourceZcid`
-appears. The Adventure identity travels as the action type plus the parent
-`instanceId`; the companion's own instance ID is never offered.
+On `ActionsAvailableReq` the offer also carries `grpId` naming the Adventure
+face and `facetId` naming the parent. The GSM rail carries neither. A hand
+offer has no `abilityGrpId`, `sourceId`, `alternativeGrpId` or
+`alternativeSourceZcid`; an offer to cast the Adventure from exile through
+another card's permission adds `sourceId` and `abilityGrpId`. The Adventure
+identity travels as the action type plus the parent `instanceId`; the
+companion's own instance ID is never offered.
 
 ## Lifecycle
 
@@ -40,8 +44,8 @@ appears. The Adventure identity travels as the action type plus the parent
    then a `ZoneTransfer` into Stack with `category` `CastSpell`.
 3. The stack card carries the Adventure face `grpId`. Targeting and payment
    follow the ordinary spell path.
-4. `UserActionTaken` records `actionType` `16` with `abilityGrpId` `0`,
-   affecting the stack instance.
+4. `UserActionTaken` records `actionType` `16`, affecting the stack instance.
+   A cast from the hand carries `abilityGrpId` `0`.
 
 The accepted row does not echo the Adventure ability. By accept time the
 affected object is the stack instance produced by the cast.
@@ -64,17 +68,20 @@ affected object is the stack instance produced by the cast.
   `manaCost` `MUST` be the Adventure face's cost, not the permanent face's
   cost.
 - <a id="CastAdventure.minimal-fields"></a>**CastAdventure.minimal-fields.**
-  The offer `MUST NOT` carry `abilityGrpId`, `sourceId`, `alternativeGrpId` or
+  An offer for a card in the hand `MUST NOT` carry `abilityGrpId`, `sourceId`, `alternativeGrpId` or
   `alternativeSourceZcid`.
 - <a id="CastAdventure.no-grp-id"></a>**CastAdventure.no-grp-id.** The offer
-  `MUST NOT` carry `grpId`.
+  on the GSM rail `MUST NOT` carry `grpId` or `facetId`.
+- <a id="CastAdventure.request-face"></a>**CastAdventure.request-face.** The
+  offer on `ActionsAvailableReq` `MUST` carry `grpId` naming the Adventure face
+  and `facetId` naming the parent `Card`.
 - <a id="CastAdventure.accepted"></a>**CastAdventure.accepted.** An accepted
-  `CastAdventure` `MUST` be recorded by `UserActionTaken` with `actionType`
-  `16` and `abilityGrpId` `0`.
+  `CastAdventure` from the hand `MUST` be recorded by `UserActionTaken` with
+  `actionType` `16` and `abilityGrpId` `0`.
 
 ## Open points
 
-- Which zones and non-hand permissions offer `CastAdventure`, and do they add
-  a source rail?
+- Which non-hand permissions besides exile offer `CastAdventure`, and what do
+  their `sourceId` and `abilityGrpId` name?
 - Where does the card go when the Adventure spell's effect sends it somewhere
   other than the graveyard?
