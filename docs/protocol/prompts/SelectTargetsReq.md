@@ -18,6 +18,7 @@ Enum values below are written without their type prefix: `Select` is
 | Family | Source | Initial `allowCancel` | Initial `allowUndo` | After a selection |
 |---|---|---|---|---|
 | Spell or activated ability | The spell, or the ability object on the stack | `Abort` | `true` | `Abort`, `allowUndo=true` |
+| Copy of a spell, choosing new targets | The copy on the stack, whose `parentId` is the original | `AllowCancel_Continue` | Absent | Not characterised |
 | Triggered ability | The triggered ability object on the stack | `No` | Absent | `Abort`, `allowUndo=true` |
 
 A spell or activated ability can be abandoned while its targets are chosen:
@@ -125,8 +126,8 @@ server can also send an empty `SubmitTargetsResp` after a submission.
 - <a id="SelectTargetsReq.bounds"></a>**SelectTargetsReq.bounds.** In every
   group, `maxTargets` `MUST NOT` be less than `minTargets`.
 - <a id="SelectTargetsReq.spell-cancel"></a>**SelectTargetsReq.spell-cancel.**
-  A request for a spell or an activated ability `MUST` carry
-  `allowCancel=Abort` and `allowUndo=true`, from the first request on.
+  A request for a spell being cast or an ability being activated `MUST`
+  carry `allowCancel=Abort` and `allowUndo=true`, from the first request on.
 - <a id="SelectTargetsReq.trigger-initial"></a>**SelectTargetsReq.trigger-initial.**
   The first request for a triggered ability `MUST` carry `allowCancel=No` and
   no `allowUndo`.
@@ -158,8 +159,8 @@ server can also send an empty `SubmitTargetsResp` after a submission.
   `Unselect` entry back in a `SelectTargetsResp`?
 - What does the server do with `CancelActionReq` against the echoed request
   of a triggered ability, which carries `Abort`?
-- What does `allowCancel=Continue` on a first request mean, and which
-  sources use it?
+- What does `allowCancel=Continue` on a copy's first request allow, and do
+  other sources use it?
 - When does the GSM before a request omit `pendingMessageCount`?
 - What does `informationalUseOnly` signal, and how should the client answer
   such a request?
