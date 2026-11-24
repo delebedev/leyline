@@ -36,6 +36,7 @@ class PlayerControllerStructureTest :
                 "chooseCardsForRevealCost",
                 "chooseCardsForTapCost",
                 "chooseCardsForZoneChange",
+                "chooseCardsPile",
                 "chooseCardsToDelve",
                 "chooseCardsToDiscardFrom",
                 "chooseCardsToDiscardToMaximumHandSize",

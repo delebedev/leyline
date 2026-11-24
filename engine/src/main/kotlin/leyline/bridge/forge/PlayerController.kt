@@ -934,6 +934,13 @@ class PlayerController(
             staticChoiceCoordinator.specifyManaCombo(sa, colorSet, manaAmount, different)
         }
 
+    override fun chooseCardsPile(
+        sa: SpellAbility,
+        pile1: CardCollectionView,
+        pile2: CardCollectionView,
+        faceUp: String,
+    ): Boolean = staticChoiceCoordinator.chooseCardsPile(sa, pile1, pile2, faceUp)
+
     override fun chooseSomeType(
         kindOfType: String,
         sa: SpellAbility?,

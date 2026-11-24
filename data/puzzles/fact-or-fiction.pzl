@@ -1,0 +1,18 @@
+[metadata]
+Name:Fact or Fiction
+Goal:Win
+Turns:4
+Difficulty:Tutorial
+Description:Cast Fact or Fiction. The opponent separates the top five cards into two piles; choose one pile for your hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Fact or Fiction
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Lightning Bolt;Counterspell;Negate;Brainstorm;Ponder;Forest;Forest;Forest
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains
