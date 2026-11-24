@@ -240,6 +240,7 @@ Leyline cannot play at all is `absent`.
 | [Enlist](mechanics/Enlist.md) | `PromptJournal`, `GameEventCollector`, `OneShotPayCostsWindowCapture` | `implemented` |
 | [Equip](mechanics/Equip.md) | `AnnotationBuilder.attachmentCreated`, `AnnotationBuilder.attachment` | `implemented` |
 | [Escape](mechanics/Escape.md) | `CastRails`, `OneShotPayCostsMaterializer` | `partial` |
+| [Evoke](mechanics/Evoke.md) | `CastRails`, `PersistentTemporaryFeedBuilder` | `implemented` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 

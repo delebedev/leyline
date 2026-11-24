@@ -26,5 +26,6 @@ that flag described under [designations](../designations/README.md).
 | [Enlist](Enlist.md) | Attack alternative, PayCostsReq tap cost, linked trigger | Taps a nonattacking creature as a creature attacks to add its power. |
 | [Equip](Equip.md) | Activated ability, target exchange, attachment | Attaches an Equipment to a target creature its controller controls. |
 | [Escape](Escape.md) | Graveyard Cast, PayCostsReq exile cost, CastingTimeOption | Casts a card from the graveyard for its escape cost. |
+| [Evoke](Evoke.md) | Alternative-cost cast, TemporaryPermanent, sacrifice trigger | Casts a card for its evoke cost and sacrifices the permanent as it enters. |
 | [Exploit](Exploit.md) | Enters trigger, resolution SelectNReq, sacrifice transfer | Optionally sacrifices a creature as the enters trigger resolves. |
 | [Extort](Extort.md) | Cast trigger, optional payment | Drains each opponent when the controller pays after casting a spell. |
