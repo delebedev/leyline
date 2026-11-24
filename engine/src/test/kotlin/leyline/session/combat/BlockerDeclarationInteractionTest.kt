@@ -247,6 +247,7 @@ class BlockerDeclarationInteractionTest :
         ) {
             val (b1, b2, attackerIid) = advanceToMultiBlockerPrompt()
 
+            // protocol: DeclareBlockersReq.resp-delta, DeclareBlockersReq.echo
             val echo1 = toggleBlockers(mapOf(b1 to attackerIid))
             val req1 = echo1.last { it.hasDeclareBlockersReq() }.declareBlockersReq
             assertSoftly {
@@ -280,6 +281,7 @@ class BlockerDeclarationInteractionTest :
             toggleBlockers(mapOf(b1 to attackerIid))
             toggleBlockers(mapOf(b2 to attackerIid))
 
+            // protocol: DeclareBlockersReq.resp-delta, DeclareBlockersReq.echo
             val echo = deselectBlocker(b1)
             val req = echo.last { it.hasDeclareBlockersReq() }.declareBlockersReq
 

@@ -76,6 +76,7 @@ Rows are grouped by family and sorted by entity name.
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
+| [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
@@ -294,6 +295,14 @@ grouped by family, then by entity.
   - Leyline: offers Exert as an extra attacker row whose `alternativeGrpId` is
     Exert's keyword ability ID, in the Enlist row layout.
   - Owner: `RequestBuilder.buildDeclareAttackersReq`
+
+#### DeclareBlockersReq
+
+- **`absent`** — [Blocker row `mustBlock`](prompts/DeclareBlockersReq.md#request)
+  - Contract: a blocker row carries `mustBlock` when the creature is
+    required to block.
+  - Leyline: never sets `mustBlock`.
+  - Owner: `RequestBuilder.buildDeclareBlockersReq`
 
 #### OptionalActionMessage
 
