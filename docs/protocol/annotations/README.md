@@ -8,8 +8,10 @@ read_when:
 
 Annotations explain what changed in a GSM and what durable state applies to
 its objects. `annotations` carries one-shot event rows; `persistentAnnotations`
-carries state that is repeated until it is deleted through
-`diffDeletedPersistentAnnotationIds`. A type can appear on either rail or both;
+carries durable state. A persistent row is sent when it is created or changes,
+and stays in force until its ID is listed in
+`diffDeletedPersistentAnnotationIds`; a Diff GSM does not repeat unchanged
+rows. A type can appear on either rail or both;
 the rail belongs to each emission.
 
 | Annotation | Role |
