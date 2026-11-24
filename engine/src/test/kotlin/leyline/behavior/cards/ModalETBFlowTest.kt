@@ -121,6 +121,7 @@ class ModalETBFlowTest :
             assertSoftly {
                 option.grpId shouldBe parentAbilityGrpId
                 option.ctoId shouldBe 2
+                option.isRequired.shouldBeTrue()
                 option.hasModalReq().shouldBeTrue()
             }
 
