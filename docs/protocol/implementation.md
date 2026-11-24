@@ -244,6 +244,7 @@ Leyline cannot play at all is `absent`.
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
 | [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 | [Firebending](mechanics/Firebending.md) | `ManaSnapshotCapture`, `ManaDetailsContributor` | `implemented` |
+| [Flashback](mechanics/Flashback.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 
 ## Exceptions
 
@@ -1230,6 +1231,21 @@ grouped by family, then by entity.
   - Leyline: sends the sacrifice as a `SelectNReq` with prompt `180` and
     `allowCancel` `No`, the shape it uses for every sacrifice effect.
   - Owner: `CardSelectWindowMaterializer`, `SelectNEnvelope`
+
+#### Flashback
+
+- **`absent`** — [Flashback.offer](mechanics/Flashback.md#Flashback.offer) *(provisional statement)*
+  - Contract: a flashback offer from the graveyard carries the flashback
+    ability in both `abilityGrpId` and `alternativeGrpId`.
+  - Leyline: sets only `alternativeGrpId` on the flashback offer.
+  - Owner: `CastRails`
+- **`diverges`** — [Flashback.accepted](mechanics/Flashback.md#Flashback.accepted) *(provisional statement)*
+  - Contract: an accepted flashback cast is recorded with the flashback
+    ability in both `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost, so the accepted row names the flashback ability only in
+    `alternativeGrpId`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
 
 ## Leyline-defined shapes
 
