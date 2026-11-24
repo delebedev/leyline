@@ -40,7 +40,7 @@ cast both record `1`.
 | [Activate_Mana](Activate_Mana.md) | Activate a mana ability. |
 | `Pass` | Pass priority. Request rail only. |
 | [Special](Special.md) | Take a costed special action, such as foretelling or plotting a card. |
-| `SpecialTurnFaceUp` | Turn a face-down permanent face up. |
+| [SpecialTurnFaceUp](Special_TurnFaceUp.md) | Turn a face-down permanent face up. |
 | `CastLeft` | Cast the left half of a split card. |
 | [CastRight](CastRight.md) | Cast the right half of a split card. |
 | [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |

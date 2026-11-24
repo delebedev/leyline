@@ -75,6 +75,7 @@ Rows are grouped by family and sorted by entity name.
 | [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Rooms](actions/Rooms.md) | `ActionMapper.addRoomCastActions`, `CardStateDesignations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
+| [Special_TurnFaceUp](actions/Special_TurnFaceUp.md) | `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
 
 ### Prompts
 
@@ -296,6 +297,25 @@ grouped by family, then by entity.
     the accepted foretell as `UserActionTaken` `actionType` `7`. The offer and
     the accepted row disagree on the action type.
   - Owner: `ActionMapper`, `CastRails`
+
+#### Special_TurnFaceUp
+
+- **`absent`** — [Special_TurnFaceUp.accepted](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.accepted),
+  [Special_TurnFaceUp.accepted-ability](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.accepted-ability),
+  [Special_TurnFaceUp.turn-transient](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.turn-transient)
+  - Contract: an accepted turn-face-up is recorded with `actionType` `8` and
+    `alternativeGrpId`, and the event carries a `TurnPermanent` row naming the
+    permanent.
+  - Leyline: offers the action and applies the turn, but emits no
+    `UserActionTaken` for it and no `TurnPermanent` annotation, so the accepted
+    turn is visible only through the changed object projection.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+- **`compat`** — [Open points](actions/Special_TurnFaceUp.md#open-points), `alternativeSourceZcid`
+  - Contract: whether the source hint is always present, and what it identifies
+    when it differs from `instanceId`, is not yet known.
+  - Leyline: sets `alternativeSourceZcid` to the permanent's own instance ID on
+    every offer.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
 
 ### Prompt exceptions
 
