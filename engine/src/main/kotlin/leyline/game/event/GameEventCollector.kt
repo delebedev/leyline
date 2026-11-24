@@ -247,26 +247,23 @@ class GameEventCollector(
             ev.manaPayments().map { mp ->
                 val sourceCardId = ForgeCardId(mp.sourceCardId())
                 val abilityDefinitionId = mp.abilityDefinitionId()
+                val source = if (abilityDefinitionId != 0) bridge.findCard(sourceCardId) else null
+                val sourceAbility = source?.manaAbilities?.firstOrNull { it.definitionId == abilityDefinitionId }
                 val abilityGrpId =
-                    if (abilityDefinitionId != 0) {
-                        bridge
-                            .findCard(sourceCardId)
-                            ?.let { source ->
-                                val sourceAbility = source.manaAbilities.firstOrNull { it.definitionId == abilityDefinitionId }
-                                if (sourceAbility != null) {
-                                    bridge.resolveAbilityIdentity(source, sourceAbility)
-                                } else {
-                                    bridge.resolveAbilityIdentity(source, AbilityDefinitionRef.SpellAbility(abilityDefinitionId))
-                                }
-                            }?.abilityGrpId
-                            ?: 0
-                    } else {
-                        0
-                    }
+                    source
+                        ?.let {
+                            if (sourceAbility != null) {
+                                bridge.resolveAbilityIdentity(it, sourceAbility)
+                            } else {
+                                bridge.resolveAbilityIdentity(it, AbilityDefinitionRef.SpellAbility(abilityDefinitionId))
+                            }
+                        }?.abilityGrpId
+                        ?: 0
                 GameEvent.ManaPayment(
                     sourceCardId = sourceCardId,
                     color = mp.color().toInt() and 0xFF,
                     abilityGrpId = abilityGrpId,
+                    tapsSource = sourceAbility?.payCosts?.hasTapCost() ?: true,
                 )
             }
         val realCard = eventSa?.hostCard ?: bridge.findCard(ForgeCardId(card.id))

@@ -249,7 +249,7 @@ object TransferAnnotations {
         val origId = InstanceId(transfer.origId)
         val newId = InstanceId(transfer.newId)
         for (mp in transfer.manaPayments) {
-            emitManaTap(annotations, InstanceId(mp.manaAbilityInstanceId), origId, transfer.srcZoneId)
+            emitManaTap(annotations, InstanceId(mp.manaAbilityInstanceId), origId, transfer.srcZoneId, mp.tapsSource)
         }
         if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
         annotations.add(
@@ -262,13 +262,15 @@ object TransferAnnotations {
 
     /**
      * Tap-for-mana prelude: (AbilityInstanceCreated, TappedUntapped) for one land.
-     * Used by both the CastSpell path and the Sacrifice path.
+     * Used by both the CastSpell path and the Sacrifice path. A mana ability without
+     * a {T} cost leaves its source untapped, so [tapsSource] false omits TappedUntapped.
      */
     private fun emitManaTap(
         annotations: MutableList<AnnotationInfo>,
         manaAbilityIid: InstanceId,
         landIid: InstanceId,
         sourceZoneId: Int,
+        tapsSource: Boolean,
     ) {
         annotations.add(
             AnnotationBuilder.abilityInstanceCreated(
@@ -277,9 +279,11 @@ object TransferAnnotations {
                 sourceZoneId = sourceZoneId,
             ),
         )
-        annotations.add(
-            AnnotationBuilder.tappedUntappedPermanent(permanentId = landIid, abilityId = manaAbilityIid),
-        )
+        if (tapsSource) {
+            annotations.add(
+                AnnotationBuilder.tappedUntappedPermanent(permanentId = landIid, abilityId = manaAbilityIid),
+            )
+        }
     }
 
     /**
@@ -344,7 +348,7 @@ object TransferAnnotations {
         for ((i, mp) in payments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
-            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
+            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD, mp.tapsSource)
             annotations.add(
                 AnnotationBuilder.userActionTaken(
                     instanceId = manaAbilityIid,
@@ -441,7 +445,7 @@ object TransferAnnotations {
         for ((i, mp) in ev.manaPayments.withIndex()) {
             val landIid = idResolver(mp.sourceCardId)
             val manaAbilityIid = idResolver(FrameIdResolver.manaAbilityForgeId(mp.sourceCardId))
-            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
+            emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD, mp.tapsSource)
             annotations.add(
                 AnnotationBuilder.userActionTaken(
                     instanceId = manaAbilityIid,

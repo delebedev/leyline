@@ -106,11 +106,12 @@ sealed interface GameEvent {
         val isMdfc: Boolean = false,
     ) : GameEvent
 
-    /** One mana globe spent to pay for a spell. */
+    /** One mana globe spent to pay for a spell. [tapsSource] is false when the producing mana ability has no {T} cost. */
     data class ManaPayment(
         val sourceCardId: ForgeCardId,
         val color: Int,
         val abilityGrpId: Int = 0,
+        val tapsSource: Boolean = true,
     )
 
     /** A spell or ability was cast (hand/battlefield → stack).

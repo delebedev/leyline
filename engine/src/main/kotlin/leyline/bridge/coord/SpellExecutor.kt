@@ -89,8 +89,8 @@ class SpellExecutor(
      * cost, resolve to add mana to the pool.
      *
      * Unlike the other methods, this one fully resolves on the engine thread —
-     * mana abilities do not use the stack, so the player retains priority and
-     * the outer loop returns `continue` to `awaitAction`.
+     * Forge resolves mana abilities as soon as they reach the stack, so the player
+     * retains priority and the outer loop returns `continue` to `awaitAction`.
      */
     fun activateMana(
         cardId: ForgeCardId,
@@ -132,11 +132,13 @@ class SpellExecutor(
 
         manaAbility.setActivatingPlayer(player)
 
-        // Forge's no-stack activation announces cost variables (a counter-removal X), pays
-        // costs, rolls back a declined payment, and resolves the mana ability immediately.
+        // Forge's activation announces cost variables (a counter-removal X), pays costs, and
+        // rolls back a declined payment. Handing the paid ability to the stack resolves a mana
+        // ability immediately and records the activation, so activation limits such as "only
+        // once each turn" count it and activation triggers fire.
         // The published color answers only this ability's own color choice; mana triggered
         // by the activation asks its controller separately.
-        val activate = { PlaySpellAbility(player.controller, manaAbility).playAbility(true, false, true) }
+        val activate = { PlaySpellAbility(player.controller, manaAbility).playAbility(true, false, false) }
         try {
             val controller = player.controller as? PlayerController
             val activated = controller?.withManaActivation(manaAbility, selectedColor, activate) ?: activate()
