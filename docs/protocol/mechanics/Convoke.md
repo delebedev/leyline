@@ -27,8 +27,9 @@ It is neither an additional nor an alternative cost (CR 702.51a, CR 702.51b).
 | Count | [AbilityWordActive](../annotations/AbilityWordActive.md) | `ConvokeCount`, `AbilityGrpId` `52` |
 | Resolution label | [AbilityWordActive](../annotations/AbilityWordActive.md) | Transient `Convoke` |
 
-The cast itself carries nothing Convoke-specific: no `CastingTimeOptionsReq`
-and no `CastingTimeOption` row.
+Convoke adds no casting option of its own: no `CastingTimeOptionsReq` row and
+no `CastingTimeOption` row. Other costs of the same cast, such as kicker,
+keep their own options.
 
 ## Payment lifecycle
 
