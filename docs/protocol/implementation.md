@@ -70,6 +70,7 @@ Rows are grouped by family and sorted by entity name.
 | [Activate_Mana](actions/Activate_Mana.md) | `ActivatedActionEmitter`, `ManaSourcePaymentMaterializer`, `ActionPerformer` | `partial` |
 | [Cast](actions/Cast.md) | `ActionMapper`, `CastDisplayCost`, `CastRails`, `CastingTimeOptionsBuilder` | `implemented` |
 | [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 
 ### Prompts
@@ -239,6 +240,15 @@ grouped by family, then by entity.
     `ActionsAvailableReq` offer and strips it from the GSM rail, so the two
     rails disagree on that field.
   - Owner: `ActionMapper.buildAdventureAction`
+
+#### CastOmen
+
+- **`absent`** — [CastOmen.permission-pair](actions/CastOmen.md#CastOmen.permission-pair) *(provisional statement)*
+  - Contract: a cast through a non-hand permission carries `sourceId` and
+    `abilityGrpId` together, identifying the permission.
+  - Leyline: offers `CastOmen` only from the hand, with `instanceId` and
+    `manaCost`; no `CastOmen` offer carries `sourceId` or `abilityGrpId`.
+  - Owner: `ActionMapper.buildOmenAction`
 
 #### Special
 

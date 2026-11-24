@@ -43,7 +43,7 @@ cast both record `1`.
 | `SpecialTurnFaceUp` | Turn a face-down permanent face up. |
 | `CastLeft`, `CastRight` | Cast one half of a split card. |
 | [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |
-| `CastOmen` | Cast the Omen half of an Omen card. |
+| [CastOmen](CastOmen.md) | Cast the Omen half of an Omen card. |
 | `CastMdfc` | Cast the spell face of a modal double-faced card. |
 | `CastPrototype` | Cast the prototype face of a card. |
 | `PlayMdfc` | Play the land face of a modal double-faced card. |
