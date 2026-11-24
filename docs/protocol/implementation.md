@@ -247,6 +247,7 @@ Leyline cannot play at all is `absent`.
 | [Flashback](mechanics/Flashback.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Foretell](mechanics/Foretell.md) | `CastRails`, `PersistentFeedBuilder` | `partial` |
 | [Gift](mechanics/Gift.md) | `DeferredCastCostPlanMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Harmonize](mechanics/Harmonize.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 
 ## Exceptions
 
@@ -1259,6 +1260,26 @@ grouped by family, then by entity.
     [Special.foretell-plot](actions/Special.md#Special.foretell-plot), so no
     foretell `Special` offer exists.
   - Owner: `ActionMapper`, `CastRails`
+
+#### Harmonize
+
+- **`absent`** — [Harmonize.creature-choice](mechanics/Harmonize.md#Harmonize.creature-choice) *(provisional statement)*
+  - Contract: the creature to tap is chosen through a `Selection` row of a
+    `CastingTimeOptionsReq`.
+  - Leyline: never builds a `CastingTimeOptionsReq` `Selection` row, so the
+    harmonize creature is not offered through it.
+  - Owner: `CastingTimeOptionsBuilder`
+- **`absent`** — [Harmonize.offer](mechanics/Harmonize.md#Harmonize.offer) *(provisional statement)*
+  - Contract: the graveyard offer carries the harmonize ability in both
+    `abilityGrpId` and `alternativeGrpId`.
+  - Leyline: sets only `alternativeGrpId` on the harmonize offer.
+  - Owner: `CastRails`
+- **`diverges`** — [Harmonize.accepted](mechanics/Harmonize.md#Harmonize.accepted) *(provisional statement)*
+  - Contract: the accepted cast names the harmonize ability in both
+    `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
 
 ## Leyline-defined shapes
 

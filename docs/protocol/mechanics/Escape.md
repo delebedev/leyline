@@ -57,7 +57,7 @@ the result through its own state.
 | Mechanic | Difference from escape |
 |---|---|
 | [Flashback](Flashback.md) | Uses its own ability, has no exile cost, and the spell is exiled when it leaves the stack. |
-| `Harmonize` | Taps a creature to reduce the cost, and the spell is exiled when it leaves the stack. |
+| [Harmonize](Harmonize.md) | Taps a creature to reduce the cost, and the spell is exiled when it leaves the stack. |
 | `Disturb` | Casts the card's back face. |
 
 Escape imposes no move to exile when the spell resolves.
