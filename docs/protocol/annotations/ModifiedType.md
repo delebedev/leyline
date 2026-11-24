@@ -16,9 +16,10 @@ list the types.
 
 ## Rules grounding
 
-Type-changing effects apply in layer 4 (CR 613.1d). The same effect can also
-change power and toughness, abilities or color in other layers; each layer is
-a separate effect with its own identity (CR 613.6).
+Type-changing effects apply in layer 4 (CR 613.1d). An effect that also
+changes power and toughness, abilities or color applies each part in its own
+layer (CR 613.6). The rules do not split such an effect into separate
+identities; how the parts are published is described under Identity model.
 
 ## Variants
 
@@ -52,7 +53,9 @@ Branches are told apart by their extra detail keys:
 `sourceAbilityGRPID` is an ability definition. `effect_id` is an effect
 identity, shared with the `LayeredEffectCreated` and `LayeredEffectDestroyed`
 that bracket it. An effect that changes type and power together publishes
-separate rows, each with its own `effect_id`.
+separate rows, each with its own `effect_id`. A type replacement that also
+removes abilities is one row, typed `ModifiedType` and `RemoveAbility`, with
+one `effect_id`.
 
 ## Lifecycle
 
@@ -63,8 +66,9 @@ separate rows, each with its own `effect_id`.
 2. The row stays in `persistentAnnotations` while the effect applies.
 3. When an effect created by a spell or ability ends while the object stays
    on the battlefield, `LayeredEffectDestroyed` names the identity, the row
-   is deleted and the object is republished with its original type line, in
-   one GSM. A static type change that stops applying, such as reconfigure's
+   is deleted and the object is republished with the type line that the
+   effects still applying give it, in one GSM. When no other type-changing
+   effect applies, that is its original type line. A static type change that stops applying, such as reconfigure's
    when the Equipment becomes unattached, can delete its plain row without a
    `LayeredEffectDestroyed`.
 4. When the object leaves the battlefield, the row is deleted with its
@@ -88,8 +92,11 @@ separate rows, each with its own `effect_id`.
   `ModifiedType` `MUST` be carried in `persistentAnnotations`, typed also
   `LayeredEffect`, with an `effect_id` detail.
 - <a id="ModifiedType.effect-introduced"></a>**ModifiedType.effect-introduced.**
-  The row's `effect_id` `MUST` be an identity that a `LayeredEffectCreated`
-  introduced in the same GSM or an earlier one.
+  When the row first appears on an object that was already public in the
+  previous GSM, its `effect_id` `MUST` be an identity that a
+  `LayeredEffectCreated` introduced in the same GSM or an earlier one. An
+  object hidden from the receiving seat is not covered; see
+  [LayeredEffectCreated](LayeredEffectCreated.md#open-points).
 - <a id="ModifiedType.perpetual-affected"></a>**ModifiedType.perpetual-affected.**
   When `perpetualAffectedId` is present, its value `MUST` be one of
   `affectedIds`.
