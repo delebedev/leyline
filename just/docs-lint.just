@@ -237,6 +237,12 @@ protocol-docs-lint:
             target="${link#](}"; target="${target%)}"
             printf '%s\t%s\t%s:%s\n' "${target#*#}" "$(dirname "$file")/${target%%#*}" "${file#./}" "$line_num"
         done > "$work/links" || true
+    # Fragment-only statement links resolve against the page that contains them.
+    rg -n -o --no-heading --type md "${rg_exclude[@]}" "\]\(#${id_pat}\)" . 2>/dev/null \
+        | while IFS=: read -r file line_num link; do
+            target="${link#](#}"; target="${target%)}"
+            printf '%s\t%s\t%s:%s\n' "$target" "$file" "${file#./}" "$line_num"
+        done >> "$work/links" || true
     while IFS=$'\t' read -r id target where; do
         resolved="$(cd "$(dirname "$target")" 2>/dev/null && echo "$(pwd -P)/$(basename "$target")")" || resolved=""
         resolved="${resolved#"$(pwd -P)/"}"
