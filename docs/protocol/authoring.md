@@ -69,9 +69,12 @@ entity: prompt/SelectNReq
   An entity page is read when its entity is touched, so it carries none.
 - `entity` is `<kind>/<Name>` on entity pages. `<kind>` is one of `prompt`,
   `action`, `annotation`, `object_type`, `designation`, `mechanic`, `model` or
-  `stream`. `<Name>` is the file name without `.md` and the prefix of every
-  statement ID on the page. Shared pages under `model/` and `stream/` use a
-  CamelCase name, for example `stream/Messages`. Family overviews, this page,
+  `stream`. `<Name>` is the prefix of every statement ID on the page; the
+  prefix comes from this key, not from the file name. On entity pages
+  `<Name>` is the file name without `.md`. Shared pages under `model/` and
+  `stream/` use the CamelCase form of the file name, for example
+  `stream/Messages` for `messages.md` and `model/IdentityAndZones` for
+  `identity-and-zones.md`. Family overviews, this page,
   the overview and the implementation map have no `entity` key and no
   Contract.
 
