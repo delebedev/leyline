@@ -241,6 +241,7 @@ Leyline cannot play at all is `absent`.
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
 | [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
+| [Spectacle](mechanics/Spectacle.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 | [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
@@ -1253,6 +1254,19 @@ grouped by family, then by entity.
     `castAbilityGrpId`.
   - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability,
     and `SneakLifecycleTest` asserts that extra key.
+  - Owner: `GameEventCollector`
+
+#### Spectacle
+
+- **`absent`** — [Spectacle.condition-row](mechanics/Spectacle.md#Spectacle.condition-row)
+  - Contract: a spectacle card in hand carries a `Spectacle`
+    `AbilityWordActive` row while an opponent has lost life this turn.
+  - Leyline: does not produce the row.
+  - Owner: `PersistentAbilityWordFeedBuilder`
+- **`diverges`** — [Spectacle.option](mechanics/Spectacle.md#Spectacle.option)
+  - Contract: the spectacle `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
   - Owner: `GameEventCollector`
 
 #### Station
