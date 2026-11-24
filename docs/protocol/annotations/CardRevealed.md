@@ -54,8 +54,9 @@ view's own `zoneId`.
    `ObjectIdChanged` and `ZoneTransfer` for the underlying card are in that
    GSM's transient annotations.
 3. The row lives for one or two GSMs, without changes.
-4. It is deleted in the GSM that removes the view or carries
-   `RevealedCardDeleted` for it.
+4. It is deleted at the latest in the GSM that removes the view through
+   `diffDeletedInstanceIds`, usually in that GSM. A row can also be deleted
+   earlier, while the view remains.
 
 ## Sibling shapes
 
@@ -76,11 +77,11 @@ view's own `zoneId`.
 - <a id="CardRevealed.one-row-per-view"></a>**CardRevealed.one-row-per-view.**
   At most one `CardRevealed` row `MUST` name a given view over its lifetime.
 - <a id="CardRevealed.retired-with-view"></a>**CardRevealed.retired-with-view.**
-  *(provisional)* The row `MUST` be deleted in the GSM that removes its view
-  through `diffDeletedInstanceIds` or carries `RevealedCardDeleted` for it.
+  *(provisional)* A GSM that removes a view through `diffDeletedInstanceIds`
+  `MUST` delete any live row that names it.
 
 ## Open points
 
 - What selects the bracketed lifecycle over the unbracketed one?
 - Does revealing a permanent that is already public produce a row?
-- Why do a few rows outlive their view?
+- When is a row deleted while its view remains?
