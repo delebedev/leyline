@@ -239,14 +239,19 @@ Leyline cannot play at all is `absent`.
 | [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
 | [PowerUp](mechanics/PowerUp.md) | `AbilityExhaustionFactsCapture` | `implemented` |
+| Proliferate | `ChooseEntitiesPlanner` | `implemented` |
 | [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
+| Renew | `ActionMapper` | `implemented` |
+| Retrace | `CastRails`, `ActionPerformer` | `implemented` |
 | [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
 | [SagaChapter](mechanics/SagaChapter.md) | `AnnotationPipeline` | `implemented` |
 | [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
 | [Spectacle](mechanics/Spectacle.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
+| Storied | `PersistentAbilityWordFeedBuilder` | `absent` |
+| Surge | `CastRails` | `implemented` |
 | [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
 | [Tiered](mechanics/Tiered.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
 | [Training](mechanics/Training.md) | `StackAbilityGrpIdResolver`, `PersistentAbilityWordFeedBuilder` | `partial` |

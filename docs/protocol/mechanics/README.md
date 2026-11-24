@@ -36,7 +36,7 @@ that flag described under [designations](../designations/README.md).
 | [Spectacle](Spectacle.md) | Alternative-cost cast, condition row | Cast a spell for its spectacle cost after an opponent lost life this turn. |
 | [Spree](Spree.md) | Modal casting-time option with per-mode costs | Choose one or more modes while casting and pay each chosen mode's cost. |
 | [Station](Station.md) | Activation, tap cost, charge counters, striation rows | Tap a creature to add charge counters; striations apply at their charge thresholds. |
-| Storied | Ability word | Not yet described. |
+| Storied | Static ability, player designation | Give its controller the enduring story designation once they control three artifacts, Sagas or legendary permanents; Arena shows progress in a `Storied` `AbilityWordActive` row. |
 | Surge | Alternative cost | Cast for the surge cost after its controller cast another spell this turn. |
 | [Teamwork](Teamwork.md) | Optional-cost choice, weighted creature payment | Pay an optional additional cost by tapping creatures with enough total power. |
 | [Tiered](Tiered.md) | Modal casting-time option with one tier | Choose exactly one tier while casting and pay its cost. |
