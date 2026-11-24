@@ -265,7 +265,11 @@ protocol-docs-lint:
                 type="${BASH_REMATCH[1]}"; member="${BASH_REMATCH[3]}"
                 files="$(rg -l --type kotlin "\b(class|object|interface|typealias)[[:space:]]+${type}\b" "${main_dirs[@]}" 2>/dev/null || true)"
                 if [[ -z "$files" ]]; then fail "$map:$line_num → owner type not found in main code: $type"; continue; fi
-                if [[ -n "$member" ]] && ! rg -q "\b(fun|val|var)[[:space:]]+(<[^>]+>[[:space:]]+)?([A-Za-z0-9_.]+\.)?${member}\b" $files; then
+                # A member is declared at class-member indentation (4, or 8 inside a companion) in a file
+                # that declares the type, or as an extension `fun Type.member` anywhere in main code.
+                if [[ -n "$member" ]] \
+                    && ! rg -q "^( {4}| {8})([a-z@][A-Za-z@]*[[:space:]]+)*(fun|val|var)[[:space:]]+(<[^>]+>[[:space:]]+)?${member}\b" $files \
+                    && ! rg -q --type kotlin "\b(fun|val|var)[[:space:]]+(<[^>]+>[[:space:]]+)?${type}\.${member}\b" "${main_dirs[@]}"; then
                     fail "$map:$line_num → owner member not found in $type: $member"
                 fi
             done
