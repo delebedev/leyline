@@ -705,7 +705,9 @@ grouped by family, then by entity.
   - Contract: a member that receives a new instance ID is removed from the
     row in that GSM.
   - Leyline: leaves the row unchanged, so it keeps naming the old instance ID
-    until the row is cleared.
+    until the row is cleared. Such a row breaks the rule in the
+    [annotation reference](annotations/README.md) that a row names objects by
+    their current ID.
   - Owner: `PersistentAnnotationStore`
 
 #### DelayedTriggerAffectees
@@ -720,11 +722,14 @@ grouped by family, then by entity.
 #### DungeonStatus
 
 - **`compat`** — [DungeonStatus](annotations/DungeonStatus.md), the entity
-  - Leyline: publishes one row per player with the seat as `affectorId` and
-    `affectedIds`, Int32 `CurrentDungeon`, `CurrentDungeonZCID` and
-    `CurrentRoom` (the string `"nil"` when no dungeon is active), and
-    `AllDungeonsCompleted` listing completed dungeon grpIds, key-only when
-    empty. The contract for these fields is not established.
+  - Leyline: publishes one row per player that has dungeon state, with the
+    seat as `affectorId` and `affectedIds`. Each of `CurrentDungeon`,
+    `CurrentDungeonZCID` and `CurrentRoom` is an Int32 when its value is
+    present and the typed string `"nil"` when it is absent, field by field,
+    so `CurrentRoom` can be `"nil"` while a dungeon is active.
+    `AllDungeonsCompleted` lists completed dungeon grpIds and is key-only when
+    empty. A player without dungeon state has no row. The contract for these
+    fields is not established.
   - Owner: `AnnotationBuilder.dungeonStatus`, `PersistentFeedBuilder`
 
 #### EnteredZoneThisTurn
