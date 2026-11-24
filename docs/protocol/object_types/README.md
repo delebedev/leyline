@@ -39,5 +39,5 @@ The object type is independent of annotation and mechanic identity.
 | [DisturbBack](DisturbBack.md) | card side | The back face cast with disturb. |
 | `Boon` | card side | A boon granted by a card. |
 | `PrototypeFacet` | card side | The prototype characteristics of a card. |
-| `RoomLeft`, `RoomRight` | card side | The doors of a Room. |
+| [RoomLeft](RoomLeft.md), `RoomRight` | card side | The doors of a Room. |
 | [Omen](Omen.md) | card side | The Omen half of an Omen card. |

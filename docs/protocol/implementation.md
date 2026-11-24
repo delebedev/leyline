@@ -62,6 +62,7 @@ Rows are grouped by family and sorted by entity name.
 | [MDFCBack](object_types/MDFCBack.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
+| [RoomLeft](object_types/RoomLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [SplitLeft](object_types/SplitLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [SplitRight](object_types/SplitRight.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
@@ -233,6 +234,20 @@ grouped by family, then by entity.
   - Leyline: never emits `MDFCBack`. The projection layer supports only
     `Adventure` and `Omen` companions, so a modal double-faced card shows no
     alternate-face object.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### RoomLeft
+
+- **`absent`** — [RoomLeft.pair-together](object_types/RoomLeft.md#RoomLeft.pair-together),
+  [RoomLeft.selected-door](object_types/RoomLeft.md#RoomLeft.selected-door),
+  [RoomLeft.battlefield-persist](object_types/RoomLeft.md#RoomLeft.battlefield-persist)
+  *(provisional statements)*
+  - Contract: a Room projects both door companions, the Stack parent adopts the
+    cast door's `grpId`, and the pair persists onto the Battlefield when the
+    parent instance ID is preserved.
+  - Leyline: never emits `RoomLeft` or `RoomRight`. The Room is projected as one
+    `Card`; door identity appears only as the stack `grpId` and the door
+    designation on the parent.
   - Owner: `LinkedFaceCompanionProjector`
 
 #### SplitLeft
