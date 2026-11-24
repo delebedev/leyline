@@ -38,6 +38,8 @@ class DistributionReqSessionTest :
             assertSoftly {
                 // protocol: DistributionReq.prompt, DistributionReq.targets
                 distributionMessage.prompt.promptId shouldBe PromptIds.DISTRIBUTE_DAMAGE
+                distributionMessage.prompt.parametersList.map { it.parameterName } shouldBe listOf("CardId")
+                distributionMessage.prompt.parametersList.map { it.numberValue } shouldBe listOf(sourceIid)
                 distributionMessage.distributionReq.minAmount shouldBe 3
                 distributionMessage.distributionReq.maxAmount shouldBe 3
                 distributionMessage.distributionReq.minPerTarget shouldBe 1
