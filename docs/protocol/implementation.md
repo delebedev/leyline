@@ -238,6 +238,7 @@ Leyline cannot play at all is `absent`.
 | [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
 | [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
 | [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
+| [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
 | [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
 | [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
@@ -1238,6 +1239,15 @@ grouped by family, then by entity.
   - Leyline: publishes the rows only once the permanent has a charge counter,
     so a station permanent that has never been stationed carries none.
   - Owner: `AbilityWordScanner`
+
+#### Teamwork
+
+- **`diverges`** — [Teamwork.payment-card-id](mechanics/Teamwork.md#Teamwork.payment-card-id)
+  - Contract: the creature-payment `PayCostsReq` names, as `CardId`, the same
+    spell instance ID that the teamwork `CastingTimeOptionsReq` row names.
+  - Leyline: names a different stack instance ID from the one the option row
+    named, and `TeamworkLifecycleTest` asserts that the two differ.
+  - Owner: `DeferredCastCostPlanMaterializer`
 
 #### Unearth
 
