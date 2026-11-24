@@ -203,7 +203,7 @@ the type's page. Types without a page are described only by their row.
 | Annotation | Rail | Detail keys always present | Role |
 |---|---|---|---|
 | `HighlightReason` | transient | `Reason` | Why an object is highlighted. Several identical rows can appear in one GSM. |
-| `ShouldntPlay` | transient | `Reason` | A card the player is advised not to play, with the reason. |
+| [ShouldntPlay](ShouldntPlay.md) | transient | `Reason` | A card the player is advised not to play, with the reason. |
 
 ## Types without a description
 

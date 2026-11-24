@@ -123,6 +123,7 @@ Rows are grouped by family and sorted by entity name.
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 | [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
 | [ResolutionStart](annotations/ResolutionStart.md) | `AnnotationBuilder.resolutionStart`, `TransferAnnotations.annotationsForTransfer`, `StateProjectionCompiler` | `implemented` |
+| [ShouldntPlay](annotations/ShouldntPlay.md) | `AnnotationBuilder.redundantActivation`, `VehicleAttachContributor` | `partial` |
 | [SyntheticEvent](annotations/SyntheticEvent.md) | `AnnotationBuilder.syntheticEvent`, `CombatAnnotations`, `AnnotationPipeline` | `partial` |
 | [TappedUntappedPermanent](annotations/TappedUntappedPermanent.md) | `AnnotationBuilder.tappedUntappedPermanent`, `TransferAnnotations`, `MechanicAnnotations`, `AnnotationPipeline` | `implemented` |
 | [TargetSpec](annotations/TargetSpec.md) | `AnnotationBuilder.targetSpec`, `TargetSpecContributor`, `TargetSpecKind` | `implemented` |
@@ -186,7 +187,6 @@ the table above when its page is written.
 | `SaddledThisTurn` | `AnnotationBuilder.saddledThisTurn` | emitted |
 | `Scry` | `AnnotationBuilder.scry` | emitted |
 | `SelectNdecoration` | `AnnotationBuilder.selectNDecoration` | emitted |
-| `ShouldntPlay` | `AnnotationBuilder.redundantActivation` | emitted |
 | `Shuffle` | `AnnotationBuilder.shuffle` | emitted |
 | `SupplementalText` | — | `absent` |
 | `SuppressedPowerAndToughness` | `AnnotationBuilder.suppressedPowerAndToughness` | emitted |
@@ -795,6 +795,15 @@ grouped by family, then by entity.
     `OptionalActionMessage` sourced from the host card, with no
     `ReplacementEffect` row.
   - Owner: `PlayerController.confirmReplacementEffect`
+
+#### ShouldntPlay
+
+- **`absent`** — [Variants](annotations/ShouldntPlay.md#variants), `EntersTapped`, `Legendary` and `ConsequentialConditionNotMet`
+  - Contract: the client is warned about tapped lands, duplicate legendary
+    permanents and abilities whose condition is not met.
+  - Leyline: emits only `RedundantActivation`, once, in the GSM where a
+    Vehicle becomes crewed.
+  - Owner: `VehicleAttachContributor`
 
 #### SyntheticEvent
 
