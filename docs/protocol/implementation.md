@@ -108,6 +108,7 @@ Rows are grouped by family and sorted by entity name.
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
 | [PhaseOrStepModified](annotations/PhaseOrStepModified.md) | `AnnotationBuilder.phaseOrStepModified`, `AnnotationBuilder.newTurnStarted`, `AnnotationPipeline`, `StateProjectionCompiler` | `implemented` |
+| [Qualification](annotations/Qualification.md) | `AnnotationBuilder.qualification`, `PersistentFeedBuilder`, `QualificationKind`, `QualificationType` | `partial` |
 | [RemoveAbility](annotations/RemoveAbility.md) | `AnnotationBuilder.removeAbility`, `MechanicAnnotations.abilityRemovalAnnotations`, `ObjectMapper` | `implemented` |
 | [ReplacementEffect](annotations/ReplacementEffect.md) | `AnnotationBuilder.replacementEffect`, `BlockingInteractionMaterializer.etbPayLifeOptional`, `EtbReplacementEffectKind` | `partial` |
 | [ResolutionComplete](annotations/ResolutionComplete.md) | `AnnotationBuilder.resolutionComplete`, `TransferAnnotations.annotationsForTransfer` | `implemented` |
@@ -176,7 +177,6 @@ the table above when its page is written.
 | `PlayerSubmittedTargets` | `AnnotationBuilder.playerSubmittedTargets` | emitted |
 | `PowerToughnessModCreated` | `AnnotationBuilder.powerToughnessModCreated` | emitted |
 | `PredictedDirectDamage` | `AnnotationBuilder.predictedDirectDamage` | emitted |
-| `Qualification` | `AnnotationBuilder.qualification` | emitted |
 | `RemoveAttachment` | `AnnotationBuilder.removeAttachment` | emitted |
 | `ReplacementEffectApplied` | — | `absent` |
 | `RevealedCardCreated` | `AnnotationBuilder.revealedCardCreated` | emitted |
@@ -665,6 +665,18 @@ grouped by family, then by entity.
     the object's type line with no row, and `temporaryCardType`,
     `perpetualAffectedId` and the type-replacement branch are never produced.
   - Owner: `VehicleAttachContributor`, `EarthbendEmitter`
+
+#### Qualification
+
+- **`absent`** — [Variants](annotations/Qualification.md#variants), predicates other than combat restrictions, combat keywords and adventure casting
+  - Contract: rows publish every qualifying predicate, including doesn't
+    untap, can't be countered, cost changes, cast permissions granted by
+    other cards and player-scoped predicates, with `parent_grpid` and the
+    duration keys where they apply.
+  - Leyline: emits `QualificationType` `30`, `31`, `32` and `40`, and `47`
+    only for an adventure card in exile. It never writes `parent_grpid` or a
+    duration key.
+  - Owner: `PersistentFeedBuilder`, `QualificationType`
 
 #### ReplacementEffect
 

@@ -19,6 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 class CombatQualificationSessionTest :
     SessionTest({
+        // protocol: Qualification.persistent, Qualification.core-keys
         session(
             "cast Pacifism emits can't attack and can't block Qualifications",
             puzzle =

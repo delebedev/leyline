@@ -155,7 +155,7 @@ the type's page. Types without a page are described only by their row.
 | `SuppressedPowerAndToughness` | persistent | none | An object's ordinary power and toughness are suppressed, optionally replaced by `power` and `toughness`. |
 | `CopiedObject` | persistent | `copyFromGrpid`, `LayeredEffectType`, `effect_id` | An object is a copy of the card definition in `copyFromGrpid`. |
 | `MiscContinuousEffect` | persistent | none | A continuous effect on a player, such as maximum hand size, extra turns or additional land plays. |
-| `Qualification` | persistent | `SourceParent`, `grpid`, `QualificationSubtype`, `QualificationType` | A restriction or permission on an object, such as "can't block". |
+| [Qualification](Qualification.md) | persistent | `SourceParent`, `grpid`, `QualificationSubtype`, `QualificationType` | A restriction or permission on an object, such as "can't block". |
 | `DisqualifiedEffect` | transient | none | A continuous effect stopped applying, for example because its condition is no longer met. |
 
 ### Attachments
