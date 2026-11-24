@@ -59,9 +59,12 @@ costs are paid.
   *(provisional)* On the convoke substitution branch, the row `MUST` carry
   `substitution_grpid` and `color` and `MUST NOT` carry `id`.
 - <a id="ManaPaid.color-value"></a>**ManaPaid.color-value.**
-  *(provisional)* Mana paid from a basic land `MUST` carry `color` equal to
-  the `ManaColor` value of the land's color: `1` for a Plains, `2` an Island,
-  `3` a Swamp, `4` a Mountain and `5` a Forest.
+  *(provisional)* Mana paid from a basic land whose `uniqueAbilities` list
+  only its land type's intrinsic mana ability, while no effect changes the
+  mana that ability produces, `MUST` carry `color` equal to the `ManaColor`
+  value of the land's color: `1` for a Plains, `2` an Island, `3` a Swamp,
+  `4` a Mountain and `5` a Forest. A basic land that has gained another mana
+  ability, such as one that adds mana of any color, can pay other colors.
 
 ## Open points
 
