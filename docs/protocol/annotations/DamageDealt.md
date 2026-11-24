@@ -18,7 +18,7 @@ One transient row per source-recipient pair. `type` classifies the damage:
 |---:|---|
 | `1` | Combat damage (CR 510.2). |
 | `2` | Other noncombat damage: damage a spell or ability deals, such as Lightning Bolt's, and one-sided damage a creature deals because of an effect. |
-| `3` | Damage dealt by creatures that fight (CR 701.14); the two rows of a fight are reciprocal. |
+| `3` | Damage dealt by creatures that fight (CR 701.14); each creature that deals damage in the fight has a row, so a fight usually has two reciprocal rows. |
 
 ## Fields
 
@@ -26,7 +26,7 @@ One transient row per source-recipient pair. `type` classifies the damage:
 |---|---|
 | `affectorId` | The source of the damage: the creature, spell or ability instance that dealt it. |
 | `affectedIds` | The recipient, as a one-element list: a seat number for a player, an instance ID for an object. |
-| `damage` | The amount dealt. |
+| `damage` | The amount dealt. A row with `damage` `0` also occurs. |
 | `type` | The damage classification above. |
 | `markDamage` | A flag, `1` in ordinary rows; see Open points. |
 
@@ -66,9 +66,10 @@ damage a spell on the stack will deal.
   *(provisional)* For two creatures fighting, each creature's damage `MUST`
   carry `type` `3`.
 - <a id="DamageDealt.player-life"></a>**DamageDealt.player-life.**
-  When `affectedIds` names a seat, the same GSM `MUST` carry a `ModifiedLife`
-  whose `affectedIds` is that seat.
+  When `affectedIds` names a seat and `damage` is greater than `0`, the same
+  GSM `MUST` carry a `ModifiedLife` whose `affectedIds` is that seat.
 
 ## Open points
 
 - What does `markDamage` signal, and when is it absent or `0`?
+- When is a row with `damage` `0` sent?
