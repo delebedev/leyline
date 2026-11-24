@@ -74,6 +74,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
+| [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
@@ -262,6 +263,21 @@ grouped by family, then by entity.
     for cascade and discover. Every other cast permission granted while an
     effect resolves is an `OptionalActionMessage` sourced from the card.
   - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+
+#### CastingTimeOptionsReq
+
+- **`diverges`** — [CastingTimeOptionsReq.cost-type](prompts/CastingTimeOptionsReq.md#CastingTimeOptionsReq.cost-type)
+  - Contract: bargain and casualty rows use the `Bargain` and `Casualty`
+    types.
+  - Leyline: sends every optional cost other than kicker as
+    `AdditionalCost`, including bargain, casualty, offspring and conspire.
+  - Owner: `DeferredCastCostPlanMaterializer`
+- **`compat`** — [Value of X](prompts/CastingTimeOptionsReq.md#families)
+  - Contract: the value of X is a `ChooseX` row with `numericInputReq` in a
+    `CastingTimeOptionsReq` with prompt `51`.
+  - Leyline: asks for X with a standalone `NumericInputReq` and never sends
+    a `ChooseX` row.
+  - Owner: `PlayerController.announceRequirements`
 
 #### DeclareAttackersReq
 

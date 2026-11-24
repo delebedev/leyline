@@ -112,6 +112,7 @@ class ModalETBFlowTest :
 
         session("modal ETB emits CastingTimeOptionsReq", puzzleFile = "data/puzzles/modal-etb.pzl") {
             val req = castSpellUntilCastingTimeOptionsReq("Trufflesnout")
+            // protocol: CastingTimeOptionsReq.modal-single
             req.castingTimeOptionReqCount shouldBe 1
 
             val option = req.getCastingTimeOptionReq(0)
