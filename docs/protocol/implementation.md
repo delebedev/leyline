@@ -104,6 +104,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
+| [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
@@ -142,7 +143,6 @@ the table above when its page is written.
 | `CounterRemoved` | `AnnotationBuilder.counterRemoved`, `AnnotationBuilder.playerCounterRemoved` | emitted |
 | `CrewedThisTurn` | `AnnotationBuilder.crewedThisTurn` | emitted |
 | `DamagedThisTurn` | `AnnotationBuilder.damagedThisTurn` | emitted |
-| `DelayedTriggerAffectees` | `AnnotationBuilder.delayedTriggerAffectees` | emitted |
 | `Designation` | `AnnotationBuilder.designation` | emitted |
 | `DisplayCardUnderCard` | `AnnotationBuilder.displayCardUnderCard` | emitted |
 | `DisqualifiedEffect` | — | `absent` |
@@ -664,6 +664,15 @@ grouped by family, then by entity.
   - Leyline: records a choice result only from a static-list `SelectNReq`
     and from a card-selection `SelectNReq`.
   - Owner: `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime`
+
+#### DelayedTriggerAffectees
+
+- **`absent`** — [Variants](annotations/DelayedTriggerAffectees.md#variants), mana branch and holderless triggers
+  - Contract: a delayed mana trigger carries `mana_to_add`, and a trigger
+    that fires as it is created starts its row on the ability.
+  - Leyline: builds rows only from pending trigger holders, and never writes
+    `mana_to_add`.
+  - Owner: `PersistentTemporaryFeedBuilder`
 
 #### EnteredZoneThisTurn
 
