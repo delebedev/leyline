@@ -238,6 +238,7 @@ Leyline cannot play at all is `absent`.
 | [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
 | [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
+| [Casualty](mechanics/Casualty.md) | `DeferredCastCostPlanMaterializer`, `TransferCategoryResolver` | `partial` |
 | [CollectEvidence](mechanics/CollectEvidence.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedFactsCapture`, `TransferCategoryResolver` | `implemented` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
@@ -1230,6 +1231,15 @@ grouped by family, then by entity.
   - Leyline: brackets the Cascade ability like every resolving ability, with a
     `ResolutionStart` naming the ability before the reveal transfers.
   - Owner: `AnnotationPipeline`
+
+#### Casualty
+
+- **`absent`** — [Casualty.cast-option](mechanics/Casualty.md#Casualty.cast-option) *(provisional statement)*
+  - Contract: a spell whose casualty cost is paid carries a `CastingTimeOption`
+    row with `type` `15` and `casualtyAbilityGrpId`.
+  - Leyline: emits no casualty row; casualty is paid as a binary keyword cost
+    without a casting-time-option annotation.
+  - Owner: `AnnotationBuilder.castingTimeOption`
 
 #### Disguise
 
