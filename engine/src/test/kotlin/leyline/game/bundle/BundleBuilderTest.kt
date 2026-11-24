@@ -188,6 +188,90 @@ class BundleBuilderTest :
             }
         }
 
+        test("equal keyword grants from two copies of one static publish distinct backed handles bound to their own grants") {
+            class EquipCatalog(
+                val offers: List<leyline.bridge.handoff.GameActionBridge.ActionOffer>,
+                val grantedEquips: List<leyline.bridge.handoff.GameActionBridge.ActionOffer>,
+                val sourceRows: List<Messages.UniqueAbilityInfo>,
+            )
+
+            fun equipCatalog(paladins: Int): EquipCatalog {
+                val game =
+                    leyline.bridge.bootstrap.GameBootstrap
+                        .createGame()
+                val bridge = GameBridge(cardRepository = ForgeCardRepository.open())
+                bridge.wrapGame(game)
+                val human = game.humanPlayer
+                repeat(paladins) { addCard("Puresteel Paladin", human, ZoneType.Battlefield) }
+                addCard("Colossus Hammer", human, ZoneType.Battlefield)
+                addCard("Mox Opal", human, ZoneType.Battlefield)
+                addCard("Mishra's Bauble", human, ZoneType.Battlefield)
+                game.action.checkStateEffects(true)
+                human.getCardsIn(ZoneType.Battlefield).forEach { bridge.instance(it) }
+                val prepared = bundleBuilder(bridge).prepareFullState(game, 1)
+                val grantedEquips =
+                    prepared.result.actionOffers.filter { offer ->
+                        val ability = (offer.command as? PlayerAction.ActivateAbility)?.ability
+                        ability?.hostCard?.name == "Colossus Hammer" && ability.keyword?.static != null
+                    }
+                val hammer = grantedEquips.first().action.instanceId
+                val rows =
+                    prepared.result.gsm.gameObjectsList
+                        .single { it.instanceId == hammer }
+                        .uniqueAbilitiesList
+                return EquipCatalog(prepared.result.actionOffers, grantedEquips, rows)
+            }
+
+            val single = equipCatalog(paladins = 1)
+            val double = equipCatalog(paladins = 2)
+            val singleActions = single.grantedEquips.map { it.action }
+            val doubleActions = double.grantedEquips.map { it.action }
+            val catalog =
+                double.offers
+                    .mapIndexed { index, offer -> index.toLong() to offer }
+                    .groupBy { ActionResponseKey.from(it.second.action) }
+            assertSoftly {
+                // One grant keeps its existing shape: no occurrence handle.
+                singleActions.shouldHaveSize(1)
+                singleActions.single().uniqueAbilityId shouldBe 0
+                leyline.bridge.coord
+                    .hasAmbiguousActionCatalog(single.offers)
+                    .shouldBeFalse()
+
+                doubleActions.shouldHaveSize(2)
+                doubleActions.map { it.abilityGrpId }.distinct() shouldBe listOf(singleActions.single().abilityGrpId)
+                doubleActions.map { it.uniqueAbilityId }.distinct().shouldHaveSize(2)
+                leyline.bridge.coord
+                    .hasAmbiguousActionCatalog(double.offers)
+                    .shouldBeFalse()
+                // Each grant has its own definition, so the first keeps its unhandled shape and only the repeat
+                // receives a backed occurrence handle.
+                doubleActions[0].uniqueAbilityId shouldBe 0
+                val repeat = doubleActions[1]
+                repeat.uniqueAbilityId shouldNotBe 0
+                double.sourceRows.count { it.id == repeat.uniqueAbilityId && it.grpId == repeat.abilityGrpId } shouldBe 1
+                double.grantedEquips
+                    .map {
+                        checkNotNull((it.command as PlayerAction.ActivateAbility).ability)
+                            .keyword.static.hostCard.id
+                    }.distinct()
+                    .shouldHaveSize(2)
+                double.grantedEquips.forEach { offer ->
+                    val response =
+                        offer.action
+                            .toBuilder()
+                            .clearManaCost()
+                            .clearAutoTapSolution()
+                            .build()
+                    val selected = checkNotNull(resolveActionOffer(catalog, response)).second
+                    (
+                        (selected.command as PlayerAction.ActivateAbility).ability ===
+                            (offer.command as PlayerAction.ActivateAbility).ability
+                    ) shouldBe true
+                }
+            }
+        }
+
         test("puzzle initial Full embeds distinct activation alternatives backed by its own source rows") {
             val board =
                 startWithBoard { _, human, _ ->

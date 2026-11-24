@@ -1,0 +1,54 @@
+name: granted-equip
+description: Equipment equips through each of several equal granted equip abilities.
+scenarios:
+  - id: granted-equip-one-paladin
+    puzzle: puresteel-paladin-double-equip-grant
+    headless: { full_control: true }
+    native:
+      skip: Puresteel Paladin has no native client card row.
+    run: equip Colossus Hammer onto Grizzly Bears through one Puresteel Paladin's granted equip {0}
+    expect: Grizzly Bears gets +10/+10
+    steps:
+      - activate: { card: Colossus Hammer, ability_index: 0 }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 12, toughness: 12 }
+            - stack_empty: true
+  - id: granted-equip-first-of-two-paladins
+    puzzle: puresteel-paladin-double-equip-grant
+    headless: { full_control: true }
+    native:
+      skip: Puresteel Paladin has no native client card row.
+    run: cast a second Puresteel Paladin, then equip Colossus Hammer through the first granted equip {0}
+    expect: priority continues with both grants offered and Grizzly Bears gets +10/+10
+    steps:
+      - cast: Puresteel Paladin
+      - resolve_stack: {}
+      - expect:
+          zone_count_at_least: { side: ours, zone: battlefield, count: 8 }
+      - activate: { card: Colossus Hammer, ability_index: 0 }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 12, toughness: 12 }
+            - stack_empty: true
+  - id: granted-equip-second-of-two-paladins
+    puzzle: puresteel-paladin-double-equip-grant
+    headless: { full_control: true }
+    native:
+      skip: Puresteel Paladin has no native client card row.
+    run: cast a second Puresteel Paladin, then equip Colossus Hammer through the second granted equip {0}
+    expect: Grizzly Bears gets +10/+10
+    steps:
+      - cast: Puresteel Paladin
+      - resolve_stack: {}
+      - activate: { card: Colossus Hammer, ability_index: 1 }
+      - target: { side: ours, zone: battlefield, card: Grizzly Bears }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - battlefield_stats: { side: ours, card: Grizzly Bears, power: 12, toughness: 12 }
+            - stack_empty: true

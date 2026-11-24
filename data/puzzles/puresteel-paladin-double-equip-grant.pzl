@@ -1,0 +1,29 @@
+# Design Narrative
+# Mechanic: Two Puresteel Paladins with metalcraft each grant Equipment "equip {0}".
+# Forcing: Colossus Hammer, Mox Opal and Mishra's Bauble give metalcraft; the second Paladin resolves from hand.
+#   The Plains pay for that Paladin, so the printed equip {8} stays unaffordable and only granted equips are active.
+# AI behavior: The opponent has no permanents or hand, so it makes no decisions.
+# Card roles:
+#   Puresteel Paladin — first copy on the battlefield, second cast from hand.
+#   Colossus Hammer — Equipment receiving one granted equip per Paladin; +10/+10 shows the attachment.
+#   Grizzly Bears — equip target.
+#   Mox Opal, Mishra's Bauble — artifacts for metalcraft.
+#   Plains — pay the second Paladin.
+# Protocol path: cast, resolution, priority action catalog with one equal granted activation per Paladin.
+
+[metadata]
+Name:Puresteel Paladin Double Equip Grant
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast a second Puresteel Paladin and equip Colossus Hammer for zero through either Paladin's grant.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Puresteel Paladin;Colossus Hammer;Grizzly Bears;Mox Opal;Mishra's Bauble;Plains;Plains
+humanhand=Puresteel Paladin
+humanlibrary=Plains;Plains;Plains;Plains
+ailibrary=Island;Island;Island

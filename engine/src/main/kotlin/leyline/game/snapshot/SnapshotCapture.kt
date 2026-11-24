@@ -441,18 +441,20 @@ object SnapshotCapture {
                         return@mapNotNull null
                     }
                     val abilities = getNonManaActivatedAbilities(card, player)
-                    if (abilities.none { !it.isBasicSpell }) return@mapNotNull null
+                    if (abilities.size < 2) return@mapNotNull null
                     val seen = mutableSetOf<Pair<Int, Int?>>()
                     val occurrences =
                         abilities.mapIndexed { index, ability ->
                             val identity = AbilityRegistry.resolveActivated(card, ability, dataLookup, registryLookup)
                             val first = seen.add(identity.abilityGrpId to identity.uniqueAbilityId)
+                            // A repeated resolved identity needs its own handle: generated alternative costs, and
+                            // equal grants from several copies of one static (two Puresteel Paladins' equip {0}).
                             ActivatedAbilityOccurrence(
                                 index,
                                 identity.definition.definitionId,
                                 identity.abilityGrpId,
                                 identity.uniqueAbilityId,
-                                isAlternative = !ability.isBasicSpell && !first,
+                                isAlternative = !first && (!ability.isBasicSpell || identity.abilityGrpId != 0),
                             )
                         }
                     if (occurrences.none { it.isAlternative }) null else seat to occurrences
