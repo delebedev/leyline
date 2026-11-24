@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
+| [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
 
 ## Exceptions
 
@@ -1212,6 +1213,15 @@ grouped by family, then by entity.
     ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
     the hand while the ability is on the stack.
   - Owner: `RevealStateContributor`
+
+#### Station
+
+- **`absent`** — [Station.threshold-on-entry](mechanics/Station.md#Station.threshold-on-entry)
+  - Contract: the GSM in which a station card resolves onto the Battlefield
+    creates one `StationLevelThreshold` row per striation, with `value` `0`.
+  - Leyline: publishes the rows only once the permanent has a charge counter,
+    so a station permanent that has never been stationed carries none.
+  - Owner: `AbilityWordScanner`
 
 ## Leyline-defined shapes
 
