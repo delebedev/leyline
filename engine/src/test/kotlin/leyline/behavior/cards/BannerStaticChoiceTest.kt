@@ -72,7 +72,7 @@ class BannerStaticChoiceTest :
             }
         }
 
-        // protocol: ChoiceResult.transient, ChoiceResult.domain-static-list
+        // protocol: ChoiceResult.transient, ChoiceResult.domain-static-list, LinkInfo.type-shape
         session(
             "Patchwork Banner static subtype choice emits ChoiceResult and LinkInfo",
             puzzleFile = "data/puzzles/patchwork-banner-static-choice.pzl",

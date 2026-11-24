@@ -103,7 +103,7 @@ the type's page. Types without a page are described only by their row.
 | `SelectNdecoration` | transient | `affected_objects` | The object set a selection applies to. |
 | `Scry` | transient | `topIds`, `bottomIds` | A scry result: the instance IDs kept on top and those put on the bottom. |
 | `ObjectsToDistinguish` | persistent | none | A source-defined set of objects; the row keeps its `id` while `affectedIds` changes. |
-| `LinkInfo` | persistent | `LinkType` | Links a permanent to a choice or associated object, such as a chosen color or a linked card; `LinkType` selects the kind. |
+| [LinkInfo](LinkInfo.md) | persistent | `LinkType` | Links a permanent to a choice or associated object, such as a chosen color or a linked card; `LinkType` selects the kind. |
 | `CoinFlip` | transient | `CoinFlipResult` | The result of a coin flip. |
 
 ### Combat, damage and life

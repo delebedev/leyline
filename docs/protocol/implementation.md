@@ -106,6 +106,7 @@ Rows are grouped by family and sorted by entity name.
 | [EnteredZoneThisTurn](annotations/EnteredZoneThisTurn.md) | `AnnotationBuilder.enteredZoneThisTurn`, `TransferAnnotations.annotationsForTransfer`, `EnteredZoneThisTurnKind` | `partial` |
 | [FaceDown](annotations/FaceDown.md) | `AnnotationBuilder.faceDownPersistent`, `PersistentFeedBuilder` | `partial` |
 | [LayeredEffectCreated](annotations/LayeredEffectCreated.md) | `AnnotationBuilder.layeredEffectCreated`, `AnnotationBuilder.layeredEffectDestroyed`, `AnnotationBuilder.layeredEffect` | `implemented` |
+| [LinkInfo](annotations/LinkInfo.md) | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility`, `PersistentFeedBuilder`, `LinkInfoChoiceKind`, `LinkInfoStackAbilityKind` | `partial` |
 | [ManaPaid](annotations/ManaPaid.md) | `AnnotationBuilder.manaPaid`, `TransferAnnotations` | `implemented` |
 | [ModifiedType](annotations/ModifiedType.md) | `AnnotationBuilder.modifiedTypeLayeredEffect`, `AnnotationBuilder.earthbendModifiedTypeLayeredEffect`, `VehicleAttachContributor`, `EarthbendEmitter`, `ModifiedTypeForCrewKind` | `partial` |
 | [ObjectIdChanged](annotations/ObjectIdChanged.md) | `AnnotationBuilder.objectIdChanged`, `ZoneTransferDetector`, `TransferAnnotations.annotationsForTransfer`, `AnnotationOrderEnforcer` | `implemented` |
@@ -154,7 +155,6 @@ the table above when its page is written.
 | `InstanceRevealedToOpponent` | `AnnotationBuilder.instanceRevealedToOpponent` | emitted |
 | `LayeredEffect` | `AnnotationBuilder.layeredEffect` | emitted |
 | `LayeredEffectDestroyed` | `AnnotationBuilder.layeredEffectDestroyed` | emitted |
-| `LinkInfo` | `AnnotationBuilder.linkInfoChoice`, `AnnotationBuilder.linkInfoActivatedAbility` | emitted |
 | `LoseDesignation` | `AnnotationBuilder.loseDesignation` | emitted |
 | `LossOfGame` | `AnnotationBuilder.lossOfGame` | emitted |
 | `LoyaltyActivationsRemaining` | — | `absent` |
@@ -691,6 +691,27 @@ grouped by family, then by entity.
   - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
     ability's definition as `abilityGrpId`.
   - Owner: `PersistentFeedBuilder`, `AnnotationConstants`
+
+#### LinkInfo
+
+- **`absent`** — [Variants](annotations/LinkInfo.md#variants), `LinkType` `2` for sacrifice costs
+  - Contract: an activated ability that sacrifices an object as a cost, such
+    as a Clue's or a Food's, carries a row naming the sacrificed object.
+  - Leyline: emits `LinkType` `2` only for an activated discover ability,
+    naming its source card.
+  - Owner: `AnnotationPipeline`
+- **`absent`** — [Variants](annotations/LinkInfo.md#variants), `Parity` and `Amount` choices
+  - Contract: parity and amount choices are remembered under `LinkType` `3`.
+  - Leyline: remembers only a chosen creature type and the first chosen
+    color.
+  - Owner: `PersistentFeedBuilder`
+- **`diverges`** — [LinkInfo.choice-with-result](annotations/LinkInfo.md#LinkInfo.choice-with-result) *(provisional statement)*
+  - Contract: the row first appears with the choice's `ChoiceResult`.
+  - Leyline: derives the row from the permanent's remembered choice, and
+    records a `ChoiceResult` only for a choice made through a prompt, so a
+    choice made by a computer-controlled opponent produces the row with no
+    `ChoiceResult`.
+  - Owner: `PersistentFeedBuilder`, `MatchStaticChoiceInteractionRuntime`
 
 #### ModifiedType
 
