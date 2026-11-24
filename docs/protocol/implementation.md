@@ -235,6 +235,7 @@ Leyline cannot play at all is `absent`.
 |---|---|---|
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Discover](mechanics/Discover.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `implemented` |
+| [Disguise](mechanics/Disguise.md) | `CastRails`, `ActionMapper.addSpecialTurnFaceUpActions`, `PersistentFeedBuilder` | `partial` |
 
 ## Exceptions
 
@@ -1211,6 +1212,16 @@ grouped by family, then by entity.
   - Leyline: brackets the Cascade ability like every resolving ability, with a
     `ResolutionStart` naming the ability before the reveal transfers.
   - Owner: `AnnotationPipeline`
+
+#### Disguise
+
+- **`absent`** — [Disguise.turn-up](mechanics/Disguise.md#Disguise.turn-up) *(provisional statement)*
+  - Contract: the GSM that turns a disguised permanent face up carries
+    `TurnPermanent` before `UserActionTaken` with `actionType` `8`.
+  - Leyline: flips the permanent and deletes its `FaceDown` row but emits
+    neither `TurnPermanent` nor the accepted `UserActionTaken`, as recorded
+    under `Special_TurnFaceUp`.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
 
 ## Leyline-defined shapes
 
