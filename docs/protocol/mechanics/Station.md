@@ -6,7 +6,8 @@ entity: mechanic/Station
 
 Station is an activated ability of station cards: tap another untapped
 creature you control and put charge counters equal to its power on the
-station permanent. Each printed `{N+}` striation grants abilities, or makes the
+station permanent, or to another characteristic when a static ability says
+so. Each printed `{N+}` striation grants abilities, or makes the
 permanent a creature, while the permanent has at least `N` charge counters.
 The activation uses one ability shared by every station card, an
 object-selection [PayCostsReq](../prompts/PayCostsReq.md), `CounterAdded` and
@@ -15,8 +16,9 @@ the persistent `Counter` row; each striation is tracked by an
 
 ## Rules grounding
 
-CR 702.184a defines the activation and its charge-counter result, and
-CR 702.184b the station symbols. CR 721 defines how a station card's
+CR 702.184a defines the activation and its charge-counter result,
+CR 702.184b the station symbols, and CR 702.184c static abilities that make
+the count use a characteristic other than power. CR 721 defines how a station card's
 striations change its characteristics.
 
 ## Surfaces
@@ -48,9 +50,11 @@ striations change its characteristics.
 ## Resolution lifecycle
 
 1. `ResolutionStart` with `grpid` `373`.
-2. `CounterAdded` names the ability as `affectorId` and the station permanent
+2. While the station permanent is still on the battlefield, `CounterAdded`
+   names the ability as `affectorId` and the station permanent
    as affected, with `counter_type` `19` (charge) and `transaction_amount` the
-   tapped creature's power.
+   tapped creature's power when no static ability changes the characteristic
+   used.
 3. `ResolutionComplete` with `grpid` `373`, then `AbilityInstanceDeleted`.
 4. The same GSM creates or updates the persistent `Counter` row on the
    permanent with `counter_type` `19` and the new total in `count`, and
@@ -95,8 +99,9 @@ power into counters at resolution.
   commits the tap cost `MUST` carry `TappedUntappedPermanent` for the tapped
   creature with the station ability as `affectorId`, and the activation's
   `UserActionTaken`.
-- <a id="Station.charge-counters"></a>**Station.charge-counters.** A resolving
-  station ability `MUST` carry `CounterAdded` with `counter_type` `19` naming
+- <a id="Station.charge-counters"></a>**Station.charge-counters.** When a station
+  ability resolves while its permanent is still on the battlefield and the
+  tapped creature's power is greater than 0, the resolution `MUST` carry `CounterAdded` with `counter_type` `19` naming
   the station permanent, and the same GSM `MUST` carry its persistent
   `Counter` row with the cumulative charge count.
 - <a id="Station.threshold-rows"></a>**Station.threshold-rows.** While a
@@ -118,4 +123,8 @@ power into counters at resolution.
 - What does each entry-time `LayeredEffectCreated` stand for, given that their
   number differs from the number of striations?
 - What happens to the rows when charge counters are removed?
+- What does `transaction_amount` carry when a static ability makes station
+  use a characteristic other than power?
+- What does the resolution carry when the tapped creature's power is 0 or
+  the station permanent has left the battlefield?
 - How does a station card that enters without being cast publish its rows?
