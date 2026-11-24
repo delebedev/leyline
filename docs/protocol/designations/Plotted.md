@@ -4,14 +4,17 @@ entity: designation/Plotted
 ---
 # Plotted
 
-`Plotted` is the state of a card exiled through plot and eligible for a later
-cast without paying its mana cost. The state lives as a persistent designation
+`Plotted` is the state of a card in exile that is eligible for a later cast
+without paying its mana cost. The plot special action is one way to reach it;
+other spells and abilities can make a card in exile plotted too. The state lives as a persistent designation
 on the exile object itself.
 
 ## Rules grounding
 
-CR 702.170 defines plotting as a special action that exiles the card without
-using the stack. The plotted card may be cast from exile without paying its mana
+CR 702.170 defines plotting as a special action that exiles the card from the
+hand without using the stack (702.170b). Some spells and abilities also cause a
+card in exile to become plotted without that action, for example a card exiled
+from a library (702.170c). The plotted card may be cast from exile without paying its mana
 cost on a later turn, under the mechanic's timing restriction.
 
 Those rules define eligibility. The rows below say how the state travels.
@@ -29,6 +32,9 @@ The persistent row carries `DesignationType` `18` and no other detail; the exile
 object's identity carries the rest.
 
 ## Lifecycle
+
+The steps below follow the plot special action; a card plotted by another
+effect reaches step 3 through that effect's own move into exile.
 
 1. The plot special action pays its cost without creating a stack object.
 2. `ObjectIdChanged` and `ZoneTransfer` move the source card from hand to a
@@ -61,6 +67,9 @@ designation on the exiled card itself and creates no copy.
   and move it with cast-spell semantics.
 
 ## Open points
+
+- When an effect plots a card it exiles from a library, does the same GSM carry
+  the `GainDesignation`?
 
 - What row, if any, marks the state ending when the exile object leaves without
   being cast?
