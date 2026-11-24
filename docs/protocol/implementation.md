@@ -56,6 +56,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [Ability](object_types/Ability.md) | `ObjectMapper.buildAbilityObject`, `ZoneMapper.addStackAbilitiesFromSnapshot` | `partial` |
+| [Adventure](object_types/Adventure.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [Card](object_types/Card.md) | `ObjectMapper.buildFromSnapshot`, `LinkedFaceCompanionProjector`, `CardProtoBuilder` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
@@ -67,6 +68,7 @@ Rows are grouped by family and sorted by entity name.
 |---|---|---|
 | [Activate_Mana](actions/Activate_Mana.md) | `ActivatedActionEmitter`, `ManaSourcePaymentMaterializer`, `ActionPerformer` | `partial` |
 | [Cast](actions/Cast.md) | `ActionMapper`, `CastDisplayCost`, `CastRails`, `CastingTimeOptionsBuilder` | `implemented` |
+| [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 
 ### Prompts
@@ -227,6 +229,15 @@ grouped by family, then by entity.
     decided later, such as special mana; sends `manaSelections` for every
     ability that names its colors, including single-color ones.
   - Owner: `ActivatedActionEmitter`
+
+#### CastAdventure
+
+- **`compat`** — [CastAdventure.no-grp-id](actions/CastAdventure.md#CastAdventure.no-grp-id)
+  - Contract: the offer carries no `grpId`.
+  - Leyline: adds the permanent face's `grpId` to the
+    `ActionsAvailableReq` offer and strips it from the GSM rail, so the two
+    rails disagree on that field.
+  - Owner: `ActionMapper.buildAdventureAction`
 
 #### Special
 

@@ -33,7 +33,7 @@ The object type is independent of annotation and mechanic identity.
 | `SplitCard`, `SplitLeft`, `SplitRight` | card side | A split card and its halves. |
 | [RevealedCard](RevealedCard.md) | protocol utility | A temporary public projection of a revealed card. |
 | [TriggerHolder](TriggerHolder.md) | protocol utility | A delayed or recurring trigger between live ability instances. |
-| `Adventure` | card side | The Adventure half of an Adventure card. |
+| [Adventure](Adventure.md) | card side | The Adventure half of an Adventure card. |
 | `MDFCBack` | card side | The back face of a modal double-faced card. |
 | `DisturbBack` | card side | The back face cast with disturb. |
 | `Boon` | card side | A boon granted by a card. |
