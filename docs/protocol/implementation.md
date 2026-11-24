@@ -104,6 +104,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [CoinFlip](annotations/CoinFlip.md) | `AnnotationBuilder.coinFlip`, `AnnotationPipeline`, `BundleBuilder`, `GameEventCollector` | `partial` |
+| [CopiedObject](annotations/CopiedObject.md) | — | `absent` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
 | [DamagedThisTurn](annotations/DamagedThisTurn.md) | `AnnotationBuilder.damagedThisTurn`, `CombatAnnotations`, `PersistentAnnotationStore` | `partial` |
 | [DelayedTriggerAffectees](annotations/DelayedTriggerAffectees.md) | `AnnotationBuilder.delayedTriggerAffectees`, `PersistentTemporaryFeedBuilder` | `partial` |
@@ -144,7 +145,6 @@ the table above when its page is written.
 | `ClassLevel` | — | `absent` |
 | `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
 | `ControllerChanged` | `AnnotationBuilder.controllerChanged`, `AnnotationBuilder.controllerChangedEffect` | emitted |
-| `CopiedObject` | — | `absent` |
 | `Counter` | `AnnotationBuilder.counter`, `AnnotationBuilder.playerCounter` | emitted |
 | `CounterAdded` | `AnnotationBuilder.counterAdded`, `AnnotationBuilder.playerCounterAdded` | emitted |
 | `CounterRemoved` | `AnnotationBuilder.counterRemoved`, `AnnotationBuilder.playerCounterRemoved` | emitted |
@@ -672,6 +672,11 @@ grouped by family, then by entity.
   - Leyline: writes `1` for a won flip and `0` for a lost one. The prompt's
     localization reference is still `48` for a loss.
   - Owner: `GameEventCollector`, `AnnotationPipeline`
+
+#### CopiedObject
+
+- **`absent`** — [CopiedObject](annotations/CopiedObject.md), the entity
+  - Leyline: publishes no `CopiedObject` row for any copy effect.
 
 #### DamagedThisTurn
 
