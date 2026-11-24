@@ -57,8 +57,9 @@ affector for another turn-scoped set.
 - <a id="DamagedThisTurn.single-row"></a>**DamagedThisTurn.single-row.**
   The live state `MUST NOT` hold more than one `DamagedThisTurn` row.
 - <a id="DamagedThisTurn.member-damaged"></a>**DamagedThisTurn.member-damaged.**
-  An instance ID added to `affectedIds`, at creation or on update, `MUST` be
-  named in `affectedIds` of a `DamageDealt` row in the same GSM.
+  *(provisional)* An instance ID added to `affectedIds`, at creation or on
+  update, `MUST` be named in `affectedIds` of a `DamageDealt` row in the
+  same GSM.
 - <a id="DamagedThisTurn.grows-in-place"></a>**DamagedThisTurn.grows-in-place.**
   Damage to another permanent while a row is live `MUST` republish that row
   under the same `id`, not create a second row.
@@ -69,5 +70,7 @@ affector for another turn-scoped set.
 ## Open points
 
 - Why do some rows survive the first GSM of the next turn?
+- Why is a permanent occasionally added in a GSM without a `DamageDealt` for
+  it?
 - When is a permanent that leaves the battlefield removed from the list, and
   when does the row keep its old instance ID?
