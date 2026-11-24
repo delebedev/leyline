@@ -91,6 +91,11 @@ ZoneTransfer          damaged permanent: Battlefield -> Graveyard
 The spell leaves the stack before state-based actions move a permanent its
 damage destroyed.
 
+A permanent spell that resolves onto the Battlefield keeps its instance ID
+([IdentityAndZones.resolve-keeps-id](../model/identity-and-zones.md#IdentityAndZones.resolve-keeps-id)),
+so only its `ZoneTransfer` follows `ResolutionComplete`. When the permanent
+needs a choice as it enters, that `ZoneTransfer` can arrive in a later GSM.
+
 ## Cast and draw blocks
 
 A targeted cast opens with:
@@ -126,9 +131,11 @@ ZoneTransfer          Draw: Library -> Hand
 - <a id="AnnotationOrdering.resolution-bracket"></a>**AnnotationOrdering.resolution-bracket.**
   The rows a resolving spell's effect produces `MUST` lie between its
   `ResolutionStart` and `ResolutionComplete`. When the spell leaves the stack
-  after resolving, its own `ObjectIdChanged` and `ZoneTransfer` `MUST` follow
-  `ResolutionComplete`; when its own effect moves it, such as a spell that
-  exiles itself, those rows lie inside the bracket.
+  after resolving, its own `ZoneTransfer` `MUST` follow `ResolutionComplete`,
+  preceded by its `ObjectIdChanged` when the move allocates a new ID; a
+  permanent spell moving to the Battlefield keeps its ID and has no
+  `ObjectIdChanged`. When its own effect moves it, such as a spell that exiles
+  itself, those rows lie inside the bracket.
 - <a id="AnnotationOrdering.spell-before-sba"></a>**AnnotationOrdering.spell-before-sba.**
   A resolved spell's `ZoneTransfer` off the stack `MUST` precede the
   `ObjectIdChanged` and `ZoneTransfer` of a permanent destroyed by its effect
