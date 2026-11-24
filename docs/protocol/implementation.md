@@ -71,6 +71,7 @@ Rows are grouped by family and sorted by entity name.
 | [Cast](actions/Cast.md) | `ActionMapper`, `CastDisplayCost`, `CastRails`, `CastingTimeOptionsBuilder` | `implemented` |
 | [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [CastRight](actions/CastRight.md) | `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations` | `absent` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 
 ### Prompts
@@ -249,6 +250,18 @@ grouped by family, then by entity.
   - Leyline: offers `CastOmen` only from the hand, with `instanceId` and
     `manaCost`; no `CastOmen` offer carries `sourceId` or `abilityGrpId`.
   - Owner: `ActionMapper.buildOmenAction`
+
+#### CastRight
+
+- **`absent`** — [CastRight.source-rail](actions/CastRight.md#CastRight.source-rail),
+  [CastRight.accepted](actions/CastRight.md#CastRight.accepted)
+  - Contract: a split half is offered as `CastRight` with the half companion in
+    `sourceId` and the half's spell ability in `abilityGrpId`, and the accepted
+    action is recorded with `actionType` `11`.
+  - Leyline: never emits `CastRight` or `CastLeft`. Both halves are offered as
+    `Cast` carrying the face `grpId`, and the accepted rows use `actionType`
+    `1`.
+  - Owner: `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations`
 
 #### Special
 

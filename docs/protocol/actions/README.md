@@ -41,7 +41,8 @@ cast both record `1`.
 | `Pass` | Pass priority. Request rail only. |
 | [Special](Special.md) | Take a costed special action, such as foretelling or plotting a card. |
 | `SpecialTurnFaceUp` | Turn a face-down permanent face up. |
-| `CastLeft`, `CastRight` | Cast one half of a split card. |
+| `CastLeft` | Cast the left half of a split card. |
+| [CastRight](CastRight.md) | Cast the right half of a split card. |
 | [CastAdventure](CastAdventure.md) | Cast the Adventure half of an Adventure card. |
 | [CastOmen](CastOmen.md) | Cast the Omen half of an Omen card. |
 | `CastMdfc` | Cast the spell face of a modal double-faced card. |
