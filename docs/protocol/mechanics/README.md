@@ -19,3 +19,4 @@ that flag described under [designations](../designations/README.md).
 
 | Mechanic | Surfaces | Role |
 |---|---|---|
+| [Earthbend](Earthbend.md) | Target prompt, layered effects, counters, AnimatedLand | Animates a land its controller controls and refreshes the animation when repeated. |

@@ -233,6 +233,7 @@ Leyline cannot play at all is `absent`.
 
 | Entity | Owner | Status |
 |---|---|---|
+| [Earthbend](mechanics/Earthbend.md) | `EarthbendEmitter`, `EarthbendTracker` | `implemented` |
 
 ## Exceptions
 
