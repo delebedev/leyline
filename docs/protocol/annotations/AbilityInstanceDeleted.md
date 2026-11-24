@@ -45,9 +45,10 @@ branch sequences.
 - <a id="AbilityInstanceDeleted.no-details"></a>**AbilityInstanceDeleted.no-details.**
   An `AbilityInstanceDeleted` row `MUST NOT` carry detail keys.
 - <a id="AbilityInstanceDeleted.matches-created"></a>**AbilityInstanceDeleted.matches-created.**
-  *(provisional)* A row's `affectedIds` `MUST` be exactly the `affectedIds` of
-  an earlier `AbilityInstanceCreated`, and its `affectorId` `MUST` equal that row's
-  `affectorId`.
+  A row `MUST` carry exactly one ID in `affectedIds`. When the receiving seat
+  saw an `AbilityInstanceCreated` for that instance, in the same GSM or an
+  earlier one, the row's `affectorId` `MUST` equal the `affectorId` of the
+  most recent such row.
 - <a id="AbilityInstanceDeleted.after-resolution"></a>**AbilityInstanceDeleted.after-resolution.**
   When the ability resolves, its `ResolutionComplete` `MUST` precede the
   `AbilityInstanceDeleted` for the same instance.
