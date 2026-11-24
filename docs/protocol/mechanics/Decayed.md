@@ -26,10 +26,11 @@ sacrifice it at end of combat" (CR 702.147a).
 
 ## Attack lifecycle
 
-1. The GSM that taps the declared attacker carries `AbilityInstanceCreated`
+1. The GSM that declares the attacker carries `AbilityInstanceCreated`
    from it with `source_zone` `28` and a persistent `TriggeringObject` row
    from the ability to the attacker. The ability has `grpId` `214`.
-2. When the trigger resolves, the GSM carries `ResolutionStart` and
+2. When the trigger resolves while the attacker is still on the battlefield,
+   the GSM carries `ResolutionStart` and
    `ResolutionComplete` with `grpid` `214` and `AbilityInstanceDeleted`, and
    creates a persistent `TemporaryPermanent` row from a `TriggerHolder` in
    Limbo to the attacker, with `AbilityGrpId` the cleanup ability. The holder
@@ -43,8 +44,8 @@ sacrifice it at end of combat" (CR 702.147a).
 1. The GSM that enters the end of combat step creates the cleanup ability
    with `AbilityInstanceCreated` from the attacker, and deletes the
    `TemporaryPermanent` and `TriggeringObject` rows.
-2. The cleanup resolves with `ResolutionStart` for its `grpid`,
-   `ObjectIdChanged` and a Battlefield-to-Graveyard `ZoneTransfer` with
+2. With the attacker still on the battlefield, the cleanup resolves with
+   `ResolutionStart` for its `grpid`, `ObjectIdChanged` and a Battlefield-to-Graveyard `ZoneTransfer` with
    `category` `Sacrifice` and the cleanup ability as `affectorId`, then
    `ResolutionComplete` and `AbilityInstanceDeleted`.
 
@@ -58,13 +59,17 @@ ability. Decayed is identified by `214` on the trigger and the holder.
 
 - <a id="Decayed.trigger"></a>**Decayed.trigger.** *(provisional)* The
   Decayed attack trigger `MUST` have `grpId` `214` and be created from the
-  attacker with `source_zone` `28`.
-- <a id="Decayed.holder"></a>**Decayed.holder.** *(provisional)* The
-  trigger's resolution `MUST` create a persistent `TemporaryPermanent` row
+  attacker with `source_zone` `28`, in the GSM that declares it as an
+  attacker.
+- <a id="Decayed.holder"></a>**Decayed.holder.** *(provisional)* When the
+  trigger resolves while the attacker is still on the battlefield, the
+  resolution `MUST` create a persistent `TemporaryPermanent` row
   from a `TriggerHolder` whose `objectSourceGrpId` is `214` to the attacker,
   with `AbilityGrpId` the cleanup ability.
 - <a id="Decayed.sacrifice"></a>**Decayed.sacrifice.** *(provisional)* At end
-  of combat, the cleanup ability's resolution `MUST` move the attacker
+  of combat, while the attacker is still on the battlefield and no
+  replacement effect changes where it goes, the cleanup ability's resolution
+  `MUST` move the attacker
   Battlefield to Graveyard with `category` `Sacrifice` and the cleanup
   ability as `affectorId`.
 
@@ -73,5 +78,7 @@ ability. Decayed is identified by `214` on the trigger and the holder.
 - How is "can't block" published: is the creature left out of the blocker
   offers, or offered and refused?
 - Is the cleanup ability the same for every Decayed card?
+- What do the trigger and the cleanup carry when the attacker has left the
+  battlefield before they resolve?
 - Why is the trigger's `AbilityInstanceDeleted` repeated in the cleanup
   birth GSM?

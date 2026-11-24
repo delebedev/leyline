@@ -24,10 +24,11 @@ creature gets +1/+0 until end of turn" (CR 702.91a).
 
 ## Trigger lifecycle
 
-1. The GSM that taps the declared attackers carries `AbilityInstanceCreated`
+1. The GSM that declares the attackers carries `AbilityInstanceCreated`
    from the Battle Cry creature with `source_zone` `28`. The ability object
    has `grpId` `92`.
-2. When it resolves, one GSM carries `ResolutionStart` with `grpid` `92`,
+2. When it resolves while the Battle Cry creature is still on the
+   battlefield, one GSM carries `ResolutionStart` with `grpid` `92`,
    one `LayeredEffectCreated` with the ability as `affectorId`,
    `ResolutionComplete`, and `AbilityInstanceDeleted` from the creature.
 3. The same GSM creates one persistent `ModifiedPower` and `LayeredEffect`
@@ -48,7 +49,9 @@ one creature creates a row with that creature alone in `affectedIds`.
   Battle Cry ability `MUST` be created with `grpId` `92` from its creature,
   with `source_zone` `28`, in the GSM that declares it as an attacker.
 - <a id="BattleCry.shared-row"></a>**BattleCry.shared-row.** *(provisional)*
-  The resolution `MUST` create exactly one persistent `ModifiedPower` row for
+  When the Battle Cry creature is still on the battlefield as the ability
+  resolves, the resolution `MUST` create exactly one persistent
+  `ModifiedPower` row for
   the effect, naming the Battle Cry creature as `affectorId`, every other
   attacking creature in `affectedIds`, and `sourceAbilityGRPID` `92`.
 - <a id="BattleCry.no-pt-mod"></a>**BattleCry.no-pt-mod.** *(provisional)*
@@ -58,5 +61,7 @@ one creature creates a row with that creature alone in `affectedIds`.
 ## Open points
 
 - In which GSM is the `ModifiedPower` row deleted at end of turn?
+- What does the resolution carry when the Battle Cry creature has left the
+  battlefield, given that the other attackers still get +1/+0?
 - With no other attacker, does the resolution still create an effect and a
   row with empty `affectedIds`?
