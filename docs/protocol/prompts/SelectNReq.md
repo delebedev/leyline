@@ -110,13 +110,12 @@ Family-specific steps:
 
 ## Contract
 
+The response rule shared by every request applies here:
+[Messages.resp-correlates](../stream/messages.md#Messages.resp-correlates).
+
 - <a id="SelectNReq.follows-state"></a>**SelectNReq.follows-state.** The
   request `MUST` follow, in the same message batch, a GSM with the same
   `gameStateId` whose `pendingMessageCount` counts it.
-- <a id="SelectNReq.resp-correlates"></a>**SelectNReq.resp-correlates.** A
-  `SelectNResp` answers the request whose `msgId` equals its `respId` and whose
-  `gameStateId` equals its own. A response for which either differs `MUST NOT`
-  be applied to the request.
 - <a id="SelectNReq.trigger-order"></a>**SelectNReq.trigger-order.** On the
   trigger-ordering family the request `MUST` use `TriggeredAbility` with
   `Stacking`, a `Dynamic` list whose `ids` are the instance IDs of the
