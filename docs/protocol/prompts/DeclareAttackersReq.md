@@ -84,6 +84,9 @@ with no creature declared declares no attack.
 
 ## Contract
 
+The response rule shared by every request applies here:
+[Messages.resp-correlates](../stream/messages.md#Messages.resp-correlates).
+
 - <a id="DeclareAttackersReq.follows-state"></a>**DeclareAttackersReq.follows-state.**
   The request `MUST` follow, in the same message batch, a GSM with the same
   `gameStateId`.
@@ -106,10 +109,6 @@ with no creature declared declares no attack.
 - <a id="DeclareAttackersReq.empty-mana-cost"></a>**DeclareAttackersReq.empty-mana-cost.**
   *(provisional)* With no attack cost, `manaCost` `MUST` hold exactly one
   empty entry.
-- <a id="DeclareAttackersReq.resp-correlates"></a>**DeclareAttackersReq.resp-correlates.**
-  A `DeclareAttackersResp` or `SubmitAttackersReq` answers the request whose
-  `msgId` equals its `respId` and whose `gameStateId` equals its own. One for
-  which either differs `MUST NOT` be applied to the request.
 - <a id="DeclareAttackersReq.resp-select"></a>**DeclareAttackersReq.resp-select.**
   The server `MUST` treat a `selectedAttackers` row with
   `selectedDamageRecipient` as declaring that creature against that
