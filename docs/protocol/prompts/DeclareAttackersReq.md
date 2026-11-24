@@ -67,7 +67,8 @@ When a creature has several rows, the row is identified by
 
 `SubmitAttackersReq` commits the current declaration. It has no payload
 beyond `gameStateId` and `respId`, which name the newest request. Submitting
-with no creature declared declares no attack.
+with no creature declared declares no attack when that is legal, that is,
+when no attack requirement can be obeyed (CR 508.1d).
 
 ## Lifecycle
 
@@ -124,8 +125,9 @@ The response rule shared by every request applies here:
   each declared creature's row carries its `selectedDamageRecipient`.
 - <a id="DeclareAttackersReq.submit-commits"></a>**DeclareAttackersReq.submit-commits.**
   The server `MUST NOT` commit attackers before it accepts a
-  `SubmitAttackersReq` for the newest request, and `MUST` accept one with no
-  declared creature as declaring no attack.
+  `SubmitAttackersReq` for the newest request. When declaring no attackers
+  is legal, because no attack requirement could be obeyed (CR 508.1d), it
+  `MUST` accept one with no declared creature as declaring no attack.
 
 ## Open points
 
