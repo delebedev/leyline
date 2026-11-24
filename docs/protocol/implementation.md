@@ -99,6 +99,7 @@ Rows are grouped by family and sorted by entity name.
 | [AbilityInstanceCreated](annotations/AbilityInstanceCreated.md) | `AnnotationBuilder.abilityInstanceCreated`, `TransferAnnotations`, `AnnotationPipeline`, `FrameIdResolver.manaAbilityForgeId` | `partial` |
 | [AbilityInstanceDeleted](annotations/AbilityInstanceDeleted.md) | `AnnotationBuilder.abilityInstanceDeleted`, `TransferAnnotations`, `AnnotationPipeline` | `implemented` |
 | [AddAbility](annotations/AddAbility.md) | `AnnotationBuilder.addAbilityLayered`, `AnnotationBuilder.addAbilityPacked`, `AnnotationBuilder.addAbilityMulti`, `MechanicAnnotations` | `implemented` |
+| [CardRevealed](annotations/CardRevealed.md) | `AnnotationBuilder.cardRevealed`, `RevealStateContributor`, `CardRevealedKind` | `partial` |
 | [CastingTimeOption](annotations/CastingTimeOption.md) | `AnnotationBuilder.castingTimeOption`, `AnnotationBuilder.castingTimeOptionKicker`, `AnnotationBuilder.castingTimeOptionAdditionalCost`, `AnnotationBuilder.castingTimeOptionChosenCost`, `AnnotationBuilder.castingTimeOptionChooseX`, `TransferAnnotations` | `partial` |
 | [ChoiceResult](annotations/ChoiceResult.md) | `AnnotationBuilder.choiceResult`, `AnnotationPipeline`, `MatchStaticChoiceInteractionRuntime`, `MatchCardSelectInteractionRuntime` | `partial` |
 | [DamageDealt](annotations/DamageDealt.md) | `AnnotationBuilder.damageDealt`, `CombatAnnotations`, `GameEventCollector` | `implemented` |
@@ -129,7 +130,6 @@ the table above when its page is written.
 | `AbilityWordActive` | `AnnotationBuilder.abilityWordActive` | emitted |
 | `Attachment` | `AnnotationBuilder.attachment` | emitted |
 | `AttachmentCreated` | `AnnotationBuilder.attachmentCreated` | emitted |
-| `CardRevealed` | `AnnotationBuilder.cardRevealed` | emitted |
 | `ClassLevel` | — | `absent` |
 | `CoinFlip` | `AnnotationBuilder.coinFlip` | emitted |
 | `ColorProduction` | `AnnotationBuilder.colorProduction` | emitted |
@@ -612,6 +612,24 @@ grouped by family, then by entity.
     source card, so every activation of one land or creature names the same
     instance ID for the whole game.
   - Owner: `FrameIdResolver.manaAbilityForgeId`, `TransferAnnotations`
+
+#### CardRevealed
+
+- **`diverges`** — [CardRevealed.one-row-per-view](annotations/CardRevealed.md#CardRevealed.one-row-per-view)
+  - Contract: one row per view, with `source_zone` fixed once the outcome is
+    known.
+  - Leyline: keys the row by its view and replaces it with a new row when
+    `source_zone` changes, so a card revealed from the library and then put
+    into the hand is named by a library-zone row and then a hand-zone row
+    for the same view.
+  - Owner: `CardRevealedKind`, `RevealStateContributor`
+- **`compat`** — [Variants](annotations/CardRevealed.md#variants), lifecycle choice
+  - Contract: most reveals use the unbracketed lifecycle; the selection rule
+    is unknown.
+  - Leyline: brackets every view with `RevealedCardCreated` and
+    `RevealedCardDeleted`, and names only a resolving spell or ability as
+    `affectorId`.
+  - Owner: `RevealStateContributor`
 
 #### CastingTimeOption
 
