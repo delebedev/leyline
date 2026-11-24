@@ -18,6 +18,7 @@ semantic discriminator; `promptId` selects instruction text.
 | [CastingTimeOptionsReq](CastingTimeOptionsReq.md) | Choose modes, optional costs, X, hybrid payment or a cost branch while casting. |
 | [DeclareAttackersReq](DeclareAttackersReq.md) | Declare attackers and what they attack, one change at a time, then submit. |
 | [DeclareBlockersReq](DeclareBlockersReq.md) | Declare blockers and what they block, one change at a time, then submit. |
+| [DistributionReq](DistributionReq.md) | Divide damage or counters among the targets just chosen. |
 | [GroupReq](GroupReq.md) | Split cards into groups: scry, surveil, London mulligan, piles. |
 | [OptionalActionMessage](OptionalActionMessage.md) | Answer yes or no to an optional effect. |
 | [OrderReq](OrderReq.md) | Put objects in order, such as cards going to the top or bottom of a library. |

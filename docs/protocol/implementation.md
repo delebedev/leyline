@@ -78,6 +78,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
+| [DistributionReq](prompts/DistributionReq.md) | `DistributionWindowMaterializer`, `MatchDistributionInteractionRuntime` | `implemented` |
 | [GroupReq](prompts/GroupReq.md) | `GroupingWindowMaterializer`, `MatchGroupingInteractionRuntime`, `GsmBuilder.buildGroupReq`, `MulliganHandler.onGroupResp` | `partial` |
 | [OptionalActionMessage](prompts/OptionalActionMessage.md) | `BlockingInteractionMaterializer`, `OptionalActionGate`, `MatchCutCoordinator.submitOptionalAnswer` | `partial` |
 | [OrderReq](prompts/OrderReq.md) | `OrderWindowMaterializer`, `MatchOrderInteractionRuntime` | `partial` |
