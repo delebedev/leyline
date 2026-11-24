@@ -367,6 +367,11 @@ grouped by family, then by entity.
 
 #### MDFC
 
+- **`absent`** — [MDFC.request-face](actions/MDFC.md#MDFC.request-face)
+  - Contract: `CastMdfc` and `PlayMdfc` offers on `ActionsAvailableReq` carry
+    `grpId` naming the selected face and `facetId` naming the parent.
+  - Leyline: sends neither field on either offer.
+  - Owner: `ActionMapper.addMdfcFaceActions`
 - **`diverges`** — [MDFC.cast-source-pair](actions/MDFC.md#MDFC.cast-source-pair) *(provisional statement)*
   - Contract: a `CastMdfc` offer that carries `sourceId` also carries
     `abilityGrpId`.

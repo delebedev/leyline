@@ -33,8 +33,10 @@ The companion identifies the unchosen face and is not part of the offer.
 | `manaCost` | The chosen spell face's cost, when the offer charges one. |
 | `abilityGrpId`, `sourceId` | Present together on the source branch; they name the spell face's ability and the source object. |
 
-On the established source branch `sourceId` equals `instanceId`. Some offers
-carry no `manaCost`.
+On the established source branch `sourceId` equals `instanceId`.
+
+On `ActionsAvailableReq` both offers also carry `grpId` naming the selected
+face and `facetId` naming the parent; the GSM rail carries neither.
 
 ### PlayMdfc
 
@@ -86,9 +88,13 @@ No stack object and no spell resolution belong to the land branch.
   `abilityGrpId`.
 - <a id="MDFC.play-fields"></a>**MDFC.play-fields.** A `PlayMdfc` offer `MUST`
   carry `instanceId` and `MUST NOT` carry `manaCost`, `abilityGrpId`,
-  `sourceId`, `grpId`, `alternativeGrpId` or `alternativeSourceZcid`.
-- <a id="MDFC.no-alternative"></a>**MDFC.no-alternative.** Neither offer `MUST`
-  carry `alternativeGrpId`.
+  `sourceId`, `alternativeGrpId` or `alternativeSourceZcid`. On the GSM rail
+  it `MUST NOT` carry `grpId` either.
+- <a id="MDFC.request-face"></a>**MDFC.request-face.** A `CastMdfc` or
+  `PlayMdfc` offer on `ActionsAvailableReq` `MUST` carry `grpId` naming the
+  selected face and `facetId` naming the parent `Card`.
+- <a id="MDFC.no-alternative"></a>**MDFC.no-alternative.** Both offers `MUST
+  NOT` carry `alternativeGrpId`.
 - <a id="MDFC.cast-accepted"></a>**MDFC.cast-accepted.** *(provisional)* An
   accepted `CastMdfc` `MUST` be recorded by `UserActionTaken` with `actionType`
   `18`; only the action-type integer is grounded.
