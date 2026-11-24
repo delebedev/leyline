@@ -74,6 +74,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
+| [AssignDamageReq](prompts/AssignDamageReq.md) | `BlockingInteractionMaterializer.damage`, `CombatHandler.onAssignDamage`, `MatchBlockingInteractionRuntime.submitDamageCommand` | `partial` |
 | [CastingTimeOptionsReq](prompts/CastingTimeOptionsReq.md) | `CastingTimeOptionsBuilder`, `ModalChoiceWindowMaterializer`, `DeferredCastCostPlanMaterializer`, `DeferredCastWindowRuntime`, `MatchModalChoiceRuntime` | `partial` |
 | [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [DeclareBlockersReq](prompts/DeclareBlockersReq.md) | `RequestBuilder.buildDeclareBlockersReq`, `CombatHandler.onDeclareBlockers` | `partial` |
@@ -268,6 +269,20 @@ grouped by family, then by entity.
     for cascade and discover. Every other cast permission granted while an
     effect resolves is an `OptionalActionMessage` sourced from the card.
   - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+
+#### AssignDamageReq
+
+- **`diverges`** — [AssignDamageReq.resp-invalid](prompts/AssignDamageReq.md#AssignDamageReq.resp-invalid)
+  - Contract: a response the server cannot apply is answered with
+    `IllegalRequest` (`FailureReason_InvalidDamageAssignment`) and the
+    request is published again.
+  - Leyline: drops the response without an `IllegalRequest` and leaves the
+    request pending.
+  - Owner: `CombatHandler.onAssignDamage`
+- **`diverges`** — [Request `canIgnoreBlockers`](prompts/AssignDamageReq.md#request)
+  - Contract: most trample assigners carry no `canIgnoreBlockers`.
+  - Leyline: sets `canIgnoreBlockers` on every trample assigner.
+  - Owner: `BlockingInteractionMaterializer.damage`
 
 #### CastingTimeOptionsReq
 

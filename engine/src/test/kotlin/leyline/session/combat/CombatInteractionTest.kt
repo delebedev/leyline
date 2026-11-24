@@ -1056,6 +1056,7 @@ class CombatInteractionTest :
             val blockerSlots = assigner.assignmentsList.filter { it.minDamage > 0 }
             val defenderSlot = assigner.assignmentsList.find { it.minDamage == 0 && it.maxDamage > 0 }
 
+            // protocol: AssignDamageReq.blocker-slots
             blockerSlots.size shouldBe 2
             blockerSlots.forEach {
                 it.minDamage shouldBe 2
@@ -1064,6 +1065,7 @@ class CombatInteractionTest :
 
             assertSoftly {
                 defenderSlot.shouldNotBeNull()
+                // protocol: AssignDamageReq.trample-slot
                 defenderSlot.instanceId shouldBe OPPONENT_SEAT
                 defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
                 defenderSlot.assignedDamage shouldBe 1
