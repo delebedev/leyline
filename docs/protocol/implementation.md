@@ -426,6 +426,11 @@ grouped by family, then by entity.
     `UserActionTaken` for it and no `TurnPermanent` annotation, so the accepted
     turn is visible only through the changed object projection.
   - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+- **`absent`** — [Special_TurnFaceUp.request-identity](actions/Special_TurnFaceUp.md#Special_TurnFaceUp.request-identity)
+  - Contract: the `ActionsAvailableReq` offer carries the permanent's `grpId`
+    and a `facetId` naming the permanent.
+  - Leyline: sends neither field.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
 - **`compat`** — [Open points](actions/Special_TurnFaceUp.md#open-points), `alternativeSourceZcid`
   - Contract: whether the source hint is always present, and what it identifies
     when it differs from `instanceId`, is not yet known.

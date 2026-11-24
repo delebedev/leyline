@@ -26,7 +26,9 @@ action is not a cast and creates no stack object of its own.
 | `alternativeSourceZcid` | A source-object hint; it may equal `instanceId`. |
 | `abilityGrpId` | A branch field that may repeat the face-up ability. |
 
-`grpId` and `facetId` are absent. The action instance plus
+On the GSM rail `grpId` and `facetId` are absent. On `ActionsAvailableReq`
+the offer carries `grpId` naming the face-down permanent's own `grpId` and
+`facetId` naming the permanent. The action instance plus
 `alternativeGrpId` are enough to select the operation, and the branches do not
 support an equality rule among `abilityGrpId`, `alternativeGrpId` and
 `alternativeSourceZcid`.
@@ -64,7 +66,10 @@ The action itself identifies no target selection and no zone transfer.
   `MUST` carry `instanceId` naming the face-down permanent, a nonzero
   `alternativeGrpId` naming its turn-face-up ability, and `manaCost`.
 - <a id="Special_TurnFaceUp.no-cast-fields"></a>**Special_TurnFaceUp.no-cast-fields.**
-  The offer `MUST NOT` carry `grpId` or `facetId`.
+  The offer on the GSM rail `MUST NOT` carry `grpId` or `facetId`.
+- <a id="Special_TurnFaceUp.request-identity"></a>**Special_TurnFaceUp.request-identity.**
+  The offer on `ActionsAvailableReq` `MUST` carry `grpId` equal to the
+  permanent's `grpId` and `facetId` naming the permanent.
 - <a id="Special_TurnFaceUp.accepted"></a>**Special_TurnFaceUp.accepted.** An
   accepted action `MUST` be recorded by `UserActionTaken` with `actionType` `8`
   and `alternativeGrpId` present.
