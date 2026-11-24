@@ -50,10 +50,15 @@ the generic `Exile` category.
 `affectedIds` names the object after the move. When the move renames it, that
 is the `new_id` of the `ObjectIdChanged` in the same GSM; when it does not, as
 for a permanent spell resolving onto the battlefield, it is the unchanged ID.
+An object that moves twice in one GSM, such as a flickered permanent, is
+renamed twice: each `ZoneTransfer` names the `new_id` of the
+`ObjectIdChanged` just before it, so the first names the intermediate ID.
 
 `affectorId` depends on the category:
 
-- `Resolve` names the seat that controls the resolving spell.
+- `Resolve` names the seat that controls the resolving spell when that seat
+  also owns it. For a spell controlled by a player who does not own it,
+  either seat occurs; see Open points.
 - `SBA_` categories have no affector: the game, not an object, moves the card.
 - Playing a land from hand has no affector. Casting and drawing carry one
   only in some cases; see Open points.
@@ -93,8 +98,9 @@ transfer. Phasing in or out carries no `ZoneTransfer`.
 - <a id="ZoneTransfer.single-object"></a>**ZoneTransfer.single-object.**
   A `ZoneTransfer` row `MUST` carry exactly one ID in `affectedIds`.
 - <a id="ZoneTransfer.post-transfer-id"></a>**ZoneTransfer.post-transfer-id.**
-  When an `ObjectIdChanged` in the same GSM renames the moved object,
-  `affectedIds` `MUST` be its `new_id`, not its `orig_id`.
+  When an `ObjectIdChanged` for the moved object precedes the
+  `ZoneTransfer` in the same GSM, `affectedIds` `MUST` be the `new_id` of the
+  last such row, not an `orig_id`.
 - <a id="ZoneTransfer.cast-from-hand"></a>**ZoneTransfer.cast-from-hand.**
   Casting a spell from hand `MUST` produce a `ZoneTransfer` with `category`
   `CastSpell`, `zone_src` the caster's hand zone and `zone_dest` `27`.
@@ -105,9 +111,9 @@ transfer. Phasing in or out carries no `ZoneTransfer`.
   A `ZoneTransfer` whose `category` starts with `SBA_` `MUST NOT` carry an
   `affectorId`.
 - <a id="ZoneTransfer.resolve-affector"></a>**ZoneTransfer.resolve-affector.**
-  *(provisional)* For spells resolving from the stack, a `ZoneTransfer` with
-  `category` `Resolve` `MUST` carry `affectorId` equal to the seat that
-  controls the resolving spell.
+  *(provisional)* For a spell resolving from the stack whose controller owns
+  it, a `ZoneTransfer` with `category` `Resolve` `MUST` carry `affectorId`
+  equal to that seat.
 
 ## Open points
 
@@ -117,3 +123,5 @@ transfer. Phasing in or out carries no `ZoneTransfer`.
   versus the spell that created it?
 - Which moves of a resolving spell use `Resolve` and which use the cause
   category of its effect?
+- Which seat does `Resolve` name for a spell whose controller does not own
+  it?
