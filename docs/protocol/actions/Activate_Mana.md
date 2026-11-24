@@ -92,13 +92,18 @@ mana abilities; it is not how a multi-color ability is offered.
   activation `MUST` be reported, in order, by `AbilityInstanceCreated` from
   the source, the cost's state changes, `UserActionTaken` with `actionType`
   `4` naming the activation's ability instance, and
-  `AbilityInstanceDeleted` for that instance.
+  `AbilityInstanceDeleted` for that instance. When the activation has an
+  `Ability` object waiting in Pending, the rows are split across GSMs, and
+  `AbilityInstanceDeleted` comes once that object is resolved.
 - <a id="Activate_Mana.paid"></a>**Activate_Mana.paid.** When the mana pays
   for a spell being cast, a `ManaPaid` row with the source as `affectorId`
   and the spell as `affectedIds` `MUST` appear before the activation's
   `AbilityInstanceDeleted`.
 
 ## Open points
+
+- When an activation waits in Pending, can `UserActionTaken` follow its
+  `AbilityInstanceDeleted`?
 
 - Does every `FloatMana` decision end in one of the `ActivateMana` rows?
 - When is `isBatchable` false?
