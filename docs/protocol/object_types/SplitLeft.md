@@ -59,9 +59,9 @@ rather than two named halves.
 - <a id="SplitLeft.face-identity"></a>**SplitLeft.face-identity.** A `SplitLeft`
   companion's `grpId` `MUST` be the left half and its `parentId` `MUST` name the
   whole-card `Card` in the same GSM.
-- <a id="SplitLeft.pair-together"></a>**SplitLeft.pair-together.** A split card's
-  projection `MUST` carry both half companions in the same GSM, with the same
-  `parentId`.
+- <a id="SplitLeft.pair-together"></a>**SplitLeft.pair-together.** On the Stack, in a
+  Graveyard and in Exile, a split card's projection `MUST` carry both half
+  companions in the same GSM, with the same `parentId`.
 - <a id="SplitLeft.selected-face"></a>**SplitLeft.selected-face.**
   *(provisional)* While the split card is on the Stack, the parent `Card` `MUST`
   carry the selected half's `grpId` and both companions `MUST` remain present.
@@ -74,5 +74,5 @@ rather than two named halves.
 
 ## Open points
 
-- Which zones project the half pair, and does a private hand expose it?
+- Does a split card in a hand or library carry the half pair?
 - Does a fused or aftermath split card differ in its half identities?
