@@ -21,6 +21,7 @@ that flag described under [designations](../designations/README.md).
 |---|---|---|
 | [Ninjutsu](Ninjutsu.md) | Hand activation, return cost, reveal, `Put` | Put a ninja from the hand onto the Battlefield attacking by returning an unblocked attacker. |
 | [Offspring](Offspring.md) | Optional-cost choice, enters trigger, token copy | Pay an optional cost so the creature makes a 1/1 token copy of itself when it enters. |
+| [OpeningHand](OpeningHand.md) | Opening-hand ability, Put transfer, dedicated action type | Use a card from the opening hand before the first turn, such as starting with it on the battlefield. |
 | [Overload](Overload.md) | Alternative-cost cast without targets | Cast a spell for its overload cost so it affects each object instead of a target. |
 | [Paradigm](Paradigm.md) | Self-exile, trigger holder, free copy cast | Exile the spell as it resolves, then cast a free copy of it in each later precombat main phase. |
 | [PowerUp](PowerUp.md) | Once-only activation, exhausted-use row | Activate a once-only ability, cheaper the turn the permanent entered. |

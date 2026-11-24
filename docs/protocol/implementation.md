@@ -235,6 +235,7 @@ Leyline cannot play at all is `absent`.
 |---|---|---|
 | [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
 | [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
+| [OpeningHand](mechanics/OpeningHand.md) | `PlayerController.chooseSaToActivateFromOpeningHand`, `TransferAnnotations`, `TransferCategoryResolver` | `partial` |
 | [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
 | [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
 | [PowerUp](mechanics/PowerUp.md) | `AbilityExhaustionFactsCapture` | `implemented` |
@@ -1230,6 +1231,17 @@ grouped by family, then by entity.
     ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
     the hand while the ability is on the stack.
   - Owner: `RevealStateContributor`
+
+#### OpeningHand
+
+- **`diverges`** — [OpeningHand.no-resolution-complete](mechanics/OpeningHand.md#OpeningHand.no-resolution-complete)
+  - Contract: the opening-hand put GSM carries `ResolutionStart` but no
+    `ResolutionComplete` for the opening-hand ability.
+  - Leyline: emits `ResolutionComplete` between the transfer and
+    `AbilityInstanceDeleted`.
+  - Pinned by: `OpeningHandLifecycleTest`, whose expected lifecycle order
+    includes the `ResolutionComplete`.
+  - Owner: `TransferAnnotations`
 
 #### Overload
 
