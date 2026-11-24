@@ -126,7 +126,7 @@ the type's page. Types without a page are described only by their row.
 | `ColorProduction` | persistent | `colors` | The colors of mana a permanent can produce. |
 | `UseOrCostsManaCost` | persistent | `OrCost` | A card whose cost offers paying mana instead of a non-mana action; `OrCost` is the alternative mana cost as a packed symbol string such as `1B`. |
 | `DynamicAbility` | persistent | `action_cost_string`, `cost`, `base_grpid`, `grpid` | Grants a card a generated action entry with an explicit cost. |
-| `ModifiedCost` | persistent | `effect_id` | A continuous effect modified a card's mana cost. |
+| [ModifiedCost](ModifiedCost.md) | persistent | `effect_id` | A continuous effect modified a card's mana cost. |
 
 ### Turn structure
 
