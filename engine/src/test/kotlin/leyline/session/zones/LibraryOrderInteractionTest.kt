@@ -54,6 +54,7 @@ class LibraryOrderInteractionTest :
             assertSoftly {
                 // protocol: GroupReq.surveil-specs
                 req.context shouldBe GroupingContext.Surveil
+                req.groupType shouldBe GroupType.Ordered
                 req.instanceIdsList shouldHaveSize 1
                 req.groupSpecsList shouldHaveSize 2
                 req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
@@ -208,6 +209,7 @@ class LibraryOrderInteractionTest :
             assertSoftly {
                 // protocol: GroupReq.scry-specs
                 req.context shouldBe GroupingContext.Scry_a0f6
+                req.groupType shouldBe GroupType.Ordered
                 req.instanceIdsList shouldHaveSize 1
                 req.groupSpecsList shouldHaveSize 2
                 req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
