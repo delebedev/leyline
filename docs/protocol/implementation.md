@@ -235,6 +235,7 @@ Leyline cannot play at all is `absent`.
 |---|---|---|
 | [Earthbend](mechanics/Earthbend.md) | `EarthbendEmitter`, `EarthbendTracker` | `implemented` |
 | [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
+| [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
 
 ## Exceptions
 
