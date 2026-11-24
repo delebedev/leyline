@@ -74,6 +74,7 @@ Rows are grouped by family and sorted by entity name.
 | Entity | Owner | Status |
 |---|---|---|
 | [ActionsAvailableReq](prompts/ActionsAvailableReq.md) | `ActionMapper`, `BundleBuilder`, `BlockingInteractionMaterializer`, `ActionPerformer`, `MatchActionWindowRuntime.claimPriority` | `partial` |
+| [DeclareAttackersReq](prompts/DeclareAttackersReq.md) | `RequestBuilder.buildDeclareAttackersReq`, `BundleBuilder`, `CombatHandler` | `partial` |
 | [PayCostsReq](prompts/PayCostsReq.md) | `OneShotPayCostsMaterializer`, `OneShotPayCostsWindowCapture`, `ManaSourcePaymentMaterializer`, `GatherCountersWindowMaterializer`, `MatchOneShotPayCostsRuntime` | `partial` |
 | [SelectNReq](prompts/SelectNReq.md) | `CardSelectWindowMaterializer`, `StaticChoiceWindowMaterializer`, `RevealChoiceWindowMaterializer`, `SelectNEnvelope`, `SettledPromptOwner` | `partial` |
 | [SelectTargetsReq](prompts/SelectTargetsReq.md) | `TargetingWindowMaterializer`, `TargetingWindowCapture`, `TargetingCoordinator`, `TargetingHandler` | `partial` |
@@ -261,6 +262,21 @@ grouped by family, then by entity.
     for cascade and discover. Every other cast permission granted while an
     effect resolves is an `OptionalActionMessage` sourced from the card.
   - Owner: `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`
+
+#### DeclareAttackersReq
+
+- **`diverges`** — [DeclareAttackersReq.selected-single-row](prompts/DeclareAttackersReq.md#DeclareAttackersReq.selected-single-row)
+  - Contract: a declared creature appears in exactly one row, the selected
+    one.
+  - Leyline: keeps every alternative row of a declared creature that has
+    Enlist or Exert, so the request shows the selected row beside the
+    creature's other rows.
+  - Owner: `RequestBuilder.buildDeclareAttackersReq`
+- **`compat`** — [Open points](prompts/DeclareAttackersReq.md#open-points), attack alternatives other than Enlist
+  - Contract: unknown which `alternativeGrpId` other alternatives use.
+  - Leyline: offers Exert as an extra attacker row whose `alternativeGrpId` is
+    Exert's keyword ability ID, in the Enlist row layout.
+  - Owner: `RequestBuilder.buildDeclareAttackersReq`
 
 #### PayCostsReq
 

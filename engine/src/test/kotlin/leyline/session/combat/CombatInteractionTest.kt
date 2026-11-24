@@ -784,6 +784,7 @@ class CombatInteractionTest :
             echoReq.shouldNotBeNull()
             echoReq.msgId shouldBeGreaterThan echoMsgs.first { it.hasGameStateMessage() }.msgId
 
+            // protocol: DeclareAttackersReq.echo
             // Conformance: committed attackers have selectedDamageRecipient set
             val echoAttacker =
                 echoReq.declareAttackersReq.attackersList
@@ -791,6 +792,7 @@ class CombatInteractionTest :
             echoAttacker.hasSelectedDamageRecipient().shouldBeTrue()
             echoAttacker.selectedDamageRecipient.type shouldBe DamageRecType.Player_a0e5
 
+            // protocol: DeclareAttackersReq.qualified
             // Conformance: qualifiedAttackers never has selectedDamageRecipient
             val qualAttacker =
                 echoReq.declareAttackersReq.qualifiedAttackersList
@@ -859,6 +861,7 @@ class CombatInteractionTest :
             onReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(true)
 
             // Deselect by omitting selectedDamageRecipient.
+            // protocol: DeclareAttackersReq.resp-select
             val offMsgs = deselectAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             offReq.attackersList.map { it.hasSelectedDamageRecipient() } shouldBe listOf(false)
