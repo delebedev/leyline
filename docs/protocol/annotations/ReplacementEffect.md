@@ -61,13 +61,15 @@ Pay-life entry choice, for example playing Temple Garden from hand:
    and not yet in a zone. In the same GSM a persistent `ReplacementEffect` row
    names that new ID in `affectedIds`, the card's hand instance ID in
    `ReplacementSourceZcid`, and the land's replacement ability in `grpid`.
-2. An `OptionalActionMessage` follows in the same message batch. Its
-   `sourceId` is the row's `affectorId`; its prompt's `CardId` parameter is
-   the incoming instance ID.
+2. The choosing player receives an `OptionalActionMessage` in the same
+   message batch. Its `sourceId` is the row's `affectorId`; its prompt's
+   `CardId` parameter is the incoming instance ID. The other seat receives no
+   prompt.
 3. The client answers.
 4. The next GSM commits the entry: `ObjectIdChanged` maps the hand ID to the
-   incoming ID, `ZoneTransfer` moves the land to the battlefield, and the
-   persistent row is deleted. When the player pays, `SyntheticEvent` and
+   incoming ID and `ZoneTransfer` moves the land to the battlefield. The
+   persistent row is deleted in that GSM or in a later GSM of the same
+   message batch. When the player pays, `SyntheticEvent` and
    `ModifiedLife` record the life payment with the row's `affectorId`.
 
 Other branches follow the general pattern: a transient row lasts for its
@@ -105,7 +107,7 @@ are not a state-versus-event pair.
 - <a id="ReplacementEffect.etb-choice-bracket"></a>**ReplacementEffect.etb-choice-bracket.**
   On the pay-life entry branch, the persistent row `MUST` be deleted through
   `diffDeletedPersistentAnnotationIds` in the GSM that moves the object onto
-  the battlefield.
+  the battlefield or in a later GSM of the same message batch.
 
 ## Open points
 
