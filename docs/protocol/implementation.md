@@ -63,6 +63,7 @@ Rows are grouped by family and sorted by entity name.
 | [Omen](object_types/Omen.md) | `LinkedFaceCompanionProjector`, `ObjectMapper.buildLinkedFaceObject` | `implemented` |
 | [RevealedCard](object_types/RevealedCard.md) | `ObjectMapper.buildRevealedCardProxy`, `RevealStateContributor`, `StateMapper` | `partial` |
 | [RoomLeft](object_types/RoomLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
+| [RoomRight](object_types/RoomRight.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [SplitLeft](object_types/SplitLeft.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [SplitRight](object_types/SplitRight.md) | `LinkedFaceCompanionProjector` | `absent` |
 | [Token](object_types/Token.md) | `ObjectMapper.buildFromSnapshot`, `AnnotationBuilder.tokenCreated`, `AnnotationBuilder.tokenDeleted` | `implemented` |
@@ -246,6 +247,20 @@ grouped by family, then by entity.
     cast door's `grpId`, and the pair persists onto the Battlefield when the
     parent instance ID is preserved.
   - Leyline: never emits `RoomLeft` or `RoomRight`. The Room is projected as one
+    `Card`; door identity appears only as the stack `grpId` and the door
+    designation on the parent.
+  - Owner: `LinkedFaceCompanionProjector`
+
+#### RoomRight
+
+- **`absent`** — [RoomRight.pair-together](object_types/RoomRight.md#RoomRight.pair-together),
+  [RoomRight.selected-door](object_types/RoomRight.md#RoomRight.selected-door),
+  [RoomRight.battlefield-persist](object_types/RoomRight.md#RoomRight.battlefield-persist)
+  *(provisional statements)*
+  - Contract: a Room projects both door companions, the Stack parent adopts the
+    cast door's `grpId`, and the pair persists onto the Battlefield when the
+    parent instance ID is preserved.
+  - Leyline: never emits `RoomRight` or `RoomLeft`. The Room is projected as one
     `Card`; door identity appears only as the stack `grpId` and the door
     designation on the parent.
   - Owner: `LinkedFaceCompanionProjector`
