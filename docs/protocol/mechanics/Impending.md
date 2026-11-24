@@ -41,12 +41,14 @@ end step (CR 702.176a).
 
 ## Countdown lifecycle
 
-1. The spell resolves onto the battlefield with `Resolve`. `CounterAdded`
-   puts N time counters on the permanent, with `counter_type` `5` and
+1. The spell resolves onto the battlefield with `Resolve`. With no
+   replacement effect changing the number of counters, `CounterAdded` puts N
+   time counters on the permanent, with `counter_type` `5` and
    `transaction_amount` N.
 2. At each of its controller's end steps while it has time counters, a new
-   triggered ability is created from the permanent. Its resolution carries
-   `CounterRemoved` on the permanent with `counter_type` `5` and
+   triggered ability is created from the permanent. When it resolves while
+   the permanent is still on the battlefield with a time counter, its
+   resolution carries `CounterRemoved` on the permanent with `counter_type` `5` and
    `transaction_amount` `1`, and then the ability is deleted.
 3. The permanent keeps its instance ID throughout. When the last counter is
    removed it becomes a creature without moving or changing ID.
@@ -67,11 +69,13 @@ countdown changes only whether it is a creature.
   `actionType` `1`, `abilityGrpId` `0` and the impending ability in
   `alternativeGrpId`.
 - <a id="Impending.enter-counters"></a>**Impending.enter-counters.**
-  *(provisional)* The resolution of an impending spell `MUST` carry
+  *(provisional)* When no replacement effect changes the number of time
+  counters it enters with, the resolution of an impending spell `MUST` carry
   `CounterAdded` on the permanent with `counter_type` `5` and
   `transaction_amount` equal to its impending number.
-- <a id="Impending.tick"></a>**Impending.tick.** Each end-step trigger of an
-  impending permanent `MUST` carry `CounterRemoved` on it with
+- <a id="Impending.tick"></a>**Impending.tick.** When an impending
+  permanent's end-step trigger resolves while the permanent is still on the
+  battlefield with a time counter, the resolution `MUST` carry `CounterRemoved` on it with
   `counter_type` `5` and `transaction_amount` `1`.
 - <a id="Impending.keeps-instance"></a>**Impending.keeps-instance.** The
   permanent `MUST` keep its instance ID while time counters are removed,
@@ -81,4 +85,9 @@ countdown changes only whether it is a creature.
 
 - Which row tells the client that an impending permanent is not a creature
   while it has time counters, and how does that row end?
+- What does `transaction_amount` carry when a replacement effect changes the
+  number of time counters the permanent enters with: the number placed or
+  the impending number?
+- What does the end-step trigger carry when the permanent has left the
+  battlefield or has no time counter left as it resolves?
 - Does every end-step trigger carry a `TriggeringObject` row?
