@@ -234,6 +234,7 @@ Leyline cannot play at all is `absent`.
 | Entity | Owner | Status |
 |---|---|---|
 | [Afterlife](mechanics/Afterlife.md) | `AnnotationPipeline`, `TriggeringObjectProjection`, `AnnotationBuilder.tokenCreated` | `implemented` |
+| [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
 | [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
@@ -1209,6 +1210,14 @@ grouped by family, then by entity.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
 
 ### Mechanic exceptions
+
+#### BattleCry
+
+- **`diverges`** — [BattleCry.no-pt-mod](mechanics/BattleCry.md#BattleCry.no-pt-mod) *(provisional statement)*
+  - Contract: the Battle Cry pump carries no `PowerToughnessModCreated` rows.
+  - Leyline: emits one `PowerToughnessModCreated` per affected creature for
+    every created boost effect with a nonzero power or toughness change.
+  - Owner: `MechanicAnnotations`
 
 #### Cascade
 
