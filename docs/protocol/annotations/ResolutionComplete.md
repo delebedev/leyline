@@ -1,8 +1,5 @@
 ---
 summary: "ResolutionComplete annotation: a spell or ability finished resolving; pairing with ResolutionStart and ordering against the resolved object's own zone transfer."
-read_when:
-  - "emitting or consuming ResolutionComplete"
-  - "ordering the rows of a resolution"
 entity: annotation/ResolutionComplete
 ---
 # ResolutionComplete

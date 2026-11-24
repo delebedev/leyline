@@ -1,8 +1,5 @@
 ---
 summary: "ManaPaid annotation: mana from a source was spent on a spell or ability; producer and consumer identities, the id and color keys, and substitution payments."
-read_when:
-  - "emitting or consuming ManaPaid"
-  - "publishing a mana payment, including convoke-style substitutions"
 entity: annotation/ManaPaid
 ---
 # ManaPaid

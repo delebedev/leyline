@@ -1,8 +1,5 @@
 ---
 summary: "DamageDealt annotation: a source dealt damage to a player or object; amount, damage type for combat, noncombat and fight damage, and the accompanying life change."
-read_when:
-  - "emitting or consuming DamageDealt"
-  - "publishing combat, spell, ability or fight damage"
 entity: annotation/DamageDealt
 ---
 # DamageDealt

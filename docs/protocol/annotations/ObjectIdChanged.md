@@ -1,9 +1,5 @@
 ---
 summary: "ObjectIdChanged annotation: an object received a new instance ID; fields, ordering against dependent rows, Limbo retirement and the resolve-to-battlefield exception."
-read_when:
-  - "emitting or consuming ObjectIdChanged"
-  - "allocating a new instance ID during a zone change"
-  - "ordering annotations that name a renamed object"
 entity: annotation/ObjectIdChanged
 ---
 # ObjectIdChanged

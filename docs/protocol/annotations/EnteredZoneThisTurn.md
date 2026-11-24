@@ -1,8 +1,5 @@
 ---
 summary: "EnteredZoneThisTurn annotation: persistent per-zone list of the objects that entered that zone during the current turn; shape, updates and retirement."
-read_when:
-  - "emitting or consuming EnteredZoneThisTurn"
-  - "reviewing per-turn zone-entry state or its retirement at a turn boundary"
 entity: annotation/EnteredZoneThisTurn
 ---
 # EnteredZoneThisTurn

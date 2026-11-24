@@ -1,9 +1,5 @@
 ---
 summary: "UserActionTaken annotation: a seat performed an action such as casting, playing a land or activating an ability; actionType values, the acted-on identity and abilityGrpId."
-read_when:
-  - "emitting or consuming UserActionTaken"
-  - "attributing a cast, land play or ability activation to a seat"
-  - "choosing the actionType integer for an accepted action"
 entity: annotation/UserActionTaken
 ---
 # UserActionTaken

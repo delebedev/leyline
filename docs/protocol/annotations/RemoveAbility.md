@@ -1,9 +1,5 @@
 ---
 summary: "RemoveAbility annotation: persistent removal of all or specific abilities from permanents by a continuous effect; per-instance detail keys, object projection and lifecycle."
-read_when:
-  - "emitting or consuming RemoveAbility"
-  - "publishing an effect that makes a permanent lose all or some abilities"
-  - "projecting uniqueAbilities for a permanent under an ability-removing effect"
 entity: annotation/RemoveAbility
 ---
 # RemoveAbility

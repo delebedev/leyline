@@ -1,8 +1,5 @@
 ---
 summary: "ResolutionStart annotation: a spell or ability began resolving; identity, grpid and its bracket with ResolutionComplete."
-read_when:
-  - "emitting or consuming ResolutionStart"
-  - "publishing a prompt or effect that happens while a spell or ability resolves"
 entity: annotation/ResolutionStart
 ---
 # ResolutionStart

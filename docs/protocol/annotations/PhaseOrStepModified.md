@@ -1,8 +1,5 @@
 ---
 summary: "PhaseOrStepModified annotation: the game entered a new phase or step; phase and step values, the seat whose turn it is, and the rows at a turn boundary."
-read_when:
-  - "emitting or consuming PhaseOrStepModified or NewTurnStarted"
-  - "publishing a phase, step or turn change"
 entity: annotation/PhaseOrStepModified
 ---
 # PhaseOrStepModified

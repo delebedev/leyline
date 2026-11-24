@@ -1,8 +1,5 @@
 ---
 summary: "AddAbility annotation: persistent grant of an ability or keyword to objects by a continuous effect; single, packed and multi-object shapes, identities and the effect_id lifecycle."
-read_when:
-  - "emitting or consuming AddAbility"
-  - "granting a keyword or ability through a continuous effect, aura, equipment or static ability"
 entity: annotation/AddAbility
 ---
 # AddAbility

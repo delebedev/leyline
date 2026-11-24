@@ -1,9 +1,5 @@
 ---
 summary: "LayeredEffectCreated annotation: introduces the synthetic identity of one continuous effect; the effect_id link to persistent modification rows and retirement through LayeredEffectDestroyed."
-read_when:
-  - "emitting or consuming LayeredEffectCreated or LayeredEffectDestroyed"
-  - "publishing a continuous effect that modifies characteristics, abilities or control"
-  - "linking a persistent modification row to its effect through effect_id"
 entity: annotation/LayeredEffectCreated
 ---
 # LayeredEffectCreated

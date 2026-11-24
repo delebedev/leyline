@@ -1,8 +1,5 @@
 ---
 summary: "TappedUntappedPermanent annotation: a permanent became tapped or untapped; the tapped flag, the permanent's identity and the mana-ability affector."
-read_when:
-  - "emitting or consuming TappedUntappedPermanent"
-  - "tapping a permanent for mana, to attack or to pay a cost, or untapping it"
 entity: annotation/TappedUntappedPermanent
 ---
 # TappedUntappedPermanent

@@ -1,9 +1,5 @@
 ---
 summary: "AbilityInstanceCreated annotation: an ability instance was created from a source object; identities, source_zone, the stack branch and the stackless mana-ability branch."
-read_when:
-  - "emitting or consuming AbilityInstanceCreated"
-  - "activating an ability, including a mana ability"
-  - "putting a triggered ability on the stack"
 entity: annotation/AbilityInstanceCreated
 ---
 # AbilityInstanceCreated

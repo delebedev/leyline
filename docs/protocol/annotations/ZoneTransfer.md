@@ -1,9 +1,5 @@
 ---
 summary: "ZoneTransfer annotation: an object moved between zones; source and destination zones, the category that names the cause, the moved object's identity and the affector by cause."
-read_when:
-  - "emitting or consuming ZoneTransfer"
-  - "choosing the category for a zone change"
-  - "reviewing cast, land-play, resolution or state-based zone changes"
 entity: annotation/ZoneTransfer
 ---
 # ZoneTransfer

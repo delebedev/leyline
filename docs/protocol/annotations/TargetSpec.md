@@ -1,9 +1,5 @@
 ---
 summary: "TargetSpec annotation: persistent record of one submitted target group of a spell or ability; fields, correlation with SelectTargetsReq, distributions and retirement."
-read_when:
-  - "emitting or consuming TargetSpec"
-  - "publishing the targets a player submitted for a spell or ability"
-  - "publishing a divided allocation such as damage distribution"
 entity: annotation/TargetSpec
 ---
 # TargetSpec

@@ -1,8 +1,5 @@
 ---
 summary: "AbilityInstanceDeleted annotation: an ability instance ended; identities matched to its AbilityInstanceCreated and placement on each branch."
-read_when:
-  - "emitting or consuming AbilityInstanceDeleted"
-  - "retiring an ability instance after resolution, countering or a mana payment"
 entity: annotation/AbilityInstanceDeleted
 ---
 # AbilityInstanceDeleted
