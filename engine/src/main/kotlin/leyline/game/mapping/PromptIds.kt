@@ -42,6 +42,9 @@ object PromptIds {
 
     const val GROUP_SCRY = 92
     const val GROUP_SURVEIL = 129
+
+    /** "Separate the top five cards of your library into two piles." Used for every pile split. */
+    const val GROUP_PILES = 11320
     const val SEARCH = 1065
     const val SEARCH_FROM_GROUPS = 3713
     const val SELECT_REPLACEMENT = 74

@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Prompt
 import wotc.mtgo.gre.external.messaging.Messages.SubZoneType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
-/** Value-only GRE preparation for coordinator-owned Scry and Surveil windows. */
+/** Value-only GRE preparation for coordinator-owned Scry, Surveil and two-pile windows. */
 internal class GroupingWindowMaterializer {
     fun prepare(
         context: SettledPromptMaterializationContext,
@@ -43,7 +43,7 @@ internal class GroupingWindowMaterializer {
                         Prompt
                             .newBuilder()
                             .setPromptId(promptId(window.context))
-                            .addParameters(cardIdPromptParameter())
+                            .addParameters(cardIdPromptParameter(pileSourceCard(window.context, hostSourceId)))
                             .build()
                     it.allowCancel = AllowCancel.No_a526
                 },
@@ -56,6 +56,7 @@ internal class GroupingWindowMaterializer {
         candidateIds: List<Int>,
         sourceId: Int,
     ): GroupReq {
+        if (context == GroupingContext.None_a0f6) return pilesRequest(candidateIds, sourceId)
         val awayZone = if (context == GroupingContext.Surveil) ZoneType.Graveyard else ZoneType.Library
         val awaySubZone = if (context == GroupingContext.Surveil) SubZoneType.None_a455 else SubZoneType.Bottom
         return GroupReq
@@ -65,6 +66,28 @@ internal class GroupingWindowMaterializer {
             .addGroupSpecs(group(candidateIds.size, awayZone, awaySubZone))
             .setGroupType(GroupType.Ordered)
             .setContext(context)
+            .setSourceId(sourceId)
+            .build()
+    }
+
+    /** A pile prompt names the source card; scry and surveil leave the parameter unset. */
+    private fun pileSourceCard(
+        context: GroupingContext,
+        hostSourceId: Int,
+    ): Int? = hostSourceId.takeIf { context == GroupingContext.None_a0f6 && it != 0 }
+
+    /** Two piles: no destination, unbounded sizes, and only membership matters. */
+    private fun pilesRequest(
+        candidateIds: List<Int>,
+        sourceId: Int,
+    ): GroupReq {
+        val pile = GroupSpecification.newBuilder().setUpperBound(Int.MAX_VALUE).build()
+        return GroupReq
+            .newBuilder()
+            .addAllInstanceIds(candidateIds)
+            .addGroupSpecs(pile)
+            .addGroupSpecs(pile)
+            .setGroupType(GroupType.Arbitrary)
             .setSourceId(sourceId)
             .build()
     }
@@ -86,7 +109,7 @@ internal class GroupingWindowMaterializer {
         when (context) {
             GroupingContext.Scry_a0f6 -> PromptIds.GROUP_SCRY
             GroupingContext.Surveil -> PromptIds.GROUP_SURVEIL
-            GroupingContext.None_a0f6,
+            GroupingContext.None_a0f6 -> PromptIds.GROUP_PILES
             GroupingContext.LondonMulligan,
             GroupingContext.UNRECOGNIZED,
             -> error("Unsupported coordinator Grouping context $context")
