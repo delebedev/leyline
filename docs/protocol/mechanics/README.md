@@ -33,6 +33,7 @@ that flag described under [designations](../designations/README.md).
 | [CollectEvidence](CollectEvidence.md) | Count, chosen cost, payment, cast submit | Additional cost paid by exiling graveyard cards by total mana value. |
 | [Companion](Companion.md) | Chosen companion, put into the hand | Card from outside the game marked from the first state and put into the hand for `{3}`. |
 | [Convoke](Convoke.md) | Payment step, payment bracket, count, resolution label | Tapping creatures to pay part of a spell's mana cost. |
+| CraftWith | Not yet characterized | Activated ability that exiles its source and the named materials, then returns the source transformed. |
 | [Crew](Crew.md) | Activation, total-power cost, helpers tapped, type change | Vehicle ability paid by tapping creatures with enough total power. |
 | [Cycling](Cycling.md) | Activation from the hand, discard cost | Hand-zone activated ability whose cost discards the card. |
 | Dash | Not yet characterized | Alternative cost that gives haste and returns the permanent to its owner's hand at the next end step. |
