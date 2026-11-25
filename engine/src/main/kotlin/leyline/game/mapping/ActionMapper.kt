@@ -838,12 +838,15 @@ object ActionMapper {
         }
 
     /**
-     * Zone casts (graveyard, exile, command) — picks the first castable SA per
-     * card and dispatches via [CastRails]. Each (zone, rail-bucket) pair is
-     * declared in [zoneRailBuckets]; rails matching the SA win, otherwise the
-     * fallback path emits a printed-cost or best-effort shape. Unpayable zone
-     * casts stay visible as inactive actions so automation does not repeatedly
-     * submit a cast that Forge will bounce back to the source zone.
+     * Zone casts (graveyard, exile, command) — one Cast per distinct cast
+     * option of each card, dispatched via [CastRails]. Each (zone,
+     * rail-bucket) pair is declared in [zoneRailBuckets]; rails matching the
+     * SA win, otherwise the fallback path emits a printed-cost, granted
+     * alternative-cost, or best-effort shape. Options that project to the
+     * same action identity (`grpId`, `alternativeGrpId`, `abilityGrpId`)
+     * collapse to the first one Forge lists. Unpayable zone casts stay visible
+     * as inactive actions so automation does not repeatedly submit a cast that
+     * Forge will bounce back to the source zone.
      */
     private fun addZoneCastActionsFromSnap(
         seatId: Int,
@@ -860,66 +863,94 @@ object ActionMapper {
             for (fid in zone.contents) {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
-                if (castable.isEmpty()) continue
-                val sa = castable.first()
-                val instanceId = bridge.getOrAllocInstanceId(fid).value
-                val cardSnap = snap.objects[fid]
-                val sourceGrpId =
-                    cardSnap?.grpId
-                        ?: bridge.resolveGrpId(forgeCard, instanceId)
-                val bound = snap.boundCards[fid]
-                val rail = rails.firstOrNull { it.saPredicate(sa) }
-                val executable = canExecute(sa, player)
-                val omit = rail?.omitGrpIdAndFacetId == true
-                val actionGrpId =
-                    when (rail?.grpIdMode) {
-                        ZoneCastGrpIdMode.OtherSide -> cardSnap?.othersideGrpId?.takeIf { it > 0 } ?: sourceGrpId
-                        else -> sourceGrpId
+                val emitted = mutableSetOf<Triple<Int, Int, Int>>()
+                for ((abilityIndex, sa) in castable.withIndex()) {
+                    val executable = canExecute(sa, player)
+                    val actionBuilder = buildZoneCastAction(fid, forgeCard, sa, rails, executable, snap, bridge, player)
+                    if (!emitted.add(Triple(actionBuilder.grpId, actionBuilder.alternativeGrpId, actionBuilder.abilityGrpId))) continue
+                    zoneCastAutoTapSolution(executable, sa, player, autoTapSolution)
+                        ?.let(actionBuilder::setAutoTapSolution)
+                    if (executable) {
+                        addOffer(
+                            actionBuilder.build(),
+                            PlayerAction.CastSpell(fid, abilityIndex, ability = sa),
+                            null,
+                            null,
+                        )
+                    } else {
+                        builder.addInactiveActions(actionBuilder)
                     }
-                val actionFacetId =
-                    when {
-                        rail?.grpIdMode == ZoneCastGrpIdMode.OtherSide && cardSnap?.othersideGrpId?.takeIf { it > 0 } != null ->
-                            bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
-                        else -> instanceId
-                    }
-
-                val actionBuilder =
-                    Action
-                        .newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                if (executable) {
-                    actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-                }
-                if (!omit) {
-                    actionBuilder.setGrpId(actionGrpId)
-                    actionBuilder.setFacetId(actionFacetId)
-                }
-                if (rail?.emitAlternativeSourceZcid == true) {
-                    actionBuilder.setAlternativeSourceZcid(instanceId)
-                }
-
-                if (rail != null) {
-                    configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
-                } else {
-                    configureZoneCastFallback(actionBuilder, sa, bound, player)
-                }
-                zoneCastAutoTapSolution(executable, sa, player, autoTapSolution)
-                    ?.let(actionBuilder::setAutoTapSolution)
-                if (executable) {
-                    val abilityIndex = castable.indexOfFirst { it === sa }
-                    check(abilityIndex >= 0) { "Zone cast ability is absent from its candidate set" }
-                    addOffer(
-                        actionBuilder.build(),
-                        PlayerAction.CastSpell(fid, abilityIndex, ability = sa),
-                        null,
-                        null,
-                    )
-                } else {
-                    builder.addInactiveActions(actionBuilder)
                 }
             }
         }
+    }
+
+    @Suppress("LongParameterList") // source identity, rail bucket, and legality inputs stay coupled.
+    private fun buildZoneCastAction(
+        fid: ForgeCardId,
+        forgeCard: Card,
+        sa: SpellAbility,
+        rails: List<ZoneCastRail>,
+        executable: Boolean,
+        snap: GsmSnapshot,
+        bridge: GameBridge,
+        player: Player,
+    ): Action.Builder {
+        val instanceId = bridge.getOrAllocInstanceId(fid).value
+        val cardSnap = snap.objects[fid]
+        val sourceGrpId =
+            cardSnap?.grpId
+                ?: bridge.resolveGrpId(forgeCard, instanceId)
+        val bound = snap.boundCards[fid]
+        val rail = rails.firstOrNull { it.saPredicate(sa) }
+        val omit = rail?.omitGrpIdAndFacetId == true
+        val actionGrpId =
+            when (rail?.grpIdMode) {
+                ZoneCastGrpIdMode.OtherSide -> cardSnap?.othersideGrpId?.takeIf { it > 0 } ?: sourceGrpId
+                else -> sourceGrpId
+            }
+        val actionFacetId =
+            when {
+                rail?.grpIdMode == ZoneCastGrpIdMode.OtherSide && cardSnap?.othersideGrpId?.takeIf { it > 0 } != null ->
+                    bridge.getOrAllocInstanceId(FrameIdResolver.disturbBackForgeId(fid)).value
+                else -> instanceId
+            }
+
+        val actionBuilder =
+            Action
+                .newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+        if (executable) {
+            actionBuilder.setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+        }
+        if (!omit) {
+            actionBuilder.setGrpId(actionGrpId)
+            actionBuilder.setFacetId(actionFacetId)
+        }
+        if (rail?.emitAlternativeSourceZcid == true) {
+            actionBuilder.setAlternativeSourceZcid(instanceId)
+        }
+
+        // A cost granted by another object (an AlternativeCost static, or a
+        // keyword such as Blitz added by a static) has no rail and no row on
+        // the card itself; the granting object's row identifies the offer.
+        val grantedAlternativeGrpId =
+            if (rail == null) {
+                GrantedAlternativeCosts.abilityGrpId(sa, player, bridge)
+                    ?: bridge.cardRepository.grantedKeywordAbilityGrpId(sa)?.takeIf { it > 0 }
+            } else {
+                null
+            }
+        when {
+            rail != null -> configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
+            grantedAlternativeGrpId != null -> {
+                actionBuilder.setAlternativeGrpId(grantedAlternativeGrpId)
+                emitAltCostManaCost(actionBuilder, sa, player, abilityGrpIdEcho = grantedAlternativeGrpId)
+            }
+            else -> configureZoneCastFallback(actionBuilder, sa, bound, player)
+        }
+        return actionBuilder
     }
 
     private fun zoneCastAutoTapSolution(

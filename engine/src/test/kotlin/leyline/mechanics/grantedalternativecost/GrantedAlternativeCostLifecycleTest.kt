@@ -1,11 +1,17 @@
 package leyline.mechanics.grantedalternativecost
 
+import forge.game.card.CardLists
+import forge.game.card.CardPredicates
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.inspectors.forAll
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -67,6 +73,50 @@ class GrantedAlternativeCostLifecycleTest :
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContainExactlyInAnyOrder listOf("Opt", "Shock")
                 drakeCost shouldBe drakeOffer.alternativeGrpId
                 goblinCost shouldBe goblinOffer.alternativeGrpId
+            }
+        }
+
+        val commanderPuzzle =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=40
+            AILife=40
+
+            humanbattlefield=Dream Halls;Island;Island;Island
+            humanhand=Opt
+            humancommand=Wind Drake|IsCommander
+            humanlibrary=Island;Island;Island
+            ailibrary=Forest;Forest;Forest
+            """.trimIndent()
+
+        session("a commander cast through Dream Halls discards a card and leaves the lands untapped", puzzle = commanderPuzzle) {
+            val drakeIid = instanceIdOf("Wind Drake", zone = ZoneType.Command)
+            val offer =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Cast && it.instanceId == drakeIid && it.alternativeGrpId != 0 }
+            val castStart = messageSnapshot()
+            submitAction(offer)
+            val optIid = human.hand.iid("Opt")
+            allMessages.last().selectNReq.idsList shouldContain optIid
+            respondToSelectN(listOf(optIid))
+            passUntilResolved(maxPasses = 20)
+            val castingTimeOption =
+                messagesSince(castStart)
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .single { it.typeList.contains(AnnotationType.CastingTimeOption) }
+            assertSoftly {
+                "Wind Drake" should beOnBattlefieldOf(human)
+                "Opt" should beInGraveyardOf(human)
+                "Island" should beOnBattlefieldOf(human, count = 3)
+                CardLists.filter(human.getCardsIn(ZoneType.Battlefield), CardPredicates.nameEquals("Island")).forAll {
+                    it.isTapped shouldBe
+                        false
+                }
+                castingTimeOption.detailInt("alternateCostGrpId") shouldBe offer.alternativeGrpId
             }
         }
     })

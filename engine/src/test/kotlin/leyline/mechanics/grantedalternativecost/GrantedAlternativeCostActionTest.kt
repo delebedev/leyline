@@ -63,4 +63,35 @@ class GrantedAlternativeCostActionTest :
                 drake.single { it.alternativeGrpId == 0 }.manaCostList.sumOf { it.count } shouldBe 3
             }
         }
+
+        test("a commander keeps its mana cast beside Dream Halls' cost") {
+            val board =
+                startPuzzleAtMain1(
+                    """
+                    [metadata]
+                    Name:Dream Halls Commander
+                    Goal:Survive
+                    Turns:1
+                    Difficulty:Easy
+
+                    [state]
+                    ActivePlayer=Human
+                    ActivePhase=Main1
+                    HumanLife=40
+                    AILife=40
+                    humanbattlefield=Dream Halls;Island;Island;Island
+                    humanhand=Opt
+                    humancommand=Wind Drake|IsCommander
+                    humanlibrary=Island
+                    ailibrary=Forest
+                    """.trimIndent(),
+                )
+            val drake = board.casts("Wind Drake")
+            assertSoftly {
+                drake.map { it.alternativeGrpId }.sorted() shouldBe listOf(0, drake.maxOf { it.alternativeGrpId })
+                board.dreamHallsRows() shouldContain drake.maxOf { it.alternativeGrpId }
+                drake.single { it.alternativeGrpId == 0 }.manaCostList.sumOf { it.count } shouldBe 3
+                drake.single { it.alternativeGrpId != 0 }.manaCostList shouldBe emptyList()
+            }
+        }
     })
