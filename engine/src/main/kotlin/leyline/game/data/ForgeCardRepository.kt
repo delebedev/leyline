@@ -55,6 +55,7 @@ class ForgeCardRepository private constructor(
         private const val CARD_BASE = 200_000_000
         private const val DERIVED_ID_BASE = 300_000_000
         private val MULTI_FACE_SEPARATOR_REGEX = Regex("""\s*//?\s*""")
+        private val ELLIPSIS_REGEX = Regex("""\s*\.(?:\s*\.)+""")
         private val descriptor: ForgeCatalogDescriptor by lazy {
             GameBootstrap.initializeCardDatabase(quiet = true)
             StaticData.instance().ensureAllCardsLoaded()
@@ -725,7 +726,17 @@ class ForgeCardRepository private constructor(
 
     override fun findAllGrpIds(): List<Int> = primaryIds.toList()
 
-    private fun lookupKey(name: String): String = name.lowercase().replace('\u2019', '\'')
+    /**
+     * Case-insensitive name key. Curly apostrophes match straight ones, and an
+     * ellipsis matches however it is spaced or typed, so `Welcome to...` finds
+     * `Welcome to . . .`.
+     */
+    private fun lookupKey(name: String): String =
+        name
+            .lowercase()
+            .replace('\u2019', '\'')
+            .replace("\u2026", "...")
+            .replace(ELLIPSIS_REGEX, "...")
 
     @Synchronized
     override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = rows.lookupModalOptions(cardGrpId)
