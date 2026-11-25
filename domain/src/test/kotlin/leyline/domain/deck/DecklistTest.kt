@@ -196,6 +196,36 @@ class DecklistTest :
                 listOf("Akki Lavarunner // Tok-Tok, Volcano Born", "Ben-Ben, Akki Hermit", "Grenzo, Dungeon Warden")
         }
 
+        test("strips trailing tags, labels and markers in any order") {
+            val entries =
+                parseDecklist(
+                    """
+                    1 Sol Ring [Ramp] *F*
+                    1 Arcane Signet *F* [Ramp]
+                    1 Mind Stone (cmm) 100 [Ramp] ^Have^ *E*
+                    1 The Ur-Dragon *CMDR* *F*
+                    1 Empress Galina *F* *CMDR* [Legend]
+                    """.trimIndent(),
+                ).entries
+
+            entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 1, "Sol Ring"),
+                    DecklistEntry(DecklistSection.Main, 1, "Arcane Signet"),
+                    DecklistEntry(DecklistSection.Main, 1, "Mind Stone", "CMM"),
+                    DecklistEntry(DecklistSection.Commander, 1, "The Ur-Dragon"),
+                    DecklistEntry(DecklistSection.Commander, 1, "Empress Galina"),
+                )
+        }
+
+        test("a CSV header with padded column names sets the columns") {
+            parseDecklist("Name , Quantity\nSol Ring,2\n\"Grenzo, Dungeon Warden\" , 1").entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 2, "Sol Ring"),
+                    DecklistEntry(DecklistSection.Main, 1, "Grenzo, Dungeon Warden"),
+                )
+        }
+
         test("parses CSV rows with and without a header row") {
             parseDecklist("1,Eldrazi Monument\n1,\"Grenzo, Dungeon Warden\"\n17,Mountain").entries shouldBe
                 listOf(

@@ -140,7 +140,8 @@ private class DecklistReader {
             enter(sectionFor(label), exclude = label.equals("maybeboard", ignoreCase = true))
             return true
         }
-        if (DECK_NAME_LINE_REGEX.matches(line)) return true
+        // A CSV header such as `Name , Quantity` also starts with `Name`; it sets columns instead.
+        if (DECK_NAME_LINE_REGEX.matches(line) && csvHeader(line) == null) return true
         if (!inMetadata && CATEGORY_LABEL_REGEX.matches(header)) {
             leaveCommandBlock()
             return true
@@ -230,16 +231,14 @@ private data class SectionTag(
 private fun ParsedLine.withTags(): Pair<DecklistEntry, SectionTag> {
     var raw = text
     val tags = mutableListOf<String>()
+    // Exports append tags, labels and markers in no fixed order; peel them off the end one at a time.
     while (true) {
-        val label = TRAILING_LABEL_REGEX.find(raw)
         val tag = TRAILING_TAG_REGEX.find(raw)
-        val cut = label ?: tag ?: break
+        val commander = COMMANDER_MARKER_REGEX.find(raw)
+        val cut = tag ?: commander ?: TRAILING_LABEL_REGEX.find(raw) ?: FOIL_MARKER_REGEX.find(raw) ?: break
         if (cut === tag) tags += tag.groupValues[1]
+        if (cut === commander) tags += "Commander"
         raw = raw.substring(0, cut.range.first)
-    }
-    if (COMMANDER_MARKER_REGEX.containsMatchIn(raw)) {
-        tags += "Commander"
-        raw = raw.replace(COMMANDER_MARKER_REGEX, "")
     }
     val (name, setCode) = splitPrinting(raw)
     val sectionTag = tags.flatMap { it.split(',') }.map { it.replace(TAG_MODIFIER_REGEX, "").trim() }.sectionTag()
