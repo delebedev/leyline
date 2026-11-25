@@ -47,8 +47,8 @@ evoke trigger.
    `TemporaryPermanent` row stays on the permanent.
 2. The evoke trigger is created as an ability object whose `grpId` is the
    evoke ability and whose `parentId` is the permanent.
-3. When the trigger resolves while the permanent is still on the
-   battlefield, the permanent gets a new instance ID and moves Battlefield to
+3. When the trigger resolves and the sacrifice puts the permanent into the
+   graveyard, the permanent gets a new instance ID and moves Battlefield to
    Graveyard with `category` `Sacrifice`.
 4. In the same GSM, `ResolutionComplete` and `AbilityInstanceDeleted` retire
    the trigger, and the `TemporaryPermanent` row is deleted.

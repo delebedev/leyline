@@ -73,8 +73,10 @@ levels, not triggers.
   increase.
 - <a id="SagaChapter.final-sacrifice"></a>**SagaChapter.final-sacrifice.**
   *(provisional)* Grounded for a non-transforming Saga: when the Saga is
-  sacrificed after its final chapter resolves, the `Sacrifice` transfer `MUST`
-  be in the same GSM as that chapter's `AbilityInstanceDeleted`, and after it.
+  sacrificed in the GSM in which its final chapter finishes resolving, the
+  `Sacrifice` transfer `MUST` follow that chapter's `AbilityInstanceDeleted`
+  in that GSM. A sacrifice delayed by another chapter ability still on the
+  stack is not covered.
 
 ## Open points
 

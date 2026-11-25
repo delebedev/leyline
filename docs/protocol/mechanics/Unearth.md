@@ -81,7 +81,8 @@ unearth, but their resolution creates a token instead of returning the card.
 - <a id="Unearth.graveyard-source"></a>**Unearth.graveyard-source.** The unearth
   ability's `AbilityInstanceCreated` `MUST` name the graveyard card as
   `affectorId` and carry the graveyard zone in `source_zone`, and the card
-  `MUST` keep its graveyard instance ID while the ability is on the stack.
+  `MUST` keep its graveyard instance ID for as long as it stays in the
+  graveyard with the ability on the stack.
 - <a id="Unearth.no-cast"></a>**Unearth.no-cast.** An unearth activation `MUST`
   be recorded with `actionType` `2`, and `MUST NOT` move the card to the stack
   or create a `CastingTimeOption` row.

@@ -81,8 +81,10 @@ alone.
 - `CastingTimeOptionsReq` asks for the choice; this row records the outcome.
 - [UserActionTaken](UserActionTaken.md) records the cast action; its
   `alternativeGrpId` matches this row's `alternateCostGrpId`.
-- `TemporaryPermanent` can follow from an alternative cost such as evoke; it
-  marks the resulting permanent, not the spell.
+- `TemporaryPermanent` can follow from an alternative cost such as evoke. It
+  marks the object a pending ability will remove, not the cost choice; an
+  evoked card carries it from the stack on, as [Evoke](../mechanics/Evoke.md)
+  describes.
 
 ## Contract
 

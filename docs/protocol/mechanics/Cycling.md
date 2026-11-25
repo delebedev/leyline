@@ -33,8 +33,9 @@ One GSM carries the whole activation, in this order:
    ability as `grpId` and the hand card as `parentId`.
 2. The mana payment, when the cost has mana: mana abilities and `ManaPaid`
    rows naming the cycling ability.
-3. `ObjectIdChanged` from the hand instance to a graveyard instance and a
-   Hand-to-Graveyard `ZoneTransfer` with `category` `Discard`, both with the
+3. When the discard puts the card into the graveyard, `ObjectIdChanged` from
+   the hand instance to a graveyard instance and a Hand-to-Graveyard
+   `ZoneTransfer` with `category` `Discard`, both with the
    cycling ability as `affectorId`.
 4. `UserActionTaken` with `actionType` `2` and the cycling ability in
    `abilityGrpId`, naming the ability.

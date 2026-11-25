@@ -35,7 +35,8 @@ targets for the copy" (CR 702.153a).
    `casualtyAbilityGrpId` the card's Casualty ability, alongside
    `PlayerSelectingTargets` for the spell.
 2. After targets are submitted, the GSM that completes the cast moves the
-   chosen creature from the Battlefield to the Graveyard with
+   chosen creature, when the sacrifice puts it into the graveyard, from the
+   Battlefield to the Graveyard with
    `ObjectIdChanged` and a `ZoneTransfer` with `category` `Sacrifice`, both
    with the spell as `affectorId`, and records `UserActionTaken` with
    `actionType` `1` and `abilityGrpId` `0`.
