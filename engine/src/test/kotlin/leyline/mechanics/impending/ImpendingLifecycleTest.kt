@@ -40,6 +40,7 @@ private val PUZZLE =
 
 class ImpendingLifecycleTest :
     SessionTest({
+        // protocol: Impending.cast-marker
         session("impending cast enters with time counters and records cast-through option", puzzle = PUZZLE) {
             val overlordGrpId = bridge.cardRepository.findGrpIdByName("Overlord of the Mistmoors")!!
             val impendingAbilityGrpId =

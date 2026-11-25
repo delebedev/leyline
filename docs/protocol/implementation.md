@@ -14,8 +14,8 @@ Leyline does something other than the page describes. Everything not listed as
 an exception is intended to hold.
 
 Proof coverage is not stored here. `just docs-lint` computes it from
-`protocol:` citations in tests and conformance contracts and lists statements
-no proof cites yet.
+`protocol:` citations in tests and conformance contracts. Statements no proof
+cites yet are listed in `uncovered.txt`.
 
 ## Status vocabulary
 
@@ -224,6 +224,93 @@ the table above when its page is written.
 | `TurnPermanent` | — | `absent` |
 | `UseOrCostsManaCost` | — | `absent` |
 | `WinTheGame` | — | `absent` |
+
+### Mechanics
+
+A mechanic row names the code that owns the mechanic-specific behavior. Shapes
+shared with other mechanics are covered by the entity rows above. A mechanic
+Leyline cannot play at all is `absent`.
+
+| Entity | Owner | Status |
+|---|---|---|
+| [Afterlife](mechanics/Afterlife.md) | `AnnotationPipeline`, `TriggeringObjectProjection`, `AnnotationBuilder.tokenCreated` | `implemented` |
+| [Ascend](mechanics/Ascend.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedBuilder`, `AnnotationBuilder.citysBlessingDesignation` | `implemented` |
+| [Backup](mechanics/Backup.md) | `TargetingWindowCapture`, `ProjectionCardReferences` | `implemented` |
+| [BattleCry](mechanics/BattleCry.md) | `MechanicAnnotations`, `AnnotationPipeline` | `partial` |
+| [Behold](mechanics/Behold.md) | `AnnotationBuilder.castingTimeOption` | `partial` |
+| Blight | `DeferredCastCostPlanMaterializer`, `DeferredCastCostPlan` | `implemented` |
+| Blitz | `CastRails`, `BoundCard` | `implemented` |
+| [Boast](mechanics/Boast.md) | `AnnotationBuilder.abilityExhausted`, `ActivatedActionEmitter` | `implemented` |
+| [Cascade](mechanics/Cascade.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `partial` |
+| [Casualty](mechanics/Casualty.md) | `DeferredCastCostPlanMaterializer`, `TransferCategoryResolver` | `partial` |
+| [Cleave](mechanics/Cleave.md) | `CastRails`, `BoundCard`, `AnnotationBuilder.castingTimeOption` | `implemented` |
+| [CollectEvidence](mechanics/CollectEvidence.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedFactsCapture`, `TransferCategoryResolver` | `implemented` |
+| [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
+| [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
+| [Crew](mechanics/Crew.md) | `VehicleAttachContributor`, `AnnotationBuilder.crewedThisTurn`, `OneShotPayCostsMaterializer` | `implemented` |
+| [Cycling](mechanics/Cycling.md) | `ActivatedActionEmitter`, `TransferCategoryResolver`, `ZoneMoveLedger` | `implemented` |
+| Dash | `CastRails`, `BoundCard` | `implemented` |
+| [Decayed](mechanics/Decayed.md) | `PersistentTemporaryFeedBuilder`, `ProjectionCardReferences`, `StateMapper` | `implemented` |
+| Delve | `CostPaymentCoordinator` | `implemented` |
+| [Discover](mechanics/Discover.md) | `PlayerController.playSaFromPlayEffect`, `BlockingInteractionMaterializer`, `StackAbilityGrpIdResolver` | `implemented` |
+| [Disguise](mechanics/Disguise.md) | `CastRails`, `ActionMapper.addSpecialTurnFaceUpActions`, `PersistentFeedBuilder` | `partial` |
+| [Disturb](mechanics/Disturb.md) | `CastRails`, `ActionMapper`, `ZoneMapper.addDisturbBackObject` | `implemented` |
+| [Earthbend](mechanics/Earthbend.md) | `EarthbendEmitter`, `EarthbendTracker` | `implemented` |
+| [Emerge](mechanics/Emerge.md) | `CastRails`, `TargetingCoordinator.choosePermanentsToSacrifice` | `implemented` |
+| [Enchant](mechanics/Enchant.md) | `TargetingWindowMaterializer`, `AnnotationBuilder.attachment` | `implemented` |
+| [Endure](mechanics/Endure.md) | `ConfirmActionPlanner`, `OptionalActionGate` | `implemented` |
+| [Enlist](mechanics/Enlist.md) | `PromptJournal`, `GameEventCollector`, `OneShotPayCostsWindowCapture` | `implemented` |
+| [Equip](mechanics/Equip.md) | `AnnotationBuilder.attachmentCreated`, `AnnotationBuilder.attachment` | `implemented` |
+| [Escape](mechanics/Escape.md) | `CastRails`, `OneShotPayCostsMaterializer` | `partial` |
+| [Evoke](mechanics/Evoke.md) | `CastRails`, `PersistentTemporaryFeedBuilder` | `implemented` |
+| [Exploit](mechanics/Exploit.md) | `CardSelectWindowMaterializer`, `SelectNEnvelope` | `partial` |
+| [Extort](mechanics/Extort.md) | `OptionalActionGate` | `implemented` |
+| [Firebending](mechanics/Firebending.md) | `ManaSnapshotCapture`, `ManaDetailsContributor` | `implemented` |
+| [Flashback](mechanics/Flashback.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| Flurry | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
+| [Foretell](mechanics/Foretell.md) | `CastRails`, `PersistentFeedBuilder` | `partial` |
+| [Gift](mechanics/Gift.md) | `DeferredCastCostPlanMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Harmonize](mechanics/Harmonize.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Impending](mechanics/Impending.md) | `CastRails`, `ZoneTransferDetector` | `implemented` |
+| [Improvise](mechanics/Improvise.md) | `ManaSourcePaymentMaterializer`, `MatchManaSourcePaymentRuntime` | `implemented` |
+| [Increment](mechanics/Increment.md) | `TriggeringObjectProjection`, `AnnotationPipeline` | `implemented` |
+| Infusion | `AbilityWordScanner`, `AbilityWordTriggerRecognizers` | `implemented` |
+| [JobSelect](mechanics/JobSelect.md) | `AnnotationBuilder.attachmentCreated`, `MechanicAnnotations` | `implemented` |
+| [JumpStart](mechanics/JumpStart.md) | `CastRails`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [Learn](mechanics/Learn.md) | `CardSelectWindowMaterializer` | `implemented` |
+| [Madness](mechanics/Madness.md) | `CastRails`, `ReplacementWindowCapture`, `TransferCategoryResolver` | `partial` |
+| [ManifestDread](mechanics/ManifestDread.md) | `CardSelectWindowCapture`, `PersistentFeedBuilder`, `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |
+| [MaxSpeed](mechanics/MaxSpeed.md) | `AnnotationBuilder.playerSpeedDesignation`, `EffectTracker` | `implemented` |
+| [Mentor](mechanics/Mentor.md) | `TargetingCoordinator`, `TargetingWindowCapture` | `implemented` |
+| [Mobilize](mechanics/Mobilize.md) | `PersistentTemporaryFeedBuilder`, `PersistentFeedBuilder` | `implemented` |
+| [Mutate](mechanics/Mutate.md) | `CastRails`, `TargetingWindowCapture`, `ZoneTransferDetector` | `partial` |
+| [Ninjutsu](mechanics/Ninjutsu.md) | `ActionMapper`, `OneShotPayCostsMaterializer`, `ZoneTransferDetector` | `partial` |
+| [Offspring](mechanics/Offspring.md) | `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
+| [OpeningHand](mechanics/OpeningHand.md) | `PlayerController.chooseSaToActivateFromOpeningHand`, `TransferAnnotations`, `TransferCategoryResolver` | `partial` |
+| Opus | `OpusAbilityWordFeedBuilder`, `CastAbilityWordScanner` | `implemented` |
+| [Overload](mechanics/Overload.md) | `CastRails`, `GameEventCollector` | `partial` |
+| [Paradigm](mechanics/Paradigm.md) | `SpellAbilityShapes`, `StateZoneProjection.paradigmSourceStackIid`, `PlayerController` | `implemented` |
+| [PowerUp](mechanics/PowerUp.md) | `AbilityExhaustionFactsCapture` | `implemented` |
+| Proliferate | `ChooseEntitiesPlanner` | `implemented` |
+| [Prowess](mechanics/Prowess.md) | `AnnotationPipeline`, `EffectTracker` | `partial` |
+| [Reconfigure](mechanics/Reconfigure.md) | `AbilityRegistry`, `TargetingWindowCapture`, `GameEventCollector` | `implemented` |
+| Renew | `ActionMapper` | `implemented` |
+| Retrace | `CastRails`, `ActionPerformer` | `implemented` |
+| [Saddle](mechanics/Saddle.md) | `TapPaymentDescriptor`, `OneShotPayCostsMaterializer`, `AnnotationPipeline`, `CardStateDesignations` | `implemented` |
+| [SagaChapter](mechanics/SagaChapter.md) | `AnnotationPipeline` | `implemented` |
+| [Sneak](mechanics/Sneak.md) | `CastRails`, `OneShotPayCostsMaterializer`, `GameEventCollector` | `partial` |
+| [Spectacle](mechanics/Spectacle.md) | `CastRails`, `GameEventCollector` | `partial` |
+| [Spree](mechanics/Spree.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Station](mechanics/Station.md) | `OneShotPayCostsMaterializer`, `AbilityWordScanner` | `partial` |
+| Storied | `PersistentAbilityWordFeedBuilder` | `absent` |
+| Surge | `CastRails` | `implemented` |
+| [Teamwork](mechanics/Teamwork.md) | `DeferredCastCostPlanMaterializer`, `TapPaymentDescriptor`, `GameEventCollector` | `partial` |
+| [Tiered](mechanics/Tiered.md) | `ModalChoiceWindowMaterializer`, `CastingTimeOptionsBuilder` | `implemented` |
+| [Training](mechanics/Training.md) | `StackAbilityGrpIdResolver`, `PersistentAbilityWordFeedBuilder` | `partial` |
+| [Unearth](mechanics/Unearth.md) | `ActionMapper`, `ZoneTransferDetector`, `PersistentTemporaryFeedBuilder` | `partial` |
+| [Ward](mechanics/Ward.md) | `PlayerController`, `CostPaymentCoordinator.payOptionalManaCost` | `partial` |
+| [Warp](mechanics/Warp.md) | `CastRails`, `GameEventCollector`, `ZoneTransferDetector` | `implemented` |
+| [Waterbend](mechanics/Waterbend.md) | `ManaSourcePaymentMaterializer`, `DeferredCastCostPlanMaterializer`, `GameEventCollector` | `implemented` |
 
 ## Exceptions
 
@@ -1195,6 +1282,291 @@ grouped by family, then by entity.
     when no player has priority. An opponent's instant that resolves while the
     active player receives priority is attributed to the active player.
   - Owner: `TransferAnnotations.annotationsForTransfer`, `StateMapper`
+
+### Mechanic exceptions
+
+#### BattleCry
+
+- **`diverges`** — [BattleCry.no-pt-mod](mechanics/BattleCry.md#BattleCry.no-pt-mod) *(provisional statement)*
+  - Contract: the Battle Cry pump carries no `PowerToughnessModCreated` rows.
+  - Leyline: emits one `PowerToughnessModCreated` per affected creature for
+    every created boost effect with a nonzero power or toughness change. Read
+    from `MechanicAnnotations`; `EffectAnnotationPipelineTest` pins the
+    companion row for a generic boost, and no test covers Battle Cry itself.
+  - Owner: `MechanicAnnotations`
+
+#### Behold
+
+- **`absent`** — [Behold.cast-option](mechanics/Behold.md#Behold.cast-option) *(provisional statement)*
+  - Contract: a paid behold cost marks the spell with a `CastingTimeOption`
+    row of `type` `18` and `costType` `behold`.
+  - Leyline: has no behold-specific cost seam and emits no `OptionalCostPaid`
+    row, so a paid behold cost leaves no cast-option row.
+  - Owner: `AnnotationBuilder.castingTimeOption`
+
+#### Cascade
+
+- **`diverges`** — [Cascade.no-resolution-start](mechanics/Cascade.md#Cascade.no-resolution-start) *(provisional statement)*
+  - Contract: the Cascade ability's resolution carries no `ResolutionStart`
+    row for the ability.
+  - Leyline: brackets the Cascade ability like every resolving ability, with a
+    `ResolutionStart` naming the ability before the reveal transfers.
+  - Owner: `AnnotationPipeline`
+
+#### Casualty
+
+- **`absent`** — [Casualty.cast-option](mechanics/Casualty.md#Casualty.cast-option) *(provisional statement)*
+  - Contract: a spell whose casualty cost is paid carries a `CastingTimeOption`
+    row with `type` `15` and `casualtyAbilityGrpId`.
+  - Leyline: emits no casualty row; casualty is paid as a binary keyword cost
+    without a casting-time-option annotation.
+  - Owner: `AnnotationBuilder.castingTimeOption`
+
+#### Disguise
+
+- **`absent`** — [Disguise.turn-up](mechanics/Disguise.md#Disguise.turn-up) *(provisional statement)*
+  - Contract: the GSM that turns a disguised permanent face up carries
+    `TurnPermanent` before `UserActionTaken` with `actionType` `8`.
+  - Leyline: flips the permanent and deletes its `FaceDown` row but emits
+    neither `TurnPermanent` nor the accepted `UserActionTaken`, as recorded
+    under `Special_TurnFaceUp`.
+  - Owner: `ActionMapper.addSpecialTurnFaceUpActions`
+
+#### Escape
+
+- **`diverges`** — [Escape.accepted](mechanics/Escape.md#Escape.accepted) *(provisional statement)*
+  - Contract: an accepted escape cast is recorded with the escape ability in
+    both `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost, so the accepted row names the escape ability only in
+    `alternativeGrpId`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### Exploit
+
+- **`diverges`** — [Exploit.sacrifice-prompt](mechanics/Exploit.md#Exploit.sacrifice-prompt) *(provisional statement)*
+  - Contract: the exploit sacrifice choice is a `SelectNReq` with prompt
+    `5014` and `allowCancel` `Continue`.
+  - Leyline: sends the sacrifice as a `SelectNReq` with prompt `180` and
+    `allowCancel` `No`, the shape it uses for every sacrifice effect.
+  - Owner: `CardSelectWindowMaterializer`, `SelectNEnvelope`
+  - Pinned by: `MatchCardSelectInteractionRuntimeTest`
+
+#### Flashback
+
+- **`absent`** — [Flashback.offer](mechanics/Flashback.md#Flashback.offer) *(provisional statement)*
+  - Contract: a flashback offer from the graveyard carries the flashback
+    ability in both `abilityGrpId` and `alternativeGrpId`.
+  - Leyline: sets only `alternativeGrpId` on the flashback offer.
+  - Owner: `CastRails`
+- **`diverges`** — [Flashback.accepted](mechanics/Flashback.md#Flashback.accepted) *(provisional statement)*
+  - Contract: an accepted flashback cast is recorded with the flashback
+    ability in both `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost, so the accepted row names the flashback ability only in
+    `alternativeGrpId`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### Foretell
+
+- **`absent`** — [Foretell.special-cost](mechanics/Foretell.md#Foretell.special-cost) *(provisional statement)*
+  - Contract: foretelling is offered as a `Special` action keyed by the card's
+    foretell ability.
+  - Leyline: offers foretelling as a `Cast` with that ability in
+    `alternativeGrpId` and `abilityGrpId` `0`, as recorded for
+    [Special.foretell-plot](actions/Special.md#Special.foretell-plot), so no
+    foretell `Special` offer exists.
+  - Owner: `ActionMapper`, `CastRails`
+  - Pinned by: `ForetellActionTest`
+
+#### Harmonize
+
+- **`absent`** — [Harmonize.creature-choice](mechanics/Harmonize.md#Harmonize.creature-choice) *(provisional statement)*
+  - Contract: the creature to tap is chosen through a `Selection` row of a
+    `CastingTimeOptionsReq`.
+  - Leyline: never builds a `CastingTimeOptionsReq` `Selection` row, so the
+    harmonize creature is not offered through it.
+  - Owner: `CastingTimeOptionsBuilder`
+- **`absent`** — [Harmonize.offer](mechanics/Harmonize.md#Harmonize.offer) *(provisional statement)*
+  - Contract: the graveyard offer carries the harmonize ability in both
+    `abilityGrpId` and `alternativeGrpId`.
+  - Leyline: sets only `alternativeGrpId` on the harmonize offer.
+  - Owner: `CastRails`
+- **`diverges`** — [Harmonize.accepted](mechanics/Harmonize.md#Harmonize.accepted) *(provisional statement)*
+  - Contract: the accepted cast names the harmonize ability in both
+    `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### JumpStart
+
+- **`diverges`** — [JumpStart.offer](mechanics/JumpStart.md#JumpStart.offer) *(provisional statement)*
+  - Contract: the graveyard offer carries `abilityGrpId` `170` and no
+    `alternativeGrpId`.
+  - Leyline: offers jump-start on its alternative-cost rail, with the
+    jump-start ability in `alternativeGrpId`.
+  - Owner: `CastRails`
+  - Pinned by: `JumpStartLifecycleTest`
+- **`diverges`** — [JumpStart.accepted](mechanics/JumpStart.md#JumpStart.accepted) *(provisional statement)*
+  - Contract: the accepted cast carries `abilityGrpId` `170` and no
+    `alternativeGrpId`.
+  - Leyline: names the jump-start ability in `alternativeGrpId` and writes
+    `abilityGrpId` `0`.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### Madness
+
+- **`diverges`** — [Madness.discard-to-exile](mechanics/Madness.md#Madness.discard-to-exile)
+  - Contract: the discard moves the card Hand to Exile with `category`
+    `Discard`.
+  - Leyline: tags that transfer `CastSpell` when the card's spell-cast event
+    is matched before its discard event.
+  - Owner: `TransferCategoryResolver.categoryFromEvents`
+- **`diverges`** — [Madness.decline](mechanics/Madness.md#Madness.decline) *(provisional statement)*
+  - Contract: when a declined madness card goes to the graveyard, it moves
+    there with `category` `Put`.
+  - Leyline: tags that transfer `Resolve`, from the madness ability's
+    resolution event.
+  - Owner: `TransferCategoryResolver.categoryFromEvents`
+- **`diverges`** — [Madness.accepted](mechanics/Madness.md#Madness.accepted) *(provisional statement)*
+  - Contract: the accepted cast names the madness ability in both
+    `alternativeGrpId` and `abilityGrpId`.
+  - Leyline: writes `abilityGrpId` `0` whenever the cast ability equals the
+    alternative cost.
+  - Owner: `TransferAnnotations.castSpellEventAnnotations`
+
+#### ManifestDread
+
+- **`absent`** — [ManifestDread.manifest-transfer](mechanics/ManifestDread.md#ManifestDread.manifest-transfer) *(provisional statement)*
+  - Contract: the manifested card moves Library to Battlefield with
+    `category` `ManifestLike`.
+  - Leyline: has no `ManifestLike` transfer category, so the move carries
+    another category.
+  - Owner: `TransferCategoryResolver`
+
+#### Mutate
+
+- **`diverges`** — [Mutate.cast-marker](mechanics/Mutate.md#Mutate.cast-marker) *(provisional statement)*
+  - Contract: the mutate `CastingTimeOption` row carries no
+    `castAbilityGrpId`.
+  - Leyline: defaults `castAbilityGrpId` to the alternative cost, so the row
+    carries the mutate ability in both fields.
+  - Owner: `ZoneTransferDetector`
+
+#### Ninjutsu
+
+- **`absent`** — [Ninjutsu.source-revealed](mechanics/Ninjutsu.md#Ninjutsu.source-revealed)
+  - Contract: the GSM that commits the return cost creates a `RevealedCard`
+    and an `InstanceRevealedToOpponent` row for the ninjutsu card, and the
+    resolution deletes both.
+  - Leyline: publishes reveal rows only for Forge reveal events, and the Forge
+    ninjutsu ability has no reveal step, so the ninjutsu card stays hidden in
+    the hand while the ability is on the stack.
+  - Owner: `RevealStateContributor`
+
+#### OpeningHand
+
+- **`diverges`** — [OpeningHand.no-resolution-complete](mechanics/OpeningHand.md#OpeningHand.no-resolution-complete)
+  - Contract: the opening-hand put GSM carries `ResolutionStart` but no
+    `ResolutionComplete` for the opening-hand ability.
+  - Leyline: emits `ResolutionComplete` between the transfer and
+    `AbilityInstanceDeleted`.
+  - Pinned by: `OpeningHandLifecycleTest`, whose expected lifecycle order
+    includes the `ResolutionComplete`; update it with the fix.
+  - Owner: `TransferAnnotations`
+
+#### Overload
+
+- **`diverges`** — [Overload.option](mechanics/Overload.md#Overload.option)
+  - Contract: the overload `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
+  - Owner: `GameEventCollector`
+
+#### Prowess
+
+- **`diverges`** — [Prowess.no-resolution-start](mechanics/Prowess.md#Prowess.no-resolution-start)
+  - Contract: the resolution GSM of a prowess trigger carries
+    `ResolutionComplete` and no `ResolutionStart` for it.
+  - Leyline: emits `ResolutionStart` before `ResolutionComplete` for every
+    resolving triggered ability, prowess included.
+  - Owner: `AnnotationPipeline`
+
+#### Sneak
+
+- **`diverges`** — [Sneak.option](mechanics/Sneak.md#Sneak.option)
+  - Contract: a spell cast for its sneak cost carries `CastingTimeOption`
+    `type` `13` with `alternateCostGrpId` the sneak cost ability and no
+    `castAbilityGrpId`.
+  - Leyline: also writes `castAbilityGrpId` equal to the sneak cost ability.
+  - Pinned by: `SneakLifecycleTest`, which asserts the extra
+    `castAbilityGrpId` key; update it with the fix.
+  - Owner: `GameEventCollector`
+
+#### Spectacle
+
+- **`absent`** — [Spectacle.condition-row](mechanics/Spectacle.md#Spectacle.condition-row)
+  - Contract: a spectacle card in hand carries a `Spectacle`
+    `AbilityWordActive` row while an opponent has lost life this turn.
+  - Leyline: does not produce the row.
+  - Owner: `PersistentAbilityWordFeedBuilder`
+- **`diverges`** — [Spectacle.option](mechanics/Spectacle.md#Spectacle.option)
+  - Contract: the spectacle `CastingTimeOption` carries `type` `13` and
+    `alternateCostGrpId`, without `castAbilityGrpId`.
+  - Leyline: also sets `castAbilityGrpId` on the row.
+  - Owner: `GameEventCollector`
+
+#### Station
+
+- **`absent`** — [Station.threshold-on-entry](mechanics/Station.md#Station.threshold-on-entry)
+  - Contract: the GSM in which a station card resolves onto the Battlefield
+    creates one `StationLevelThreshold` row per striation, with `value` `0`.
+  - Leyline: publishes the rows only once the permanent has a charge counter,
+    so a station permanent that has never been stationed carries none.
+  - Owner: `AbilityWordScanner`
+
+#### Teamwork
+
+- **`diverges`** — [Teamwork.payment-card-id](mechanics/Teamwork.md#Teamwork.payment-card-id)
+  - Contract: the creature-payment `PayCostsReq` names, as `CardId`, the same
+    spell instance ID that the teamwork `CastingTimeOptionsReq` row names.
+  - Leyline: names a different stack instance ID from the one the option row
+    named.
+  - Pinned by: `TeamworkLifecycleTest`, which asserts that the payment
+    `CardId` differs from the option row's spell; update it with the fix.
+  - Owner: `DeferredCastCostPlanMaterializer`
+
+#### Training
+
+- **`diverges`** — [Training.condition-before-commit](mechanics/Training.md#Training.condition-before-commit)
+  - Contract: the `Training` `AbilityWordActive` row is shown while
+    attackers are being chosen and is deleted in the GSM that commits the
+    attack.
+  - Leyline: creates the row only from the committed attack, so it appears in
+    the commit GSM and never during attacker selection.
+  - Owner: `PersistentAbilityWordFeedBuilder`
+
+#### Unearth
+
+- **`absent`** — [Unearth.designation](mechanics/Unearth.md#Unearth.designation)
+  - Contract: the resolution GSM creates a persistent `Designation` with
+    `DesignationType` `26` on the returned permanent, with `source_grpid`
+    naming the card.
+  - Leyline: publishes no designation of type `26` for any card.
+  - Owner: `CardStateDesignations`
+
+#### Ward
+
+- **`diverges`** — [Ward.tax-prompt](mechanics/Ward.md#Ward.tax-prompt),
+  [Ward.tax-object](mechanics/Ward.md#Ward.tax-object)
+  - Contract: the ward tax is requested of the targeting player as a
+    mana-payment `PayCostsReq` with `promptId` `11` and `allowCancel`
+    `Continue`, whose `manaCost` names the targeting spell.
+  - Leyline: asks an `OptionalActionMessage` yes-or-no question instead and,
+    on yes, pays the cost by auto-tapping, so the player never chooses the
+    mana sources and no `PayCostsReq` is sent.
+  - Owner: `CostPaymentCoordinator.payOptionalManaCost`
 
 ## Leyline-defined shapes
 

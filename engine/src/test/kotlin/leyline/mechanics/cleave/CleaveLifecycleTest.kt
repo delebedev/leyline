@@ -36,6 +36,7 @@ private val PUZZLE =
 @FixturePinned
 class CleaveLifecycleTest :
     SessionTest({
+        // protocol: Cleave.cast-option
         session("cleaved Path of Peril uses alt-cost rail and applies full board wipe", puzzle = PUZZLE) {
             val pathGrpId = bridge.cardRepository.findGrpIdByName("Path of Peril")!!
             val cleaveAbilityGrpId =

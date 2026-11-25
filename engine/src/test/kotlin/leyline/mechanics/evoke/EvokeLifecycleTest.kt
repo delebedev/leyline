@@ -14,6 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class EvokeLifecycleTest :
     SessionTest({
+        // protocol: Evoke.normal-cast
         session(
             "ordinary cast stays on the battlefield without Evoke state",
             puzzle =

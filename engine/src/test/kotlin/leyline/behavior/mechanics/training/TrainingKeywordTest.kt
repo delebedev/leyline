@@ -84,6 +84,7 @@ class TrainingKeywordTest :
                     }
                 }
 
+            // protocol: Training.no-target
             assertSoftly {
                 trainingMarker.affectorId shouldBe hopefulIid
                 trainingMarker.affectedIdsList shouldContain bearIid

@@ -65,6 +65,7 @@ class TeamworkLifecycleTest :
                 }
             val ctoSpellIid = teamworkOption.affectedId
 
+            // protocol: Teamwork.option-row
             assertSoftly {
                 teamworkOption.affectorId shouldBe ctoSpellIid
                 teamworkOption.grpId shouldBe teamworkAbilityGrpId
@@ -120,6 +121,7 @@ class TeamworkLifecycleTest :
                 allMessages
                     .persistentAnnotationsOfType(AnnotationType.CastingTimeOption)
                     .filter { it.detailInt("type") == CastingTimeOptionType.AdditionalCost.number }
+            // protocol: Teamwork.paid-option
             annotations shouldHaveSize 1
 
             assertSoftly {

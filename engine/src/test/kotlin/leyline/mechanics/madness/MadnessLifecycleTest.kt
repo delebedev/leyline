@@ -86,6 +86,7 @@ class MadnessLifecycleTest :
             TestCardRegistry.ensureRegistered()
         }
 
+        // protocol: Madness.cast-marker
         test("madness cast path: discard outlet → exile → cast for {R} → resolve") {
             val h =
                 MatchFlowHarness(

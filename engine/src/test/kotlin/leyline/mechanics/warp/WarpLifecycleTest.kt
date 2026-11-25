@@ -70,6 +70,7 @@ class WarpLifecycleTest :
                     .flatMap { it.persistentAnnotationsList }
                     .firstOrNull { it.typeList.contains(AnnotationType.CastingTimeOption) }
 
+            // protocol: Warp.hand-option
             assertSoftly(cto) {
                 it shouldNotBe null
                 it!!.detailInt("type") shouldBe 13

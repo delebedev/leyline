@@ -74,6 +74,7 @@ class OpeningHandLifecycleTest :
                         }
                     }
 
+            // protocol: OpeningHand.accepted, OpeningHand.put-transfer
             assertSoftly {
                 human.battlefield.card("Leyline Axe").name shouldBe "Leyline Axe"
                 action.affectorId shouldBe 1

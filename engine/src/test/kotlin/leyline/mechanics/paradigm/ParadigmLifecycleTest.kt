@@ -111,6 +111,7 @@ class ParadigmLifecycleTest :
             val copyStackIid = copyCastAction.affectedIdsList.single()
             val copyTransfer = allAnnotations.first { it.isExileToStackParadigmCastTransfer(copyStackIid) }
             val triggerIid = copyTransfer.affectorId
+            // protocol: Paradigm.holder-persists, Paradigm.copy-transfer, Paradigm.copy-accepted
             assertSoftly {
                 allAnnotations
                     .count { it.isStackToExileParadigmTransfer() }
