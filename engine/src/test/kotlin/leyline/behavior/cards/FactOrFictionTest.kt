@@ -131,4 +131,53 @@ class FactOrFictionTest :
                 aiGraveyard shouldContain "Fact or Fiction"
             }
         }
+
+        session(
+            "Death or Glory: the caster separates their own graveyard creatures into two piles",
+            puzzleFile = "data/puzzles/death-or-glory-self-separation.pzl",
+        ) {
+            val creatures = setOf("Grizzly Bears", "Savannah Lions", "Hill Giant")
+            val req = castSpellUntilGroupReq("Death or Glory")
+            val names =
+                req.instanceIdsList.associateWith { id ->
+                    human
+                        .getZone(ForgeZoneType.Graveyard)
+                        .cards
+                        .single {
+                            bridge.instanceId(it) ==
+                                id
+                        }.name
+                }
+
+            assertSoftly {
+                allMessages.last { it.hasGroupReq() }.systemSeatIdsList shouldBe listOf(1)
+                req.groupType shouldBe GroupType.Arbitrary
+                req.context shouldBe GroupingContext.None_a0f6
+                req.groupSpecsList shouldHaveSize 2
+                names.values shouldContainExactlyInAnyOrder creatures
+            }
+
+            val pile1 = req.instanceIdsList.take(1).map(names::getValue)
+            val pile2 = req.instanceIdsList.drop(1).map(names::getValue)
+            respondToGroupReq(awayInstanceIds = req.instanceIdsList.drop(1), allInstanceIds = req.instanceIdsList)
+            passUntil { game().stackZone.isEmpty }.shouldBeTrue()
+
+            val exiled =
+                human
+                    .getZone(ForgeZoneType.Exile)
+                    .cards
+                    .map { it.name }
+                    .filter { it in creatures }
+            val returned =
+                human
+                    .getZone(ForgeZoneType.Battlefield)
+                    .cards
+                    .map { it.name }
+                    .filter { it in creatures }
+            assertSoftly {
+                listOf(pile1 to pile2, pile2 to pile1).any { (gone, back) ->
+                    gone.sorted() == exiled.sorted() && back.sorted() == returned.sorted()
+                } shouldBe true
+            }
+        }
     })

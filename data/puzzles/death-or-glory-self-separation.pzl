@@ -1,0 +1,28 @@
+# Design Narrative
+# Mechanic: The player separates their own cards into two piles, and the opponent chooses one.
+# Forcing: Death or Glory is the only spell in hand and five Plains pay for it.
+# AI behavior: The AI chooses which pile is exiled; the other pile returns to the battlefield.
+# Failure modes:
+#   PASS = the player splits the three graveyard creatures, one pile is exiled and the other returns.
+#   FAIL = no pile request reaches the player, or the piles do not match the submitted split.
+# Card roles:
+#   Death or Glory — the self-separated pile effect under test.
+#   Grizzly Bears, Savannah Lions, Hill Giant — the creature cards to separate.
+[metadata]
+Name:Death or Glory (self separation)
+Goal:Win
+Turns:4
+Difficulty:Tutorial
+Description:Cast Death or Glory and separate the creature cards in your graveyard into two piles.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Death or Glory
+humanbattlefield=Plains;Plains;Plains;Plains;Plains
+humangraveyard=Grizzly Bears;Savannah Lions;Hill Giant
+humanlibrary=Plains;Plains;Plains
+ailibrary=Island;Island;Island
