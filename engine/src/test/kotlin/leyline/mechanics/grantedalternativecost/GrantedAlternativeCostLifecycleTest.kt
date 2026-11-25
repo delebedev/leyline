@@ -1,11 +1,17 @@
 package leyline.mechanics.grantedalternativecost
 
+import forge.game.card.CardLists
+import forge.game.card.CardPredicates
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.inspectors.forAll
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import leyline.testkit.SessionTest
+import leyline.testkit.beInGraveyardOf
+import leyline.testkit.beOnBattlefieldOf
 import leyline.testkit.detailInt
 import leyline.tooling.headless.MatchFlowHarness
 import wotc.mtgo.gre.external.messaging.Messages.Action
@@ -103,13 +109,13 @@ class GrantedAlternativeCostLifecycleTest :
                     .flatMap { it.gameStateMessage.persistentAnnotationsList }
                     .single { it.typeList.contains(AnnotationType.CastingTimeOption) }
             assertSoftly {
-                human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Wind Drake"
-                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContainExactlyInAnyOrder listOf("Opt")
-                human
-                    .getZone(ZoneType.Battlefield)
-                    .cards
-                    .filter { it.name == "Island" }
-                    .none { it.isTapped } shouldBe true
+                "Wind Drake" should beOnBattlefieldOf(human)
+                "Opt" should beInGraveyardOf(human)
+                "Island" should beOnBattlefieldOf(human, count = 3)
+                CardLists.filter(human.getCardsIn(ZoneType.Battlefield), CardPredicates.nameEquals("Island")).forAll {
+                    it.isTapped shouldBe
+                        false
+                }
                 castingTimeOption.detailInt("alternateCostGrpId") shouldBe offer.alternativeGrpId
             }
         }

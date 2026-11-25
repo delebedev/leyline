@@ -87,4 +87,32 @@ class GrantedBlitzOfferTest :
                 human.getZone(ZoneType.Hand).size() shouldBe handBefore + 1
             }
         }
+
+        val commanderPuzzle =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=40
+            AILife=40
+
+            humancommand=Etali, Primal Conqueror|IsCommander
+            humanbattlefield=Henzie "Toolbox" Torre;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+            humanlibrary=Lightning Bolt;Mountain;Mountain;Mountain
+            ailibrary=Lightning Bolt;Island;Island;Island
+            """.trimIndent()
+
+        session("a commander keeps its ordinary cast beside granted Blitz", puzzle = commanderPuzzle) {
+            val iid = instanceIdOf("Etali, Primal Conqueror", zone = ZoneType.Command)
+            val etali =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .filter { it.actionType == ActionType.Cast && it.instanceId == iid }
+            val blitz = etali.single { it.alternativeGrpId != 0 }
+            assertSoftly {
+                etali.filter { it.alternativeGrpId == 0 } shouldHaveSize 1
+                blitz should beAltCostOffer(blitz.alternativeGrpId)
+                blitz should haveManaCost(generic = 5, red = 2)
+            }
+        }
     })

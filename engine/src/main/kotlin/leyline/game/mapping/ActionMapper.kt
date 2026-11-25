@@ -932,7 +932,16 @@ object ActionMapper {
             actionBuilder.setAlternativeSourceZcid(instanceId)
         }
 
-        val grantedAlternativeGrpId = if (rail == null) GrantedAlternativeCosts.abilityGrpId(sa, player, bridge) else null
+        // A cost granted by another object (an AlternativeCost static, or a
+        // keyword such as Blitz added by a static) has no rail and no row on
+        // the card itself; the granting object's row identifies the offer.
+        val grantedAlternativeGrpId =
+            if (rail == null) {
+                GrantedAlternativeCosts.abilityGrpId(sa, player, bridge)
+                    ?: bridge.cardRepository.grantedKeywordAbilityGrpId(sa)?.takeIf { it > 0 }
+            } else {
+                null
+            }
         when {
             rail != null -> configureZoneCastRailShape(actionBuilder, sa, rail, bound, player)
             grantedAlternativeGrpId != null -> {
