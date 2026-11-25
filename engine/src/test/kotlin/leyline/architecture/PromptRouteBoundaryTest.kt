@@ -250,7 +250,7 @@ private val promptRouteFamilies =
             prepareMethod = "prepareGroupingWindow",
             runtime = "$COORD.MatchGroupingInteractionRuntime",
             routeType = ResolvedPromptRoute.Grouping::class,
-            semantics = listOf(PromptSemantic.GroupingSurveil, PromptSemantic.GroupingScry),
+            semantics = listOf(PromptSemantic.GroupingSurveil, PromptSemantic.GroupingScry, PromptSemantic.GroupingPiles),
         ),
         PromptRouteFamily(
             name = "CardSelect",

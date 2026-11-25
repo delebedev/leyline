@@ -1,0 +1,28 @@
+# Design Narrative
+# Mechanic: The opponent casts Fact or Fiction, and the player separates the revealed cards into two piles.
+# Forcing: Fact or Fiction is the AI's only spell and its four Islands pay for it in its main phase.
+# AI behavior: The AI casts Fact or Fiction, then chooses one of the player's piles.
+# Failure modes:
+#   PASS = the player is asked to split the five revealed cards, and the AI's hand gains exactly one of those piles.
+#   FAIL = no pile request reaches the player and the AI takes all five cards.
+# Card roles:
+#   Fact or Fiction — the pile effect under test.
+#   Lightning Bolt, Counterspell, Negate, Brainstorm, Ponder — the five revealed cards.
+[metadata]
+Name:Fact or Fiction (AI caster)
+Goal:Survive
+Turns:4
+Difficulty:Tutorial
+Description:The opponent casts Fact or Fiction. Separate the top five cards of its library into two piles.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aihand=Fact or Fiction
+aibattlefield=Island;Island;Island;Island
+ailibrary=Lightning Bolt;Counterspell;Negate;Brainstorm;Ponder;Forest;Forest;Forest

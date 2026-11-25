@@ -41,6 +41,8 @@ class PromptRouteMatrixTest :
                         ResolvedPromptRoute.Grouping(PromptSemantic.GroupingSurveil, GroupingContext.Surveil),
                     PromptSemantic.GroupingScry to
                         ResolvedPromptRoute.Grouping(PromptSemantic.GroupingScry, GroupingContext.Scry_a0f6),
+                    PromptSemantic.GroupingPiles to
+                        ResolvedPromptRoute.Grouping(PromptSemantic.GroupingPiles, GroupingContext.None_a0f6),
                     PromptSemantic.ModalChoice to ResolvedPromptRoute.ModalChoice(PromptSemantic.ModalChoice),
                     PromptSemantic.VoteChoice to ResolvedPromptRoute.ModalChoice(PromptSemantic.VoteChoice),
                     PromptSemantic.SelectNLegendRule to

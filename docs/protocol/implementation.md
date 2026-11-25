@@ -775,12 +775,10 @@ grouped by family, then by entity.
     card.
   - Leyline: sends the `CardId` parameter with no value.
   - Owner: `GroupingWindowMaterializer`
-- **`absent`** — [Piles](prompts/GroupReq.md#uses)
-  - Contract: effects that separate cards into piles use a `GroupReq` with
-    `GroupType_Arbitrary` and no `context`.
-  - Leyline: sends `GroupReq` only for scry, surveil and the London
-    mulligan.
-  - Owner: `GroupingWindowCapture`
+- **`compat`** — [Piles](prompts/GroupReq.md#uses), prompt
+  - Contract: the prompt ID of a piles request is specific to the effect.
+  - Leyline: uses `11320` for every piles request.
+  - Owner: `GroupingWindowMaterializer`
 
 #### IntermissionReq
 

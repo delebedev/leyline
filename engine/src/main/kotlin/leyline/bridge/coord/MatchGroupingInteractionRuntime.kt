@@ -14,9 +14,13 @@ import leyline.game.PendingPromptCut
 import leyline.game.PromptMaterializationDiagnostic
 import wotc.mtgo.gre.external.messaging.Messages.ClientMessageType
 import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
-/** Exact Scry and Surveil lifecycle beneath [MatchCutCoordinator]. */
+/**
+ * Exact Scry, Surveil and two-pile lifecycle beneath [MatchCutCoordinator]. Only scry and
+ * surveil await a final arrangement; a pile split completes with the response.
+ */
 internal class MatchGroupingInteractionRuntime(
     private val owner: MatchCutCoordinator,
     settled: SettledPromptOwner,
@@ -245,13 +249,13 @@ internal class MatchGroupingInteractionRuntime(
             this,
         )
 
-    private fun finalization(pending: Window): Finalization =
+    private fun finalization(pending: Window): Finalization? =
         Finalization(
             pending.published.interactionId,
             pending.value.context,
             pending.instanceIdsByCardId.keys,
             pending.instanceIdsByCardId,
-        )
+        ).takeIf { pending.value.context != GroupingContext.None_a0f6 }
 
     private fun clearFamilyStateLocked() {
         finalization = null

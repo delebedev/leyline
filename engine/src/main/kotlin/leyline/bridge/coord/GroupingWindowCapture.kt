@@ -8,7 +8,7 @@ import leyline.bridge.handoff.ResolvedPromptRoute
 import leyline.bridge.types.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
-/** Engine-thread capture for one immutable Scry or Surveil grouping window. */
+/** Engine-thread capture for one immutable Scry, Surveil or two-pile grouping window. */
 internal object GroupingWindowCapture {
     data class Initial(
         val value: GroupingWindowValue,
@@ -20,11 +20,12 @@ internal object GroupingWindowCapture {
         candidateHandles: List<Card>,
     ): Initial {
         val route = request.route as? ResolvedPromptRoute.Grouping ?: error("Grouping route required")
-        check(route.context == GroupingContext.Scry_a0f6 || route.context == GroupingContext.Surveil) {
-            "Only Scry and Surveil Grouping routes are coordinator-owned"
+        check(route.context in COORDINATOR_CONTEXTS) {
+            "Only Scry, Surveil and pile Grouping routes are coordinator-owned"
         }
         check(candidateHandles.isNotEmpty()) { "Grouping requires at least one candidate" }
-        val singleCardChoice = candidateHandles.size == 1
+        // A single scry or surveil card is a binary choice; a pile split always offers every card.
+        val singleCardChoice = candidateHandles.size == 1 && route.context != GroupingContext.None_a0f6
         if (singleCardChoice) {
             check(request.options.size == 2 && request.min == 1 && request.max == 1) {
                 "Single-card Grouping requires one binary choice"
@@ -59,4 +60,7 @@ internal object GroupingWindowCapture {
             handlesByOption = candidateHandles.mapIndexed { index, card -> index to card }.toMap(),
         )
     }
+
+    private val COORDINATOR_CONTEXTS =
+        setOf(GroupingContext.Scry_a0f6, GroupingContext.Surveil, GroupingContext.None_a0f6)
 }

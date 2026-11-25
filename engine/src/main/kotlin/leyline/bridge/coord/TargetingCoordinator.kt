@@ -381,6 +381,7 @@ class TargetingCoordinator(
         max: Int,
         isOptional: Boolean,
     ): CardCollectionView {
+        if (isPileSeparation(sa, sourceList, min, max)) return separatePiles(sourceList, title)
         val reveal = bridge.journal.activeRevealEntry()
         val candidateRefs = buildCandidateRefs(sourceList)
         val plan =
@@ -1050,6 +1051,34 @@ class TargetingCoordinator(
             if (toTop.isEmpty()) null else toTop,
             if (toAway.isEmpty()) null else toAway,
         )
+    }
+
+    /** Forge's TwoPiles separator answers pile 1 as a free subset of every card in the pool. */
+    private fun isPileSeparation(
+        sa: SpellAbility?,
+        sourceList: CardCollectionView,
+        min: Int,
+        max: Int,
+    ): Boolean = sa?.api == ApiType.TwoPiles && sourceList.isNotEmpty() && min == 0 && max == sourceList.size
+
+    /** Returns pile 1: the cards the separator puts in the first group. */
+    private fun separatePiles(
+        pool: CardCollectionView,
+        title: String?,
+    ): CardCollectionView {
+        val request =
+            PromptRequest(
+                promptType = "choose_cards",
+                message = title ?: "Divide cards into two piles",
+                options = pool.map { it.name },
+                min = 0,
+                max = pool.size,
+                defaultIndex = 0,
+                candidateRefs = buildCandidateRefs(pool),
+                route = PromptRouteResolver.resolve(PromptSemantic.GroupingPiles),
+                groupingSource = groupingSource(),
+            )
+        return CardCollection(bridge.requestGrouping(request, pool.toList()).topHandles)
     }
 
     private fun groupingSource(): GroupingSourceValue? {

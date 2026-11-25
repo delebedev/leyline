@@ -797,6 +797,9 @@ enum class PromptSemantic {
     TargetSelection,
     GroupingSurveil,
     GroupingScry,
+
+    /** Separate cards into two piles for a two-pile effect. */
+    GroupingPiles,
     ModalChoice,
 
     /** Named vote options presented through the modal compatibility envelope. */
