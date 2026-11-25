@@ -69,4 +69,44 @@ class GrantedAlternativeCostLifecycleTest :
                 goblinCost shouldBe goblinOffer.alternativeGrpId
             }
         }
+
+        val commanderPuzzle =
+            """
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=40
+            AILife=40
+
+            humanbattlefield=Dream Halls;Island;Island;Island
+            humanhand=Opt
+            humancommand=Wind Drake|IsCommander
+            humanlibrary=Island;Island;Island
+            ailibrary=Forest;Forest;Forest
+            """.trimIndent()
+
+        session("a commander cast through Dream Halls discards a card and leaves the lands untapped", puzzle = commanderPuzzle) {
+            val drakeIid = instanceIdOf("Wind Drake", zone = ZoneType.Command)
+            val offer =
+                allMessages
+                    .last { it.hasActionsAvailableReq() }
+                    .actionsAvailableReq.actionsList
+                    .single { it.actionType == ActionType.Cast && it.instanceId == drakeIid && it.alternativeGrpId != 0 }
+            val castStart = messageSnapshot()
+            submitAction(offer)
+            val optIid = human.hand.iid("Opt")
+            allMessages.last().selectNReq.idsList shouldContain optIid
+            respondToSelectN(listOf(optIid))
+            passUntilResolved(maxPasses = 20)
+            val castingTimeOption =
+                messagesSince(castStart)
+                    .filter { it.hasGameStateMessage() }
+                    .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                    .single { it.typeList.contains(AnnotationType.CastingTimeOption) }
+            assertSoftly {
+                human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Wind Drake"
+                human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContainExactlyInAnyOrder listOf("Opt")
+                human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Island" }.none { it.isTapped } shouldBe true
+                castingTimeOption.detailInt("alternateCostGrpId") shouldBe offer.alternativeGrpId
+            }
+        }
     })
