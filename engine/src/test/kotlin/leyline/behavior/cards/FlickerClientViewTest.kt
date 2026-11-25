@@ -22,15 +22,18 @@ class FlickerClientViewTest :
                 allMessages.indexOfFirst { message ->
                     message.hasGameStateMessage() &&
                         message.gameStateMessage.annotationsList.any {
-                            AnnotationType.ZoneTransfer_af5a in it.typeList && it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.BATTLEFIELD
+                            AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                                it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.BATTLEFIELD
                         }
                 }
             (returnIndex >= 0).shouldBeTrue()
             val returnedIid =
                 allMessages[returnIndex]
                     .gameStateMessage.annotationsList
-                    .first { AnnotationType.ZoneTransfer_af5a in it.typeList && it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.BATTLEFIELD }
-                    .affectedIdsList
+                    .first {
+                        AnnotationType.ZoneTransfer_af5a in it.typeList &&
+                            it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.BATTLEFIELD
+                    }.affectedIdsList
                     .single()
             val client = ClientAccumulator().apply { processAll(allMessages.take(returnIndex + 1)) }
             val battlefield = client.zones.getValue(ZoneIds.BATTLEFIELD).objectInstanceIdsList
