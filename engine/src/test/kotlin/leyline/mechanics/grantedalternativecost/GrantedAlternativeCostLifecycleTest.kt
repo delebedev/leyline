@@ -105,7 +105,11 @@ class GrantedAlternativeCostLifecycleTest :
             assertSoftly {
                 human.getZone(ZoneType.Battlefield).cards.map { it.name } shouldContain "Wind Drake"
                 human.getZone(ZoneType.Graveyard).cards.map { it.name } shouldContainExactlyInAnyOrder listOf("Opt")
-                human.getZone(ZoneType.Battlefield).cards.filter { it.name == "Island" }.none { it.isTapped } shouldBe true
+                human
+                    .getZone(ZoneType.Battlefield)
+                    .cards
+                    .filter { it.name == "Island" }
+                    .none { it.isTapped } shouldBe true
                 castingTimeOption.detailInt("alternateCostGrpId") shouldBe offer.alternativeGrpId
             }
         }
