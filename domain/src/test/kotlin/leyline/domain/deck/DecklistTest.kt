@@ -134,9 +134,14 @@ class DecklistTest :
                         "Forest" to DecklistSection.Main,
                     )
             }
-            parseDecklist("Commander\n\n1 Empress Galina").entries.single().section shouldBe DecklistSection.Commander
-            parseDecklist("Companion\n1 Lurrus of the Dream-Den\n\n1 Forest").entries.last().section shouldBe
-                DecklistSection.Main
+            assertSoftly {
+                parseDecklist("Commander (1)\n1x Empress Galina (cmr) 1 [Commander{top}]\nCreature (1)\n1 Grizzly Bears")
+                    .entries
+                    .map { it.section } shouldBe listOf(DecklistSection.Commander, DecklistSection.Main)
+                parseDecklist("Commander\n\n1 Empress Galina").entries.single().section shouldBe DecklistSection.Commander
+                parseDecklist("Companion\n1 Lurrus of the Dream-Den\n\n1 Forest").entries.last().section shouldBe
+                    DecklistSection.Main
+            }
         }
 
         test("inline category tags are dropped and section tags move the card") {

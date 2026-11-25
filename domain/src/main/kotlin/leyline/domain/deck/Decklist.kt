@@ -153,7 +153,7 @@ private class DecklistReader {
         // A card's own section tag overrides the block it sits in.
         if (tagged.excluded || tagged.section == null && excluded) return
         entries += entry.copy(section = tagged.section ?: section)
-        if (tagged.section == null) entriesInSection++
+        entriesInSection++
     }
 
     private fun enter(
