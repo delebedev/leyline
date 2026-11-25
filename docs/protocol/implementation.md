@@ -247,6 +247,7 @@ Leyline cannot play at all is `absent`.
 | [CollectEvidence](mechanics/CollectEvidence.md) | `PersistentAbilityWordFeedBuilder`, `PersistentFeedFactsCapture`, `TransferCategoryResolver` | `implemented` |
 | [Companion](mechanics/Companion.md) | `CompanionAction`, `ActionMapper`, `PersistentFeedBuilder` | `implemented` |
 | [Convoke](mechanics/Convoke.md) | `ManaSourcePaymentMaterializer`, `TransferAnnotations`, `PersistentAbilityWordFeedBuilder`, `ConvokeContributor` | `implemented` |
+| CraftWith | `ActivatedActionEmitter`, `PlayerController` | `implemented` |
 | [Crew](mechanics/Crew.md) | `VehicleAttachContributor`, `AnnotationBuilder.crewedThisTurn`, `OneShotPayCostsMaterializer` | `implemented` |
 | [Cycling](mechanics/Cycling.md) | `ActivatedActionEmitter`, `TransferCategoryResolver`, `ZoneMoveLedger` | `implemented` |
 | Dash | `CastRails`, `BoundCard` | `implemented` |
