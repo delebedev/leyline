@@ -20,6 +20,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
 import leyline.game.mapping.ZoneIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -290,7 +291,11 @@ class MatchCardSelectInteractionRuntimeTest :
             test("${case.semantic}/${case.kind} preserves its exact SelectN envelope and handle") {
                 val board = startPuzzleAtMain1(puzzle)
                 val coordinator = board.bridge.cutCoordinator
+                coordinator.registerViewer(SeatId(2))
+                coordinator.registerViewer(SeatId(3), ProjectionViewerRole.Observer)
                 coordinator.drain(SeatId(1))
+                coordinator.drain(SeatId(2))
+                coordinator.drain(SeatId(3))
                 val handles =
                     when {
                         case.kind == CardSelectKind.ManifestDread ||
@@ -401,6 +406,15 @@ class MatchCardSelectInteractionRuntimeTest :
                         exposed.map { it.instanceId } shouldContainExactly req.idsList
                         exposed.map { it.zoneId } shouldContainExactly handles.map(::projectedZoneId)
                         exposed.all { it.visibility == Visibility.Private && it.viewersList == listOf(1) } shouldBe true
+                        listOf(SeatId(2), SeatId(3)).forEach { viewer ->
+                            coordinator
+                                .drain(viewer)
+                                .flatten()
+                                .filter { it.hasGameStateMessage() }
+                                .flatMap { it.gameStateMessage.gameObjectsList }
+                                .filter { it.instanceId in req.idsList }
+                                .shouldBeEmpty()
+                        }
                     }
                     if (case.kind == CardSelectKind.ResolutionMapped) {
                         req.unfilteredIdsList shouldContainExactly req.idsList

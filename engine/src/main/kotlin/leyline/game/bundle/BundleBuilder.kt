@@ -1837,9 +1837,13 @@ class BundleBuilder(
                 game,
                 counter,
                 routes,
-                ViewerProjectionIntent.of(
-                    privateCardPrompt = privatePrompt,
-                ),
+                intentForViewer = { viewer ->
+                    // Private candidates reach only the choosing player's state.
+                    ViewerProjectionIntent.of(
+                        privateCardPrompt =
+                            privatePrompt?.takeIf { viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player },
+                    )
+                },
             )
         return finishSettledPrompt(
             frame,
