@@ -4,8 +4,10 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.game.mapping.ZoneIds
 import leyline.testkit.ClientAccumulator
 import leyline.testkit.MatchFlowHarness
@@ -26,7 +28,7 @@ class FlickerClientViewTest :
                                 it.detail("zone_dest")?.getValueInt32(0) == ZoneIds.BATTLEFIELD
                         }
                 }
-            (returnIndex >= 0).shouldBeTrue()
+            returnIndex shouldBeGreaterThanOrEqual 0
             val returnedIid =
                 allMessages[returnIndex]
                     .gameStateMessage.annotationsList
@@ -38,7 +40,7 @@ class FlickerClientViewTest :
             val client = ClientAccumulator().apply { processAll(allMessages.take(returnIndex + 1)) }
             val battlefield = client.zones.getValue(ZoneIds.BATTLEFIELD).objectInstanceIdsList
             assertSoftly {
-                (returnedIid != originalIid).shouldBeTrue()
+                returnedIid shouldNotBe originalIid
                 battlefield shouldContain returnedIid
                 battlefield shouldNotContain originalIid
                 client.objects[returnedIid].shouldNotBeNull().zoneId shouldBe ZoneIds.BATTLEFIELD
