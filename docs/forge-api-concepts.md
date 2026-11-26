@@ -114,7 +114,8 @@ Multiple-card effect and reveal-from-hand callbacks use the resolution card-sele
 Flat library searches retain same-owner graveyard cards when Forge offers both
 zones. The full library remains private to the chooser, while the graveyard
 retains its public visibility. A reveal-backed choice may similarly retain
-public graveyard candidates alongside the exact revealed hand. Neither route
+public-zone candidates, such as graveyard cards or a targeted permanent,
+alongside the exact revealed hand. Neither route
 admits unrevealed hand cards or invents additional legal candidates.
 
 ### Combat damage assignment
