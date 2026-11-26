@@ -12,6 +12,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.bridge.handoff.PromptSemantic
+import leyline.bridge.handoff.ResolutionAbilityShape
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 
@@ -149,6 +150,21 @@ class ChooseCardsForEffectPlannerTest :
                     .plan(context(null, optionCount = 0, candidateRefs = emptyList()))
                     .semantic shouldBe PromptSemantic.Generic
             }
+        }
+
+        test("ChooseCard among library cards plans a private resolution card choice") {
+            val sa = abilitySub(api = ApiType.ChooseCard, params = mapOf("ChoiceZone" to "Library"))
+
+            val plan = ChooseCardsForEffectPlanner.plan(context(sa, candidateRefs = libraryRefs))
+            assertSoftly(plan) {
+                semantic shouldBe PromptSemantic.SelectNResolution
+                candidateRefsPolicy shouldBe CandidateRefsPolicy.Selectable
+                sourceIdPolicy shouldBe SourceIdPolicy.HostCard
+                resolutionRouteInput!!.abilityShape shouldBe ResolutionAbilityShape.LibraryChoice
+            }
+            ChooseCardsForEffectPlanner
+                .plan(context(abilitySub(api = ApiType.Pump), candidateRefs = libraryRefs))
+                .semantic shouldBe PromptSemantic.Generic
         }
 
         test("active reveal takes precedence over ordinary visible choice") {

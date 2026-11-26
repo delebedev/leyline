@@ -52,7 +52,7 @@ internal object CardSelectWindowCapture {
             check(request.defaultIndex == 0) { "Manifest Dread default must select the first candidate" }
             check(candidateHandles.all { it.isInZone(ZoneType.Library) }) { "Manifest Dread candidates must be in library" }
         }
-        if (route.descriptor.kind == CardSelectKind.Resolution) {
+        if (route.descriptor.kind == CardSelectKind.Resolution || route.descriptor.kind == CardSelectKind.LibraryChoice) {
             check(request.sourceEntityId != null) { "Resolution card choice requires a card source" }
             check(candidateHandles.all { it.isInZone(ZoneType.Library) }) {
                 "Resolution card choice candidates must be in library"
