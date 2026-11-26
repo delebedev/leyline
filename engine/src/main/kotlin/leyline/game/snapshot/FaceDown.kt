@@ -36,8 +36,10 @@ object FaceDown {
             card.isInZone(ZoneType.Battlefield)
 
     /**
-     * A card cast face down for morph or megamorph. Forge's face-down state
-     * drops the printed keywords, so the test reads the original state.
+     * A face-down permanent with morph or megamorph, however it was turned
+     * face down; it can turn face up for its morph cost. Manifested and
+     * cloaked cards keep their own kinds. Forge's face-down state drops the
+     * printed keywords, so the test reads the original state.
      */
     private fun isMorph(card: Card): Boolean {
         if (!card.isFaceDown || card.isManifested || card.isCloaked) return false
