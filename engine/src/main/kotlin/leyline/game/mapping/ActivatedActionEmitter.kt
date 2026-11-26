@@ -204,6 +204,39 @@ internal object ActivatedActionEmitter {
             if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             identity.uniqueAbilityId?.let(actionBuilder::setUniqueAbilityId)
 
+            val fixedMana = if (hasDeferredMana) emptyList() else fixedManaProduced(sa)
+            if (fixedMana.size > 1) {
+                // An ability that makes all of its mana at once offers that mana as one option, not a color choice.
+                val counts = fixedMana.groupingBy { it }.eachCount()
+                val option = ManaPaymentOption.newBuilder()
+                val selected = ManaSelectionOption.newBuilder()
+                for ((idx, entry) in counts.entries.withIndex()) {
+                    val manaInfo =
+                        ManaInfo
+                            .newBuilder()
+                            .setManaId(INITIAL_MANA_ID + idx)
+                            .setColor(entry.key)
+                            .setSrcInstanceId(instanceId)
+                            .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                            .setAbilityGrpId(abilityGrpId)
+                            .setCount(entry.value)
+                    if (card.type.isSnow) {
+                        manaInfo.addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.FromSnow))
+                    }
+                    option.addMana(manaInfo)
+                    selected.addMana(ManaColorCount.newBuilder().setColor(entry.key).setCount(entry.value))
+                }
+                actionBuilder.addManaPaymentOptions(option)
+                actionBuilder.addManaSelections(
+                    ManaSelection
+                        .newBuilder()
+                        .setInstanceId(instanceId)
+                        .setAbilityGrpId(abilityGrpId)
+                        .addOptions(selected),
+                )
+                return@mapNotNull ManaAction(actionBuilder.build(), abilityIndex, sa)
+            }
+
             for ((idx, manaColor) in colors.withIndex()) {
                 val manaInfo =
                     ManaInfo
@@ -340,6 +373,23 @@ internal object ActivatedActionEmitter {
             existing.additionalAbilityLists.isEmpty()
 
     private fun Map<String, String>.withoutSecondaryMarker(): Map<String, String> = this - "Secondary"
+
+    /**
+     * Every mana a fixed-output ability makes, such as `{W}{B}` for a Signet or `{C}{C}` for Sol Ring.
+     * Empty when the ability chooses its color.
+     */
+    private fun fixedManaProduced(sa: SpellAbility): List<ManaColor> {
+        if (sa.api == ApiType.ManaReflected) return emptyList()
+        val mana = sa.manaPart ?: return emptyList()
+        if (mana.isComboMana || mana.origProduced == "Any") return emptyList()
+        val produced =
+            mana.origProduced.split(" ").filter { it.isNotBlank() }.map {
+                ActionManaCosts.producedToManaColor(it)
+                    ?: return emptyList()
+            }
+        val amount = AbilityUtils.calculateAmount(sa.hostCard, sa.getParamOrDefault("Amount", "1"), sa)
+        return if (amount < 1) emptyList() else List(amount) { produced }.flatten()
+    }
 
     /** An unrestricted color choice publishes five colors, never generic or colorless mana. */
     fun producedManaColors(sa: forge.game.spellability.SpellAbility): List<ManaColor> {

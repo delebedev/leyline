@@ -19,6 +19,7 @@ import leyline.game.seedDiffBaseline
 import leyline.game.snapshot.GsmSnapshot
 import leyline.testkit.BoardTest
 import leyline.testkit.ClientAccumulator
+import leyline.testkit.TestCardRegistry
 import leyline.testkit.annotation
 import leyline.testkit.assertLimboContains
 import leyline.testkit.detailInt
@@ -283,6 +284,49 @@ class LandManaTest :
                 selection.optionsList.map { it.selectedColor } shouldContainExactlyInAnyOrder colors
                 selection.optionsList
                     .map { it.manaList.single().color } shouldContainExactlyInAnyOrder colors
+            }
+        }
+
+        // Orzhov Signet makes {W}{B} together; Sol Ring makes {C}{C}.
+        for ((source, mana) in listOf(
+            "Orzhov Signet" to listOf(ManaColor.White_afc9 to 1, ManaColor.Black_afc9 to 1),
+            "Sol Ring" to listOf(ManaColor.Colorless_afc9 to 2),
+        )) {
+            test("$source ActivateMana offers all of its mana as one option") {
+                TestCardRegistry.ensureCardRegistered(source)
+                val board =
+                    startWithBoard { _, human, _ ->
+                        addCard("Wastes", human, ZoneType.Battlefield)
+                        addCard(source, human, ZoneType.Battlefield)
+                    }
+                val sourceId =
+                    board.instanceId(
+                        board.human
+                            .getZone(ZoneType.Battlefield)
+                            .cards
+                            .first { it.name == source }
+                            .id,
+                    )
+
+                val action =
+                    ActionMapper
+                        .buildFromSnapshot(1, GsmSnapshot.capture(board.game, board.bridge, "test", 0), board.bridge)
+                        .ofType(ActionType.ActivateMana)
+                        .single { it.instanceId == sourceId }
+
+                assertSoftly {
+                    action.manaPaymentOptionsList
+                        .single()
+                        .manaList
+                        .map { it.color to it.count } shouldBe mana
+                    val selection = action.manaSelectionsList.single()
+                    selection.selectionCount shouldBe 0
+                    selection.optionsList.single().selectedColor shouldBe ManaColor.None_afc9
+                    selection.optionsList
+                        .single()
+                        .manaList
+                        .map { it.color to it.count } shouldBe mana
+                }
             }
         }
 

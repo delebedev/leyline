@@ -51,6 +51,20 @@ manaSelections
     [1] selectedColor = Green, mana = [{ color = Green, count = 1 }]
 ```
 
+An ability that makes several mana at once, such as `{G}{G}` or a Signet's
+`{W}{B}`, is not a color choice. Its one payment option lists every mana it
+makes, with a count per color, and its selection has one option carrying the
+same mana, with no `selectedColor` and no `selectionCount`:
+
+```text
+manaPaymentOptions
+  [0] mana = [{ color = White, count = 1 }, { color = Black, count = 1 }]
+manaSelections
+  instanceId = <source>, abilityGrpId = <ability>
+  options
+    [0] mana = [{ color = White, count = 1 }, { color = Black, count = 1 }]
+```
+
 ## Lifecycle
 
 1. The client submits a `PerformActionResp` carrying an `ActivateMana` action
@@ -80,6 +94,7 @@ manaSelections
 |---|---|
 | One row, one color | A basic land or another fixed-color source. |
 | One row, several color options | One mana ability that makes one of several colors. |
+| One row, one option with several mana | One mana ability that makes all of that mana at once. |
 | Several rows on one source | The source has several mana abilities. |
 | `FloatMana` | A request-rail affordance; the mana itself still comes from `ActivateMana`. |
 | `Activate` | A non-mana activated ability, which uses the stack. |
