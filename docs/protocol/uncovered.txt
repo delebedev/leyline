@@ -437,9 +437,7 @@ Special.foretell-plot
 Special.offer
 Special_TurnFaceUp.accepted
 Special_TurnFaceUp.accepted-ability
-Special_TurnFaceUp.keeps-instance
 Special_TurnFaceUp.no-cast-fields
-Special_TurnFaceUp.offer
 Special_TurnFaceUp.request-identity
 Special_TurnFaceUp.turn-transient
 Spectacle.accepted

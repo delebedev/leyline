@@ -286,7 +286,7 @@ object ObjectMapper {
             val hasIntrinsicWard =
                 when (cardSnap.faceDownKind) {
                     leyline.game.snapshot.FaceDownKind.Cloak, leyline.game.snapshot.FaceDownKind.Disguise -> true
-                    leyline.game.snapshot.FaceDownKind.ManifestDread, null -> false
+                    leyline.game.snapshot.FaceDownKind.ManifestDread, leyline.game.snapshot.FaceDownKind.Morph, null -> false
                 }
             return cardProto
                 .buildFaceDownObjectInfo(cardSnap.grpId, hasIntrinsicWard, extrinsicKws)

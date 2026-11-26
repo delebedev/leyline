@@ -369,7 +369,13 @@ class StateProjectionCompilerVisibilityTest :
                                 obj.subtypesList shouldBe emptyList()
                                 obj.colorList shouldBe emptyList()
                                 obj.uniqueAbilitiesList.map { it.grpId } shouldBe
-                                    if (kind == FaceDownKind.ManifestDread) emptyList() else listOf(KeywordAbilityIds.WARD_TWO)
+                                    if (kind == FaceDownKind.ManifestDread ||
+                                        kind == FaceDownKind.Morph
+                                    ) {
+                                        emptyList()
+                                    } else {
+                                        listOf(KeywordAbilityIds.WARD_TWO)
+                                    }
                             }
                         }
                     }
