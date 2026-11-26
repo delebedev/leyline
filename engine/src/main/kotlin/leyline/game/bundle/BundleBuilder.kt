@@ -1676,6 +1676,7 @@ class BundleBuilder(
         window: SearchWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
         val supplements =
             buildList {
@@ -1740,6 +1741,7 @@ class BundleBuilder(
         window: OrderWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val orderPrompt =
             OrderPromptProjection.of(
                 window.candidates.map { it.forgeCardId },
@@ -1796,6 +1798,7 @@ class BundleBuilder(
         window: GroupingWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val sourceForgeId =
             window.source
                 ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
@@ -1831,6 +1834,17 @@ class BundleBuilder(
     /** Private prompt candidates reach only the player this builder prompts. */
     private fun isChooser(viewer: ProjectionViewer): Boolean = viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player
 
+    /** The prompt goes to the first Player route, which must be the chooser that [isChooser] projects for. */
+    private fun requireChooserPrompted(routes: List<ViewerRoute>) {
+        val prompted =
+            routes
+                .firstOrNull { it.viewer.role == ProjectionViewerRole.Player }
+                ?.viewer
+                ?.seatId
+                ?.value
+        require(prompted == seatId) { "Private prompt for seat $seatId would be sent to seat $prompted" }
+    }
+
     /** Prepare, but do not install, one coordinator-owned card-backed SelectN window. */
     internal fun prepareCardSelectWindow(
         game: Game,
@@ -1838,6 +1852,7 @@ class BundleBuilder(
         window: CardSelectWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val privatePrompt =
             window
                 .takeIf {

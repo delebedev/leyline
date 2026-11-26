@@ -110,6 +110,7 @@ class MatchOrderInteractionRuntimeTest :
                 coordinator.registerViewer(SeatId(3), ProjectionViewerRole.Observer)
                 listOf(SeatId(1), SeatId(2), SeatId(3)).forEach(coordinator::drain)
                 val options = cards(board)
+                val handIds = options.map { board.instanceId(it.id) }
                 val move =
                     OrderMoveIntent(SeatId(1), options.map { ForgeCardId(it.id) }, putOnTop = true)
                         .takeIf { kind == OrderRouteKind.Top }
@@ -122,6 +123,8 @@ class MatchOrderInteractionRuntimeTest :
                 val published = awaitPublished(coordinator)
                 val order = coordinator.drain(SeatId(1)).flatten().single { it.hasOrderReq() }
                 val candidateIds = order.orderReq.idsList
+                // A staged move reallocates ids; the retained copies keep the hand ids.
+                val privateIds = candidateIds + handIds
                 assertSoftly {
                     listOf(SeatId(2), SeatId(3)).forEach { viewer ->
                         val states =
@@ -132,7 +135,7 @@ class MatchOrderInteractionRuntimeTest :
                                 .map { it.gameStateMessage }
                         states
                             .flatMap { it.gameObjectsList }
-                            .filter { it.instanceId in candidateIds }
+                            .filter { it.instanceId in privateIds }
                             .shouldBeEmpty()
                         if (move != null && viewer == SeatId(2)) {
                             states
