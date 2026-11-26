@@ -1122,12 +1122,25 @@ object StateMapper {
             )
         val previousTransientHiddenFamilyIds = priorProjection.transientLinkedFaceFamilyIds.map { it.value }
 
+        // Cards that kept their Forge id but received a new instance id since the prior projection,
+        // such as a permanent that left and returned within one update. Snapshots are keyed by Forge
+        // id, so these cards and their zones can be field-equal while the client still holds the old id.
+        val reidentifiedFids =
+            projectedCur.objects.keys
+                .asSequence()
+                .filter { fid ->
+                    val priorIid = priorProjection.identities.forgeIdToInstanceId[fid]
+                    priorIid != null && priorIid != fullResult.idResolver.cardIid(fid)
+                }.toSet()
+
         // Snap-vs-snap zone delta: any zone whose snapshot field-equality differs.
         val changedZoneIds =
             projectedCur.zones.keys
                 .asSequence()
-                .filter { id -> prev.zones[id] != projectedCur.zones[id] }
-                .toSet()
+                .filter { id ->
+                    prev.zones[id] != projectedCur.zones[id] ||
+                        projectedCur.zones[id]?.contents?.any { it in reidentifiedFids } == true
+                }.toSet()
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
         val opponentSideboardZoneId = ZoneMapper.opponentSideboardZone(viewingSeatId)
         val activeReveal = promptFacts.activeReveal
@@ -1191,7 +1204,7 @@ object StateMapper {
 
         val prevDisturbBackSourceFids = projectedDisturbBackSourceFids(prev)
         val curDisturbBackSourceFids = projectedDisturbBackSourceFids(projectedCur)
-        val changedFids = cardSnapshotChangedFids + zoneMovedFids
+        val changedFids = cardSnapshotChangedFids + zoneMovedFids + reidentifiedFids
         val currentParentIds =
             changedFids.mapTo(mutableSetOf()) { fid ->
                 fullResult.idResolver.cardIid(fid).value
