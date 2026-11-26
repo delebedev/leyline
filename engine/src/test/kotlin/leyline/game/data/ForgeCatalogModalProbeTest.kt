@@ -14,6 +14,7 @@ import leyline.testkit.graveyard
 import leyline.testkit.library
 import leyline.tooling.headless.HeadlessResponseMode
 import leyline.tooling.headless.TestCardRegistry
+import wotc.mtgo.gre.external.messaging.Messages.ModalReq
 import java.nio.file.Files
 
 class ForgeCatalogModalProbeTest :
@@ -95,6 +96,67 @@ class ForgeCatalogModalProbeTest :
                     saga.getCounters(forge.game.card.CounterEnumType.LORE) shouldBe 2
                     game().isGameOver shouldBe false
                     passUntil(maxPasses = 5) { allMessages.last().hasActionsAvailableReq() }.shouldBeTrue()
+                }
+            }
+        }
+
+        test("choices inside repetition bodies and sub-ability chains register their options") {
+            val repo = ForgeCardRepository.open()
+            mapOf(
+                "Torment of Hailfire" to 2,
+                "Remorseless Punishment" to 2,
+                "Rottenmouth Viper" to 2,
+                "Forbidden Ritual" to 2,
+                "Aetherspouts" to 2,
+            ).forEach { (name, count) ->
+                val cardId = requireNotNull(repo.findDeckGrpIdByName(name)) { name }
+                repo.lookupModalOptions(cardId)?.childGrpIds?.size shouldBe count
+            }
+        }
+
+        test("repeated generic choice asks the opponent each repetition and the spell resolves") {
+            forgeCatalogProbe(
+                "repeat-generic-choice",
+                "ActivePlayer=AI\n" +
+                    "aihand=Torment of Hailfire\n" +
+                    "aibattlefield=Swamp;Swamp;Swamp;Swamp\n" +
+                    "humanhand=Forest;Forest\n" +
+                    "humanbattlefield=Grizzly Bears",
+                responseMode = HeadlessResponseMode.PolicyVisible,
+            ) { repo ->
+                val cardId = requireNotNull(repo.findDeckGrpIdByName("Torment of Hailfire"))
+                val options = requireNotNull(repo.lookupModalOptions(cardId))
+                options.childGrpIds.map { repo.findAbilityLocalization(it)?.text } shouldBe
+                    listOf(
+                        "You lose 3 life unless you sacrifice a nonland permanent.",
+                        "You lose 3 life unless you discard a card.",
+                    )
+
+                fun resolved() = game().stack.isEmpty && ai.graveyard.cards.any { it.name == "Torment of Hailfire" }
+                val modals = mutableListOf<ModalReq>()
+                repeat(12) {
+                    if (resolved()) return@repeat
+                    passUntil(maxPasses = 40) { bridge.hasPendingNonActionInteraction() || resolved() }
+                    if (!bridge.hasPendingNonActionInteraction()) return@repeat
+                    val prompt = allMessages.last()
+                    when {
+                        prompt.hasCastingTimeOptionsReq() -> {
+                            val modal = prompt.castingTimeOptionsReq.getCastingTimeOptionReq(0).modalReq
+                            modals += modal
+                            respondModalChoice(listOf(modal.getModalOptions(1).grpId))
+                        }
+                        // Pay the discard on the first repetition, decline it on the second.
+                        prompt.hasSelectNReq() -> respondToSelectN(prompt.selectNReq.idsList.take(if (modals.size == 1) 1 else 0))
+                        else -> error("Unexpected prompt ${prompt.type}")
+                    }
+                }
+                assertSoftly {
+                    resolved().shouldBeTrue()
+                    modals.size shouldBe 2
+                    modals.forEach { modal -> modal.modalOptionsList.map { it.grpId } shouldBe options.childGrpIds }
+                    human.life shouldBe 17
+                    human.graveyard.cards.map { it.name } shouldBe listOf("Forest")
+                    game().isGameOver shouldBe false
                 }
             }
         }
