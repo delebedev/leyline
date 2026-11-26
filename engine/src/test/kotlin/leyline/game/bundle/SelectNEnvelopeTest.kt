@@ -53,6 +53,18 @@ class SelectNEnvelopeTest :
             }
         }
 
+        test("library choice asks to choose a card for any selection count") {
+            val envelope = SelectNEnvelope.libraryChoice(req)
+
+            assertSoftly {
+                envelope.req shouldBe req
+                envelope.prompt.promptId shouldBe PromptIds.CHOOSE_CARD
+                envelope.prompt.parametersCount shouldBe 0
+                envelope.allowCancel shouldBe AllowCancel.No_a526
+                envelope.gameStateAugmentation shouldBe SelectNEnvelope.GameStateAugmentation.LookAndPick
+            }
+        }
+
         test("mapped resolution has neutral labels without changing its request or lifecycle") {
             val single =
                 req

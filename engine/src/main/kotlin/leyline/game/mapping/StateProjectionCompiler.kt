@@ -805,9 +805,8 @@ object StateProjectionCompiler {
                 stagedSnapshot,
                 move,
                 moved,
+                viewingSeatId,
                 sourceId,
-                sourceZoneId,
-                destinationZoneId,
                 environment,
                 editor,
             )
@@ -833,8 +832,6 @@ object StateProjectionCompiler {
             )
         }
         val moved = order.candidateForgeIds.zip(planned.idReallocations).map { (forgeCardId, ids) -> MovedCard(forgeCardId, ids) }
-        val sourceZoneId = ZoneIds.handOf(move.seatId)
-        val destinationZoneId = ZoneIds.libraryOf(move.seatId)
         val sourceId = order.sourceForgeId?.let(editor.identities::getOrAlloc) ?: InstanceId(0)
         return OrderResult(
             stagedOrderGsm(
@@ -843,9 +840,8 @@ object StateProjectionCompiler {
                 planned.snapshot,
                 move,
                 moved,
+                viewingSeatId,
                 sourceId,
-                sourceZoneId,
-                destinationZoneId,
                 environment,
                 editor,
             ).first,
@@ -908,12 +904,13 @@ object StateProjectionCompiler {
         stagedSnapshot: GsmSnapshot,
         move: OrderZoneMoveFact,
         moved: List<MovedCard>,
+        viewingSeatId: Int,
         sourceId: InstanceId,
-        sourceZoneId: Int,
-        destinationZoneId: Int,
         environment: StateProjectionEnvironment,
         editor: ProjectionState.Editor,
     ): Pair<GameStateMessage, ZoneProjectionLifecycle> {
+        val sourceZoneId = ZoneIds.handOf(move.seatId)
+        val destinationZoneId = ZoneIds.libraryOf(move.seatId)
         val oldIds = moved.mapTo(mutableSetOf()) { it.reallocation.old.value }
         val newIds = moved.mapTo(mutableSetOf()) { it.reallocation.new.value }
         val originalIds = moved.associate { it.forgeCardId to it.reallocation.old }
@@ -936,13 +933,18 @@ object StateProjectionCompiler {
                 projection.apply(handoff)
                 continue
             }
-            projection.objects.add(
-                orderObject(card, movedCard.reallocation.old, destinationZoneId, move.seatId.value, environment),
-            )
-            projection.applyRetainingObject(
-                handoff,
-                projection.objects.lastIndex,
-            )
+            // Only the moving player sees the moved cards; other viewers get the zone move alone.
+            if (viewingSeatId == move.seatId.value) {
+                projection.objects.add(
+                    orderObject(card, movedCard.reallocation.old, destinationZoneId, move.seatId.value, environment),
+                )
+                projection.applyRetainingObject(
+                    handoff,
+                    projection.objects.lastIndex,
+                )
+            } else {
+                projection.apply(handoff)
+            }
             annotations +=
                 TransferAnnotations
                     .annotationsForTransfer(

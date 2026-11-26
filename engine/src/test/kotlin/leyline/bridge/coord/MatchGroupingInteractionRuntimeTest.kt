@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -22,6 +23,7 @@ import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -93,6 +95,37 @@ class MatchGroupingInteractionRuntimeTest :
                 published = coordinator.grouping.current()
             }
             return checkNotNull(published)
+        }
+
+        test("Scry candidates reach only the choosing player") {
+            val board = startPuzzleAtMain1(puzzle)
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.registerViewer(SeatId(2))
+            coordinator.registerViewer(SeatId(3), ProjectionViewerRole.Observer)
+            listOf(SeatId(1), SeatId(2), SeatId(3)).forEach(coordinator::drain)
+            val options = cards(board)
+            val finished = CountDownLatch(1)
+            Thread {
+                coordinator.grouping.awaitGrouping(request(board, GroupingContext.Scry_a0f6), options, 3_000)
+                finished.countDown()
+            }.start()
+
+            val published = awaitPublished(coordinator)
+            val group = coordinator.drain(SeatId(1)).flatten().single { it.hasGroupReq() }
+            val candidateIds = group.groupReq.instanceIdsList
+            assertSoftly {
+                listOf(SeatId(2), SeatId(3)).forEach { viewer ->
+                    coordinator
+                        .drain(viewer)
+                        .flatten()
+                        .filter { it.hasGameStateMessage() }
+                        .flatMap { it.gameStateMessage.gameObjectsList }
+                        .filter { it.instanceId in candidateIds }
+                        .shouldBeEmpty()
+                }
+                coordinator.acceptSettled(groupResp(candidateIds, emptyList()), published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+            }
         }
 
         test("Scry publishes private candidates with GroupReq and preserves the exact top order") {
