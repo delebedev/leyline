@@ -1,6 +1,7 @@
 package leyline.bridge.coord
 
 import forge.game.card.Card
+import forge.game.player.Player
 import leyline.bridge.handoff.PromptJournal
 import leyline.bridge.handoff.PromptRequest
 import leyline.bridge.handoff.ResolvedPromptRoute
@@ -23,6 +24,7 @@ internal object RevealChoiceWindowCapture {
         revealEntry: PromptJournal.RevealEntry,
         journalSeatId: SeatId,
         recordExiledUnderSource: Boolean,
+        chooser: Player?,
     ): Initial {
         check(request.route is ResolvedPromptRoute.RevealChoice) { "RevealChoice route required" }
         check(candidateHandles.size == request.options.size) { "RevealChoice handles must match options" }
@@ -41,10 +43,14 @@ internal object RevealChoiceWindowCapture {
         check(candidates.map { it.forgeCardId }.distinct().size == candidates.size) {
             "RevealChoice candidates must be distinct cards"
         }
-        // Candidates outside the reveal must already be public, so the choice never widens hidden-zone visibility.
-        check(candidateHandles.all { ForgeCardId(it.id) in fullRevealCardIds || it.zone?.zoneType?.isHidden == false }) {
-            "RevealChoice candidates must belong to the exact reveal or a public zone"
-        }
+        // Candidates outside the reveal must already be visible to the chooser, so the choice never exposes
+        // a hidden-zone card or the identity of a face-down card.
+        check(
+            candidateHandles.all {
+                ForgeCardId(it.id) in fullRevealCardIds ||
+                    (it.zone?.zoneType?.isHidden == false && (!it.isFaceDown || chooser?.let(it::mayPlayerLook) == true))
+            },
+        ) { "RevealChoice candidates must belong to the exact reveal or be visible to the chooser" }
         check(request.min in 0..request.max && request.max <= candidates.size) { "Invalid RevealChoice cardinality" }
         check(candidates.isEmpty() || request.defaultIndex in candidates.indices) { "Invalid RevealChoice default option" }
         check(candidates.isNotEmpty() || (request.min == 0 && request.max == 0)) {

@@ -64,6 +64,7 @@ internal class MatchRevealChoiceInteractionRuntime(
                     revealEntry,
                     owner.humanSeat,
                     recordExiledUnderSource,
+                    owner.bridge.getPlayer(owner.humanSeat),
                 )
             } catch (ex: Exception) {
                 clearReveal(revealEntry, owner.humanSeat)

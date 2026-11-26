@@ -121,9 +121,43 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val hand = revealed(board)
             val graveyard = board.ai.graveyard.card("Lightning Bolt")
             val candidates = listOf(hand.first(), graveyard)
-            val initial = RevealChoiceWindowCapture.initial(request(board, candidates), candidates, revealEntry(board), SeatId(1), false)
+            val initial =
+                RevealChoiceWindowCapture.initial(
+                    request(board, candidates),
+                    candidates,
+                    revealEntry(board),
+                    SeatId(1),
+                    false,
+                    board.human,
+                )
             initial.handlesByOption.getValue(1) shouldBe graveyard
             initial.value.candidates.map { it.forgeCardId } shouldContainExactly candidates.map { ForgeCardId(it.id) }
+        }
+
+        test("reveal choice admits a face-down exiled candidate only when the chooser may look at it") {
+            val board = startPuzzleAtMain1(puzzle.replace("ailibrary=Grizzly Bears", "ailibrary=Grizzly Bears\naiexile=Lightning Bolt"))
+            val hand = revealed(board)
+            val exiled =
+                board.ai
+                    .getZone(ZoneType.Exile)
+                    .cards
+                    .single()
+            exiled.turnFaceDown(true)
+            val candidates = listOf(hand.first(), exiled)
+            shouldThrow<IllegalStateException> {
+                RevealChoiceWindowCapture.initial(request(board, candidates), candidates, revealEntry(board), SeatId(1), false, board.human)
+            }
+            exiled.addMayLookFaceDownExile(board.human)
+            val initial =
+                RevealChoiceWindowCapture.initial(
+                    request(board, candidates),
+                    candidates,
+                    revealEntry(board),
+                    SeatId(1),
+                    false,
+                    board.human,
+                )
+            initial.handlesByOption.getValue(1) shouldBe exiled
         }
 
         test("reveal choice rejects an unrevealed hand card outside its reveal") {
@@ -132,7 +166,14 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val journal = board.bridge.promptBridge(SeatId(1)).journal
             journal.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(cards.first().id)), SeatId(2), false))
             shouldThrow<IllegalStateException> {
-                RevealChoiceWindowCapture.initial(request(board, cards), cards, checkNotNull(journal.activeRevealEntry()), SeatId(1), false)
+                RevealChoiceWindowCapture.initial(
+                    request(board, cards),
+                    cards,
+                    checkNotNull(journal.activeRevealEntry()),
+                    SeatId(1),
+                    false,
+                    board.human,
+                )
             }
         }
 
