@@ -1,5 +1,6 @@
 package leyline.bridge
 
+import forge.card.CardStateName
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -326,7 +327,9 @@ class PriorityActionCandidatesTest :
                 }
             }
         }
-        test("Glarb rejects an ineligible modal front face") {
+        // CR 712.11b-c: only the chosen face is evaluated, so the mana value 7 back face is castable
+        // under a mana value 4 or greater permission while the mana value 2 front face is not.
+        test("Glarb rejects an ineligible modal front face and offers its eligible back face") {
             val board =
                 startPuzzleAtMain1(
                     """
@@ -351,7 +354,7 @@ class PriorityActionCandidatesTest :
                     .query(board.game, board.human)
                     .forCard(source)
                     .casts
-                    .shouldHaveSize(0)
+                    .map { it.cardStateName } shouldBe listOf(CardStateName.Backside)
                 source.currentStateName shouldBe originalState
                 source.isInZone(ZoneType.Library) shouldBe true
             }

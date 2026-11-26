@@ -197,6 +197,15 @@ private fun appendMdfcBackFaceSAs(
         if ((sa.isSpell || sa.isLandAbility) && expanded.none { existing -> existing === sa }) {
             sa.setActivatingPlayer(player)
             expanded.add(sa)
+            // Outside the hand a face is castable only through a permission
+            // copy (a commander's command-zone cast, a may-cast-from-exile
+            // effect), which Forge builds as an alternative cost of the face.
+            if (sa.isSpell && !card.isInZone(ZoneType.Hand)) {
+                GameActionUtil.getAlternativeCosts(sa, player, false).forEach {
+                    it.setActivatingPlayer(player)
+                    expanded.add(it)
+                }
+            }
         }
     }
 }

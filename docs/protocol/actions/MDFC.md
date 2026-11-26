@@ -1,12 +1,13 @@
 ---
-summary: "CastMdfc and PlayMdfc actions: selecting the spell or land face of a modal double-faced card from the parent card in hand."
+summary: "CastMdfc and PlayMdfc actions: selecting the spell or land face of a modal double-faced card from the parent card in hand or the command zone."
 entity: action/MDFC
 ---
 # CastMdfc and PlayMdfc
 
 `CastMdfc` and `PlayMdfc` select one face of a modal double-faced card directly
 from the parent card in hand. `CastMdfc` casts the spell face; `PlayMdfc` plays
-the land face. Both are face-selection actions with their own action types, not
+the land face. A modal double-faced commander in the command zone is offered
+the same way: its front face as `Cast` and its back spell face as `CastMdfc`. Both are face-selection actions with their own action types, not
 alternative-cost [`Cast`](Cast.md) actions, and neither carries an
 `alternativeGrpId`.
 
@@ -14,7 +15,7 @@ alternative-cost [`Cast`](Cast.md) actions, and neither carries an
 
 | Stage | Object |
 |---|---|
-| Hand | Parent `Card` with an `MDFCBack` companion. |
+| Hand or command zone | Parent `Card` with an `MDFCBack` companion. |
 | Offer | `instanceId` is the parent card. |
 | `CastMdfc` stack | A `Card` instance carrying the chosen spell face. |
 | `PlayMdfc` battlefield | The parent `Card` carrying the chosen land face. |
@@ -86,6 +87,10 @@ No stack object and no spell resolution belong to the land branch.
 - <a id="MDFC.cast-source-pair"></a>**MDFC.cast-source-pair.** *(provisional)*
   When a `CastMdfc` offer carries `sourceId`, it `MUST` also carry
   `abilityGrpId`.
+- <a id="MDFC.command-faces"></a>**MDFC.command-faces.** A modal
+  double-faced card in the command zone whose spell faces are both castable
+  `MUST` be offered as one `Cast` for the front face and one `CastMdfc` for the
+  back face, both naming the parent card.
 - <a id="MDFC.play-fields"></a>**MDFC.play-fields.** A `PlayMdfc` offer `MUST`
   carry `instanceId` and `MUST NOT` carry `manaCost`, `abilityGrpId`,
   `sourceId`, `alternativeGrpId` or `alternativeSourceZcid`. On the GSM rail
@@ -106,4 +111,5 @@ No stack object and no spell resolution belong to the land branch.
 
 - When does a `CastMdfc` offer omit `manaCost`?
 - Can `sourceId` name an object other than the parent card?
+- Does a modal double-faced card cast from exile follow the command-zone shape?
 - Does the accepted `CastMdfc` row echo the offer's `abilityGrpId`?
