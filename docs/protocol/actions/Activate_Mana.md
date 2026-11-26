@@ -54,7 +54,10 @@ manaSelections
 An ability that makes several mana at once, such as `{G}{G}` or a Signet's
 `{W}{B}`, is not a color choice. Its one payment option lists every mana it
 makes, with a count per color, and its selection has one option carrying the
-same mana, with no `selectedColor` and no `selectionCount`:
+same mana, with no `selectedColor` and no `selectionCount`. The two-color
+`{W}{B}` shape below is *(provisional)*: it follows the same-color and
+combined-option shapes, and no native sample of a fixed two-color ability has
+been seen yet.
 
 ```text
 manaPaymentOptions
