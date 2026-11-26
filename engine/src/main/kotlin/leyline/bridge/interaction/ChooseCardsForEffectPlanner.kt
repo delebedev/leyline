@@ -30,7 +30,7 @@ object ChooseCardsForEffectPlanner {
             resolutionRouteInput(
                 context.candidateRefs,
                 context.optionCount,
-                ResolutionAbilityShape.Other,
+                lookAndPickShape(context.sa),
                 context.allCandidatesProjectable,
             )
         return when {
@@ -48,6 +48,14 @@ object ChooseCardsForEffectPlanner {
                     candidateRefsPolicy = CandidateRefsPolicy.Selectable,
                     sourceIdPolicy = SourceIdPolicy.HostCard,
                     mandatoryChoicePolicy = MandatoryChoicePolicy.PromptWhenSatisfied,
+                )
+
+            resolutionInput.isHiddenLibraryCardChoice ->
+                ChooseCardsForEffectPlan(
+                    semantic = PromptSemantic.SelectNResolution,
+                    candidateRefsPolicy = CandidateRefsPolicy.Selectable,
+                    sourceIdPolicy = SourceIdPolicy.HostCard,
+                    resolutionRouteInput = resolutionInput,
                 )
 
             context.sa?.api == ApiType.ChangeZone && resolutionInput.isCompleteLibraryCardChoice ->
@@ -76,4 +84,8 @@ object ChooseCardsForEffectPlanner {
             else -> ChooseCardsForEffectPlan(semantic = PromptSemantic.Generic)
         }
     }
+
+    /** ChooseCard over library cards picks among cards its effect shows the chooser. */
+    private fun lookAndPickShape(sa: SpellAbility?): ResolutionAbilityShape =
+        if (sa?.api == ApiType.ChooseCard) ResolutionAbilityShape.LibraryChoice else ResolutionAbilityShape.Other
 }

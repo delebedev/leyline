@@ -6,7 +6,6 @@ import forge.game.phase.PhaseType
 import forge.game.player.Player
 import leyline.bridge.PriorityActionCandidates
 import leyline.bridge.handoff.BlockingInteraction
-import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectWindowValue
 import leyline.bridge.handoff.CommanderReturnPromptContext
 import leyline.bridge.handoff.DistributionWindowValue
@@ -20,6 +19,7 @@ import leyline.bridge.handoff.SearchWindowValue
 import leyline.bridge.handoff.StaticChoiceKind
 import leyline.bridge.handoff.TargetingInteractionKind
 import leyline.bridge.handoff.TargetingWindowValue
+import leyline.bridge.handoff.hasPrivateCandidates
 import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.ForgePlayerId
 import leyline.bridge.types.InstanceId
@@ -1828,7 +1828,7 @@ class BundleBuilder(
         val privatePrompt =
             window
                 .takeIf {
-                    it.kind == CardSelectKind.ManifestDread || it.kind == CardSelectKind.Resolution || it.kind == CardSelectKind.Learn
+                    it.kind.hasPrivateCandidates
                 }?.let {
                     PrivateCardPromptProjection.of(it.candidates.map { candidate -> candidate.forgeCardId }, it.sourceForgeCardId)
                 }

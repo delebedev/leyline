@@ -3,6 +3,7 @@ package leyline.game.bundle
 import leyline.bridge.handoff.CardSelectKind
 import leyline.bridge.handoff.CardSelectOriginZone
 import leyline.bridge.handoff.CardSelectWindowValue
+import leyline.bridge.handoff.hasPrivateCandidates
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -23,7 +24,7 @@ internal class CardSelectWindowMaterializer {
         window: CardSelectWindowValue,
     ): SettledPromptMaterialization {
         val request = buildRequest(window, context)
-        if (window.kind in privateCandidateKinds) requirePrivateCandidates(context, request.idsList)
+        if (window.kind.hasPrivateCandidates) requirePrivateCandidates(context, request.idsList)
         val hostId = window.sourceForgeCardId?.let { context.requiredInstanceId(it, "CardSelect card") } ?: 0
         val envelope = envelope(window, request, hostId)
         val state =
@@ -87,6 +88,7 @@ internal class CardSelectWindowMaterializer {
                         setSelectNInnerPrompt(PromptIds.MANIFEST_DREAD_INNER_PARAMETER)
                     }
                     CardSelectKind.Resolution,
+                    CardSelectKind.LibraryChoice,
                     CardSelectKind.ResolutionMapped,
                     -> {
                         addAllUnfilteredIds(idsList)
@@ -122,7 +124,9 @@ internal class CardSelectWindowMaterializer {
             CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
             CardSelectKind.ManifestDread -> SelectNEnvelope.manifestDread(request)
             CardSelectKind.Resolution -> SelectNEnvelope.resolution(request)
-            CardSelectKind.ResolutionMapped -> SelectNEnvelope.mappedResolution(request)
+            CardSelectKind.LibraryChoice,
+            CardSelectKind.ResolutionMapped,
+            -> SelectNEnvelope.mappedResolution(request)
             CardSelectKind.Learn ->
                 SelectNEnvelope.learnLesson(
                     request,
@@ -150,9 +154,5 @@ internal class CardSelectWindowMaterializer {
                 "Private CardSelect candidate $candidateId must be private to its chooser"
             }
         }
-    }
-
-    private companion object {
-        val privateCandidateKinds = setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.Learn)
     }
 }

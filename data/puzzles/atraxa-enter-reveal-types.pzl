@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: Atraxa, Grand Unifier's enter trigger reveals ten cards and offers one card per card type to hand.
+# Forcing: Atraxa is castable from hand; the top ten library cards cover six card types.
+# AI behavior: The opponent has no permanents or hand, so it makes no decisions.
+# Card roles:
+#   Atraxa, Grand Unifier — the trigger under test.
+#   Sol Ring, Llanowar Elves, Opt, Divination, Pacifism, Island — one card per type in the top ten.
+# Protocol path: cast, resolution, enter trigger, type choice, card choice, library to hand.
+
+[metadata]
+Name:Atraxa Enter Reveal Types
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Cast Atraxa and take one revealed card of each type.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Atraxa, Grand Unifier
+humanbattlefield=Plains;Island;Swamp;Forest;Forest;Forest;Forest
+humanlibrary=Sol Ring;Llanowar Elves;Opt;Divination;Pacifism;Island;Island;Island;Island;Island;Plains;Plains
+ailibrary=Island;Island;Island

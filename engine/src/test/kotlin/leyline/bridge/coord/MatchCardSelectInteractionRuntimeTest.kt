@@ -91,6 +91,7 @@ class MatchCardSelectInteractionRuntimeTest :
             max: Int = 1,
             defaultIndex: Int = 0,
             candidates: List<Card> = options(board),
+            abilityShape: ResolutionAbilityShape = ResolutionAbilityShape.Dig,
         ): PromptRequest =
             PromptRequest(
                 promptType = "choose_cards",
@@ -123,7 +124,7 @@ class MatchCardSelectInteractionRuntimeTest :
                                         candidateCount = it.size,
                                         candidateKinds = setOf(PromptCandidateKind.Card),
                                         candidateZones = it.mapTo(linkedSetOf()) { card -> card.zone.zoneType.name },
-                                        abilityShape = ResolutionAbilityShape.Dig,
+                                        abilityShape = abilityShape,
                                         allCandidatesProjectable = it.none { card -> card.isInZone(ZoneType.Library) },
                                     )
                                 },
@@ -154,6 +155,7 @@ class MatchCardSelectInteractionRuntimeTest :
             val includeRequestSource: Boolean = true,
             val requestMin: Int = 1,
             val wireMin: Int = requestMin,
+            val abilityShape: ResolutionAbilityShape = ResolutionAbilityShape.Dig,
         )
 
         val cases =
@@ -246,6 +248,19 @@ class MatchCardSelectInteractionRuntimeTest :
                 ),
                 Case(
                     PromptSemantic.SelectNResolution,
+                    CardSelectKind.LibraryChoice,
+                    SelectionContext.Resolution_a163,
+                    SelectionListType.Dynamic,
+                    OptionContext.Resolution_a9d7,
+                    innerPromptId = 0,
+                    innerParameterId = PromptIds.SELECT_N_INNER_PARAMETER,
+                    outerPromptId = PromptIds.CHOOSE_CARD,
+                    allowCancel = AllowCancel.No_a526,
+                    requestMin = 0,
+                    abilityShape = ResolutionAbilityShape.LibraryChoice,
+                ),
+                Case(
+                    PromptSemantic.SelectNResolution,
                     CardSelectKind.ResolutionMapped,
                     SelectionContext.Resolution_a163,
                     SelectionListType.Dynamic,
@@ -278,7 +293,9 @@ class MatchCardSelectInteractionRuntimeTest :
                 coordinator.drain(SeatId(1))
                 val handles =
                     when {
-                        case.kind == CardSelectKind.ManifestDread || case.kind == CardSelectKind.Resolution ->
+                        case.kind == CardSelectKind.ManifestDread ||
+                            case.kind == CardSelectKind.Resolution ||
+                            case.kind == CardSelectKind.LibraryChoice ->
                             manifestOptions(board)
                         case.kind == CardSelectKind.Learn -> learnOptions(board)
                         else -> options(board)
@@ -294,6 +311,7 @@ class MatchCardSelectInteractionRuntimeTest :
                                 sourceId = source(board).id.takeIf { case.includeRequestSource },
                                 min = case.requestMin,
                                 candidates = handles,
+                                abilityShape = case.abilityShape,
                             ),
                             handles,
                             3_000,
@@ -344,6 +362,7 @@ class MatchCardSelectInteractionRuntimeTest :
                             CardSelectKind.LibraryPutback,
                             CardSelectKind.ManifestDread,
                             CardSelectKind.Resolution,
+                            CardSelectKind.LibraryChoice,
                             CardSelectKind.ResolutionMapped,
                             CardSelectKind.Learn,
                             -> board.bridge.instanceId(source(board))
@@ -364,6 +383,10 @@ class MatchCardSelectInteractionRuntimeTest :
                         req.unfilteredIdsList shouldContainExactly req.idsList
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
                             listOf(req.sourceId, req.maxSel)
+                    }
+                    if (case.kind == CardSelectKind.LibraryChoice) {
+                        req.unfilteredIdsList shouldContainExactly req.idsList
+                        message.prompt.parametersList shouldBe emptyList()
                     }
                     if (case.kind == CardSelectKind.Learn) {
                         message.prompt.parametersList.map { it.numberValue } shouldContainExactly
@@ -496,7 +519,7 @@ class MatchCardSelectInteractionRuntimeTest :
     })
 
 private val privateCandidateKinds =
-    setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.Learn)
+    setOf(CardSelectKind.ManifestDread, CardSelectKind.Resolution, CardSelectKind.LibraryChoice, CardSelectKind.Learn)
 
 private fun projectedZoneId(card: Card): Int =
     when (card.zone.zoneType) {

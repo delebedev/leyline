@@ -195,6 +195,24 @@ class PromptRouteMatrixTest :
                     ResolvedPromptRoute.CardSelect
             ).descriptor.kind shouldBe CardSelectKind.ResolutionMapped
         }
+
+        test("hidden library route keeps Dig apart from other library card choices") {
+            val projected =
+                ResolutionRouteInput(
+                    optionCount = 2,
+                    candidateCount = 2,
+                    candidateKinds = setOf(PromptCandidateKind.Card),
+                    candidateZones = setOf("Library"),
+                    abilityShape = ResolutionAbilityShape.Dig,
+                    allCandidatesProjectable = false,
+                )
+            listOf(projected, projected.copy(abilityShape = ResolutionAbilityShape.LibraryChoice)).map {
+                (
+                    PromptRouteResolver.resolve(PromptSemantic.SelectNResolution, resolutionInput = it) as
+                        ResolvedPromptRoute.CardSelect
+                ).descriptor.kind
+            } shouldBe listOf(CardSelectKind.Resolution, CardSelectKind.LibraryChoice)
+        }
     })
 
 private val dynamicShape =

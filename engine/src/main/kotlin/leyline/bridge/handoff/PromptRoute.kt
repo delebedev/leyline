@@ -113,12 +113,24 @@ enum class CardSelectKind {
     Suspect,
     MutateTopBottom,
     Resolution,
+    LibraryChoice,
     ResolutionMapped,
     Learn,
 }
 
+/** Candidates of these kinds stay in a hidden zone and are projected privately to the chooser. */
+val CardSelectKind.hasPrivateCandidates: Boolean
+    get() =
+        this == CardSelectKind.ManifestDread ||
+            this == CardSelectKind.Resolution ||
+            this == CardSelectKind.LibraryChoice ||
+            this == CardSelectKind.Learn
+
 enum class ResolutionAbilityShape {
     Dig,
+
+    /** A card choice among library cards that the resolving effect shows its chooser, outside Dig. */
+    LibraryChoice,
     Other,
 }
 
@@ -140,7 +152,9 @@ data class ResolutionRouteInput(
                 candidateZones == setOf("Library")
 
     val isHiddenLibraryCardChoice: Boolean
-        get() = isCompleteLibraryCardChoice && abilityShape == ResolutionAbilityShape.Dig
+        get() =
+            isCompleteLibraryCardChoice &&
+                (abilityShape == ResolutionAbilityShape.Dig || abilityShape == ResolutionAbilityShape.LibraryChoice)
 
     val isMappedCardChoice: Boolean
         get() = isCompleteCardChoice && allCandidatesProjectable && !isHiddenLibraryCardChoice
@@ -304,7 +318,11 @@ object PromptRouteResolver {
             PromptSemantic.SelectNResolution ->
                 when {
                     resolutionInput?.isHiddenLibraryCardChoice == true ->
-                        cardSelect(semantic, CardSelectKind.Resolution)
+                        if (resolutionInput.abilityShape == ResolutionAbilityShape.LibraryChoice) {
+                            cardSelect(semantic, CardSelectKind.LibraryChoice)
+                        } else {
+                            cardSelect(semantic, CardSelectKind.Resolution)
+                        }
                     resolutionInput?.isMappedCardChoice == true ->
                         cardSelect(semantic, CardSelectKind.ResolutionMapped)
                     else -> unclassifiedEntityChoice(semantic, dynamicResolutionShape)

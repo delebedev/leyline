@@ -25,3 +25,32 @@ scenarios:
             - zone_contains: { side: ours, zone: battlefield, card: Healer's Hawk }
             - zone_contains: { side: ours, zone: battlefield, card: Grizzly Bears }
             - stack_empty: true
+  - id: atraxa-enter-card-per-type
+    puzzle: atraxa-enter-reveal-types
+    headless: { full_control: true }
+    run: cast Atraxa, choose each card type and take one revealed card of it
+    expect: each type choice is followed by a card choice, and the chosen cards reach hand
+    steps:
+      - cast: Atraxa, Grand Unifier
+      - pass_until: { prompt: SelectNReq, max_passes: 8 }
+      - static_choice: { id: 2 }
+      - select_card: { side: ours, zone: library, card: Llanowar Elves }
+      - static_choice: { id: 1 }
+      - select_card: { side: ours, zone: library, card: Sol Ring }
+      - static_choice: { id: 4 }
+      - select_card: { side: ours, zone: library, card: Opt }
+      - static_choice: { id: 10 }
+      - select_card: { side: ours, zone: library, card: Divination }
+      - static_choice: { id: 3 }
+      - select_card: { side: ours, zone: library, card: Pacifism }
+      - select_card: { side: ours, zone: library, card: Island }
+      - resolve_stack: {}
+      - expect:
+          all:
+            - zone_contains: { side: ours, zone: hand, card: Llanowar Elves }
+            - zone_contains: { side: ours, zone: hand, card: Sol Ring }
+            - zone_contains: { side: ours, zone: hand, card: Opt }
+            - zone_contains: { side: ours, zone: hand, card: Divination }
+            - zone_contains: { side: ours, zone: hand, card: Pacifism }
+            - zone_contains: { side: ours, zone: hand, card: Island }
+            - stack_empty: true
