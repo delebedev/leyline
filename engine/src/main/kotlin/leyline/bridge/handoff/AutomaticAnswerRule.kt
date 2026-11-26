@@ -46,6 +46,11 @@ enum class AutomaticAnswerRule(
         "each of the entering permanent's own entry replacements sets a separate part of how it enters; any order gives the same permanent",
     ),
 
+    /** Whether the current high bidder tops its own bid in a life-bidding round. */
+    HighBidderHoldsBid(
+        "topping your own high bid only raises what you pay; the bid stands and the other bidders are asked",
+    ),
+
     /** A confirmation inside the free cast of a Paradigm copy. */
     ParadigmCopyCast(
         "the copy is cast through its own cast presentation; this confirmation is part of that cast",

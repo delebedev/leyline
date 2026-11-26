@@ -148,6 +148,33 @@ class StaticChoiceCoordinator(
         return result.firstOrNull() == 0
     }
 
+    /**
+     * Asks whether [bidder] tops the high [bid] in a life-bidding round. Forge asks every
+     * bidder each round, including the current high bidder; that bidder lets its bid stand.
+     */
+    fun confirmBid(
+        sa: SpellAbility,
+        message: String,
+        bid: Int,
+        holdsBid: Boolean,
+    ): Boolean {
+        val request =
+            PromptRequest(
+                promptType = "confirm",
+                message = message,
+                options = listOf("Top the high bid of $bid life", LET_BID_STAND),
+                defaultIndex = 1,
+                route = PromptRouteResolver.resolve(PromptSemantic.NamedChoice),
+                sourceEntityId = sourceEntityId(sa),
+                staticOptionIds = listOf(1, 2),
+            )
+        if (holdsBid) {
+            bridge.recordAutomaticAnswer(request, AutomaticAnswerRule.HighBidderHoldsBid, listOf(1))
+            return false
+        }
+        return requestChoice(request).firstOrNull() == 0
+    }
+
     fun chooseBinary(
         sa: SpellAbility?,
         question: String?,
@@ -394,5 +421,6 @@ class StaticChoiceCoordinator(
 
     companion object {
         private val log = LoggerFactory.getLogger(StaticChoiceCoordinator::class.java)
+        const val LET_BID_STAND = "Let the high bid stand"
     }
 }
