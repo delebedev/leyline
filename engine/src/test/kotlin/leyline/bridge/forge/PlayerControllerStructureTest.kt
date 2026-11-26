@@ -69,6 +69,7 @@ class PlayerControllerStructureTest :
                 "chooseStartingPlayer",
                 "chooseTargetsFor",
                 "confirmAction",
+                "confirmBidAction",
                 "confirmPayment",
                 "confirmReplacementEffect",
                 "confirmStaticApplication",

@@ -575,6 +575,15 @@ class PlayerController(
             is ConfirmActionPlan.Choice -> staticChoiceCoordinator.confirmAction(plan, message ?: "Confirm action?")
         }
 
+    /** Replaces PCHuman's desktop InputConfirm for each life-bidding round. */
+    override fun confirmBidAction(
+        sa: SpellAbility,
+        bidlife: PlayerActionConfirmMode,
+        string: String,
+        bid: Int,
+        winner: Player,
+    ): Boolean = staticChoiceCoordinator.confirmBid(sa, string, bid, holdsBid = winner == player)
+
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
         if (wrapper.isMandatory) return true
         if (isParadigmDelayedTrigger(wrapper)) return true
