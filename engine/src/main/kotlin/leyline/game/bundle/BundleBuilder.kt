@@ -1676,6 +1676,7 @@ class BundleBuilder(
         window: SearchWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val pendingSubmittedTargets = bridge.viewerProjectionCursor().pendingSubmittedTargets
         val supplements =
             buildList {
@@ -1695,7 +1696,7 @@ class BundleBuilder(
                     ViewerProjectionIntent.of(
                         supplements,
                         privateCardPrompt =
-                            if (viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player) {
+                            if (isChooser(viewer)) {
                                 PrivateCardPromptProjection.of(window.libraryCardIds, null)
                             } else {
                                 null
@@ -1740,6 +1741,7 @@ class BundleBuilder(
         window: OrderWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val orderPrompt =
             OrderPromptProjection.of(
                 window.candidates.map { it.forgeCardId },
@@ -1751,7 +1753,10 @@ class BundleBuilder(
                 game,
                 counter,
                 routes,
-                ViewerProjectionIntent.of(orderPrompt = orderPrompt),
+                intentForViewer = { viewer ->
+                    // A staged hand-to-library move is public; its card objects stay with the chooser in the compiler.
+                    ViewerProjectionIntent.of(orderPrompt = orderPrompt.takeIf { window.move != null || isChooser(viewer) })
+                },
             )
         return finishSettledPrompt(
             frame,
@@ -1793,6 +1798,7 @@ class BundleBuilder(
         window: GroupingWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val sourceForgeId =
             window.source
                 ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
@@ -1806,16 +1812,38 @@ class BundleBuilder(
                             ?.takeIf { it.abilityOnStack && it.forgeAbilityId != 0 }
                             ?.let { ProjectionSupplement.ReserveTriggeredAbility(it.forgeAbilityId) },
                     ),
-                privateCardPrompt =
-                    PrivateCardPromptProjection.of(window.candidates.map { it.forgeCardId }, sourceForgeId),
             )
-        val frame = prepareViewerPromptProjection(game, counter, routes, intent)
+        val privatePrompt = PrivateCardPromptProjection.of(window.candidates.map { it.forgeCardId }, sourceForgeId)
+        val frame =
+            prepareViewerPromptProjection(
+                game,
+                counter,
+                routes,
+                intentForViewer = { viewer ->
+                    ViewerProjectionIntent.of(intent.supplements, privatePrompt.takeIf { isChooser(viewer) })
+                },
+            )
         return finishSettledPrompt(
             frame,
             counter,
             { context -> groupingWindows.prepare(context, window) },
             { it.bundle.messages },
         )
+    }
+
+    /** Private prompt candidates reach only the player this builder prompts. */
+    private fun isChooser(viewer: ProjectionViewer): Boolean = viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player
+
+    /** The prompt goes to the first Player route, which must be the chooser [isChooser] projects for; no Player route, no prompt. */
+    private fun requireChooserPrompted(routes: List<ViewerRoute>) {
+        val prompted =
+            routes
+                .firstOrNull { it.viewer.role == ProjectionViewerRole.Player }
+                ?.viewer
+                ?.seatId
+                ?.value
+                ?: return
+        require(prompted == seatId) { "Private prompt for seat $seatId would be sent to seat $prompted" }
     }
 
     /** Prepare, but do not install, one coordinator-owned card-backed SelectN window. */
@@ -1825,6 +1853,7 @@ class BundleBuilder(
         window: CardSelectWindowValue,
         routes: List<ViewerRoute>,
     ): PreparedViewerCut<SettledPromptMaterialization> {
+        requireChooserPrompted(routes)
         val privatePrompt =
             window
                 .takeIf {
@@ -1837,13 +1866,7 @@ class BundleBuilder(
                 game,
                 counter,
                 routes,
-                intentForViewer = { viewer ->
-                    // Private candidates reach only the choosing player's state.
-                    ViewerProjectionIntent.of(
-                        privateCardPrompt =
-                            privatePrompt?.takeIf { viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player },
-                    )
-                },
+                intentForViewer = { viewer -> ViewerProjectionIntent.of(privateCardPrompt = privatePrompt?.takeIf { isChooser(viewer) }) },
             )
         return finishSettledPrompt(
             frame,

@@ -3,6 +3,7 @@ package leyline.bridge.coord
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
@@ -20,6 +21,7 @@ import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
 import wotc.mtgo.gre.external.messaging.Messages.AllowCancel
@@ -98,6 +100,53 @@ class MatchOrderInteractionRuntimeTest :
                 published = coordinator.order.current()
             }
             return checkNotNull(published)
+        }
+
+        listOf(OrderRouteKind.Top, OrderRouteKind.Bottom).forEach { kind ->
+            test("$kind order candidates reach only the choosing player") {
+                val board = startPuzzleAtMain1(puzzle)
+                val coordinator = board.bridge.cutCoordinator
+                coordinator.registerViewer(SeatId(2))
+                coordinator.registerViewer(SeatId(3), ProjectionViewerRole.Observer)
+                listOf(SeatId(1), SeatId(2), SeatId(3)).forEach(coordinator::drain)
+                val options = cards(board)
+                val handIds = options.map { board.instanceId(it.id) }
+                val move =
+                    OrderMoveIntent(SeatId(1), options.map { ForgeCardId(it.id) }, putOnTop = true)
+                        .takeIf { kind == OrderRouteKind.Top }
+                val finished = CountDownLatch(1)
+                Thread {
+                    coordinator.order.awaitOrder(request(board, kind), options, move, 3_000)
+                    finished.countDown()
+                }.start()
+
+                val published = awaitPublished(coordinator)
+                val order = coordinator.drain(SeatId(1)).flatten().single { it.hasOrderReq() }
+                val candidateIds = order.orderReq.idsList
+                // A staged move reallocates ids; the retained copies keep the hand ids.
+                val privateIds = candidateIds + handIds
+                assertSoftly {
+                    listOf(SeatId(2), SeatId(3)).forEach { viewer ->
+                        val states =
+                            coordinator
+                                .drain(viewer)
+                                .flatten()
+                                .filter { it.hasGameStateMessage() }
+                                .map { it.gameStateMessage }
+                        states
+                            .flatMap { it.gameObjectsList }
+                            .filter { it.instanceId in privateIds }
+                            .shouldBeEmpty()
+                        if (move != null && viewer == SeatId(2)) {
+                            states
+                                .flatMap { it.annotationsList }
+                                .count { it.typeList.first() == AnnotationType.ZoneTransfer_af5a } shouldBe options.size
+                        }
+                    }
+                    coordinator.acceptSettled(leyline.testkit.orderResp(candidateIds), published.gameStateId) shouldBe true
+                    finished.await(3, TimeUnit.SECONDS) shouldBe true
+                }
+            }
         }
 
         test("top order publishes move state and returns the exact requested permutation") {

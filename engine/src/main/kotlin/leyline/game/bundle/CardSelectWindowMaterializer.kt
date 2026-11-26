@@ -124,9 +124,8 @@ internal class CardSelectWindowMaterializer {
             CardSelectKind.LibraryPutback -> SelectNEnvelope.libraryPutback(request)
             CardSelectKind.ManifestDread -> SelectNEnvelope.manifestDread(request)
             CardSelectKind.Resolution -> SelectNEnvelope.resolution(request)
-            CardSelectKind.LibraryChoice,
-            CardSelectKind.ResolutionMapped,
-            -> SelectNEnvelope.mappedResolution(request)
+            CardSelectKind.LibraryChoice -> SelectNEnvelope.libraryChoice(request)
+            CardSelectKind.ResolutionMapped -> SelectNEnvelope.mappedResolution(request)
             CardSelectKind.Learn ->
                 SelectNEnvelope.learnLesson(
                     request,

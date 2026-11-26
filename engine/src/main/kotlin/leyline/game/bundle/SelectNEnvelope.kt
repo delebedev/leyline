@@ -90,6 +90,10 @@ data class SelectNEnvelope(
                 gameStateAugmentation = GameStateAugmentation.LookAndPick,
             )
 
+        /** A pick among library cards the effect shows its chooser; the count lives in the request bounds. */
+        fun libraryChoice(req: SelectNReq): SelectNEnvelope =
+            mappedResolution(req).copy(prompt = Prompt.newBuilder().setPromptId(PromptIds.CHOOSE_CARD).build())
+
         fun manifestDread(req: SelectNReq): SelectNEnvelope =
             SelectNEnvelope(
                 req = req,
