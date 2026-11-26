@@ -1264,7 +1264,31 @@ class PlayerController(
         divisionValues: Collection<Int>?,
         filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
+    ): TargetSelectionResult {
+        val result = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
+        if (divisionValues != null) allocateCarriedDivision(sa, divisionValues)
+        return result
+    }
+
+    /**
+     * New targets for a copied divide-as-you-choose spell or ability take the
+     * amounts already divided for it. Forge passes those amounts as a mutable
+     * list shared across its targeting passes; each new target takes the next
+     * amount, in the original target order.
+     */
+    private fun allocateCarriedDivision(
+        sa: SpellAbility,
+        divisionValues: Collection<Int>,
+    ) {
+        val remaining = (divisionValues as MutableCollection<Int>).iterator()
+        sa.targets.targetEntities
+            .filter { sa.getDividedValue(it) == null }
+            .forEach { target ->
+                if (!remaining.hasNext()) return
+                sa.addDividedAllocation(target, remaining.next())
+                remaining.remove()
+            }
+    }
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
