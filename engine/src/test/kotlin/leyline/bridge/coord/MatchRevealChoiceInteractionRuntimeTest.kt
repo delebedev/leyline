@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -121,9 +122,57 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val hand = revealed(board)
             val graveyard = board.ai.graveyard.card("Lightning Bolt")
             val candidates = listOf(hand.first(), graveyard)
-            val initial = RevealChoiceWindowCapture.initial(request(board, candidates), candidates, revealEntry(board), SeatId(1), false)
+            val initial =
+                RevealChoiceWindowCapture.initial(
+                    request(board, candidates),
+                    candidates,
+                    revealEntry(board),
+                    SeatId(1),
+                    false,
+                )
             initial.handlesByOption.getValue(1) shouldBe graveyard
             initial.value.candidates.map { it.forgeCardId } shouldContainExactly candidates.map { ForgeCardId(it.id) }
+        }
+
+        test("reveal choice offers a face-down exiled candidate under its placeholder identity") {
+            val board = startPuzzleAtMain1(puzzle.replace("ailibrary=Grizzly Bears", "ailibrary=Grizzly Bears\naiexile=Lightning Bolt"))
+            val coordinator = board.bridge.cutCoordinator
+            coordinator.drain(SeatId(1))
+            val exiled =
+                board.ai
+                    .getZone(ZoneType.Exile)
+                    .cards
+                    .single()
+            exiled.turnFaceDown(true) shouldBe true
+            val candidates = listOf(revealed(board).first(), exiled)
+            val entry = revealEntry(board)
+            val result = AtomicReference<RevealChoiceInteractionResult>()
+            val finished = CountDownLatch(1)
+            Thread {
+                result.set(coordinator.revealChoices.awaitSelection(request(board, candidates), candidates, entry, false, 3_000))
+                finished.countDown()
+            }.start()
+
+            val published = awaitPublished(coordinator)
+            val batch = coordinator.drain(SeatId(1)).single()
+            val exiledId =
+                board.bridge
+                    .projectionStateSnapshot()
+                    .identities.forgeIdToInstanceId
+                    .getValue(ForgeCardId(exiled.id))
+                    .value
+            val exiledObject =
+                batch
+                    .first()
+                    .gameStateMessage.gameObjectsList
+                    .single { it.instanceId == exiledId }
+            assertSoftly {
+                batch.single { it.hasSelectNReq() }.selectNReq.idsList shouldContain exiledId
+                exiledObject.grpId shouldBe 3
+                coordinator.acceptSettled(leyline.testkit.selectNResp(listOf(exiledId)), published.gameStateId) shouldBe true
+                finished.await(3, TimeUnit.SECONDS) shouldBe true
+                (result.get().handles.single() === exiled) shouldBe true
+            }
         }
 
         test("reveal choice rejects an unrevealed hand card outside its reveal") {
@@ -132,7 +181,13 @@ class MatchRevealChoiceInteractionRuntimeTest :
             val journal = board.bridge.promptBridge(SeatId(1)).journal
             journal.record(PromptSideEffect.RevealStarted(listOf(ForgeCardId(cards.first().id)), SeatId(2), false))
             shouldThrow<IllegalStateException> {
-                RevealChoiceWindowCapture.initial(request(board, cards), cards, checkNotNull(journal.activeRevealEntry()), SeatId(1), false)
+                RevealChoiceWindowCapture.initial(
+                    request(board, cards),
+                    cards,
+                    checkNotNull(journal.activeRevealEntry()),
+                    SeatId(1),
+                    false,
+                )
             }
         }
 
