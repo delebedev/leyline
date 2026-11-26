@@ -1097,6 +1097,12 @@ grouped by family, then by entity.
   - Leyline: publishes a cloaked permanent with `REASON` `7` and the cloak
     ability's definition as `abilityGrpId`.
   - Owner: `PersistentFeedBuilder`, `AnnotationConstants`
+- **`compat`** — [Open points](annotations/FaceDown.md#open-points), morph
+  - Contract: the morph path's `REASON` and `abilityGrpId` are unknown.
+  - Leyline: publishes no row for a face-down permanent with morph or
+    megamorph. Its `isFacedown` object and `SpecialTurnFaceUp` offer carry
+    the state.
+  - Owner: `PersistentFeedBuilder`
 
 #### InstanceRevealedToOpponent
 

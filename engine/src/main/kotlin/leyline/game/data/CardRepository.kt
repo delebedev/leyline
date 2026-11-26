@@ -248,6 +248,10 @@ object KeywordAbilityIds {
     const val KICKER = 34
     const val FLASHBACK = 35
     const val MADNESS = 36
+    const val MORPH = 37
+
+    // Megamorph is a variant of morph (CR 702.37b) and shares its base row.
+    const val MEGAMORPH = MORPH
     const val SUSPEND = 63
     const val RETRACE = 82
     const val EVOKE = 75

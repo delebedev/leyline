@@ -39,7 +39,7 @@ class CardProtoBuilderTest :
                                 42 to listOf(EffectTracker.KeywordEntry(1, 1, "Ward", abilityGrpId = KeywordAbilityIds.WARD_TWO)),
                             ),
                     )
-                val intrinsicCount = if (kind == FaceDownKind.ManifestDread) 0 else 1
+                val intrinsicCount = if (kind == FaceDownKind.ManifestDread || kind == FaceDownKind.Morph) 0 else 1
                 projected.uniqueAbilitiesList.map { it.grpId } shouldBe List(intrinsicCount + 1) { KeywordAbilityIds.WARD_TWO }
                 projected.uniqueAbilitiesList.map { it.id } shouldBe (50..50 + intrinsicCount).toList()
             }

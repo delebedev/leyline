@@ -5,6 +5,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.types.ForgeCardId
+import leyline.game.snapshot.FaceDownKind
 import leyline.game.snapshot.GsmSnapshot
 import leyline.game.state.AbilityExhaustionFacts
 import leyline.testkit.Board
@@ -18,7 +19,7 @@ import forge.card.CardType as ForgeCardType
 class FaceDownProjectionTest :
     BoardTest({
         for (name in listOf("Forest", "Lumithread Field")) {
-            test("ordinary face-down $name conceals identity in both viewer projections and restores it face up") {
+            test("face-down $name conceals identity in both viewer projections and restores it face up") {
                 val board =
                     startWithBoard { _, human, _ ->
                         addCard(name, human, ZoneType.Battlefield)
@@ -32,7 +33,7 @@ class FaceDownProjectionTest :
                 val controller = faceDownProjection(board, snapshot, 1).gameObjectsList.single { it.instanceId == iid }
                 val opponent = faceDownProjection(board, snapshot, 2).gameObjectsList.single { it.instanceId == iid }
                 assertSoftly {
-                    source.faceDownKind shouldBe null
+                    source.faceDownKind shouldBe if (name == "Lumithread Field") FaceDownKind.Morph else null
                     source.isFaceDown shouldBe true
                     controller.grpId shouldBe source.grpId
                     controller.visibility shouldBe Visibility.Private

@@ -430,6 +430,11 @@ object ActionMapper {
                             ) ?: 0
                         leyline.game.snapshot.FaceDownKind.ManifestDread ->
                             leyline.game.data.KeywordAbilityIds.MANIFEST_DREAD
+                        leyline.game.snapshot.FaceDownKind.Morph ->
+                            bridge.cardRepository.findKeywordAbilityGrpId(
+                                cardSnap.grpId,
+                                leyline.game.data.KeywordAbilityIds.MORPH,
+                            ) ?: 0
                     },
                 abilityRegistryLookup = { c, d -> bridge.abilityRegistryFor(c, d) },
                 builder = builder,
