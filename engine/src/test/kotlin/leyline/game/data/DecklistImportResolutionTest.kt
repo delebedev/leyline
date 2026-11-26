@@ -1,11 +1,13 @@
 package leyline.game.data
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.domain.DeckCard
+import leyline.domain.deck.DecklistException
 import leyline.domain.deck.parseDecklist
 import leyline.domain.deck.resolveCards
 
@@ -60,6 +62,48 @@ class DecklistImportResolutionTest :
                 cards.sideboard shouldBe emptyList()
                 cards.commandZone shouldBe emptyList()
             }
+        }
+
+        test("tagged, quoted and loosely typed export lines resolve to their cards") {
+            val repo = ForgeCardRepository.open()
+            val cards =
+                repo.resolveDecklistText(
+                    """
+                    1 Ashling, the Limitless [Commander]
+                    1 Myrkul, Lord of Bones (CLB) 287
+                    1 Abandoned Air Temple (tla) 386 [Land]
+                    1 Welcome to... // Jurassic Park
+                    1 Akki Lavarunner // Tok-Tok, Volcano Born"
+                    1 "Ben-Ben, Akki Hermit"
+                    1 “Grenzo, Dungeon Warden"
+                    Fracture
+                    arahbo, roar of the world
+                    1,Eldrazi Monument
+                    """.trimIndent(),
+                )
+
+            assertSoftly {
+                repo.namesOf(cards.commandZone) shouldContainExactly listOf("Ashling, the Limitless")
+                repo.namesOf(cards.mainDeck) shouldContainExactly
+                    listOf(
+                        "Myrkul, Lord of Bones",
+                        "Abandoned Air Temple",
+                        "Welcome to . . .",
+                        "Akki Lavarunner",
+                        "Ben-Ben, Akki Hermit",
+                        "Grenzo, Dungeon Warden",
+                        "Fracture",
+                        "Arahbo, Roar of the World",
+                        "Eldrazi Monument",
+                    )
+            }
+        }
+
+        test("a near-miss name stays a named resolution error") {
+            val repo = ForgeCardRepository.open()
+            val ex = shouldThrow<DecklistException> { repo.resolveDecklistText("1 Wulfgar of Icewind") }
+
+            ex.errors shouldContainExactly listOf("Card not found: Wulfgar of Icewind")
         }
 
         test("Forge .dck text parses metadata and pipe printing details into the same resolution") {

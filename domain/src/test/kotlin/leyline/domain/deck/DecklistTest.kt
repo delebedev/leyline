@@ -111,16 +111,154 @@ class DecklistTest :
                     "Sorcery",
                     "Sorceries",
                 )
-            for (section in listOf(DecklistSection.Sideboard, DecklistSection.Commander, DecklistSection.Companion)) {
-                val text = "${section.name}\n" + categories.joinToString("\n") { "[$it]:\n2 Island" }
-                val entries = parseDecklist(text).entries
+            val text = "Sideboard\n" + categories.joinToString("\n") { "[$it]:\n2 Island" }
+            val entries = parseDecklist(text).entries
 
-                assertSoftly {
-                    entries shouldHaveSize categories.size
-                    entries.all { it.section == section && it.quantity == 2 } shouldBe true
-                }
+            assertSoftly {
+                entries shouldHaveSize categories.size
+                entries.all { it.section == DecklistSection.Sideboard && it.quantity == 2 } shouldBe true
+                parseDecklist("Creatures\n1 Grizzly Bears").entries.single().section shouldBe DecklistSection.Main
+                parseDecklist("Creatures (12)\n1 Grizzly Bears").entries.single().section shouldBe DecklistSection.Main
             }
-            parseDecklist("Creatures\n1 Grizzly Bears").entries.single().section shouldBe DecklistSection.Main
+        }
+
+        test("a category header or blank line after the commander starts the main deck") {
+            for (separator in listOf("Creature", "Lands (36)", "")) {
+                val entries =
+                    parseDecklist("Commander (1)\n1 Empress Galina\n$separator\n1 Grizzly Bears\n36 Forest").entries
+
+                entries.map { it.name to it.section } shouldBe
+                    listOf(
+                        "Empress Galina" to DecklistSection.Commander,
+                        "Grizzly Bears" to DecklistSection.Main,
+                        "Forest" to DecklistSection.Main,
+                    )
+            }
+            assertSoftly {
+                parseDecklist("Commander (1)\n1x Empress Galina (cmr) 1 [Commander{top}]\nCreature (1)\n1 Grizzly Bears")
+                    .entries
+                    .map { it.section } shouldBe listOf(DecklistSection.Commander, DecklistSection.Main)
+                parseDecklist("Commander\n\n1 Empress Galina").entries.single().section shouldBe DecklistSection.Commander
+                parseDecklist("Companion\n1 Lurrus of the Dream-Den\n\n1 Forest").entries.last().section shouldBe
+                    DecklistSection.Main
+            }
+        }
+
+        test("inline category tags are dropped and section tags move the card") {
+            val entries =
+                parseDecklist(
+                    """
+                    1 Ashling, the Limitless [Commander]
+                    1x Abandoned Air Temple (tla) 386 [Land]
+                    1 Adeline, Resplendent Cathar (pmid) 1p [Tokens]
+                    1x Sol Ring (cmm) 410 *F* [Ramp,Artifact] ^Have,#37d67a^
+                    1x Atraxa, Praetors' Voice (2xm) 190 [Commander{top}]
+                    [Commander] 1 Lurrus of the Dream-Den
+                    [Commander] Kenrith, the Returned King
+                    1 The Ur-Dragon *CMDR*
+                    1 Negate [Sideboard]
+                    1 Not In Deck [Maybeboard]
+                    """.trimIndent(),
+                ).entries
+
+            entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Commander, 1, "Ashling, the Limitless"),
+                    DecklistEntry(DecklistSection.Main, 1, "Abandoned Air Temple", "TLA"),
+                    DecklistEntry(DecklistSection.Main, 1, "Adeline, Resplendent Cathar", "PMID"),
+                    DecklistEntry(DecklistSection.Main, 1, "Sol Ring", "CMM"),
+                    DecklistEntry(DecklistSection.Commander, 1, "Atraxa, Praetors' Voice", "2XM"),
+                    DecklistEntry(DecklistSection.Commander, 1, "Lurrus of the Dream-Den"),
+                    DecklistEntry(DecklistSection.Commander, 1, "Kenrith, the Returned King"),
+                    DecklistEntry(DecklistSection.Commander, 1, "The Ur-Dragon"),
+                    DecklistEntry(DecklistSection.Sideboard, 1, "Negate"),
+                )
+        }
+
+        test("a line without a quantity is one copy") {
+            val entries = parseDecklist("Fracture\narahbo, roar of the world\n1 Welcome to... // Jurassic Park").entries
+
+            entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 1, "Fracture"),
+                    DecklistEntry(DecklistSection.Main, 1, "arahbo, roar of the world"),
+                    DecklistEntry(DecklistSection.Main, 1, "Welcome to... // Jurassic Park"),
+                )
+        }
+
+        test("strips straight and curly quotes left around a name") {
+            val entries =
+                parseDecklist(
+                    "1 Akki Lavarunner // Tok-Tok, Volcano Born\"\n1 \"Ben-Ben, Akki Hermit\"\n1 \u201CGrenzo, Dungeon Warden\"",
+                ).entries
+
+            entries.map { it.name } shouldBe
+                listOf("Akki Lavarunner // Tok-Tok, Volcano Born", "Ben-Ben, Akki Hermit", "Grenzo, Dungeon Warden")
+        }
+
+        test("strips trailing tags, labels and markers in any order") {
+            val entries =
+                parseDecklist(
+                    """
+                    1 Sol Ring [Ramp] *F*
+                    1 Arcane Signet *F* [Ramp]
+                    1 Mind Stone (cmm) 100 [Ramp] ^Have^ *E*
+                    1 The Ur-Dragon *CMDR* *F*
+                    1 Empress Galina *F* *CMDR* [Legend]
+                    """.trimIndent(),
+                ).entries
+
+            entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 1, "Sol Ring"),
+                    DecklistEntry(DecklistSection.Main, 1, "Arcane Signet"),
+                    DecklistEntry(DecklistSection.Main, 1, "Mind Stone", "CMM"),
+                    DecklistEntry(DecklistSection.Commander, 1, "The Ur-Dragon"),
+                    DecklistEntry(DecklistSection.Commander, 1, "Empress Galina"),
+                )
+        }
+
+        test("a CSV header with padded column names sets the columns") {
+            parseDecklist("Name , Quantity\nSol Ring,2\n\"Grenzo, Dungeon Warden\" , 1").entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 2, "Sol Ring"),
+                    DecklistEntry(DecklistSection.Main, 1, "Grenzo, Dungeon Warden"),
+                )
+        }
+
+        test("parses CSV rows with and without a header row") {
+            parseDecklist("1,Eldrazi Monument\n1,\"Grenzo, Dungeon Warden\"\n17,Mountain").entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 1, "Eldrazi Monument"),
+                    DecklistEntry(DecklistSection.Main, 1, "Grenzo, Dungeon Warden"),
+                    DecklistEntry(DecklistSection.Main, 17, "Mountain"),
+                )
+            parseDecklist("\"Count\",\"Tradelist Count\",\"Name\",\"Edition\"\n\"2\",\"0\",\"Sol Ring\",\"cmm\"").entries shouldBe
+                listOf(DecklistEntry(DecklistSection.Main, 2, "Sol Ring"))
+        }
+
+        test("skips deck-name metadata and reads short sideboard markers") {
+            val entries =
+                parseDecklist(
+                    """
+                    About
+                    Name Mono Green Stompy
+
+                    Deck
+                    20 Forest
+                    [Side]
+                    2 Negate
+                    SB: 1 Duress
+                    """.trimIndent(),
+                ).entries
+
+            entries shouldBe
+                listOf(
+                    DecklistEntry(DecklistSection.Main, 20, "Forest"),
+                    DecklistEntry(DecklistSection.Sideboard, 2, "Negate"),
+                    DecklistEntry(DecklistSection.Sideboard, 1, "Duress"),
+                )
+            parseDecklist("Name Stella Lee cEDH\n1 Sol Ring").entries.single().name shouldBe "Sol Ring"
         }
 
         test("maybeboard cards are excluded without changing later sections") {
@@ -159,7 +297,7 @@ class DecklistTest :
         }
 
         test("excluded sections still reject unknown headings and invalid quantities") {
-            for (line in listOf("[Collection]", "Mainbaord", "[Mainboard", "Mainboard::", "0 Island", "-1 Island", "999999999999 Island")) {
+            for (line in listOf("[Collection]", "[Mainboard", "Mainboard::", "0 Island", "-1 Island", "999999999999 Island")) {
                 val ex = shouldThrow<DecklistException> { parseDecklist("1 Forest\nMaybeboard\n$line") }
 
                 ex.errors shouldHaveSize 1
@@ -275,10 +413,12 @@ class DecklistTest :
             decklist.entries shouldHaveSize 1
         }
 
-        test("rejects a card line without a leading quantity") {
-            val ex = shouldThrow<DecklistException> { parseDecklist("Lightning Bolt") }
+        test("rejects header-like lines that are not a known section") {
+            for (line in listOf("Lightning Bolt:", "[Collection]", "---", "1,")) {
+                val ex = shouldThrow<DecklistException> { parseDecklist("4 Forest\n$line") }
 
-            ex.errors shouldHaveSize 1
+                ex.errors shouldHaveSize 1
+            }
         }
 
         test("rejects an unknown bracket header instead of silently routing to Main") {
