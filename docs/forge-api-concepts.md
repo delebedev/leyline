@@ -85,6 +85,9 @@ choices reject cancellation and do not offer undo.
 Catalog modal discovery follows `ReplaceWith` references as well as trigger and
 execution references. Draw replacements such as Abundance retain their named
 Land and Nonland choices through the same resolution-time bridge.
+It also follows repetition bodies (`RepeatSubAbility`), conditional branches and
+the `SubAbility` chain depth-first, so a choice repeated by Torment of Hailfire
+or nested in Aetherspouts' per-card loop keeps its option identities.
 A `Chapter` keyword contributes the first of its chapter effects that offers
 modes, so a Saga's charm chapters ask their mode through the same bridge.
 Only named modal APIs contribute option identities; `Choices` validity filters

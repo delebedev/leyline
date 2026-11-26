@@ -276,17 +276,36 @@ class ForgeCardRepository private constructor(
                 val variable = raw.substringAfter("ETBReplacement:Other:").substringBefore(':')
                 effect = variables[variable]?.let(::parseParams) ?: effect
             }
-            val visited = mutableSetOf<String>()
-            while (!effect.containsKey("Choices")) {
-                val variable = effect["Execute"] ?: effect["AddTrigger"] ?: effect["ReplaceWith"] ?: effect["SubAbility"] ?: break
-                if (!visited.add(variable)) break
-                effect = variables[variable]?.let(::parseParams) ?: break
-            }
-            return when (effect["DB"] ?: effect["AB"] ?: effect["SP"]) {
-                "Charm", "GenericChoice", "VillainousChoice", "Vote" -> effect
-                else -> emptyMap()
-            }
+            return reachableModalEffect(effect, variables, mutableSetOf())
         }
+
+        /** Depth-first over the references Forge resolves as part of this effect, in [CHAINED_EFFECT_KEYS] order. */
+        private fun reachableModalEffect(
+            effect: Map<String, String>,
+            variables: Map<String, String>,
+            visited: MutableSet<String>,
+        ): Map<String, String> {
+            if (effect.containsKey("Choices")) {
+                return when (effect["DB"] ?: effect["AB"] ?: effect["SP"]) {
+                    "Charm", "GenericChoice", "VillainousChoice", "Vote" -> effect
+                    else -> emptyMap()
+                }
+            }
+            return CHAINED_EFFECT_KEYS
+                .firstNotNullOfOrNull { key ->
+                    val variable = effect[key]?.takeIf(visited::add) ?: return@firstNotNullOfOrNull null
+                    variables[variable]
+                        ?.let { reachableModalEffect(parseParams(it), variables, visited) }
+                        ?.takeIf(Map<String, String>::isNotEmpty)
+                }.orEmpty()
+        }
+
+        /**
+         * Effect parameters naming a subability that resolves within the same effect: execution, triggers and
+         * replacements, repetition bodies (`Repeat`, `RepeatEach`), conditional branches, then the follow-up chain.
+         */
+        private val CHAINED_EFFECT_KEYS =
+            listOf("Execute", "AddTrigger", "ReplaceWith", "RepeatSubAbility", "TrueSubAbility", "FalseSubAbility", "SubAbility")
 
         private fun definitionVersion(names: List<String>): String {
             val digest = MessageDigest.getInstance("SHA-256")
