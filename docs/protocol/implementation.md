@@ -79,7 +79,7 @@ Rows are grouped by family and sorted by entity name.
 | [CastAdventure](actions/CastAdventure.md) | `ActionMapper.buildAdventureAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastOmen](actions/CastOmen.md) | `ActionMapper.buildOmenAction`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [CastRight](actions/CastRight.md) | `ActionMapper.addSplitCastActions`, `TransferAnnotations.castSpellEventAnnotations` | `absent` |
-| [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
+| [MDFC](actions/MDFC.md) | `ActionMapper.addMdfcFaceActions`, `ActionMapper.addZoneMdfcBackCast`, `TransferAnnotations.castSpellEventAnnotations` | `partial` |
 | [Rooms](actions/Rooms.md) | `ActionMapper.addRoomCastActions`, `CardStateDesignations` | `partial` |
 | [Special](actions/Special.md) | `ActionMapper`, `CardStateDesignations`, `ActionPerformer` | `partial` |
 | [Special_TurnFaceUp](actions/Special_TurnFaceUp.md) | `ActionMapper.addSpecialTurnFaceUpActions` | `partial` |

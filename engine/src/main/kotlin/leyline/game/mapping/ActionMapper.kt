@@ -864,8 +864,16 @@ object ActionMapper {
                 val forgeCard = bridge.findCard(fid) ?: continue
                 val castable = candidates?.forCard(forgeCard)?.casts ?: emptyList()
                 val emitted = mutableSetOf<Triple<Int, Int, Int>>()
+                var backFaceEmitted = false
                 for ((abilityIndex, sa) in castable.withIndex()) {
                     val executable = canExecute(sa, player)
+                    if (isMdfcBackSpell(sa)) {
+                        if (!backFaceEmitted) {
+                            backFaceEmitted =
+                                addZoneMdfcBackCast(fid, sa, abilityIndex, executable, snap, builder, bridge, player, addOffer)
+                        }
+                        continue
+                    }
                     val actionBuilder = buildZoneCastAction(fid, forgeCard, sa, rails, executable, snap, bridge, player)
                     if (!emitted.add(Triple(actionBuilder.grpId, actionBuilder.alternativeGrpId, actionBuilder.abilityGrpId))) continue
                     zoneCastAutoTapSolution(executable, sa, player, autoTapSolution)
@@ -883,6 +891,37 @@ object ActionMapper {
                 }
             }
         }
+    }
+
+    /**
+     * A modal double-faced card's back spell face cast from a non-hand zone is
+     * a face-selection `CastMdfc` beside the front face's `Cast`, the same
+     * action the hand offers. The back face shares the parent's projected
+     * `grpId`, so routing it through the `Cast` identity would collapse it
+     * into the front-face offer. Returns whether an offer was emitted; the
+     * first castable option for the face wins.
+     */
+    @Suppress("LongParameterList") // source identity, legality inputs, and offer binding stay coupled.
+    private fun addZoneMdfcBackCast(
+        fid: ForgeCardId,
+        sa: SpellAbility,
+        abilityIndex: Int,
+        executable: Boolean,
+        snap: GsmSnapshot,
+        builder: ActionsAvailableReq.Builder,
+        bridge: GameBridge,
+        player: Player,
+        addOffer: (Action, PlayerAction, Int?, Int?) -> Unit,
+    ): Boolean {
+        val instanceId = bridge.getOrAllocInstanceId(fid).value
+        val parentGrpId = snap.objects[fid]?.grpId ?: bridge.resolveGrpId(sa.hostCard, instanceId)
+        val action = buildMdfcSpellAction(sa, player, instanceId, parentGrpId, bridge.cardRepository) ?: return false
+        when {
+            executable -> addOffer(action, PlayerAction.CastSpell(fid, abilityIndex, ability = sa), null, null)
+            canPlay(sa) -> builder.addInactiveActions(action)
+            else -> return false
+        }
+        return true
     }
 
     @Suppress("LongParameterList") // source identity, rail bucket, and legality inputs stay coupled.
