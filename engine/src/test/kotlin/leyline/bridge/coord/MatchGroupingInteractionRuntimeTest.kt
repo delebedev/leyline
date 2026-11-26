@@ -3,15 +3,18 @@ package leyline.bridge.coord
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.bridge.handoff.GroupingCandidateValue
 import leyline.bridge.handoff.GroupingInteractionResult
 import leyline.bridge.handoff.GroupingInteractionRuntime
 import leyline.bridge.handoff.GroupingSourceValue
+import leyline.bridge.handoff.GroupingWindowValue
 import leyline.bridge.handoff.InteractivePromptBridge
 import leyline.bridge.handoff.PromptRecord
 import leyline.bridge.handoff.PromptRequest
@@ -21,8 +24,10 @@ import leyline.bridge.types.ForgeCardId
 import leyline.bridge.types.PromptCandidateKind
 import leyline.bridge.types.PromptCandidateRefDto
 import leyline.bridge.types.SeatId
+import leyline.game.bundle.BundleBuilder
 import leyline.game.mapping.FrameIdResolver
 import leyline.game.mapping.PromptIds
+import leyline.game.state.ProjectionViewer
 import leyline.game.state.ProjectionViewerRole
 import leyline.testkit.Board
 import leyline.testkit.BoardTest
@@ -95,6 +100,43 @@ class MatchGroupingInteractionRuntimeTest :
                 published = coordinator.grouping.current()
             }
             return checkNotNull(published)
+        }
+
+        test("private window chooser guard skips Player-less rosters and rejects another player's seat") {
+            val board = startPuzzleAtMain1(puzzle)
+            val builder = board.bundleBuilder()
+            val window =
+                GroupingWindowValue(
+                    context = GroupingContext.Scry_a0f6,
+                    candidates = cards(board).mapIndexed { index, card -> GroupingCandidateValue(index, ForgeCardId(card.id)) },
+                    source = null,
+                    defaultOptionIndex = 0,
+                    singleCardChoice = false,
+                )
+
+            fun route(
+                seat: Int,
+                role: ProjectionViewerRole,
+            ) = BundleBuilder.ViewerRoute(ProjectionViewer(SeatId(seat), role), builder)
+
+            val spectators =
+                shouldThrow<IllegalArgumentException> {
+                    builder.prepareGroupingWindow(
+                        board.game,
+                        board.counter,
+                        window,
+                        listOf(route(1, ProjectionViewerRole.SeatObserver), route(2, ProjectionViewerRole.SeatObserver)),
+                    )
+                }
+            val otherPlayer =
+                shouldThrow<IllegalArgumentException> {
+                    builder.prepareGroupingWindow(board.game, board.counter, window, listOf(route(2, ProjectionViewerRole.Player)))
+                }
+            assertSoftly {
+                // A Player-less roster reaches the shared state-bearing prompt check, not the chooser guard.
+                spectators.message shouldBe "A state-bearing prompt requires one Player viewer"
+                otherPlayer.message shouldBe "Private prompt for seat 1 would be sent to seat 2"
+            }
         }
 
         test("Scry candidates reach only the choosing player") {

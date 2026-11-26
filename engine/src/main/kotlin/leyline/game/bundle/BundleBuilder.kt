@@ -1834,7 +1834,7 @@ class BundleBuilder(
     /** Private prompt candidates reach only the player this builder prompts. */
     private fun isChooser(viewer: ProjectionViewer): Boolean = viewer.seatId.value == seatId && viewer.role == ProjectionViewerRole.Player
 
-    /** The prompt goes to the first Player route, which must be the chooser that [isChooser] projects for. */
+    /** The prompt goes to the first Player route, which must be the chooser [isChooser] projects for; no Player route, no prompt. */
     private fun requireChooserPrompted(routes: List<ViewerRoute>) {
         val prompted =
             routes
@@ -1842,6 +1842,7 @@ class BundleBuilder(
                 ?.viewer
                 ?.seatId
                 ?.value
+                ?: return
         require(prompted == seatId) { "Private prompt for seat $seatId would be sent to seat $prompted" }
     }
 
