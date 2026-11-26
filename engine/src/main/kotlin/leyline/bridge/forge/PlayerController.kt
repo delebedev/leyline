@@ -284,6 +284,9 @@ class PlayerController(
     private var activeSourceIsSpell: Boolean = false
     private var activeStackTargetingAbility: SpellAbility? = null
     private var activeDividedAllocationAbility: SpellAbility? = null
+
+    /** Targets and division of the ability whose new targets are being chosen. */
+    private var previousTargetChoices: TargetChoices? = null
     private val priorityLoopCoordinator: PriorityLoopCoordinator? =
         actionBridge?.let { ab ->
             PriorityLoopCoordinator(
@@ -1239,12 +1242,15 @@ class PlayerController(
                 .takeIf { it.getTargetRestrictions()?.getZone()?.contains(ZoneType.Stack) == true }
         val previousDividedAllocationAbility = activeDividedAllocationAbility
         activeDividedAllocationAbility = ability
+        val outerTargetChoices = previousTargetChoices
+        previousTargetChoices = (if (ability is WrappedAbility) ability.wrappedAbility else ability).targets
         val selected =
             try {
                 super.chooseNewTargetsFor(ability, filter, optional)
             } finally {
                 activeStackTargetingAbility = previousStackTargetingAbility
                 activeDividedAllocationAbility = previousDividedAllocationAbility
+                previousTargetChoices = outerTargetChoices
             }
         if (selected != null) {
             val targetAbility = if (ability is WrappedAbility) ability.wrappedAbility else ability
@@ -1264,7 +1270,40 @@ class PlayerController(
         divisionValues: Collection<Int>?,
         filter: Predicate<GameObject>?,
         mustTargetFiltered: Boolean,
-    ): TargetSelectionResult = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
+    ): TargetSelectionResult {
+        val result = targetingCoordinator.selectTargets(validTargets, sa, mandatory, numTargets)
+        if (divisionValues != null) allocateCarriedDivision(sa, divisionValues)
+        return result
+    }
+
+    /**
+     * Applies the division carried by an ability whose targets are being
+     * changed, such as a copy whose controller chooses new targets. The
+     * division cannot change: a kept target keeps its own amount, and each new
+     * target takes the next remaining amount in selection order. Forge passes
+     * the carried amounts as a mutable list shared across its targeting passes,
+     * so allocated amounts are removed from it.
+     */
+    private fun allocateCarriedDivision(
+        sa: SpellAbility,
+        divisionValues: Collection<Int>,
+    ) {
+        val remaining = divisionValues as MutableCollection<Int>
+        val (kept, moved) =
+            sa.targets.targetEntities
+                .filter { sa.getDividedValue(it) == null }
+                .partition { previousTargetChoices?.getDividedValue(it) != null }
+        kept.forEach { target ->
+            val amount = checkNotNull(previousTargetChoices?.getDividedValue(target))
+            sa.addDividedAllocation(target, amount)
+            remaining.remove(amount)
+        }
+        moved.forEach { target ->
+            val amount = remaining.firstOrNull() ?: return
+            sa.addDividedAllocation(target, amount)
+            remaining.remove(amount)
+        }
+    }
 
     // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
