@@ -20,4 +20,39 @@ class ManaAffordabilityBoundBoardTest :
             spell.activatingPlayer = board.human
             ManaAffordabilityBound.allows(spell, board.human) shouldBe true
         }
+
+        for (
+        case in
+        listOf(
+            BoundCase("Growth Spiral", listOf("Overflowing Basin"), false),
+            BoundCase("Growth Spiral", listOf("Overflowing Basin", "Overflowing Basin"), false),
+            BoundCase("Growth Spiral", listOf("Overflowing Basin", "Island"), true),
+            BoundCase("Growth Spiral", listOf("Overflowing Basin", "Overflowing Basin", "Island"), true),
+            BoundCase("Dark Ritual", listOf("Fetid Heath"), false),
+            BoundCase("Gifted Aetherborn", listOf("Fetid Heath", "Swamp"), true),
+            BoundCase("Necropotence", listOf("Fetid Heath", "Swamp"), false),
+            BoundCase("Grizzly Bears", listOf("Fetid Heath", "Forest"), true),
+        )
+        ) {
+            test("${case.spell} with ${case.battlefield.joinToString()} passes the bound: ${case.allowed}") {
+                val board =
+                    startWithBoard { _, player, _ ->
+                        addCard(case.spell, player, ZoneType.Hand)
+                        case.battlefield.forEach { addCard(it, player, ZoneType.Battlefield) }
+                    }
+                val spell =
+                    board.human.hand
+                        .card(case.spell)
+                        .firstSpellAbility
+                spell.activatingPlayer = board.human
+                ManaAffordabilityBound.allows(spell, board.human) shouldBe case.allowed
+                ActionAvailability.canExecute(spell, board.human) shouldBe case.allowed
+            }
+        }
     })
+
+private data class BoundCase(
+    val spell: String,
+    val battlefield: List<String>,
+    val allowed: Boolean,
+)
