@@ -1141,7 +1141,7 @@ class PlayerController(
         player: Player,
         ability: SpellAbility,
         effect: Boolean,
-        prompt: String?,
+        orString: String?,
     ): CostDecisionMakerBase =
         CostDecision(
             this,
@@ -1149,7 +1149,7 @@ class PlayerController(
             ability,
             effect,
             bridge,
-            prompt,
+            orString,
         )
 
     // -- Target Selection --------------------------------------------------

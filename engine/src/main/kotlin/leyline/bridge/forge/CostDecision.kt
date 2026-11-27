@@ -37,8 +37,8 @@ class CostDecision(
     sa: SpellAbility,
     effect: Boolean,
     private val bridge: InteractivePromptBridge,
-    prompt: String? = null,
-) : HumanCostDecision(controller, p, sa, effect, prompt) {
+    orString: String? = null,
+) : HumanCostDecision(controller, p, sa, effect, orString) {
     companion object {
         @Suppress("UnusedPrivateProperty")
         private val log = LoggerFactory.getLogger(CostDecision::class.java)
