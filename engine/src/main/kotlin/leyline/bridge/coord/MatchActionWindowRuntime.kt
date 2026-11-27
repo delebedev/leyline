@@ -560,15 +560,12 @@ internal class MatchActionWindowRuntime(
                     owner.fail(ex)
                 }
             val promptGsId = result.actionGameStateId ?: result.messages.firstOrNull()?.gameStateId ?: planner.currentGsId()
-            if (hasAmbiguousActionCatalog(result.actionOffers)) {
-                owner.fail(IllegalStateException("Ambiguous action offer catalog"))
-            }
             val created =
                 try {
                     createRuntimeActionWindow(
                         seatId,
                         pending,
-                        actionPrepared,
+                        withDistinguishableOffers(actionPrepared),
                         messages,
                         promptGsId,
                         nextToken = { nextActionToken++ },
@@ -612,6 +609,15 @@ internal class MatchActionWindowRuntime(
             beforePublished?.invoke()
             created.status = ActionWindowStatus.Published
         }
+    }
+
+    /** Offers the client cannot tell apart keep the first; the ledger counts each such action. */
+    private fun withDistinguishableOffers(prepared: BundleBuilder.ActionWindowPrepared): BundleBuilder.ActionWindowPrepared {
+        val catalog = disambiguateActionCatalog(prepared.bundle.actionOffers)
+        if (catalog.ambiguous.isEmpty()) return prepared
+        owner.bridge.abilityIdentities.ledger
+            .recordAmbiguousCatalog(catalog.ambiguous)
+        return prepared.withOffers(catalog.offers)
     }
 
     private fun initialActionIntent(

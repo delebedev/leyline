@@ -124,7 +124,9 @@ class BundleBuilder(
         val transition: ProjectionTransition? = null,
         val closesPlaybackFrame: Boolean = false,
         val presentationActions: ActionsAvailableReq = ActionsAvailableReq.getDefaultInstance(),
-    )
+    ) {
+        fun withOffers(offers: List<ActionOffer>): ActionWindowPrepared = copy(bundle = bundle.copy(actionOffers = offers))
+    }
 
     data class FullStateResult(
         val snapshot: GsmSnapshot,

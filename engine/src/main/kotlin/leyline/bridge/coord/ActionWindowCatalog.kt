@@ -210,10 +210,29 @@ internal fun selectedManaColor(action: Action): Byte? {
 }
 
 internal fun hasAmbiguousActionCatalog(offers: List<GameActionBridge.ActionOffer>): Boolean =
-    offers
-        .groupBy { ActionResponseKey.from(it.action) }
-        .values
-        .any { variants ->
-            val identities = variants.map { it.executionIdentity() }.distinct()
-            identities.size > 1 && variants.map { it.action }.distinct().size == 1
+    disambiguateActionCatalog(offers).ambiguous.isNotEmpty()
+
+/**
+ * The catalog with every offer the client could not tell apart from an earlier one removed.
+ *
+ * Two offers are indistinguishable when their actions are equal but they execute different Forge abilities: the
+ * client's response matches both. The first such offer stays, so a response executes the ability offered first.
+ */
+internal data class DisambiguatedActionCatalog(
+    val offers: List<GameActionBridge.ActionOffer>,
+    /** One action per group of indistinguishable offers. */
+    val ambiguous: List<Action>,
+)
+
+internal fun disambiguateActionCatalog(offers: List<GameActionBridge.ActionOffer>): DisambiguatedActionCatalog {
+    val ambiguous =
+        offers
+            .groupBy { it.action }
+            .filterValues { variants -> variants.map { it.executionIdentity() }.distinct().size > 1 }
+    if (ambiguous.isEmpty()) return DisambiguatedActionCatalog(offers, emptyList())
+    val retained =
+        offers.filter { offer ->
+            offer.action !in ambiguous || offer.executionIdentity() == ambiguous.getValue(offer.action).first().executionIdentity()
         }
+    return DisambiguatedActionCatalog(retained, ambiguous.keys.toList())
+}

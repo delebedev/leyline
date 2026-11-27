@@ -4,6 +4,7 @@ import forge.game.spellability.SpellAbility
 import leyline.bridge.types.AbilityIdentitySource
 import leyline.bridge.types.AbilityLookup
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.Action
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -67,6 +68,7 @@ class AbilityIdentityLedger(
     private val resolved = ConcurrentHashMap<String, AtomicInteger>()
     private val missed = ConcurrentHashMap<String, AtomicInteger>()
     private val mismatches = ConcurrentHashMap<String, AtomicInteger>()
+    private val ambiguousCatalogs = ConcurrentHashMap<String, AtomicInteger>()
 
     fun <T> record(
         site: Site,
@@ -93,6 +95,18 @@ class AbilityIdentityLedger(
         }
     }
 
+    /** Count an action catalog that offered equal actions for different Forge abilities, one entry per such action. */
+    fun recordAmbiguousCatalog(actions: List<Action>) {
+        for (action in actions) {
+            val key =
+                "${action.actionType.name} grpId=${action.grpId} abilityGrpId=${action.abilityGrpId} " +
+                    "uniqueAbilityId=${action.uniqueAbilityId}"
+            if (increment(ambiguousCatalogs, key) == 1) {
+                log.warn("Action catalog offered indistinguishable actions; keeping the first offer: {}", key)
+            }
+        }
+    }
+
     /** Resolved lookups keyed `site/source`. */
     fun resolvedBySource(): Map<String, Int> = resolved.snapshot()
 
@@ -101,6 +115,9 @@ class AbilityIdentityLedger(
 
     /** Resolved rows that disagree with their Forge ability, keyed `site/card: disagreement`. */
     fun rowMismatches(): Map<String, Int> = mismatches.snapshot()
+
+    /** Indistinguishable offered actions, keyed by action shape. */
+    fun ambiguousCatalogs(): Map<String, Int> = ambiguousCatalogs.snapshot()
 
     private fun increment(
         counts: ConcurrentHashMap<String, AtomicInteger>,

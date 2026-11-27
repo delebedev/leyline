@@ -72,6 +72,7 @@ fun statsToJson(
         append("\"abilityLookupsBySource\":${mapToJson(stats.abilityLookupsBySource)},")
         append("\"abilityLookupMisses\":${mapToJson(stats.abilityLookupMisses)},")
         append("\"abilityRowMismatches\":${mapToJson(stats.abilityRowMismatches)},")
+        append("\"ambiguousActionCatalogs\":${mapToJson(stats.ambiguousActionCatalogs)},")
         append("\"connectMs\":${stats.connectMs},")
         append("\"stepTotalMs\":${stats.stepTotalMs},")
         append("\"stepMaxMs\":${stats.stepMaxMs},")
@@ -243,9 +244,11 @@ internal data class AbilityLookupTotals(
     val bySource: Map<String, Int>,
     val misses: Map<String, Int>,
     val rowMismatches: Map<String, Int>,
+    val ambiguousCatalogs: Map<String, Int>,
 ) {
     fun toJson(): String =
-        "{\"bySource\":${mapToJson(bySource)},\"misses\":${mapToJson(misses)},\"rowMismatches\":${mapToJson(rowMismatches)}}"
+        "{\"bySource\":${mapToJson(bySource)},\"misses\":${mapToJson(misses)},\"rowMismatches\":${mapToJson(rowMismatches)}," +
+            "\"ambiguousCatalogs\":${mapToJson(ambiguousCatalogs)}}"
 
     companion object {
         fun of(stats: List<GameStats>): AbilityLookupTotals =
@@ -253,6 +256,7 @@ internal data class AbilityLookupTotals(
                 AffordabilityTotals.sumByKey(stats.map { it.abilityLookupsBySource }),
                 AffordabilityTotals.sumByKey(stats.map { it.abilityLookupMisses }),
                 AffordabilityTotals.sumByKey(stats.map { it.abilityRowMismatches }),
+                AffordabilityTotals.sumByKey(stats.map { it.ambiguousActionCatalogs }),
             )
     }
 }

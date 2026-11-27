@@ -385,6 +385,13 @@ class SimClientRunner internal constructor(
             }} row(s)",
         )
         lookups.rowMismatches.forEach { (key, count) -> println("  $key = $count") }
+        println(
+            "ambiguousActionCatalogs: ${lookups.ambiguousCatalogs.values.sum()} in ${rows.count {
+                it.stats.ambiguousActionCatalogs
+                    .isNotEmpty()
+            }} row(s)",
+        )
+        lookups.ambiguousCatalogs.forEach { (key, count) -> println("  $key = $count") }
     }
 
     private fun automaticAnswerTotals(rows: List<SimClientRowResult>): Map<String, Int> =

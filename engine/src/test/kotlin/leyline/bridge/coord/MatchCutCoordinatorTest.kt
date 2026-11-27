@@ -163,22 +163,28 @@ class MatchCutCoordinatorTest :
             }
         }
 
-        test("ambiguous action catalog is rejected before publication") {
+        test("indistinguishable offers keep the first offer for each equal action") {
             val wire = Action.newBuilder().setActionType(ActionType.Pass).build()
+            val other =
+                Action
+                    .newBuilder()
+                    .setActionType(ActionType.Pass)
+                    .setInstanceId(7)
+                    .build()
+            val pass = GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority)
+            val endTurn = GameActionBridge.ActionOffer(wire, PlayerAction.EndTurn)
+            val distinct = GameActionBridge.ActionOffer(other, PlayerAction.EndTurn)
+            val firstSpell = GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority, spellGrpId = 1)
+            val secondSpell = GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority, spellGrpId = 2)
 
-            hasAmbiguousActionCatalog(
-                listOf(
-                    GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority),
-                    GameActionBridge.ActionOffer(wire, PlayerAction.EndTurn),
-                ),
-            ) shouldBe true
+            val catalog = disambiguateActionCatalog(listOf(pass, endTurn, distinct, pass))
 
-            hasAmbiguousActionCatalog(
-                listOf(
-                    GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority, spellGrpId = 1),
-                    GameActionBridge.ActionOffer(wire, PlayerAction.PassPriority, spellGrpId = 2),
-                ),
-            ) shouldBe true
+            assertSoftly {
+                catalog.offers shouldBe listOf(pass, distinct, pass)
+                catalog.ambiguous shouldBe listOf(wire)
+                disambiguateActionCatalog(listOf(firstSpell, secondSpell)).offers shouldBe listOf(firstSpell)
+                disambiguateActionCatalog(listOf(pass, distinct)).ambiguous shouldBe emptyList()
+            }
         }
 
         test("action window becomes visible before the committed feed can drain") {

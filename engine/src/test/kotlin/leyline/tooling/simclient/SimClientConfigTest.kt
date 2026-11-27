@@ -19,6 +19,13 @@ class SimClientConfigTest :
                 isStrictFailure(naturalGame()) shouldBe false
             }
         }
+
+        test("an action catalog with indistinguishable offers fails a strict run without changing the failure class") {
+            val stats = naturalGame().copy(ambiguousActionCatalogs = mapOf("Activate_add3 grpId=1 abilityGrpId=2 uniqueAbilityId=0" to 1))
+
+            failureClass(stats) shouldBe "natural"
+            isStrictFailure(stats) shouldBe true
+        }
     })
 
 private fun naturalGame(): GameStats =
